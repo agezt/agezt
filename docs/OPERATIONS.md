@@ -591,9 +591,13 @@ Systemd timer deployments should run the same `agt backup` command from a locked
 
 ### Platform-specific validation notes
 
-- Linux CI should cover warden/resource-limit behavior.
-- Windows CI should cover path, shell, and service behavior where process isolation downgrades to timeout/output/env/workdir controls.
+Some tests are intentionally environment-conditional. Keep a CI matrix broad enough that skipped local checks are covered somewhere:
+
+- Linux CI should cover warden/resource-limit behavior, namespace handling, nofollow/symlink behavior, Unix permission-bit expectations, and other filesystem semantics that Windows cannot prove.
+- Windows CI should cover path, shell, and service behavior where process isolation downgrades to timeout/output/env/workdir controls, plus permission/fallback behavior that differs from Unix mode bits.
 - macOS CI should cover developer install and filesystem behavior if macOS is a supported operator target.
+- Tool-runtime CI images should include optional helper runtimes where practical (`python`, `go`, `git`, code execution runtimes) so live plugin/tool tests do not skip for missing binaries.
+- Timing-sensitive checks may skip on noisy hosts; keep at least one stable CI lane for pulse/tool-log pacing assertions.
 
 ---
 

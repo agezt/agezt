@@ -1,11 +1,12 @@
 # AGEZT Missing Parts Report
 
 Generated: 2026-06-21  
-Scope: current source tree, repository docs, handoff notes, current git status, and previously reported validation status.
+Last updated: 2026-06-22  
+Scope: current source tree, repository docs, handoff notes, current git status, targeted test validation, and fresh local gate results.
 
 ## Summary
 
-AGEZT has a broad implemented surface, but the project is not cleanly complete. The strongest missing work clusters are: stale/colliding documentation, incomplete or not-yet-proven end-to-end behavioral guarantees, SDK/API conformance depth, schedule/system-task hardening, explicit event/schema versioning, and shared-worktree hygiene.
+AGEZT has a broad implemented surface and the missing-parts review has reconciled the major documentation/proof mismatches found during the audit. Current remaining work is mostly release hygiene: dirty-worktree ownership, scoped commits/discards, and preserving or rerunning the fresh validation gate if the tree changes again.
 
 This report intentionally distinguishes three kinds of gaps:
 
@@ -13,33 +14,32 @@ This report intentionally distinguishes three kinds of gaps:
 - **Documentation gap:** implemented behavior is not accurately reflected in canonical docs.
 - **Quality/proof gap:** feature may exist, but tests, demos, or validation evidence are incomplete or stale.
 
-## Critical / high-priority gaps
+## High-priority status and release hygiene
 
-### 1. Canonical docs disagree about project completion and current phase
-
-Evidence:
-
-- `NEXT.md:7` says: "Do not declare the project complete. Continue making concrete progress."
-- `NEXT.md:491-505` lists completion criteria and ends with: "The project is not there yet."
-- `docs/COMPARISON.md:255-266` marks all listed comparison/platform maturity priorities complete.
-- `ARCHITECTURAL-REPORT.md:1108-1126` still describes current state as 2026-06-10 / M781 / PR #224 and owner-gated release items.
-- `docs/SYSTEM-REVIEW.md:97-99` records that `ARCHITECTURAL-REPORT.md` is partially stale.
-
-Impact: readers and future agents get conflicting signals about whether the product is complete, pre-release, or still missing major autonomous-agent behavior.
-
-Recommended fix: choose a single canonical status source. Update `ARCHITECTURAL-REPORT.md`, `NEXT.md`, `docs/COMPARISON.md`, and `README.md` so they consistently separate "implemented", "validated", "owner-gated", and "future roadmap".
-
-### 2. Dirty shared worktree makes completion/quality status ambiguous
+### 1. Canonical docs now separate current status, regression bars, and release hygiene
 
 Evidence:
 
-- `git status --short` shows many modified and untracked files, including docs, Makefile, SDK parity checker, frontend UI/test files, and new backend tests.
-- `docs/SYSTEM-REVIEW.md:101-103` already flags the shared worktree risk.
-- `NEXT.md:471-481` warns that the repository has many modified files and commits must be scoped.
+- `README.md` uses count-free validation wording and points to `docs/SYSTEM-REVIEW.md` for the latest review artifact.
+- `ARCHITECTURAL-REPORT.md` has a current-state note that it is broad but partially stale in phase/test-count sections, and points to the latest review/gap docs.
+- `docs/COMPARISON.md` keeps positioning claims tied to implemented demos and explicit overclaim boundaries.
+- `docs/MISSING-PARTS-PLAN.md` now lists schedule hardening, SDK parity, authority proof, event compatibility, and mailbox lineage as regression bars rather than unresolved implementation gaps.
 
-Impact: reports, validation claims, and commits can accidentally mix unrelated agent work. This is a quality and release-management risk.
+Impact: readers can distinguish implemented/evidence-backed behavior from active pre-release completion goals and release hygiene. `NEXT.md` still intentionally says not to declare the broader autonomous-agent goal complete, but that no longer conflicts with the narrower completed proof/documentation slices.
 
-Recommended fix: split into scoped commits or patches: docs/report artifacts, SDK parity/docs, frontend UI/test changes, backend tests, and Makefile/dev script changes. Avoid blanket staging.
+Recommended fix: keep this status vocabulary intact in future docs: implemented/evidence-backed, regression bar, owner-gated, future roadmap, or release hygiene.
+
+### 2. Dirty shared worktree is bucketed but still needs scoped commit ownership
+
+Evidence:
+
+- `git status` on 2026-06-22 still shows modified/untracked files across docs, SDK parity, frontend source/tests, generated Web UI dist assets, backend tests, and build scripts.
+- `docs/MISSING-PARTS-PLAN.md` Phase 0 now records an ownership snapshot with commit buckets: missing-parts docs/status, SDK parity generated report, Frontend AgentDetail/comms UX, frontend analytics/UI/test coverage, backend coverage, and build/script changes.
+- Fresh local validation is green, but uncommitted/generated assets can still be accidentally mixed into unrelated commits.
+
+Impact: reports and validation are now clearer, but release quality still depends on committing or discarding each bucket intentionally. A blanket commit would still risk mixing independent agent work.
+
+Recommended fix: commit each bucket separately with explicit path lists, or explicitly discard owner-rejected files. If committing frontend source after `npm run build`, include the matching `kernel/webui/dist/index.html` and generated asset delete/add pair; otherwise discard regenerated dist assets before source-only commits.
 
 ### 3. Runtime authority is evidence-backed for current tool policy paths; future UI fields need the same proof bar
 
@@ -56,31 +56,30 @@ Impact: current tool policy, approval, denial, and CLI authority proof paths are
 
 Recommended fix: treat authority as a regression bar: every new displayed authority field must cite the runtime source, policy decision, journal event, or control-plane fold that proves it.
 
-### 4. Schedule typed-target hardening needs reconciliation across docs and tests
+### 4. Schedule typed-target hardening is evidence-backed for current target types
 
 Evidence:
 
-- `NEXT.md:209-238` lists schedule target execution checks and system-task examples as next work.
-- `docs/COMPARISON.md:125-131` says schedule target hardening remains to prove each target type end-to-end.
-- `docs/COMPARISON.md:257-260` later marks schedule typed-target execution hardening done.
-- `NEXT.md:415-418` still recommends schedule typed-target hardening as a good next slice.
+- `NEXT.md` Priority #4 section documents schedule target types (agent/workflow/system_task/tool) as evidence-backed with backend tests, CLI rendering tests, and a runnable typed-schedule-system-task demo.
+- `docs/COMPARISON.md` frames schedule typed-target execution as implemented with evidence to inspect.
+- `kernel/cadence` validation/injection tests, daemon scheduled-target tests, and CLI schedule tests cover typed targets, system-task enum rejection, and suspicious intent warnings.
 
-Impact: the implementation may have advanced, but docs disagree about whether this is complete. That weakens the "typed schedules, not prompts" positioning claim.
+Impact: current schedule target paths are tested and auditable. Future schedule target extensions must keep the same validation bar.
 
-Recommended fix: verify current schedule tests and examples, then update `NEXT.md` and `docs/COMPARISON.md` with one consistent status. If gaps remain, add end-to-end tests for agent/workflow/system_task/tool targets and payload smuggling resistance.
+Recommended fix: keep schedule typed-target hardening as a regression bar for future target types; verify new targets have typed validation, typed ids, audit fields, and no arbitrary agent instructions in system-task payloads.
 
-### 5. SDK parity is not fully behavioral despite route coverage
+### 5. SDK parity separates static route coverage from behavioral evidence
 
 Evidence:
 
-- `docs/SDK-PARITY.md:5` says the report is route-string coverage, not behavioral conformance.
-- `docs/SDK-PARITY.md:36-38` says typed requests/responses, auth behavior, error behavior, and tests remain conformance work.
-- `docs/API-STABILITY.md:128-134` repeats that route coverage does not replace behavioral SDK tests.
-- `docs/COMPARISON.md:264-266` says behavioral SDK parity tests are done across 20 dimensions, creating a documentation mismatch.
+- `docs/SDK-PARITY.md` is generated by `tools/sdkparity` and now lists both static route-string coverage and behavioral test evidence.
+- Python, TypeScript, and Rust each show 9/9 SDK-intended REST routes covered by source route strings.
+- Behavioral coverage is listed by test file for Python sync/async/mailbox, TypeScript run/mailbox, Rust REST, and the native Go SDK path.
+- `docs/API-STABILITY.md` still correctly states that new SDK-intended features require behavioral tests before being called SDK-complete.
 
-Impact: SDK completeness is not clearly established. External consumers may over-trust static route-string parity.
+Impact: SDK route coverage and behavioral evidence are now explicitly separated, reducing the risk that external consumers over-trust static route-string parity alone.
 
-Recommended fix: reconcile `docs/SDK-PARITY.md`, `docs/API-STABILITY.md`, and `docs/COMPARISON.md`. If 20 behavioral dimensions are truly implemented, list them in `docs/SDK-PARITY.md`; otherwise keep comparison wording conservative.
+Recommended fix: keep `tools/sdkparity` as the generated source for `docs/SDK-PARITY.md`; when new `/api/v1` SDK-intended features are added, update route coverage and add behavioral tests in the same slice.
 
 ## Medium-priority gaps
 
@@ -107,7 +106,7 @@ Impact: broad internal APIs are useful for the SPA but can become accidental ext
 
 Recommended fix: document which Web UI routes are private, which are candidates for `/api/v1`, and add route-level comments/tests to avoid accidental promotion.
 
-### 8. Agent-to-agent communication lineage is mostly evidence-backed; inbox prioritization remains optional UX work
+### 8. Agent-to-agent communication lineage is evidence-backed; inbox prioritization UX is implemented
 
 Evidence:
 
@@ -117,9 +116,9 @@ Evidence:
 - `frontend/src/lib/agentdetail.test.ts` covers `mailboxWakeFor`, doctor/delegated `wakeLineage`, and escalation causality lineage helpers.
 - `frontend/src/components/AgentDetail.tsx` renders mailbox wake badges and run/incident links through those helpers.
 
-Impact: sender/recipient/reply/wake/run lineage is covered for the current mailbox, delegated, and doctor paths. The remaining item is a compact inbox priority summary, which is useful UX but not a blocker for core traceability.
+Impact: sender/recipient/reply/wake/run lineage is covered for the current mailbox, delegated, and doctor paths. AgentDetail Comms now adds a compact priority summary for direct, broadcast, help/escalation, replied, and stale unanswered buckets.
 
-Recommended fix: keep mailbox/delegated/doctor lineage as a regression bar. Add compact inbox priority summary only if product UX needs it, with tests for direct, broadcast, help/escalation, replied, and stale unanswered buckets.
+Recommended fix: keep mailbox/delegated/doctor lineage and the inbox priority buckets as regression bars for future communication changes.
 
 ### 9. Removal/graveyard destructive automation is intentionally incomplete, with a decision record
 
@@ -171,28 +170,35 @@ Recommended fix: keep demos focused on denial/approval/audit and continue avoidi
 
 ## Test and quality gaps
 
-### 13. Fresh validation was not run during this missing-parts review
+### 13. Fresh validation gate was run locally on 2026-06-22
 
 Evidence:
 
-- `docs/SYSTEM-REVIEW.md:76-89` records validation status from mailbox reports, not fresh local execution.
-- This review performed reads/greps/status checks only.
+- `go run ./tools/jsonschemagen -in .project/agezt-contract.jsonc -out contract/gen/types.gen.go -pkg gen` — passed, with no generated contract drift observed in git status.
+- `go vet ./...` — passed.
+- `go run ./tools/depscheck` — passed (`OK: 24 core dependencies, all justified`).
+- `go run ./tools/sdkparity -check docs/SDK-PARITY.md` — passed.
+- `npm test` in `frontend/` — passed, 138 files / 1194 tests.
+- Frontend typecheck — passed.
+- `npm run build` in `frontend/` — passed via shell after the restricted npm exec wrapper blocked `npm run build`; Vite emitted only the existing large-chunk warning and refreshed embedded Web UI dist assets.
+- `go test ./...` — passed on Windows within a 10-minute timeout.
 
-Impact: reported green status depends on prior agent coordination messages. It is useful evidence but not a fresh gate.
+Impact: the previous validation status no longer depends only on mailbox coordination evidence. The remaining release hygiene is ownership of dirty files/generated Web UI assets and scoped commit/discard decisions.
 
-Recommended fix: before release or commit, rerun the project gate: codegen, `go vet`, Go tests, depscheck, SDK parity, frontend tests, and frontend typecheck. On Windows, split Go tests if full `go test ./...` times out.
+Recommended fix: before final release/merge, preserve these gate results in the release note or rerun if the dirty worktree changes again; stage generated Web UI assets only with the corresponding frontend source changes.
 
-### 14. Some tests are environment-conditional or skipped
+### 14. Environment-conditional tests are documented as CI matrix requirements
 
 Evidence:
 
-- Grep found `t.Skip` in tests for Windows permission bits, timezone data, Python/go availability, noisy timing, and other environmental constraints.
+- Grep found `t.Skip` in tests for Windows permission bits, timezone data, missing `python`/`go`/`git`/code-exec runtimes, symlink/nofollow availability, noisy timing, Linux-only warden namespace/resource-limit paths, and other environmental constraints.
+- `docs/OPERATIONS.md` now documents platform-specific validation notes for Linux, Windows, macOS, optional tool-runtime images, and timing-sensitive stable CI lanes.
 
-Impact: normal for cross-platform projects, but it means CI matrix coverage matters. Local Windows green does not prove Linux-only isolation paths or permission semantics.
+Impact: local Windows green is useful but still does not prove every Linux-only isolation or Unix filesystem path. The documentation now makes that matrix expectation explicit.
 
-Recommended fix: document which checks require Linux/macOS/Windows CI and ensure the CI matrix covers platform-specific behavior.
+Recommended fix: keep the CI matrix aligned with `docs/OPERATIONS.md`; when adding environment-conditional tests, update the platform validation notes if they introduce a new required lane or runtime.
 
-### 15. Untracked tests exist and need ownership
+### 15. Previously untracked tests are targeted-validated but still need commit ownership
 
 Evidence:
 
@@ -209,54 +215,59 @@ Current untracked files include:
 - `kernel/restapi/update_handlers_test.go`
 - `tools/sdkparity/main_test.go`
 
-Impact: these likely close coverage gaps, but while untracked they are not part of committed quality proof.
+Targeted validation on 2026-06-22:
 
-Recommended fix: review, run targeted tests, then commit or discard intentionally by owner/agent.
+- `npm test -- src/components/missing-smoke.test.tsx src/lib/acp.test.ts src/lib/agent.test.ts src/lib/api.test.ts src/lib/market.test.ts src/views/AgentPage.test.tsx src/views/missing-imports.test.tsx` — passed, 7 files / 16 tests.
+- `go test ./kernel/intervention` — passed.
+- `go test ./kernel/restapi -run Update` — passed.
+- `go test ./tools/sdkparity` — passed.
+
+Impact: these tests close coverage gaps and have targeted green evidence, but while untracked they are still not part of committed quality proof.
+
+Recommended fix: commit these files in scoped test slices or explicitly discard them by owner/agent; do not leave them untracked before release/merge.
 
 ## Documentation gaps
 
-### 16. `ARCHITECTURAL-REPORT.md` should be regenerated or downgraded from canonical status
+### 16. `ARCHITECTURAL-REPORT.md` is downgraded from latest canonical status
 
 Evidence:
 
-- It still references M781 and older current state/test data.
-- It is linked from `docs/index.md` as the broader generated architecture report.
+- `ARCHITECTURAL-REPORT.md` now carries a prominent current-state note that it is broad but partially stale in phase/test-count sections.
+- The note points readers to `docs/SYSTEM-REVIEW.md`, `docs/MISSING-PARTS-REPORT.md`, and `docs/MISSING-PARTS-PLAN.md` for the latest review and gap plan.
 
-Impact: users may treat stale data as authoritative.
+Impact: users can still use the broad architecture report for background without mistaking older phase/test-count sections for the latest review artifact.
 
-Recommended fix: regenerate it from current source or add a prominent note that `docs/SYSTEM-REVIEW.md` is the latest current-state artifact.
+Recommended fix: regenerate `ARCHITECTURAL-REPORT.md` only when a fresh comprehensive architecture sweep is desired; otherwise keep the current-state note prominent.
 
-### 17. README validation counts are stale relative to mailbox reports
-
-Evidence:
-
-- `README.md:17-18` says frontend `npm test` was 121 files / 1052 tests.
-- Mailbox reported later frontend runs with 132/1177 and 138/1193 tests.
-
-Impact: validation claims look stale.
-
-Recommended fix: update README recent gates only after rerunning or choosing a stable wording that avoids exact counts.
-
-### 18. API stability known-gaps section conflicts with later completed-work claims
+### 17. README validation wording avoids stale exact counts
 
 Evidence:
 
-- `docs/API-STABILITY.md:130-138` still lists plugin protocol versioning as needing explicit machine-checkable compatibility.
-- Mailbox and `docs/COMPARISON.md:264-266` say protocol versioning is done.
+- `README.md` now says recent local gates included `go test ./...`, frontend `npm test`, `npm run build`, and Playwright E2E without hard-coding stale file/test counts.
+- It links `docs/SYSTEM-REVIEW.md` for latest review artifact and validation notes.
 
-Impact: docs disagree on maturity.
+Impact: README no longer advertises obsolete frontend test counts while preserving useful validation context.
 
-Recommended fix: update `docs/API-STABILITY.md` to reflect implemented protocol versioning, or narrow the remaining gap to event/journal schema compatibility.
+Recommended fix: keep exact validation counts out of README unless they are freshly rerun and intentionally maintained.
+
+### 18. API stability known gaps now separate plugin protocol and event/journal compatibility
+
+Evidence:
+
+- `docs/API-STABILITY.md` states plugin protocol versioning is explicit and machine-checkable, while compatibility policy should stay documented for plugin authors.
+- `docs/API-STABILITY.md` separately states event/journal compatibility is policy-documented in `docs/EVENT-SCHEMA.md`, with numeric schema versioning deferred until a concrete breaking migration requires it.
+
+Impact: API stability docs no longer contradict the completed plugin-protocol-versioning claim, and remaining compatibility caveats are scoped to future evolution.
+
+Recommended fix: keep plugin protocol compatibility expectations documented and add code-level event schema versioning only when a real migration needs it.
 
 ## Recommended priority order
 
-1. Reconcile docs status: `NEXT.md`, `docs/COMPARISON.md`, `docs/API-STABILITY.md`, `docs/SDK-PARITY.md`, `ARCHITECTURAL-REPORT.md`, `README.md`.
-2. Split/commit or otherwise resolve the dirty worktree in scoped slices.
-3. Verify schedule typed-target and SDK behavioral parity claims with tests and docs.
-4. Add end-to-end authority proof from displayed config/policy to runtime/journal/UI evidence.
-5. Document event/journal schema versioning and migration rules.
-6. Decide whether operational automation gaps are deliberately out-of-scope or need examples.
-7. Keep plugin/warden/prompt-injection limitations visible and tested.
+1. Split/commit or otherwise resolve the dirty worktree in scoped slices (see `docs/MISSING-PARTS-PLAN.md` Phase 0 ownership snapshot).
+2. Fresh release-level validation passed on 2026-06-22; rerun only if the dirty worktree changes before release/merge.
+3. Keep schedule typed-target, SDK behavioral parity, authority proof, event compatibility, and mailbox lineage as regression bars for future changes.
+4. Keep owner-gated destructive graveyard automation deferred unless the owner explicitly approves a safe design.
+5. Keep plugin/warden/prompt-injection limitations visible and tested.
 
 ## Files most relevant for follow-up
 

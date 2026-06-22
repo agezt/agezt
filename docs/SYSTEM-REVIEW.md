@@ -6,19 +6,17 @@ Scope: repository structure, backend kernel/CLI, REST/API/SDK surfaces, frontend
 
 ## Executive summary
 
-AGEZT is an active Go-first agentic operating system with a large kernel surface, CLI (`agt`), daemon (`agezt`), embedded React Web UI, plugin ecosystem, SDKs, operational docs, and runnable demos. The repository contains an older broad architecture report at `ARCHITECTURAL-REPORT.md`, but the latest system-wide review status did not create a new report artifact. This file records the current review state explicitly.
+AGEZT is an active Go-first agentic operating system with a large kernel surface, CLI (`agt`), daemon (`agezt`), embedded React Web UI, plugin ecosystem, SDKs, operational docs, and runnable demos. This file is the explicit latest system-wide review artifact, last updated 2026-06-22 after missing-parts reconciliation and a fresh local validation gate.
 
-The codebase is not in a clean working-tree state. Multiple files are modified or untracked, mostly from SDK parity/documentation updates, frontend Agent UI/analytics work, and additional tests. Other agents have reported full validation green after frontend stabilization and split Go test runs, but those results are not represented by a fresh committed report file in this worktree.
+The codebase has dirty working-tree state bucketed by ownership in `docs/MISSING-PARTS-PLAN.md` Phase 0. Fresh validation passed on 2026-06-22; remaining work is release hygiene (scoped commits/discards).
 
 ## Current repository status
 
-Observed via `git status --short` during this review:
+Observed via `git status` on 2026-06-22:
 
-- Modified: `ARCHITECTURAL-REPORT.md`, `Makefile`, `dev.ps1`, `docs/API-STABILITY.md`, `docs/SDK-PARITY.md`, frontend Agent/UI/analytics files, and `tools/sdkparity/main.go`.
-- Untracked tests: frontend missing coverage tests, `kernel/intervention/intervention_test.go`, `kernel/restapi/update_handlers_test.go`, and `tools/sdkparity/main_test.go`.
-- No staged files were present.
-
-Important note: the existing `ARCHITECTURAL-REPORT.md` diff is only a one-line link correction from `docs/DEPENDENCIES.md` to `DEPENDENCIES.md`. It is not evidence that the latest system-wide review generated a new comprehensive report.
+- Modified: `Makefile`, `dev.ps1`, docs (MISSING-PARTS-PLAN/REPORT, SDK-PARITY, SYSTEM-REVIEW, OPERATIONS), frontend Agent/analytics/UI/test files, `tools/sdkparity/main.go`, and generated Web UI dist assets.
+- Untracked tests: frontend missing-smoke/imports/API/ACP/agent/market/AgentPage tests, `kernel/intervention/intervention_test.go`, `kernel/restapi/update_handlers_test.go`, and `tools/sdkparity/main_test.go`.
+- Ownership buckets and commit guidance are documented in `docs/MISSING-PARTS-PLAN.md` Phase 0.
 
 ## Existing report inventory
 
@@ -26,7 +24,7 @@ Important note: the existing `ARCHITECTURAL-REPORT.md` diff is only a one-line l
 - Its header says generated on 2026-06-20 and latest phase M781+.
 - Its current-state section still references 2026-06-10, M781, PR #224, and older test counts.
 - Later commits and mailbox status indicate additional work after M781, including AgentDetail comms lineage, protocol versioning, SDK parity, docs/index, comparison priorities, and frontend auth hardening.
-- Therefore `ARCHITECTURAL-REPORT.md` is useful background but should be treated as partially stale until regenerated.
+- Therefore `ARCHITECTURAL-REPORT.md` is useful background but partially stale; it now carries a current-state note pointing to this file and the missing-parts docs.
 
 ## System surface reviewed
 
@@ -86,37 +84,39 @@ Reported by mailbox from other agents:
 - Frontend typecheck: passed for focused changes.
 - Frontend npm audit: reported 0 vulnerabilities after undici override.
 
-This review did not rerun the full validation suite. The statements above are coordination evidence from mailbox plus inspected files, not fresh local execution in this turn.
+Fresh local validation gate was run on 2026-06-22 (see `docs/MISSING-PARTS-REPORT.md` item 13 for full command list and results). The gate is no longer mailbox-only evidence.
 
 ## Key findings
 
-### 1. Latest requested system-wide review report was missing
+### 1. System-wide review artifact now exists
 
-The mailbox contained “System-wide review completed” with “No files changed.” A full architecture report existed, but no new report artifact captured that review. This `docs/SYSTEM-REVIEW.md` fills that artifact gap.
+The mailbox contained “System-wide review completed” with “No files changed.” A full architecture report existed, but no new report artifact captured that review. This file serves as the explicit latest review artifact and is updated as the audit progresses.
 
 ### 2. `ARCHITECTURAL-REPORT.md` is partially stale
 
-The existing architecture report still references M781 and older current-state/test-count data, while the repository and mailbox show later work. It should be regenerated or edited if it remains the canonical comprehensive architecture document.
+The existing architecture report references M781 and older current-state/test-count data. It now carries a prominent current-state note pointing to this file and the missing-parts docs. Regenerate it only when a fresh comprehensive architecture sweep is desired.
 
-### 3. Working tree contains many uncommitted changes
+### 3. Working tree contains uncommitted changes
 
-The shared working tree has multiple modified and untracked files. Any commit should be explicitly scoped to the files changed by the committing agent to avoid capturing other agents’ work.
+The shared working tree has modified and untracked files bucketed by ownership in `docs/MISSING-PARTS-PLAN.md` Phase 0. Commits should use explicit path staging per bucket to avoid capturing unrelated work.
 
-### 4. SDK parity is improved but explicitly not complete behavioral conformance
+### 4. SDK parity separates route coverage from behavioral evidence
 
-`docs/SDK-PARITY.md` is now clearer and checkable, but it still only checks route-string presence. Behavioral parity remains tied to typed requests/responses, auth behavior, error behavior, and tests as defined in `docs/API-STABILITY.md`.
+`docs/SDK-PARITY.md` is now generated by `tools/sdkparity` and lists both static route-string coverage and behavioral test evidence per SDK language.
 
-### 5. Frontend coverage and UX work is active
+### 5. Frontend coverage and UX work is validated
 
-AgentDetail/AgentPage, Dashboard, Activity, Insights, ConfigCenter, and missing smoke/import tests are in active modification. Mailbox reports green validation, but uncommitted frontend work should be preserved and committed in focused slices.
+AgentDetail/AgentPage, Dashboard, Activity, Insights, ConfigCenter, and missing smoke/import tests are validated. The compact inbox priority summary is shipped. Fresh frontend test run: 138 files / 1194 tests green.
+
+### 6. Fresh local validation gate passed
+
+Full Makefile `check` equivalent passed on 2026-06-22: codegen, vet, depscheck, SDK parity, frontend tests/typecheck/build, and `go test ./...`.
 
 ## Recommended next actions
 
-1. Decide whether `docs/SYSTEM-REVIEW.md` should be the task artifact or whether `ARCHITECTURAL-REPORT.md` should be regenerated as the canonical report.
-2. If canonical, regenerate/update `ARCHITECTURAL-REPORT.md` to reflect post-M781 work, current docs, current test counts, SDK parity, frontend auth hardening, protocol versioning, and demo inventory.
-3. Commit only this report separately if desired: `docs/SYSTEM-REVIEW.md`.
-4. Leave other dirty files untouched unless intentionally continuing the other agents’ frontend/docs/SDK parity work.
-5. Rerun validation before final merge if committing broader changes: codegen, vet, split or full Go tests, depscheck, SDK parity, and frontend tests/typecheck.
+1. `docs/SYSTEM-REVIEW.md` is the latest review artifact; regenerate `ARCHITECTURAL-REPORT.md` only if a fresh comprehensive architecture sweep is desired.
+2. Commit or discard dirty-worktree buckets using explicit path staging (see `docs/MISSING-PARTS-PLAN.md` Phase 0 ownership snapshot).
+3. Preserve the fresh validation results or rerun the gate if the tree changes before release/merge.
 
 ## Appendix: files that look related to current review state
 

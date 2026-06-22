@@ -1,6 +1,7 @@
 # AGEZT Missing Parts Implementation Plan
 
 Generated: 2026-06-21  
+Last updated: 2026-06-22  
 Input: `docs/MISSING-PARTS-REPORT.md`  
 Purpose: decide what to do, what not to do yet, and how to execute the remaining work in scoped, verifiable slices.
 
@@ -8,17 +9,14 @@ Purpose: decide what to do, what not to do yet, and how to execute the remaining
 
 Not every gap in `docs/MISSING-PARTS-REPORT.md` should become immediate code work. Some are documentation reconciliation, some are release hygiene, some are deliberate out-of-scope/security caveats, and a few require owner sign-off before implementation.
 
-### Will do now / next
+### Current open work
 
-These are safe, high-value, and should be planned as concrete work:
+The implementation/proof/documentation mismatches from the original report are reconciled or documented as regression bars. Current open work is release hygiene:
 
-1. Reconcile canonical docs and stale status claims.
-2. Resolve or explicitly scope the dirty worktree before commits.
-3. Reconcile SDK parity claims with actual tests and generated report.
-4. Reconcile schedule typed-target hardening status and add missing tests only if proof is absent.
-5. Add/verify end-to-end authority proof across profile/API/runtime/journal/UI/CLI.
-6. Document event/journal schema compatibility and migration rules.
-7. Classify untracked tests and either commit or discard them intentionally.
+1. Resolve or explicitly scope the dirty worktree before commits.
+2. Commit validated test files in scoped slices or explicitly discard them by owner decision.
+3. Preserve the fresh local validation results, or rerun the gate if the tree changes again before release/merge.
+4. Keep SDK parity, schedule targets, authority proof, event compatibility, and mailbox lineage tied to their documented regression bars for future changes.
 
 ### Will document / keep bounded, not solve fully now
 
@@ -70,6 +68,19 @@ Exit criteria:
 
 - Every dirty file is either owned by a bucket or explicitly left untouched.
 - Any produced commit/patch contains only one concern.
+
+Status note: targeted validation for the previously untracked test bucket passed on 2026-06-22 (frontend missing-smoke/import/API/ACP/agent/market/AgentPage tests, `kernel/intervention`, `kernel/restapi -run Update`, and `tools/sdkparity`). These files still need scoped commit ownership or explicit discard before release/merge.
+
+Current dirty-worktree ownership snapshot from 2026-06-22:
+
+- **Missing-parts docs/status slice:** `docs/MISSING-PARTS-PLAN.md`, `docs/MISSING-PARTS-REPORT.md`.
+- **SDK parity generated-report slice:** `docs/SDK-PARITY.md`, `tools/sdkparity/main.go`, `tools/sdkparity/main_test.go`.
+- **Frontend AgentDetail/comms UX slice:** `frontend/src/components/AgentDetail.tsx`, `frontend/src/components/AgentDetail.test.tsx`, plus generated Web UI dist asset replacements under `kernel/webui/dist/` if committed with the frontend build.
+- **Frontend analytics/UI/test coverage slice:** `frontend/src/lib/insights.ts`, `frontend/src/lib/insights.test.ts`, `frontend/src/views/Activity.tsx`, `frontend/src/views/AgentPage.tsx`, `frontend/src/views/AgentPage.test.tsx`, `frontend/src/views/ConfigCenter.test.tsx`, `frontend/src/views/Dashboard.tsx`, `frontend/src/views/Dashboard.test.tsx`, `frontend/src/views/Insights.tsx`, `frontend/src/components/missing-smoke.test.tsx`, `frontend/src/views/missing-imports.test.tsx`, `frontend/src/lib/acp.test.ts`, `frontend/src/lib/agent.test.ts`, `frontend/src/lib/api.test.ts`, `frontend/src/lib/market.test.ts`.
+- **Backend coverage slice:** `kernel/intervention/intervention_test.go`, `kernel/restapi/update_handlers_test.go`.
+- **Build/script slice:** `Makefile`, `dev.ps1`.
+
+Commit guidance: commit each slice separately with explicit paths only. If committing frontend source after a production build, include the matching `kernel/webui/dist/index.html` and asset delete/add pair from that same build; otherwise discard regenerated dist assets before committing source-only changes.
 
 ## Phase 1 — Canonical status and documentation reconciliation
 
@@ -123,7 +134,7 @@ Exit criteria:
 
 ## Phase 2 — SDK parity and API conformance proof
 
-Status: documentation reconciliation applied on 2026-06-21. `docs/SDK-PARITY.md` now separates generated route-string coverage from behavioral SDK test coverage and lists the current Python, TypeScript, Rust, and Go test evidence. Future SDK-intended endpoints still require behavioral tests before being called SDK-complete.
+Status: documentation reconciliation applied on 2026-06-22. `tools/sdkparity` now generates `docs/SDK-PARITY.md` with static route-string coverage plus behavioral SDK test evidence for Python sync/async/mailbox, TypeScript run/mailbox, Rust REST, and Go local-control-plane paths. Future SDK-intended endpoints still require behavioral tests before being called SDK-complete.
 
 Goal: resolve whether SDK parity is route-only or behaviorally proven, then align docs/tests.
 
@@ -299,7 +310,7 @@ Exit criteria:
 
 ## Phase 6 — Agent communication and lineage polish
 
-Status: documentation reconciliation applied on 2026-06-22. Current mailbox, delegated, and doctor lineage paths are evidence-backed by control-plane/REST tests and AgentDetail helper/component coverage. Compact inbox priority summary remains optional UX work, not a core traceability blocker.
+Status: documentation reconciliation applied on 2026-06-22. Current mailbox, delegated, and doctor lineage paths are evidence-backed by control-plane/REST tests and AgentDetail helper/component coverage. Compact inbox priority summary is now implemented in AgentDetail Comms as UX polish, with focused frontend coverage.
 
 Goal: improve traceability beyond already-shipped mailbox wake causality.
 
@@ -336,7 +347,7 @@ Validation:
 Exit criteria:
 
 - Agent-to-agent communication has traceable sender/recipient/wake/run linkage in API and UI.
-- Inbox priority summary is implemented or intentionally deferred.
+- Inbox priority summary is implemented or intentionally deferred. Current AgentDetail Comms implements the compact direct/broadcast/help/replied/stale summary.
 
 ## Phase 7 — Operational examples and bounded-risk documentation
 
@@ -419,14 +430,10 @@ Exit criteria now:
 
 ## Recommended immediate task order
 
-1. **Docs status reconciliation** — lowest risk, highest clarity. Fix contradictions first.
-2. **SDK parity reconciliation** — decide whether current tests satisfy behavioral claims.
-3. **Schedule proof reconciliation** — verify claim or add missing tests.
-4. **Authority proof** — deeper backend/frontend integration proof.
-5. **Event schema docs** — important for long-term API stability.
-6. **Communication lineage polish** — improves product UX and auditability.
-7. **Operational examples** — useful but non-blocking.
-8. **Graveyard auto-removal** — defer until explicit owner sign-off.
+1. **Worktree ownership** — split or commit dirty files in explicit scoped slices; do not blanket-stage.
+2. **Validation freshness** — fresh local gate passed on 2026-06-22; rerun only if the dirty worktree changes before release/merge.
+3. **Regression bars** — keep schedule proof, SDK parity, authority proof, event compatibility, and communication lineage tied to tests/docs for future changes.
+4. **Owner-gated decisions** — keep destructive graveyard automation deferred until explicit owner sign-off.
 
 ## Suggested scoped commits
 
@@ -476,13 +483,13 @@ Use explicit path staging only.
 
 ## Definition of done for this missing-parts program
 
-The program can be considered complete when:
+Current status against this program:
 
-1. Docs no longer contradict each other about project status and maturity.
-2. Dirty worktree changes are either committed in scoped slices or intentionally left with ownership notes.
-3. SDK parity claims have matching tests or are explicitly marked pending.
-4. Schedule target hardening is proven or accurately scoped as partial.
-5. Effective authority has at least one end-to-end proof path.
-6. Event/journal schema compatibility is documented.
+1. Docs no longer contradict each other about project status and maturity; broad historical reports are marked stale where needed.
+2. Dirty worktree changes still need to be committed in scoped slices or intentionally left with ownership notes before a release/merge; the previously untracked test bucket and full local validation gate are green as of 2026-06-22.
+3. SDK parity claims have matching generated route coverage and listed behavioral test evidence.
+4. Schedule target hardening is evidence-backed for current target types and kept as a regression bar.
+5. Effective authority has runtime/CLI/journal proof paths and is kept as a regression bar for future displayed fields.
+6. Event/journal schema compatibility is documented in `docs/EVENT-SCHEMA.md`.
 7. Operational/security limitations remain explicit, not hidden.
-8. Destructive graveyard automation is either owner-approved and safely designed or explicitly deferred.
+8. Destructive graveyard automation is explicitly deferred behind owner approval and `docs/GRAVEYARD-POLICY.md`.
