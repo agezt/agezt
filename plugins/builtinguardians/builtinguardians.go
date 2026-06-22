@@ -66,8 +66,8 @@ type guardian struct {
 }
 
 const (
-	maxCostMc                = usd / 20 // $0.05 per run — guardians should inspect, not burn budget
-	maxDailyMc               = usd / 20 // $0.05/day per guardian — system agents must stay quiet by default
+	maxCostMc                = 5 * usd     // $5 per run — sufficient for health checks and diagnostics
+	maxDailyMc               = 10 * usd    // $10/day per guardian — quiet by default but can act
 	minNotifyIntervalSec     = 8 * 3600
 	defaultMinNotifySeverity = "warning"
 	defaultTrustCeiling      = "L2"
