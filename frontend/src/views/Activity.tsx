@@ -156,7 +156,7 @@ export function Activity() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         <Stat
           label="running now"
           value={summary.running}
@@ -169,6 +169,7 @@ export function Activity() {
           value={summary.failed}
           tone={summary.failed ? "bad" : "muted"}
         />
+        <Stat label="spent" value={money(summary.spentMc)} tone="muted" />
       </div>
 
       {hasDoctorFeed && (
@@ -263,7 +264,7 @@ function Stat({
   pulse,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   tone: "accent" | "good" | "bad" | "muted";
   pulse?: boolean;
 }) {

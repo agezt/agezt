@@ -21,7 +21,7 @@ import { fmtTime, clip } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
 import { PageHeader } from "@/components/ui/page-header";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
-import { Bot, GitBranch, Coins, Repeat, Mail, Wrench, Skull, Pause } from "lucide-react";
+import { Bot, GitBranch, Coins, Repeat, Mail, Wrench, Skull, Pause, XCircle } from "lucide-react";
 
 // RunRow is the subset of /api/runs the cockpit folds into the active-agents
 // panel — structurally compatible with the Agents view's run shape.
@@ -376,10 +376,17 @@ export function Dashboard() {
       </div>
 
       {/* Run counters */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
         <Tile icon={ListTree} label="running now" value={stats?.running ?? 0} tone="accent" pulse={(stats?.running ?? 0) > 0} />
         <Tile icon={ListTree} label="completed" value={stats?.completed ?? 0} tone="good" />
         <Tile icon={ListTree} label="failed" value={stats?.failed ?? 0} tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"} />
+        <Tile
+          icon={XCircle}
+          label="error rate"
+          value={stats?.total ? `${Math.round(((stats.failed ?? 0) / stats.total) * 100)}%` : "—"}
+          tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"}
+        />
+        <Tile icon={GitBranch} label="delegations" value={stats?.delegations ?? 0} tone={(stats?.delegations ?? 0) > 0 ? "accent" : "muted"} />
         <Tile icon={CalendarClock} label="active skills" value={status?.active_skills ?? 0} tone="muted" />
       </div>
 

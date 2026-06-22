@@ -31,8 +31,20 @@ describe("computeInsights", () => {
   it("groups by model sorted by spend desc", () => {
     const i = computeInsights(runs);
     expect(i.byModel.map((m) => m.model)).toEqual(["b", "a"]);
-    expect(i.byModel[0]).toEqual({ model: "b", runs: 2, spentMc: 4_000_000 });
-    expect(i.byModel[1]).toEqual({ model: "a", runs: 2, spentMc: 1_500_000 });
+    expect(i.byModel[0]).toMatchObject({ model: "b", runs: 2, spentMc: 4_000_000 });
+    expect(i.byModel[1]).toMatchObject({ model: "a", runs: 2, spentMc: 1_500_000 });
+  });
+
+  it("computes per-model efficiency (avg cost/run and avg iters/run)", () => {
+    const i = computeInsights(runs);
+    const b = i.byModel[0];
+    // b: 4_000_000 across 2 runs → 2_000_000/run; iters 4 + 0(running) → 2/run
+    expect(b.avgSpentMc).toBe(2_000_000);
+    expect(b.avgIters).toBe(2);
+    // a: 1_500_000 across 2 runs → 750_000/run; iters 2 + 1 → 1.5/run
+    const a = i.byModel[1];
+    expect(a.avgSpentMc).toBe(750_000);
+    expect(a.avgIters).toBe(1.5);
   });
 
   it("builds a chronological cumulative spend series", () => {
