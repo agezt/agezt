@@ -1691,31 +1691,37 @@ function AgentDetailHeroFact({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-lg border border-border/70 bg-card/50 px-3 py-2.5",
-        tone === "good" && "border-good/30 bg-good/5",
-        tone === "warn" && "border-warn/40 bg-warn/10",
-        tone === "bad" && "border-bad/35 bg-bad/5",
-        tone === "accent" && "border-accent/35 bg-accent/10",
+        "min-w-0 rounded-xl border border-border/60 bg-card/40 px-3 py-3",
+        tone === "good" && "border-good/40 bg-good/10 shadow-sm shadow-good/20",
+        tone === "warn" && "border-warn/50 bg-warn/15 shadow-sm shadow-warn/20",
+        tone === "bad" && "border-bad/45 bg-bad/10 shadow-sm shadow-bad/20",
+        tone === "accent" && "border-accent/45 bg-accent/15 shadow-sm shadow-accent/20",
+        tone === "muted" && "border-border/40 bg-panel/30",
       )}
       title={detail || value}
     >
-      <div className="flex min-w-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
-        <Icon className="size-5 shrink-0" />
-        <span className="truncate">{label}</span>
-      </div>
-      <div
-        className={cn(
-          "mt-1 truncate text-sm font-medium text-foreground/90",
+      <div className="flex items-center gap-2">
+        <Icon className={cn(
+          "size-6 shrink-0",
           tone === "good" && "text-good",
           tone === "warn" && "text-warn",
           tone === "bad" && "text-bad",
           tone === "accent" && "text-accent",
-          tone === "muted" && "text-muted",
-        )}
-      >
+          tone === "muted" && "text-muted/70",
+        )} />
+        <span className="truncate text-xs font-medium uppercase tracking-wider text-muted">{label}</span>
+      </div>
+      <div className={cn(
+        "mt-2 truncate text-lg font-bold tracking-tight",
+        tone === "good" && "text-good",
+        tone === "warn" && "text-warn",
+        tone === "bad" && "text-bad",
+        tone === "accent" && "text-accent",
+        tone === "muted" && "text-muted",
+      )}>
         {value}
       </div>
-      {detail && <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted">{detail}</div>}
+      {detail && <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted/80">{detail}</div>}
     </div>
   );
 }
@@ -2187,33 +2193,44 @@ function ConfigOverrideBox({
   );
 }
 
+// VisualStat - larger, more prominent stat display with icon emphasis
 function Stat({
   icon: Icon,
   label,
   value,
   accent,
+  tone,
 }: {
   icon: typeof Bot;
   label: string;
   value: React.ReactNode;
   accent?: boolean;
+  tone?: "good" | "warn" | "bad" | "accent" | "muted";
 }) {
+  const iconColor = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : tone === "accent" ? "text-accent" : "text-muted/60";
+  const borderColor = tone === "good" ? "border-good/40 bg-good/10" : tone === "warn" ? "border-warn/50 bg-warn/15" : tone === "bad" ? "border-bad/45 bg-bad/10" : tone === "accent" ? "border-accent/45 bg-accent/15" : accent ? "border-accent/50" : "border-border/50 bg-panel/30";
+  const valueColor = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : tone === "accent" ? "text-accent" : "text-foreground";
+
   return (
     <div
       className={cn(
-        "rounded-lg border bg-panel/40 p-2.5",
-        accent ? "border-accent/50" : "border-border",
+        "rounded-xl border p-3 shadow-sm",
+        borderColor,
       )}
     >
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-        <Icon className={cn("size-3", accent && "text-accent")} /> {label}
+      <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-lg bg-panel/50",
+          tone === "good" && "bg-good/10",
+          tone === "warn" && "bg-warn/15",
+          tone === "bad" && "bg-bad/10",
+          tone === "accent" && "bg-accent/15",
+        )}>
+          <Icon className={cn("size-5", iconColor)} />
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</span>
       </div>
-      <div
-        className={cn(
-          "mt-0.5 text-base font-semibold tabular-nums",
-          accent && "text-accent",
-        )}
-      >
+      <div className={cn("mt-2 text-xl font-bold tabular-nums tracking-tight", valueColor)}>
         {value}
       </div>
     </div>
@@ -2234,22 +2251,70 @@ function BudgetBar({
   const pct = capMc && capMc > 0 ? Math.min(100, (spentMc / capMc) * 100) : 0;
   const over = capMc != null && capMc > 0 && spentMc > capMc;
   return (
-    <div className="rounded-lg border border-border bg-panel/40 p-2.5">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
-        <span>{label}</span>
-        <span className="font-mono normal-case text-foreground/80">
+    <div className="rounded-xl border border-border/50 bg-panel/30 p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <Coins className="size-3.5" /> {label}
+        </span>
+        <span className={cn(
+          "font-mono text-xs font-medium",
+          over ? "text-bad" : "text-foreground/80"
+        )}>
           {money(spentMc)}
-          {capMc && capMc > 0 ? ` / ${money(capMc)}` : " · no cap"}
+          {capMc && capMc > 0 ? ` / ${money(capMc)}` : " uncapped"}
         </span>
       </div>
       {capMc != null && capMc > 0 && (
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-card">
+        <div className="h-2 overflow-hidden rounded-full bg-panel">
           <div
-            className={cn("h-full rounded-full", over ? "bg-bad" : "bg-accent")}
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              over ? "bg-gradient-to-r from-bad to-warn" : "bg-gradient-to-r from-accent to-good"
+            )}
             style={{ width: `${Math.max(2, pct)}%` }}
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// VisualToggle - replaces text enable/disable with a visual switch
+function VisualToggle({
+  enabled,
+  label,
+  icon: Icon,
+}: {
+  enabled: boolean;
+  label: string;
+  icon: typeof Bot;
+}) {
+  return (
+    <div className={cn(
+      "flex items-center gap-2 rounded-lg border px-2.5 py-1.5",
+      enabled ? "border-good/40 bg-good/10" : "border-border/40 bg-panel/30"
+    )}>
+      <div className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-md",
+        enabled ? "bg-good/20" : "bg-panel/60"
+      )}>
+        <Icon className={cn("size-4", enabled ? "text-good" : "text-muted/50")} />
+      </div>
+      <span className={cn(
+        "text-xs font-medium",
+        enabled ? "text-foreground" : "text-muted"
+      )}>
+        {label}
+      </span>
+      <div className={cn(
+        "ml-auto flex h-5 w-9 items-center rounded-full border px-0.5 transition-colors",
+        enabled ? "border-good/50 bg-good/30" : "border-border bg-panel"
+      )}>
+        <div className={cn(
+          "h-3.5 w-3.5 rounded-full transition-transform",
+          enabled ? "translate-x-4 bg-good shadow-sm shadow-good/50" : "translate-x-0 bg-muted/40"
+        )} />
+      </div>
     </div>
   );
 }
@@ -2548,82 +2613,150 @@ function Overview({
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-panel/40 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-          <Zap className="size-3" /> Operational state
+      {/* Operational state - visual dashboard */}
+      <div className="rounded-xl border border-border/60 bg-panel/30 p-3">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+          <Zap className="size-4 text-accent" /> Status Dashboard
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge
-            variant={
-              runtimeStatus.activeRunCount > 0
-                ? "accent"
-                : runtimeStatus.operationalState === "paused" ||
-                    runtimeStatus.operationalState === "retired"
-                  ? "default"
-                  : "good"
-            }
-          >
-            {runtimeStatus.operationalText || "sleeping"}
-          </Badge>
-          <Badge
-            variant={
-              livePresence.tone === "good"
-                ? "good"
-                : livePresence.tone === "bad"
-                  ? "bad"
-                  : "default"
-            }
-            title={livePresence.detail}
-          >
-            {livePresence.value}
-          </Badge>
-          <span className="text-muted">{livePresence.detail}</span>
-          {runtimeStatus.liveDetail && (
-            <span className="text-muted">{runtimeStatus.liveDetail}</span>
-          )}
-          {runtimeStatus.lastActivitySummary && (
-            <span className="text-muted">
-              last {runtimeStatus.lastActivityMs ? fmtAgo(runtimeStatus.lastActivityMs) : ""} · {runtimeStatus.lastActivitySummary}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+          {/* Operational State */}
+          <div className={cn(
+            "flex flex-col items-center gap-1.5 rounded-lg p-3 text-center",
+            runtimeStatus.activeRunCount > 0 ? "bg-accent/15 border border-accent/30" :
+            runtimeStatus.operationalState === "paused" || runtimeStatus.operationalState === "retired" 
+              ? "bg-panel border border-border" : "bg-good/10 border border-good/30"
+          )}>
+            <div className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-full",
+              runtimeStatus.activeRunCount > 0 ? "bg-accent/20" :
+              runtimeStatus.operationalState === "paused" || runtimeStatus.operationalState === "retired" 
+                ? "bg-panel/60" : "bg-good/20"
+            )}>
+              {runtimeStatus.activeRunCount > 0 ? (
+                <ActivityIcon className="size-5 text-accent animate-pulse" />
+              ) : runtimeStatus.operationalState === "paused" ? (
+                <Pause className="size-5 text-muted" />
+              ) : runtimeStatus.operationalState === "retired" ? (
+                <Skull className="size-5 text-muted" />
+              ) : (
+                <Flame className="size-5 text-good" />
+              )}
+            </div>
+            <span className={cn(
+              "text-sm font-bold",
+              runtimeStatus.activeRunCount > 0 ? "text-accent" :
+              runtimeStatus.operationalState === "paused" || runtimeStatus.operationalState === "retired" 
+                ? "text-muted" : "text-good"
+            )}>
+              {runtimeStatus.operationalText || "sleeping"}
             </span>
-          )}
-          <span className="text-muted">
-            wake: {runtimeStatus.wakeText || "none"}
-            {runtimeStatus.wakeDetail ? ` · ${runtimeStatus.wakeDetail}` : ""}
-            {runtimeStatus.nextWakeMs ? ` · ${fmtDue(runtimeStatus.nextWakeMs)}` : ""}
-          </span>
-          {taskProgress && (
-            <span className="text-muted">tasks: {taskProgress}</span>
-          )}
-          <span className="text-muted">contract: {taskContract}</span>
-          {runtimeStatus.activeCorrelationId && (
-            <span className="ml-auto flex shrink-0 items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowActiveRun((v) => !v)}
-                title="Inspect the active run inline"
-              >
-                <ActivityIcon className="size-3.5" /> {showActiveRun ? "Hide run" : "Inspect run"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onFocusRun(runtimeStatus.activeCorrelationId);
-                  onView("activity");
-                }}
-                title="Open the full agent activity timeline"
-              >
-                <ListTree className="size-3.5" /> Activity
-              </Button>
+            <span className="text-[10px] text-muted/70">State</span>
+          </div>
+
+          {/* Live Presence */}
+          <div className={cn(
+            "flex flex-col items-center gap-1.5 rounded-lg p-3 text-center",
+            livePresence.tone === "good" ? "bg-good/10 border border-good/30" :
+            livePresence.tone === "bad" ? "bg-bad/10 border border-bad/30" : "bg-panel border border-border"
+          )}>
+            <div className={cn(
+              "flex h-10 w-10 items-center justify-center rounded-full",
+              livePresence.tone === "good" ? "bg-good/20" :
+              livePresence.tone === "bad" ? "bg-bad/20" : "bg-panel/60"
+            )}>
+              {livePresence.tone === "good" ? (
+                <CheckCheck className="size-5 text-good" />
+              ) : livePresence.tone === "bad" ? (
+                <AlertTriangle className="size-5 text-bad" />
+              ) : (
+                <Clock className="size-5 text-muted" />
+              )}
+            </div>
+            <span className={cn(
+              "text-sm font-bold",
+              livePresence.tone === "good" ? "text-good" :
+              livePresence.tone === "bad" ? "text-bad" : "text-muted"
+            )}>
+              {livePresence.value}
             </span>
-          )}
+            <span className="text-[10px] text-muted/70">Presence</span>
+          </div>
+
+          {/* Last Activity */}
+          <div className="flex flex-col items-center gap-1.5 rounded-lg bg-panel/40 p-3 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-panel/60">
+              <Clock className="size-5 text-muted" />
+            </div>
+            <span className="text-sm font-bold text-foreground/90">
+              {runtimeStatus.lastActivityMs ? fmtAgo(runtimeStatus.lastActivityMs) : "—"}
+            </span>
+            <span className="text-[10px] text-muted/70">Last active</span>
+          </div>
+
+          {/* Wake Source */}
+          <div className="flex flex-col items-center gap-1.5 rounded-lg bg-panel/40 p-3 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-panel/60">
+              <CalendarClock className="size-5 text-muted" />
+            </div>
+            <span className="text-sm font-bold text-foreground/90">
+              {runtimeStatus.wakeText || "manual"}
+            </span>
+            <span className="text-[10px] text-muted/70">Wake source</span>
+          </div>
+
+          {/* Next Wake */}
+          <div className="flex flex-col items-center gap-1.5 rounded-lg bg-panel/40 p-3 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-panel/60">
+              <ArrowRight className="size-5 text-muted" />
+            </div>
+            <span className="text-sm font-bold text-foreground/90">
+              {runtimeStatus.nextWakeMs ? fmtDue(runtimeStatus.nextWakeMs) : "—"}
+            </span>
+            <span className="text-[10px] text-muted/70">Next wake</span>
+          </div>
+
+          {/* Task Progress */}
+          <div className="flex flex-col items-center gap-1.5 rounded-lg bg-panel/40 p-3 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-panel/60">
+              <Waypoints className="size-5 text-muted" />
+            </div>
+            <span className="text-sm font-bold text-foreground/90">
+              {taskProgress || "—"}
+            </span>
+            <span className="text-[10px] text-muted/70">Tasks</span>
+          </div>
         </div>
+
+        {/* Quick actions for active run */}
+        {runtimeStatus.activeCorrelationId && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 p-2">
+            <ActivityIcon className="size-4 animate-pulse text-accent" />
+            <span className="flex-1 text-xs text-muted">
+              Active run: <span className="font-mono text-accent">{clip(runtimeStatus.activeCorrelationId, 20)}</span>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowActiveRun((v) => !v)}
+              className="text-xs"
+            >
+              {showActiveRun ? "Hide" : "Inspect"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onFocusRun(runtimeStatus.activeCorrelationId);
+                onView("activity");
+              }}
+              className="text-xs"
+            >
+              <ListTree className="size-3.5" />
+            </Button>
+          </div>
+        )}
         {showActiveRun && runtimeStatus.activeCorrelationId && (
           <div className="mt-2 rounded-md border border-border bg-card/40 p-2">
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
-              active run <span className="font-mono normal-case">{runtimeStatus.activeCorrelationId}</span>
-            </div>
             <RunDetailLoader correlationId={runtimeStatus.activeCorrelationId} status="running" />
           </div>
         )}
@@ -7194,20 +7327,78 @@ function CapabilityControlPanel({
         </Button>
       </div>
       <div className="mt-2 grid gap-2 md:grid-cols-[1fr_1fr_12rem_12rem]">
-        <label className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] text-muted">
-          <input type="checkbox" checked={silentOnSuccess} onChange={(e) => setSilentOnSuccess(e.target.checked)} />
-          Silent on success
-        </label>
-        <label className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-[11px] text-muted">
-          <input type="checkbox" checked={disableMemoryWrites} onChange={(e) => setDisableMemoryWrites(e.target.checked)} />
-          Disable memory writes
-        </label>
+        <button
+          type="button"
+          onClick={() => setSilentOnSuccess(!silentOnSuccess)}
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-3 py-2 transition-all",
+            silentOnSuccess
+              ? "border-good/50 bg-good/15 shadow-sm shadow-good/20"
+              : "border-border/50 bg-panel/30 hover:border-border"
+          )}
+        >
+          <div className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg",
+            silentOnSuccess ? "bg-good/25" : "bg-panel/60"
+          )}>
+            <ShieldCheck className={cn("size-4", silentOnSuccess ? "text-good" : "text-muted/50")} />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className={cn("text-xs font-medium", silentOnSuccess ? "text-foreground" : "text-muted")}>
+              Silent on success
+            </span>
+            <span className="text-[10px] text-muted">suppress OK logs</span>
+          </div>
+          <div className={cn(
+            "ml-auto flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors",
+            silentOnSuccess ? "border-good/50 bg-good/30" : "border-border bg-panel"
+          )}>
+            <div className={cn(
+              "h-3.5 w-3.5 rounded-full transition-transform",
+              silentOnSuccess ? "translate-x-5 bg-good shadow-sm shadow-good/50" : "translate-x-0 bg-muted/40"
+            )} />
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setDisableMemoryWrites(!disableMemoryWrites)}
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-3 py-2 transition-all",
+            disableMemoryWrites
+              ? "border-warn/50 bg-warn/15 shadow-sm shadow-warn/20"
+              : "border-border/50 bg-panel/30 hover:border-border"
+          )}
+        >
+          <div className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg",
+            disableMemoryWrites ? "bg-warn/25" : "bg-panel/60"
+          )}>
+            <HardDrive className={cn("size-4", disableMemoryWrites ? "text-warn" : "text-muted/50")} />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className={cn("text-xs font-medium", disableMemoryWrites ? "text-foreground" : "text-muted")}>
+              Memory writes
+            </span>
+            <span className="text-[10px] text-muted">
+              {disableMemoryWrites ? "blocked" : "allowed"}
+            </span>
+          </div>
+          <div className={cn(
+            "ml-auto flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors",
+            disableMemoryWrites ? "border-warn/50 bg-warn/30" : "border-border bg-panel"
+          )}>
+            <div className={cn(
+              "h-3.5 w-3.5 rounded-full transition-transform",
+              disableMemoryWrites ? "translate-x-5 bg-warn shadow-sm shadow-warn/50" : "translate-x-0 bg-muted/40"
+            )} />
+          </div>
+        </button>
         <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Notify severity
+          <span className="flex items-center gap-1"><AlertTriangle className="size-3" /> Level</span>
           <select
             value={notifySeverity}
             onChange={(e) => setNotifySeverity(e.target.value as typeof notifySeverity)}
-            className="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            className="rounded-md border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus-visible:border-accent"
           >
             <option value="info">info</option>
             <option value="warning">warning</option>
@@ -7215,13 +7406,13 @@ function CapabilityControlPanel({
           </select>
         </label>
         <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Notify cooldown (sec)
+          <span className="flex items-center gap-1"><Clock className="size-3" /> Cooldown (sec)</span>
           <input
             type="number"
             min={0}
             value={notifyCooldown}
             onChange={(e) => setNotifyCooldown(e.target.value)}
-            className="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            className="rounded-md border border-border bg-card px-2 py-1.5 font-mono text-sm text-foreground outline-none focus-visible:border-accent"
           />
         </label>
       </div>
