@@ -1,20 +1,33 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentPage } from "@/views/AgentPage";
 
 const getJSON = vi.fn();
+const postJSON = vi.fn();
+const postAction = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...args: unknown[]) => getJSON(...args),
+  postJSON: (...args: unknown[]) => postJSON(...args),
+  postAction: (...args: unknown[]) => postAction(...args),
 }));
 vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
+import { AgentPage } from "@/views/AgentPage";
+import { UIProvider } from "@/components/ui/feedback";
+
+const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
+
 afterEach(cleanup);
 
 beforeEach(() => {
   getJSON.mockReset();
+  postJSON.mockReset();
+  postAction.mockReset();
+  postJSON.mockResolvedValue({ removed: true });
+  postAction.mockResolvedValue({});
   getJSON.mockImplementation((path: string) => {
     if (path === "/api/agents") {
       return Promise.resolve({
@@ -76,31 +89,49 @@ beforeEach(() => {
     }
     if (path === "/api/workflows") return Promise.resolve({ workflows: [] });
     if (path === "/api/pulse") return Promise.resolve({ running: true });
+    if (path === "/api/memory") return Promise.resolve({ records: [] });
+    if (path === "/api/skills") return Promise.resolve({ skills: [] });
+    if (path === "/api/policy_log") return Promise.resolve({ decisions: [] });
+    if (path === "/api/tool_log") return Promise.resolve({ invocations: [] });
+    if (path === "/api/policy") return Promise.resolve({});
+    if (path === "/api/edict_show") return Promise.resolve({ levels: {} });
+    if (path === "/api/tools_catalog") return Promise.resolve({ tools: [] });
+    if (path === "/api/agents/permissions") return Promise.resolve({});
+    if (path === "/api/board") return Promise.resolve({ messages: [] });
+    if (path === "/api/chains") return Promise.resolve({ chains: {} });
+    if (path === "/api/routing") return Promise.resolve({ chains: {} });
+    if (path === "/api/provider_log") return Promise.resolve({ events: [] });
+    if (path === "/api/reaper/scan") return Promise.resolve({});
+    if (path === "/api/agents/repair_status") return Promise.resolve({});
+    if (path === "/api/agents/escalations") return Promise.resolve({ escalations: [] });
     return Promise.resolve({});
   });
 });
 
 describe("AgentPage", () => {
-  it("renders a simple identity page instead of the full command center", async () => {
-    const onNavigate = vi.fn();
-    render(<AgentPage slug="researcher" onNavigate={onNavigate} />);
+  it("renders the full AgentDetail command center with all tabs", async () => {
+    render(withUI(<AgentPage slug="researcher" onNavigate={vi.fn()} />));
 
-    expect(await screen.findByRole("heading", { name: "researcher" })).toBeTruthy();
-    expect(screen.getByText("Finds current facts and reports the useful parts.")).toBeTruthy();
-    expect(screen.getByText("How this agent starts")).toBeTruthy();
-    expect(screen.getByText("What to know")).toBeTruthy();
-    expect(screen.getByText("0 9 * * *")).toBeTruthy();
-    expect(screen.getByText("every 15m")).toBeTruthy();
-    expect(screen.getByText("gpt-5")).toBeTruthy();
-    expect(screen.getByText("L3")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /More identity details/i })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Wake researcher/i })).not.toBeTruthy();
+    // AgentDetail renders the slug as a font-mono heading.
+    expect(await screen.findByText("researcher")).toBeTruthy();
+
+    // The tab list should have all the primary tabs.
+    expect(screen.getByRole("button", { name: /Overview/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Activity/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Triggers/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Comms/ })).toBeTruthy();
+
+    // The Wake button should be present (it's a direct_callable agent).
+    expect(screen.getByRole("button", { name: /Wake researcher/i })).toBeTruthy();
+
+    // The More sections disclosure should reveal identity/maintenance tabs.
+    expect(screen.getByText("More sections: identity, model, repair, diagnostics, files")).toBeTruthy();
   });
 
   it("shows a friendly empty state for missing agents", async () => {
     render(<AgentPage slug="missing" onNavigate={vi.fn()} />);
 
-    expect(await screen.findByText("No agent “missing”")).toBeTruthy();
+    expect(await screen.findByText(/No agent/i)).toBeTruthy();
     expect(screen.getByText(/removed or never existed/i)).toBeTruthy();
   });
 });
