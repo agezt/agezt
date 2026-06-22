@@ -32,12 +32,14 @@ export function ModelPicker({
   activeModel,
   pinned,
   allowChains = true,
+  triggerClassName,
 }: {
   value: string; // "" = use the daemon default
   onChange: (id: string) => void;
   activeModel?: string; // the daemon's default, shown as a hint
   pinned?: PinnedModels; // optional ordered group shown first (e.g. the chat routing chain)
   allowChains?: boolean; // show named fallback chains as selectable options (M963); off inside the chain editor itself (no chain-of-chains)
+  triggerClassName?: string; // override the trigger button's size/width (twMerge wins); for prominent full-width pickers
 }) {
   const [open, setOpen] = useState(false);
   const [chainCount, setChainCount] = useState<number | null>(null);
@@ -64,10 +66,11 @@ export function ModelPicker({
         className={cn(
           "inline-flex h-6 max-w-[16rem] items-center gap-1 rounded border bg-panel px-2 text-xs outline-none transition-colors hover:border-accent focus-visible:border-accent",
           isRef ? "border-accent/60 text-accent" : "border-border",
+          triggerClassName,
         )}
       >
         {isRef ? <Waypoints className="size-3 shrink-0" /> : <Cpu className="size-3 shrink-0 text-muted" />}
-        <span className="truncate">{label}</span>
+        <span className="flex-1 truncate text-left">{label}</span>
         <ChevronDown className="size-3 shrink-0 text-muted" />
       </button>
       {open && (

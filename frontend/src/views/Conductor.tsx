@@ -164,9 +164,9 @@ export function Conductor() {
 
         {showAdvanced && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <RolePicker label="Thinker" value={thinker} onChange={setThinker} auto={roles?.thinker} />
-            <RolePicker label="Worker" value={worker} onChange={setWorker} auto={roles?.worker} />
-            <RolePicker label="Verifier" value={verifier} onChange={setVerifier} auto={roles?.verifier} />
+            <RolePicker label="Thinker" value={thinker} onChange={setThinker} auto={roles?.thinker} tint={ROLE_META.thinker.tint} />
+            <RolePicker label="Worker" value={worker} onChange={setWorker} auto={roles?.worker} tint={ROLE_META.worker.tint} />
+            <RolePicker label="Verifier" value={verifier} onChange={setVerifier} auto={roles?.verifier} tint={ROLE_META.verifier.tint} />
           </div>
         )}
       </Card>
@@ -179,23 +179,31 @@ export function Conductor() {
 }
 
 // RolePicker selects a role's model from the shared ModelPicker (keyed models +
-// named fallback chains). value "" means "auto" — the daemon fills the role from
-// the keyed providers; the picker shows that auto choice as the default hint.
+// named fallback chains) via its modal. value "" means "auto" — the daemon fills
+// the role from the keyed providers; the card shows what that auto choice is.
 function RolePicker({
   label,
   value,
   onChange,
   auto,
+  tint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   auto?: string;
+  tint: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 text-xs text-muted">
-      <span>{label}</span>
-      <ModelPicker value={value} onChange={onChange} activeModel={auto || undefined} />
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-panel/40 p-3">
+      <span className={cn("text-xs font-semibold", tint)}>{label}</span>
+      <ModelPicker
+        value={value}
+        onChange={onChange}
+        activeModel={auto || undefined}
+        triggerClassName="h-9 w-full max-w-none rounded-lg px-3 text-sm"
+      />
+      <span className="text-[10px] text-muted">{value ? "overridden" : `Auto: ${auto || "a keyed provider"}`}</span>
     </div>
   );
 }
