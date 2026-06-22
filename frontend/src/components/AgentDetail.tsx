@@ -1195,14 +1195,14 @@ export function AgentDetail({
 
       {/* Tabs */}
       <div
-        className="rounded-xl border border-border bg-panel/20 p-2"
+        className="rounded-xl border border-border bg-panel/20 p-3"
         role="tablist"
         aria-label={`${slug} detail sections`}
       >
-        <div className="mb-2 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted">
           Daily
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {PRIMARY_TABS.map((id) => (
             <AgentDetailTabButton
               key={id}
@@ -1221,10 +1221,10 @@ export function AgentDetail({
             />
           ))}
         </div>
-        <div className="mt-3 mb-2 px-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mt-4 mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted">
           Identity &amp; Maintenance
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {SECONDARY_TAB_GROUPS.flatMap((g) => g.tabs).map((id) => (
             <AgentDetailTabButton
               key={id}
@@ -1640,24 +1640,24 @@ function AgentDetailTabButton({
       aria-current={active ? "page" : undefined}
       onClick={() => onSelect(t.id)}
       className={cn(
-        "flex items-center gap-1 rounded-lg transition-colors",
+        "flex items-center gap-1.5 rounded-lg transition-colors",
         secondary
           ? cn(
-              "px-1.5 py-1 text-[10px]",
-              active ? "bg-card/70 text-foreground/80 shadow-sm" : "text-muted/70 hover:bg-card/50 hover:text-foreground/70",
+              "px-2.5 py-1.5 text-xs",
+              active ? "bg-card/70 text-foreground/90 shadow-sm" : "text-muted/80 hover:bg-card/50 hover:text-foreground/80",
             )
           : cn(
-              "px-2 py-1.5 text-[11px] font-medium",
+              "px-3 py-2 text-sm font-medium",
               active ? "bg-card text-foreground shadow-e1" : "text-muted hover:bg-card/60 hover:text-foreground",
             ),
       )}
     >
-      <t.icon className={secondary ? "size-2.5" : "size-3"} />
+      <t.icon className={secondary ? "size-4" : "size-5"} />
       {t.label}
       {count !== undefined && count > 0 && (
         <span className={cn(
           "ml-0.5 rounded bg-panel px-1 font-mono",
-          secondary ? "text-[8px] text-muted/60" : "text-[9px] text-muted",
+          secondary ? "text-[10px] text-muted/60" : "text-[11px] text-muted",
         )}>
           {count}
         </span>
@@ -2653,7 +2653,7 @@ function Overview({
         <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
           <ActivityIcon className="size-3" /> How does this run?
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {triggers.length === 0 ? (
             <span className="text-[11px] text-muted">
               manual / delegated only — runs when you or another agent calls it
@@ -5067,7 +5067,7 @@ function TriggersTab({
         <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">
           how this agent is triggered
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {triggers.length === 0 ? (
             <span className="text-[11px] text-muted">
               No automatic triggers — runs manually or via delegation.
