@@ -347,6 +347,11 @@ type LoopConfig struct {
 	// re-execution and feeds back a clear nudge to change approach. 0 → default
 	// (DefaultMaxIdenticalToolCalls); a negative value disables the guard.
 	MaxIdenticalToolCalls int
+	// DirectiveTaintWindow is how many iterations a directive-like untrusted
+	// observation keeps the prompt-injection gate active for downstream effectful
+	// actions. 0 → DefaultDirectiveTaintWindow (1). Larger values gate further
+	// past the observation; the security-conscious can widen it.
+	DirectiveTaintWindow int
 	// ToolMemo caches successful read-only tool results within this run. Policy
 	// still runs before cache lookup, so memoization never grants permission.
 	ToolMemo *ToolMemo
@@ -1081,6 +1086,19 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// It is set by the tool-result boundary, not by the model, so a hostile web
 	// page cannot erase that it was the source of a downstream proposal.
 	var untrustedTaint UntrustedObservationTaint
+	// directiveObsIter is the loop iteration at which the most recent
+	// directive-like untrusted observation arrived (-1 = none yet). The
+	// directive flag threaded to policy is ACTIVE only while a proposed action is
+	// within directiveWindow iterations of that observation — the causal window
+	// in which the model could be acting on the injected instruction. After the
+	// window the run keeps its audit provenance (Sources/Matches) but the gate no
+	// longer fires, so one suspicious search early in a run stops forcing
+	// approval on every later action (the run-wide-sticky-taint fix).
+	directiveObsIter := -1
+	directiveWindow := cfg.DirectiveTaintWindow
+	if directiveWindow <= 0 {
+		directiveWindow = DefaultDirectiveTaintWindow
+	}
 
 	// spentMicrocents accumulates this run's provider spend for the per-run cost
 	// cap (M166). A local stack variable — no shared state, no lifecycle, no
@@ -1466,7 +1484,13 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			verdict := PolicyVerdict{Allow: true, Capability: tc.Name, Reason: "no policy configured"}
 			if cfg.Policy != nil {
 				policyCtx := WithPolicyToolDef(ctx, def)
-				policyCtx = WithUntrustedObservationTaint(policyCtx, untrustedTaint)
+				// Thread the taint with DirectiveLike scoped to the causal window:
+				// active only while this action is within directiveWindow iterations
+				// of the directive-like observation. Provenance (Sources/Matches)
+				// is always carried for audit; only the gating flag decays.
+				scopedTaint := untrustedTaint
+				scopedTaint.DirectiveLike = directiveObsIter >= 0 && iter-directiveObsIter <= directiveWindow
+				policyCtx = WithUntrustedObservationTaint(policyCtx, scopedTaint)
 				verdict = cfg.Policy(policyCtx, tc)
 			}
 			if _, err := publish(event.KindPolicyDecision, "policy", map[string]any{
@@ -1647,6 +1671,11 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			observationBoundary := ObservationBoundaryForTool(job.tc.Name, job.result, modelOutput)
 			if observationBoundary.Trust == ObservationUntrusted {
 				untrustedTaint = MergeUntrustedObservationTaint(untrustedTaint, observationBoundary)
+				if observationBoundary.DirectiveLike {
+					// Remember WHEN the directive-like observation arrived so the
+					// gate can decay after directiveWindow iterations.
+					directiveObsIter = iter
+				}
 				modelOutput = RenderObservationForModel(job.tc.Name, observationBoundary, modelOutput)
 			}
 

@@ -1693,6 +1693,16 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = runtime.WithAutoApproveCapabilities(ctx, caps)
 	}
 
+	// Session-scoped "trust this run's web/file content" grant (chat toggle): the
+	// operator is deliberately driving an agentic task and accepts the untrusted
+	// observations it reads, so the prompt-injection guard downgrades from
+	// blocking to warn FOR THIS RUN (and its sub-agents). Never overrides a
+	// hard-deny or any other guard. Lets a chat-driven research+act loop run
+	// without an approval prompt on every step.
+	if argTruthy(req.Args["prompt_injection_trust"]) {
+		ctx = runtime.WithTrustedObservations(ctx)
+	}
+
 	// Assured run (M651): when assure > 0, run the "do-it-for-sure" loop — run,
 	// verify completion, retry with the gap fed back — up to that many attempts,
 	// instead of a single pass. A malformed value is a usage error.

@@ -667,11 +667,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// still journaled.
 	intentRegretGatingRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "INTENT_REGRET_GATING"))
 	intentRegretGating := strings.EqualFold(intentRegretGatingRaw, "on") || intentRegretGatingRaw == "1"
-	// AGEZT_PROMPT_INJECTION_GUARD=off disables the active HITL tripwire for
-	// effectful actions proposed after directive-like untrusted web/file/API
-	// content. The observation boundary and audit metadata remain enabled.
-	promptInjectionGuardRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PROMPT_INJECTION_GUARD"))
-	promptInjectionGuard := !strings.EqualFold(promptInjectionGuardRaw, "off") && promptInjectionGuardRaw != "0"
+	// AGEZT_PROMPT_INJECTION_GUARD selects the guard posture for effectful actions
+	// proposed within the causal window of directive-like untrusted web/file/API
+	// content: unset/anything → on (HITL approval), "warn" → allow + journal a
+	// banner, "off"/"0" → no active intervention. The observation boundary and
+	// audit metadata remain enabled in all modes.
+	promptInjectionMode := kernelruntime.ParsePromptInjectionMode(os.Getenv(brand.EnvPrefix + "PROMPT_INJECTION_GUARD"))
 	disableHeuristicBypassRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISABLE_HEURISTIC_BYPASS"))
 	disableHeuristicBypass := strings.EqualFold(disableHeuristicBypassRaw, "on") || disableHeuristicBypassRaw == "1"
 
@@ -787,7 +788,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ObservationDeltas:          observationDeltas,
 		EpistemicEscalation:        epistemicEscalation,
 		IntentRegretGating:         intentRegretGating,
-		PromptInjectionGuard:       promptInjectionGuard,
+		PromptInjectionGuard:       promptInjectionMode,
 		DisableHeuristicBypass:     disableHeuristicBypass,
 		ShadowEval:                 shadowEval,
 		SubAgentTool:               subAgentOn,

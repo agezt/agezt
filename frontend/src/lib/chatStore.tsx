@@ -115,6 +115,12 @@ export interface ChatEngine {
    *  resets when the page reloads. */
   autoApproveForge: boolean;
   setAutoApproveForge: (on: boolean) => void;
+  /** Session-scoped grant: when true, runs started from this chat trust the
+   *  untrusted web/file content they read, so the prompt-injection guard warns
+   *  instead of prompting for approval on every downstream action. For
+   *  deliberately operator-driven research+act loops. Not persisted. */
+  trustWebContent: boolean;
+  setTrustWebContent: (on: boolean) => void;
   /** Edit the user message at `index` and re-run from there: replace its text,
    *  drop every later message, and stream a fresh answer with the prior history. */
   editAndResend: (index: number, text: string) => void;
@@ -176,6 +182,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Session-scoped auto-approve for Tool Forge (not persisted): the "build an
   // agent army without per-forge approval prompts" toggle the owner asked for.
   const [autoApproveForge, setAutoApproveForge] = useState(false);
+  const [trustWebContent, setTrustWebContent] = useState(false);
   const [learned, setLearned] = useState<Record<string, LearnedMem[]>>({});
   const abortRef = useRef<AbortController | null>(null);
   // The correlation id of the run currently streaming, captured from its frames
@@ -277,6 +284,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           system: persona || undefined, // per-conversation identity override (M711)
           // Session-scoped auto-approve for Tool Forge (op=test also runs code.exec).
           auto_approve_caps: autoApproveForge ? "tool.forge,code.exec" : undefined,
+          // Session-scoped trust for untrusted web/file content (downgrades the
+          // prompt-injection guard from blocking to warn for this run).
+          prompt_injection_trust: trustWebContent || undefined,
         },
         (f) => {
           // Capture the run's correlation id from the first frame that carries
@@ -495,6 +505,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setConversationPersona,
     autoApproveForge,
     setAutoApproveForge,
+    trustWebContent,
+    setTrustWebContent,
     historySummary: activeSummary(store),
     stop,
     newChat,

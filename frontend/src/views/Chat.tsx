@@ -76,7 +76,7 @@ import { SuggestionsBar, type Suggestion } from "@/components/SuggestionsBar";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, autoApproveForge, setAutoApproveForge, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin, activeCorr, steer, queue, enqueue, removeQueued, reorderQueued, clearQueue, sendQueuedNow } =
+  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, autoApproveForge, setAutoApproveForge, trustWebContent, setTrustWebContent, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin, activeCorr, steer, queue, enqueue, removeQueued, reorderQueued, clearQueue, sendQueuedNow } =
     useChat();
   const ui = useUI();
   const [input, setInput] = useState("");
@@ -466,6 +466,25 @@ export function Chat() {
           >
             <span aria-hidden>{autoApproveForge ? "🔓" : "🔒"}</span>
             Forge auto-approve
+          </button>
+          <button
+            onClick={() => setTrustWebContent(!trustWebContent)}
+            role="switch"
+            aria-checked={trustWebContent}
+            title={
+              trustWebContent
+                ? "Trusting this run's web/file content — the prompt-injection guard warns instead of asking. Click to require approval again."
+                : "Trust web/file content for this session so you aren't prompted to approve every action after a search (the guard still warns + audits)."
+            }
+            className={
+              "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors " +
+              (trustWebContent
+                ? "bg-accent/15 text-accent"
+                : "text-muted hover:text-foreground")
+            }
+          >
+            <span aria-hidden>{trustWebContent ? "🌐" : "🛡️"}</span>
+            Trust web content
           </button>
           <PromptLauncher onPick={(text) => setInput((cur) => (cur.trim() ? cur.trimEnd() + "\n" : "") + text)} />
           {messages.length > 0 && (

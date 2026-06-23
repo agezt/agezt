@@ -33,6 +33,24 @@ func argString(args map[string]any, key string) (string, bool, error) {
 }
 
 // argBool extracts a boolean arg.
+// argTruthy reports whether a control-plane arg is set to a truthy value,
+// accepting either a real bool (the canonical form) or a common string form
+// ("on"/"true"/"yes"/"1") for clients that send the toggle as text. Anything
+// else, including absent, is false. Lenient by design — it gates an opt-in
+// convenience (trust-this-run), never a security-relevant default.
+func argTruthy(v any) bool {
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "on", "true", "yes", "1":
+			return true
+		}
+	}
+	return false
+}
+
 func argBool(args map[string]any, key string) (bool, bool, error) {
 	v, present := args[key]
 	if !present {
