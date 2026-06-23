@@ -45,6 +45,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 // Source specifies where to fetch update metadata.
@@ -133,8 +134,19 @@ type Service struct {
 func New(cfg Config) *Service {
 	hc := cfg.HTTPClient
 	if hc == nil {
+		const dialTimeout = 30 * time.Second
+		// SSRF guard (CWE-918): screen every connection — the initial URL and
+		// each redirect hop — through netguard so a malicious/redirected update
+		// manifest URL can't be pointed at link-local/cloud-metadata or other
+		// special-use ranges. The update source is operator-configured and may
+		// legitimately be an internal mirror, so loopback and private ranges are
+		// permitted (matching kernel/catalog/sync's posture); netguard still
+		// blocks 169.254.0.0/16 (incl. 169.254.169.254 metadata), CGNAT,
+		// broadcast and zero blocks. Defense-in-depth atop the HTTPS-every-hop
+		// and SHA256+Ed25519 verification already enforced below.
+		guard := netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate())
 		hc = &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: dialTimeout,
 			// Enforce TLS on EVERY redirect hop, not just the initial URL.
 			// net/http follows redirects automatically; without a CheckRedirect
 			// hook the manual requireHTTPS check in downloadBinary never runs
@@ -146,6 +158,7 @@ func New(cfg Config) *Service {
 				return requireHTTPS(req.URL.String())
 			},
 			Transport: &http.Transport{
+				DialContext:         guard.Dialer(dialTimeout).DialContext,
 				MaxIdleConns:        2,
 				IdleConnTimeout:     90 * time.Second,
 				TLSHandshakeTimeout: 10 * time.Second,

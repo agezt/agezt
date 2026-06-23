@@ -28,9 +28,15 @@ func TestResolveCommand(t *testing.T) {
 	if _, ok := ResolveCommand("", ""); ok {
 		t.Fatal("empty ref + empty fallback should be unresolved")
 	}
-	// A non-slug ref is passed through verbatim (custom command).
-	if cmd, ok := ResolveCommand("my-acp-binary --flag", ""); !ok || cmd != "my-acp-binary --flag" {
-		t.Fatalf("raw command should pass through: %q %v", cmd, ok)
+	// SECURITY (CWE-78): a non-slug ref must NOT be executed as a raw command —
+	// agent input could otherwise inject an arbitrary shell line via the bridge.
+	if cmd, ok := ResolveCommand("my-acp-binary --flag", ""); ok {
+		t.Fatalf("non-slug ref must be rejected, not run as a raw command: got %q", cmd)
+	}
+	// Even with an operator fallback present, an explicit unknown selector is
+	// rejected rather than silently passed through or downgraded to the default.
+	if cmd, ok := ResolveCommand("; rm -rf ~", "custom --acp"); ok {
+		t.Fatalf("injection-shaped ref must be rejected: got %q", cmd)
 	}
 }
 

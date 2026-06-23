@@ -228,6 +228,13 @@ func platformShell() (string, string) {
 // wiring its stdin/stdout for JSON-RPC. Its stderr is forwarded to ours so agent
 // diagnostics remain visible. close() shuts stdin (signalling the agent to exit)
 // then reaps the process.
+//
+// SECURITY: cmdStr is run through the platform shell, so it MUST be trusted.
+// Its only sources are (a) the operator-configured default (AGEZT_ACP_AGENT_CMD)
+// and (b) a launch command read from the trusted acpcatalog for an installed
+// slug. Agent/LLM tool input never reaches here as a raw command: the `agent`
+// selector is resolved slug-only by acpcatalog.ResolveCommand (see CWE-78 note
+// there), so a caller cannot inject an arbitrary shell line.
 func spawnAgent(ctx context.Context, cmdStr, cwd string) (*transport, error) {
 	shell, arg := platformShell()
 	c := exec.Command(shell, arg, cmdStr) // not CommandContext: we manage teardown via close()

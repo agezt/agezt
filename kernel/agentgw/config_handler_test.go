@@ -73,7 +73,7 @@ func TestConfigGatewayListAndSearchRespectAgentVisibility(t *testing.T) {
 	}
 }
 
-func TestConfigGatewaySetPersistsAgentVisibility(t *testing.T) {
+func TestConfigGatewaySetRejectsACLFieldsButPersistsRest(t *testing.T) {
 	gw := NewGateway(DefaultGatewayConfig(t.TempDir()))
 	center, err := configcenter.New(configcenter.DefaultConfig(t.TempDir()))
 	if err != nil {
@@ -97,14 +97,35 @@ func TestConfigGatewaySetPersistsAgentVisibility(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	doGatewayPostJSON(t, srv.URL+"/v1/config", token, map[string]any{
+	// SECURITY (CWE-862/CWE-269): a config.write token MUST NOT be able to set
+	// the per-key access-control grant (allowed_agents/excluded_agents) — that
+	// would let it self-escalate read access. Such writes are rejected with 403
+	// and must not persist anything.
+	if status := gatewayPostStatus(t, srv.URL+"/v1/config", token, map[string]any{
+		"key":            "agent/ops/runtime",
+		"value":          "mode=careful",
+		"allowed_agents": []string{"ops", "planner"},
+	}); status != http.StatusForbidden {
+		t.Fatalf("write with allowed_agents: status = %d, want 403", status)
+	}
+	if status := gatewayPostStatus(t, srv.URL+"/v1/config", token, map[string]any{
 		"key":             "agent/ops/runtime",
 		"value":           "mode=careful",
-		"rating":          "restricted",
-		"description":     "ops-local runtime config",
-		"tags":            []string{"agent", "runtime"},
-		"allowed_agents":  []string{" ops ", "ops", "planner"},
-		"excluded_agents": []string{"blocked", " "},
+		"excluded_agents": []string{"blocked"},
+	}); status != http.StatusForbidden {
+		t.Fatalf("write with excluded_agents: status = %d, want 403", status)
+	}
+	if _, err := center.GetEntry("agent/ops/runtime"); err == nil {
+		t.Fatal("rejected ACL write should not have persisted the entry")
+	}
+
+	// A write WITHOUT the ACL fields still persists value/rating/description/tags.
+	doGatewayPostJSON(t, srv.URL+"/v1/config", token, map[string]any{
+		"key":         "agent/ops/runtime",
+		"value":       "mode=careful",
+		"rating":      "restricted",
+		"description": "ops-local runtime config",
+		"tags":        []string{"agent", "runtime"},
 	})
 
 	entry, err := center.GetEntry("agent/ops/runtime")
@@ -114,12 +135,30 @@ func TestConfigGatewaySetPersistsAgentVisibility(t *testing.T) {
 	if entry.Rating != configcenter.RatingRestricted {
 		t.Fatalf("rating = %q", entry.Rating)
 	}
-	if strings.Join(entry.AllowedAgents, ",") != "ops,planner" {
-		t.Fatalf("AllowedAgents = %v", entry.AllowedAgents)
+	if len(entry.AllowedAgents) != 0 || len(entry.ExcludedAgents) != 0 {
+		t.Fatalf("ACL fields must stay empty via the gateway: allowed=%v excluded=%v",
+			entry.AllowedAgents, entry.ExcludedAgents)
 	}
-	if strings.Join(entry.ExcludedAgents, ",") != "blocked" {
-		t.Fatalf("ExcludedAgents = %v", entry.ExcludedAgents)
+}
+
+func gatewayPostStatus(t *testing.T, url, token string, payload any) int {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
 	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
 }
 
 func doGatewayJSON(t *testing.T, url, token string) map[string]any {

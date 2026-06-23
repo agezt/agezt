@@ -15,6 +15,16 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
+// tokenIssuer / tokenAudience pin the JWT "iss"/"aud" claims. The agent gateway
+// is a single-issuer, single-audience system: it mints these tokens for itself,
+// so both are constant. Validation rejects any token that does not carry exactly
+// these values, so a token minted for a different purpose (or under a reused
+// secret) cannot be replayed against the gateway.
+const (
+	tokenIssuer   = "agezt-agentgw"
+	tokenAudience = "agezt-agentgw"
+)
+
 // ErrInvalidToken is returned when token validation fails.
 var ErrInvalidToken = errors.New("agentgw: invalid token")
 
@@ -53,6 +63,10 @@ func (tm *TokenManager) CreateToken(claims *TokenClaims) (string, error) {
 	if claims.MaxBurst == 0 {
 		claims.MaxBurst = 10 // default burst of 10
 	}
+
+	// Pin issuer/audience so the token is bound to this gateway.
+	claims.Issuer = tokenIssuer
+	claims.Audience = tokenAudience
 
 	// Generate a unique token ID and store it in claims
 	claims.TokenID = ulid.New()
@@ -119,6 +133,14 @@ func (tm *TokenManager) ValidateToken(token string) (*TokenClaims, error) {
 
 	var claims TokenClaims
 	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	// Pin issuer/audience: reject tokens not minted by this gateway for itself.
+	// Combined with the per-install HMAC secret and alg-pinning above, this binds
+	// every accepted token to this issuer+audience (defense against cross-context
+	// token replay / secret reuse).
+	if claims.Issuer != tokenIssuer || claims.Audience != tokenAudience {
 		return nil, ErrInvalidToken
 	}
 

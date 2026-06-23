@@ -207,6 +207,19 @@ func (h *ConfigHandler) handleConfigSet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// SECURITY (CWE-862/CWE-269): AllowedAgents/ExcludedAgents are the per-key
+	// ACCESS-CONTROL grant — they decide which agents may read a key. A gateway
+	// token holding only config.write must NOT be able to rewrite them, or it
+	// could add itself to a sensitive key's allow-list (or strip an exclusion)
+	// and self-escalate to read config it was never granted. These fields are
+	// operator-only: set them via the Config Center / control plane, not the
+	// agent gateway. value/rating/description/tags remain writable here.
+	if len(req.AllowedAgents) > 0 || len(req.ExcludedAgents) > 0 {
+		responseError(w, http.StatusForbidden, "FORBIDDEN",
+			"allowed_agents/excluded_agents are operator-only and cannot be set via the agent gateway")
+		return
+	}
+
 	entry := configcenter.NewConfigEntry(req.Key, req.Value)
 	if req.Rating != "" {
 		entry.Rating = configcenter.Rating(req.Rating)
@@ -216,12 +229,6 @@ func (h *ConfigHandler) handleConfigSet(w http.ResponseWriter, r *http.Request) 
 	}
 	if len(req.Tags) > 0 {
 		entry.Tags = req.Tags
-	}
-	if len(req.AllowedAgents) > 0 {
-		entry.AllowedAgents = cleanStringList(req.AllowedAgents)
-	}
-	if len(req.ExcludedAgents) > 0 {
-		entry.ExcludedAgents = cleanStringList(req.ExcludedAgents)
 	}
 
 	if err := h.center.Set(entry); err != nil {
@@ -310,21 +317,4 @@ type ConfigSetRequest struct {
 	Tags           []string `json:"tags,omitempty"`
 	AllowedAgents  []string `json:"allowed_agents,omitempty"`
 	ExcludedAgents []string `json:"excluded_agents,omitempty"`
-}
-
-func cleanStringList(values []string) []string {
-	out := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		out = append(out, value)
-	}
-	return out
 }
