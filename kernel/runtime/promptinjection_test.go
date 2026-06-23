@@ -56,7 +56,7 @@ func TestRunWith_PromptInjectionGuardRoutesEffectfulFollowupToApproval(t *testin
 		Tools:                map[string]agent.Tool{"browser.read": untrustedReadTool{}, "approvalprobe": probeTool{invoked: &invoked}},
 		Edict:                edict.New(edict.Options{UnknownAllow: true}),
 		Approvals:            reg,
-		PromptInjectionGuard: true,
+		PromptInjectionGuard: runtime.PromptInjectionOn,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

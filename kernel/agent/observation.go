@@ -9,6 +9,15 @@ import (
 
 const observationDeltaMaxLines = 24
 
+// DefaultDirectiveTaintWindow is how many loop iterations after a directive-like
+// untrusted observation the prompt-injection gate stays active for effectful
+// actions. 1 = only the turn immediately following the observation (the turn in
+// which the model could first act on the injected instruction). Beyond the
+// window the observation's audit provenance is retained but the gate no longer
+// fires, so a single suspicious observation early in a run does not force
+// approval on every later action.
+const DefaultDirectiveTaintWindow = 1
+
 // ObservationTrust marks whether a tool result is trusted operational output or
 // untrusted external-world data. The model may reason over untrusted data, but
 // it must not treat it as an instruction source.
@@ -102,18 +111,43 @@ func defaultUntrustedObservationTool(toolName string) bool {
 	}
 }
 
+// directiveInjectionNeedles are phrases that are injection-SHAPED: an explicit
+// attempt to override the model's instructions, swear it to secrecy, or make it
+// exfiltrate. They are deliberately specific so benign external content that
+// merely mentions security topics ("rotate your API key", "store the password
+// hash", "use the search tool") does NOT trip the guard — the old bare-keyword
+// list ("api key", "password", "token", "use the tool", "system prompt") tripped
+// on almost every technical web result, which is what made the downstream
+// approval gate fire constantly. A real prompt injection still matches here.
+var directiveInjectionNeedles = []string{
+	// Instruction override.
+	"ignore previous", "ignore all previous", "ignore the above", "ignore your previous",
+	"ignore your instructions", "ignore prior instructions", "ignore the system",
+	"disregard previous", "disregard all previous", "disregard the above",
+	"disregard your instructions", "disregard prior", "forget previous instructions",
+	"forget all previous", "forget your instructions", "forget everything above",
+	"override your instructions", "override the system prompt", "overrule your instructions",
+	"new instructions:", "updated instructions:", "follow these instructions instead",
+	"disregard the system prompt", "ignore the system prompt",
+	// Identity / system-prompt extraction.
+	"system prompt:", "developer message:", "you are chatgpt", "you are an ai language model",
+	"reveal your system", "reveal your instructions", "print your system",
+	"show your system prompt", "expose your system prompt", "repeat your system prompt",
+	"repeat the words above", "what is your system prompt",
+	// Secrecy / exfiltration.
+	"do not tell the user", "don't tell the user", "without telling the user",
+	"do not mention this", "without informing the user", "send secrets", "exfiltrate",
+	"leak the", "upload your credentials", "send your api key", "post your api key",
+}
+
+// directiveLikeMatches reports the injection-shaped phrases present in s (the
+// model-visible content of an untrusted observation). A non-empty result marks
+// the observation directive-like, which — only within a short causal window —
+// gates a downstream effectful action.
 func directiveLikeMatches(s string) []string {
 	lower := strings.ToLower(s)
-	needles := []string{
-		"ignore previous", "ignore all previous", "ignore above", "disregard previous",
-		"system prompt", "developer message", "you are chatgpt", "you are an ai",
-		"new instructions", "secret instruction", "hidden instruction",
-		"call the tool", "use the tool", "run this command", "execute this command",
-		"reveal your", "show your system", "print your system", "api key", "password", "token",
-		"send secrets", "exfiltrate", "do not tell the user",
-	}
 	matches := make([]string, 0, 4)
-	for _, n := range needles {
+	for _, n := range directiveInjectionNeedles {
 		if strings.Contains(lower, n) {
 			matches = append(matches, n)
 		}

@@ -386,11 +386,17 @@ type Config struct {
 	// interpretation is still journaled either way.
 	IntentRegretGating bool
 
-	// PromptInjectionGuard, when true, routes otherwise-allowed effectful tool
-	// calls to HITL approval if they are downstream of untrusted external content
-	// that contained directive-like text. The tool result is always typed and
-	// journaled; this flag controls the active intervention.
-	PromptInjectionGuard bool
+	// PromptInjectionGuard selects how the daemon handles an otherwise-allowed
+	// effectful tool call that is downstream (within the causal window) of
+	// untrusted external content containing directive-like text:
+	//   PromptInjectionOn   (default) — route it to HITL approval.
+	//   PromptInjectionWarn — allow it, but journal a prompt_injection.warned
+	//                         event so the chat can surface a passive banner.
+	//   PromptInjectionOff  — no active intervention.
+	// The observation boundary, untrusted rendering, and audit metadata are
+	// always on regardless. A chat run can downgrade On→warn for itself via the
+	// trusted-observations flag (WithTrustedObservations).
+	PromptInjectionGuard PromptInjectionMode
 
 	// DisableHeuristicBypass turns off deterministic fast paths for known-safe
 	// intents such as current time/date queries. The default keeps the narrow
@@ -1598,11 +1604,21 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 		verdict.WouldAsk = true
 		k.publishIntentConfirmationRequired(correlationFromCtx(ctx), actorFromCtx(ctx), intentFrame, regretAxes, confirmationPrompt)
 	}
-	if k.cfg.PromptInjectionGuard && verdict.Allow && hasTaint && taint.DirectiveLike && bundle.EffectClass != string(agent.EffectReadOnly) {
-		requiresApproval = true
-		approvalReason = "prompt-injection guard: effectful action is downstream of directive-like untrusted observation from " + strings.Join(taint.Sources, ", ")
-		verdict.Allow = false
-		verdict.WouldAsk = true
+	// Prompt-injection guard: an effectful action within the causal window of a
+	// directive-like untrusted observation. The agent loop already scoped
+	// taint.DirectiveLike to that window, so this no longer fires for the whole
+	// run after one suspicious observation.
+	if k.cfg.PromptInjectionGuard != PromptInjectionOff && verdict.Allow && hasTaint && taint.DirectiveLike && bundle.EffectClass != string(agent.EffectReadOnly) {
+		// Block only in On mode and only when the operator hasn't trusted this
+		// run; warn mode and a trusted run audit without interrupting.
+		if k.cfg.PromptInjectionGuard == PromptInjectionOn && !trustedObservations(ctx) {
+			requiresApproval = true
+			approvalReason = "prompt-injection guard: effectful action is downstream of directive-like untrusted observation from " + strings.Join(taint.Sources, ", ")
+			verdict.Allow = false
+			verdict.WouldAsk = true
+		} else {
+			k.publishPromptInjectionWarned(correlationFromCtx(ctx), actorFromCtx(ctx), tc.Name, string(out.Capability), taint.Sources, trustedObservations(ctx))
+		}
 	}
 
 	// Session-scoped operator grant (chat "auto-approve Tool Forge this session"):
@@ -1911,6 +1927,7 @@ const (
 	ctxKeyAgentNoisePolicy
 	ctxKeyWakeContext
 	ctxKeyAutoApproveCaps
+	ctxKeyTrustedObservations
 )
 
 // agentIdent carries a named agent's identity + daily ceiling for the
@@ -2122,6 +2139,50 @@ func autoApproveCap(ctx context.Context, c string) bool {
 		return v[c]
 	}
 	return false
+}
+
+// PromptInjectionMode selects how the prompt-injection guard handles an
+// effectful action downstream of directive-like untrusted content.
+type PromptInjectionMode int
+
+const (
+	// PromptInjectionOn routes the action to HITL approval (default).
+	PromptInjectionOn PromptInjectionMode = iota
+	// PromptInjectionWarn allows the action but journals a warning.
+	PromptInjectionWarn
+	// PromptInjectionOff disables the active intervention entirely.
+	PromptInjectionOff
+)
+
+// ParsePromptInjectionMode maps an operator string (AGEZT_PROMPT_INJECTION_GUARD)
+// to a mode. "off"/"0"/"false" → Off, "warn"/"warning"/"audit" → Warn, anything
+// else (including empty) → On, preserving the historical on-by-default posture.
+func ParsePromptInjectionMode(s string) PromptInjectionMode {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "off", "0", "false", "no":
+		return PromptInjectionOff
+	case "warn", "warning", "audit":
+		return PromptInjectionWarn
+	default:
+		return PromptInjectionOn
+	}
+}
+
+// WithTrustedObservations marks a run as one whose untrusted-observation content
+// the operator has chosen to trust (e.g. the chat "trust this run's web content"
+// toggle). It downgrades the prompt-injection guard from blocking to warn FOR
+// THIS RUN and its sub-agents, so a deliberately operator-driven agentic task
+// isn't interrupted for every action — without changing the daemon-wide posture
+// or touching any hard-deny. Never affects the F4 floor or SSRF/budget guards.
+func WithTrustedObservations(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ctxKeyTrustedObservations, true)
+}
+
+// trustedObservations reports whether this run carries the operator's
+// trust-this-run grant.
+func trustedObservations(ctx context.Context) bool {
+	v, _ := ctx.Value(ctxKeyTrustedObservations).(bool)
+	return v
 }
 
 // WithAgentProfile applies a roster profile to a run's context (M790): the

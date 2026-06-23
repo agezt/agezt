@@ -70,6 +70,34 @@ func (k *Kernel) publishAutoApprove(corr, actor, capability, tool string) {
 	})
 }
 
+// publishPromptInjectionWarned records that the prompt-injection guard observed
+// an effectful action downstream of directive-like untrusted content but did NOT
+// block it — because the guard is in warn mode or the operator trusted this run.
+// The chat surfaces this as a passive banner; `agt why` shows the guard would
+// have asked. Mirrors publishAutoApprove's unregistered-kind pattern.
+func (k *Kernel) publishPromptInjectionWarned(corr, actor, tool, capability string, sources []string, trustedRun bool) {
+	if k == nil || k.bus == nil {
+		return
+	}
+	reason := "prompt-injection guard (warn mode): effectful action downstream of directive-like untrusted observation"
+	if trustedRun {
+		reason = "prompt-injection guard: operator trusted this run's observations; effectful action allowed without approval"
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject:       "prompt_injection.warned",
+		Kind:          event.Kind("prompt_injection.warned"),
+		Actor:         actor,
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"tool":        tool,
+			"capability":  capability,
+			"sources":     sources,
+			"trusted_run": trustedRun,
+			"reason":      reason,
+		},
+	})
+}
+
 func regretAxesPayload(axes intentmodel.RegretAxes) map[string]float64 {
 	return map[string]float64{
 		"physical":      axes.Physical,
