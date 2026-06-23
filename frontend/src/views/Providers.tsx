@@ -9,7 +9,8 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { BarList } from "@/components/Charts";
-import { Ring } from "@/components/Widgets";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface Stats {
   routed?: number;
@@ -106,7 +107,7 @@ export function Providers() {
       <PageHeader
         icon={Cpu}
         title="Providers"
-        description="Routing monitor: calls routed, fallback rate, and a live routing log"
+
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={reloadProviders} disabled={reloading} title="Re-read credentials & catalog without restarting the daemon">
@@ -125,25 +126,23 @@ export function Providers() {
         <SkeletonList count={3} lines={1} />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="flex items-center justify-center glass rounded-xl p-3">
-              <Ring
-                pct={fbRatePct}
-                center={`${fbRatePct}%`}
-                label="fallback rate"
-                tone={stats.routed ? (fbRatePct < 5 ? "good" : fbRatePct < 20 ? "warn" : "bad") : "muted"}
-              />
-            </div>
-            <Tile icon={Route} label="routed" value={(stats.routed ?? 0).toLocaleString()} tone="accent" />
-            <Tile icon={GitFork} label="fallbacks" value={stats.fallbacks ?? 0} tone={(stats.fallbacks ?? 0) > 0 ? "bad" : "muted"} />
-            <Tile icon={Cpu} label="providers" value={rows.length} tone="muted" />
-          </div>
+          <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
+            <MetricWidget
+              icon={GitFork}
+              label="Fallback rate"
+              value={`${fbRatePct}%`}
+              tone={stats.routed ? (fbRatePct < 5 ? "good" : fbRatePct < 20 ? "warn" : "bad") : "muted"}
+            />
+            <MetricWidget icon={Route} label="Routed" value={(stats.routed ?? 0).toLocaleString()} tone="accent" />
+            <MetricWidget icon={GitFork} label="Fallbacks" value={stats.fallbacks ?? 0} tone={(stats.fallbacks ?? 0) > 0 ? "bad" : "muted"} />
+            <MetricWidget icon={Cpu} label="Providers" value={rows.length} tone="muted" />
+          </MetricGrid>
 
-          <Card title="Routes by provider" icon={Cpu}>
+          <CollapsibleSection title="Routes by provider" icon={Cpu} tone="muted" defaultOpen={true}>
             {rows.length ? <BarList rows={rows} /> : <Muted>no routing decisions yet</Muted>}
-          </Card>
+          </CollapsibleSection>
 
-          <Card title="Routing activity" icon={Route}>
+          <CollapsibleSection title="Routing activity" icon={Route} tone="muted" defaultOpen={true}>
             {log.length === 0 ? (
               <Muted>no routing events</Muted>
             ) : (
@@ -166,42 +165,11 @@ export function Providers() {
                 ))}
               </ul>
             )}
-          </Card>
+          </CollapsibleSection>
         </>
       )}
     </div>
   );
 }
 
-function Tile({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: typeof Cpu;
-  label: string;
-  value: number | string;
-  tone: "accent" | "bad" | "muted";
-}) {
-  const color = { accent: "text-accent", bad: "text-bad", muted: "text-foreground" }[tone];
-  return (
-    <div className="glass rounded-xl px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-      </div>
-      <div className={cn("mt-1 text-xl font-semibold tabular-nums", color)}>{value}</div>
-    </div>
-  );
-}
-
-function Card({ title, icon: Icon, children }: { title: string; icon: typeof Cpu; children: React.ReactNode }) {
-  return (
-    <div className="glass rounded-xl p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-        <Icon className="size-3.5" /> {title}
-      </div>
-      {children}
-    </div>
-  );
-}
+// Tile and Card removed — replaced by MetricWidget/MetricGrid and CollapsibleSection

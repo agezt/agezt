@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff } from "lucide-react";
+import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff, ShieldAlert } from "lucide-react";
 import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { byDescValue, pct } from "@/lib/format";
@@ -135,7 +136,6 @@ export function Policy() {
           className="mb-3"
           icon={ShieldCheck}
           title="Capability policy"
-          description="grant or restrict each governed capability at runtime"
           actions={
             <>
               <label className="flex items-center gap-1.5 text-xs text-muted">
@@ -165,39 +165,38 @@ export function Policy() {
         {levels.length === 0 ? (
           <div className="text-xs text-muted">{loading ? "loading…" : "no governed capabilities"}</div>
         ) : (
-          <>
-          <LevelSummary levels={levels} />
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {levels.map(([cap, lvl]) => (
-              <div
-                key={cap}
-                className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
-              >
-                <span className="truncate font-mono text-xs">{cap}</span>
-                <select
-                  value={lvl}
-                  disabled={busy === cap}
-                  onChange={(e) => act(cap, "/api/edict/set_level", { capability: cap, level: e.target.value }, { success: `${cap} → ${e.target.value}` })}
-                  className={cn(
-                    "ml-auto h-7 rounded-md border bg-card px-1.5 text-xs tabular-nums outline-none focus:border-accent disabled:opacity-50",
-                    levelTone(lvl),
-                  )}
+          <CollapsibleSection icon={ShieldCheck} title="Capabilities" count={levels.length} tone="accent">
+            <LevelSummary levels={levels} />
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {levels.map(([cap, lvl]) => (
+                <div
+                  key={cap}
+                  className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
                 >
-                  {LEVELS.map((l) => (
-                    <option key={l.value} value={l.value}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
-          </>
+                  <span className="truncate font-mono text-xs">{cap}</span>
+                  <select
+                    value={lvl}
+                    disabled={busy === cap}
+                    onChange={(e) => act(cap, "/api/edict/set_level", { capability: cap, level: e.target.value }, { success: `${cap} → ${e.target.value}` })}
+                    className={cn(
+                      "ml-auto h-7 rounded-md border bg-card px-1.5 text-xs tabular-nums outline-none focus:border-accent disabled:opacity-50",
+                      levelTone(lvl),
+                    )}
+                  >
+                    {LEVELS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </CollapsibleSection>
         )}
 
         {/* Hard-deny rules */}
-        <div className="mt-3">
-          <Count>hard-deny rules ({denies.length})</Count>
+        <CollapsibleSection icon={ShieldAlert} title="Hard-deny rules" count={denies.length} tone="bad">
           {denies.length === 0 ? (
             <div className="text-xs text-muted">none</div>
           ) : (
@@ -243,7 +242,7 @@ export function Policy() {
             }}
             onError={(m) => ui.toast(m, "error")}
           />
-        </div>
+        </CollapsibleSection>
 
         {/* Dry-run a decision (M753) */}
         {levels.length > 0 && <PolicyTestForm capabilities={levels.map(([cap]) => cap)} />}

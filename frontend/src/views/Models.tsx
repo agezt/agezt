@@ -9,6 +9,9 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
 // Models is the LLM model catalog — the providers and models the daemon knows
 // about, synced from models.dev/api.json (the same source as `agt catalog sync`).
@@ -138,15 +141,6 @@ export function Models() {
       <PageHeader
         icon={Layers}
         title="Models"
-        description={
-          data ? (
-            <>
-              {providers.length} providers · {totalModels} models
-            </>
-          ) : (
-            "The LLM model catalog — providers and models synced from models.dev."
-          )
-        }
         actions={
           <>
             <div className="relative">
@@ -160,7 +154,7 @@ export function Models() {
               />
             </div>
             <Button size="sm" onClick={sync} disabled={syncing} title="Pull the latest models from models.dev">
-              {syncing ? <RefreshCw className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />} Sync models
+              {syncing ? <RefreshCw className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />} Sync
             </Button>
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -169,22 +163,11 @@ export function Models() {
         }
       />
 
-      <p className="text-xs text-muted">
-        {syncedAt ? (
-          <>
-            Last synced {fmtDateTime(syncedAt)}
-            {data?.api_source_url ? (
-              <>
-                {" "}
-                from <code className="rounded bg-panel px-1">{data.api_source_url}</code>
-              </>
-            ) : null}
-            .
-          </>
-        ) : (
-          <>Never synced — click “Sync models” to pull the catalog from models.dev.</>
-        )}
-      </p>
+      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
+        <MetricWidget icon={Layers} label="Providers" value={providers.length} tone="muted" />
+        <MetricWidget icon={Brain} label="Models" value={totalModels} tone="muted" />
+        {syncedAt && <MetricWidget icon={RefreshCw} label="Last synced" value={fmtDateTime(syncedAt)} tone="muted" />}
+      </MetricGrid>
 
       <ChatGPTSignIn onChanged={reload} />
 
@@ -235,13 +218,13 @@ function ProviderCard({
         <span className="text-sm font-semibold">{provider.name || provider.id}</span>
         <span className="font-mono text-xs text-muted">{provider.id}</span>
         {provider.credentialed ? (
-          <span className="inline-flex items-center gap-1 rounded bg-good/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-good" title="An API key is configured for this provider">
-            <KeyRound className="size-2.5" /> keyed
-          </span>
+          <Badge variant="good">
+              <KeyRound className="size-2.5 mr-1" /> keyed
+            </Badge>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded bg-panel px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted" title="No API key configured">
-            <KeyRound className="size-2.5" /> no key
-          </span>
+          <Badge variant="default">
+              <KeyRound className="size-2.5 mr-1" /> no key
+            </Badge>
         )}
         <span className="ml-auto text-xs tabular-nums text-muted">
           {models.length || provider.model_count || 0} model{(models.length || provider.model_count) === 1 ? "" : "s"}
@@ -255,13 +238,13 @@ function ProviderCard({
       {open && models.length > 0 && (
         <div className="border-t border-border/60">
           <table className="w-full text-xs">
-            <thead className="text-xs uppercase tracking-wide text-muted">
-              <tr className="border-b border-border/40">
-                <th className="px-3 py-1.5 text-left font-medium">Model</th>
-                <th className="px-2 py-1.5 text-right font-medium">Context</th>
-                <th className="px-2 py-1.5 text-right font-medium">In $/M</th>
-                <th className="px-2 py-1.5 text-right font-medium">Out $/M</th>
-                <th className="px-3 py-1.5 text-right font-medium">Caps</th>
+            <thead>
+              <tr className="border-b border-border/40 text-xs text-muted">
+                <th className="px-3 py-1.5 text-left">Model</th>
+                <th className="px-2 py-1.5 text-right">Context</th>
+                <th className="px-2 py-1.5 text-right">In $/M</th>
+                <th className="px-2 py-1.5 text-right">Out $/M</th>
+                <th className="px-3 py-1.5 text-right">Caps</th>
               </tr>
             </thead>
             <tbody>
@@ -276,14 +259,10 @@ function ProviderCard({
                   <td className="px-3 py-1.5">
                     <div className="flex items-center justify-end gap-1">
                       {m.tool_call && (
-                        <span className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1 text-[9px] text-accent" title="Supports tool calls">
-                          <Zap className="size-2.5" /> tools
-                        </span>
+                        <Badge variant="accent"><Zap className="size-2.5 mr-0.5" />tools</Badge>
                       )}
                       {m.reasoning && (
-                        <span className="inline-flex items-center gap-0.5 rounded bg-violet-500/15 px-1 text-[9px] text-violet-300" title="Reasoning model">
-                          <Brain className="size-2.5" /> reason
-                        </span>
+                        <Badge variant="warn"><Brain className="size-2.5 mr-0.5" />reason</Badge>
                       )}
                     </div>
                   </td>
@@ -401,11 +380,9 @@ function ChatGPTSignIn({ onChanged }: { onChanged: () => void }) {
         <KeyRound className="size-4 text-accent" />
         <span className="text-sm font-medium text-foreground">Sign in with ChatGPT</span>
         {connected ? (
-          <span className="rounded-full bg-good/15 px-2 py-0.5 text-[11px] text-good">
-            connected{email ? ` · ${email}` : ""}
-          </span>
+          <Badge variant="good">connected{email ? ` · ${email}` : ""}</Badge>
         ) : (
-          <span className="rounded-full bg-panel px-2 py-0.5 text-[11px] text-muted">not connected</span>
+          <Badge variant="default">not connected</Badge>
         )}
         <div className="ml-auto flex items-center gap-2">
           {connected ? (
@@ -424,11 +401,7 @@ function ChatGPTSignIn({ onChanged }: { onChanged: () => void }) {
           )}
         </div>
       </div>
-      <p className="mt-1.5 text-[11px] text-muted">
-        Use your ChatGPT Plus/Pro subscription as a provider (gpt-5-codex) — no API key. Uses an unofficial OpenAI
-        backend (the Codex login); may break or conflict with OpenAI’s terms.
-        {status ? <span className="ml-1 text-foreground">{status}</span> : null}
-      </p>
+      {status && <p className="mt-1.5 text-[11px] text-muted">{status}</p>}
     </div>
   );
 }
@@ -504,7 +477,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
         <KeyRound className="size-3" /> API keys
         <code className="rounded bg-panel px-1 font-mono text-xs normal-case tracking-normal text-foreground/70">{env}</code>
       </div>
@@ -518,14 +491,14 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
           {keys.map((k) => (
             <li key={k.label} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
               {k.active ? (
-                <span className="inline-flex items-center gap-1 rounded bg-good/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-good" title="Active key">
-                  <Check className="size-2.5" /> active
-                </span>
+                <Badge variant="good">
+                  <Check className="size-2.5 mr-1" /> active
+                </Badge>
               ) : (
                 <button
                   onClick={() => activate(k.label)}
                   disabled={busy}
-                  className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                  className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
                   title="Make this the active key"
                 >
                   activate

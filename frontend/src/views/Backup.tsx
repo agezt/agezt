@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Download, Upload, Palette, Server, Info, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/lib/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
@@ -128,7 +129,7 @@ export function Backup() {
       <PageHeader
         icon={Archive}
         title="Backup & Restore"
-        description="carry your console to another browser or daemon"
+
       />
 
       <input
@@ -168,71 +169,55 @@ export function Backup() {
         }}
       />
 
-      <div className="glass rounded-xl p-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Palette className="size-4 text-accent" /> Appearance
-        </h3>
-        <p className="mt-1 text-xs text-muted">
-          Theme, accent colour and console name. A per-device preference (stored in this browser).
-        </p>
-        <div className="mt-2 flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={exportAppearanceFile}>
-            <Download className="size-3.5" /> Export
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => appearanceRef.current?.click()}>
-            <Upload className="size-3.5" /> Import
-          </Button>
-        </div>
-      </div>
+      <CollapsibleSection icon={Palette} title="Appearance" tone="accent" defaultOpen={true}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={exportAppearanceFile}>
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => appearanceRef.current?.click()}>
+              <Upload className="size-3.5" /> Import
+            </Button>
+          </div>
+        }
+      >
+        {null}
+      </CollapsibleSection>
 
-      <div className="glass rounded-xl p-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Server className="size-4 text-accent" /> Daemon configuration
-        </h3>
-        <p className="mt-1 text-xs text-muted">
-          Default daemon identity, prompt templates and per-task routing chains. Lives on the daemon — importing
-          replaces them on whichever daemon this console is connected to.
-        </p>
+      <CollapsibleSection icon={Server} title="Daemon configuration" tone="accent" defaultOpen={true}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={exportConfigFile} disabled={busy === "config-export"}>
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => configRef.current?.click()} disabled={busy === "config-import"}>
+              <Upload className="size-3.5" /> Import
+            </Button>
+          </div>
+        }
+      >
         {summary && (
           <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-panel px-2 py-1 text-[11px] text-foreground/80">
-            <Info className="size-3 text-accent" /> currently: {summary}
+            <Info className="size-3 text-accent" /> {summary}
           </p>
         )}
-        <div className="mt-2 flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={exportConfigFile} disabled={busy === "config-export"}>
-            <Download className="size-3.5" /> Export
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => configRef.current?.click()} disabled={busy === "config-import"}>
-            <Upload className="size-3.5" /> Import
-          </Button>
-        </div>
-      </div>
+      </CollapsibleSection>
 
-      <div className="glass rounded-xl p-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Camera className="size-4 text-accent" /> Full snapshot
-        </h3>
-        <p className="mt-1 text-xs text-muted">
-          A complete record of daemon-level defaults and knowledge — default identity, prompt templates, routing, standing orders, schedules, memory and
-          the world model — in one file. Export it for backup or migration; <span className="text-foreground/70">Restore</span> replays
-          every section onto this daemon. Default identity / prompt templates / routing are replaced; standing &amp; schedules are added; memory &amp; the
-          world model dedupe. Best for seeding a fresh daemon.
-        </p>
-        <div className="mt-2 flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={exportSnapshot} disabled={busy === "snapshot"}>
-            <Download className="size-3.5" /> Export snapshot
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => snapshotRef.current?.click()} disabled={busy === "snapshot-import"}>
-            <Upload className="size-3.5" /> Restore snapshot
-          </Button>
-        </div>
-      </div>
+      <CollapsibleSection icon={Camera} title="Full snapshot" tone="muted" defaultOpen={false}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={exportSnapshot} disabled={busy === "snapshot"}>
+              <Download className="size-3.5" /> Export
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => snapshotRef.current?.click()} disabled={busy === "snapshot-import"}>
+              <Upload className="size-3.5" /> Restore
+            </Button>
+          </div>
+        }
+      >
+        {null}
+      </CollapsibleSection>
 
-      <p className="text-[11px] text-muted">
-        The config bundle covers <span className="text-foreground/70">default identity, prompt templates and routing</span>; the full snapshot
-        adds standing orders, schedules, memory and the world model — a restorable daemon snapshot. The
-        same Export/Import actions are also in the command palette (<kbd className="rounded border border-border px-1">⌘K</kbd>).
-      </p>
     </div>
   );
 }
