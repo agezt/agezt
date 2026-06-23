@@ -21,6 +21,11 @@ import {
   Radar,
   UserCheck,
   Wrench,
+  Radio,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Pause,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -31,6 +36,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { DelegationGraph } from "@/components/DelegationGraph";
+import { Badge, statusVariant } from "@/components/ui/badge";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { FleetCard, FleetDetail } from "@/components/Fleet";
@@ -38,6 +44,9 @@ import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { PageHeader } from "@/components/ui/page-header";
+import { TabNav } from "@/components/ui/tab-nav";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
@@ -322,24 +331,8 @@ export function Agents() {
     <PageHeader
       icon={Network}
       title="Agents"
-      description="Your full fleet census and live run monitor."
       actions={
         <>
-          <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
-            {(["fleet", "live"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  "rounded-md px-2.5 py-1 capitalize transition-colors",
-                  tab === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
-                )}
-              >
-                {t === "fleet" ? "Fleet" : "Live"}
-                {t === "live" && running > 0 ? <span className="ml-1 text-accent">· {running}</span> : null}
-              </button>
-            ))}
-          </div>
           <Button variant="ghost" size="sm" onClick={reloadAll} title="Reload">
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
           </Button>
@@ -413,67 +406,132 @@ export function Agents() {
         {header}
 
         {runs && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <BigStat icon={Network} label="leads" value={roots.length} />
-            <BigStat icon={RefreshCw} label="running" value={running} accent={running > 0} />
-            <BigStat icon={GitBranch} label="sub-agents" value={totalSubs} />
-            <BigStat icon={Bot} label="roster" value={profiles.length || "—"} />
-            <BigStat icon={Coins} label="spend" value={money(totalSpend)} />
-          </div>
+          <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
+            <MetricWidget icon={Network} label="Leads" value={roots.length} tone="muted" />
+            <MetricWidget icon={Radio} label="Running" value={running} tone={running > 0 ? "accent" : "muted"} pulse={running > 0} />
+            <MetricWidget icon={GitBranch} label="Sub-agents" value={totalSubs} tone="muted" />
+            <MetricWidget icon={Bot} label="Roster" value={profiles.length || "—"} tone="muted" />
+            <MetricWidget icon={Coins} label="Spend" value={money(totalSpend)} tone="muted" />
+          </MetricGrid>
         )}
 
         {runs && roots.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(["all", "running", "done", "failed"] as Filter[]).map((f) => {
-              const n = f === "all" ? roots.length : roots.filter((r) => r.kind === f).length;
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors",
-                    filter === f ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-                  )}
-                >
-                  {f}
-                  <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{n}</span>
-                </button>
-              );
-            })}
-          </div>
+          <TabNav
+            tabs={[
+              {
+                id: "all",
+                label: "All",
+                icon: Network,
+                count: roots.length,
+                content: roots.length === 0 ? (
+                  <EmptyState
+                    icon={Network}
+                    title="No agent runs right now"
+                    hint="Nothing is executing — switch to the Fleet tab to see every agent you have and how each one gets triggered."
+                    action={
+                      <Button variant="ghost" size="sm" onClick={() => setTab("fleet")}>
+                        <Radar className="size-3.5" /> View the fleet
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                    {roots.map((r) => (
+                      <RunCard
+                        key={r.id}
+                        r={r}
+                        onOpen={() => {
+                          setSel(r.id);
+                          setPicked(null);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ),
+              },
+              {
+                id: "running",
+                label: "Running",
+                icon: Radio,
+                count: roots.filter((r) => r.kind === "running").length,
+                content: (() => {
+                  const runningRoots = roots.filter((r) => r.kind === "running");
+                  return runningRoots.length === 0 ? (
+                    <EmptyState icon={Radio} title="No running agents" hint="No agents are currently executing." />
+                  ) : (
+                    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                      {runningRoots.map((r) => (
+                        <RunCard
+                          key={r.id}
+                          r={r}
+                          onOpen={() => {
+                            setSel(r.id);
+                            setPicked(null);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                })(),
+              },
+              {
+                id: "done",
+                label: "Done",
+                icon: CheckCircle2,
+                count: roots.filter((r) => r.kind === "done").length,
+                content: (() => {
+                  const doneRoots = roots.filter((r) => r.kind === "done");
+                  return doneRoots.length === 0 ? (
+                    <EmptyState icon={CheckCircle2} title="No completed runs" hint="No runs have completed successfully." />
+                  ) : (
+                    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                      {doneRoots.map((r) => (
+                        <RunCard
+                          key={r.id}
+                          r={r}
+                          onOpen={() => {
+                            setSel(r.id);
+                            setPicked(null);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                })(),
+              },
+              {
+                id: "failed",
+                label: "Failed",
+                icon: XCircle,
+                count: roots.filter((r) => r.kind === "failed").length,
+                content: (() => {
+                  const failedRoots = roots.filter((r) => r.kind === "failed");
+                  return failedRoots.length === 0 ? (
+                    <EmptyState icon={XCircle} title="No failed runs" hint="No runs have failed." />
+                  ) : (
+                    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                      {failedRoots.map((r) => (
+                        <RunCard
+                          key={r.id}
+                          r={r}
+                          onOpen={() => {
+                            setSel(r.id);
+                            setPicked(null);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                })(),
+              },
+            ]}
+            value={filter}
+            onValueChange={(v) => setFilter(v as Filter)}
+          />
         )}
 
-        {err ? (
-          <ErrorText>{err}</ErrorText>
-        ) : !runs ? (
-          <SkeletonList count={3} lines={2} />
-        ) : roots.length === 0 ? (
-          <EmptyState
-            icon={Network}
-            title="No agent runs right now"
-            hint="Nothing is executing — switch to the Fleet tab to see every agent you have and how each one gets triggered."
-            action={
-              <Button variant="ghost" size="sm" onClick={() => setTab("fleet")}>
-                <Radar className="size-3.5" /> View the fleet
-              </Button>
-            }
-          />
-        ) : shown.length === 0 ? (
-          <EmptyState icon={Network} title={`No ${filter} runs`} hint="Try a different filter." />
-        ) : (
-          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-            {shown.map((r) => (
-              <RunCard
-                key={r.id}
-                r={r}
-                onOpen={() => {
-                  setSel(r.id);
-                  setPicked(null);
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {err && <ErrorText>{err}</ErrorText>}
+        {!runs && !err && <SkeletonList count={3} lines={2} />}
       </div>
     );
   }
@@ -484,50 +542,52 @@ export function Agents() {
       {header}
 
       {/* Census band — what you own, at a glance, even at rest. */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-        <BigStat icon={Users} label="roster" value={census.roster} />
-        <BigStat icon={Anchor} label="standing" value={census.standing} />
-        <BigStat icon={CalendarClock} label="schedules" value={census.schedule} />
-        <BigStat icon={GitFork} label="workflows" value={census.workflow} />
-        <BigStat icon={Cpu} label="system" value={census.system} />
-        <BigStat icon={RefreshCw} label="running" value={census.running} accent={census.running > 0} />
-        <BigStat icon={Skull} label="graveyard" value={census.graveyard} accent={census.graveyard > 0} />
-      </div>
+      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
+        <MetricWidget icon={Users} label="Roster" value={census.roster} tone="muted" />
+        <MetricWidget icon={Anchor} label="Standing" value={census.standing} tone="muted" />
+        <MetricWidget icon={CalendarClock} label="Schedules" value={census.schedule} tone="muted" />
+        <MetricWidget icon={GitFork} label="Workflows" value={census.workflow} tone="muted" />
+        <MetricWidget icon={Cpu} label="System" value={census.system} tone="muted" />
+        <MetricWidget icon={Radio} label="Running" value={census.running} tone={census.running > 0 ? "accent" : "muted"} pulse={census.running > 0} />
+        <MetricWidget icon={Skull} label="Graveyard" value={census.graveyard} tone={census.graveyard > 0 ? "bad" : "muted"} />
+      </MetricGrid>
 
-      {/* Kind filters + search. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {FLEET_FILTERS.map((f) => {
-          const n =
-            f.id === "all"
-              ? fleet.length
-              : f.id === "running"
-                ? census.running
-                : f.id === "graveyard"
-                  ? census.graveyard
-                  : f.id === "direct"
-                    ? census.directAgents
-                    : f.id === "subagents"
-                      ? census.subagents
-                      : f.id === "repair"
-                        ? census.repair
-                        : f.id === "guardians"
-                          ? fleet.filter((e) => e.system).length
-                          : fleet.filter((e) => e.kind === f.id).length;
-          return (
-            <button
-              key={f.id}
-              onClick={() => setFleetFilter(f.id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                fleetFilter === f.id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-              )}
-            >
-              <f.icon className="size-3" />
-              {f.label}
-              <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{n}</span>
-            </button>
-          );
-        })}
+      {/* Status filters + search. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <TabNav
+          tabs={[
+            {
+              id: "all",
+              label: "All",
+              icon: Network,
+              count: fleet.length,
+              content: null,
+            },
+            {
+              id: "running",
+              label: "Awake",
+              icon: Radio,
+              count: census.running,
+              content: null,
+            },
+            {
+              id: "repair",
+              label: "Repair",
+              icon: Wrench,
+              count: census.repair,
+              content: null,
+            },
+            {
+              id: "graveyard",
+              label: "Graveyard",
+              icon: Skull,
+              count: census.graveyard,
+              content: null,
+            },
+          ]}
+          value={fleetFilter === "all" || fleetFilter === "running" || fleetFilter === "repair" || fleetFilter === "graveyard" ? fleetFilter : "all"}
+          onValueChange={(v) => setFleetFilter(v as FleetFilter)}
+        />
         <div className="relative ml-auto">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted" />
           <input
@@ -612,7 +672,9 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
         <span
           className={cn("size-2 shrink-0 rounded-full", KIND_DOT[r.kind], r.kind === "running" && "animate-pulse")}
         />
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{r.status || "run"}</span>
+        <Badge variant={statusVariant(r.status)} className="text-[10px]">
+          {r.status || "run"}
+        </Badge>
         {r.agentName && (
           <span className="inline-flex items-center gap-1 rounded-full bg-panel py-0.5 pl-0.5 pr-1.5 text-xs text-accent">
             <AgentAvatar slug={r.agentName} size={14} status={r.kind === "running" ? "running" : undefined} /> {r.agentName}
