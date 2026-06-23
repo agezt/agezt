@@ -220,25 +220,19 @@ func (s *Salience) refineWithLLM(ctx context.Context, d Delta) (float64, string,
 	if d.Before != "" || d.After != "" {
 		user += " (was: " + d.Before + " → now: " + d.After + ")"
 	}
-	resp, err := s.provider.Complete(ctx, agent.CompletionRequest{
-		Model:    s.model,
-		System:   salienceSystem,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: user}},
-		TaskType: "salience",
-	})
-	if err != nil {
-		return 0, "", false
-	}
-	start := strings.IndexByte(resp.Message.Content, '{')
-	end := strings.LastIndexByte(resp.Message.Content, '}')
-	if start < 0 || end <= start {
-		return 0, "", false
-	}
+	// Structured output via the unified GenerateObject path (M997): robust JSON
+	// extraction + bounded repair. Any failure (transport or unusable answer) is
+	// a skip — the same all-or-nothing disposition the hand-rolled parse had.
 	var out struct {
 		Score  float64 `json:"score"`
 		Reason string  `json:"reason"`
 	}
-	if json.Unmarshal([]byte(resp.Message.Content[start:end+1]), &out) != nil {
+	if _, err := agent.GenerateObject(ctx, s.provider, agent.CompletionRequest{
+		Model:    s.model,
+		System:   salienceSystem,
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: user}},
+		TaskType: "salience",
+	}, nil, &out); err != nil {
 		return 0, "", false
 	}
 	if out.Score < 0 {
