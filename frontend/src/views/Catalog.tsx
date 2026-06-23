@@ -68,7 +68,6 @@ export function Catalog() {
       <PageHeader
         icon={Boxes}
         title="Capability catalog"
-        description={rows ? `${rows.length} tools the agent can use` : "Every tool the agent can call and the policy that governs it."}
         actions={
           <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />

@@ -18,6 +18,7 @@ import {
   Wrench,
   AlertTriangle,
   Clock3,
+  Zap,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
@@ -30,6 +31,9 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { PageHeader } from "@/components/ui/page-header";
+import { TabNav } from "@/components/ui/tab-nav";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface Sched {
   id: string;
@@ -1198,12 +1202,6 @@ export function Schedules() {
       <PageHeader
         icon={CalendarClock}
         title="Schedules"
-        description={
-          <>
-            {items ? `${items.length} total` : "Manage every scheduled job that fires unattended"}
-            {agentCount > 0 && <span className="text-accent"> · {agentCount} agent-scheduled</span>}
-          </>
-        }
         actions={
           <>
             <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a schedule">
@@ -1285,47 +1283,48 @@ export function Schedules() {
             const targets = scheduleTargetCounts(items);
             const attention = scheduleAttentionCount(items, profiles, workflows, tools, systemTaskInfo);
             return (
-              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                <SchedStat label="schedules" value={c.total} />
-                <SchedStat label="enabled" value={c.enabled} accent={c.enabled > 0} />
-                <SchedStat label="paused" value={c.paused} />
-                <SchedStat label="attention" value={attention} accent={attention > 0} />
-                <SchedStat label="targets" value={scheduleTargetMixLabel(targets)} accent={targets.workflow + targets.systemTask + targets.tool > 0} />
-              </div>
+              <MetricGrid cols="repeat(auto-fill, minmax(120px, 1fr))">
+                <MetricWidget icon={CalendarClock} label="total" value={c.total} tone="muted" />
+                <MetricWidget icon={Play} label="enabled" value={c.enabled} tone={c.enabled > 0 ? "accent" : "muted"} />
+                <MetricWidget icon={Pause} label="paused" value={c.paused} tone={c.paused > 0 ? "warn" : "muted"} />
+                <MetricWidget icon={AlertTriangle} label="attention" value={attention} tone={attention > 0 ? "bad" : "muted"} />
+                <MetricWidget icon={Bot} label="targets" value={scheduleTargetMixLabel(targets)} tone={targets.workflow + targets.systemTask + targets.tool > 0 ? "accent" : "muted"} />
+              </MetricGrid>
             );
           })()}
           {(() => {
             const targets = scheduleTargetCounts(items);
             const attention = scheduleAttentionCount(items, profiles, workflows, tools, systemTaskInfo);
-            const filters: { id: ScheduleTargetFilter; label: string; count: number }[] = [
-              { id: "all", label: "All", count: items.length },
-              { id: "attention", label: "Attention", count: attention },
-              { id: "agent", label: "Agent", count: targets.agent },
-              { id: "workflow", label: "Workflow", count: targets.workflow },
-              { id: "system_task", label: "System task", count: targets.systemTask },
-              { id: "tool", label: "Tool", count: targets.tool },
+            const filters: { id: ScheduleTargetFilter; label: string; icon: typeof Bot; count: number }[] = [
+              { id: "all", label: "All", icon: CalendarClock, count: items.length },
+              { id: "attention", label: "Attention", icon: AlertTriangle, count: attention },
+              { id: "agent", label: "Agent", icon: Bot, count: targets.agent },
+              { id: "workflow", label: "Workflow", icon: GitFork, count: targets.workflow },
+              { id: "system_task", label: "System task", icon: RefreshCw, count: targets.systemTask },
+              { id: "tool", label: "Tool", icon: Wrench, count: targets.tool },
             ];
             return (
-              <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                {filters.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setTargetFilter(f.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                      targetFilter === f.id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-                    )}
-                  >
-                    {f.label}
-                    <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{f.count}</span>
-                  </button>
-                ))}
-              </div>
+              <TabNav
+                tabs={filters.map((f) => ({
+                  id: f.id,
+                  label: f.label,
+                  icon: f.icon,
+                  count: f.count,
+                  content: null,
+                }))}
+                value={targetFilter}
+                onValueChange={(v) => setTargetFilter(v as ScheduleTargetFilter)}
+              />
             );
           })()}
           {fires.length > 0 && (
-            <div className="mb-3 rounded-lg border border-border/60 bg-panel/40 p-2">
-              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Recent firings</div>
+            <CollapsibleSection
+              icon={Zap}
+              title="Recent firings"
+              count={fires.length}
+              tone="accent"
+              defaultOpen={false}
+            >
               <div className="grid gap-1.5 md:grid-cols-2">
                 {fires.map((f, idx) => (
                   <div
@@ -1345,7 +1344,7 @@ export function Schedules() {
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
           {shownItems.length === 0 ? (
             <EmptyState icon={CalendarClock} title="No matching schedules" hint="Try a different target filter." />

@@ -7,6 +7,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
 import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
 import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
@@ -189,7 +190,6 @@ export function Chains() {
       <PageHeader
         icon={Waypoints}
         title="Fallback Chains"
-        description="Named, reusable model ladders — pick a chain anywhere you pick a model."
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={addChain} title="Create a new fallback chain">
@@ -204,13 +204,6 @@ export function Chains() {
           </>
         }
       />
-
-      <p className="text-xs text-muted">
-        A chain is an ordered list of models tried in turn (the{" "}
-        <span className="text-foreground/80">primary</span> first, then each <span className="text-foreground/80">fallback</span>).
-        Pick a chain anywhere you pick a model — agents, routing, chat — and the governor expands it at run time. Mark one as the{" "}
-        <span className="text-foreground/80">default</span> so even a bare run gets a fallback ladder. Changes apply live and persist.
-      </p>
 
       {dangling.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn">
@@ -340,11 +333,15 @@ function ChainCard({
           {models.map((m, i) => (
             <li key={`${m}-${i}`} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
               {i === 0 ? (
-                <span className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-accent">
-                  <Zap className="size-2.5" /> primary
-                </span>
+                <Badge variant="accent">
+                  <Zap className="mr-1 size-3" />
+                  primary
+                </Badge>
               ) : (
-                <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted">fallback {i}</span>
+                <Badge variant="default">
+                  <ArrowDown className="mr-1 size-3" />
+                  {i}
+                </Badge>
               )}
               {health && <HealthDot status={health(m)} />}
               <span className="min-w-0 flex-1 truncate font-mono text-foreground/90">{m}</span>
