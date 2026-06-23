@@ -394,6 +394,7 @@ export async function streamRun(
     system?: string;
     agent?: string;
     auto_approve_caps?: string;
+    prompt_injection_trust?: boolean;
   },
   onFrame: (f: ChatFrame) => void,
   signal?: AbortSignal,
