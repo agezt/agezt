@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { MetricGrid, MetricWidget } from "@/components/ui/metric-widget";
 
 // One account field of a channel (mirrors kernel/settings.Field + set-state).
 interface ChannelField {
@@ -576,17 +577,30 @@ export function Channels() {
       <PageHeader
         icon={Radio}
         title="Channels"
-        description={
-          rows
-            ? `${rows.length} channels · ${liveCount} live · ${configuredCount} configured`
-            : "Connect Telegram, WhatsApp, Slack, and more"
-        }
         actions={
           <Button variant="ghost" size="sm" onClick={load} disabled={rows === null}>
             <RefreshCw className={cn("size-3.5", rows === null && "animate-spin")} /> Refresh
           </Button>
         }
       />
+
+      {rows && (
+        <MetricGrid>
+          <MetricWidget icon={Radio} label="Total" value={rows.length} tone="muted" />
+          <MetricWidget
+            icon={Radio}
+            label="Live"
+            value={liveCount}
+            tone={liveCount > 0 ? "good" : "muted"}
+          />
+          <MetricWidget
+            icon={Radio}
+            label="Configured"
+            value={configuredCount}
+            tone={configuredCount > 0 ? "accent" : "muted"}
+          />
+        </MetricGrid>
+      )}
 
       {err ? (
         <div className="text-xs text-bad">{err}</div>

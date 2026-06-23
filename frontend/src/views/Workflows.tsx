@@ -1366,10 +1366,6 @@ export function Workflows() {
             />
           )}
         </div>
-        <p className="text-[11px] text-muted">
-          Workflows are reusable chains, not agent identities. Agents, schedules, users, and webhooks can run the same saved graph; data flows with{" "}
-          <span className="font-mono">{"{{node_id.output}}"}</span> templates and the run replays live on the canvas.
-        </p>
       </div>
     );
   }
@@ -1380,7 +1376,6 @@ export function Workflows() {
       <PageHeader
         icon={Network}
         title="Workflows"
-        description="Reusable typed-node chains that agents, schedules, users, and webhooks can run under the same policy and budget governance."
         actions={
           <>
             {list && <span className="text-xs text-muted">{list.length} workflow(s)</span>}
@@ -1394,11 +1389,6 @@ export function Workflows() {
           </>
         }
       />
-
-      <p className="text-xs text-muted">
-        Workflows are not agents. They are reusable chains with triggers, tools, LLM steps, branches, data loops and approval gates;
-        agents can create or run them, schedules can trigger them, and every run is journaled.
-      </p>
 
       {creating && (
         <div className="flex items-end gap-2 rounded-lg border border-accent/30 bg-card p-3">
