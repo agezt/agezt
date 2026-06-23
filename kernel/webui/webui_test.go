@@ -683,6 +683,7 @@ func TestAPIReadOnly(t *testing.T) {
 		"pulse_status": true, "journal_verify": true, "storage_stats": true,
 		"data_collections": true,
 		"council_members":  true,
+		"conductor_roles":  true,
 		"board_help":       true,
 		"toolbox_detect":   true,
 		"toolbox_outdated": true,

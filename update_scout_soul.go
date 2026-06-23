@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -97,19 +98,19 @@ func main() {
 
 func profileToMap(p *controlplane.Profile) map[string]any {
 	m := map[string]any{
-		"id":           p.Id,
-		"slug":         p.Slug,
-		"name":         p.Name,
-		"soul":         p.Soul,
-		"model":        p.Model,
-		"task_type":    p.TaskType,
+		"id":            p.Id,
+		"slug":          p.Slug,
+		"name":          p.Name,
+		"soul":          p.Soul,
+		"model":         p.Model,
+		"task_type":     p.TaskType,
 		"description":   p.Description,
-		"owner_agent":  p.OwnerAgent,
-		"parent_agent": p.ParentAgent,
-		"memory_scope": p.MemoryScope,
-		"workdir":      p.Workdir,
+		"owner_agent":   p.OwnerAgent,
+		"parent_agent":  p.ParentAgent,
+		"memory_scope":  p.MemoryScope,
+		"workdir":       p.Workdir,
 		"trust_ceiling": p.TrustCeiling,
-		"kind":         p.Kind,
+		"kind":          p.Kind,
 	}
 	if p.MaxCostMc > 0 {
 		m["max_cost_mc"] = p.MaxCostMc

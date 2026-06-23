@@ -214,14 +214,50 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   r.TLS != nil,
+		Secure:   cookieSecure(r),
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// handleLogout revokes the session and clears the cookie.
+// cookieSecure decides whether the session cookie carries the Secure attribute.
+// Direct TLS (r.TLS) is the obvious case. But the console-password feature is
+// aimed at deployments behind a TLS-terminating reverse proxy (nginx/Caddy/
+// Cloudflare), where the app speaks plaintext on loopback and r.TLS is nil — so
+// `Secure: r.TLS != nil` would ship the session id over a cookie that the
+// browser is free to resend on a plaintext hop (CWE-614/CWE-311). We therefore
+// also honor the proxy's X-Forwarded-Proto / X-Forwarded-Ssl hint.
+//
+// Trusting the forwarded header here is safe without a proxy allowlist: it can
+// only ADD the Secure attribute. A client that spoofs X-Forwarded-Proto: https
+// over plaintext just makes its own browser refuse to resend the cookie over
+// http — a self-inflicted failure, not a way to leak another user's session.
+// Plain http://localhost (no TLS, no proxy header) keeps Secure off so local
+// development over HTTP still works.
+func cookieSecure(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	// X-Forwarded-Proto may be a comma-separated list (proxies append); the
+	// left-most value is the original client-facing scheme.
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if i := strings.IndexByte(proto, ','); i >= 0 {
+		proto = proto[:i]
+	}
+	if strings.EqualFold(strings.TrimSpace(proto), "https") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Ssl")), "on")
+}
+
+// handleLogout revokes the session and clears the cookie. POST-only: a
+// state-changing endpoint must not act on a GET (defense-in-depth atop the
+// SameSite=Strict cookie), matching handleLogin.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		s.sessions.revoke(c.Value)
 	}
@@ -231,6 +267,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
+		Secure:   cookieSecure(r),
 		MaxAge:   -1,
 	})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

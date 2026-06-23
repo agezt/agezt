@@ -32,6 +32,12 @@ type TokenClaims struct {
 	MaxBurst int `json:"max_burst"`
 	// ExpiresAt is when the token expires.
 	ExpiresAt time.Time `json:"exp"`
+	// Issuer ("iss") identifies the minter; pinned to TokenIssuer and verified
+	// on validation so a token minted in another context can't be replayed here.
+	Issuer string `json:"iss,omitempty"`
+	// Audience ("aud") identifies the intended consumer; pinned to TokenAudience
+	// and verified on validation.
+	Audience string `json:"aud,omitempty"`
 	// TokenID is the unique identifier for this token (set by CreateToken).
 	TokenID string `json:"tid,omitempty"`
 	// ParentTokenID is the ID of the parent token (if this is a subprocess token).

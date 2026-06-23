@@ -74,7 +74,9 @@ func TestInbound_SignedDrivesHandlerAndReplies(t *testing.T) {
 // TestInbound_BadSignatureRejected: a wrong/missing signature fails closed (401).
 func TestInbound_BadSignatureRejected(t *testing.T) {
 	c := New(Config{Secret: "right", Allowlist: channel.NewAllowlist([]string{"room1"}),
-		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) { return channel.Reply{Text: "ran"}, nil }})
+		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
+			return channel.Reply{Text: "ran"}, nil
+		}})
 
 	// Signed with the WRONG secret.
 	rec := post(t, c, map[string]any{"channel_id": "room1", "text": "x"}, "wrong", true)
@@ -93,7 +95,10 @@ func TestInbound_BadSignatureRejected(t *testing.T) {
 func TestInbound_EmptySecretFailsClosed(t *testing.T) {
 	ran := false
 	c := New(Config{Allowlist: channel.NewAllowlist([]string{"room1"}),
-		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) { ran = true; return channel.Reply{}, nil }})
+		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
+			ran = true
+			return channel.Reply{}, nil
+		}})
 	rec := post(t, c, map[string]any{"channel_id": "room1", "text": "x"}, "", true)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status=%d want 401 (empty secret must reject)", rec.Code)
@@ -109,7 +114,10 @@ func TestInbound_AllowlistGates(t *testing.T) {
 	const secret = "s"
 	ran := false
 	c := New(Config{Secret: secret, Allowlist: channel.NewAllowlist([]string{"room1"}),
-		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) { ran = true; return channel.Reply{}, nil }})
+		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
+			ran = true
+			return channel.Reply{}, nil
+		}})
 	rec := post(t, c, map[string]any{"channel_id": "intruder", "text": "x"}, secret, true)
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status=%d want 403", rec.Code)
@@ -124,7 +132,9 @@ func TestInbound_AllowlistGates(t *testing.T) {
 func TestInbound_StaleTimestampRejected(t *testing.T) {
 	const secret = "s"
 	c := New(Config{Secret: secret, Allowlist: channel.NewAllowlist([]string{"room1"}),
-		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) { return channel.Reply{Text: "ok"}, nil }})
+		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
+			return channel.Reply{Text: "ok"}, nil
+		}})
 	old := time.Now().Add(-10 * time.Minute).UnixMilli()
 	rec := post(t, c, map[string]any{"channel_id": "room1", "text": "x", "ts_ms": old}, secret, true)
 	if rec.Code != http.StatusUnauthorized {
@@ -144,8 +154,10 @@ func TestInbound_OverflowTimestampRejected(t *testing.T) {
 	c := New(Config{
 		Secret:    secret,
 		Allowlist: channel.NewAllowlist([]string{"room1"}),
-		Handler:   func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) { return channel.Reply{Text: "ok"}, nil },
-		now:       func() time.Time { return now },
+		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
+			return channel.Reply{Text: "ok"}, nil
+		},
+		now: func() time.Time { return now },
 	})
 	// delta = now_ms - ts_ms ≈ 1e13 ms (> 9.2e12), so delta*1e6 ns overflows int64.
 	tsMS := now.UnixMilli() - 10_000_000_000_000
@@ -161,7 +173,10 @@ func TestInbound_DedupesRepeatedID(t *testing.T) {
 	const secret = "s"
 	runs := 0
 	c := New(Config{Secret: secret, Allowlist: channel.NewAllowlist([]string{"room1"}),
-		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) { runs++; return channel.Reply{Text: "ok"}, nil }})
+		Handler: func(context.Context, channel.UnifiedMessage, string) (channel.Reply, error) {
+			runs++
+			return channel.Reply{Text: "ok"}, nil
+		}})
 	msg := map[string]any{"channel_id": "room1", "text": "x", "id": "msg-1"}
 	if rec := post(t, c, msg, secret, true); rec.Code != http.StatusOK {
 		t.Fatalf("first delivery status=%d", rec.Code)

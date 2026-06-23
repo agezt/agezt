@@ -66,8 +66,8 @@ type guardian struct {
 }
 
 const (
-	maxCostMc                = 5 * usd     // $5 per run — sufficient for health checks and diagnostics
-	maxDailyMc               = 10 * usd    // $10/day per guardian — quiet by default but can act
+	maxCostMc                = 5 * usd  // $5 per run — sufficient for health checks and diagnostics
+	maxDailyMc               = 10 * usd // $10/day per guardian — quiet by default but can act
 	minNotifyIntervalSec     = 8 * 3600
 	defaultMinNotifySeverity = "warning"
 	defaultTrustCeiling      = "L2"

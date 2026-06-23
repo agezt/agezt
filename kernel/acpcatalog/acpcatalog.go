@@ -248,23 +248,36 @@ func InstalledSlugs() []string {
 	return out
 }
 
-// ResolveCommand turns a reference into a launch command for the acp_agent
-// bridge. A reference is either a catalog slug ("gemini") — resolved to that
-// agent's command, requiring it to be installed — or, if it doesn't match a
-// slug, treated as a raw command passed through verbatim. fallback is used when
-// ref is empty. ok=false means nothing usable could be resolved.
+// ResolveCommand turns the acp_agent bridge's agent selector into a launch
+// command. `ref` is the per-call selector and `fallback` is the operator's
+// configured default (AGEZT_ACP_AGENT_CMD). ok=false means nothing usable could
+// be resolved.
+//
+// SECURITY (CWE-78): `ref` is attacker-influenceable — it arrives in agent/LLM
+// tool input (the acp_agent `agent` field), which prompt injection can steer.
+// It is therefore treated STRICTLY as a catalog slug: it must name an installed
+// catalog agent, and the resolved command is taken from the trusted catalog,
+// never from the caller's string. A non-slug ref is rejected (ok=false) rather
+// than executed as a raw shell line — that closes the arbitrary-command path the
+// bridge would otherwise expose via `sh -c`/`cmd /C` in acpagent.spawnAgent.
+// Raw/custom commands remain available only through `fallback`, which is
+// operator-controlled (set from the environment, not from agent input) and is
+// used solely when ref is empty.
 func ResolveCommand(ref, fallback string) (cmd string, ok bool) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		fallback = strings.TrimSpace(fallback)
 		return fallback, fallback != ""
 	}
-	if a, found := Find(ref); found {
-		if !Installed(a) {
-			return "", false
-		}
-		return a.Command, true
+	a, found := Find(ref)
+	if !found {
+		// Not a known catalog slug. Do NOT fall through to running it as a raw
+		// command: agent input must not be able to inject an arbitrary shell
+		// line. The operator's raw escape hatch is `fallback` (ref == "").
+		return "", false
 	}
-	// Not a known slug — treat as a raw command (advanced/custom use).
-	return ref, true
+	if !Installed(a) {
+		return "", false
+	}
+	return a.Command, true
 }

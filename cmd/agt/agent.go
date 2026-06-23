@@ -1366,9 +1366,9 @@ type agentAuthorityView struct {
 }
 
 type agentHardDeny struct {
-	Name      string   `json:"name"`
-	Substring string   `json:"substring"`
-	Scope     string   `json:"scope"`
+	Name      string `json:"name"`
+	Substring string `json:"substring"`
+	Scope     string `json:"scope"`
 }
 
 func buildAgentAuthority(profile, edict map[string]any) agentAuthorityView {

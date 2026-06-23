@@ -123,7 +123,7 @@ type InitializeResult struct {
 	// Plugins that omit it default to 1. The host rejects a major mismatch
 	// at spawn so an incompatible plugin fails fast with a clear error.
 	// Optional for back-compat.
-	ProtocolVersion int `json:"protocol_version,omitempty"`
+	ProtocolVersion int       `json:"protocol_version,omitempty"`
 	Tools           []ToolDef `json:"tools"`
 }
 
