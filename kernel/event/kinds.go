@@ -95,9 +95,13 @@ const (
 	KindProviderFallback Kind = "provider.fallback"
 	// One provider being retried IN PLACE with backoff on a transient error
 	// (rate limit / 5xx / network blip) before the chain falls back (M882).
-	KindProviderRetry  Kind = "provider.retry"
-	KindBudgetExceeded Kind = "budget.exceeded"
-	KindRateLimited    Kind = "rate.limited"
+	KindProviderRetry Kind = "provider.retry"
+	// A provider's circuit breaker tripping open (skipped for a cooldown after
+	// repeated failures) or recovering closed (M997).
+	KindProviderBreakerOpen   Kind = "provider.breaker_open"
+	KindProviderBreakerClosed Kind = "provider.breaker_closed"
+	KindBudgetExceeded        Kind = "budget.exceeded"
+	KindRateLimited           Kind = "rate.limited"
 	// KindBudgetCapInert records that a per-run cost cap (--max-cost / M166) was
 	// set on a run whose effective model has no known pricing, so the cap can never
 	// trip (spend computes as $0). An advisory at run submission (M169) — the
@@ -432,6 +436,8 @@ var knownKinds = map[Kind]struct{}{
 	KindBudgetConsumed:             {},
 	KindProviderFallback:           {},
 	KindProviderRetry:              {},
+	KindProviderBreakerOpen:        {},
+	KindProviderBreakerClosed:      {},
 	KindBudgetExceeded:             {},
 	KindRateLimited:                {},
 	KindBudgetCapInert:             {},

@@ -735,8 +735,14 @@ func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, ch
 		resp, err := g.callWithRetry(ctx, req, p, callOne)
 		if err == nil {
 			g.recordUsage(p, req, resp)
-			if g.breaker != nil {
-				g.breaker.success(p.Name)
+			if g.breaker != nil && g.breaker.success(p.Name) {
+				g.publish(event.Spec{
+					Subject:       "governor.breaker_closed",
+					Kind:          event.KindProviderBreakerClosed,
+					Actor:         "governor",
+					CorrelationID: req.CorrelationID,
+					Payload:       map[string]any{"provider": p.Name},
+				})
 			}
 			return resp, nil
 		}
@@ -749,8 +755,14 @@ func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, ch
 		}
 		// A genuine provider failure that triggers fall-back counts toward the
 		// breaker tripping this provider out of the chain.
-		if g.breaker != nil {
-			g.breaker.failure(p.Name)
+		if g.breaker != nil && g.breaker.failure(p.Name) {
+			g.publish(event.Spec{
+				Subject:       "governor.breaker_open",
+				Kind:          event.KindProviderBreakerOpen,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
+				Payload:       map[string]any{"provider": p.Name, "reason": err.Error()},
+			})
 		}
 		// Fall back to next in chain.
 		if i+1 < len(chain) {

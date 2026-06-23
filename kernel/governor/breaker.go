@@ -66,25 +66,32 @@ func (b *breaker) allow(name string) bool {
 	return !b.now().Before(st.openUntil) // open until cooldown elapses
 }
 
-// success resets the named provider's breaker to fully closed.
-func (b *breaker) success(name string) {
+// success resets the named provider's breaker to fully closed. It returns true
+// when this call recovered a previously-open/half-open circuit (a state
+// transition worth surfacing).
+func (b *breaker) success(name string) (recovered bool) {
 	if !b.enabled() {
-		return
+		return false
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if st := b.states[name]; st != nil {
-		st.failures = 0
-		st.openUntil = time.Time{}
+	st := b.states[name]
+	if st == nil {
+		return false
 	}
+	wasOpen := !st.openUntil.IsZero()
+	st.failures = 0
+	st.openUntil = time.Time{}
+	return wasOpen
 }
 
 // failure records a fall-back-worthy failure. Consecutive failures trip the
 // circuit at threshold; a failure while half-open (failures already at
-// threshold) reopens it for another cooldown.
-func (b *breaker) failure(name string) {
+// threshold) reopens it for another cooldown. It returns true when this call
+// (re)opened the circuit, so the caller can surface the transition.
+func (b *breaker) failure(name string) (tripped bool) {
 	if !b.enabled() {
-		return
+		return false
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -93,12 +100,15 @@ func (b *breaker) failure(name string) {
 		st = &pbState{}
 		b.states[name] = st
 	}
+	wasOpen := !st.openUntil.IsZero() && b.now().Before(st.openUntil)
 	if st.failures < b.threshold {
 		st.failures++
 	}
 	if st.failures >= b.threshold {
 		st.openUntil = b.now().Add(b.cooldown)
 	}
+	nowOpen := !st.openUntil.IsZero() && b.now().Before(st.openUntil)
+	return nowOpen && !wasOpen
 }
 
 // state returns "closed", "open" or "half-open" for diagnostics.

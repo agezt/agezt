@@ -74,6 +74,30 @@ func TestBreaker_HalfOpenFailureReopens(t *testing.T) {
 	}
 }
 
+func TestBreaker_TransitionSignals(t *testing.T) {
+	now := time.Date(2026, 6, 23, 0, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+	b := newBreaker(2, 30*time.Second, clock)
+
+	if b.failure("p") {
+		t.Fatal("first failure (below threshold) should not report a trip")
+	}
+	if !b.failure("p") {
+		t.Fatal("second failure (hits threshold) should report a trip")
+	}
+	if b.failure("p") {
+		t.Fatal("a failure while already open should not re-report a trip")
+	}
+	// Recover.
+	now = now.Add(31 * time.Second) // half-open
+	if !b.success("p") {
+		t.Fatal("success after open should report recovery")
+	}
+	if b.success("p") {
+		t.Fatal("success on an already-closed breaker should not report recovery")
+	}
+}
+
 func TestBreaker_DisabledAllowsEverything(t *testing.T) {
 	b := newBreaker(0, 0, nil) // threshold 0 → disabled
 	for i := 0; i < 100; i++ {
