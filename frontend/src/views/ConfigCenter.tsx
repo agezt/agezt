@@ -24,11 +24,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Disclosure } from "@/components/ui/disclosure";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { Badge } from "@/components/ui/badge";
 
 // The Config Center is the editable companion to the read-only Config view:
 // schema-driven forms (one section per channel/area) backed by the daemon's
@@ -176,11 +177,10 @@ export function ConfigCenter() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <PageHeader
         icon={SlidersHorizontal}
         title="Config Center"
-        description={sections ? `${setCount} of ${Object.keys(values).length} configured` : "Edit settings without touching .env"}
         actions={
           <>
             <div className="relative">
@@ -199,11 +199,6 @@ export function ConfigCenter() {
           </>
         }
       />
-
-      <p className="text-xs text-muted">
-        Edit settings without touching <code className="rounded bg-panel px-1">.env</code>. Open a section to see its
-        fields; secrets stay encrypted (shown only as “set / not set”).
-      </p>
 
       <AgentRuntimeConfigPanel toast={toast} />
 
@@ -329,23 +324,18 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
 
   return (
     <section className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-3 flex flex-wrap items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Shield className="size-4 text-accent" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">Agent Runtime Config</h3>
-          </div>
-          <p className="mt-0.5 text-[11px] text-muted">
-            Rated key/value entries agents can read through Config Center policies. Use allow/deny lists to bind secrets or runtime knobs to identities.
-          </p>
+      <div className="mb-3 flex flex-wrap items-start gap-3">
+        <div className="flex items-center gap-2">
+          <Shield className="size-4 text-accent" />
+          <h3 className="text-xs font-semibold text-foreground">Agent Runtime Config</h3>
         </div>
         {entries && (
-          <div className="flex flex-wrap gap-1.5 text-xs font-medium uppercase tracking-wider text-muted">
-            <span className="rounded bg-panel px-1.5 py-0.5">{summary.total} total</span>
-            <span className="rounded bg-panel px-1.5 py-0.5">{summary.identityBound} identity-bound</span>
-            <span className="rounded bg-panel px-1.5 py-0.5">{summary.shared} shared</span>
-            <span className="rounded bg-panel px-1.5 py-0.5">{summary.restricted} restricted</span>
-            <span className="rounded bg-panel px-1.5 py-0.5">{summary.secret} secret</span>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="default">{summary.total} total</Badge>
+            <Badge variant="accent">{summary.identityBound} identity-bound</Badge>
+            <Badge variant="default">{summary.shared} shared</Badge>
+            <Badge variant="warn">{summary.restricted} restricted</Badge>
+            <Badge variant="bad">{summary.secret} secret</Badge>
           </div>
         )}
         <Button size="sm" variant="ghost" onClick={() => load()} disabled={busy}>
@@ -394,7 +384,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
                 <div className="truncate font-mono text-muted" title={entry.rating === "secret" ? undefined : entry.value}>
                   {entry.rating === "secret" ? "********" : entry.value || "—"}
                 </div>
-                <span className={cn("w-fit rounded px-1.5 py-0.5 text-xs uppercase", ratingClass(entry.rating || "internal"))}>{entry.rating || "internal"}</span>
+                <Badge variant={entry.rating === "secret" ? "bad" : entry.rating === "restricted" ? "warn" : entry.rating === "public" ? "good" : "accent"}>{entry.rating || "internal"}</Badge>
                 <div className="min-w-0 text-[11px] text-muted">
                   {entry.allowed_agents?.length ? <div className="truncate">allow: {entry.allowed_agents.join(", ")}</div> : null}
                   {entry.excluded_agents?.length ? <div className="truncate">deny: {entry.excluded_agents.join(", ")}</div> : null}
@@ -472,39 +462,22 @@ function SectionCard({
   // reveal the inputs only when the operator opens it ("gözüme sokmamalısın").
   const setCount = section.fields.filter((f) => values[f.env]?.set).length;
   return (
-    <div id={sectionDomID(section.id)} className="scroll-mt-2 rounded-lg border border-border bg-card">
-      <Disclosure
+    <div id={sectionDomID(section.id)} className="scroll-mt-2">
+      <CollapsibleSection
+        icon={Icon}
+        title={section.name}
+        description={registered ? `Registered by ${section.source}` : undefined}
+        count={`${setCount}/${section.fields.length}`}
         defaultOpen={defaultOpen}
-        summaryClassName="px-3 py-2.5"
-        summary={
-          <span className="flex w-full items-center gap-2">
-            <Icon className={cn("size-4 shrink-0", registered ? "text-violet-400" : "text-accent")} />
-            {/* role=heading (not <h3>) keeps the heading semantics valid inside the
-                summary button and still matches getByRole("heading"). */}
-            <span role="heading" aria-level={3} className="text-xs font-semibold uppercase tracking-wider text-foreground">
-              {section.name}
-            </span>
-            {registered && (
-              <span
-                className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-violet-300"
-                title={`Registered by ${section.source}`}
-              >
-                <Puzzle className="size-2.5" /> registered
-              </span>
-            )}
-            <span className="ml-auto shrink-0 font-mono text-xs text-muted">
-              {setCount}/{section.fields.length}
-            </span>
-          </span>
-        }
+        tone="accent"
       >
-        <div className="space-y-3 px-3 pb-3">
-          {section.help && <p className="text-[11px] text-muted">{section.help}</p>}
+        {section.help && <p className="text-[11px] text-muted mb-2">{section.help}</p>}
+        <div className="space-y-3">
           {section.fields.map((f) => (
             <FieldRow key={f.env} field={f} entry={values[f.env]} onSaved={onSaved} toast={toast} />
           ))}
         </div>
-      </Disclosure>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -571,18 +544,18 @@ function FieldRow({
             {field.label}
           </label>
           {field.apply === "live" ? (
-            <span className="inline-flex items-center gap-0.5 rounded bg-accent/15 px-1 text-[9px] font-medium uppercase text-accent" title="Applies immediately">
+            <Badge variant="accent" title="Applies immediately">
               <Zap className="size-2.5" /> live
-            </span>
+            </Badge>
           ) : (
-            <span className="inline-flex items-center gap-0.5 rounded bg-panel px-1 text-[9px] font-medium uppercase text-muted" title="Needs a restart">
+            <Badge variant="default" title="Needs a restart">
               <RotateCw className="size-2.5" /> restart
-            </span>
+            </Badge>
           )}
           {locked && !managed && (
-            <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 text-[9px] font-medium uppercase text-amber-300" title="Locked — can be changed but not cleared">
+            <Badge variant="warn" title="Can be changed but not cleared">
               <Lock className="size-2.5" /> locked
-            </span>
+            </Badge>
           )}
         </div>
         <code className="text-xs text-muted">{field.env.replace(/^AGEZT_/, "")}</code>

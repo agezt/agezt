@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, Network, Sparkles, ListTree, Pause, CheckSquare, Route, Stethoscope, CalendarClock } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, CheckSquare, Stethoscope, CalendarClock, CheckCircle2, XOctagon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { Ring, Sparkline, BarRow } from "@/components/Widgets";
+import { Sparkline, BarRow } from "@/components/Widgets";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { Badge } from "@/components/ui/badge";
 
 interface Status {
   uptime_seconds?: number;
@@ -183,17 +185,16 @@ export function Health() {
   const maxFb = Math.max(1, ...fallbacks.map(([, c]) => c));
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <PageHeader
         icon={HeartPulse}
         title="Health"
-        description="The daemon's vital signs at a glance — success rate, resilience, and live activity."
         actions={
           <>
             {st?.halted && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 text-xs font-semibold text-bad">
-                <Pause className="size-3" /> HALTED
-              </span>
+              <Badge variant="bad">
+                <Pause className="size-3" /> Halted
+              </Badge>
             )}
             <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
@@ -205,70 +206,83 @@ export function Health() {
       {/* Doctor — active diagnostics with remedies (M921) */}
       <DoctorCard diags={runDiagnostics(st, stats, journalOk)} loaded={st !== null} />
 
-      {/* Vital gauges */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <GaugeCard>
-          <Ring
-            pct={successPct}
-            center={total ? `${successPct}%` : "—"}
-            label="success rate"
-            tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
-          />
-        </GaugeCard>
-        <GaugeCard>
-          <Ring
-            pct={errorPct}
-            center={total ? `${errorPct}%` : "—"}
-            label="error rate"
-            tone={errorPct === 0 ? "good" : errorPct < 10 ? "warn" : "bad"}
-          />
-        </GaugeCard>
-        <GaugeCard>
-          <Ring
-            pct={fbRatePct}
-            center={`${fbRatePct}%`}
-            label="provider fallbacks"
-            tone={fbRatePct < 5 ? "good" : fbRatePct < 20 ? "warn" : "bad"}
-          />
-        </GaugeCard>
-        <div className="flex flex-col justify-center glass rounded-xl p-3">
-          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-            <Clock className="size-3.5" /> Uptime
-          </div>
-          <div className="mt-1 text-xl font-semibold tabular-nums">{humanizeUptime(st?.uptime_seconds ?? 0)}</div>
-          <div className="mt-0.5 text-xs text-muted">since last start</div>
-        </div>
-      </div>
+      {/* Key metrics */}
+      <MetricGrid>
+        <MetricWidget
+          icon={CheckCircle2}
+          label="Success rate"
+          value={total ? `${successPct}%` : "—"}
+          tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
+          trend={[]}
+        />
+        <MetricWidget
+          icon={XOctagon}
+          label="Error rate"
+          value={total ? `${errorPct}%` : "—"}
+          tone={errorPct === 0 ? "good" : errorPct < 10 ? "warn" : "bad"}
+        />
+        <MetricWidget
+          icon={ShieldAlert}
+          label="Fallbacks"
+          value={`${fbRatePct}%`}
+          subvalue={`${prov?.fallbacks ?? 0} providers`}
+          tone={fbRatePct < 5 ? "good" : fbRatePct < 20 ? "warn" : "bad"}
+        />
+        <MetricWidget
+          icon={Clock}
+          label="Uptime"
+          value={humanizeUptime(st?.uptime_seconds ?? 0)}
+          tone="muted"
+        />
+        <MetricWidget
+          icon={ListTree}
+          label="Active runs"
+          value={st?.active_runs ?? 0}
+          tone={(st?.active_runs ?? 0) > 0 ? "accent" : "muted"}
+          pulse={(st?.active_runs ?? 0) > 0}
+        />
+        <MetricWidget
+          icon={CalendarClock}
+          label="Schedules"
+          value={st?.schedules?.running ?? 0}
+          subvalue={`${st?.schedules?.enabled ?? 0} enabled`}
+          tone={(st?.schedules?.running ?? 0) > 0 ? "accent" : "muted"}
+          pulse={(st?.schedules?.running ?? 0) > 0}
+        />
+        <MetricWidget
+          icon={CheckSquare}
+          label="Approvals"
+          value={st?.pending_approvals ?? 0}
+          tone={(st?.pending_approvals ?? 0) > 0 ? "warn" : "muted"}
+        />
+        <MetricWidget
+          icon={Brain}
+          label="Memory"
+          value={st?.memory_records ?? 0}
+          tone="muted"
+        />
+      </MetricGrid>
 
-      {/* Live activity pulse */}
-      <div className="glass rounded-xl p-3">
-        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-          <HeartPulse className="size-3.5" /> Activity pulse
-          <span className="ml-auto font-normal normal-case text-muted">
-            {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
-          </span>
-        </div>
+      {/* Activity pulse */}
+      <CollapsibleSection
+        icon={HeartPulse}
+        title="Activity pulse"
+        description={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
+        tone="accent"
+        defaultOpen={true}
+      >
         <Sparkline data={series} tone="accent" height={64} />
-      </div>
-
-      {/* Footprint + attention */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-        <Tile icon={ListTree} label="running" value={st?.active_runs ?? 0} pulse={(st?.active_runs ?? 0) > 0} tone="accent" />
-        <Tile icon={CalendarClock} label="sched live" value={st?.schedules?.running ?? 0} pulse={(st?.schedules?.running ?? 0) > 0} tone={(st?.schedules?.running ?? 0) > 0 ? "accent" : "muted"} />
-        <Tile icon={CheckSquare} label="approvals" value={st?.pending_approvals ?? 0} tone={(st?.pending_approvals ?? 0) > 0 ? "warn" : "muted"} />
-        <Tile icon={ShieldAlert} label="provider fb" value={st?.provider_fallbacks?.count ?? 0} tone={(st?.provider_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />
-        <Tile icon={Route} label="model fb" value={st?.model_fallbacks?.count ?? 0} tone={(st?.model_fallbacks?.count ?? 0) > 0 ? "warn" : "muted"} />
-        <Tile icon={Brain} label="memory" value={st?.memory_records ?? 0} tone="muted" />
-        <Tile icon={Network} label="entities" value={st?.world_entities ?? 0} tone="muted" />
-        <Tile icon={Sparkles} label="skills" value={st?.active_skills ?? 0} tone="muted" />
-      </div>
+      </CollapsibleSection>
 
       {/* Provider fallback breakdown */}
       {fallbacks.length > 0 && (
-        <div className="glass rounded-xl p-3">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-            <ShieldAlert className="size-3.5" /> Fallbacks by failed provider
-          </div>
+        <CollapsibleSection
+          icon={ShieldAlert}
+          title="Provider fallbacks"
+          count={prov?.fallbacks}
+          tone="warn"
+          defaultOpen={true}
+        >
           <div className="space-y-1.5">
             {fallbacks
               .sort((a, b) => b[1] - a[1])
@@ -279,7 +293,7 @@ export function Health() {
           {st?.provider_fallbacks?.last_reason && (
             <div className="mt-2 text-xs text-muted">last: {st.provider_fallbacks.last_reason}</div>
           )}
-        </div>
+        </CollapsibleSection>
       )}
     </div>
   );
@@ -290,26 +304,23 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
   const healthy = loaded && diags.length === 0;
   const tone =
     worst === "fail" ? "border-bad/50 bg-bad/5" : worst === "warn" ? "border-warn/50 bg-warn/5" : "border-good/40 bg-good/5";
-  const levelCls: Record<DiagLevel, string> = { ok: "text-good", info: "text-accent", warn: "text-warn", fail: "text-bad" };
+  const badgeVariant: Record<DiagLevel, "good" | "accent" | "warn" | "bad"> = {
+    ok: "good", info: "accent", warn: "warn", fail: "bad",
+  };
   return (
     <div className={cn("rounded-lg border p-3", healthy ? "border-good/40 bg-good/5" : tone)}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-        <Stethoscope className={cn("size-3.5", healthy ? "text-good" : levelCls[worst])} />
-        <span className={healthy ? "text-good" : levelCls[worst]}>Diagnostics</span>
-        <span className="font-normal lowercase tracking-normal text-muted">
-          {!loaded ? "checking…" : healthy ? "all systems healthy" : `${diags.length} issue${diags.length === 1 ? "" : "s"}`}
+      <div className="mb-1.5 flex items-center gap-2">
+        <Stethoscope className={cn("size-3.5", healthy ? "text-good" : "text-bad")} />
+        <span className={cn("text-xs font-semibold", healthy ? "text-good" : "text-bad")}>Diagnostics</span>
+        <span className="text-xs text-muted">
+          {!loaded ? "checking…" : healthy ? "all clear" : `${diags.length} issue${diags.length === 1 ? "" : "s"}`}
         </span>
       </div>
       {diags.length > 0 && (
         <ul className="space-y-1">
           {diags.map((d) => (
             <li key={d.id} className="flex items-center gap-2 text-xs">
-              <span
-                className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase", levelCls[d.level])}
-                title={d.level}
-              >
-                {d.level === "info" ? "•" : d.level === "warn" ? "!" : "✕"}
-              </span>
+              <Badge variant={badgeVariant[d.level]}>{d.level}</Badge>
               <span className="shrink-0 font-medium text-foreground">{d.title}</span>
               <span className="min-w-0 flex-1 truncate text-muted">{d.detail}</span>
               {d.fixHash && (
@@ -328,37 +339,4 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
   );
 }
 
-function GaugeCard({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center justify-center glass rounded-xl p-3">{children}</div>;
-}
 
-function Tile({
-  icon: Icon,
-  label,
-  value,
-  tone,
-  pulse,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number | string;
-  tone: "accent" | "good" | "bad" | "warn" | "muted";
-  pulse?: boolean;
-}) {
-  const color = {
-    accent: "text-accent",
-    good: "text-good",
-    bad: "text-bad",
-    warn: "text-amber-500",
-    muted: "text-foreground",
-  }[tone];
-  return (
-    <div className="glass rounded-xl px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-        {pulse && <span className="ml-auto size-2 animate-pulse rounded-full bg-accent" />}
-      </div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", color)}>{value}</div>
-    </div>
-  );
-}
