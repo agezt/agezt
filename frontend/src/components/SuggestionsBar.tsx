@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  ArrowRight, BookOpen, Bot, CheckCircle, Copy, GitBranch, Link,
+  ArrowRight, BookOpen, Bot, Brain, CheckCircle, Copy, GitBranch, Link,
   List, Play, RefreshCw, Scale, Search, Shield, Star, Stethoscope,
   Wrench, Zap, type LucideIcon
 } from "lucide-react";
@@ -26,6 +26,7 @@ const iconMap: Record<string, LucideIcon> = {
   "list": List,
   "arrow-right": ArrowRight,
   "bot": Bot,
+  "brain": Brain,
 };
 
 // Suggestion is one clickable next-prompt chip.
@@ -39,6 +40,7 @@ export interface Suggestion {
 
 // CategoryMeta styles each suggestion category consistently.
 const categoryMeta: Record<string, { label: string; chipClass: string }> = {
+  memory:  { label: "Memory",  chipClass: "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20" },
   debug:   { label: "Debug",   chipClass: "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20" },
   explore: { label: "Explore", chipClass: "bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20" },
   modify:  { label: "Modify",  chipClass: "bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20" },
@@ -68,17 +70,12 @@ export function SuggestionsBar({
     if (busy || dismissed) return;
     setLoading(true);
     try {
-      const args: Record<string, unknown> = {};
-      if (sessionId) args.session_id = sessionId;
-      if (recentTools && recentTools.length > 0) args.tools = recentTools;
-
+      // The read-args proxy forwards each query param as a single value, so
+      // send recent tool names comma-joined (the backend splits on comma).
       const params = new URLSearchParams();
-      for (const [k, v] of Object.entries(args)) {
-        if (Array.isArray(v)) {
-          v.forEach((item) => params.append(k, String(item)));
-        } else {
-          params.set(k, String(v));
-        }
+      if (sessionId) params.set("session_id", sessionId);
+      if (recentTools && recentTools.length > 0) {
+        params.set("tools", recentTools.join(","));
       }
 
       const qs = params.toString();

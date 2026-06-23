@@ -68,6 +68,7 @@ import { sortConversations, filterConversations, type HistorySummary, type Msg }
 import type { QueuedMsg } from "@/lib/queue";
 import { conversationToMarkdown, slugify, downloadText } from "@/lib/export";
 import { ChannelSessions } from "@/views/ChannelSessions";
+import { SuggestionsBar, type Suggestion } from "@/components/SuggestionsBar";
 
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the
@@ -356,6 +357,16 @@ export function Chat() {
         </div>
 
         <div className="border-t border-border pt-3">
+        {/* Suggested next prompts (memory-derived + tool-context): shown once a
+            turn has completed. Clicking a chip drops its prompt into the input. */}
+        {messages.length > 0 && (
+          <SuggestionsBar
+            sessionId={store.activeId}
+            recentTools={lastAssistantTools(messages)}
+            busy={busy}
+            onPick={setInput}
+          />
+        )}
         {/* Queued follow-ups (M962): lined up while a run streams; the next one
             auto-sends when the current run finishes. Reorder / delete / clear. */}
         {queue.length > 0 && (
@@ -605,19 +616,62 @@ const DEFAULT_EXAMPLES = [
   "What's the weather in Istanbul?",
 ];
 
+// lastAssistantTools returns the tool names the most recent assistant turn used,
+// so the suggestions bar can tailor next-step prompts to what just happened.
+function lastAssistantTools(messages: Msg[]): string[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "assistant") {
+      return m.turn.tools.map((t) => t.tool).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   // Saved prompts (M713) replace the generic examples once the owner defines any —
-  // their own reusable workflows, one click to launch. Falls back to examples.
+  // their own reusable workflows, one click to launch. When there are none, fall
+  // back to memory-derived starter prompts (built from the agent's own memory),
+  // and only then to the generic examples.
   const [prompts, setPrompts] = useState<{ title: string; text: string }[]>([]);
+  const [memChips, setMemChips] = useState<{ title: string; text: string }[]>([]);
   useEffect(() => {
+    let live = true;
     getJSON<{ prompts?: { title: string; text: string }[] }>("/api/prompts")
-      .then((r) => setPrompts(r.prompts || []))
+      .then((r) => {
+        if (!live) return;
+        const saved = r.prompts || [];
+        setPrompts(saved);
+        // Only reach for memory starters when the owner hasn't defined prompts.
+        if (saved.length === 0) {
+          getJSON<{ suggestions?: Suggestion[] }>("/api/suggestions")
+            .then((d) => {
+              if (!live) return;
+              setMemChips(
+                (d.suggestions || [])
+                  .filter((s) => s.category === "memory")
+                  .map((s) => ({ title: s.label, text: s.prompt })),
+              );
+            })
+            .catch(() => {
+              /* suggestions are optional — fall back to the examples */
+            });
+        }
+      })
       .catch(() => {
         /* prompts are optional — fall back to the examples */
       });
+    return () => {
+      live = false;
+    };
   }, []);
   const hasSaved = prompts.length > 0;
-  const chips = hasSaved ? prompts : DEFAULT_EXAMPLES.map((text) => ({ title: text, text }));
+  const chips = hasSaved
+    ? prompts
+    : memChips.length > 0
+      ? memChips
+      : DEFAULT_EXAMPLES.map((text) => ({ title: text, text }));
+  const fromMemory = !hasSaved && memChips.length > 0;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
@@ -635,7 +689,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
           <button
             key={`${p.title}-${i}`}
             onClick={() => onPick(p.text)}
-            title={hasSaved ? p.text : undefined}
+            title={hasSaved || fromMemory ? p.text : undefined}
             className="rounded-full border border-border bg-panel/60 px-3 py-1 text-xs text-muted shadow-e1 transition-all hover:-translate-y-0.5 hover:border-accent hover:bg-accent/10 hover:text-accent"
           >
             {p.title}
@@ -643,6 +697,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
         ))}
       </div>
       {hasSaved && <p className="text-[11px] text-muted/70">your saved prompts · manage in System → Prompts</p>}
+      {fromMemory && <p className="text-[11px] text-muted/70">drawn from your agent's memory</p>}
     </div>
   );
 }

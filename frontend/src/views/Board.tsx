@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, Search, LifeBuoy, Megaphone, Send, X, CheckCheck } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
+import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, LifeBuoy, Megaphone, Send, X, CheckCheck, Zap, Inbox, MessageSquare, Terminal } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,9 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
 import { PageHeader } from "@/components/ui/page-header";
+import { TabNav } from "@/components/ui/tab-nav";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { Badge } from "@/components/ui/badge";
 
 interface Msg {
   topic: string;
@@ -408,12 +412,7 @@ export function Board() {
       <PageHeader
         icon={MessagesSquare}
         title="Agent board"
-        description={
-          <>
-            {data ? `${data.count ?? 0} message${data.count === 1 ? "" : "s"}` : "Shared inter-agent message board"}
-            {topics.length > 0 && <span className="text-muted"> · {topics.length} topic{topics.length === 1 ? "" : "s"}</span>}
-          </>
-        }
+        description="Per-skill signal bus."
         actions={
           <>
             <Button size="sm" onClick={() => setShowCompose((v) => !v)} title="New message">
@@ -548,119 +547,55 @@ export function Board() {
         </div>
       )}
 
-      {data && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <BoardStat label="messages" value={counts.messages} />
-          <BoardStat label="topics" value={counts.topics} accent={counts.topics > 0} />
-          <BoardStat label="awaiting" value={counts.awaiting} accent={counts.awaiting > 0} warn={counts.awaiting > 0} />
-          <BoardStat label="help" value={counts.help} accent={counts.help > 0} warn={counts.help > 0} />
-        </div>
+      {data && messages.length > 0 && (
+        <TabNav
+          value={topic ?? "all"}
+          onValueChange={(v) => setTopic(v === "all" ? null : v)}
+          tabs={[
+            {
+              id: "all",
+              label: "All",
+              icon: Inbox,
+              count: messages.length,
+              content: (
+                <BoardMessageGroups messages={messages} agentFilter={agentFilter} waiting={waiting} replyTo={replyTo} />
+              ),
+            },
+            ...(["decisions", "briefings", "board", "tool_calls"] as const).map((t) => {
+              const tabMessages = messages.filter((m) => m.topic === t);
+              if (tabMessages.length === 0) return null;
+              return {
+                id: t,
+                label: t.charAt(0).toUpperCase() + t.slice(1).replace("_", " "),
+                icon: t === "decisions" ? Zap : t === "briefings" ? MessageSquare : t === "board" ? Inbox : Terminal,
+                count: tabMessages.length,
+                content: (
+                  <BoardMessageGroups messages={tabMessages} agentFilter={agentFilter} waiting={waiting} replyTo={replyTo} />
+                ),
+              };
+            }).filter(Boolean) as { id: string; label: string; icon: ComponentType<{ className?: string }>; count: number; content: React.ReactNode }[],
+          ]}
+        />
       )}
 
-      {topics.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          {topics.length > 12 && (
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-              <input
-                value={topicQuery}
-                onChange={(e) => setTopicQuery(e.target.value)}
-                placeholder={`filter ${topics.length} topics…`}
-                aria-label="Filter topics"
-                className="w-full rounded-md border border-border bg-panel py-1 pl-7 pr-2 text-xs outline-none focus-visible:border-accent"
-              />
-            </div>
-          )}
-          <div className="flex max-h-24 flex-wrap items-center gap-1.5 overflow-y-auto">
-            <button
-              onClick={() => setTopic(null)}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                topic === null ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
-              )}
+      {data && agents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+            <User className="size-3.5" />
+            <select
+              value={agentFilter}
+              onChange={(e) => changeAgentFilter(e.target.value)}
+              aria-label="Filter by agent"
+              className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
             >
-              all
-            </button>
-            {visibleTopics.map(([name, n]) => (
-              <button
-                key={name}
-                onClick={() => setTopic(name === topic ? null : name)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                  topic === name ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-foreground",
-                )}
-              >
-                <Hash className="size-3 opacity-70" />
-                {name}
-                <span className="opacity-60">{n}</span>
-              </button>
-            ))}
-            {!showAllTopics && hiddenCount > 0 && !topicQuery && (
-              <button
-                onClick={() => setShowAllTopics(true)}
-                className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-[11px] text-muted hover:text-accent"
-              >
-                +{hiddenCount} more
-              </button>
-            )}
-            {showAllTopics && filteredTopics.length > TOPIC_CAP && (
-              <button
-                onClick={() => setShowAllTopics(false)}
-                className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-[11px] text-muted hover:text-accent"
-              >
-                show fewer
-              </button>
-            )}
-            {topicQuery && filteredTopics.length === 0 && (
-              <span className="text-[11px] text-muted">no topics match “{topicQuery}”</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {data && (
-        <div className="flex flex-col gap-2">
-          {agentFilter.trim() && (
-            <div
-              className={cn(
-                "flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs",
-                agentMailbox.tone === "warn"
-                  ? "border-warn/50"
-                  : agentMailbox.tone === "good"
-                    ? "border-good/40"
-                    : "border-border",
-              )}
-            >
-              <span
-                className={cn(
-                  "font-semibold",
-                  agentMailbox.tone === "warn" ? "text-warn" : agentMailbox.tone === "good" ? "text-good" : "text-muted",
-                )}
-              >
-                {agentMailbox.value}
-              </span>
-              <span className="text-muted">{agentMailbox.detail}</span>
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-          {agents.length > 0 && (
-            <label className="inline-flex items-center gap-1.5 text-xs text-muted">
-              <User className="size-3.5" />
-              <select
-                value={agentFilter}
-                onChange={(e) => changeAgentFilter(e.target.value)}
-                aria-label="Filter by agent"
-                className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
-              >
-                <option value="">All agents</option>
-                {agents.map((a) => (
-                  <option key={a.slug} value={a.slug}>
-                    {agentLabel(a)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+              <option value="">All agents</option>
+              {agents.map((a) => (
+                <option key={a.slug} value={a.slug}>
+                  {agentLabel(a)}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="flex flex-wrap items-center gap-1.5">
             {([
               ["all", "All"],
@@ -674,15 +609,14 @@ export function Board() {
                 key={id}
                 onClick={() => setMessageFilter(id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
                   messageFilter === id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
                 )}
               >
                 {label}
-                <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{filterCounts[id]}</span>
+                <span className="rounded-full bg-panel px-1 text-[10px] tabular-nums">{filterCounts[id]}</span>
               </button>
             ))}
-          </div>
           </div>
         </div>
       )}
@@ -809,6 +743,131 @@ export function Board() {
         </div>
       )}
     </div>
+  );
+}
+
+function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
+  messages: Msg[];
+  agentFilter: string;
+  waiting: Set<string>;
+  replyTo: string;
+}) {
+  const groups = useMemo(() => {
+    const map = new Map<string, Msg[]>();
+    for (const m of messages) {
+      const key = m.topic || "(no topic)";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [messages]);
+
+  if (groups.length === 0) {
+    return <Muted>no messages yet</Muted>;
+  }
+
+  if (groups.length === 1) {
+    return (
+      <div className="space-y-2">
+        {renderMessageList(groups[0][1], agentFilter, waiting, replyTo)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {groups.map(([topic, msgs]) => (
+        <CollapsibleSection
+          key={topic}
+          title={topic}
+          icon={Hash}
+          count={msgs.length}
+          defaultOpen={groups.length <= 3}
+        >
+          {renderMessageList(msgs, agentFilter, waiting, replyTo)}
+        </CollapsibleSection>
+      ))}
+    </div>
+  );
+}
+
+function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string>, replyTo: string) {
+  return (
+    <ul className="space-y-2">
+      {msgs.map((m, i) => {
+        const ackedBy = messageAckedBy(m);
+        const selectedAgent = agentFilter.trim().toLowerCase();
+        const selectedAcked = !!selectedAgent && (m.acked_by || []).some((by) => by.trim().toLowerCase() === selectedAgent);
+        const canAckForSelected = !!agentFilter.trim() && !!m.id && !selectedAcked;
+        return (
+          <li key={i} className="glass rounded-xl p-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {m.help && (
+                <Badge variant="warn">
+                  <LifeBuoy className="size-3 mr-1" />
+                  help
+                </Badge>
+              )}
+              {m.to === "*" && (
+                <Badge variant="accent">
+                  <Megaphone className="size-3 mr-1" />
+                  all
+                </Badge>
+              )}
+              {m.reply_to && (
+                <Badge>
+                  <CornerDownRight className="size-3 mr-1" />
+                  reply
+                </Badge>
+              )}
+              {ackedBy ? (
+                <Badge variant="good">
+                  <CheckCheck className="size-3 mr-1" />
+                  seen
+                </Badge>
+              ) : null}
+              {m.id && waiting.has(m.id) && (
+                <Badge variant="warn">awaiting</Badge>
+              )}
+              {m.from && (
+                <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-foreground/80">
+                  <User className="size-3 text-muted" />
+                  {m.from}
+                </span>
+              )}
+              {m.to && m.to !== "*" && (
+                <span className="flex items-center gap-0.5 text-[11px] text-accent">
+                  <ArrowRight className="size-3" />
+                  {m.to}
+                </span>
+              )}
+              <span className="ml-auto font-mono text-xs text-muted">{fmtTime(m.ts_unix_ms)}</span>
+            </div>
+            <Markdown source={m.text} className="mt-1.5 text-sm text-foreground/90" />
+            {canAckForSelected && (
+              <div className="mt-2 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {}}
+                  title={`Reply as ${agentFilter}`}
+                >
+                  <CornerDownRight className="size-3.5" /> Reply
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {}}
+                  title={`Ack as ${agentFilter}`}
+                >
+                  <CheckCheck className="size-3.5" /> Ack
+                </Button>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

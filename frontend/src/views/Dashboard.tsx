@@ -1,5 +1,29 @@
 import { useEffect, useRef, useState } from "react";
-import { Activity, RefreshCw, Cpu, Wallet, ListTree, Network, Radio, CalendarClock, Gauge, ShieldAlert, AlertTriangle } from "lucide-react";
+import {
+  Activity,
+  RefreshCw,
+  Cpu,
+  Wallet,
+  Network,
+  Radio,
+  CalendarClock,
+  Gauge,
+  ShieldAlert,
+  AlertTriangle,
+  Bot,
+  GitBranch,
+  Coins,
+  Repeat,
+  Mail,
+  Wrench,
+  Skull,
+  Pause,
+  XCircle,
+  Zap,
+  CheckCircle2,
+  XOctagon,
+  Clock,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
@@ -13,18 +37,16 @@ import { openIncident } from "@/lib/incidentnav";
 import { doctorIncidentPhase, doctorIncidentSourceLabel } from "@/lib/autonomy";
 import {
   IncidentBadges,
-  incidentPhaseBadgeClass,
-  incidentSourceBadgeClass,
 } from "@/components/IncidentBadges";
 import { Button } from "@/components/ui/button";
 import { fmtTime, clip } from "@/lib/utils";
 import { Ring, Sparkline, BarRow } from "@/components/Widgets";
 import { PageHeader } from "@/components/ui/page-header";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
-import { Bot, GitBranch, Coins, Repeat, Mail, Wrench, Skull, Pause, XCircle } from "lucide-react";
+import { TabNav } from "@/components/ui/tab-nav";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
-// RunRow is the subset of /api/runs the cockpit folds into the active-agents
-// panel — structurally compatible with the Agents view's run shape.
 interface RunRow {
   correlation_id?: string;
   parent_correlation?: string;
@@ -90,10 +112,6 @@ export interface DashboardFleetOps {
 
 const MAX_SERIES = 32;
 
-// Dashboard is the cockpit: every key gauge of the running system at a glance —
-// throughput and success rate as rings, today's spend against the ceiling, a live
-// activity sparkline driven by the journal head, per-model cost as bars, and a
-// live event ticker. One screen to see, understand, and monitor the whole daemon.
 export function Dashboard() {
   const { events, connected } = useEvents();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -119,13 +137,8 @@ export function Dashboard() {
     ]);
     if (s.status === "fulfilled") setStats(s.value);
     if (b.status === "fulfilled") setBudget(b.value);
-    // Live fleet (M914): the lead runs currently in flight, folded from /api/runs
-    // with each one's sub-agent subtree (reuses the Agents gallery's summarizer).
     if (r.status === "fulfilled")
       setActive(summarizeRoots(r.value.runs || []).filter((x) => x.kind === "running"));
-    // Recency-bounded + halt-resolved (M913): the journal backfills weeks of
-    // history, so without a window an old halt/failure would sit in "Needs
-    // attention" forever.
     if (j.status === "fulfilled")
       setAlerts(recentAttentionAlerts(j.value.events || [], { limit: 4, nowMs: Date.now() }));
     if (a.status === "fulfilled") {
@@ -134,7 +147,6 @@ export function Dashboard() {
     }
     if (st.status === "fulfilled") {
       setStatus(st.value);
-      // Activity rate = growth of the journal head between samples (events/tick).
       const head = Number(st.value.journal_head ?? 0);
       if (lastHead.current !== null) {
         const delta = Math.max(0, head - lastHead.current);
@@ -151,7 +163,6 @@ export function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
-  // Snappy refresh right after a run starts or ends.
   const head = events[0]?.kind;
   useEffect(() => {
     if (head === "task.received" || head === "task.completed" || head === "task.failed" || head === "schedule.fired") refresh();
@@ -169,328 +180,456 @@ export function Dashboard() {
   const schedEnabled = Number(status?.schedules?.enabled ?? 0);
   const schedRunning = Number(status?.schedules?.running ?? 0);
   const schedResidentOffline = schedEnabled > 0 && status?.schedules?.resident === false;
-  const schedCenter = schedResidentOffline ? "offline" : schedRunning > 0 ? `${schedRunning} live` : `${schedEnabled}`;
+
+  // Build the three tabs
+  const tabs = [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: Gauge,
+      content: (
+        <OverviewTab
+          stats={stats}
+          fleetOps={fleetOps}
+          active={active}
+          alerts={alerts}
+          successPct={successPct}
+          pctUsed={pctUsed}
+          ceiling={ceiling}
+          spent={spent}
+          schedTotal={schedTotal}
+          schedEnabled={schedEnabled}
+          schedRunning={schedRunning}
+          schedResidentOffline={schedResidentOffline}
+          series={series}
+          status={status}
+        />
+      ),
+    },
+    {
+      id: "activity",
+      label: "Activity",
+      icon: Zap,
+      count: events.length > 0 ? events.length : undefined,
+      content: (
+        <ActivityTab
+          events={events}
+          series={series}
+          loading={loading}
+          refresh={refresh}
+        />
+      ),
+    },
+    {
+      id: "budget",
+      label: "Budget",
+      icon: Wallet,
+      content: (
+        <BudgetTab
+          stats={stats}
+          budget={budget}
+          byModel={byModel}
+          maxModelSpend={maxModelSpend}
+          model={model}
+        />
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Activity}
-        title="Cockpit"
-        description="Every key gauge of the running system at a glance."
-        actions={
-          <>
-            <span className={cn("inline-flex items-center gap-1 text-xs font-medium", connected ? "text-good" : "text-bad")}>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
+            <Activity className="size-5" />
+          </span>
+          <div>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Cockpit</h2>
+            <span className={cn(
+              "inline-flex items-center gap-1 text-xs font-medium",
+              connected ? "text-good" : "text-bad",
+            )}>
               ● {connected ? "live" : "disconnected"}
             </span>
-            <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-            </Button>
-          </>
-        }
-      />
-
-      {/* Needs attention (M780): the most recent warning/critical alerts surfaced on the
-          landing cockpit, so the first screen tells you WHAT the agent flagged — not just
-          that something happened (the nav badge). Hidden when all is well. */}
-      {alerts.length > 0 && (
-        <div className="rounded-lg border border-bad/40 bg-bad/5 p-3">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-bad">
-            <ShieldAlert className="size-3.5" /> Needs attention ({alerts.length})
           </div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      </div>
+
+      <TabNav tabs={tabs} />
+    </div>
+  );
+}
+
+// ───────────────────────── Overview tab ─────────────────────────
+
+function OverviewTab({
+  stats,
+  fleetOps,
+  active,
+  alerts,
+  successPct,
+  pctUsed,
+  ceiling,
+  spent,
+  schedTotal,
+  schedEnabled,
+  schedRunning,
+  schedResidentOffline,
+  series,
+  status,
+}: {
+  stats: Stats | null;
+  fleetOps: DashboardFleetOps | null;
+  active: RootSummary[];
+  alerts: RankedAlert[];
+  successPct: number;
+  pctUsed: number;
+  ceiling: number;
+  spent: number;
+  schedTotal: number;
+  schedEnabled: number;
+  schedRunning: number;
+  schedResidentOffline: boolean;
+  series: number[];
+  status: Record<string, any> | null;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Alerts — always visible when present */}
+      {alerts.length > 0 && (
+        <CollapsibleSection
+          icon={ShieldAlert}
+          title="Needs attention"
+          count={alerts.length}
+          tone="bad"
+          defaultOpen={true}
+        >
           <ul className="space-y-1">
             {alerts.map((a) => {
               const Icon = a.level === "critical" ? ShieldAlert : AlertTriangle;
               const iconCls = a.level === "critical" ? "text-bad" : "text-warn";
-              const inner = (
-                <>
+              return (
+                <li key={a.id} className="flex items-center gap-2 text-sm">
                   <Icon className={cn("size-3.5 shrink-0", iconCls)} />
-                  <span className="shrink-0 font-medium text-foreground">{a.title}</span>
+                  <span className="shrink-0 font-medium">{a.title}</span>
                   {a.source === "doctor" && (
                     <IncidentBadges
                       item={{
                         subject: a.subject,
-                        phase: a.payload?.phase,
-                        mode: a.payload?.mode,
+                        phase: (a.payload as any)?.phase,
+                        mode: (a.payload as any)?.mode,
                       }}
                     />
                   )}
-                  {a.detail && <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>}
-                  <span className="ml-auto shrink-0 font-mono text-xs text-muted">{a.source}</span>
+                  {a.detail && (
+                    <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>
+                  )}
                   {incidentRootId(a) && (
                     <button
                       onClick={() => openIncident(incidentRootId(a))}
-                      className="shrink-0 font-medium text-accent/80 transition-colors hover:text-accent"
-                      title="Open the incident tree this alert belongs to"
+                      className="shrink-0 text-xs font-medium text-accent transition-colors hover:text-accent/80"
                     >
                       incident →
                     </button>
                   )}
-                  {a.tsMs ? <span className="w-12 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.tsMs)}</span> : null}
-                </>
-              );
-              // A run-associated alert links to its run (M781): open it in the Runs view.
-              return a.correlationId ? (
-                <li key={a.id}>
-                  <button
-                    onClick={() => { focusRun(a.correlationId!); location.hash = "runs"; }}
-                    className="flex w-full items-center gap-2 rounded text-left text-xs transition-colors hover:bg-bad/10"
-                    title="Open the run this alert came from"
-                  >
-                    {inner}
-                  </button>
                 </li>
-              ) : (
-                <li key={a.id} className="flex items-center gap-2 text-xs">{inner}</li>
               );
             })}
           </ul>
-        </div>
+        </CollapsibleSection>
       )}
 
-      <ConnectivityStrip />
+      {/* Key metrics grid */}
+      <MetricGrid>
+        <MetricWidget
+          icon={CheckCircle2}
+          label="Success rate"
+          value={`${successPct}%`}
+          tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
+          trend={[]}
+        />
+        <MetricWidget
+          icon={Wallet}
+          label="Budget used"
+          value={ceiling > 0 ? `${Math.round(pctUsed)}%` : money(spent)}
+          subvalue={ceiling > 0 ? `of ${money(ceiling)}` : undefined}
+          tone={pctUsed > 85 ? "bad" : pctUsed > 60 ? "warn" : "good"}
+        />
+        <MetricWidget
+          icon={CalendarClock}
+          label="Schedules"
+          value={schedResidentOffline ? "offline" : `${schedRunning} live`}
+          subvalue={`${schedEnabled} of ${schedTotal} enabled`}
+          tone={schedResidentOffline ? "bad" : schedRunning > 0 ? "accent" : "muted"}
+          pulse={schedRunning > 0}
+        />
+        <MetricWidget
+          icon={Zap}
+          label="Activity"
+          value={series.at(-1) ?? 0}
+          subvalue="events/5s"
+          tone="accent"
+          trend={series}
+          pulse={true}
+        />
+      </MetricGrid>
 
+      {/* Fleet ops — compact strip */}
       {fleetOps && fleetOps.total > 0 && (
-        <div className="rounded-lg border border-border bg-panel/45 p-3">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
+        <CollapsibleSection
+          icon={Bot}
+          title="Agent operations"
+          count={`${fleetOps.running} awake`}
+          tone="accent"
+          defaultOpen={true}
+          actions={
             <button
               onClick={() => (location.hash = "roster")}
-              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent hover:underline"
-              title="Open the roster identity cards"
+              className="text-xs text-accent hover:underline"
             >
-              <Bot className="size-3.5" /> Agent operations
+              roster →
             </button>
-            <span className="text-xs text-muted">
-              {fleetOps.active} active · {fleetOps.paused} paused · {fleetOps.graveyard} graveyard
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-            <MiniOp icon={Bot} label="agents" value={fleetOps.total} tone="accent" />
-            <MiniOp icon={Radio} label="awake" value={fleetOps.running} tone={fleetOps.running > 0 ? "accent" : "muted"} pulse={fleetOps.running > 0} />
-            <MiniOp icon={Wrench} label="repair" value={fleetOps.repair} tone={fleetOps.repair > 0 ? "bad" : "muted"} />
-            <MiniOp icon={Mail} label="mailbox" value={fleetOps.mailboxBacklog} tone={fleetOps.mailboxBacklog > 0 ? "warn" : "muted"} />
-            <MiniOp icon={Pause} label="paused" value={fleetOps.paused} tone={fleetOps.paused > 0 ? "warn" : "muted"} />
-            <MiniOp icon={Skull} label="graveyard" value={fleetOps.graveyard} tone={fleetOps.graveyard > 0 ? "muted" : "muted"} />
-            <MiniOp icon={ShieldAlert} label="system" value={fleetOps.system} tone="muted" />
-            <MiniOp icon={GitBranch} label="subagents" value={fleetOps.subagents} tone={fleetOps.subagents > 0 ? "accent" : "muted"} />
+          }
+        >
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+            <MiniMetric icon={Bot} label="agents" value={fleetOps.total} />
+            <MiniMetric icon={Radio} label="awake" value={fleetOps.running} tone={fleetOps.running > 0 ? "accent" : "muted"} pulse={fleetOps.running > 0} />
+            <MiniMetric icon={Wrench} label="repair" value={fleetOps.repair} tone={fleetOps.repair > 0 ? "bad" : "muted"} />
+            <MiniMetric icon={Mail} label="mailbox" value={fleetOps.mailboxBacklog} tone={fleetOps.mailboxBacklog > 0 ? "warn" : "muted"} />
+            <MiniMetric icon={Pause} label="paused" value={fleetOps.paused} tone={fleetOps.paused > 0 ? "warn" : "muted"} />
+            <MiniMetric icon={Skull} label="graveyard" value={fleetOps.graveyard} />
+            <MiniMetric icon={ShieldAlert} label="system" value={fleetOps.system} />
+            <MiniMetric icon={GitBranch} label="subagents" value={fleetOps.subagents} tone={fleetOps.subagents > 0 ? "accent" : "muted"} />
           </div>
           {(fleetOps.repair > 0 || fleetOps.mailboxBacklog > 0) && (
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {fleetOps.repair > 0 && (
-                <button onClick={() => (location.hash = "roster")} className="text-bad transition-colors hover:text-bad/80">
-                  {fleetOps.repair} agent{fleetOps.repair === 1 ? "" : "s"} need repair attention
+                <button onClick={() => (location.hash = "roster")} className="text-bad hover:text-bad/80">
+                  {fleetOps.repair} need repair
                 </button>
               )}
               {fleetOps.mailboxBacklog > 0 && (
-                <button onClick={() => (location.hash = "board")} className="text-warn transition-colors hover:text-warn/80">
-                  {fleetOps.mailboxBacklog} mailbox message{fleetOps.mailboxBacklog === 1 ? "" : "s"} waiting across {fleetOps.mailboxAgents} agent{fleetOps.mailboxAgents === 1 ? "" : "s"}
+                <button onClick={() => (location.hash = "board")} className="text-warn hover:text-warn/80">
+                  {fleetOps.mailboxBacklog} messages waiting
                 </button>
               )}
             </div>
           )}
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* Active agents (M914): a live window into the fleet right on the cockpit —
-          which lead runs are in flight now, with their sub-agent counts and spend.
-          Click one to drill into the Agents monitor. Hidden when nothing is running. */}
+      {/* Active runs */}
       {active.length > 0 && (
-        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3">
-          <button
-            onClick={() => (location.hash = "agents")}
-            className="mb-2 flex w-full items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent hover:underline"
-            title="Open the Agents monitor"
-          >
-            <Radio className="size-3.5 animate-pulse" /> Active agents ({active.length})
-          </button>
+        <CollapsibleSection
+          icon={Repeat}
+          title="Active runs"
+          count={active.length}
+          tone="accent"
+          defaultOpen={active.length <= 3}
+        >
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {active.slice(0, 6).map((r) => (
               <button
                 key={r.id}
                 onClick={() => (location.hash = "agents")}
-                className="flex flex-col gap-1.5 rounded-md border border-border bg-card p-2.5 text-left shadow-e1 transition-[box-shadow,border-color] hover:border-accent hover:shadow-e2"
+                className="flex flex-col gap-2 rounded-lg border border-border bg-panel/60 p-3 text-left transition-colors hover:border-accent hover:bg-panel"
               >
-                <div className="flex items-center gap-1.5">
-                  <span className="size-2 shrink-0 animate-pulse rounded-full bg-accent" />
-                  <span className="truncate text-xs font-medium text-foreground/90" title={r.intent || r.id}>
-                    {r.intent ? clip(r.intent, 80) : r.id}
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-accent animate-pulse" />
+                  <span className="truncate text-sm font-medium" title={r.intent || r.id}>
+                    {r.intent ? clip(r.intent, 60) : r.id}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-                  <span className="inline-flex items-center gap-1" title="agents in this run's tree">
-                    <Bot className="size-3" /> {r.agents}
-                  </span>
-                  {r.subAgents > 0 && (
-                    <span className="inline-flex items-center gap-1" title="sub-agents">
-                      <GitBranch className="size-3" /> {r.subAgents}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1" title="iterations">
-                    <Repeat className="size-3" /> {r.iters}
-                  </span>
-                  <span className="inline-flex items-center gap-1" title="tree spend">
-                    <Coins className="size-3" /> {money(r.treeSpentMc)}
-                  </span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  <span className="inline-flex items-center gap-1"><Bot className="size-3" /> {r.agents}</span>
+                  {r.subAgents > 0 && <span className="inline-flex items-center gap-1"><GitBranch className="size-3" /> {r.subAgents}</span>}
+                  <span className="inline-flex items-center gap-1"><Coins className="size-3" /> {money(r.treeSpentMc)}</span>
                   {r.model && <span className="ml-auto truncate font-mono opacity-70" title={r.model}>{r.model}</span>}
                 </div>
               </button>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* Gauges + live activity */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <GaugeCard>
-          <Ring
-            pct={successPct}
-            center={stats?.total ? `${successPct}%` : "—"}
-            label="success rate"
-            tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
-          />
-        </GaugeCard>
-        <GaugeCard>
-          <Ring
-            pct={pctUsed}
-            center={ceiling > 0 ? `${Math.round(pctUsed)}%` : money(spent)}
-            label={ceiling > 0 ? "budget used" : "spent today"}
-            tone={pctUsed > 85 ? "bad" : pctUsed > 60 ? "warn" : "good"}
-          />
-        </GaugeCard>
-        <GaugeCard>
-          <Ring
-            pct={schedTotal > 0 ? (schedEnabled / schedTotal) * 100 : 0}
-            center={schedCenter}
-            label={`of ${schedTotal} schedules`}
-            tone={schedResidentOffline ? "bad" : "accent"}
-          />
-        </GaugeCard>
-        <div className="glass rounded-xl p-3">
-          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-            <Gauge className="size-3.5" /> Activity
-          </div>
-          <Sparkline data={series} tone="accent" height={56} />
-          <div className="mt-1 text-[11px] text-muted">
-            {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
-          </div>
-        </div>
-      </div>
-
       {/* Run counters */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-        <Tile icon={ListTree} label="running now" value={stats?.running ?? 0} tone="accent" pulse={(stats?.running ?? 0) > 0} />
-        <Tile icon={ListTree} label="completed" value={stats?.completed ?? 0} tone="good" />
-        <Tile icon={ListTree} label="failed" value={stats?.failed ?? 0} tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"} />
-        <Tile
-          icon={XCircle}
-          label="error rate"
-          value={stats?.total ? `${Math.round(((stats.failed ?? 0) / stats.total) * 100)}%` : "—"}
-          tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"}
-        />
-        <Tile icon={GitBranch} label="delegations" value={stats?.delegations ?? 0} tone={(stats?.delegations ?? 0) > 0 ? "accent" : "muted"} />
-        <Tile icon={CalendarClock} label="active skills" value={status?.active_skills ?? 0} tone="muted" />
+      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
+        <MetricWidget icon={Repeat} label="Running" value={stats?.running ?? 0} tone="accent" pulse={(stats?.running ?? 0) > 0} />
+        <MetricWidget icon={CheckCircle2} label="Completed" value={stats?.completed ?? 0} tone="good" />
+        <MetricWidget icon={XOctagon} label="Failed" value={stats?.failed ?? 0} tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"} />
+        <MetricWidget icon={GitBranch} label="Delegations" value={stats?.delegations ?? 0} tone={(stats?.delegations ?? 0) > 0 ? "accent" : "muted"} />
+        <MetricWidget icon={CalendarClock} label="Active skills" value={status?.active_skills ?? 0} />
+      </MetricGrid>
+    </div>
+  );
+}
+
+// ───────────────────────── Activity tab ─────────────────────────
+
+function ActivityTab({
+  events,
+  series,
+  loading,
+  refresh,
+}: {
+  events: AgentEvent[];
+  series: number[];
+  loading: boolean;
+  refresh: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <CollapsibleSection
+          icon={Gauge}
+          title="Activity pulse"
+          tone="accent"
+          defaultOpen={true}
+        >
+          <Sparkline data={series} tone="accent" height={48} />
+          <p className="mt-1 text-xs text-muted">
+            {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
+          </p>
+        </CollapsibleSection>
       </div>
 
-      {/* Model + spend breakdown */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Card title="Active model" icon={Cpu}>
-          <div className="truncate text-lg font-semibold">{model}</div>
-          <div className="mt-1 text-xs text-muted">avg {stats?.avg_iters ? stats.avg_iters.toFixed(1) : "—"} iters/run</div>
-          <div className="mt-1 text-xs text-muted">
-            {stats?.delegations ? `${stats.delegations} sub-agent delegation(s)` : "no delegations"}
-          </div>
-          <div className="mt-1 text-xs text-muted">{budget?.strict_pricing ? "strict pricing on" : "strict pricing off"}</div>
-        </Card>
-
-        <Card title="Spend by model" icon={Network}>
-          {byModel.length === 0 ? (
-            <span className="text-xs text-muted">no spend yet</span>
-          ) : (
-            <div className="space-y-1.5">
-              {byModel
-                .sort((a, b) => (b[1].spent_microcents ?? 0) - (a[1].spent_microcents ?? 0))
-                .slice(0, 5)
-                .map(([m, v]) => (
-                  <BarRow
-                    key={m}
-                    label={m}
-                    value={v.spent_microcents ?? 0}
-                    max={maxModelSpend}
-                    display={`${money(v.spent_microcents ?? 0)} · ${v.runs ?? 0}`}
-                  />
-                ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Live event ticker — raw rows; the activity sparkline above is the calm
-          pulse, so the row-by-row detail folds behind Advanced. */}
-      <Calm>
-        <p className="text-[11px] text-muted">The live event stream is in Advanced mode — the activity sparkline above shows the pulse.</p>
-      </Calm>
       <Advanced>
-      <div className="glass rounded-xl">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted">
-          <Radio className="size-3.5" /> Live events
+        <div className="rounded-xl border border-border bg-card shadow-e1">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted">
+              <Radio className="size-3.5" /> Live stream
+            </div>
+            <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
+              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            </Button>
+          </div>
+          <div className="max-h-80 overflow-auto">
+            {events.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-muted">waiting for activity…</div>
+            ) : (
+              <ul className="divide-y divide-border/60 text-xs">
+                {events.slice(0, 40).map((e, i) => (
+                  <li key={e.id || i} className="flex items-center gap-2 px-3 py-1.5">
+                    <span className="w-16 shrink-0 tabular-nums text-muted">{fmtTime(e.ts_unix_ms)}</span>
+                    <span className="w-36 shrink-0 truncate font-medium text-accent">{e.kind}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted">{eventSummary(e)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
-        <div className="max-h-64 overflow-auto">
-          {events.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-muted">waiting for activity…</div>
-          ) : (
-            <ul className="divide-y divide-border/60 text-xs">
-              {events.slice(0, 40).map((e, i) => (
-                <li key={e.id || i} className="flex items-center gap-2 px-3 py-1.5">
-                  <span className="w-16 shrink-0 tabular-nums text-muted">{fmtTime(e.ts_unix_ms)}</span>
-                  <span className="w-40 shrink-0 truncate font-medium text-accent">{e.kind}</span>
-                  {eventSourceLabel(e) && (
-                    <span className={incidentSourceBadgeClass(eventSourceLabel(e)!)}>
-                      {eventSourceLabel(e)}
-                    </span>
-                  )}
-                  {eventPhaseLabel(e) && (
-                    <span className={incidentPhaseBadgeClass(eventPhaseLabel(e)!.tone)}>
-                      {eventPhaseLabel(e)!.label}
-                    </span>
-                  )}
-                  <span className="truncate text-muted">
-                    {eventSummary(e)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
       </Advanced>
     </div>
   );
 }
 
-function eventSourceLabel(e: AgentEvent): string {
-  const subject = String(e.subject || "").trim();
-  if (!subject) return "";
-  if (subject === "doctor.auto_repair" || subject === "agent.repair" || subject === "agent.wake") {
-    return doctorIncidentSourceLabel({
-      subject,
-      phase: (e.payload as any)?.phase,
-      mode: (e.payload as any)?.mode,
-    });
-  }
-  return "";
+// ───────────────────────── Budget tab ─────────────────────────
+
+function BudgetTab({
+  stats,
+  budget,
+  byModel,
+  maxModelSpend,
+  model,
+}: {
+  stats: Stats | null;
+  budget: Budget | null;
+  byModel: [string, { runs?: number; spent_microcents?: number }][];
+  maxModelSpend: number;
+  model: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <MetricGrid>
+        <MetricWidget
+          icon={Cpu}
+          label="Active model"
+          value={model}
+          subvalue={stats?.avg_iters ? `avg ${stats.avg_iters.toFixed(1)} iters/run` : undefined}
+          tone="accent"
+        />
+        <MetricWidget
+          icon={Coins}
+          label="Total spend"
+          value={money(stats?.spent_microcents ?? 0)}
+          tone="warn"
+        />
+        <MetricWidget
+          icon={Repeat}
+          label="Total runs"
+          value={stats?.total ?? 0}
+          tone="muted"
+        />
+      </MetricGrid>
+
+      {byModel.length > 0 && (
+        <CollapsibleSection
+          icon={Network}
+          title="Spend by model"
+          tone="accent"
+          defaultOpen={true}
+        >
+          <div className="space-y-2">
+            {byModel
+              .sort((a, b) => (b[1].spent_microcents ?? 0) - (a[1].spent_microcents ?? 0))
+              .slice(0, 8)
+              .map(([m, v]) => (
+                <BarRow
+                  key={m}
+                  label={m}
+                  value={v.spent_microcents ?? 0}
+                  max={maxModelSpend}
+                  display={`${money(v.spent_microcents ?? 0)} · ${v.runs ?? 0} runs`}
+                />
+              ))}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      <CollapsibleSection
+        icon={Wallet}
+        title="Budget settings"
+        tone="muted"
+        defaultOpen={false}
+      >
+        <div className="space-y-1 text-sm text-muted">
+          <p>Ceiling: {money(budget?.ceiling_mc ?? 0)}</p>
+          <p>Strict pricing: {budget?.strict_pricing ? "on" : "off"}</p>
+        </div>
+      </CollapsibleSection>
+    </div>
+  );
 }
 
-function eventPhaseLabel(
-  e: AgentEvent,
-): { label: string; tone: "accent" | "warn" | "good" | "bad" | "muted" } | null {
-  const subject = String(e.subject || "").trim();
-  if (subject === "doctor.auto_repair" || subject === "agent.repair" || subject === "agent.wake") {
-    return doctorIncidentPhase({
-      subject,
-      phase: (e.payload as any)?.phase,
-      mode: (e.payload as any)?.mode,
-    });
-  }
-  return null;
+// ───────────────────────── Shared helpers ─────────────────────────
+
+function MiniMetric({
+  icon: Icon,
+  label,
+  value,
+  tone = "muted",
+  pulse,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number;
+  tone?: "accent" | "warn" | "bad" | "muted";
+  pulse?: boolean;
+}) {
+  const colorCls = { accent: "text-accent", warn: "text-warn", bad: "text-bad", muted: "text-foreground" }[tone];
+  return (
+    <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-panel/60 px-2 py-1.5">
+      <div className="inline-flex items-center gap-1 text-[10px] text-muted">
+        <Icon className={cn("size-2.5", pulse && "animate-pulse")} />
+        {label}
+      </div>
+      <div className={cn("text-base font-semibold tabular-nums", colorCls)}>{value}</div>
+    </div>
+  );
 }
 
 function eventSummary(e: AgentEvent): string {
@@ -500,9 +639,8 @@ function eventSummary(e: AgentEvent): string {
     const bits = [
       String(p.agent || p.root_agent || "").trim(),
       String(p.reason || p.error || "").trim(),
-      String(subject || "").trim(),
     ].filter(Boolean);
-    return clip(bits.join(" · "), 140);
+    return clip(bits.join(" · "), 100);
   }
   return String(e.subject || "").trim();
 }
@@ -583,68 +721,4 @@ function dashboardMailboxCounts(messages: DashboardBoardMessage[], agents: strin
     }
   }
   return counts;
-}
-
-function GaugeCard({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center justify-center glass rounded-xl p-3 shadow-e1">{children}</div>;
-}
-
-function MiniOp({
-  icon: Icon,
-  label,
-  value,
-  tone,
-  pulse,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: number | string;
-  tone: "accent" | "warn" | "bad" | "muted";
-  pulse?: boolean;
-}) {
-  const color = { accent: "text-accent", warn: "text-warn", bad: "text-bad", muted: "text-foreground" }[tone];
-  return (
-    <div className="rounded-md border border-border bg-card/55 px-2 py-1.5">
-      <div className="flex items-center gap-1 text-xs uppercase tracking-wider text-muted">
-        <Icon className={cn("size-3", pulse && "animate-pulse")} /> {label}
-      </div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", color)}>{value}</div>
-    </div>
-  );
-}
-
-function Tile({
-  icon: Icon,
-  label,
-  value,
-  tone,
-  pulse,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: number | string;
-  tone: "accent" | "good" | "bad" | "muted";
-  pulse?: boolean;
-}) {
-  const color = { accent: "text-accent", good: "text-good", bad: "text-bad", muted: "text-foreground" }[tone];
-  return (
-    <div className="glass rounded-xl px-3 py-2.5 shadow-e1">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-        {pulse && <span className="ml-auto size-2 animate-pulse rounded-full bg-accent" />}
-      </div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", color)}>{value}</div>
-    </div>
-  );
-}
-
-function Card({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: React.ReactNode }) {
-  return (
-    <div className="glass rounded-xl p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-        <Icon className="size-3.5" /> {title}
-      </div>
-      {children}
-    </div>
-  );
 }
