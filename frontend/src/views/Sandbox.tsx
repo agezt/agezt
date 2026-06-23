@@ -7,7 +7,9 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
-import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { Badge } from "@/components/ui/badge";
 
 // downloadText saves text content to a file via a transient object URL — lets the
 // operator grab an artifact an agent built without leaving the browser.
@@ -73,21 +75,24 @@ export function Sandbox() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={FlaskConical}
-        title="Sandbox"
-        description="Persistent projects your agents built and iterate on with the code_exec tool — open a file to view or download it."
-        actions={
-          <>
-            <span className="text-xs text-muted">
-              {projects ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : ""}
-            </span>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            </Button>
-          </>
-        }
-      />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
+            <FlaskConical className="size-5" />
+          </span>
+          <div>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Sandbox</h2>
+            {projects && (
+              <Badge variant="default" className="mt-0.5">
+                {projects.length} project{projects.length === 1 ? "" : "s"}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      </div>
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -97,23 +102,20 @@ export function Sandbox() {
         <EmptyState
           icon={FlaskConical}
           title="No sandbox projects yet"
-          hint="When an agent runs code_exec with a project name, its files appear here — code, data, whatever it builds."
+          hint="When an agent runs code_exec with a project name, its files appear here."
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ul className="space-y-2">
-            {projects.map((p) => (
-              <ProjectCard key={p.name} p={p} onChanged={reload} />
-            ))}
-          </ul>
-        </div>
+        <MetricGrid cols="repeat(auto-fill, minmax(200px, 1fr))">
+          {projects.map((p) => (
+            <ProjectCard key={p.name} p={p} onChanged={reload} />
+          ))}
+        </MetricGrid>
       )}
     </div>
   );
 }
 
 function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ui = useUI();
 
@@ -138,19 +140,11 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
   }
 
   return (
-    <li className="glass rounded-xl">
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <button onClick={() => setOpen((o) => !o)} className="flex flex-1 items-center gap-2 text-left">
-          {open ? <ChevronDown className="size-4 text-muted" /> : <ChevronRight className="size-4 text-muted" />}
-          <FlaskConical className="size-4 text-accent" />
-          <span className="font-medium">{p.name}</span>
-          <span className="text-xs text-muted">
-            {p.file_count} file{p.file_count === 1 ? "" : "s"} · {fmtBytes(p.total_bytes)}
-          </span>
-          {p.modified_unix > 0 && (
-            <span className="ml-auto text-xs text-muted">{fmtDateTime(p.modified_unix * 1000)}</span>
-          )}
-        </button>
+    <CollapsibleSection
+      icon={FlaskConical}
+      title={p.name}
+      tone="accent"
+      actions={
         <button
           onClick={remove}
           disabled={busy}
@@ -159,21 +153,22 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
         >
           <Trash2 className="size-3.5" />
         </button>
+      }
+    >
+      <div className="mb-2 flex flex-wrap gap-3">
+        <MetricWidget icon={FileCode} label="Files" value={p.file_count} tone="muted" />
+        <MetricWidget icon={FlaskConical} label="Size" value={fmtBytes(p.total_bytes)} tone="muted" />
       </div>
-      {open && (
-        <div className="border-t border-border px-3 py-2">
-          {p.files.length === 0 ? (
-            <p className="text-xs text-muted">empty project</p>
-          ) : (
-            <ul className="space-y-0.5">
-              {p.files.map((f) => (
-                <FileRow key={f.name} project={p.name} file={f} />
-              ))}
-            </ul>
-          )}
-        </div>
+      {p.files.length === 0 ? (
+        <p className="text-xs text-muted">empty project</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {p.files.map((f) => (
+            <FileRow key={f.name} project={p.name} file={f} />
+          ))}
+        </ul>
       )}
-    </li>
+    </CollapsibleSection>
   );
 }
 

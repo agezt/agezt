@@ -9,6 +9,9 @@ import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtTime } from "@/lib/utils";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { TabNav } from "@/components/ui/tab-nav";
 
 const MAX_ALERTS = 100;
 
@@ -112,32 +115,53 @@ export function Alerts() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Bell}
-        title="Alerts"
-        description={
-          <span className={cn("inline-flex items-center gap-1", connected ? "text-good" : "text-bad")}>
-            ● {connected ? "live" : "offline"} — what the daemon flagged on its own
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
+            <Bell className="size-5" />
           </span>
-        }
-        actions={
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <Chip active={filter === "all"} onClick={() => setFilter("all")} label={`all ${rows.length}`} />
-            <Chip
-              active={filter === "critical"}
-              onClick={() => setFilter("critical")}
-              label={`critical ${counts.critical || 0}`}
-              tone="text-bad"
-            />
-            <Chip
-              active={filter === "warning"}
-              onClick={() => setFilter("warning")}
-              label={`warning ${counts.warning || 0}`}
-              tone="text-warn"
-            />
-            <Chip active={filter === "info"} onClick={() => setFilter("info")} label={`info ${counts.info || 0}`} />
+          <div>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Alerts</h2>
+            <Badge variant={connected ? "good" : "bad"} className="mt-0.5">
+              {connected ? "live" : "offline"}
+            </Badge>
           </div>
-        }
+        </div>
+      </div>
+
+      <TabNav
+        tabs={[
+          {
+            id: "all",
+            label: "All",
+            icon: Bell,
+            count: rows.length,
+            content: null,
+          },
+          {
+            id: "critical",
+            label: "Critical",
+            icon: ShieldAlert,
+            count: counts.critical || 0,
+            content: null,
+          },
+          {
+            id: "warning",
+            label: "Warning",
+            icon: AlertTriangle,
+            count: counts.warning || 0,
+            content: null,
+          },
+          {
+            id: "info",
+            label: "Info",
+            icon: Info,
+            count: counts.info || 0,
+            content: null,
+          },
+        ]}
+        value={filter}
+        onValueChange={(v) => setFilter(v as AlertLevel | "all")}
       />
 
       {shown.length === 0 ? (
@@ -204,27 +228,4 @@ export function Alerts() {
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  label,
-  tone,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  tone?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2 py-0.5 transition-colors",
-        active ? "border-accent text-accent" : "border-border text-muted hover:text-foreground",
-        !active && tone,
-      )}
-    >
-      {label}
-    </button>
-  );
-}
+

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Plug, ExternalLink, Check, RefreshCw, Sparkles } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,44 +50,42 @@ export function QuickConnect() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={Plug}
-        title="Quick Connect"
-        description="Paste a key and go. Connect a coding/token-plan provider in one step — no manual catalog or endpoint setup."
-      />
+      <div className="flex items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
+          <Plug className="size-5" />
+        </span>
+        <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Quick Connect</h2>
+      </div>
 
-      <Section title="Coding & token plans" hint="Drop-in coding subscriptions and pay-as-you-go APIs.">
+      <Section title="Coding & token plans">
         {coding.map((p) => (
           <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
         ))}
       </Section>
 
-      <Section title="Popular providers" hint="Fast, low-friction OpenAI-compatible endpoints.">
+      <Section title="Popular providers">
         {popular.map((p) => (
           <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
         ))}
       </Section>
 
-      <Section title="Local runtimes (no key)" hint="Run models on your own machine — Connect with one click, no API key.">
+      <Section title="Local runtimes (no key)">
         {local.map((p) => (
           <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
         ))}
       </Section>
 
-      <Section title="Anything else" hint="Connect any OpenAI-compatible provider by URL.">
+      <Section title="Anything else">
         <CustomCard onConnected={refresh} ui={ui} />
       </Section>
     </div>
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <p className="text-xs text-muted">{hint}</p>
-      </div>
+      <h2 className="text-sm font-semibold">{title}</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </div>
   );
