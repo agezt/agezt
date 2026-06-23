@@ -8,13 +8,13 @@ import (
 
 func TestBuildAgentAuthority_MergesProfileAndPolicy(t *testing.T) {
 	profile := map[string]any{
-		"slug":          "researcher",
-		"trust_ceiling": "L2",
-		"tool_allow":    []any{"file", "http", "memory"},
-		"tool_deny":     []any{"shell"},
-		"memory_scope":  "researcher/private",
-		"workdir":       "researcher",
-		"direct_callable": true,
+		"slug":             "researcher",
+		"trust_ceiling":    "L2",
+		"tool_allow":       []any{"file", "http", "memory"},
+		"tool_deny":        []any{"shell"},
+		"memory_scope":     "researcher/private",
+		"workdir":          "researcher",
+		"direct_callable":  true,
 		"config_overrides": map[string]any{"AGEZT_MODEL": "sonnet"},
 	}
 	edict := map[string]any{

@@ -70,7 +70,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  files <id> [--json]           list a skill's bundle resources + their directory\n")
 		fmt.Fprintf(stdout, "  cat <id> <path>               print one bundle resource (reference file or script)\n")
 		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
-	fmt.Fprintf(stdout, "  hygiene [--idle-days N] [--json]   report idle/unused skills (epistemic hygiene)\n")
+		fmt.Fprintf(stdout, "  hygiene [--idle-days N] [--json]   report idle/unused skills (epistemic hygiene)\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|share|reassign|diff|export|import|registry)\n", brand.CLI, args[0])

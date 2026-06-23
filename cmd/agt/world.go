@@ -50,7 +50,7 @@ func cmdWorld(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  list [--json]\n")
 		fmt.Fprintf(stdout, "  show <id> [--json]     (exit 3 = absent)\n")
 		fmt.Fprintf(stdout, "  forget <id> [--json]   tombstone an entity (reversible, journaled)\n")
-	fmt.Fprintf(stdout, "  audit [--json]         world-model health: entity/relation counts, decayed, untyped\n")
+		fmt.Fprintf(stdout, "  audit [--json]         world-model health: entity/relation counts, decayed, untyped\n")
 		fmt.Fprintf(stdout, "kinds: project|repo|person|org|account|device|channel|topic|task\n")
 		fmt.Fprintf(stdout, "verbs: owns|depends_on|member_of|prefers|relates_to|assigned_to|derived_from\n")
 		return 0
