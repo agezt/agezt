@@ -369,25 +369,8 @@ export function Chat() {
             onSendNow={sendQueuedNow}
           />
         )}
-        {/* Staged attachments — existing skills/memories/runs handed to the agent
-            as context for the next message. */}
-        {attached.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {attached.map((r) => (
-              <span
-                key={r.id}
-                className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] text-accent"
-                title={r.content}
-              >
-                <span className="font-semibold uppercase tracking-wider opacity-70">{r.kind}</span>
-                <span className="max-w-[14rem] truncate">{r.label}</span>
-                <button onClick={() => removeAttachment(r.id)} title="Remove" className="hover:text-bad">
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Staged attachments hidden — tags should not remain on the chat display */}
+        {/* Attachment feature preserved in state for future use */}
         {/* Composer surface (M995): input + controls in one elevated card that
             lights an accent ring on focus, like a modern chat composer. */}
         <div className="rounded-xl border border-border bg-panel/40 px-2 py-1.5 shadow-e1 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
@@ -397,7 +380,6 @@ export function Chat() {
             size="icon"
             onClick={() => setAttachOpen(true)}
             title="Attach a skill, memory, or past run"
-            className={cn(attached.length > 0 && "text-accent")}
           >
             <Paperclip className="size-4" />
           </Button>

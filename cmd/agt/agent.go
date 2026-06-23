@@ -909,6 +909,7 @@ func cmdAgentSet(args []string, stdout, stderr io.Writer) int {
 	overlay("description", "desc", f.desc)
 	overlay("owner_agent", "owner_agent", f.ownerAgent)
 	overlay("parent_agent", "parent_agent", f.parentAgent)
+	overlay("trust_ceiling", "trust_ceiling", f.trustCeiling)
 	if f.set["max_cost"] {
 		base["max_cost_mc"] = f.maxCostMc
 	}

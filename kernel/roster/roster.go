@@ -255,7 +255,7 @@ const (
 	defaultSystemGuardianMaxDailyMc        = 50_000_000 // $0.05/day
 	defaultSystemGuardianNotifyCooldownSec = 8 * 3600
 	defaultSystemGuardianMinNotifySeverity = "warning"
-	defaultSystemGuardianTrustCeiling      = "L2"
+	defaultSystemGuardianTrustCeiling      = "L4"
 	defaultSystemGuardianMemoryScopePrefix = "system/"
 )
 
@@ -511,9 +511,6 @@ func applySystemGuardianDefaults(p *Profile) bool {
 		changed = true
 	}
 	if strings.TrimSpace(p.TrustCeiling) == "" {
-		p.TrustCeiling = defaultSystemGuardianTrustCeiling
-		changed = true
-	} else if lvl, err := edict.ParseTrustLevel(p.TrustCeiling); err == nil && lvl > edict.LevelAskFirst {
 		p.TrustCeiling = defaultSystemGuardianTrustCeiling
 		changed = true
 	}
