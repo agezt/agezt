@@ -15,7 +15,7 @@ import (
 // (Gemini-on-Vertex, parallel to the Generative Language provider, M319).
 func TestEncodeRequest_ThinkingEnabled(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hard problem"}}
-	body, err := encodeRequest("", msgs, nil, 2048, false, 1024)
+	body, err := encodeRequest("", msgs, nil, 2048, false, 1024, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestEncodeRequest_ThinkingEnabled(t *testing.T) {
 // and must be sent (not treated as "off").
 func TestEncodeRequest_ThinkingDynamicBudget(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "x"}}
-	body, _ := encodeRequest("", msgs, nil, 0, false, -1)
+	body, _ := encodeRequest("", msgs, nil, 0, false, -1, agent.Params{}, nil)
 	var req struct {
 		GenerationConfig *struct {
 			ThinkingConfig *struct {
@@ -67,7 +67,7 @@ func TestEncodeRequest_ThinkingDynamicBudget(t *testing.T) {
 // entirely — the request wire is byte-identical to a non-thinking run.
 func TestEncodeRequest_ThinkingDisabledByDefault(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, _ := encodeRequest("", msgs, nil, 100, false, 0)
+	body, _ := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
 	if strings.Contains(string(body), "thinkingConfig") {
 		t.Errorf("budget 0 must omit thinkingConfig: %s", body)
 	}

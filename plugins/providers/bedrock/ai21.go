@@ -44,6 +44,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 type ai21JambaMessage struct {
@@ -54,6 +55,24 @@ type ai21JambaMessage struct {
 type ai21JambaRequest struct {
 	Messages  []ai21JambaMessage `json:"messages"`
 	MaxTokens int                `json:"max_tokens"`
+	// Per-request sampling knobs (M997). AI21 Jamba's OpenAI-compatible chat
+	// shape accepts temperature/top_p/stop; it has no top_k, seed, or penalties
+	// on Bedrock. Nil-able so an unset Params is a no-op.
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
+	Stop        []string `json:"stop,omitempty"`
+}
+
+// applyParams copies the sampling knobs Jamba understands; an unset Params
+// leaves the request unchanged. top_k/seed/penalties/ReasoningEffort are not in
+// the Bedrock-Jamba shape and are ignored.
+func (wire *ai21JambaRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
+	wire.Stop = p.Stop
 }
 
 type ai21JambaChoice struct {
@@ -89,11 +108,12 @@ func ai21JambaRole(r agent.Role) string {
 	return "user"
 }
 
-func encodeAI21JambaOnBedrockRequest(system string, msgs []agent.Message, maxTok int) ([]byte, error) {
+func encodeAI21JambaOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-ai21: at least one message required")
 	}
 	out := ai21JambaRequest{MaxTokens: maxTok}
+	out.applyParams(params)
 	if system != "" {
 		out.Messages = append(out.Messages, ai21JambaMessage{Role: "system", Content: system})
 	}
@@ -103,7 +123,11 @@ func encodeAI21JambaOnBedrockRequest(system string, msgs []agent.Message, maxTok
 			Content: m.Content,
 		})
 	}
-	return json.Marshal(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 func decodeAI21JambaOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {

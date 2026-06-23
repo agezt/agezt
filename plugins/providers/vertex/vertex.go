@@ -36,6 +36,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -158,7 +159,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return p.completeAnthropic(ctx, req, model)
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget, req.Params, req.ProviderOptions["vertex"])
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode request: %w", err)
 	}
@@ -216,6 +217,27 @@ type vxGenConfig struct {
 	MaxOutputTokens  int               `json:"maxOutputTokens,omitempty"`
 	ResponseMimeType string            `json:"responseMimeType,omitempty"` // "application/json" → JSON mode (M312)
 	ThinkingConfig   *vxThinkingConfig `json:"thinkingConfig,omitempty"`   // M320
+	// Per-request sampling knobs (M997). Gemini-on-Vertex nests these inside
+	// generationConfig (NOT top-level), and has no seed / penalties. An unset
+	// agent.Params leaves every field nil/empty (omitempty), so the request
+	// stays byte-for-byte unchanged.
+	Temperature   *float64 `json:"temperature,omitempty"`
+	TopP          *float64 `json:"topP,omitempty"`
+	TopK          *int     `json:"topK,omitempty"`
+	StopSequences []string `json:"stopSequences,omitempty"`
+}
+
+// applyParams copies the universal sampling knobs Gemini understands into the
+// generationConfig. Reasoning is handled separately (mapped to a thinking
+// budget), so it is ignored here. An unset Params leaves the config unchanged.
+func (gc *vxGenConfig) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	gc.Temperature = p.Temperature
+	gc.TopP = p.TopP
+	gc.TopK = p.TopK
+	gc.StopSequences = p.Stop
 }
 
 // vxThinkingConfig is Gemini-on-Vertex's per-request thinking control (M320,
@@ -287,7 +309,12 @@ type vxUsageMetadata struct {
 	ThoughtsTokenCount int `json:"thoughtsTokenCount"`
 }
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int) ([]byte, error) {
+func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+	// A per-request reasoning effort (M997) overrides the construction-time
+	// thinking budget when set; otherwise the env/default budget stands.
+	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
+		thinkingBudget = b
+	}
 	fwd, _ := toolname.Maps(tools)
 	wire := vxRequest{}
 	if s := strings.TrimSpace(system); s != "" {
@@ -318,7 +345,7 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 		}
 		wire.Tools = []vxTool{{FunctionDeclarations: decls}}
 	}
-	if maxTok > 0 || jsonMode || thinkingBudget != 0 {
+	if maxTok > 0 || jsonMode || thinkingBudget != 0 || !params.IsZero() {
 		gc := &vxGenConfig{MaxOutputTokens: maxTok}
 		if jsonMode {
 			gc.ResponseMimeType = "application/json"
@@ -331,9 +358,14 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 				ThinkingBudget:  thinkingBudget,
 			}
 		}
+		gc.applyParams(params)
 		wire.GenerationConfig = gc
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 func canonicalToVertex(m agent.Message, fwd map[string]string) (*vxContent, error) {

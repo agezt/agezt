@@ -76,6 +76,10 @@ type ModelConfig struct {
 	// run (M314). Set by callers that need a machine-parseable result; a provider
 	// without a native JSON mode ignores it. Flows to CompletionRequest.JSONMode.
 	JSONMode bool
+	// Params carries optional universal sampling knobs (M997) applied to every
+	// provider call of the run. Zero value leaves requests unchanged. Flows to
+	// CompletionRequest.Params.
+	Params Params
 }
 
 // AgentIdentity carries the identity and correlation for a run.

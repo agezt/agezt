@@ -43,6 +43,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 type cohereBedrockRequest struct {
@@ -50,6 +51,26 @@ type cohereBedrockRequest struct {
 	ChatHistory []cohereHistoryEntry `json:"chat_history,omitempty"`
 	Preamble    string               `json:"preamble,omitempty"`
 	MaxTokens   int                  `json:"max_tokens"`
+	// Per-request sampling knobs (M997). Cohere Command R/R+ spell top_p as `p`
+	// and top_k as `k`, and use `stop_sequences`. No seed or penalties. Nil-able
+	// so an unset Params is a no-op.
+	Temperature   *float64 `json:"temperature,omitempty"`
+	P             *float64 `json:"p,omitempty"` // top_p
+	K             *int     `json:"k,omitempty"` // top_k
+	StopSequences []string `json:"stop_sequences,omitempty"`
+}
+
+// applyParams maps the universal sampling knobs onto Cohere's idiosyncratic
+// field names (p/k/stop_sequences). An unset Params leaves the request
+// unchanged; seed/penalties/ReasoningEffort have no Cohere equivalent.
+func (wire *cohereBedrockRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.P = p.TopP
+	wire.K = p.TopK
+	wire.StopSequences = p.Stop
 }
 
 type cohereHistoryEntry struct {
@@ -67,7 +88,7 @@ type cohereBedrockResponse struct {
 // Cohere chat shape. Splits the message list at the last user
 // turn — everything before is `chat_history`, the last user turn
 // becomes the standalone `message` field.
-func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok int) ([]byte, error) {
+func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-cohere: at least one message required")
 	}
@@ -88,6 +109,7 @@ func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok in
 		Preamble:  system,
 		MaxTokens: maxTok,
 	}
+	out.applyParams(params)
 	for i := range lastUserIdx {
 		m := msgs[i]
 		out.ChatHistory = append(out.ChatHistory, cohereHistoryEntry{
@@ -95,7 +117,11 @@ func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok in
 			Message: m.Content,
 		})
 	}
-	return json.Marshal(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // cohereRole maps canonical agent roles to Cohere's uppercase

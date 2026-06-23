@@ -19,7 +19,7 @@ func TestEncodeAnthropicOnBedrock_ImageBlock(t *testing.T) {
 		Content: "describe this",
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
-	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100)
+	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestEncodeAnthropicOnBedrock_ImageBlock(t *testing.T) {
 // A non-data-URL attachment is skipped, leaving a text-only user block.
 func TestEncodeAnthropicOnBedrock_SkipsNonDataURLImage(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
-	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100)
+	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}

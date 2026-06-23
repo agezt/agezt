@@ -26,6 +26,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
@@ -111,7 +112,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.Params, req.ProviderOptions["ollama"])
 	if err != nil {
 		return nil, fmt.Errorf("ollama: encode request: %w", err)
 	}
@@ -141,7 +142,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 			return fmt.Errorf("ollama: read body: %w", err)
 		}
 		if httpResp.StatusCode/100 != 2 {
-			return &retry.HTTPError{StatusCode: httpResp.StatusCode, Body: string(respBytes)}
+			return retry.NewHTTPError(httpResp, string(respBytes))
 		}
 		return nil
 	})
@@ -204,13 +205,22 @@ type ollamaResponse struct {
 	EvalCount       int `json:"eval_count"`
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool) ([]byte, error) {
-	out := ollamaRequest{
-		Model:  model,
-		Stream: false,
-	}
-	if jsonMode {
-		out.Format = "json" // Ollama's native JSON-mode switch (M311)
+// buildOptions assembles Ollama's `options` map from the run's token cap and the
+// per-request sampling knobs (M997). Ollama puts sampling knobs INSIDE this same
+// map (alongside num_predict), keyed by its own option names: temperature, top_p,
+// top_k, seed, stop. A key is set only when its matching Params pointer is
+// non-nil, so an unset Params (and maxTokens<=0) leaves the map nil → omitted.
+//
+// Ollama has no frequency/presence penalty and no reasoning/thinking budget, so
+// Params.FrequencyPenalty, Params.PresencePenalty and Params.ReasoningEffort are
+// intentionally ignored here (no invented mapping).
+func buildOptions(maxTokens int, params agent.Params) map[string]any {
+	var opts map[string]any
+	set := func(k string, v any) {
+		if opts == nil {
+			opts = map[string]any{}
+		}
+		opts[k] = v
 	}
 	// Honour the run's token cap (M310): Ollama's equivalent of max_tokens is
 	// options.num_predict. Without this an Ollama run ignored MaxTokens that
@@ -218,8 +228,37 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 	// done_reason=="length" to StopMaxTokens, so the cap was expected on the way
 	// back but never sent on the way out. 0 → omitted (Ollama's own default).
 	if maxTokens > 0 {
-		out.Options = map[string]any{"num_predict": maxTokens}
+		set("num_predict", maxTokens)
 	}
+	if !params.IsZero() {
+		if params.Temperature != nil {
+			set("temperature", *params.Temperature)
+		}
+		if params.TopP != nil {
+			set("top_p", *params.TopP)
+		}
+		if params.TopK != nil {
+			set("top_k", *params.TopK)
+		}
+		if params.Seed != nil {
+			set("seed", *params.Seed)
+		}
+		if len(params.Stop) > 0 {
+			set("stop", params.Stop)
+		}
+	}
+	return opts
+}
+
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+	out := ollamaRequest{
+		Model:  model,
+		Stream: false,
+	}
+	if jsonMode {
+		out.Format = "json" // Ollama's native JSON-mode switch (M311)
+	}
+	out.Options = buildOptions(maxTokens, params)
 	if system != "" {
 		out.Messages = append(out.Messages, ollamaMessage{Role: "system", Content: system})
 	}
@@ -240,7 +279,11 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 			},
 		})
 	}
-	return json.Marshal(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // ollamaImageData extracts the raw base64 payload from an RFC 2397 data: URL

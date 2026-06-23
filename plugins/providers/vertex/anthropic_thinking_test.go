@@ -14,7 +14,7 @@ import (
 // enabled thinking block and bumps max_tokens above the budget (Anthropic's rule).
 func TestEncodeAnthropicOnVertex_ThinkingEnabled(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hard problem"}}
-	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 1000, 4096, false)
+	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 1000, 4096, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestEncodeAnthropicOnVertex_ThinkingEnabled(t *testing.T) {
 func TestEncodeAnthropicOnVertex_ThinkingDisabledByDefault(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
 	for _, budget := range []int{0, -1} {
-		body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 100, budget, false)
+		body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 100, budget, false, agent.Params{}, nil)
 		if strings.Contains(string(body), "thinking") {
 			t.Errorf("budget %d must omit thinking: %s", budget, body)
 		}
@@ -52,7 +52,7 @@ func TestEncodeAnthropicOnVertex_ThinkingDisabledByDefault(t *testing.T) {
 // up to Anthropic's floor.
 func TestEncodeAnthropicOnVertex_ThinkingClampsBudget(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "x"}}
-	body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 8000, 500, false)
+	body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 8000, 500, false, agent.Params{}, nil)
 	var req struct {
 		Thinking *struct {
 			BudgetTokens int `json:"budget_tokens"`

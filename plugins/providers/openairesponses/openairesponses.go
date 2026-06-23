@@ -29,6 +29,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 //go:embed instructions.md
@@ -181,6 +182,12 @@ type reqBody struct {
 	Reasoning         *reasoningField `json:"reasoning,omitempty"`
 	Store             bool            `json:"store"`
 	Stream            bool            `json:"stream"`
+	// Per-request sampling knobs (M997). The Responses API accepts top-level
+	// temperature/top_p; the other agent.Params knobs (top_k, seed, stop,
+	// penalties) are not part of the Responses request shape, so they are
+	// omitted. Nil-able so an unset Params leaves the body unchanged.
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
 }
 
 func (p *Provider) buildBody(req agent.CompletionRequest, model string) ([]byte, error) {
@@ -199,10 +206,25 @@ func (p *Provider) buildBody(req agent.CompletionRequest, model string) ([]byte,
 	if len(b.Tools) > 0 {
 		b.ToolChoice = "auto"
 	}
-	if p.ReasoningEffort != "" {
-		b.Reasoning = &reasoningField{Effort: p.ReasoningEffort}
+	// Reasoning effort: a per-request Params.ReasoningEffort (M997) overrides the
+	// construction-time default; otherwise the provider's configured effort stands.
+	effort := p.ReasoningEffort
+	if e := provopts.NormalizeEffort(req.Params.ReasoningEffort); e != "" {
+		effort = e
 	}
-	return json.Marshal(b)
+	if effort != "" {
+		b.Reasoning = &reasoningField{Effort: effort}
+	}
+	// Sampling knobs the Responses API supports (temperature/top_p only).
+	if !req.Params.IsZero() {
+		b.Temperature = req.Params.Temperature
+		b.TopP = req.Params.TopP
+	}
+	body, err := json.Marshal(b)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, req.ProviderOptions["openai"])
 }
 
 func contentText(kind, text string) map[string]any {

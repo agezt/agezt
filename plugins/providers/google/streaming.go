@@ -60,7 +60,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget, req.Params, req.ProviderOptions["google"])
 	if err != nil {
 		return nil, fmt.Errorf("google: encode request: %w", err)
 	}

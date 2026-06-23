@@ -12,7 +12,7 @@ import (
 
 func TestEncodeConformsToolNames(t *testing.T) {
 	tools := []agent.ToolDef{{Name: "browser.read", Description: "d", InputSchema: json.RawMessage(`{"type":"object"}`)}}
-	body, err := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, tools, 100)
+	body, err := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, tools, 100, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

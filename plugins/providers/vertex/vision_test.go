@@ -19,7 +19,7 @@ func TestEncodeAnthropicOnVertex_ImageBlock(t *testing.T) {
 		Content: "describe",
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
-	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false)
+	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestEncodeGeminiOnVertex_InlineImageData(t *testing.T) {
 		Content: "what is this",
 		Images:  []string{"data:image/jpeg;base64," + b64},
 	}}
-	body, err := encodeRequest("", msgs, nil, 100, false, 0)
+	body, err := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestEncodeGeminiOnVertex_InlineImageData(t *testing.T) {
 func TestEncodeOnVertex_SkipsNonDataURLImage(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
 
-	ab, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false)
+	ab, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("anthropic encode: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestEncodeOnVertex_SkipsNonDataURLImage(t *testing.T) {
 		t.Errorf("anthropic: want single text block, got %+v", b)
 	}
 
-	gb, err := encodeRequest("", msgs, nil, 100, false, 0)
+	gb, err := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("gemini encode: %v", err)
 	}

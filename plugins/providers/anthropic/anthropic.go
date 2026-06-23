@@ -23,6 +23,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
@@ -136,7 +137,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		maxTokens = DefaultMaxTokens
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, req.Params, req.ProviderOptions["anthropic"])
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: encode request: %w", err)
 	}
@@ -179,7 +180,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 			return fmt.Errorf("anthropic: read body: %w", err)
 		}
 		if httpResp.StatusCode/100 != 2 {
-			return &retry.HTTPError{StatusCode: httpResp.StatusCode, Body: string(respBytes)}
+			return retry.NewHTTPError(httpResp, string(respBytes))
 		}
 		return nil
 	})
@@ -211,6 +212,24 @@ type anthRequest struct {
 	Messages  []anthMessage `json:"messages"`
 	Tools     []anthTool    `json:"tools,omitempty"`
 	Thinking  *anthThinking `json:"thinking,omitempty"` // extended thinking (M318)
+	// Per-request sampling knobs (M997). Anthropic has no seed / penalties.
+	Temperature   *float64 `json:"temperature,omitempty"`
+	TopP          *float64 `json:"top_p,omitempty"`
+	TopK          *int     `json:"top_k,omitempty"`
+	StopSequences []string `json:"stop_sequences,omitempty"`
+}
+
+// applyParams copies the universal sampling knobs Anthropic understands. The
+// reasoning knob is handled separately (mapped to a thinking budget) and so is
+// ignored here. An unset Params leaves the request unchanged.
+func (wire *anthRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
+	wire.TopK = p.TopK
+	wire.StopSequences = p.Stop
 }
 
 // anthThinking is Anthropic's extended-thinking request block.
@@ -351,7 +370,12 @@ func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, m
 	}
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+	// A per-request reasoning effort (M997) overrides the construction-time
+	// thinking budget when set; otherwise the env/default budget stands.
+	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
+		thinkingBudget = b
+	}
 	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
 	fwd, _ := toolname.Maps(tools)
 	wire := anthRequest{
@@ -361,6 +385,7 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		Tools:     buildAnthTools(tools, fwd),
 		Thinking:  thinking,
 	}
+	wire.applyParams(params)
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m, fwd)
 		if err != nil {
@@ -373,7 +398,11 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 		}
 		wire.Messages = append(wire.Messages, *am)
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // parseImageDataURL splits an RFC 2397 data: URL of the form

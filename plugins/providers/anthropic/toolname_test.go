@@ -28,7 +28,7 @@ func TestToolNamesConformToAnthropicPattern(t *testing.T) {
 		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "browser.read", Input: json.RawMessage(`{"url":"x"}`)}}},
 		{Role: agent.RoleTool, ToolCallID: "c1", Content: "ok"},
 	}
-	body, err := encodeRequest("m", "", msgs, tools, 100, 0)
+	body, err := encodeRequest("m", "", msgs, tools, 100, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

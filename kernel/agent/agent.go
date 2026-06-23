@@ -93,6 +93,40 @@ type ToolEffect struct {
 	Confidence        float64
 }
 
+// Params carries optional per-request sampling / generation knobs that are
+// universal across providers. Every field is a pointer (or a nil-able slice)
+// so the zero value means "unset — send nothing, let the provider use its own
+// default". An adapter MUST only emit a wire field when the corresponding
+// pointer is non-nil, keeping an unset Params byte-for-byte identical to the
+// pre-Params request (the same default-preserving contract as JSONMode).
+//
+// Provider-specific knobs that don't generalise (e.g. Anthropic's raw thinking
+// config) ride CompletionRequest.ProviderOptions instead; ReasoningEffort is
+// the one reasoning knob normalised here because every reasoning-capable family
+// exposes some form of it (OpenAI reasoning_effort, Anthropic/Gemini thinking
+// budget).
+type Params struct {
+	Temperature      *float64 `json:"temperature,omitempty"`
+	TopP             *float64 `json:"top_p,omitempty"`
+	TopK             *int     `json:"top_k,omitempty"`
+	Stop             []string `json:"stop,omitempty"`
+	Seed             *int64   `json:"seed,omitempty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
+	// ReasoningEffort is the normalised reasoning/thinking knob: one of
+	// "", "minimal", "low", "medium", "high". Empty leaves the provider's
+	// construction-time default (e.g. AGEZT_ANTHROPIC_THINKING_BUDGET) in force.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
+// IsZero reports whether no per-request knob is set, so adapters can cheaply
+// skip the whole apply path and guarantee an unchanged request.
+func (p Params) IsZero() bool {
+	return p.Temperature == nil && p.TopP == nil && p.TopK == nil &&
+		len(p.Stop) == 0 && p.Seed == nil && p.FrequencyPenalty == nil &&
+		p.PresencePenalty == nil && p.ReasoningEffort == ""
+}
+
 // CompletionRequest is what the loop sends to a Provider.
 type CompletionRequest struct {
 	Model     string
@@ -139,6 +173,16 @@ type CompletionRequest struct {
 	// ignore it (the caller keeps its robust prompt-based parsing). Default
 	// false leaves every request byte-for-byte unchanged.
 	JSONMode bool
+	// Params carries optional universal sampling knobs (temperature, top_p,
+	// seed, stop, penalties, reasoning effort). Zero value (Params.IsZero())
+	// means "unset" and every adapter leaves the wire request unchanged.
+	// Unlike the Governor-only hints above, providers DO consult Params.
+	Params Params
+	// ProviderOptions carries provider-specific extras that don't generalise,
+	// keyed by provider family or registry name (e.g. "anthropic", "openai").
+	// Each adapter reads only its own key and merges the raw JSON object into
+	// the outbound request. A nil map (the default) changes nothing.
+	ProviderOptions map[string]json.RawMessage
 }
 
 // StopReason is the canonical reason a Provider stopped emitting tokens.
@@ -255,6 +299,11 @@ type LoopConfig struct {
 	// run (M314). Set by callers that need a machine-parseable result; a provider
 	// without a native JSON mode ignores it. Flows to CompletionRequest.JSONMode.
 	JSONMode bool
+	// Params carries optional universal sampling knobs (temperature, top_p,
+	// seed, stop, penalties, reasoning effort) applied to every provider call of
+	// the run (M997). Zero value leaves the request unchanged. Flows to
+	// CompletionRequest.Params.
+	Params Params
 	// TaskType is the per-run routing hint (M703) carried into every
 	// CompletionRequest of the run, so the Governor's per-task-type model
 	// chains / overrides / routes apply. The main chat loop sets "chat";
@@ -407,6 +456,7 @@ func (lc LoopConfig) ModelConfig() ModelConfig {
 		ModelChain: lc.ModelChain,
 		MaxTokens:  lc.MaxTokens,
 		JSONMode:   lc.JSONMode,
+		Params:     lc.Params,
 	}
 }
 
@@ -467,6 +517,7 @@ func (lc LoopConfig) WithModelConfig(mc ModelConfig) LoopConfig {
 	lc.ModelChain = mc.ModelChain
 	lc.MaxTokens = mc.MaxTokens
 	lc.JSONMode = mc.JSONMode
+	lc.Params = mc.Params
 	return lc
 }
 
@@ -1212,6 +1263,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			AgentDailyCeilingMc: cfg.AgentDailyCeilingMc,
 			CorrelationID:       cfg.CorrelationID, // M47: attribute spend to this run
 			JSONMode:            cfg.JSONMode,      // M314: structured-output request
+			Params:              cfg.Params,        // M997: per-request sampling knobs
 		}
 		var resp *CompletionResponse
 		// Use the streaming path when the provider advertises it

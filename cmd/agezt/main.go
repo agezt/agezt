@@ -110,6 +110,8 @@ import (
 	"github.com/agezt/agezt/plugins/channels/zalo"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
+	"github.com/agezt/agezt/plugins/providers/image"
+	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
@@ -722,6 +724,31 @@ func runDaemon(stdout, stderr io.Writer) int {
 		voiceCfg = voiceAdapter // typed-nil avoidance: only assign when something is configured
 	}
 
+	// Image generation (M997): when AGEZT_IMAGE_URL + AGEZT_IMAGE_MODEL are set,
+	// the `image_generate` tool is registered, generating images via an
+	// OpenAI-compatible /v1/images/generations endpoint (api.openai.com/v1 +
+	// dall-e-3 + AGEZT_IMAGE_KEY, or a local/compatible gateway). Unset → no tool.
+	var imageCfg kernelruntime.ImageGen
+	if imgURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMAGE_URL")); imgURL != "" {
+		if imgModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMAGE_MODEL")); imgModel == "" {
+			fmt.Fprintf(stderr, "%s: %sIMAGE_URL is set but %sIMAGE_MODEL is empty — image generation disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			imageCfg = image.New(imgURL, imgModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"IMAGE_KEY")))
+		}
+	}
+
+	// Reranking (M997): when AGEZT_RERANK_URL + AGEZT_RERANK_MODEL are set, the
+	// `rerank` tool is registered, reordering candidate documents via a
+	// Cohere/Jina-style /rerank endpoint. Unset → no tool.
+	var rerankCfg kernelruntime.Reranker
+	if rrURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RERANK_URL")); rrURL != "" {
+		if rrModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RERANK_MODEL")); rrModel == "" {
+			fmt.Fprintf(stderr, "%s: %sRERANK_URL is set but %sRERANK_MODEL is empty — reranking disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			rerankCfg = rerank.New(rrURL, rrModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"RERANK_KEY")))
+		}
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:          baseDir,
 		Provider:         gov, // Governor implements agent.Provider
@@ -741,6 +768,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryDistillMinTools:      distillMinTools,
 		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
 		Voice:                      voiceCfg,    // voice adapter opt-in (nil = no voice tool)
+		ImageGenerator:             imageCfg,    // M997: image generation opt-in (nil = no image tool)
+		Reranker:                   rerankCfg,   // M997: reranking opt-in (nil = no rerank tool)
 		WorldInject:                worldOn,
 		WorldTool:                  worldOn,
 		WorldTopK:                  5,

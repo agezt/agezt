@@ -70,14 +70,16 @@ func newRespCache(ttl time.Duration, size int, now func() time.Time) *respCache 
 func cacheKey(req agent.CompletionRequest) string {
 	h := sha256.New()
 	_ = json.NewEncoder(h).Encode(struct {
-		Model     string
-		System    string
-		Messages  []agent.Message
-		Tools     []agent.ToolDef
-		MaxTokens int
-		JSONMode  bool
-		TaskType  string
-	}{req.Model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.TaskType})
+		Model           string
+		System          string
+		Messages        []agent.Message
+		Tools           []agent.ToolDef
+		MaxTokens       int
+		JSONMode        bool
+		TaskType        string
+		Params          agent.Params
+		ProviderOptions map[string]json.RawMessage
+	}{req.Model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.TaskType, req.Params, req.ProviderOptions})
 	return hex.EncodeToString(h.Sum(nil))
 }
 

@@ -69,10 +69,57 @@ func IsTransient(err error) bool {
 type HTTPError struct {
 	StatusCode int
 	Body       string
+	// RetryAfter, when > 0, is the server-directed minimum wait before retrying
+	// (parsed from the Retry-After header, M997). Do honours it as a delay floor.
+	RetryAfter time.Duration
 }
 
 func (e *HTTPError) Error() string {
 	return "HTTP " + itoa(e.StatusCode) + ": " + e.Body
+}
+
+// NewHTTPError builds an HTTPError from a response, parsing the Retry-After
+// header so 429/503 backoff can honour the server's directive. body is the
+// already-read response body.
+func NewHTTPError(resp *http.Response, body string) *HTTPError {
+	e := &HTTPError{StatusCode: resp.StatusCode, Body: body}
+	if ra := ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now()); ra > 0 {
+		e.RetryAfter = ra
+	}
+	return e
+}
+
+// ParseRetryAfter parses an HTTP Retry-After header value (RFC 7231): either a
+// non-negative number of seconds, or an HTTP-date. now anchors the date form.
+// Returns 0 for empty/invalid values or dates in the past.
+func ParseRetryAfter(v string, now time.Time) time.Duration {
+	v = trimSpace(v)
+	if v == "" {
+		return 0
+	}
+	// delta-seconds form.
+	if secs, ok := atoiNonNeg(v); ok {
+		return time.Duration(secs) * time.Second
+	}
+	// HTTP-date form.
+	for _, layout := range []string{http.TimeFormat, time.RFC1123, time.RFC1123Z, time.RFC850, time.ANSIC} {
+		if t, err := time.Parse(layout, v); err == nil {
+			if d := t.Sub(now); d > 0 {
+				return d
+			}
+			return 0
+		}
+	}
+	return 0
+}
+
+// RetryAfterOf extracts the RetryAfter directive from an error chain, or 0.
+func RetryAfterOf(err error) time.Duration {
+	var he *HTTPError
+	if errors.As(err, &he) {
+		return he.RetryAfter
+	}
+	return 0
 }
 
 // Transient reports whether this HTTP error is transient and worth retrying.
@@ -110,14 +157,23 @@ func Do(ctx context.Context, cfg Config, fn func() error) error {
 
 	var lastErr error
 	delay := cfg.BaseDelay
+	var retryAfter time.Duration // server-directed floor from the previous error
 
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
 		if attempt > 0 {
-			// Check context before retry
+			wait := jitterDelay(delay, cfg.Jitter)
+			// Honour a Retry-After directive as a floor, capped so a hostile or
+			// mis-set header can't stall the call indefinitely.
+			if retryAfter > wait {
+				wait = retryAfter
+				if ceil := 2 * time.Minute; wait > ceil {
+					wait = ceil
+				}
+			}
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(jitterDelay(delay, cfg.Jitter)):
+			case <-time.After(wait):
 			}
 			// Exponential backoff
 			delay = time.Duration(float64(delay) * cfg.Multiplier)
@@ -136,6 +192,7 @@ func Do(ctx context.Context, cfg Config, fn func() error) error {
 		}
 
 		lastErr = err
+		retryAfter = RetryAfterOf(err)
 	}
 
 	return lastErr
@@ -164,6 +221,34 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+// trimSpace trims leading/trailing ASCII spaces and tabs without importing strings.
+func trimSpace(s string) string {
+	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t') {
+		s = s[1:]
+	}
+	for len(s) > 0 && (s[len(s)-1] == ' ' || s[len(s)-1] == '\t') {
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
+// atoiNonNeg parses a non-negative base-10 integer; ok=false for empty or any
+// non-digit content (so an HTTP-date falls through to date parsing).
+func atoiNonNeg(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, true
 }
 
 // ReadBody is a helper that reads and closes a response body,
