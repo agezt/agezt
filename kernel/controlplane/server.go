@@ -728,6 +728,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemoryAudit(conn, req)
 	case CmdMemoryClean:
 		s.handleMemoryClean(conn, req)
+	case CmdChatSuggestions:
+		s.handleChatSuggestions(conn, req)
 	case CmdScheduleAdd:
 		s.handleScheduleAdd(conn, req)
 	case CmdScheduleList:

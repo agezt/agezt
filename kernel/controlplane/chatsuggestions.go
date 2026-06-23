@@ -9,7 +9,10 @@ package controlplane
 
 import (
 	"net"
+	"sort"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/memory"
 )
 
 // ChatSuggestion represents one clickable suggestion prompt.
@@ -38,18 +41,38 @@ func (s *Server) handleChatSuggestions(conn net.Conn, req Request) {
 		sessionID = v
 	}
 
-	// Collect context from args.
+	// Collect context from args. The HTTP read-args proxy forwards each query
+	// param as a single string, so the browser sends recently-used tool names
+	// comma-joined (e.g. "write,bash"); accept a JSON array too for direct
+	// control-plane callers.
 	var recentTools []string
-	if v, ok := req.Args["tools"].([]any); ok {
+	switch v := req.Args["tools"].(type) {
+	case string:
+		for _, t := range strings.Split(v, ",") {
+			if t = strings.TrimSpace(t); t != "" {
+				recentTools = append(recentTools, t)
+			}
+		}
+	case []any:
 		for _, t := range v {
-			if s, ok := t.(string); ok {
-				recentTools = append(recentTools, s)
+			if s, ok := t.(string); ok && strings.TrimSpace(s) != "" {
+				recentTools = append(recentTools, strings.TrimSpace(s))
 			}
 		}
 	}
 
-	// Build the suggestion list based on context.
-	suggestions := buildSuggestions(sessionID, recentTools)
+	// Memory-derived suggestions lead: turn the agent's active memory into
+	// concrete starter/next-step prompts. Best-effort — a missing manager or a
+	// read error just means we fall back to the tool-context catalog.
+	var suggestions []ChatSuggestion
+	if mgr := s.k.Memory(); mgr != nil {
+		if recs, err := mgr.Active(); err == nil {
+			suggestions = memorySuggestions(recs, maxMemorySuggestions)
+		}
+	}
+
+	// Fill the remaining slots from the tool-context catalog, deduped by ID.
+	suggestions = appendUnique(suggestions, buildSuggestions(sessionID, recentTools), maxSuggestions)
 
 	s.writeResp(conn, Response{
 		ID:   req.ID,
@@ -169,4 +192,126 @@ func buildSuggestions(sessionID string, recentTools []string) []ChatSuggestion {
 		{ID: "workflow-next-steps", Label: "Next steps", Prompt: "What should I do next to continue from here?", Category: "workflow", Icon: "arrow-right"},
 		{ID: "review-best-practices", Label: "Best practices?", Prompt: "Does this follow best practices? What could be improved?", Category: "review", Icon: "star"},
 	}
+}
+
+const (
+	// maxSuggestions caps the total chips returned per request.
+	maxSuggestions = 5
+	// maxMemorySuggestions caps how many of those come from memory, leaving room
+	// for tool-context suggestions so the bar is a mix, not all-memory.
+	maxMemorySuggestions = 3
+	// memorySnippetLen bounds how much memory Content is inlined into a prompt.
+	memorySnippetLen = 140
+)
+
+// memorySuggestions turns the agent's active memory records into concrete
+// suggested prompts. It is pure (takes records, not a live kernel) so it can be
+// unit-tested directly. High-signal records lead, deduped by subject; at most
+// max are returned.
+func memorySuggestions(recs []memory.Record, max int) []ChatSuggestion {
+	if max <= 0 {
+		return nil
+	}
+	// Keep only high-signal, subject-bearing records. OBSERVATION is noisy and
+	// low-confidence, so it's excluded.
+	var pick []memory.Record
+	for _, r := range recs {
+		if strings.TrimSpace(r.Subject) == "" {
+			continue
+		}
+		switch r.Type {
+		case memory.TypePreference, memory.TypeSummary, memory.TypeFact, memory.TypeRelation:
+			pick = append(pick, r)
+		}
+	}
+	// Strongest and most-recently-reinforced first.
+	sort.SliceStable(pick, func(i, j int) bool {
+		if pick[i].Confidence != pick[j].Confidence {
+			return pick[i].Confidence > pick[j].Confidence
+		}
+		return pick[i].LastSeenMS > pick[j].LastSeenMS
+	})
+
+	seen := make(map[string]bool)
+	var out []ChatSuggestion
+	for _, r := range pick {
+		key := strings.ToLower(strings.TrimSpace(r.Subject))
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, memorySuggestion(r))
+		if len(out) >= max {
+			break
+		}
+	}
+	return out
+}
+
+// memorySuggestion phrases one record as a clickable prompt, varying the wording
+// by record type. The ID is subject-derived so it dedupes against itself across
+// requests.
+func memorySuggestion(r memory.Record) ChatSuggestion {
+	subject := strings.TrimSpace(r.Subject)
+	snippet := snip(r.Content, memorySnippetLen)
+	id := "mem-" + strings.ToLower(strings.ReplaceAll(subject, " ", "-"))
+	switch r.Type {
+	case memory.TypePreference:
+		prompt := "Keep my preference about " + subject + " in mind"
+		if snippet != "" {
+			prompt += " (" + snippet + ")"
+		}
+		prompt += " and apply it now."
+		return ChatSuggestion{ID: id, Label: "Apply: " + subject, Prompt: prompt, Category: "memory", Icon: "brain"}
+	case memory.TypeSummary:
+		prompt := "Continue the work on " + subject + "."
+		if snippet != "" {
+			prompt += " So far: " + snippet
+		}
+		return ChatSuggestion{ID: id, Label: "Continue: " + subject, Prompt: prompt, Category: "memory", Icon: "brain"}
+	default: // FACT, RELATION
+		prompt := "Use what you know about " + subject + " to help me."
+		if snippet != "" {
+			prompt += " (Recall: " + snippet + ")"
+		}
+		return ChatSuggestion{ID: id, Label: "About " + subject, Prompt: prompt, Category: "memory", Icon: "brain"}
+	}
+}
+
+// snip trims content to a single line of at most n runes, adding an ellipsis
+// when truncated.
+func snip(s string, n int) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return strings.TrimSpace(string(r[:n])) + "…"
+}
+
+// appendUnique appends extras to base, skipping any whose ID is already present,
+// and caps the result at limit.
+func appendUnique(base, extras []ChatSuggestion, limit int) []ChatSuggestion {
+	seen := make(map[string]bool, len(base))
+	for _, s := range base {
+		seen[s.ID] = true
+	}
+	out := base
+	for _, s := range extras {
+		if len(out) >= limit {
+			break
+		}
+		if seen[s.ID] {
+			continue
+		}
+		seen[s.ID] = true
+		out = append(out, s)
+	}
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }

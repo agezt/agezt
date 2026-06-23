@@ -886,6 +886,13 @@ const (
 	// Args: dry_run (optional; default true). Returns: memory.CleanReport.
 	CmdMemoryClean = "memory_clean"
 
+	// CmdChatSuggestions returns context-aware suggested next prompts for the
+	// chat surface, blending memory-derived starters (from the agent's active
+	// memory) with tool-context suggestions. Rule-based, no LLM call. Args:
+	// session_id (optional), tools (optional, comma-joined recent tool names).
+	// Returns: { suggestions: [ChatSuggestion] }.
+	CmdChatSuggestions = "chat_suggestions"
+
 	// Typed schedules (autonomy). The cadence resident fires due agent,
 	// workflow, system-task, or tool targets; these commands manage the
 	// persistent store behind `agt schedule`.

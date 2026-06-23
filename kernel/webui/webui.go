@@ -232,6 +232,10 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/market/show":    {controlplane.CmdMarketShow, []string{"name", "marketplace"}},
 	"/api/market/sources": {controlplane.CmdMarketSources, nil},
 	"/api/policy_log":     {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	// Chat suggested-prompts (memory-derived + tool-context). Read-only: blends
+	// the agent's active memory into starter/next-step chips for the chat surface.
+	// tools is a comma-joined list of recently-used tool names.
+	"/api/suggestions": {controlplane.CmdChatSuggestions, []string{"session_id", "tools"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
