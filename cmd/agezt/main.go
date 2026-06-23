@@ -6100,6 +6100,47 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 	}
 }
 
+// providerMiddleware builds the opt-in provider middleware stack from the
+// environment (M997). It is empty by default, so every provider is registered
+// unwrapped and behaviour is unchanged. Operators opt in to:
+//   - DefaultParams: AGEZT_GEN_TEMPERATURE / AGEZT_GEN_TOP_P / AGEZT_GEN_REASONING_EFFORT
+//     supply per-call sampling defaults filled in only where a request left them unset.
+//   - ExtractReasoning: AGEZT_EXTRACT_REASONING=on pulls inline <think>…</think> out of
+//     the answer into ReasoningContent (for inline-reasoning models on OpenAI-compatible /
+//     Ollama gateways that don't use a dedicated reasoning field).
+//   - SimulateStreaming: AGEZT_SIMULATE_STREAMING=on lets non-streaming providers present
+//     a single-chunk stream for a uniform UI.
+func providerMiddleware() []agent.Middleware {
+	envOn := func(suffix string) bool {
+		v := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + suffix)))
+		return v == "1" || v == "on" || v == "true" || v == "yes"
+	}
+	var mws []agent.Middleware
+
+	var defaults agent.Params
+	if s := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_TEMPERATURE")); s != "" {
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			defaults.Temperature = &f
+		}
+	}
+	if s := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_TOP_P")); s != "" {
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			defaults.TopP = &f
+		}
+	}
+	defaults.ReasoningEffort = strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_REASONING_EFFORT"))
+	if !defaults.IsZero() {
+		mws = append(mws, agent.DefaultParamsMiddleware(defaults))
+	}
+	if envOn("EXTRACT_REASONING") {
+		mws = append(mws, agent.ExtractReasoningMiddleware("<think>", "</think>"))
+	}
+	if envOn("SIMULATE_STREAMING") {
+		mws = append(mws, agent.SimulateStreamingMiddleware())
+	}
+	return mws
+}
+
 // buildGovernor constructs the routing layer: one primary provider plus every
 // other credentialed catalog provider as a model-routable alternate. Returns the
 // Governor (also serves as agent.Provider), a human-readable banner description,
@@ -6124,6 +6165,7 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 //	                                  ErrNoModelConfigured.
 func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir string) (*governor.Governor, string, string, error) {
 	reg := governor.NewRegistry()
+	mw := providerMiddleware() // M997: opt-in; empty by default → providers registered unwrapped
 	primary, primaryDesc, model, authMode, err := selectPrimary(cat, lookup, baseDir)
 	if err != nil {
 		return nil, "", "", err
@@ -6131,7 +6173,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir str
 	primaryName := primary.Name()
 	if err := reg.Register(&governor.ProviderInfo{
 		Name:     primaryName,
-		Provider: primary,
+		Provider: agent.Wrap(primary, mw...),
 		AuthMode: authMode,
 		Models:   catalogModelIDs(cat, primaryName),
 	}); err != nil {
@@ -6163,7 +6205,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir str
 		}
 		if err := reg.Register(&governor.ProviderInfo{
 			Name:     p.Name(),
-			Provider: p,
+			Provider: agent.Wrap(p, mw...),
 			AuthMode: auth,
 			Models:   catalogModelIDs(cat, entry.ID),
 		}); err != nil {
