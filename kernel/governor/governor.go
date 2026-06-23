@@ -200,6 +200,15 @@ type Config struct {
 	// it, plus up to 25% jitter so synchronized callers don't stampede a
 	// recovering upstream. 0 → DefaultRetryBaseDelay.
 	RetryBaseDelay time.Duration
+
+	// BreakerThreshold is how many consecutive fall-back failures trip a
+	// provider's circuit breaker open, after which the Governor skips it for
+	// BreakerCooldown and serves from the rest of the chain (M997). 0 →
+	// DefaultBreakerThreshold; negative → breaker disabled.
+	BreakerThreshold int
+	// BreakerCooldown is how long a tripped provider stays open before one
+	// half-open probe is allowed. 0 → DefaultBreakerCooldown.
+	BreakerCooldown time.Duration
 }
 
 // DefaultProviderRetries is the default number of in-place retries per
@@ -253,6 +262,12 @@ type Governor struct {
 	// guarded by mu (read under lock; the control plane swaps them on edit).
 	fallbackChains map[string][]string
 	defaultChain   string
+
+	// breaker is the per-provider circuit breaker (M997): it skips a provider
+	// that has failed BreakerThreshold times in a row until a cooldown elapses,
+	// so a dead provider doesn't cost latency on every request. nil-safe — a
+	// non-positive threshold leaves it disabled.
+	breaker *breaker
 
 	// bus is the audit sink, latched atomically so SetBus (which the daemon
 	// calls after construction, and WithLimits siblings re-point) never races
@@ -309,6 +324,19 @@ func New(cfg Config) (*Governor, error) {
 	g.defaultChain = cfg.DefaultChain
 	if cfg.ResponseCacheTTL > 0 {
 		g.respCache = newRespCache(cfg.ResponseCacheTTL, cfg.ResponseCacheSize, cfg.Now) // M888: opt-in
+	}
+	// Circuit breaker (M997): enabled unless explicitly disabled (negative
+	// threshold). 0 → default threshold; default cooldown when unset.
+	{
+		thr := cfg.BreakerThreshold
+		if thr == 0 {
+			thr = DefaultBreakerThreshold
+		}
+		cd := cfg.BreakerCooldown
+		if cd <= 0 {
+			cd = DefaultBreakerCooldown
+		}
+		g.breaker = newBreaker(thr, cd, cfg.Now)
 	}
 	g.bus.Store(cfg.Bus) // may be nil; SetBus latches the real bus later
 	for _, p := range cfg.Registry.All() {
@@ -693,6 +721,10 @@ func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderI
 // call, CompleteStream the streaming one — so routing, fallback and usage
 // accounting are identical for both.
 func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, chain []*ProviderInfo, callOne func(*ProviderInfo) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
+	// Skip providers whose circuit breaker is open, UNLESS that would skip the
+	// whole chain — then try them all rather than hard-fail (a possibly-recovered
+	// provider beats a guaranteed outage). M997.
+	chain = g.openChain(chain)
 	tried := make([]string, 0, len(chain))
 	var lastErr error
 	for i, p := range chain {
@@ -703,13 +735,34 @@ func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, ch
 		resp, err := g.callWithRetry(ctx, req, p, callOne)
 		if err == nil {
 			g.recordUsage(p, req, resp)
+			if g.breaker != nil && g.breaker.success(p.Name) {
+				g.publish(event.Spec{
+					Subject:       "governor.breaker_closed",
+					Kind:          event.KindProviderBreakerClosed,
+					Actor:         "governor",
+					CorrelationID: req.CorrelationID,
+					Payload:       map[string]any{"provider": p.Name},
+				})
+			}
 			return resp, nil
 		}
 		lastErr = err
 		if !shouldFallback(err) {
 			// Don't try further providers when the user cancelled or the
-			// budget is exhausted.
+			// budget is exhausted. Such errors are not the provider's fault,
+			// so they don't count against its circuit breaker.
 			return nil, err
+		}
+		// A genuine provider failure that triggers fall-back counts toward the
+		// breaker tripping this provider out of the chain.
+		if g.breaker != nil && g.breaker.failure(p.Name) {
+			g.publish(event.Spec{
+				Subject:       "governor.breaker_open",
+				Kind:          event.KindProviderBreakerOpen,
+				Actor:         "governor",
+				CorrelationID: req.CorrelationID,
+				Payload:       map[string]any{"provider": p.Name, "reason": err.Error()},
+			})
 		}
 		// Fall back to next in chain.
 		if i+1 < len(chain) {
@@ -727,6 +780,40 @@ func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, ch
 		}
 	}
 	return nil, &ErrNoProviders{Tried: tried, Last: lastErr}
+}
+
+// openChain filters out providers whose circuit breaker is currently open. If
+// that would empty the chain (every provider is tripped), it returns the
+// original chain so the Governor still attempts a (possibly recovered) provider
+// rather than hard-failing. M997.
+func (g *Governor) openChain(chain []*ProviderInfo) []*ProviderInfo {
+	if g.breaker == nil || !g.breaker.enabled() {
+		return chain
+	}
+	allowed := make([]*ProviderInfo, 0, len(chain))
+	for _, p := range chain {
+		if g.breaker.allow(p.Name) {
+			allowed = append(allowed, p)
+		}
+	}
+	if len(allowed) == 0 {
+		return chain
+	}
+	return allowed
+}
+
+// ProviderHealth returns the circuit-breaker state ("closed"/"open"/
+// "half-open"/"disabled") for each registered provider, for diagnostics and the
+// Models/health surface (M997).
+func (g *Governor) ProviderHealth() map[string]string {
+	out := map[string]string{}
+	if g.breaker == nil {
+		return out
+	}
+	for _, p := range g.cfg.Registry.All() {
+		out[p.Name] = g.breaker.state(p.Name)
+	}
+	return out
 }
 
 // callWithRetry invokes one chain entry, retrying IN PLACE with exponential

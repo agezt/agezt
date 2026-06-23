@@ -39,6 +39,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 type novaBedrockRequest struct {
@@ -59,6 +60,26 @@ type novaMessage struct {
 
 type novaInferenceConfig struct {
 	MaxTokens int `json:"maxTokens"`
+	// Per-request sampling knobs (M997). Nova nests sampling under
+	// inferenceConfig with camelCase keys (temperature/topP/topK/stopSequences);
+	// no seed or penalties. Nil-able so an unset Params is a no-op.
+	Temperature   *float64 `json:"temperature,omitempty"`
+	TopP          *float64 `json:"topP,omitempty"`
+	TopK          *int     `json:"topK,omitempty"`
+	StopSequences []string `json:"stopSequences,omitempty"`
+}
+
+// applyParams maps the universal sampling knobs onto Nova's inferenceConfig
+// fields. An unset Params leaves the request unchanged; seed/penalties/
+// ReasoningEffort have no Nova equivalent.
+func (c *novaInferenceConfig) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	c.Temperature = p.Temperature
+	c.TopP = p.TopP
+	c.TopK = p.TopK
+	c.StopSequences = p.Stop
 }
 
 type novaBedrockResponse struct {
@@ -82,11 +103,12 @@ type novaBedrockResponse struct {
 // through, and any other canonical role (system-as-message, tool) folds
 // into a user message so the model still sees the content — Nova rejects
 // unknown roles and empty content, so empty messages are skipped.
-func encodeNovaOnBedrockRequest(system string, msgs []agent.Message, maxTok int) ([]byte, error) {
+func encodeNovaOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	out := novaBedrockRequest{
 		SchemaVersion:   "messages-v1",
 		InferenceConfig: novaInferenceConfig{MaxTokens: maxTok},
 	}
+	out.InferenceConfig.applyParams(params)
 	if s := strings.TrimSpace(system); s != "" {
 		out.System = []novaTextBlock{{Text: system}}
 	}
@@ -119,7 +141,11 @@ func encodeNovaOnBedrockRequest(system string, msgs []agent.Message, maxTok int)
 	if len(out.Messages) == 0 {
 		return nil, errors.New("bedrock-nova: at least one non-empty message required")
 	}
-	return json.Marshal(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // decodeNovaOnBedrockResponse converts the Nova output message into a

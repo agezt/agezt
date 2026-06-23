@@ -17,7 +17,6 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -202,23 +201,22 @@ func (m *Manager) consolidateCluster(ctx context.Context, corr string, provider 
 	for i, r := range cluster {
 		fmt.Fprintf(&b, "%d. [%s] %s: %s\n", i+1, r.Type, r.Subject, r.Content)
 	}
-	resp, err := provider.Complete(ctx, agent.CompletionRequest{
+	// Structured output via the unified GenerateObject path (M997): robust JSON
+	// extraction (tolerates fences / prose / nested braces) + bounded repair,
+	// replacing the old first-`{`/last-`}` slice. A transport error propagates;
+	// an unusable answer (no schema-valid object after repair) is a skip, not a
+	// failure — the same disposition the hand-rolled parse had.
+	var parsed consolidateResult
+	if _, err := agent.GenerateObject(ctx, provider, agent.CompletionRequest{
 		Model:    model,
 		System:   consolidateSystem,
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Related memory records:\n" + b.String()}},
 		TaskType: "distill", // same budgeting/routing class as per-run distillation
-	})
-	if err != nil {
+	}, nil, &parsed); err != nil {
+		if errors.Is(err, agent.ErrNoObjectGenerated) {
+			return Record{}, false, nil
+		}
 		return Record{}, false, fmt.Errorf("memory: consolidate completion: %w", err)
-	}
-	start := strings.IndexByte(resp.Message.Content, '{')
-	end := strings.LastIndexByte(resp.Message.Content, '}')
-	if start < 0 || end <= start {
-		return Record{}, false, nil
-	}
-	var parsed consolidateResult
-	if err := json.Unmarshal([]byte(resp.Message.Content[start:end+1]), &parsed); err != nil {
-		return Record{}, false, nil
 	}
 	if strings.TrimSpace(parsed.Content) == "" {
 		return Record{}, false, nil

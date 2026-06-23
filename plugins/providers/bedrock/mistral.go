@@ -40,12 +40,32 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 type mistralBedrockRequest struct {
-	Messages    []mistralMessage `json:"messages"`
-	MaxTokens   int              `json:"max_tokens"`
-	Temperature float64          `json:"temperature,omitempty"`
+	Messages  []mistralMessage `json:"messages"`
+	MaxTokens int              `json:"max_tokens"`
+	// Per-request sampling knobs (M997). Bedrock Mistral accepts
+	// temperature/top_p/top_k/stop; no seed or penalties. All nil-able so an
+	// unset Params leaves the body byte-for-byte unchanged.
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
+	TopK        *int     `json:"top_k,omitempty"`
+	Stop        []string `json:"stop,omitempty"`
+}
+
+// applyParams copies the sampling knobs Bedrock Mistral understands; an unset
+// Params leaves the request unchanged. ReasoningEffort/seed/penalties are not
+// part of the Mistral chat shape and are ignored.
+func (wire *mistralBedrockRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
+	wire.TopK = p.TopK
+	wire.Stop = p.Stop
 }
 
 type mistralMessage struct {
@@ -73,8 +93,9 @@ type mistralBedrockResponse struct {
 // prompts are converted to a leading system-role message (Bedrock
 // Mistral honours that role; the older `prompt`-string shape did
 // not). Tool definitions are dropped — see the file doc-comment.
-func encodeMistralOnBedrockRequest(system string, msgs []agent.Message, maxTok int) ([]byte, error) {
+func encodeMistralOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	out := mistralBedrockRequest{MaxTokens: maxTok}
+	out.applyParams(params)
 	if system != "" {
 		out.Messages = append(out.Messages, mistralMessage{Role: "system", Content: system})
 	}
@@ -96,7 +117,11 @@ func encodeMistralOnBedrockRequest(system string, msgs []agent.Message, maxTok i
 	if len(out.Messages) == 0 {
 		return nil, errors.New("bedrock-mistral: at least one message required")
 	}
-	return json.Marshal(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // decodeMistralOnBedrockResponse converts the Mistral choices array

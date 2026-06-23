@@ -65,7 +65,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return p.completeStreamAnthropic(ctx, req, model, onChunk)
 	}
 
-	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget)
+	body, err := encodeRequest(req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, p.ThinkingBudget, req.Params, req.ProviderOptions["vertex"])
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode request: %w", err)
 	}

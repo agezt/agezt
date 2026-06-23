@@ -35,7 +35,7 @@ func decodeMessages(t *testing.T, body []byte) []struct {
 func TestEncodeRequest_ImageContentParts(t *testing.T) {
 	du := "data:image/png;base64,QUJD"
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "describe", Images: []string{du}}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false)
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestEncodeRequest_ImageContentParts(t *testing.T) {
 // A text-only user message keeps the plain-string content form (no drift).
 func TestEncodeRequest_TextOnlyStaysString(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hello"}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false)
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestEncodeRequest_TextOnlyStaysString(t *testing.T) {
 // a plain-string content rather than carrying an invalid image_url.
 func TestEncodeRequest_SkipsNonURLImage(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false)
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestEncodeRequest_ToolCallAssistantOmitsContent(t *testing.T) {
 		Role:      agent.RoleAssistant,
 		ToolCalls: []agent.ToolCall{{ID: "c1", Name: "ls", Input: json.RawMessage(`{}`)}},
 	}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false)
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}

@@ -14,7 +14,7 @@ import (
 // conformed name, never the raw "browser.read".
 func TestEncodeConformsToolNames(t *testing.T) {
 	tools := []agent.ToolDef{{Name: "browser.read", Description: "d", InputSchema: json.RawMessage(`{"type":"object"}`)}}
-	body, err := encodeRequest("", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, tools, 100, false, 0)
+	body, err := encodeRequest("", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, tools, 100, false, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

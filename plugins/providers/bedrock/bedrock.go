@@ -40,6 +40,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -244,6 +245,10 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		maxTokens = DefaultMaxTokens
 	}
 
+	// A single dialect key carries per-request provider extras for every Bedrock
+	// model family (M997); the encoders overlay it after marshalling their wire
+	// body. agent.Params (sampling knobs) is threaded the same way.
+	extra := req.ProviderOptions["bedrock"]
 	var (
 		body       []byte
 		err        error
@@ -251,25 +256,25 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	)
 	switch {
 	case isAnthropicModel(model):
-		body, err = encodeAnthropicOnBedrockRequest(req.System, req.Messages, req.Tools, maxTokens)
+		body, err = encodeAnthropicOnBedrockRequest(req.System, req.Messages, req.Tools, maxTokens, req.Params, extra)
 		decodeResp = decodeAnthropicOnBedrockResponse
 	case isMistralModel(model):
-		body, err = encodeMistralOnBedrockRequest(req.System, req.Messages, maxTokens)
+		body, err = encodeMistralOnBedrockRequest(req.System, req.Messages, maxTokens, req.Params, extra)
 		decodeResp = decodeMistralOnBedrockResponse
 	case isCohereModel(model):
-		body, err = encodeCohereOnBedrockRequest(req.System, req.Messages, maxTokens)
+		body, err = encodeCohereOnBedrockRequest(req.System, req.Messages, maxTokens, req.Params, extra)
 		decodeResp = decodeCohereOnBedrockResponse
 	case isMetaLlamaModel(model):
-		body, err = encodeMetaLlamaOnBedrockRequest(req.System, req.Messages, maxTokens)
+		body, err = encodeMetaLlamaOnBedrockRequest(req.System, req.Messages, maxTokens, req.Params, extra)
 		decodeResp = decodeMetaLlamaOnBedrockResponse
 	case isAI21JambaModel(model):
-		body, err = encodeAI21JambaOnBedrockRequest(req.System, req.Messages, maxTokens)
+		body, err = encodeAI21JambaOnBedrockRequest(req.System, req.Messages, maxTokens, req.Params, extra)
 		decodeResp = decodeAI21JambaOnBedrockResponse
 	case isAmazonNovaModel(model):
-		body, err = encodeNovaOnBedrockRequest(req.System, req.Messages, maxTokens)
+		body, err = encodeNovaOnBedrockRequest(req.System, req.Messages, maxTokens, req.Params, extra)
 		decodeResp = decodeNovaOnBedrockResponse
 	case isDeepSeekModel(model):
-		body, err = encodeDeepSeekOnBedrockRequest(req.System, req.Messages, maxTokens)
+		body, err = encodeDeepSeekOnBedrockRequest(req.System, req.Messages, maxTokens, req.Params, extra)
 		decodeResp = decodeDeepSeekOnBedrockResponse
 	default:
 		return nil, fmt.Errorf("%w: model %q is not in a supported family (anthropic.*, mistral.*, cohere.*, meta.*, ai21.jamba.*, amazon.nova.*, deepseek.*; legacy amazon Titan and AI21 J2 are intentionally unwired)",
@@ -360,6 +365,53 @@ type anthBedrockRequest struct {
 	System           any           `json:"system,omitempty"`
 	Messages         []anthMessage `json:"messages"`
 	Tools            []anthTool    `json:"tools,omitempty"`
+	Thinking         *anthThinking `json:"thinking,omitempty"` // extended thinking via ReasoningEffort (M997)
+	// Per-request sampling knobs (M997). Anthropic-on-Bedrock has no seed /
+	// penalties — same surface as the direct-Anthropic adapter.
+	Temperature   *float64 `json:"temperature,omitempty"`
+	TopP          *float64 `json:"top_p,omitempty"`
+	TopK          *int     `json:"top_k,omitempty"`
+	StopSequences []string `json:"stop_sequences,omitempty"`
+}
+
+// applyParams copies the universal sampling knobs Anthropic-on-Bedrock
+// understands. ReasoningEffort is handled separately (mapped to a thinking
+// budget); an unset Params leaves the request unchanged.
+func (wire *anthBedrockRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
+	wire.TopK = p.TopK
+	wire.StopSequences = p.Stop
+}
+
+// MinThinkingBudget is Anthropic's minimum extended-thinking budget_tokens.
+const MinThinkingBudget = 1024
+
+// anthThinking is Anthropic-on-Bedrock's extended-thinking request block.
+type anthThinking struct {
+	Type         string `json:"type"`          // "enabled"
+	BudgetTokens int    `json:"budget_tokens"` // >= 1024, and < max_tokens
+}
+
+// thinkingConfig returns the thinking block + the max_tokens to use when an
+// extended-thinking budget is set. Mirrors the direct-Anthropic adapter:
+// Anthropic requires max_tokens > budget_tokens and budget >= 1024, so we clamp
+// the budget up and ensure max_tokens leaves room for the answer. budget <= 0
+// returns (nil, maxTok unchanged) so the wire stays byte-identical.
+func thinkingConfig(budget, maxTok int) (*anthThinking, int) {
+	if budget <= 0 {
+		return nil, maxTok
+	}
+	if budget < MinThinkingBudget {
+		budget = MinThinkingBudget
+	}
+	if maxTok <= budget {
+		maxTok = budget + DefaultMaxTokens
+	}
+	return &anthThinking{Type: "enabled", BudgetTokens: budget}, maxTok
 }
 
 // anthSystemBlock is the array form of the system prompt, carrying a prompt-cache
@@ -466,14 +518,22 @@ func anthBedrockUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens
 	}
 }
 
-func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+	// A per-request reasoning effort (M997) maps to an extended-thinking budget,
+	// exactly like the direct-Anthropic adapter. Empty effort → no thinking block.
+	thinking, maxTok := thinkingConfig(func() int {
+		b, _ := provopts.ThinkingBudget(params.ReasoningEffort, maxTok)
+		return b
+	}(), maxTok)
 	fwd, _ := toolname.Maps(tools)
 	wire := anthBedrockRequest{
 		AnthropicVersion: AnthropicBedrockVersion,
 		MaxTokens:        maxTok,
 		System:           buildBedrockSystem(system),
 		Tools:            buildBedrockTools(tools, fwd),
+		Thinking:         thinking,
 	}
+	wire.applyParams(params)
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m, fwd)
 		if err != nil {
@@ -484,7 +544,11 @@ func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools 
 		}
 		wire.Messages = append(wire.Messages, *am)
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // parseImageDataURL splits an RFC 2397 data: URL of the form

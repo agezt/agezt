@@ -17,7 +17,7 @@ func TestEncodeRequest_ToolResultControlBytesValidJSON(t *testing.T) {
 		{Role: agent.RoleUser, Content: "run it"},
 		{Role: agent.RoleTool, ToolCallID: "call-0", Content: "ANSI:\x1b[31mred\x1b[0m NUL:\x00 done"},
 	}
-	body, err := encodeRequest("", msgs, nil, 0, false, 0)
+	body, err := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest with control-byte tool result: %v", err)
 	}

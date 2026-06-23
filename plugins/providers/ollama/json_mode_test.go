@@ -14,7 +14,7 @@ import (
 func TestEncodeRequest_JSONMode(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "return json"}}
 
-	on, err := encodeRequest("llama3", "", msgs, nil, 0, true)
+	on, err := encodeRequest("llama3", "", msgs, nil, 0, true, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,12 +22,12 @@ func TestEncodeRequest_JSONMode(t *testing.T) {
 		t.Errorf("JSONMode should set format=json: %s", on)
 	}
 
-	off, _ := encodeRequest("llama3", "", msgs, nil, 0, false)
+	off, _ := encodeRequest("llama3", "", msgs, nil, 0, false, agent.Params{}, nil)
 	if strings.Contains(string(off), `"format"`) {
 		t.Errorf("JSONMode=false must omit format: %s", off)
 	}
 
-	st, _ := encodeStreamRequest("llama3", "", msgs, nil, 0, true)
+	st, _ := encodeStreamRequest("llama3", "", msgs, nil, 0, true, agent.Params{}, nil)
 	if !strings.Contains(string(st), `"format":"json"`) {
 		t.Errorf("streaming JSONMode missing format=json: %s", st)
 	}

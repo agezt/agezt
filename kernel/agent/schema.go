@@ -38,6 +38,30 @@ func ValidateToolInput(def ToolDef, input json.RawMessage) error {
 	return nil
 }
 
+// ValidateJSON validates an arbitrary JSON value against a JSON Schema using the
+// same dependency-free subset as ValidateToolInput (type, properties, required,
+// additionalProperties, enum, items, nested schemas). An empty schema accepts
+// any valid JSON. It is the structured-output counterpart of ValidateToolInput
+// (M997) — GenerateObject uses it to check (and drive repair of) model output.
+func ValidateJSON(schema, value json.RawMessage) error {
+	if !json.Valid(value) {
+		return fmt.Errorf("value is not valid JSON")
+	}
+	schema = bytes.TrimSpace(schema)
+	if len(schema) == 0 {
+		return nil
+	}
+	var root schemaNode
+	if err := decodeJSON(schema, &root); err != nil {
+		return fmt.Errorf("invalid schema: %w", err)
+	}
+	var decoded any
+	if err := decodeJSON(value, &decoded); err != nil {
+		return fmt.Errorf("value is not valid JSON: %w", err)
+	}
+	return validateNode(root, decoded, "$")
+}
+
 // LintToolSchema checks that a tool's advertised schema is parseable by the
 // same validator the runtime uses at invocation time. Empty schemas remain
 // valid for compatibility with test and legacy tools.

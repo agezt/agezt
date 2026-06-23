@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 // CompleteStream implements agent.StreamingProvider for Ollama.
@@ -45,7 +46,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.Params, req.ProviderOptions["ollama"])
 	if err != nil {
 		return nil, fmt.Errorf("ollama: encode request: %w", err)
 	}
@@ -80,7 +81,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // encodeStreamRequest mirrors encodeRequest but flips stream=true.
 // Kept separate so the non-streaming wire format stays byte-identical
 // to what existing tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	out := ollamaRequest{
 		Model:  model,
 		Stream: true,
@@ -88,10 +89,8 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 	if jsonMode {
 		out.Format = "json" // see encodeRequest (M311)
 	}
-	// Honour the run's token cap (M310) — see encodeRequest.
-	if maxTokens > 0 {
-		out.Options = map[string]any{"num_predict": maxTokens}
-	}
+	// Token cap + per-request sampling knobs (M997) — see encodeRequest/buildOptions.
+	out.Options = buildOptions(maxTokens, params)
 	if system != "" {
 		out.Messages = append(out.Messages, ollamaMessage{Role: "system", Content: system})
 	}
@@ -112,7 +111,11 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 			},
 		})
 	}
-	return json.Marshal(out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // ----- NDJSON parsing -----

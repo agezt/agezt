@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -51,7 +52,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.Params, req.ProviderOptions["cohere"])
 	if err != nil {
 		return nil, fmt.Errorf("cohere: encode request: %w", err)
 	}
@@ -88,13 +89,14 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 }
 
 // encodeStreamRequest mirrors encodeRequest but flips stream=true.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	fwd, _ := toolname.Maps(tools)
 	wire := cohereRequest{
 		Model:     model,
 		Stream:    true,
 		MaxTokens: maxTok,
 	}
+	wire.applyParams(params)
 	if s := strings.TrimSpace(system); s != "" {
 		wire.Messages = append(wire.Messages, cohereMessage{Role: "system", Content: s})
 	}
@@ -122,7 +124,11 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 			},
 		})
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // ----- SSE parsing -----

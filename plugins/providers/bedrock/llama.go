@@ -34,11 +34,28 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 type llamaBedrockRequest struct {
 	Prompt    string `json:"prompt"`
 	MaxGenLen int    `json:"max_gen_len"`
+	// Per-request sampling knobs (M997). Bedrock Llama accepts only
+	// temperature/top_p (no top_k, stop, seed, or penalties — the prompt-template
+	// shape has no stop-sequence field). Nil-able so an unset Params is a no-op.
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
+}
+
+// applyParams copies the two sampling knobs Bedrock Llama understands; an unset
+// Params leaves the request unchanged. top_k/stop/seed/penalties/ReasoningEffort
+// have no Bedrock-Llama equivalent and are ignored.
+func (wire *llamaBedrockRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
 }
 
 type llamaBedrockResponse struct {
@@ -91,7 +108,7 @@ func llamaRole(r agent.Role) string {
 	return "user"
 }
 
-func encodeMetaLlamaOnBedrockRequest(system string, msgs []agent.Message, maxTok int) ([]byte, error) {
+func encodeMetaLlamaOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-llama: at least one message required")
 	}
@@ -99,7 +116,12 @@ func encodeMetaLlamaOnBedrockRequest(system string, msgs []agent.Message, maxTok
 		Prompt:    llama3Template(system, msgs),
 		MaxGenLen: maxTok,
 	}
-	return json.Marshal(out)
+	out.applyParams(params)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 func decodeMetaLlamaOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {

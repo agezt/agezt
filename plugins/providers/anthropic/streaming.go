@@ -15,6 +15,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -55,7 +56,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		maxTokens = DefaultMaxTokens
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, req.Params, req.ProviderOptions["anthropic"])
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: encode request: %w", err)
 	}
@@ -102,7 +103,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // Kept separate (rather than adding a bool param to encodeRequest) so
 // the non-streaming wire format stays byte-identical to what M0.5
 // tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	// Same shape as anthRequest plus the Stream field.
 	type streamReq struct {
 		Model     string        `json:"model"`
@@ -112,10 +113,24 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		Tools     []anthTool    `json:"tools,omitempty"`
 		Stream    bool          `json:"stream"`
 		Thinking  *anthThinking `json:"thinking,omitempty"` // M318
+		// Per-request sampling knobs (M997).
+		Temperature   *float64 `json:"temperature,omitempty"`
+		TopP          *float64 `json:"top_p,omitempty"`
+		TopK          *int     `json:"top_k,omitempty"`
+		StopSequences []string `json:"stop_sequences,omitempty"`
+	}
+	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
+		thinkingBudget = b
 	}
 	thinking, maxTok := thinkingConfig(thinkingBudget, maxTok)
 	fwd, _ := toolname.Maps(tools)
 	wire := streamReq{Model: model, MaxTokens: maxTok, System: buildAnthSystem(system), Stream: true, Tools: buildAnthTools(tools, fwd), Thinking: thinking}
+	if !params.IsZero() {
+		wire.Temperature = params.Temperature
+		wire.TopP = params.TopP
+		wire.TopK = params.TopK
+		wire.StopSequences = params.Stop
+	}
 	for _, m := range msgs {
 		am, err := canonicalToAnth(m, fwd)
 		if err != nil {
@@ -126,7 +141,11 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		}
 		wire.Messages = append(wire.Messages, *am)
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // ----- SSE parsing -----

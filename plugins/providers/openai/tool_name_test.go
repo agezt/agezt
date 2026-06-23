@@ -15,7 +15,7 @@ import (
 // lives in plugins/providers/internal/toolname.)
 func TestEncodeRequestSanitizesToolNames(t *testing.T) {
 	tools := []agent.ToolDef{{Name: "browser.read", Description: "read a page"}}
-	body, err := encodeRequest("gpt-5.5", "sys", nil, tools, 100, false)
+	body, err := encodeRequest("gpt-5.5", "sys", nil, tools, 100, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestEncodeRequest_CollisionStaysDistinct(t *testing.T) {
 	if fwd["browser.read"] == fwd["browser_read"] {
 		t.Fatalf("collision not broken: both → %q", fwd["browser.read"])
 	}
-	body, err := encodeRequest("m", "", nil, tools, 0, false)
+	body, err := encodeRequest("m", "", nil, tools, 0, false, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

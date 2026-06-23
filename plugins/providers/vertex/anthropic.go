@@ -37,6 +37,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -109,6 +110,24 @@ type anthVertexRequest struct {
 	Tools            []anthVxTool    `json:"tools,omitempty"`
 	Thinking         *anthVxThinking `json:"thinking,omitempty"` // extended thinking (M321)
 	Stream           bool            `json:"stream,omitempty"`
+	// Per-request sampling knobs (M997). Anthropic has no seed / penalties.
+	Temperature   *float64 `json:"temperature,omitempty"`
+	TopP          *float64 `json:"top_p,omitempty"`
+	TopK          *int     `json:"top_k,omitempty"`
+	StopSequences []string `json:"stop_sequences,omitempty"`
+}
+
+// applyParams copies the universal sampling knobs Anthropic understands. The
+// reasoning knob is handled separately (mapped to a thinking budget) and so is
+// ignored here. An unset Params leaves the request unchanged.
+func (wire *anthVertexRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
+	wire.TopK = p.TopK
+	wire.StopSequences = p.Stop
 }
 
 // anthVxThinking is Anthropic-on-Vertex's extended-thinking request block
@@ -242,7 +261,12 @@ func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int,
 	}
 }
 
-func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, stream bool) ([]byte, error) {
+func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, stream bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+	// A per-request reasoning effort (M997) overrides the construction-time
+	// thinking budget when set; otherwise the env/default budget stands.
+	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
+		thinkingBudget = b
+	}
 	fwd, _ := toolname.Maps(tools)
 	thinking, maxTok := anthVxThinkingConfig(thinkingBudget, maxTok)
 	wire := anthVertexRequest{
@@ -253,6 +277,7 @@ func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools [
 		Tools:            buildVxTools(tools, fwd),
 		Thinking:         thinking,
 	}
+	wire.applyParams(params)
 	for _, m := range msgs {
 		am, err := canonicalToAnthVx(m, fwd)
 		if err != nil {
@@ -263,7 +288,11 @@ func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools [
 		}
 		wire.Messages = append(wire.Messages, *am)
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // parseImageDataURL splits an RFC 2397 data: URL of the form
@@ -405,7 +434,7 @@ func (p *Provider) completeAnthropic(ctx context.Context, req agent.CompletionRe
 	if maxTokens <= 0 {
 		maxTokens = DefaultAnthropicMaxTokens
 	}
-	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, false)
+	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, false, req.Params, req.ProviderOptions["vertex"])
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode anthropic request: %w", err)
 	}
@@ -453,7 +482,7 @@ func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.Comple
 	if maxTokens <= 0 {
 		maxTokens = DefaultAnthropicMaxTokens
 	}
-	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, true)
+	body, err := encodeAnthropicOnVertexRequest(req.System, req.Messages, req.Tools, maxTokens, p.ThinkingBudget, true, req.Params, req.ProviderOptions["vertex"])
 	if err != nil {
 		return nil, fmt.Errorf("vertex: encode anthropic request: %w", err)
 	}

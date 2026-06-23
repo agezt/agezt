@@ -29,6 +29,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
@@ -135,7 +136,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.Params, req.ProviderOptions["openai"])
 	if err != nil {
 		return nil, fmt.Errorf("openai: encode request: %w", err)
 	}
@@ -176,7 +177,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 			return fmt.Errorf("openai: read body: %w", err)
 		}
 		if httpResp.StatusCode/100 != 2 {
-			return &retry.HTTPError{StatusCode: httpResp.StatusCode, Body: string(respBytes)}
+			return retry.NewHTTPError(httpResp, string(respBytes))
 		}
 		return nil
 	})
@@ -203,6 +204,38 @@ type oaRequest struct {
 	MaxTokens      int               `json:"max_tokens,omitempty"`
 	Stream         bool              `json:"stream"`
 	ResponseFormat *oaResponseFormat `json:"response_format,omitempty"`
+	// Per-request sampling knobs (M997), promoted to the top level of the wire
+	// object. An unset agent.Params leaves every field nil/empty (omitempty), so
+	// the request stays byte-for-byte unchanged.
+	oaParams
+}
+
+// oaParams is the embeddable set of universal sampling knobs shared by the
+// non-streaming and streaming request structs. OpenAI has no top_k.
+type oaParams struct {
+	Temperature      *float64 `json:"temperature,omitempty"`
+	TopP             *float64 `json:"top_p,omitempty"`
+	Stop             []string `json:"stop,omitempty"`
+	Seed             *int64   `json:"seed,omitempty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
+	// ReasoningEffort maps to OpenAI's reasoning_effort (o-series / gpt-5).
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
+// applyParams copies the universal sampling knobs from p. Only set fields are
+// carried over, so an empty Params leaves the embedded oaParams zero-valued.
+func (o *oaParams) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	o.Temperature = p.Temperature
+	o.TopP = p.TopP
+	o.Stop = p.Stop
+	o.Seed = p.Seed
+	o.FrequencyPenalty = p.FrequencyPenalty
+	o.PresencePenalty = p.PresencePenalty
+	o.ReasoningEffort = provopts.NormalizeEffort(p.ReasoningEffort)
 }
 
 // oaResponseFormat carries OpenAI's structured-output request (M311). type
@@ -347,13 +380,14 @@ type oaChoice struct {
 // toolname.RestoreCalls reverses it on the response so a tool_call still routes to
 // the real tool.
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	wire := oaRequest{
 		Model:          model,
 		Stream:         false,
 		MaxTokens:      maxTok, // 0 → omitted via omitempty
 		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
+	wire.applyParams(params)
 	fwd, _ := toolname.Maps(tools)
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})
@@ -382,7 +416,11 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 			},
 		})
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // canonicalToOA converts one canonical Message into one OpenAI Chat

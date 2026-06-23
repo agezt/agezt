@@ -78,7 +78,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 	// Same body shape as non-streaming — Bedrock's anthropic path does
 	// *not* take a `stream` field in the JSON. The streaming dispatch
 	// is selected by the URL suffix `/invoke-with-response-stream`.
-	body, err := encodeAnthropicOnBedrockRequest(req.System, req.Messages, req.Tools, maxTokens)
+	body, err := encodeAnthropicOnBedrockRequest(req.System, req.Messages, req.Tools, maxTokens, req.Params, req.ProviderOptions["bedrock"])
 	if err != nil {
 		return nil, fmt.Errorf("bedrock: encode request: %w", err)
 	}

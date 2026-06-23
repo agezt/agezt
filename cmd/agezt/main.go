@@ -110,6 +110,8 @@ import (
 	"github.com/agezt/agezt/plugins/channels/zalo"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
+	"github.com/agezt/agezt/plugins/providers/image"
+	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
@@ -722,6 +724,31 @@ func runDaemon(stdout, stderr io.Writer) int {
 		voiceCfg = voiceAdapter // typed-nil avoidance: only assign when something is configured
 	}
 
+	// Image generation (M997): when AGEZT_IMAGE_URL + AGEZT_IMAGE_MODEL are set,
+	// the `image_generate` tool is registered, generating images via an
+	// OpenAI-compatible /v1/images/generations endpoint (api.openai.com/v1 +
+	// dall-e-3 + AGEZT_IMAGE_KEY, or a local/compatible gateway). Unset → no tool.
+	var imageCfg kernelruntime.ImageGen
+	if imgURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMAGE_URL")); imgURL != "" {
+		if imgModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMAGE_MODEL")); imgModel == "" {
+			fmt.Fprintf(stderr, "%s: %sIMAGE_URL is set but %sIMAGE_MODEL is empty — image generation disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			imageCfg = image.New(imgURL, imgModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"IMAGE_KEY")))
+		}
+	}
+
+	// Reranking (M997): when AGEZT_RERANK_URL + AGEZT_RERANK_MODEL are set, the
+	// `rerank` tool is registered, reordering candidate documents via a
+	// Cohere/Jina-style /rerank endpoint. Unset → no tool.
+	var rerankCfg kernelruntime.Reranker
+	if rrURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RERANK_URL")); rrURL != "" {
+		if rrModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RERANK_MODEL")); rrModel == "" {
+			fmt.Fprintf(stderr, "%s: %sRERANK_URL is set but %sRERANK_MODEL is empty — reranking disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else {
+			rerankCfg = rerank.New(rrURL, rrModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"RERANK_KEY")))
+		}
+	}
+
 	cfg := kernelruntime.Config{
 		BaseDir:          baseDir,
 		Provider:         gov, // Governor implements agent.Provider
@@ -741,6 +768,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryDistillMinTools:      distillMinTools,
 		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
 		Voice:                      voiceCfg,    // voice adapter opt-in (nil = no voice tool)
+		ImageGenerator:             imageCfg,    // M997: image generation opt-in (nil = no image tool)
+		Reranker:                   rerankCfg,   // M997: reranking opt-in (nil = no rerank tool)
 		WorldInject:                worldOn,
 		WorldTool:                  worldOn,
 		WorldTopK:                  5,
@@ -6071,6 +6100,47 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 	}
 }
 
+// providerMiddleware builds the opt-in provider middleware stack from the
+// environment (M997). It is empty by default, so every provider is registered
+// unwrapped and behaviour is unchanged. Operators opt in to:
+//   - DefaultParams: AGEZT_GEN_TEMPERATURE / AGEZT_GEN_TOP_P / AGEZT_GEN_REASONING_EFFORT
+//     supply per-call sampling defaults filled in only where a request left them unset.
+//   - ExtractReasoning: AGEZT_EXTRACT_REASONING=on pulls inline <think>…</think> out of
+//     the answer into ReasoningContent (for inline-reasoning models on OpenAI-compatible /
+//     Ollama gateways that don't use a dedicated reasoning field).
+//   - SimulateStreaming: AGEZT_SIMULATE_STREAMING=on lets non-streaming providers present
+//     a single-chunk stream for a uniform UI.
+func providerMiddleware() []agent.Middleware {
+	envOn := func(suffix string) bool {
+		v := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + suffix)))
+		return v == "1" || v == "on" || v == "true" || v == "yes"
+	}
+	var mws []agent.Middleware
+
+	var defaults agent.Params
+	if s := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_TEMPERATURE")); s != "" {
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			defaults.Temperature = &f
+		}
+	}
+	if s := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_TOP_P")); s != "" {
+		if f, err := strconv.ParseFloat(s, 64); err == nil {
+			defaults.TopP = &f
+		}
+	}
+	defaults.ReasoningEffort = strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_REASONING_EFFORT"))
+	if !defaults.IsZero() {
+		mws = append(mws, agent.DefaultParamsMiddleware(defaults))
+	}
+	if envOn("EXTRACT_REASONING") {
+		mws = append(mws, agent.ExtractReasoningMiddleware("<think>", "</think>"))
+	}
+	if envOn("SIMULATE_STREAMING") {
+		mws = append(mws, agent.SimulateStreamingMiddleware())
+	}
+	return mws
+}
+
 // buildGovernor constructs the routing layer: one primary provider plus every
 // other credentialed catalog provider as a model-routable alternate. Returns the
 // Governor (also serves as agent.Provider), a human-readable banner description,
@@ -6095,6 +6165,7 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 //	                                  ErrNoModelConfigured.
 func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir string) (*governor.Governor, string, string, error) {
 	reg := governor.NewRegistry()
+	mw := providerMiddleware() // M997: opt-in; empty by default → providers registered unwrapped
 	primary, primaryDesc, model, authMode, err := selectPrimary(cat, lookup, baseDir)
 	if err != nil {
 		return nil, "", "", err
@@ -6102,7 +6173,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir str
 	primaryName := primary.Name()
 	if err := reg.Register(&governor.ProviderInfo{
 		Name:     primaryName,
-		Provider: primary,
+		Provider: agent.Wrap(primary, mw...),
 		AuthMode: authMode,
 		Models:   catalogModelIDs(cat, primaryName),
 	}); err != nil {
@@ -6134,7 +6205,7 @@ func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir str
 		}
 		if err := reg.Register(&governor.ProviderInfo{
 			Name:     p.Name(),
-			Provider: p,
+			Provider: agent.Wrap(p, mw...),
 			AuthMode: auth,
 			Models:   catalogModelIDs(cat, entry.ID),
 		}); err != nil {

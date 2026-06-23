@@ -312,6 +312,17 @@ type Config struct {
 	// from AGEZT_STT_* / AGEZT_TTS_*. Unset → no voice tool.
 	Voice Voice
 
+	// ImageGenerator, when non-nil, registers the in-process `image_generate`
+	// tool so an agent can generate images from a prompt (M997). The daemon
+	// injects one (the OpenAI-compatible image plugin) built from AGEZT_IMAGE_*.
+	// Unset → no image tool. Generated images are saved as artifacts.
+	ImageGenerator ImageGen
+	// Reranker, when non-nil, registers the in-process `rerank` tool so an agent
+	// can reorder candidate documents by relevance with a dedicated reranking
+	// model (M997). The daemon injects one (the Cohere/Jina-style rerank plugin)
+	// built from AGEZT_RERANK_*. Unset → no rerank tool.
+	Reranker Reranker
+
 	// Forge / skill knobs (SPEC-05 §4–5; Phase 2 slice 2). The skill store
 	// and `agt skill` CLI always work; these gate only the per-run
 	// behaviour and default OFF (daemon is the single enable point).
@@ -749,6 +760,15 @@ func Open(cfg Config) (*Kernel, error) {
 		vTool = newVoiceTool(cfg.Voice)
 		effTools["voice"] = vTool
 	}
+	// image_generate needs the artifact store too (bound just after k is built).
+	var imgTool *imageTool
+	if cfg.ImageGenerator != nil {
+		imgTool = newImageTool(cfg.ImageGenerator)
+		effTools["image_generate"] = imgTool
+	}
+	if cfg.Reranker != nil {
+		effTools["rerank"] = newRerankTool(cfg.Reranker)
+	}
 
 	catStore := catalog.NewStore(catDir)
 	cat := cfg.Catalog
@@ -814,6 +834,9 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	if mktTool != nil {
 		mktTool.manager = k.Market
+	}
+	if imgTool != nil {
+		imgTool.saveArtifact = k.artifacts.Put
 	}
 	if vTool != nil {
 		vTool.saveArtifact = k.artifacts.Put

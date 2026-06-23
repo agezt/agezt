@@ -37,6 +37,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
 // DeepSeek chat-template special tokens. These use full-width vertical bars
@@ -56,6 +57,24 @@ const (
 type deepseekBedrockRequest struct {
 	Prompt    string `json:"prompt"`
 	MaxTokens int    `json:"max_tokens"`
+	// Per-request sampling knobs (M997). DeepSeek-R1's Bedrock text-completion
+	// shape accepts temperature/top_p/stop; no top_k, seed, or penalties.
+	// ReasoningEffort is ignored — R1 always reasons via its prompt template, so
+	// there's no budget knob. Nil-able so an unset Params is a no-op.
+	Temperature *float64 `json:"temperature,omitempty"`
+	TopP        *float64 `json:"top_p,omitempty"`
+	Stop        []string `json:"stop,omitempty"`
+}
+
+// applyParams copies the sampling knobs Bedrock DeepSeek understands; an unset
+// Params leaves the request unchanged.
+func (wire *deepseekBedrockRequest) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	wire.Temperature = p.Temperature
+	wire.TopP = p.TopP
+	wire.Stop = p.Stop
 }
 
 type deepseekBedrockResponse struct {
@@ -93,7 +112,7 @@ func deepseekR1Template(system string, msgs []agent.Message) string {
 	return sb.String()
 }
 
-func encodeDeepSeekOnBedrockRequest(system string, msgs []agent.Message, maxTok int) ([]byte, error) {
+func encodeDeepSeekOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-deepseek: at least one message required")
 	}
@@ -101,7 +120,12 @@ func encodeDeepSeekOnBedrockRequest(system string, msgs []agent.Message, maxTok 
 		Prompt:    deepseekR1Template(system, msgs),
 		MaxTokens: maxTok,
 	}
-	return json.Marshal(out)
+	out.applyParams(params)
+	body, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // decodeDeepSeekOnBedrockResponse splits the completion text into the model's

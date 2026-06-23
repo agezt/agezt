@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -59,7 +60,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode)
+	body, err := encodeStreamRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.Params, req.ProviderOptions["openai"])
 	if err != nil {
 		return nil, fmt.Errorf("openai: encode request: %w", err)
 	}
@@ -108,7 +109,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // and adds stream_options.include_usage=true. Kept separate so the
 // non-streaming wire format stays byte-identical to what existing
 // tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	type streamOptions struct {
 		IncludeUsage bool `json:"include_usage"`
 	}
@@ -120,6 +121,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		Stream         bool              `json:"stream"`
 		StreamOptions  *streamOptions    `json:"stream_options,omitempty"`
 		ResponseFormat *oaResponseFormat `json:"response_format,omitempty"`
+		oaParams
 	}
 	wire := streamReq{
 		Model:          model,
@@ -128,6 +130,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 		StreamOptions:  &streamOptions{IncludeUsage: true},
 		ResponseFormat: jsonObjectFormat(jsonMode),
 	}
+	wire.applyParams(params)
 	fwd, _ := toolname.Maps(tools)
 	if strings.TrimSpace(system) != "" {
 		wire.Messages = append(wire.Messages, oaMessage{Role: "system", Content: system})
@@ -156,7 +159,11 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 			},
 		})
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 // ----- SSE parsing -----

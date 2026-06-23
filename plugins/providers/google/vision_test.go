@@ -19,7 +19,7 @@ func TestEncodeRequest_InlineImageData(t *testing.T) {
 		Content: "describe this",
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
-	body, err := encodeRequest("", msgs, nil, 100, false, 0)
+	body, err := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestEncodeRequest_InlineImageData(t *testing.T) {
 // A non-data-URL attachment is skipped, leaving a text-only user content.
 func TestEncodeRequest_SkipsNonDataURLImage(t *testing.T) {
 	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
-	body, err := encodeRequest("", msgs, nil, 100, false, 0)
+	body, err := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}

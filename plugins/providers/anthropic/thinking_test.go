@@ -14,7 +14,7 @@ import (
 // thinking block, and max_tokens is bumped to exceed the budget (Anthropic's rule).
 func TestEncodeRequest_ThinkingEnabled(t *testing.T) {
 	body, err := encodeRequest("claude-sonnet-4-6", "",
-		[]agent.Message{{Role: agent.RoleUser, Content: "hard problem"}}, nil, 1000, 4096)
+		[]agent.Message{{Role: agent.RoleUser, Content: "hard problem"}}, nil, 1000, 4096, agent.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestEncodeRequest_ThinkingEnabled(t *testing.T) {
 // TestEncodeRequest_ThinkingDisabledByDefault: budget 0 omits the block entirely
 // (the request wire stays byte-identical for non-thinking runs).
 func TestEncodeRequest_ThinkingDisabledByDefault(t *testing.T) {
-	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 100, 0)
+	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 100, 0, agent.Params{}, nil)
 	if strings.Contains(string(body), "thinking") {
 		t.Errorf("budget 0 must omit thinking: %s", body)
 	}
@@ -48,7 +48,7 @@ func TestEncodeRequest_ThinkingDisabledByDefault(t *testing.T) {
 // TestEncodeRequest_ThinkingClampsBudget: a sub-minimum budget is clamped up to
 // Anthropic's 1024 floor.
 func TestEncodeRequest_ThinkingClampsBudget(t *testing.T) {
-	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "x"}}, nil, 8000, 500)
+	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "x"}}, nil, 8000, 500, agent.Params{}, nil)
 	var req struct {
 		Thinking *struct {
 			BudgetTokens int `json:"budget_tokens"`

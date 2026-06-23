@@ -34,6 +34,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -120,7 +121,7 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, ErrNoModel
 	}
 
-	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens)
+	body, err := encodeRequest(model, req.System, req.Messages, req.Tools, req.MaxTokens, req.Params, req.ProviderOptions["cohere"])
 	if err != nil {
 		return nil, fmt.Errorf("cohere: encode request: %w", err)
 	}
@@ -165,6 +166,40 @@ type cohereRequest struct {
 	Tools     []cohereTool    `json:"tools,omitempty"`
 	Stream    bool            `json:"stream"`
 	MaxTokens int             `json:"max_tokens,omitempty"`
+	// Per-request sampling knobs (M997), promoted to the top level of the v2/chat
+	// request. An unset agent.Params leaves every field nil/empty (omitempty), so
+	// the request stays byte-for-byte unchanged.
+	cohereParams
+}
+
+// cohereParams is the embeddable set of universal sampling knobs shared by the
+// non-streaming and streaming request structs. Cohere v2/chat spells top_p as
+// `p`, top_k as `k`, and the stop list as `stop_sequences`.
+type cohereParams struct {
+	Temperature      *float64 `json:"temperature,omitempty"`
+	TopP             *float64 `json:"p,omitempty"`
+	TopK             *int     `json:"k,omitempty"`
+	Seed             *int64   `json:"seed,omitempty"`
+	StopSequences    []string `json:"stop_sequences,omitempty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
+	// Cohere has no reasoning/thinking-effort knob, so Params.ReasoningEffort is
+	// intentionally ignored (no invented mapping).
+}
+
+// applyParams copies the universal sampling knobs from p. Only set fields are
+// carried over, so an empty Params leaves the embedded cohereParams zero-valued.
+func (c *cohereParams) applyParams(p agent.Params) {
+	if p.IsZero() {
+		return
+	}
+	c.Temperature = p.Temperature
+	c.TopP = p.TopP
+	c.TopK = p.TopK
+	c.Seed = p.Seed
+	c.StopSequences = p.Stop
+	c.FrequencyPenalty = p.FrequencyPenalty
+	c.PresencePenalty = p.PresencePenalty
 }
 
 // cohereMessage uses a permissive `content` shape: string when
@@ -231,13 +266,14 @@ type cohereTokens struct {
 	OutputTokens int `json:"output_tokens"`
 }
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int) ([]byte, error) {
+func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
 	fwd, _ := toolname.Maps(tools)
 	wire := cohereRequest{
 		Model:     model,
 		Stream:    false,
 		MaxTokens: maxTok,
 	}
+	wire.applyParams(params)
 	if s := strings.TrimSpace(system); s != "" {
 		wire.Messages = append(wire.Messages, cohereMessage{Role: "system", Content: s})
 	}
@@ -265,7 +301,11 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 			},
 		})
 	}
-	return json.Marshal(wire)
+	body, err := json.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	return provopts.Merge(body, extra)
 }
 
 func canonicalToCohere(m agent.Message, fwd map[string]string) (*cohereMessage, error) {
