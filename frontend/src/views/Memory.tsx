@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck } from "lucide-react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/empty";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface MemRecord {
   id?: string;
@@ -283,7 +285,6 @@ export function Memory() {
       <PageHeader
         icon={Brain}
         title="Memory"
-        description="Every durable fact the agent has stored — searchable by subject, content or tag."
         actions={
           <>
             {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
@@ -334,15 +335,39 @@ export function Memory() {
       />
 
       {audit && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-panel/60 px-3 py-2 text-xs">
-          <span className="flex items-center gap-1 font-medium">
-            <ShieldCheck className="size-3.5 text-accent" /> Hygiene
-          </span>
-          <Metric label="usable" value={audit.usable ?? 0} />
-          <Metric label="expired" value={audit.expired ?? 0} warn={(audit.expired ?? 0) > 0} />
-          <Metric label="suspended" value={audit.suspended ?? 0} warn={(audit.suspended ?? 0) > 0} />
-          <Metric label="conflict load" value={audit.contradiction_load ?? 0} warn={(audit.contradiction_load ?? 0) > 0} />
-        </div>
+        <CollapsibleSection
+          icon={ShieldCheck}
+          title="Hygiene"
+          tone="good"
+          defaultOpen={true}
+        >
+          <MetricGrid>
+            <MetricWidget
+              icon={ShieldCheck}
+              label="Usable"
+              value={audit.usable ?? 0}
+              tone="good"
+            />
+            <MetricWidget
+              icon={Brain}
+              label="Expired"
+              value={audit.expired ?? 0}
+              tone={(audit.expired ?? 0) > 0 ? "bad" : "muted"}
+            />
+            <MetricWidget
+              icon={Brain}
+              label="Suspended"
+              value={audit.suspended ?? 0}
+              tone={(audit.suspended ?? 0) > 0 ? "bad" : "muted"}
+            />
+            <MetricWidget
+              icon={AlertTriangle}
+              label="Conflict load"
+              value={audit.contradiction_load ?? 0}
+              tone={(audit.contradiction_load ?? 0) > 0 ? "warn" : "muted"}
+            />
+          </MetricGrid>
+        </CollapsibleSection>
       )}
 
       {scopes.scoped.length > 0 && (
@@ -494,14 +519,6 @@ export function Memory() {
         </div>
       )}
     </div>
-  );
-}
-
-function Metric({ label, value, warn }: { label: string; value: number; warn?: boolean }) {
-  return (
-    <span className={cn("rounded-md border px-2 py-0.5", warn ? "border-amber-500/40 text-amber-300" : "border-border text-muted")}>
-      {label}: <span className="font-mono text-foreground">{value}</span>
-    </span>
   );
 }
 

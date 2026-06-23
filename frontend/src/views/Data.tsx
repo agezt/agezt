@@ -26,6 +26,8 @@ import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { TabNav } from "@/components/ui/tab-nav";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
@@ -203,7 +205,6 @@ export function Data() {
       <PageHeader
         icon={Database}
         title="Data Lake"
-        description="Structured collections your agents read and write"
         actions={
           <Button variant="ghost" size="sm" onClick={loadCollections} disabled={loadingCols} title="Reload">
             <RefreshCw className={cn("size-3.5", loadingCols && "animate-spin")} />
@@ -433,15 +434,14 @@ function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-auto">
-      <div className="grid grid-cols-3 gap-2">
-        <SummaryCard label="Total" value={fmtMoney(total)} icon={<Wallet className="size-4 text-accent" />} />
-        <SummaryCard label="This month" value={fmtMoney(thisMonth)} />
-        <SummaryCard label="Records" value={String(records.length)} />
-      </div>
+      <MetricGrid>
+        <MetricWidget icon={Wallet} label="Total" value={fmtMoney(total)} tone="muted" />
+        <MetricWidget icon={CalendarDays} label="This month" value={fmtMoney(thisMonth)} tone="muted" />
+        <MetricWidget icon={Database} label="Records" value={records.length} tone="muted" />
+      </MetricGrid>
 
       {cats.length > 0 && (
         <div className="glass rounded-xl p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">By category</div>
           <ul className="space-y-1.5">
             {cats.slice(0, 8).map(([cat, amt]) => (
               <li key={cat} className="flex items-center gap-2 text-xs">

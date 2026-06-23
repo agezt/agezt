@@ -8,6 +8,8 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 // Storage view (M927): what under ~/.agezt is taking the space, and the
 // collectors that reclaim it. The breakdown comes from /api/storage
@@ -60,13 +62,6 @@ export function Storage() {
       <PageHeader
         icon={HardDrive}
         title="Storage"
-        description={
-          data ? (
-            <span className="truncate" title={data.base_dir}>
-              {data.base_dir}
-            </span>
-          ) : undefined
-        }
         actions={
           <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -80,27 +75,43 @@ export function Storage() {
       {data && (
         <div className="min-h-0 flex-1 space-y-4 overflow-auto pr-1">
           {/* Summary band */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <SummaryCard label="Total used" value={fmtBytes(total)} sub={`${data.total_files} files`} />
-            <SummaryCard
+          <MetricGrid>
+            <MetricWidget
+              icon={HardDrive}
+              label="Total used"
+              value={fmtBytes(total)}
+              subvalue={`${data.total_files} files`}
+              tone="muted"
+            />
+            <MetricWidget
+              icon={HardDrive}
               label="Disk free"
               value={data.disk_available ? `${(data.disk_free_pct ?? 0).toFixed(0)}%` : "—"}
-              sub={data.disk_available ? `${fmtBytes(data.disk_free_bytes)} of ${fmtBytes(data.disk_total_bytes)}` : "probe unavailable"}
-              warn={data.disk_available && (data.disk_free_pct ?? 100) < 10}
+              subvalue={data.disk_available ? `${fmtBytes(data.disk_free_bytes)} of ${fmtBytes(data.disk_total_bytes)}` : "probe unavailable"}
+              tone={data.disk_available && (data.disk_free_pct ?? 100) < 10 ? "bad" : "good"}
             />
-            <SummaryCard label="Subsystems" value={String(dirs.length)} sub="top-level directories" />
-            <SummaryCard
+            <MetricWidget
+              icon={FolderTree}
+              label="Subsystems"
+              value={dirs.length}
+              subvalue="top-level directories"
+              tone="muted"
+            />
+            <MetricWidget
+              icon={HardDrive}
               label="Largest"
               value={biggest ? biggest.name : "—"}
-              sub={biggest ? `${fmtBytes(biggest.bytes)} · ${pctOf(biggest.bytes, total).toFixed(0)}%` : ""}
+              subvalue={biggest ? `${fmtBytes(biggest.bytes)} · ${pctOf(biggest.bytes, total).toFixed(0)}%` : undefined}
+              tone="muted"
             />
-          </div>
+          </MetricGrid>
 
           {/* Per-directory breakdown */}
-          <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              <FolderTree className="size-3" /> Breakdown
-            </div>
+          <CollapsibleSection
+            icon={FolderTree}
+            title="Breakdown"
+            tone="muted"
+          >
             <ul className="space-y-1">
               {dirs.map((d) => {
                 const pct = pctOf(d.bytes, total);
@@ -127,20 +138,21 @@ export function Storage() {
               })}
               {dirs.length === 0 && <li className="py-8 text-center text-sm text-muted">Home directory is empty.</li>}
             </ul>
-          </div>
+          </CollapsibleSection>
 
           {/* Collectors */}
-          <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              <Trash2 className="size-3" /> Collectors
-            </div>
+          <CollapsibleSection
+            icon={Trash2}
+            title="Collectors"
+            tone="bad"
+          >
             <div className="grid gap-2 md:grid-cols-2">
               <ArtifactCollector onDone={reload} />
               <MemoryPruner onDone={reload} />
               <BrainConsolidator onDone={reload} />
               <ReaperCard />
             </div>
-          </div>
+          </CollapsibleSection>
         </div>
       )}
     </div>
