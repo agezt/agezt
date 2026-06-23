@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search, Bot, Share2 } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search, Bot, Share2, AlertTriangle } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
+import { Badge } from "@/components/ui/badge";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface Skill {
   id?: string;
@@ -36,11 +38,11 @@ interface Skill {
   last_used_ms?: number;
 }
 
-const statusTone: Record<string, string> = {
-  active: "bg-good/15 text-good",
-  shadow: "bg-accent/15 text-accent",
-  draft: "bg-panel text-muted",
-  quarantined: "bg-bad/15 text-bad",
+const statusVariant: Record<string, "good" | "accent" | "default" | "bad"> = {
+  active: "good",
+  shadow: "accent",
+  draft: "default",
+  quarantined: "bad",
 };
 
 // skillMatches tests a skill against a lowercased query over its name, description,
@@ -71,7 +73,6 @@ export function Skills() {
   const [editSkill, setEditSkill] = useState<Skill | null>(null);
   const [q, setQ] = useState("");
   const [idle, setIdle] = useState<Skill[]>([]);
-  const [showIdle, setShowIdle] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -113,11 +114,6 @@ export function Skills() {
       <PageHeader
         icon={Sparkles}
         title="Skills"
-        description={
-          skills
-            ? `${active != null ? `${active} active · ` : ""}${skills.length} total`
-            : "Reusable procedures the agent distills from successful runs"
-        }
         actions={
           <>
             <Button
@@ -138,39 +134,39 @@ export function Skills() {
       />
 
       {idle.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn/10 p-2.5">
-          <button onClick={() => setShowIdle((v) => !v)} className="flex w-full items-center gap-1.5 text-[11px] font-semibold text-warn">
-            {showIdle ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-            {idle.length} idle skill{idle.length === 1 ? "" : "s"} — active but never / long-unused (clutter in the retrieval pool)
-          </button>
-          {showIdle && (
-            <ul className="mt-1.5 space-y-1">
-              {idle.map((s) => (
-                <li key={s.id} className="flex items-center gap-2 text-xs">
-                  <span className="min-w-0 flex-1 truncate font-medium text-foreground/85">{s.name}</span>
-                  <span className="shrink-0 text-xs text-muted">{(s.uses ?? 0) === 0 ? "never used" : `${s.uses} uses`}</span>
-                  <button
-                    onClick={() =>
-                      act(s.id!, "/api/skill/quarantine", {
-                        confirm: {
-                          title: `Retire idle skill “${s.name}”?`,
-                          message: "It's pulled from the retrieval pool (quarantined). Reversible — promote it again to restore.",
-                          confirmLabel: "Retire",
-                          danger: true,
-                        },
-                        success: "Idle skill retired",
-                      })
-                    }
-                    disabled={busy === s.id}
-                    className="shrink-0 rounded px-1.5 py-0.5 text-xs text-bad hover:bg-bad/10"
-                  >
-                    retire
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <CollapsibleSection
+          icon={AlertTriangle}
+          title="Idle skills"
+          count={idle.length}
+          tone="warn"
+          defaultOpen={false}
+        >
+          <ul className="space-y-1">
+            {idle.map((s) => (
+              <li key={s.id} className="flex items-center gap-2 text-xs">
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground/85">{s.name}</span>
+                <span className="shrink-0 text-xs text-muted">{(s.uses ?? 0) === 0 ? "never used" : `${s.uses} uses`}</span>
+                <button
+                  onClick={() =>
+                    act(s.id!, "/api/skill/quarantine", {
+                      confirm: {
+                        title: `Retire idle skill "${s.name}"?`,
+                        message: "It's pulled from the retrieval pool (quarantined). Reversible — promote it again to restore.",
+                        confirmLabel: "Retire",
+                        danger: true,
+                      },
+                      success: "Idle skill retired",
+                    })
+                  }
+                  disabled={busy === s.id}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-xs text-bad hover:bg-bad/10"
+                >
+                  retire
+                </button>
+              </li>
+            ))}
+          </ul>
+        </CollapsibleSection>
       )}
 
       {showForm && (
@@ -180,7 +176,7 @@ export function Skills() {
           onCreated={(name, status) => {
             setShowForm(false);
             setEditSkill(null);
-            ui.toast(editSkill ? `Saved new version of “${name}” (${status})` : `Skill “${name}” created (${status})`, "success");
+            ui.toast(editSkill ? `Saved new version of "${name}" (${status})` : `Skill "${name}" created (${status})`, "success");
             void reload();
           }}
           onError={(m) => ui.toast(m, "error")}
@@ -226,22 +222,22 @@ export function Skills() {
           {(() => {
             const query = q.trim().toLowerCase();
             const shown = query ? skills.filter((s) => skillMatches(s, query)) : skills;
-            if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no skills match “{q.trim()}”</p>;
+            if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no skills match "{q.trim()}"</p>;
             return shown.map((s, i) => {
             const m = s.metrics || {};
             const isOpen = open === (s.id || String(i));
             return (
               <div key={s.id || i} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
-                  <span className={cn("rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider", statusTone[s.status || ""] || "bg-panel text-muted")}>
+                  <Badge variant={statusVariant[s.status || ""] || "default"}>
                     {s.status || "?"}
-                  </span>
+                  </Badge>
                   <span className="truncate text-sm font-semibold">{s.name || "—"}</span>
                   {s.version != null && <span className="text-xs text-muted">v{s.version}</span>}
                   {s.agent && (
                     <span
                       className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-xs text-accent"
-                      title={`private skill — only the “${s.agent}” agent retrieves it`}
+                      title={`private skill — only the "${s.agent}" agent retrieves it`}
                     >
                       <Bot className="size-2.5" /> {s.agent}
                     </span>
@@ -269,8 +265,8 @@ export function Skills() {
                             confirm: {
                               title: "Share this skill with every agent?",
                               message: s.name
-                                ? `“${s.name}” is private to “${s.agent}”. Sharing moves it into the pool every agent retrieves.`
-                                : `This skill is private to “${s.agent}”. Sharing moves it into the pool every agent retrieves.`,
+                                ? `"${s.name}" is private to "${s.agent}". Sharing moves it into the pool every agent retrieves.`
+                                : `This skill is private to "${s.agent}". Sharing moves it into the pool every agent retrieves.`,
                               confirmLabel: "Share",
                             },
                             success: "Skill shared with every agent",
@@ -298,7 +294,7 @@ export function Skills() {
                             confirm: {
                               title: "Quarantine this skill?",
                               message: s.name
-                                ? `“${s.name}” will stop being used until you reinstate it.`
+                                ? `"${s.name}" will stop being used until you reinstate it.`
                                 : "This skill will stop being used until you reinstate it.",
                               confirmLabel: "Quarantine",
                               danger: true,
@@ -341,7 +337,7 @@ export function Skills() {
                   )}
                   {(m.uses || 0) > 0 ? (
                     <span>
-                      used {m.uses}×
+                      used {m.uses}×{` `}
                       {(m.successes ?? m.wins) != null ? ` · ${m.successes ?? m.wins} ok` : ""}
                       {m.last_used_ms ? ` · last ${fmtAgo(m.last_used_ms)}` : ""}
                     </span>

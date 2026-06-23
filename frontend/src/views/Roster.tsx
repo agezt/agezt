@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
@@ -12,6 +12,9 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { TabNav } from "@/components/ui/tab-nav";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ErrorText } from "@/components/JsonView";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
@@ -3182,11 +3185,6 @@ export function Roster() {
       <PageHeader
         icon={Users}
         title="Agent roster"
-        description={
-          profiles
-            ? `${profiles.length} agent(s) · ${enabled} enabled`
-            : "Durable, named agents — each with its own soul, model, budget, and memory scope."
-        }
         actions={
           <>
             <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
@@ -3224,37 +3222,28 @@ export function Roster() {
         />
       )}
 
-      {/* Summary band — the roster at a glance. */}
       {profiles && profiles.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
-          <RosterStat label="agents" value={list.length} />
-          <RosterStat label="enabled" value={enabled} accent={enabled > 0} />
-          <RosterStat label="paused" value={paused} />
-          <RosterStat label="direct" value={direct} />
-          <RosterStat label="sub-agents" value={subagents} />
-          <RosterStat label="attention" value={attention} tone={attention > 0 ? "warn" : undefined} />
-          <RosterStat label="repair" value={repair} tone={repair > 0 ? "warn" : undefined} />
-          <RosterStat label="inbox" value={mailboxBacklog} tone={mailboxBacklog > 0 ? "warn" : undefined} />
-          <RosterStat label="graveyard" value={graveyard} />
-          {guardianRisk && <RosterStat label="guardians" value={guardianRisk} tone={guardianRisk.includes("review") ? "warn" : "accent"} />}
-        </div>
+        <MetricGrid>
+          <MetricWidget icon={Bot} label="Agents" value={list.length} tone="muted" />
+          <MetricWidget icon={Radio} label="Enabled" value={enabled} tone={enabled > 0 ? "good" : "muted"} />
+          <MetricWidget icon={Pause} label="Paused" value={paused} tone={paused > 0 ? "warn" : "muted"} />
+          <MetricWidget icon={GitBranch} label="Sub-agents" value={subagents} tone="muted" />
+          <MetricWidget icon={AlertTriangle} label="Attention" value={attention} tone={attention > 0 ? "warn" : "muted"} />
+          <MetricWidget icon={Wrench} label="Repair" value={repair} tone={repair > 0 ? "bad" : "muted"} />
+          <MetricWidget icon={Mail} label="Inbox" value={mailboxBacklog} tone={mailboxBacklog > 0 ? "warn" : "muted"} />
+          <MetricWidget icon={Skull} label="Graveyard" value={graveyard} />
+        </MetricGrid>
       )}
 
       {guardianRisk && (
-        <div
-          className={cn(
-            "rounded-lg border px-3 py-2 text-xs",
-            guardianQuieting.tone === "warn"
-              ? "border-warn/40 bg-warn/10"
-              : guardianQuieting.tone === "good"
-                ? "border-good/30 bg-good/5"
-                : "border-border bg-card/55",
-          )}
+        <CollapsibleSection
+          icon={ShieldCheck}
+          title="Guardian noise"
+          count={noisyGuardians.length > 0 ? noisyGuardians.length : undefined}
+          tone={guardianQuieting.tone === "warn" ? "warn" : guardianQuieting.tone === "good" ? "good" : "muted"}
+          defaultOpen={guardianQuieting.tone === "warn"}
         >
-          <div className={cn("font-medium", guardianQuieting.tone === "warn" ? "text-warn" : guardianQuieting.tone === "good" ? "text-good" : "text-muted")}>
-            {guardianQuieting.label}
-          </div>
-          <div className="mt-0.5 text-muted">{guardianQuieting.detail}</div>
+          <p className="text-xs text-muted">{guardianQuieting.detail}</p>
           {guardianQuieting.tone === "warn" && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               <Badge variant="warn">{guardianQuieting.quietTargets} quiet target{guardianQuieting.quietTargets === 1 ? "" : "s"}</Badge>
@@ -3267,35 +3256,25 @@ export function Roster() {
               {noisyGuardians.length > 4 && <Badge variant="default">+{noisyGuardians.length - 4}</Badge>}
             </div>
           )}
-        </div>
+        </CollapsibleSection>
       )}
 
       {profiles && profiles.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {([
-            ["all", "All", list.length],
-            ["attention", "Attention", attention],
-            ["direct", "Direct", direct],
-            ["subagents", "Sub-agents", subagents],
-            ["system", "System", system],
-            ["repair", "Repair", repair],
-            ["mailbox", "Inbox", mailboxAgents],
-            ["paused", "Paused", paused],
-            ["graveyard", "Graveyard", graveyard],
-          ] as [RosterFilter, string, number][]).map(([id, label, count]) => (
-            <button
-              key={id}
-              onClick={() => setRosterFilter(id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                rosterFilter === id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-              )}
-            >
-              {label}
-              <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{count}</span>
-            </button>
-          ))}
-        </div>
+        <TabNav
+          tabs={([
+            { id: "all" as RosterFilter, label: "All", icon: Network, count: list.length, content: null as React.ReactNode },
+            { id: "attention" as RosterFilter, label: "Attention", icon: AlertTriangle, count: attention, content: null as React.ReactNode },
+            { id: "direct" as RosterFilter, label: "Direct", icon: Bot, count: direct, content: null as React.ReactNode },
+            { id: "subagents" as RosterFilter, label: "Sub-agents", icon: GitBranch, count: subagents, content: null as React.ReactNode },
+            { id: "system" as RosterFilter, label: "System", icon: ShieldCheck, count: system, content: null as React.ReactNode },
+            { id: "repair" as RosterFilter, label: "Repair", icon: Wrench, count: repair, content: null as React.ReactNode },
+            { id: "mailbox" as RosterFilter, label: "Inbox", icon: Mail, count: mailboxAgents, content: null as React.ReactNode },
+            { id: "paused" as RosterFilter, label: "Paused", icon: Pause, count: paused, content: null as React.ReactNode },
+            { id: "graveyard" as RosterFilter, label: "Graveyard", icon: Skull, count: graveyard, content: null as React.ReactNode },
+          ] as { id: RosterFilter; label: string; icon: typeof Network; count: number; content: React.ReactNode }[]).filter(t => t.count > 0 || t.id === "all")}
+          value={rosterFilter}
+          onValueChange={(v) => setRosterFilter(v as RosterFilter)}
+        />
       )}
 
       {graveyardStats.count > 0 && (
