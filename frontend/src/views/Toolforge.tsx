@@ -9,11 +9,14 @@ import {
   FlaskConical,
   Rocket,
   ShieldOff,
+  List,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -358,11 +361,6 @@ export function Toolforge() {
       <PageHeader
         icon={Hammer}
         title="Tool Forge"
-        description={
-          tools
-            ? `${tools.length} tool(s) · ${live} live — scripts become real tools, callable as forge_<name>`
-            : "Scripts the agents (or you) draft become real, testable tools"
-        }
         actions={
           <>
             <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
@@ -375,12 +373,6 @@ export function Toolforge() {
           </>
         }
       />
-
-      <p className="text-xs text-muted">
-        Scripts the agents (or you) draft become real tools: test one in the sandbox, then promote it — every run can
-        call it as <span className="font-mono">forge_&lt;name&gt;</span>. Only tested code goes live; a code edit
-        demotes it back to draft. Quarantine is the kill switch.
-      </p>
 
       {showForm && (
         <NewToolForm
@@ -403,110 +395,112 @@ export function Toolforge() {
         />
       )}
 
-      <ul className="space-y-2">
-        {(tools || []).map((t) => (
-          <li key={t.id} className="rounded-lg border border-border bg-card p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-foreground">{t.name}</span>
-              <Badge variant={statusBadge(t.status)}>{t.status || "draft"}</Badge>
-              <Badge variant={t.tested_ok ? "good" : "warn"}>{t.tested_ok ? "tested" : "untested"}</Badge>
-              {t.callable_as && <span className="font-mono text-xs text-accent">{t.callable_as}</span>}
-              <span className="ml-auto flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`Test ${t.name}`}
-                  onClick={() => setTesting(testing === t.name ? null : t.name)}
-                >
-                  <FlaskConical className="h-3.5 w-3.5" />
-                </Button>
-                {t.status !== "active" && (
+      <CollapsibleSection icon={List} title="Script tools" count={(tools || []).length} defaultOpen={true}>
+        <ul className="space-y-2">
+          {(tools || []).map((t) => (
+            <li key={t.id} className="rounded-lg border border-border bg-card p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm text-foreground">{t.name}</span>
+                <Badge variant={statusBadge(t.status)}>{t.status || "draft"}</Badge>
+                <Badge variant={t.tested_ok ? "good" : "warn"}>{t.tested_ok ? "tested" : "untested"}</Badge>
+                {t.callable_as && <span className="font-mono text-xs text-accent">{t.callable_as}</span>}
+                <span className="ml-auto flex items-center gap-1">
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={busy === t.name || !t.tested_ok}
-                    aria-label={`Promote ${t.name}`}
-                    title={t.tested_ok ? "Promote — make it callable" : "Test must pass before promotion"}
-                    onClick={() =>
-                      act(t.name, "/api/toolforge/promote", undefined, {
-                        confirm: {
-                          title: `Promote ${t.name}?`,
-                          message: `Every run (and sub-agent) will be offered it as forge_${t.name}. Its code runs in the sandbox under the code.exec policy.`,
-                          confirmLabel: "Promote",
-                        },
-                        success: `${t.name} is live as forge_${t.name}`,
-                      })
-                    }
+                    aria-label={`Test ${t.name}`}
+                    onClick={() => setTesting(testing === t.name ? null : t.name)}
                   >
-                    <Rocket className="h-3.5 w-3.5" />
+                    <FlaskConical className="h-3.5 w-3.5" />
                   </Button>
-                )}
-                {t.status === "active" && (
+                  {t.status !== "active" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy === t.name || !t.tested_ok}
+                      aria-label={`Promote ${t.name}`}
+                      title={t.tested_ok ? "Promote — make it callable" : "Test must pass before promotion"}
+                      onClick={() =>
+                        act(t.name, "/api/toolforge/promote", undefined, {
+                          confirm: {
+                            title: `Promote ${t.name}?`,
+                            message: `Every run (and sub-agent) will be offered it as forge_${t.name}. Its code runs in the sandbox under the code.exec policy.`,
+                            confirmLabel: "Promote",
+                          },
+                          success: `${t.name} is live as forge_${t.name}`,
+                        })
+                      }
+                    >
+                      <Rocket className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {t.status === "active" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy === t.name}
+                      aria-label={`Quarantine ${t.name}`}
+                      onClick={() =>
+                        act(t.name, "/api/toolforge/quarantine", { reason: "pulled from the console" }, {
+                          confirm: {
+                            title: `Quarantine ${t.name}?`,
+                            message: "It stops being offered to runs immediately. You can re-promote it later.",
+                            confirmLabel: "Quarantine",
+                            danger: true,
+                          },
+                          success: `${t.name} quarantined`,
+                        })
+                      }
+                    >
+                      <ShieldOff className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" aria-label={`Edit ${t.name}`} onClick={() => openEditor(t.name)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     disabled={busy === t.name}
-                    aria-label={`Quarantine ${t.name}`}
+                    aria-label={`Remove ${t.name}`}
                     onClick={() =>
-                      act(t.name, "/api/toolforge/quarantine", { reason: "pulled from the console" }, {
+                      act(t.name, "/api/toolforge/remove", undefined, {
                         confirm: {
-                          title: `Quarantine ${t.name}?`,
-                          message: "It stops being offered to runs immediately. You can re-promote it later.",
-                          confirmLabel: "Quarantine",
+                          title: `Remove tool ${t.name}?`,
+                          message: "Its code and test record are deleted. Past uses stay in the journal.",
+                          confirmLabel: "Remove",
                           danger: true,
                         },
-                        success: `${t.name} quarantined`,
+                        success: `${t.name} removed`,
                       })
                     }
                   >
-                    <ShieldOff className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
-                )}
-                <Button size="sm" variant="ghost" aria-label={`Edit ${t.name}`} onClick={() => openEditor(t.name)}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy === t.name}
-                  aria-label={`Remove ${t.name}`}
-                  onClick={() =>
-                    act(t.name, "/api/toolforge/remove", undefined, {
-                      confirm: {
-                        title: `Remove tool ${t.name}?`,
-                        message: "Its code and test record are deleted. Past uses stay in the journal.",
-                        confirmLabel: "Remove",
-                        danger: true,
-                      },
-                      success: `${t.name} removed`,
-                    })
-                  }
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </span>
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-              <span>lang: {t.language || "?"}</span>
-              {t.description && <span>{t.description}</span>}
-            </div>
-            {testing === t.name && <TestPanel tool={t} onTested={reload} />}
-            {editing?.name === t.name && (
-              <div className="mt-2">
-                <EditToolForm
-                  tool={editing}
-                  onSaved={(name) => {
-                    setEditing(null);
-                    ui.toast(`tool ${name} updated`, "success");
-                    reload();
-                  }}
-                  onError={(msg) => ui.toast(msg, "error")}
-                />
+                </span>
               </div>
-            )}
-          </li>
-        ))}
-      </ul>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                <span>lang: {t.language || "?"}</span>
+                {t.description && <span>{t.description}</span>}
+              </div>
+              {testing === t.name && <TestPanel tool={t} onTested={reload} />}
+              {editing?.name === t.name && (
+                <div className="mt-2">
+                  <EditToolForm
+                    tool={editing}
+                    onSaved={(name) => {
+                      setEditing(null);
+                      ui.toast(`tool ${name} updated`, "success");
+                      reload();
+                    }}
+                    onError={(msg) => ui.toast(msg, "error")}
+                  />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CollapsibleSection>
     </div>
   );
 }
