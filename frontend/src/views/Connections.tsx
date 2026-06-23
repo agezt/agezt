@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Network, Plug, Radio, Boxes, ArrowRight, RefreshCw } from "lucide-react";
+import { Network, Plug, Radio, Boxes, ArrowRight, RefreshCw, CheckCircle2, AlertTriangle, Circle } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 
@@ -75,7 +76,6 @@ export function Connections() {
       <PageHeader
         icon={Network}
         title="Connections"
-        description="Everything you've wired up — providers, channels and MCP servers — and what still needs connecting."
         actions={
           <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
@@ -95,8 +95,8 @@ export function Connections() {
             total={(providers || []).length}
             connectedLabel="keyed"
             items={keyed.map((p) => ({ key: p.id, label: p.name || p.id, tone: "good" as const }))}
-            emptyHint="No provider connected yet — add a key or connect a local model."
-            actionLabel="Connect a provider"
+            emptyHint="No provider connected"
+            actionLabel="Add provider"
             onAction={go("quickconnect")}
           />
           <SectionCard
@@ -109,7 +109,7 @@ export function Connections() {
               ...liveCh.map((c) => ({ key: c.kind, label: c.display || c.kind, tone: "good" as const })),
               ...configuredCh.map((c) => ({ key: c.kind, label: `${c.display || c.kind} (restart to start)`, tone: "warn" as const })),
             ]}
-            emptyHint="No channel live — set one up to reach the agent from Telegram, WhatsApp, …"
+            emptyHint="No channel live"
             actionLabel="Manage channels"
             onAction={go("channels")}
           />
@@ -123,7 +123,7 @@ export function Connections() {
               ...attached.map((s) => ({ key: s.name, label: s.name, tone: "good" as const })),
               ...enabledOnly.map((s) => ({ key: s.name, label: `${s.name} (enabled)`, tone: "warn" as const })),
             ]}
-            emptyHint="No MCP server attached — add one to give agents extra tools."
+            emptyHint="No MCP server attached"
             actionLabel="Manage MCP"
             onAction={go("mcp")}
           />
@@ -206,7 +206,9 @@ function SectionCard({
         ) : (
           items.slice(0, 8).map((it) => (
             <div key={it.key + it.label} className="flex items-center gap-2 text-xs">
-              <Dot tone={it.tone} />
+              {it.tone === "good" && <Badge variant="good"><CheckCircle2 className="size-3" /></Badge>}
+              {it.tone === "warn" && <Badge variant="warn"><AlertTriangle className="size-3" /></Badge>}
+              {it.tone === "muted" && <Badge variant="default"><Circle className="size-3" /></Badge>}
               <span className="truncate">{it.label}</span>
             </div>
           ))

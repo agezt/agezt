@@ -19,6 +19,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges } from "@/components/IncidentBadges";
@@ -135,7 +136,6 @@ export function Activity() {
       <PageHeader
         icon={ActivityIcon}
         title="Live activity"
-        description="Is anything running right now, and what is it doing?"
         actions={
           <>
             <span
@@ -156,21 +156,33 @@ export function Activity() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        <Stat
-          label="running now"
+      <MetricGrid cols="grid-cols-3 sm:grid-cols-4">
+        <MetricWidget
+          icon={ActivityIcon}
+          label="Running"
           value={summary.running}
           tone="accent"
           pulse={summary.running > 0}
         />
-        <Stat label="completed" value={summary.completed} tone="good" />
-        <Stat
-          label="failed"
+        <MetricWidget
+          icon={CheckCircle2}
+          label="Completed"
+          value={summary.completed}
+          tone="good"
+        />
+        <MetricWidget
+          icon={XCircle}
+          label="Failed"
           value={summary.failed}
           tone={summary.failed ? "bad" : "muted"}
         />
-        <Stat label="spent" value={money(summary.spentMc)} tone="muted" />
-      </div>
+        <MetricWidget
+          icon={Cpu}
+          label="Spent"
+          value={money(summary.spentMc)}
+          tone="muted"
+        />
+      </MetricGrid>
 
       {hasDoctorFeed && (
         <div className="glass rounded-xl px-3 py-2.5">
@@ -201,8 +213,8 @@ export function Activity() {
           </ul>
           {doctorIncidents.length > 0 && (
             <div className="mt-3 border-t border-border pt-2">
-              <div className="mb-1.5 text-xs uppercase tracking-wider text-muted">
-                repair incident trees
+              <div className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-muted">
+                <LifeBuoy className="size-3.5" /> Incident trees
               </div>
               <DoctorIncidentTrees
                 trees={doctorIncidents}
@@ -217,13 +229,7 @@ export function Activity() {
       {tree.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
           <Cpu className="size-7 text-muted" />
-          <div>
-            <p className="text-sm font-medium">Nothing running right now</p>
-            <p className="mt-0.5 text-xs text-muted">
-              Start a run from the Chat view or the CLI — it'll appear here
-              live, with any sub-agents it spawns.
-            </p>
-          </div>
+          <p className="text-sm font-medium text-muted">Nothing running</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -253,38 +259,6 @@ export function Activity() {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-  pulse,
-}: {
-  label: string;
-  value: number | string;
-  tone: "accent" | "good" | "bad" | "muted";
-  pulse?: boolean;
-}) {
-  const color = {
-    accent: "text-accent",
-    good: "text-good",
-    bad: "text-bad",
-    muted: "text-muted",
-  }[tone];
-  return (
-    <div className="glass rounded-xl px-3 py-2">
-      <div className="flex items-center gap-1.5">
-        <span className={cn("text-2xl font-semibold tabular-nums", color)}>
-          {value}
-        </span>
-        {pulse && (
-          <span className="size-2 animate-pulse rounded-full bg-accent" />
-        )}
-      </div>
-      <div className="text-xs text-muted">{label}</div>
     </div>
   );
 }
@@ -362,7 +336,9 @@ function RunRow({
               {child && (
                 <>
                   <span>·</span>
-                  <span className="text-accent/80">sub-agent</span>
+                  <span className="inline-flex items-center gap-0.5 text-accent/80">
+                    <CornerDownRight className="size-3" /> sub
+                  </span>
                 </>
               )}
             </span>

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
 import { computeInsights, type RunRow as InsightsRunRow } from "@/lib/insights";
 
@@ -61,7 +63,6 @@ export function Insights() {
       <PageHeader
         icon={BarChart3}
         title="Insights"
-        description="spend, outcomes & throughput"
         actions={
           <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
@@ -77,29 +78,29 @@ export function Insights() {
         <Muted>no runs yet — start one from Chat or the CLI</Muted>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <Tile icon={ListTree} label="runs" value={ins.total} />
-            <Tile icon={Wallet} label="total spend" value={money(ins.totalSpentMc)} />
-            <Tile icon={Activity} label="success" value={pct(ins.successRate, ins.completed + ins.failed)} />
-            <Tile icon={Timer} label="avg duration" value={dur(ins.avgDurationMs)} />
-            <Tile icon={Repeat} label="avg iters" value={ins.avgIters ? ins.avgIters.toFixed(1) : "—"} />
-          </div>
+          <MetricGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            <MetricWidget icon={ListTree} label="Runs" value={ins.total} tone="muted" />
+            <MetricWidget icon={Wallet} label="Total spend" value={money(ins.totalSpentMc)} tone="warn" />
+            <MetricWidget icon={Activity} label="Success" value={pct(ins.successRate, ins.completed + ins.failed)} tone="good" />
+            <MetricWidget icon={Timer} label="Avg duration" value={dur(ins.avgDurationMs)} tone="muted" />
+            <MetricWidget icon={Repeat} label="Avg iters" value={ins.avgIters ? ins.avgIters.toFixed(1) : "—"} tone="muted" />
+          </MetricGrid>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <Card title="Cumulative spend" icon={Wallet}>
+            <CollapsibleSection icon={Wallet} title="Cumulative spend" tone="muted">
               <SpendArea values={ins.spend.map((p) => p.cum)} />
               <div className="mt-1 flex justify-between text-xs text-muted">
                 <span>{ins.spend.length} runs</span>
                 <span className="tabular-nums">peak {money(ins.totalSpentMc)}</span>
               </div>
-            </Card>
+            </CollapsibleSection>
 
-            <Card title="Run outcomes" icon={Activity}>
+            <CollapsibleSection icon={Activity} title="Run outcomes" tone="muted">
               <OutcomeBar completed={ins.completed} failed={ins.failed} running={ins.running} />
-            </Card>
+            </CollapsibleSection>
           </div>
 
-          <Card title="Spend by model" icon={BarChart3}>
+          <CollapsibleSection icon={BarChart3} title="Spend by model" tone="muted">
             <BarList
               rows={ins.byModel.map((m) => ({
                 label: m.model,
@@ -118,9 +119,9 @@ export function Insights() {
                 ))}
               </div>
             )}
-          </Card>
+          </CollapsibleSection>
 
-          <Card title="Recent runs" icon={ListTree}>
+          <CollapsibleSection icon={ListTree} title="Recent runs" tone="muted">
             <ul className="divide-y divide-border/60">
               {(runs || []).slice(0, 8).map((r) => (
                 <li key={r.correlation_id} className="flex items-center gap-2 py-1.5 text-xs">
@@ -133,31 +134,9 @@ export function Insights() {
                 </li>
               ))}
             </ul>
-          </Card>
+          </CollapsibleSection>
         </>
       )}
-    </div>
-  );
-}
-
-function Tile({ icon: Icon, label, value }: { icon: typeof Activity; label: string; value: number | string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-      </div>
-      <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function Card({ title, icon: Icon, children }: { title: string; icon: typeof Activity; children: React.ReactNode }) {
-  return (
-    <div className="glass rounded-xl p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
-        <Icon className="size-3.5" /> {title}
-      </div>
-      {children}
     </div>
   );
 }
