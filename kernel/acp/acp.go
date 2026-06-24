@@ -203,10 +203,10 @@ func (s *Server) handleNewSession(params json.RawMessage) (any, *rpcError) {
 		}
 	}
 	s.sessM.Lock()
+	defer s.sessM.Unlock()
 	s.nextID++
 	id := fmt.Sprintf("sess-%d", s.nextID)
 	s.sessions[id] = p.Cwd
-	s.sessM.Unlock()
 	return map[string]any{"sessionId": id}, nil
 }
 
@@ -225,9 +225,13 @@ func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any,
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpcError{codeInvalidParams, "invalid params: " + err.Error()}
 	}
-	s.sessM.Lock()
-	cwd, ok := s.sessions[p.SessionID]
-	s.sessM.Unlock()
+	var cwd string
+	var ok bool
+	func() {
+		s.sessM.Lock()
+		defer s.sessM.Unlock()
+		cwd, ok = s.sessions[p.SessionID]
+	}()
 	if !ok {
 		return nil, &rpcError{codeInvalidParams, "unknown sessionId: " + p.SessionID}
 	}
