@@ -45,7 +45,7 @@ AGEZT separates agent identity from chat sessions, schedules, and workflows. The
 
 Evidence to inspect:
 
-- `ARCHITECTURE.md`
+- `docs/ARCHITECTURE.md`
 - `kernel/roster/`
 - `kernel/runtime/`
 - `kernel/controlplane/roster.go`
@@ -58,8 +58,8 @@ AGEZT tracks why an agent woke, not only what it said after waking. Current arch
 
 Evidence to inspect:
 
-- `NEXT.md`
-- `ARCHITECTURE.md`
+- `docs/NEXT.md`
+- `docs/ARCHITECTURE.md`
 - `kernel/controlplane/schedule_fires.go`
 - `kernel/controlplane/standing.go`
 - `kernel/runtime/subagent.go`

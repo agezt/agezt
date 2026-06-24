@@ -7,8 +7,8 @@ Start here when evaluating, operating, or integrating AGEZT.
 | Document | Use when you need to... |
 |---|---|
 | [COMPARISON.md](COMPARISON.md) | understand how AGEZT differs from generic agent frameworks without unverifiable competitor claims |
-| [../ARCHITECTURE.md](../ARCHITECTURE.md) | understand the core agent identity, runtime, Web UI, and source-of-truth layout |
-| [../ARCHITECTURAL-REPORT.md](../ARCHITECTURAL-REPORT.md) | read the broader generated architecture report and module map |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | understand the core agent identity, runtime, Web UI, and source-of-truth layout |
+| [ARCHITECTURAL-REPORT.md](ARCHITECTURAL-REPORT.md) | read the broader generated architecture report and module map |
 | [SYSTEM-REVIEW.md](SYSTEM-REVIEW.md) | inspect the latest system-wide review artifact and current-state findings |
 | [MISSING-PARTS-REPORT.md](MISSING-PARTS-REPORT.md) | review missing features, documentation gaps, and quality/test risks |
 | [MISSING-PARTS-PLAN.md](MISSING-PARTS-PLAN.md) | plan which missing parts to implement, defer, or document |
