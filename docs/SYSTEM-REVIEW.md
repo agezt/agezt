@@ -20,11 +20,11 @@ Observed via `git status` on 2026-06-22:
 
 ## Existing report inventory
 
-- `ARCHITECTURAL-REPORT.md` exists and is a large monorepo architecture report.
+- `docs/ARCHITECTURAL-REPORT.md` exists and is a large monorepo architecture report.
 - Its header says generated on 2026-06-20 and latest phase M781+.
 - Its current-state section still references 2026-06-10, M781, PR #224, and older test counts.
 - Later commits and mailbox status indicate additional work after M781, including AgentDetail comms lineage, protocol versioning, SDK parity, docs/index, comparison priorities, and frontend auth hardening.
-- Therefore `ARCHITECTURAL-REPORT.md` is useful background but partially stale; it now carries a current-state note pointing to this file and the missing-parts docs.
+- Therefore `docs/ARCHITECTURAL-REPORT.md` is useful background but partially stale; it now carries a current-state note pointing to this file and the missing-parts docs.
 
 ## System surface reviewed
 
@@ -92,7 +92,7 @@ Fresh local validation gate was run on 2026-06-22 (see `docs/MISSING-PARTS-REPOR
 
 The mailbox contained “System-wide review completed” with “No files changed.” A full architecture report existed, but no new report artifact captured that review. This file serves as the explicit latest review artifact and is updated as the audit progresses.
 
-### 2. `ARCHITECTURAL-REPORT.md` is partially stale
+### 2. `docs/ARCHITECTURAL-REPORT.md` is partially stale
 
 The existing architecture report references M781 and older current-state/test-count data. It now carries a prominent current-state note pointing to this file and the missing-parts docs. Regenerate it only when a fresh comprehensive architecture sweep is desired.
 
@@ -114,13 +114,13 @@ Full Makefile `check` equivalent passed on 2026-06-22: codegen, vet, depscheck, 
 
 ## Recommended next actions
 
-1. `docs/SYSTEM-REVIEW.md` is the latest review artifact; regenerate `ARCHITECTURAL-REPORT.md` only if a fresh comprehensive architecture sweep is desired.
+1. `docs/SYSTEM-REVIEW.md` is the latest review artifact; regenerate `docs/ARCHITECTURAL-REPORT.md` only if a fresh comprehensive architecture sweep is desired.
 2. Commit or discard dirty-worktree buckets using explicit path staging (see `docs/MISSING-PARTS-PLAN.md` Phase 0 ownership snapshot).
 3. Preserve the fresh validation results or rerun the gate if the tree changes before release/merge.
 
 ## Appendix: files that look related to current review state
 
-- `ARCHITECTURAL-REPORT.md` — existing broad architecture report, partially stale.
+- `docs/ARCHITECTURAL-REPORT.md` — existing broad architecture report, partially stale.
 - `docs/SYSTEM-REVIEW.md` — this explicit latest review artifact.
 - `docs/index.md` — documentation index.
 - `docs/API-STABILITY.md` — public/internal API stability policy.

@@ -65,8 +65,8 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 - **SDK parity CI check.** `tools/sdkparity` extracts `/api/v1` routes from the REST handler and
   checks route-string presence across all four SDK source trees. CI fails if the report is stale.
 
-- **Dependency/docs alignment.** `README.md`, `DEPENDENCIES.md`, `Makefile`, `ARCHITECTURE.md`,
-  and `ARCHITECTURAL-REPORT.md` updated to match current `go.mod`, `frontend/package.json`, and
+- **Dependency/docs alignment.** `README.md`, `DEPENDENCIES.md`, `Makefile`, `docs/ARCHITECTURE.md`,
+  and `docs/ARCHITECTURAL-REPORT.md` updated to match current `go.mod`, `frontend/package.json`, and
   `frontend/.nvmrc`. `tools/depscheck/allowlist.txt` expanded to cover the full resolved module
   graph.
 

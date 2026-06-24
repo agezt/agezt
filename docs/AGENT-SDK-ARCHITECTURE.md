@@ -614,6 +614,6 @@ All errors follow a consistent format:
 ## Related Documentation
 
 - [AGEZT Architecture Report](./ARCHITECTURAL-REPORT.md)
-- [Controlplane Protocol](./kernel/controlplane/protocol.go)
-- [Event Bus Design](./kernel/bus/bus.go)
-- [Agent Roster](./kernel/roster/roster.go)
+- [Controlplane Protocol](../kernel/controlplane/protocol.go)
+- [Event Bus Design](../kernel/bus/bus.go)
+- [Agent Roster](../kernel/roster/roster.go)

@@ -50,7 +50,7 @@ Scope:
   - frontend UI/tests: AgentDetail, AgentPage, Dashboard, Activity, Insights, ConfigCenter, missing smoke/import tests
   - backend tests: `kernel/intervention/intervention_test.go`, `kernel/restapi/update_handlers_test.go`
   - misc scripts/build: `Makefile`, `dev.ps1`
-  - existing generated/stale architecture report: `ARCHITECTURAL-REPORT.md`
+  - existing generated/stale architecture report: `docs/ARCHITECTURAL-REPORT.md`
 
 Implementation steps:
 
@@ -91,11 +91,11 @@ Covers report items: 1, 16, 17, 18.
 Scope:
 
 - `README.md`
-- `NEXT.md`
+- `docs/NEXT.md`
 - `docs/COMPARISON.md`
 - `docs/API-STABILITY.md`
 - `docs/SDK-PARITY.md`
-- `ARCHITECTURAL-REPORT.md`
+- `docs/ARCHITECTURAL-REPORT.md`
 - `docs/SYSTEM-REVIEW.md`
 - `docs/MISSING-PARTS-REPORT.md`
 - `docs/index.md`
@@ -109,10 +109,10 @@ Implementation steps:
    - **Owner-gated**: technically possible but intentionally blocked by policy/decision.
    - **Future roadmap**: not committed to current completion scope.
 2. Update `README.md` recent validation wording to avoid stale exact test counts unless freshly rerun.
-3. Update `ARCHITECTURAL-REPORT.md` in one of two ways:
+3. Update `docs/ARCHITECTURAL-REPORT.md` in one of two ways:
    - preferred: regenerate/update current-state sections for post-M781 work;
    - fallback: add a prominent stale-report note pointing to `docs/SYSTEM-REVIEW.md` and `docs/MISSING-PARTS-REPORT.md`.
-4. Update `NEXT.md` to distinguish genuinely remaining work from items completed by later commits/messages.
+4. Update `docs/NEXT.md` to distinguish genuinely remaining work from items completed by later commits/messages.
 5. Update `docs/COMPARISON.md` so “all complete” claims are backed by linked evidence or downgraded to “implemented; validation pending”.
 6. Update `docs/API-STABILITY.md` known gaps: remove or narrow plugin protocol versioning if machine-checkable versioning is truly implemented; keep event/journal schema gap if still true.
 7. Ensure `docs/index.md` links all current review/planning artifacts.
@@ -208,7 +208,7 @@ Implementation steps:
 2. Verify system-task names are enum/allowlist based, not free-form prompts.
 3. Verify tool target payloads cannot smuggle agent instructions into schedule descriptions.
 4. Add missing end-to-end tests only for uncovered target types.
-5. Update `NEXT.md` and `docs/COMPARISON.md` to a single status:
+5. Update `docs/NEXT.md` and `docs/COMPARISON.md` to a single status:
    - complete if all target types are tested;
    - partial if some target types are implemented but not proven.
 
@@ -401,7 +401,7 @@ Covers report item: 9.
 
 Scope:
 
-- `NEXT.md`
+- `docs/NEXT.md`
 - `kernel/controlplane/roster.go`
 - graveyard scan/system task code if owner approves later
 
@@ -446,11 +446,11 @@ Use explicit path staging only.
    - `docs/index.md`
 2. `docs: reconcile project status and API maturity`
    - `README.md`
-   - `NEXT.md`
+   - `docs/NEXT.md`
    - `docs/COMPARISON.md`
    - `docs/API-STABILITY.md`
    - `docs/SDK-PARITY.md`
-   - `ARCHITECTURAL-REPORT.md` if edited
+   - `docs/ARCHITECTURAL-REPORT.md` if edited
 3. `test(sdk): prove behavioral SDK parity`
    - SDK tests and `tools/sdkparity/*`
 4. `test(schedule): prove typed schedule targets`
