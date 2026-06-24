@@ -21,11 +21,11 @@ This report intentionally distinguishes three kinds of gaps:
 Evidence:
 
 - `README.md` uses count-free validation wording and points to `docs/SYSTEM-REVIEW.md` for the latest review artifact.
-- `ARCHITECTURAL-REPORT.md` has a current-state note that it is broad but partially stale in phase/test-count sections, and points to the latest review/gap docs.
+- `docs/ARCHITECTURAL-REPORT.md` has a current-state note that it is broad but partially stale in phase/test-count sections, and points to the latest review/gap docs.
 - `docs/COMPARISON.md` keeps positioning claims tied to implemented demos and explicit overclaim boundaries.
 - `docs/MISSING-PARTS-PLAN.md` now lists schedule hardening, SDK parity, authority proof, event compatibility, and mailbox lineage as regression bars rather than unresolved implementation gaps.
 
-Impact: readers can distinguish implemented/evidence-backed behavior from active pre-release completion goals and release hygiene. `NEXT.md` still intentionally says not to declare the broader autonomous-agent goal complete, but that no longer conflicts with the narrower completed proof/documentation slices.
+Impact: readers can distinguish implemented/evidence-backed behavior from active pre-release completion goals and release hygiene. `docs/NEXT.md` still intentionally says not to declare the broader autonomous-agent goal complete, but that no longer conflicts with the narrower completed proof/documentation slices.
 
 Recommended fix: keep this status vocabulary intact in future docs: implemented/evidence-backed, regression bar, owner-gated, future roadmap, or release hygiene.
 
@@ -60,7 +60,7 @@ Recommended fix: treat authority as a regression bar: every new displayed author
 
 Evidence:
 
-- `NEXT.md` Priority #4 section documents schedule target types (agent/workflow/system_task/tool) as evidence-backed with backend tests, CLI rendering tests, and a runnable typed-schedule-system-task demo.
+- `docs/NEXT.md` Priority #4 section documents schedule target types (agent/workflow/system_task/tool) as evidence-backed with backend tests, CLI rendering tests, and a runnable typed-schedule-system-task demo.
 - `docs/COMPARISON.md` frames schedule typed-target execution as implemented with evidence to inspect.
 - `kernel/cadence` validation/injection tests, daemon scheduled-target tests, and CLI schedule tests cover typed targets, system-task enum rejection, and suspicious intent warnings.
 
@@ -124,7 +124,7 @@ Recommended fix: keep mailbox/delegated/doctor lineage and the inbox priority bu
 
 Evidence:
 
-- `NEXT.md` says actual auto-removal needs owner sign-off because it would call irreversible `RemoveProfile` on a timer.
+- `docs/NEXT.md` says actual auto-removal needs owner sign-off because it would call irreversible `RemoveProfile` on a timer.
 - Current graveyard scan is report-only and removes nothing.
 - `docs/GRAVEYARD-POLICY.md` records the keep-by-default posture and the design bar (dry-run, approval gate, retention threshold, tombstone export, audit events, restore/rollback, tenant safety, fail-safe defaults, tests) any future destructive automation must meet.
 
@@ -228,16 +228,16 @@ Recommended fix: commit these files in scoped test slices or explicitly discard 
 
 ## Documentation gaps
 
-### 16. `ARCHITECTURAL-REPORT.md` is downgraded from latest canonical status
+### 16. `docs/ARCHITECTURAL-REPORT.md` is downgraded from latest canonical status
 
 Evidence:
 
-- `ARCHITECTURAL-REPORT.md` now carries a prominent current-state note that it is broad but partially stale in phase/test-count sections.
+- `docs/ARCHITECTURAL-REPORT.md` now carries a prominent current-state note that it is broad but partially stale in phase/test-count sections.
 - The note points readers to `docs/SYSTEM-REVIEW.md`, `docs/MISSING-PARTS-REPORT.md`, and `docs/MISSING-PARTS-PLAN.md` for the latest review and gap plan.
 
 Impact: users can still use the broad architecture report for background without mistaking older phase/test-count sections for the latest review artifact.
 
-Recommended fix: regenerate `ARCHITECTURAL-REPORT.md` only when a fresh comprehensive architecture sweep is desired; otherwise keep the current-state note prominent.
+Recommended fix: regenerate `docs/ARCHITECTURAL-REPORT.md` only when a fresh comprehensive architecture sweep is desired; otherwise keep the current-state note prominent.
 
 ### 17. README validation wording avoids stale exact counts
 
@@ -271,8 +271,8 @@ Recommended fix: keep plugin protocol compatibility expectations documented and 
 
 ## Files most relevant for follow-up
 
-- `NEXT.md`
-- `ARCHITECTURAL-REPORT.md`
+- `docs/NEXT.md`
+- `docs/ARCHITECTURAL-REPORT.md`
 - `docs/SYSTEM-REVIEW.md`
 - `docs/COMPARISON.md`
 - `docs/API-STABILITY.md`
