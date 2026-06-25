@@ -83,6 +83,31 @@ type Engine struct {
 	// pointers, hence comparable — so a runtime "system:disk" watch can be removed without
 	// touching a startup disk observer that happens to share the same Name().
 	removable map[Observer]bool
+
+	// asks holds the actionable observations raised under initiative=ask that are
+	// awaiting an operator verdict (M1001). Keyed by issue_key so a repeated signal
+	// updates in place rather than stacking. The operator approves one (re-emitted as
+	// pulse.initiative.act, taking the normal act path) or rejects it from the Jarvis
+	// presence pillar. Bounded by trimming oldest past maxPendingAsks.
+	asks map[string]*pendingAsk
+}
+
+// maxPendingAsks bounds the pending-ask queue so a chatty observer can't grow it
+// without limit; the oldest are trimmed first.
+const maxPendingAsks = 50
+
+// pendingAsk is one actionable observation waiting on the operator (M1001). It keeps
+// the original act-event payload so an approval can re-emit it verbatim onto the act
+// subject the responder already binds to.
+type pendingAsk struct {
+	IssueKey string         `json:"issue_key"`
+	Source   string         `json:"source"`
+	Kind     string         `json:"kind"`
+	Summary  string         `json:"summary"`
+	Reason   string         `json:"reason"`
+	Score    float64        `json:"score"`
+	TS       int64          `json:"ts_unix_ms"`
+	payload  map[string]any // the act payload, re-emitted verbatim on approval
 }
 
 // New builds an Engine, filling defaults.
@@ -121,6 +146,7 @@ func New(cfg Config) *Engine {
 		beat:        make(chan struct{}, 1),
 		retune:      make(chan struct{}, 1),
 		removable:   map[Observer]bool{},
+		asks:        map[string]*pendingAsk{},
 		started:     now(),
 		sal: &Salience{
 			state:      cfg.State,
@@ -259,6 +285,76 @@ func (e *Engine) SetQuietHours(spec string) string {
 	e.quiet = q
 	e.mu.Unlock()
 	return q.Spec()
+}
+
+// queueAsk records (or refreshes) a pending ask, trimming the oldest if the queue
+// is full so a chatty observer can't grow it without bound (M1001).
+func (e *Engine) queueAsk(a *pendingAsk) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.asks[a.IssueKey] = a
+	for len(e.asks) > maxPendingAsks {
+		var oldestKey string
+		var oldestTS int64 = 1<<63 - 1
+		for k, v := range e.asks {
+			if v.TS < oldestTS {
+				oldestTS, oldestKey = v.TS, k
+			}
+		}
+		delete(e.asks, oldestKey)
+	}
+}
+
+// PendingAsks returns the queued asks awaiting an operator verdict (M1001), newest
+// first, as plain maps the control plane can return without importing this package.
+func (e *Engine) PendingAsks() []map[string]any {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make([]map[string]any, 0, len(e.asks))
+	for _, a := range e.asks {
+		out = append(out, map[string]any{
+			"issue_key":  a.IssueKey,
+			"source":     a.Source,
+			"kind":       a.Kind,
+			"summary":    a.Summary,
+			"reason":     a.Reason,
+			"score":      a.Score,
+			"ts_unix_ms": a.TS,
+		})
+	}
+	// Newest first; a stable order keeps the UI from reshuffling on each poll.
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if out[j]["ts_unix_ms"].(int64) > out[i]["ts_unix_ms"].(int64) {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
+	}
+	return out
+}
+
+// ResolveAsk settles a pending ask (M1001). approve=true re-emits the original signal
+// onto pulse.initiative.act — the exact path act-mode takes, so the responder (when
+// enabled) fires a governed run; approve=false just drops it. Returns whether the key
+// was found and, on approval, whether the act event was emitted.
+func (e *Engine) ResolveAsk(issueKey string, approve bool) (found, acted bool) {
+	e.mu.Lock()
+	a := e.asks[issueKey]
+	if a != nil {
+		delete(e.asks, issueKey)
+	}
+	e.mu.Unlock()
+	if a == nil {
+		return false, false
+	}
+	if approve {
+		// Re-emit verbatim onto the act subject the responder binds to. The engine still
+		// takes no action itself — it only promotes ask→act; the governed standing runner
+		// does the rest (and does nothing if the operator left the responder disabled).
+		e.publish(event.KindInitiativeAct, "pulse.initiative.act", "pulse-"+ulid.New(), "", a.payload)
+		return true, true
+	}
+	return true, false
 }
 
 // tickOnce executes a single heartbeat: publish the tick, poll observers, and
@@ -432,14 +528,30 @@ func (e *Engine) process(ctx context.Context, d Delta, tickID string) {
 	// pulse.observer.<source> already drives guardians). Subject distinguishes
 	// act vs ask; the payload carries enough for the fired agent to triage.
 	if branch == "act" || branch == "ask" {
-		e.publish(event.KindInitiativeAct, "pulse.initiative."+branch, corr, tickID, map[string]any{
+		payload := map[string]any{
 			"source":    d.Source,
 			"kind":      d.Kind,
 			"summary":   d.Summary,
 			"reason":    sc.Reason,
 			"score":     sc.Value,
 			"issue_key": d.IssueKey(),
-		})
+		}
+		e.publish(event.KindInitiativeAct, "pulse.initiative."+branch, corr, tickID, payload)
+		// Under ask, the act subject was NOT fired — queue the signal for the operator's
+		// verdict so it isn't a silent dead-end (M1001). Approval re-emits `payload` onto
+		// pulse.initiative.act, the same path act-mode takes.
+		if branch == "ask" {
+			e.queueAsk(&pendingAsk{
+				IssueKey: d.IssueKey(),
+				Source:   d.Source,
+				Kind:     d.Kind,
+				Summary:  d.Summary,
+				Reason:   sc.Reason,
+				Score:    sc.Value,
+				TS:       e.now().UnixMilli(),
+				payload:  payload,
+			})
+		}
 	}
 
 	// Mark the issue surfaced so an identical repeat within the TTL is

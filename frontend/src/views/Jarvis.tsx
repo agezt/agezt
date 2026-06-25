@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, HeartPulse,
+  Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, HeartPulse, Check, X,
 } from "lucide-react";
 import { getJSON, postAction, authHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,13 @@ interface MemRecord {
   type?: string;
 }
 
+interface PulseAsk {
+  issue_key: string;
+  source?: string;
+  summary?: string;
+  reason?: string;
+}
+
 type VoiceState = "probing" | "natural" | "browser";
 
 // navigate to another view by hash (the app routes on location.hash).
@@ -44,19 +51,48 @@ export function Jarvis() {
   const [pulse, setPulse] = useState<PulseStatus | null>(null);
   const [records, setRecords] = useState<MemRecord[] | null>(null);
   const [voice, setVoice] = useState<VoiceState>("probing");
+  const [asks, setAsks] = useState<PulseAsk[]>([]);
   const [rebuilding, setRebuilding] = useState(false);
+  const [resolving, setResolving] = useState<string | null>(null);
   const probed = useRef(false);
 
   async function reload() {
     try {
-      const [p, m] = await Promise.all([
+      const [p, m, a] = await Promise.all([
         getJSON<PulseStatus>("/api/pulse").catch(() => null),
         getJSON<{ records?: MemRecord[] }>("/api/memory").catch(() => null),
+        getJSON<{ asks?: PulseAsk[] }>("/api/pulse/asks").catch(() => null),
       ]);
       if (p) setPulse(p);
       if (m) setRecords(m.records || []);
+      if (a) setAsks(a.asks || []);
     } catch {
       /* transient; keep last good */
+    }
+  }
+
+  // Approve (re-emit onto the act path) or reject one pending ask (M1001).
+  async function resolveAsk(ask: PulseAsk, approve: boolean) {
+    setResolving(ask.issue_key);
+    try {
+      const r = await postAction<{ acted?: boolean }>("/api/pulse/asks/resolve", {
+        issue_key: ask.issue_key,
+        approve: approve ? "true" : "false",
+      });
+      ui.toast(
+        approve
+          ? r?.acted
+            ? "approved — handed to the initiative responder"
+            : "approved — enable the Initiative responder in Standing to act on it"
+          : "dismissed",
+        "success",
+      );
+      setAsks((prev) => prev.filter((a) => a.issue_key !== ask.issue_key));
+      reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setResolving(null);
     }
   }
 
@@ -235,6 +271,39 @@ export function Jarvis() {
             ) : null}
             {init === "act" ? " · actionable signals become governed actions." : init === "ask" ? " · actionable signals ask you first." : ""}
           </p>
+
+          {/* Pending asks (M1001): the operator's verdict on what it wants to act on. */}
+          {asks.length > 0 && (
+            <div className="space-y-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-2">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--accent)]">
+                {asks.length} waiting on you
+              </div>
+              {asks.slice(0, 3).map((a) => (
+                <div key={a.issue_key} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate" title={a.reason || a.summary}>
+                    {a.summary || a.source || a.issue_key}
+                  </span>
+                  <button
+                    onClick={() => resolveAsk(a, true)}
+                    disabled={resolving === a.issue_key}
+                    title="Approve — hand to the act path"
+                    className="grid size-6 place-items-center rounded-md text-[var(--good)] hover:bg-[var(--good)]/15 disabled:opacity-40"
+                  >
+                    <Check className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => resolveAsk(a, false)}
+                    disabled={resolving === a.issue_key}
+                    title="Dismiss"
+                    className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted/40 disabled:opacity-40"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <PillarCTA label="Tune autonomy" onClick={() => go("autonomy")} />
         </Pillar>
 

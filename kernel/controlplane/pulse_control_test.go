@@ -24,6 +24,10 @@ type fakePulse struct {
 	quiet   string
 	flushed int
 	removed string
+
+	asks            []map[string]any
+	resolvedKey     string
+	resolvedApprove bool
 }
 
 func (f *fakePulse) StatusMap() map[string]any {
@@ -64,6 +68,23 @@ func (f *fakePulse) RemoveObserver(name string) int {
 	f.mu.Unlock()
 	return 1 // pretend one observer was dropped
 }
+func (f *fakePulse) PendingAsks() []map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.asks
+}
+func (f *fakePulse) ResolveAsk(issueKey string, approve bool) (bool, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resolvedKey = issueKey
+	f.resolvedApprove = approve
+	for _, a := range f.asks {
+		if a["issue_key"] == issueKey {
+			return true, approve // found; "acted" mirrors approval in the fake
+		}
+	}
+	return false, false
+}
 
 func TestPulseStatusDisabledWhenNoEngine(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
@@ -80,6 +101,47 @@ func TestPulsePauseDisabledErrors(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	if _, err := c.Call(context.Background(), controlplane.CmdPulsePause, nil); err == nil {
 		t.Fatal("pause with no engine should error")
+	}
+}
+
+func TestPulseAsksListAndResolve(t *testing.T) {
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	fp := &fakePulse{asks: []map[string]any{{"issue_key": "k1", "summary": "ci failed"}}}
+	srv.SetPulse(fp)
+	ctx := context.Background()
+
+	// List surfaces the pending asks.
+	res, err := c.Call(ctx, controlplane.CmdPulseAsks, nil)
+	if err != nil {
+		t.Fatalf("asks: %v", err)
+	}
+	asks, _ := res["asks"].([]any)
+	if len(asks) != 1 {
+		t.Fatalf("want 1 ask, got %v", res["asks"])
+	}
+
+	// Approve routes through to ResolveAsk with the right key + flag.
+	res, err = c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"issue_key": "k1", "approve": true})
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolved, _ := res["resolved"].(bool); !resolved {
+		t.Fatal("resolve should report resolved=true")
+	}
+	if acted, _ := res["acted"].(bool); !acted {
+		t.Fatal("approving a known ask should report acted=true")
+	}
+	if fp.resolvedKey != "k1" || !fp.resolvedApprove {
+		t.Fatalf("engine got key=%q approve=%v, want k1,true", fp.resolvedKey, fp.resolvedApprove)
+	}
+
+	// An unknown key errors (already resolved / never existed).
+	if _, err := c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"issue_key": "nope", "approve": true}); err == nil {
+		t.Fatal("resolving an unknown ask should error")
+	}
+	// A missing key errors.
+	if _, err := c.Call(ctx, controlplane.CmdPulseAskResolve, map[string]any{"approve": false}); err == nil {
+		t.Fatal("resolve without issue_key should error")
 	}
 }
 

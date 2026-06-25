@@ -1399,6 +1399,13 @@ const (
 	// CmdPulseStatus returns the engine snapshot (running, beats,
 	// observers, dial, cadence, last tick, pending digest). No args.
 	CmdPulseStatus = "pulse_status"
+	// CmdPulseAsks lists actionable observations awaiting an operator verdict under
+	// initiative=ask (M1001). No args. Returns { asks: [...] }.
+	CmdPulseAsks = "pulse_asks"
+	// CmdPulseAskResolve settles one pending ask (M1001). Args: issue_key, approve
+	// (bool). Approval re-emits the signal onto pulse.initiative.act. Returns
+	// { resolved, approved, acted }.
+	CmdPulseAskResolve = "pulse_ask_resolve"
 	// CmdPulsePause suppresses new beats (in-flight processing finishes).
 	// No args. Returns { paused: true }.
 	CmdPulsePause = "pulse_pause"

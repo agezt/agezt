@@ -178,6 +178,9 @@ var apiRoutes = map[string]string{
 	"/api/prompts": controlplane.CmdPromptsGet,
 	// Pulse — the proactive heartbeat status (running/paused/beats/cadence) (M743).
 	"/api/pulse": controlplane.CmdPulseStatus,
+	// Pulse asks — actionable observations awaiting an operator verdict under
+	// initiative=ask (M1001). Read-only; the resolve action is a write route below.
+	"/api/pulse/asks": controlplane.CmdPulseAsks,
 	// Journal integrity (M759): verify the tamper-evident hash chain. Returns
 	// { ok: true } when intact, or errors describing the break. Read-only.
 	"/api/journal/verify": controlplane.CmdJournalVerify,
@@ -304,6 +307,9 @@ var writeRoutes = map[string]writeRoute{
 	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
 	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
+	// Resolve a pending ask (M1001): approve (re-emit onto pulse.initiative.act) or
+	// reject one of the actionable observations the heartbeat raised under ask-mode.
+	"/api/pulse/asks/resolve": {controlplane.CmdPulseAskResolve, []string{"issue_key", "approve"}},
 	// Trigger one on-demand heartbeat (M756): the operator's "think now". No args.
 	"/api/pulse/beat": {controlplane.CmdPulseBeat, nil},
 	// Change the heartbeat interval live (M757): seconds → clamped cadence. Runtime-only.

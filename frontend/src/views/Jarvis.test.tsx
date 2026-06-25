@@ -88,4 +88,23 @@ describe("Jarvis presence view", () => {
     fireEvent.click(screen.getByRole("button", { name: /rebuild/i }));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/profile/rebuild", {}));
   });
+
+  it("lists pending asks and approves one through the act path (M1001)", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve({ ...PULSE_ACT, initiative: "ask" });
+      if (path === "/api/pulse/asks")
+        return Promise.resolve({ asks: [{ issue_key: "ci-1", summary: "CI failed on main", source: "probe:ci" }] });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    postAction.mockResolvedValue({ resolved: true, approved: true, acted: true });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("CI failed on main")).toBeTruthy());
+    expect(screen.getByText(/1 waiting on you/)).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle(/approve/i));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/pulse/asks/resolve", { issue_key: "ci-1", approve: "true" }),
+    );
+  });
 });

@@ -1010,6 +1010,10 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleReflectShow(conn, req)
 	case CmdPulseStatus:
 		s.handlePulseStatus(conn, req)
+	case CmdPulseAsks:
+		s.handlePulseAsks(conn, req)
+	case CmdPulseAskResolve:
+		s.handlePulseAskResolve(conn, req)
 	case CmdPulsePause:
 		s.handlePulsePause(conn, req)
 	case CmdPulseResume:
