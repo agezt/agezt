@@ -41,6 +41,10 @@ type Host interface {
 	StandingOrders() []standing.Order
 	UpdateStanding(id string, mutate func(*standing.Order)) (standing.Order, bool, error)
 	AddStanding(o standing.Order) (standing.Order, error)
+	// SetStandingEnabled pauses/resumes an order — used to seed a responder order
+	// DISABLED (Store.Add always creates enabled), so it ships dormant until the
+	// operator opts into autonomy (M999).
+	SetStandingEnabled(id string, enabled bool) (standing.Order, error)
 	Schedules() []cadence.Entry
 	Reschedule(id string, mode string, interval time.Duration, atMinutes, days int) (bool, error)
 	AddInterval(intent string, interval time.Duration, model, agent string) (cadence.Entry, error)
@@ -63,6 +67,7 @@ type guardian struct {
 	eventCooldownSec           int64
 	dailyAtMinutes             int
 	daily                      bool
+	disabled                   bool // seed the trigger DISABLED (e.g. the M999 initiative responder, dormant until opt-in)
 }
 
 const (
@@ -151,6 +156,26 @@ var guardians = []guardian{
 			"warranted); where it is risky, leave it and report only if there are findings. Notify the owner only when " +
 			"you changed something or need a human. Make code leaner and more " +
 			"reliable over time — but never break a working tool to chase elegance.",
+	},
+	{
+		// M999: the Pulse-initiative responder. Pulse emits pulse.initiative.act when
+		// it judges an observation actionable and AGEZT_PULSE_INITIATIVE=act. This
+		// order binds to that signal so AGEZT can act unprompted — but it ships
+		// DISABLED (dormant) so a fresh install stays bold-by-default yet safe: the
+		// owner enables it (and tunes its initiative mode/ceiling) to switch on true
+		// proactive autonomy.
+		slug: "guardian-initiative", name: "Guardian · Initiative", taskType: "research",
+		events:           []string{"pulse.initiative.act"},
+		eventCooldownSec: minNotifyIntervalSec, // throttle autonomous action; tune on enable
+		disabled:         true,
+		plan:             "Pulse flagged an actionable signal. Triage it and act within your ceiling, or report.",
+		soul: "You are Guardian·Initiative, AGEZT's proactive hand. You wake when Pulse judges an observation " +
+			"actionable (the trigger payload names the source, summary, and reason). Run ONE triage and stop — never " +
+			"loop. Decide whether the signal warrants action: if a clearly-safe, in-scope fix is obvious, do it with " +
+			"your tools and report what you changed; if it needs judgment or is risky, notify the owner with a crisp " +
+			"recommendation instead of acting. Stay strictly within your trust ceiling and budget — when a tool is " +
+			"gated, surface it rather than forcing it. Don't act on noise; finishing with a short report is a valid " +
+			"outcome. Be terse and decisive.",
 	},
 }
 
@@ -333,14 +358,19 @@ func seedTrigger(h Host, g guardian) (string, error) {
 		for _, s := range g.events {
 			trigs = append(trigs, standing.Trigger{Type: standing.TriggerEvent, Subject: s})
 		}
-		_, err := h.AddStanding(standing.Order{
+		o, err := h.AddStanding(standing.Order{
 			Name:        g.name,
 			Triggers:    trigs,
 			Agent:       g.slug,
 			Plan:        g.plan,
 			CooldownSec: g.eventCooldownSec,
-			Initiative:  standing.Initiative{Mode: standing.InitiativeActOrAsk},
+			Initiative:  standing.Initiative{Mode: standing.InitiativeActOrAsk, MaxTrust: defaultTrustCeiling},
 		})
+		if err == nil && g.disabled {
+			// Store.Add always creates enabled; flip it off so the responder ships
+			// dormant. The operator enables it to turn on Pulse-driven autonomy.
+			_, err = h.SetStandingEnabled(o.ID, false)
+		}
 		return "standing", err
 	case g.daily:
 		_, err := h.AddDaily(g.plan, g.dailyAtMinutes, "", g.slug)

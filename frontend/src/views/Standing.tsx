@@ -31,6 +31,19 @@ interface Order {
   target_status?: string;
   target_error?: string;
 }
+// initiativeEnforcement describes what a firing's initiative mode now ENFORCES
+// (M999): the mode caps the trust ceiling, so it's no longer just a label.
+export function initiativeEnforcement(mode: string): string {
+  switch (mode) {
+    case "ask":
+      return "Enforced: every effectful action needs approval (L1).";
+    case "act_or_ask":
+      return "Enforced: acts within its trust ceiling, asks when unsure.";
+    default: // "" or inform_only
+      return "Enforced: no tools — reasons and reports only (L0).";
+  }
+}
+
 interface StandingAgent {
   slug: string;
   enabled?: boolean;
@@ -594,6 +607,7 @@ export function NewOrderForm({
             <option value="ask">ask first</option>
             <option value="act_or_ask">act, or ask if unsure</option>
           </select>
+          <span className="text-[10px] opacity-70">{initiativeEnforcement(mode)}</span>
         </label>
       </div>
 
@@ -759,6 +773,7 @@ export function EditOrderForm({
             <option value="ask">ask first</option>
             <option value="act_or_ask">act, or ask if unsure</option>
           </select>
+          <span className="text-[10px] opacity-70">{initiativeEnforcement(mode)}</span>
         </label>
       </div>
 

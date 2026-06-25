@@ -21,6 +21,7 @@ import {
   standingResumeIssue,
   standingTriggerSummary,
   standingWakeLedger,
+  initiativeEnforcement,
 } from "@/views/Standing";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
@@ -34,6 +35,15 @@ beforeEach(() => {
   postAction.mockReset();
   postAction.mockResolvedValue({});
   getJSON.mockReset();
+});
+
+describe("initiativeEnforcement", () => {
+  it("describes the enforced trust ceiling per mode (M999)", () => {
+    expect(initiativeEnforcement("ask")).toMatch(/approval/i);
+    expect(initiativeEnforcement("act_or_ask")).toMatch(/ceiling/i);
+    expect(initiativeEnforcement("inform_only")).toMatch(/no tools/i);
+    expect(initiativeEnforcement("")).toMatch(/no tools/i); // default = inform only
+  });
 });
 
 describe("standingFrequencyIssue", () => {

@@ -248,9 +248,15 @@ const (
 	KindObserverDelta   Kind = "observer.delta"
 	KindSalienceScored  Kind = "salience.scored"
 	KindInitiativeTaken Kind = "initiative.taken"
-	KindBriefingSent    Kind = "briefing.sent"
-	KindPulsePaused     Kind = "pulse.paused"
-	KindPulseResumed    Kind = "pulse.resumed"
+	// KindInitiativeAct (M999) is the ACTIONABLE initiative signal: emitted on its
+	// own subject (pulse.initiative.act / .ask) when Pulse judges an observation
+	// actionable and autonomy is enabled, so a standing order can bind and fire a
+	// governed run. Distinct from initiative.taken (the per-delta summary) so the
+	// chain audit and event counts stay clean.
+	KindInitiativeAct Kind = "initiative.act"
+	KindBriefingSent  Kind = "briefing.sent"
+	KindPulsePaused   Kind = "pulse.paused"
+	KindPulseResumed  Kind = "pulse.resumed"
 
 	// Channels (SPEC-04 §1). Inbound/outbound messages normalized to
 	// UnifiedMessage; the Unified Inbox folds these by correlation.
@@ -488,6 +494,7 @@ var knownKinds = map[Kind]struct{}{
 	KindObserverDelta:              {},
 	KindSalienceScored:             {},
 	KindInitiativeTaken:            {},
+	KindInitiativeAct:              {},
 	KindBriefingSent:               {},
 	KindPulsePaused:                {},
 	KindPulseResumed:               {},

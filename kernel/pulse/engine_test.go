@@ -76,6 +76,71 @@ func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {
 	return n
 }
 
+// countSubject counts events of a kind whose Subject matches exactly.
+func countSubject(t *testing.T, j *journal.Journal, k event.Kind, subject string) int {
+	t.Helper()
+	n := 0
+	_ = j.Range(func(e *event.Event) error {
+		if e.Kind == k && e.Subject == subject {
+			n++
+		}
+		return nil
+	})
+	return n
+}
+
+// TestInitiativeActEmission verifies the M999 actionable-initiative event: an
+// actionable (high-severity) observation emits pulse.initiative.act under `act`,
+// pulse.initiative.ask under `ask`, and nothing under `off`; a non-actionable
+// observation never emits one regardless of level.
+func TestInitiativeActEmission(t *testing.T) {
+	highDelta := Delta{Source: "probe:ci", Kind: "probe_failed", Summary: "ci failed", Hints: map[string]string{"severity": "high"}}
+	medDelta := Delta{Source: "probe:ci", Kind: "probe_flaky", Summary: "ci flaky", Hints: map[string]string{"severity": "medium"}}
+
+	cases := []struct {
+		name     string
+		level    InitiativeLevel
+		delta    Delta
+		wantSubj string // "" = expect no initiative.act event
+	}{
+		{"act + actionable → act event", InitiativeAct, highDelta, "pulse.initiative.act"},
+		{"ask + actionable → ask event", InitiativeAsk, highDelta, "pulse.initiative.ask"},
+		{"off + actionable → none", InitiativeOff, highDelta, ""},
+		{"act + non-actionable → none", InitiativeAct, medDelta, ""},
+	}
+	for _, c := range cases {
+		obs := &fakeObserver{name: "fake", deltas: []Delta{c.delta}}
+		e, j := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialBalanced, Initiative: c.level, Sink: &capturingSink{}})
+		e.tickOnce(context.Background())
+
+		total := countKind(t, j, event.KindInitiativeAct)
+		if c.wantSubj == "" {
+			if total != 0 {
+				t.Errorf("%s: expected no initiative.act event, got %d", c.name, total)
+			}
+			continue
+		}
+		if total != 1 || countSubject(t, j, event.KindInitiativeAct, c.wantSubj) != 1 {
+			t.Errorf("%s: want exactly one %s event, got total=%d", c.name, c.wantSubj, total)
+		}
+		// The per-delta summary event stays exactly one (not double-counted).
+		if got := countKind(t, j, event.KindInitiativeTaken); got != 1 {
+			t.Errorf("%s: initiative.taken should stay 1, got %d", c.name, got)
+		}
+	}
+}
+
+// TestSetInitiativeLive verifies the live setter normalizes and applies.
+func TestSetInitiativeLive(t *testing.T) {
+	e, _ := newEngine(t, Config{Initiative: InitiativeAct})
+	if got := e.SetInitiative("off"); got != "off" {
+		t.Errorf("SetInitiative(off) = %q", got)
+	}
+	if got := e.SetInitiative("nonsense"); got != "act" {
+		t.Errorf("SetInitiative(nonsense) should normalize to act, got %q", got)
+	}
+}
+
 // --- tests ----------------------------------------------------------------
 
 // waitForTicks polls until at least n pulse.tick events are journaled or the

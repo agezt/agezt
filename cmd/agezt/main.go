@@ -5047,6 +5047,28 @@ func buildAlertNotify(ctx context.Context, k *kernelruntime.Kernel, sink pulse.B
 	return fmt.Sprintf("on (level≥%s → channels; repeats suppressed; flood-capped%s)", cfg.MinLevel, extra)
 }
 
+// standingTrustCeiling computes the effective trust ceiling for a standing-order
+// firing (M999): the MORE restrictive (lower edict level) of the order's explicit
+// max_trust and the level implied by its initiative mode (inform_only→L0, ask→L1).
+// Returns (level, false) when neither caps — the firing runs uncapped, the
+// pre-M999 default for orders with empty mode and no max_trust.
+func standingTrustCeiling(in standing.Initiative) (edict.TrustLevel, bool) {
+	ceil := edict.LevelAllow
+	have := false
+	if lvl, err := edict.ParseTrustLevel(in.MaxTrust); err == nil {
+		ceil, have = lvl, true
+	}
+	if modeLvl, capped := in.Mode.MaxAutonomyTrust(); capped {
+		if lvl, err := edict.ParseTrustLevel(modeLvl); err == nil {
+			if !have || lvl < ceil {
+				ceil = lvl
+			}
+			have = true
+		}
+	}
+	return ceil, have
+}
+
 // buildStandingRunner starts the event-trigger half of standing orders
 // (SPEC-16 §4): when a journal event matches an enabled order's event trigger,
 // the order's governed plan is launched as a run (bounded by its budget ceiling)
@@ -5163,9 +5185,12 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		if o.Initiative.BudgetPerRunMc > 0 {
 			rctx = kernelruntime.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
 		}
-		// Cap autonomous action at the order's max_trust ceiling (SPEC-16 §4): a
-		// normally auto-allowed tool is downgraded to Ask/Deny within this run.
-		if lvl, perr := edict.ParseTrustLevel(o.Initiative.MaxTrust); perr == nil {
+		// Cap autonomous action (SPEC-16 §4, M999): the effective ceiling is the MORE
+		// restrictive of the order's max_trust and the trust implied by its initiative
+		// MODE (inform_only→L0/no-tools, ask→L1/approval-each). A normally auto-allowed
+		// tool is downgraded to Ask/Deny within this run. Before M999 the mode was
+		// stored but never enforced — only max_trust gated; now the mode is a real dial.
+		if lvl, ok := standingTrustCeiling(o.Initiative); ok {
 			rctx = kernelruntime.WithTrustCeiling(rctx, lvl)
 		}
 		// Do-it-for-sure firings (M655): when the order carries an assure budget,
@@ -5991,6 +6016,7 @@ func startUpdateChecker(ctx context.Context, k *kernelruntime.Kernel, svc *updat
 //
 //	AGEZT_PULSE_CADENCE      beat interval (default 60s)
 //	AGEZT_PULSE_DIAL         quiet|balanced|chatty (default balanced)
+//	AGEZT_PULSE_INITIATIVE   off|ask|act autonomy level (default act)
 //	AGEZT_PULSE_QUIET_HOURS  e.g. "22-7" (only alerts break through)
 //	AGEZT_PULSE_PROBE        "name=ci;argv=make test" → green↔red CI detector
 //	AGEZT_PULSE_DISK         "/:10" → alert under 10% free on "/"
@@ -6039,6 +6065,11 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 		parts = append(parts, "self:health")
 	}
 	useLLM := strings.EqualFold(os.Getenv(brand.EnvPrefix+"PULSE_LLM"), "on")
+	// Autonomy level (M999): off|ask|act, default act. `act` makes Pulse EMIT a
+	// pulse.initiative.act event on actionable observations; an autonomous run still
+	// requires an ENABLED standing order bound to it (the seeded responder ships
+	// disabled), so a fresh install is bold-by-default yet dormant until opt-in.
+	initiative := pulse.ParseInitiative(os.Getenv(brand.EnvPrefix + "PULSE_INITIATIVE"))
 
 	eng := pulse.New(pulse.Config{
 		Bus:        k.Bus(),
@@ -6049,6 +6080,7 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 		Relevance:  k.World(), // world-model relevance signal (SPEC-05 §3.4)
 		Observers:  obs,
 		Dial:       dial,
+		Initiative: initiative,
 		Cadence:    cadence,
 		QuietHours: qh,
 		UseLLM:     useLLM,
@@ -6058,7 +6090,7 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 	if len(parts) > 0 {
 		observers = strings.Join(parts, ",")
 	}
-	return eng, fmt.Sprintf("dial=%s cadence=%s observers=[%s]", dial, cadence, observers)
+	return eng, fmt.Sprintf("dial=%s initiative=%s cadence=%s observers=[%s]", dial, initiative, cadence, observers)
 }
 
 // healthStatFromJournal returns a pulse.HealthStatFunc that samples the
