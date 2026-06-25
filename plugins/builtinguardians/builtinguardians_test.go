@@ -50,8 +50,18 @@ func (h *fakeHost) AddStanding(o standing.Order) (standing.Order, error) {
 	if o.ID == "" {
 		o.ID = "standing-" + o.Agent
 	}
+	o.Enabled = true // mirror Store.Add, which always creates enabled
 	h.standings = append(h.standings, o)
 	return o, nil
+}
+func (h *fakeHost) SetStandingEnabled(id string, enabled bool) (standing.Order, error) {
+	for i := range h.standings {
+		if h.standings[i].ID == id {
+			h.standings[i].Enabled = enabled
+			return h.standings[i], nil
+		}
+	}
+	return standing.Order{}, nil
 }
 func (h *fakeHost) Schedules() []cadence.Entry {
 	out := make([]cadence.Entry, 0, len(h.intervals)+len(h.dailies))
@@ -169,6 +179,29 @@ func TestSeedAll_SeedsEveryGuardian(t *testing.T) {
 	}
 }
 
+func TestInitiativeResponderSeededDisabled(t *testing.T) {
+	h := &fakeHost{}
+	if _, err := SeedAll(h, ""); err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, o := range h.standings {
+		if o.Agent != "guardian-initiative" {
+			continue
+		}
+		found = true
+		if o.Enabled {
+			t.Errorf("initiative responder must ship DISABLED (dormant until opt-in)")
+		}
+		if !sameEventSubjects(o.Triggers, []string{"pulse.initiative.act"}) {
+			t.Errorf("initiative responder should bind pulse.initiative.act, got %+v", o.Triggers)
+		}
+	}
+	if !found {
+		t.Fatal("guardian-initiative standing order not seeded")
+	}
+}
+
 func TestPeriodicGuardiansDoNotWakeTooOften(t *testing.T) {
 	h := &fakeHost{}
 	if _, err := SeedAll(h, ""); err != nil {
@@ -208,11 +241,17 @@ func TestSeedAll_Idempotent(t *testing.T) {
 
 func TestSeedAll_ReconcilesExistingGuardianSafetyDefaults(t *testing.T) {
 	h := &fakeHost{agents: []roster.Profile{{
-		Slug:         "guardian-health",
-		System:       true,
-		Enabled:      false,
-		MaxCostMc:    usd,
-		MaxDailyMc:   usd,
+		Slug:    "guardian-health",
+		System:  true,
+		Enabled: false,
+		// Seed caps ABOVE the safety max so reconcile must CLAMP them down — the
+		// reconcile only tightens (clamps high / fills zero), it never raises an
+		// operator's tighter limit. (Before this fix the seed was `usd`, which the
+		// "increase guardian budget limits for diagnostics" commit, 475b9483, left
+		// stale: once maxCostMc rose to 5*usd a 1*usd seed was already within the
+		// ceiling, so reconcile correctly left it and the == assertion broke.)
+		MaxCostMc:    100 * usd,
+		MaxDailyMc:   100 * usd,
 		TrustCeiling: "L4",
 		MemoryScope:  "guardian-health",
 		ToolDeny:     []string{"notify"},

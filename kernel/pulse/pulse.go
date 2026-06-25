@@ -118,6 +118,38 @@ func ParseDial(s string) Dial {
 	}
 }
 
+// InitiativeLevel is the autonomy dial (M999): how far Pulse may go when it judges
+// an observation actionable. Distinct from Dial (which controls notification
+// volume) — this controls whether Pulse can drive an autonomous run.
+type InitiativeLevel string
+
+const (
+	// InitiativeOff — Pulse only informs; no initiative event is emitted.
+	InitiativeOff InitiativeLevel = "off"
+	// InitiativeAsk — actionable observations emit a `pulse.initiative.ask` event
+	// (a bound order/notification may request approval); nothing acts unattended.
+	InitiativeAsk InitiativeLevel = "ask"
+	// InitiativeAct — actionable observations emit a `pulse.initiative.act` event;
+	// a standing order bound to it fires through the governed RunWith/policyHook
+	// path (the engine itself never acts — it owns no permissions).
+	InitiativeAct InitiativeLevel = "act"
+)
+
+// ParseInitiative normalizes an initiative string, defaulting to "act" — Pulse is
+// proactive by design (the act event is emitted, but an autonomous run still
+// requires an ENABLED standing order bound to it, so a default install stays
+// dormant until the operator opts in per-order).
+func ParseInitiative(s string) InitiativeLevel {
+	switch InitiativeLevel(s) {
+	case InitiativeOff:
+		return InitiativeOff
+	case InitiativeAsk:
+		return InitiativeAsk
+	default:
+		return InitiativeAct
+	}
+}
+
 // Score is Salience's verdict on one delta (SPEC-03 §4.2).
 type Score struct {
 	Value       float64     // 0..1

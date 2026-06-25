@@ -43,6 +43,10 @@ func (h *kernelHost) AddStanding(o standing.Order) (standing.Order, error) {
 	return h.k.Standing().Add(o)
 }
 
+func (h *kernelHost) SetStandingEnabled(id string, enabled bool) (standing.Order, error) {
+	return h.k.SetStandingEnabled(id, enabled)
+}
+
 func (h *kernelHost) Schedules() []cadence.Entry {
 	return h.k.Schedules().List()
 }

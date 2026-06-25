@@ -34,6 +34,7 @@ type Config struct {
 	Relevance   Relevance // world-model relevance signal; optional
 	Observers   []Observer
 	Dial        Dial
+	Initiative  InitiativeLevel // autonomy level (off|ask|act); default act
 	Cadence     time.Duration
 	QuietHours  QuietHours
 	UseLLM      bool
@@ -50,11 +51,12 @@ type Engine struct {
 	bus       *bus.Bus
 	sal       *Salience
 	observers []Observer
-	dial      Dial
-	cadence   time.Duration
-	quiet     QuietHours
-	sink      BriefSink
-	now       func() time.Time
+	dial       Dial
+	initiative InitiativeLevel
+	cadence    time.Duration
+	quiet      QuietHours
+	sink       BriefSink
+	now        func() time.Time
 
 	digestEvery int
 
@@ -110,6 +112,7 @@ func New(cfg Config) *Engine {
 		bus:         cfg.Bus,
 		observers:   cfg.Observers,
 		dial:        dial,
+		initiative:  ParseInitiative(string(cfg.Initiative)),
 		cadence:     cadence,
 		quiet:       cfg.QuietHours,
 		sink:        sink,
@@ -229,6 +232,19 @@ func (e *Engine) SetDial(s string) string {
 	e.sal.dial = nd
 	e.mu.Unlock()
 	return string(nd)
+}
+
+// SetInitiative changes the autonomy level live (M999): off (inform only), ask
+// (emit a pulse.initiative.ask event for approval), or act (emit pulse.initiative.act
+// so a bound standing order fires). An unknown value normalizes to act
+// (ParseInitiative). Takes effect on the next delta; returns the applied level.
+// Runtime-only — resets to the configured default (AGEZT_PULSE_INITIATIVE) on restart.
+func (e *Engine) SetInitiative(s string) string {
+	ni := ParseInitiative(s)
+	e.mu.Lock()
+	e.initiative = ni
+	e.mu.Unlock()
+	return string(ni)
 }
 
 // SetQuietHours changes the quiet window live (M770): during it, only alert/act briefs
@@ -391,10 +407,20 @@ func (e *Engine) process(ctx context.Context, d Delta, tickID string) {
 		return
 	}
 
-	// Initiative v1: inform-or-ask only. `act` is downgraded to `ask` (no
-	// autonomous fixing yet — SPEC-03 §9.4); everything else is `inform`.
+	// Initiative (M999): when an observation is ACTIONABLE and the operator has
+	// enabled autonomy, emit a distinct event that a standing order can fire on —
+	// reusing the governed standing→RunWith→policyHook path. The engine itself never
+	// acts (it owns no permissions); it only classifies and emits. The level is read
+	// live under the lock, like the dial.
+	e.mu.Lock()
+	initiative := e.initiative
+	e.mu.Unlock()
+	actionable := sc.Disposition == DispAlert || sc.Disposition == DispAct || d.Hints["actionable"] == "true"
 	branch := "inform"
-	if sc.Disposition == DispAct {
+	switch {
+	case actionable && initiative == InitiativeAct:
+		branch = "act"
+	case actionable && initiative == InitiativeAsk:
 		branch = "ask"
 	}
 	e.publish(event.KindInitiativeTaken, "pulse.initiative", corr, tickID, map[string]any{
@@ -402,6 +428,19 @@ func (e *Engine) process(ctx context.Context, d Delta, tickID string) {
 		"branch": branch,
 		"reason": sc.Reason,
 	})
+	// The actionable signal: a separate subject standing orders bind to (mirrors how
+	// pulse.observer.<source> already drives guardians). Subject distinguishes
+	// act vs ask; the payload carries enough for the fired agent to triage.
+	if branch == "act" || branch == "ask" {
+		e.publish(event.KindInitiativeAct, "pulse.initiative."+branch, corr, tickID, map[string]any{
+			"source":    d.Source,
+			"kind":      d.Kind,
+			"summary":   d.Summary,
+			"reason":    sc.Reason,
+			"score":     sc.Value,
+			"issue_key": d.IssueKey(),
+		})
+	}
 
 	// Mark the issue surfaced so an identical repeat within the TTL is
 	// suppressed by novelty.

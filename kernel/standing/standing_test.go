@@ -9,6 +9,26 @@ import (
 	"testing"
 )
 
+func TestInitiativeModeMaxAutonomyTrust(t *testing.T) {
+	cases := []struct {
+		mode      InitiativeMode
+		wantLevel string
+		wantCap   bool
+	}{
+		{InitiativeInformOnly, "L0", true},
+		{InitiativeAsk, "L1", true},
+		{InitiativeActOrAsk, "", false},
+		{"", "", false},        // unset → unchanged (backward compatible)
+		{"nonsense", "", false}, // unknown → no extra cap, never panics
+	}
+	for _, c := range cases {
+		gotLevel, gotCap := c.mode.MaxAutonomyTrust()
+		if gotLevel != c.wantLevel || gotCap != c.wantCap {
+			t.Errorf("mode %q: got (%q,%v) want (%q,%v)", c.mode, gotLevel, gotCap, c.wantLevel, c.wantCap)
+		}
+	}
+}
+
 func cronOrder(name string) Order {
 	return Order{
 		Name:       name,
