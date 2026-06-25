@@ -1167,6 +1167,45 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  acp: {
+    title: "ACP Agents",
+    intro:
+      "External coding agents that speak the Agent Client Protocol — Gemini CLI, Claude Code's adapter, Codex, and friends. Agezt detects the ones installed on this host and can delegate a task to any of them via the acp_agent tool.",
+    sections: [
+      {
+        heading: "What you see",
+        items: [
+          {
+            term: "Census",
+            desc: "A headcount of how many ACP agents are installed versus known to the catalog, so you can tell at a glance what this host can reach.",
+          },
+          {
+            term: "Per-agent cards",
+            desc: "Each detected agent shows its binary, install state, and a copy-ready usage hint for the acp_agent tool. Missing agents show how to install them.",
+          },
+          {
+            term: "Re-scan",
+            desc: "The refresh button re-probes the host (LookPath + version checks); detection is read-only and runs in the Go backend (kernel/acpcatalog).",
+          },
+        ],
+      },
+      {
+        heading: "Using one",
+        items: [
+          {
+            term: "Delegation",
+            desc: "An agent calls the acp_agent tool naming an installed ACP agent and a task; the external agent runs it and returns the result, governed by the same policy and budget as any other tool.",
+          },
+        ],
+      },
+    ],
+    related: [
+      { id: "mcp", label: "MCP Servers" },
+      { id: "tools", label: "Tools" },
+      { id: "agents", label: "Agents" },
+    ],
+  },
+
   sandbox: {
     title: "Sandbox",
     intro:

@@ -24,6 +24,7 @@ import {
   PackageOpen,
   Store,
   Boxes,
+  Blocks,
   Shield,
   Archive,
   CalendarClock,
@@ -104,6 +105,7 @@ import { Roster } from "@/views/Roster";
 import { Overseer } from "@/views/Overseer";
 import { Toolforge } from "@/views/Toolforge";
 import { Mcp } from "@/views/Mcp";
+import { ACPAgents } from "@/views/ACPAgents";
 import { Workflows } from "@/views/Workflows";
 import { Wizards } from "@/views/Wizards";
 import { Dashboard } from "@/views/Dashboard";
@@ -227,6 +229,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "conductor", label: "Conductor", icon: Network, render: Conductor },
       { id: "toolforge", label: "Tool Forge", icon: Hammer, render: Toolforge },
       { id: "mcp", label: "MCP Servers", icon: Plug, render: Mcp },
+      { id: "acp", label: "ACP Agents", icon: Blocks, render: ACPAgents },
       { id: "sandbox", label: "Sandbox", icon: FlaskConical, render: Sandbox },
       { id: "flow", label: "Flow Studio", icon: Workflow, render: FlowStudio },
       { id: "replay", label: "Replay", icon: Clapperboard, render: Replay },
