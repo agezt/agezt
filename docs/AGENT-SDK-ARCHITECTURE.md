@@ -130,6 +130,25 @@ This architecture bridges that gap: agents issue **scoped, temporary tokens** to
 
 ## REST API Specification
 
+> **Accuracy note.** The endpoint catalogue below is the *intended full design*.
+> The agent gateway as currently implemented (`kernel/agentgw`) exposes a
+> **subset** of these, and under a different prefix — **`/v1/...`**, not
+> `/api/v1/agent/...`. The handler registrations in `kernel/agentgw/gateway.go`
+> are the source of truth. The routes live today are:
+>
+> ```
+> POST   /v1/eventbus/publish      GET    /v1/eventbus/subscribe
+> POST   /v1/memory/write          GET    /v1/memory/search    DELETE /v1/memory/delete
+> POST   /v1/log/write             GET    /v1/log/read
+> GET    /v1/config                POST   /v1/config           GET /v1/config/audit  GET /v1/config/search
+> GET    /v1/agent/list            GET    /v1/agent/query
+> POST   /v1/token/create
+> ```
+>
+> Channels, the data lake, run management, and the richer discovery/token
+> verbs below are roadmap, not yet served. Treat the rest of this section as
+> the design target until a route appears in `gateway.go`.
+
 ### Base URL
 ```
 /api/v1/agent
