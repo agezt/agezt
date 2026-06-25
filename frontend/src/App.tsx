@@ -91,6 +91,7 @@ import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
+import { Jarvis } from "@/views/Jarvis";
 import { Voice } from "@/views/Voice";
 import { Activity } from "@/views/Activity";
 import { Mission } from "@/views/Mission";
@@ -191,6 +192,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Converse",
     icon: MessageSquare,
     items: [
+      { id: "jarvis", label: "Jarvis", icon: Sparkles, render: Jarvis },
       { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
       { id: "voice", label: "Voice", icon: Mic, render: Voice },
       { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
