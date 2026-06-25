@@ -202,3 +202,44 @@ Email is **fully bidirectional**, per account:
 
 Add several email accounts the same way as any channel (each with its own
 SMTP + IMAP/POP), and they all run at once.
+
+## Voice (speech in and out)
+
+Agezt can hear voice and speak back. Two independent halves, each opt-in:
+
+- **Speech-to-text (hearing)** — point an OpenAI-compatible transcription endpoint
+  at the daemon. Inbound channel voice notes are auto-transcribed, the chat **mic
+  button** dictates into the composer, and `agt transcribe <file>` / `agt listen`
+  work from the CLI.
+- **Text-to-speech (speaking)** — set `AGEZT_TTS_URL` + `AGEZT_TTS_MODEL` (and
+  optionally `AGEZT_TTS_VOICE` / `AGEZT_TTS_KEY`). Agents can then speak replies,
+  voice-in→voice-out keeps a conversation in voice, and the Web UI exposes a new
+  `POST /api/tts` route the console uses.
+
+Any OpenAI-compatible server works: `api.openai.com`, a gateway, or a **local**
+model (faster-whisper / Kokoro / Piper behind an OpenAI shim) on loopback — the
+adapter allows loopback and private addresses while netguard still blocks
+link-local / cloud-metadata.
+
+### Hands-free Voice mode (Web UI)
+
+The console has a dedicated **Voice** page (under *Converse*) for a true
+conversational loop — "talk to Jarvis":
+
+- **Hands-free listening** with voice-activity detection (no push-to-talk); it
+  waits for you to speak, then for a trailing silence that ends your turn.
+- **Streaming speech** — the answer is spoken sentence-by-sentence *as it streams*,
+  not after the whole reply lands.
+- **Barge-in** — start talking while it's speaking and it stops instantly to listen.
+- **Wake word** (optional toggle): say `agezt` / `jarvis` to start a turn.
+
+Voice mode prefers the server `AGEZT_TTS_*` voice and the server transcription
+endpoint for quality, and **degrades gracefully** to the browser's built-in
+speech engines when neither is configured.
+
+> **Env-name note:** the Web UI transcription route reads `AGEZT_STT_API_URL` /
+> `AGEZT_STT_API_KEY` / `AGEZT_STT_MODEL`, while the agent-facing voice adapter
+> (inbound notes, the `voice` tool, TTS) reads `AGEZT_STT_URL` / `AGEZT_STT_KEY`
+> and `AGEZT_TTS_URL` / `AGEZT_TTS_MODEL` / `AGEZT_TTS_VOICE` / `AGEZT_TTS_KEY`.
+> Set both STT spellings to the same endpoint for now if you want every surface
+> hearing through the same backend.

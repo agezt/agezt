@@ -6,7 +6,7 @@ import { HELP, FALLBACK_TOPIC, helpTopicFor } from "@/lib/help";
 // the guard that keeps the in-app manual complete.
 const NAV_IDS = [
   // Converse
-  "chat", "inbox", "files", "artifacts", "data", "board", "approvals",
+  "chat", "voice", "inbox", "files", "artifacts", "data", "board", "approvals",
   // Monitor
   "mission", "health", "activity", "autonomy", "alerts", "feed", "insights", "runs", "budget",
   // Agents

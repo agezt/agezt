@@ -64,6 +64,15 @@ type Transcriber interface {
 	Transcribe(ctx context.Context, filename string, audio []byte) (string, error)
 }
 
+// Synthesizer turns text into spoken audio — the text-to-speech backend behind
+// the console Voice Mode's /api/tts route. Satisfied by *voice.Adapter (the same
+// OpenAI-compatible TTS half agents use to speak replies). Optional: when nil,
+// /api/tts reports "not configured" so the browser falls back to its built-in
+// SpeechSynthesis voice.
+type Synthesizer interface {
+	Speak(ctx context.Context, text string) (audio []byte, mime string, err error)
+}
+
 // Server is the Web UI HTTP surface.
 type Server struct {
 	bus         *bus.Bus
@@ -71,6 +80,7 @@ type Server struct {
 	token       string
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
+	synthesizer Synthesizer // optional TTS backend for /api/tts (nil = not configured)
 	password    string      // optional console password (M817); "" = token-only
 	// passwordFn is the LIVE password source (M933); supersedes password when
 	// set, so a Setup/Config-Center edit applies without a restart.
@@ -85,6 +95,12 @@ type Server struct {
 // (the chat mic button). Without it, that route reports "not configured" so the
 // UI can degrade gracefully. Called once at startup, before Handler().
 func (s *Server) SetTranscriber(t Transcriber) { s.transcriber = t }
+
+// SetSynthesizer wires the text-to-speech backend for POST /api/tts (the console
+// Voice Mode's spoken replies). Without it, that route reports "not configured"
+// so the browser degrades to its built-in voice. Called once at startup, before
+// Handler().
+func (s *Server) SetSynthesizer(t Synthesizer) { s.synthesizer = t }
 
 // New builds a Server. token gates every request; bus drives the live feed;
 // client proxies read commands. The embedded SPA bundle is sub-rooted so the
@@ -601,6 +617,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/market/install", s.auth(s.marketStreamProxy(controlplane.CmdMarketInstall, []string{"name", "marketplace", "version"})))
 	mux.HandleFunc("/api/market/uninstall", s.auth(s.marketStreamProxy(controlplane.CmdMarketUninstall, []string{"name"})))
 	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
+	// Text-to-speech for the console Voice Mode (M998): POST {"text":…} and the
+	// server streams synthesized audio from the configured TTS backend.
+	mux.HandleFunc("/api/tts", s.auth(s.handleTTS))
 	// Binary artifact serving (M822): streams the raw bytes for a content ref with
 	// a sanitized Content-Type, so an <img src> / download link can render stored
 	// images and files. Proxies CmdArtifactGet (which re-verifies the bytes).

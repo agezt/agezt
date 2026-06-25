@@ -4308,6 +4308,15 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		wsrv.SetTranscriber(t)
 		fmt.Fprintf(stdout, "  voice input      : enabled (chat mic → speech-to-text)\n")
 	}
+	// Wire text-to-speech for the console Voice Mode (M998) when TTS is configured.
+	// Reuse the kernel's runtime voice adapter (built from AGEZT_TTS_* at boot) — it
+	// already implements webui.Synthesizer (Speak). Guard HasTTS so an STT-only
+	// daemon doesn't advertise a /api/tts that 502s; the browser falls back to its
+	// built-in voice when this stays unwired.
+	if v := k.Voice(); v != nil && v.HasTTS() {
+		wsrv.SetSynthesizer(v)
+		fmt.Fprintf(stdout, "  voice output     : enabled (voice mode → text-to-speech)\n")
+	}
 	srv := newGuardedHTTPServer(wsrv.Handler())
 	go func() {
 		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {

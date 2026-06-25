@@ -16,6 +16,7 @@ import {
   ListTree,
   Wallet,
   Radio,
+  Mic,
   Settings,
   Database,
   Cpu,
@@ -89,6 +90,7 @@ import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
 import { EventFeed } from "@/components/EventFeed";
 import { Chat } from "@/views/Chat";
+import { Voice } from "@/views/Voice";
 import { Activity } from "@/views/Activity";
 import { Mission } from "@/views/Mission";
 import { Autonomy } from "@/views/Autonomy";
@@ -188,6 +190,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: MessageSquare,
     items: [
       { id: "chat", label: "Chat", icon: MessageSquare, render: Chat },
+      { id: "voice", label: "Voice", icon: Mic, render: Voice },
       { id: "inbox", label: "Inbox", icon: InboxIcon, render: Inbox },
       { id: "files", label: "Files", icon: FolderOpen, render: Files },
       { id: "artifacts", label: "Artifacts", icon: Shapes, render: Artifacts },
