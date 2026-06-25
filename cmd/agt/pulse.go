@@ -42,6 +42,8 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 		switch args[0] {
 		case "status", "pause", "resume":
 			return cmdPulseControl(args[0], args[1:], stdout, stderr)
+		case "asks":
+			return cmdPulseAsks(args[1:], stdout, stderr)
 		}
 	}
 
