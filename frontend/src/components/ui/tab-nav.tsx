@@ -17,9 +17,14 @@ export function TabNav({
   onValueChange?: (value: string) => void;
   className?: string;
 }) {
+  // When used uncontrolled (no `value`/`onValueChange`), default to the first
+  // tab so content is visible — a Radix Tabs.Root with neither value nor
+  // defaultValue selects nothing and renders an empty panel.
+  const uncontrolled = value === undefined;
   return (
     <TabsPrimitive.Root
       value={value}
+      defaultValue={uncontrolled ? tabs[0]?.id : undefined}
       onValueChange={onValueChange}
       className={cn("flex flex-col gap-3", className)}
     >

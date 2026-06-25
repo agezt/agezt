@@ -30,7 +30,7 @@ beforeEach(() => {
 describe("Prompts view", () => {
   it("shows an empty hint when no prompts exist", async () => {
     render(withUI(<Prompts />));
-    await waitFor(() => expect(screen.getByText(/No saved prompts yet/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/No prompts yet/)).toBeTruthy());
   });
 
   it("loads existing prompts into editable rows", async () => {
@@ -43,7 +43,7 @@ describe("Prompts view", () => {
   it("adds a prompt and saves the list (blank rows dropped, fields trimmed)", async () => {
     postJSON.mockResolvedValueOnce({ count: 1 });
     render(withUI(<Prompts />));
-    await waitFor(() => expect(screen.getByText(/No saved prompts yet/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/No prompts yet/)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /Add prompt/ }));
     fireEvent.change(screen.getByLabelText("Prompt 1 title"), { target: { value: "  Review  " } });

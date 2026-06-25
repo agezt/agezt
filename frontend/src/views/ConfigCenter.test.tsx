@@ -69,8 +69,28 @@ function mockFetch(values = valuesPayload()) {
   });
 }
 
-// Section names appear in BOTH the sticky nav (buttons) and the section cards
-// (headings); assert on the heading so the query is unambiguous.
+// Section names appear in BOTH the sticky nav (buttons) and the section cards.
+// Section cards now render their title via CollapsibleSection — a <span> inside
+// the header <button aria-expanded>, NOT a heading role. Category titles
+// (Core / Channels / Skills & Plugins) and "Agent Runtime Config" are still
+// real <h3> headings, so they keep using getByRole("heading").
+//
+// querySectionCard finds the CollapsibleSection header for a given section name
+// (the collapse button whose label is exactly that name), or null if absent.
+function querySectionCard(name: string): HTMLElement | null {
+  for (const el of screen.queryAllByText(name)) {
+    const header = el.closest("button[aria-expanded]") as HTMLElement | null;
+    if (header) return header;
+  }
+  return null;
+}
+function sectionCard(name: string): HTMLElement {
+  const found = querySectionCard(name);
+  if (!found) throw new Error(`section card not found: ${name}`);
+  return found;
+}
+// sectionHeading targets a real heading-role title (categories + Agent Runtime
+// Config); section-card titles use sectionCard().
 const sectionHeading = (name: string) => screen.getByRole("heading", { name });
 
 afterEach(cleanup);
@@ -97,9 +117,9 @@ describe("ConfigCenter view", () => {
   it("renders sections grouped with a field input from the schema", async () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("Provider & Model")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("Provider & Model")).toBeTruthy());
     expect(sectionHeading("Agent Runtime Config")).toBeTruthy();
-    expect(sectionHeading("Telegram")).toBeTruthy();
+    expect(sectionCard("Telegram")).toBeTruthy();
     // Category headings exist.
     expect(sectionHeading("Core")).toBeTruthy();
     expect(sectionHeading("Channels")).toBeTruthy();
@@ -110,28 +130,30 @@ describe("ConfigCenter view", () => {
   it("groups a registered section under Skills & Plugins with a provenance badge", async () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("Weather Skill")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("Weather Skill")).toBeTruthy());
     expect(sectionHeading("Skills & Plugins")).toBeTruthy();
-    expect(screen.getByText("registered")).toBeTruthy();
+    // Provenance now lives in the section's description, revealed when opened.
+    fireEvent.click(sectionCard("Weather Skill"));
+    await waitFor(() => expect(screen.getByText("Registered by weather-skill")).toBeTruthy());
   });
 
   it("filters fields by the search query", async () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("Telegram")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("Search settings"), { target: { value: "weather" } });
 
-    // Only the matching section survives; the others drop out.
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "Telegram" })).toBeNull());
-    expect(sectionHeading("Weather Skill")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Provider & Model" })).toBeNull();
+    // Only the matching section survives; the others drop out of the cards + nav.
+    await waitFor(() => expect(querySectionCard("Telegram")).toBeNull());
+    expect(sectionCard("Weather Skill")).toBeTruthy();
+    expect(querySectionCard("Provider & Model")).toBeNull();
   });
 
   it("shows an empty state when nothing matches the search", async () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("Telegram")).toBeTruthy());
     fireEvent.change(screen.getByLabelText("Search settings"), { target: { value: "zzz-nomatch" } });
     await waitFor(() => expect(screen.getByText("No settings match")).toBeTruthy());
   });
@@ -163,7 +185,9 @@ describe("ConfigCenter view", () => {
       return Promise.reject(new Error("unexpected " + path));
     });
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("System Managed")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("System Managed")).toBeTruthy());
+    // CollapsibleSection keeps its fields mounted even when collapsed, so the
+    // read-only/locked rows are queryable without opening the section.
 
     // Read-only: value displayed, "read-only" chip, but NOT an editable input.
     expect(screen.getByText("read-only")).toBeTruthy();
@@ -178,7 +202,7 @@ describe("ConfigCenter view", () => {
   it("never shows a secret value — only presence", async () => {
     mockFetch();
     const { container } = render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("Telegram")).toBeTruthy());
     const pw = container.querySelector('input[type="password"]') as HTMLInputElement;
     expect(pw).toBeTruthy();
     expect(pw.value).toBe("");
@@ -254,7 +278,7 @@ describe("ConfigCenter view", () => {
     mockFetch();
     postJSON.mockResolvedValueOnce({ env: "AGEZT_TELEGRAM_TOKEN", saved: true, applied: "restart" });
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(sectionHeading("Telegram")).toBeTruthy());
+    await waitFor(() => expect(sectionCard("Telegram")).toBeTruthy());
 
     fireEvent.click(screen.getByTitle("Clear (remove from vault)"));
     await waitFor(() =>

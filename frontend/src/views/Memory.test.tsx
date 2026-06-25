@@ -129,9 +129,10 @@ describe("Memory hygiene", () => {
     );
     render(<Memory />);
     await screen.findByText("project");
-    expect(screen.getByText(/usable:/i)).toBeTruthy();
-    expect(screen.getByText(/expired:/i)).toBeTruthy();
-    expect(screen.getByText(/conflict load:/i)).toBeTruthy();
+    // Audit summary moved into metric widgets (labels lost their trailing colon).
+    expect(screen.getByText(/usable/i)).toBeTruthy();
+    expect(screen.getByText(/expired/i)).toBeTruthy();
+    expect(screen.getByText(/conflict load/i)).toBeTruthy();
   });
 
   it("cleans low-value memories through dry-run then execute", async () => {

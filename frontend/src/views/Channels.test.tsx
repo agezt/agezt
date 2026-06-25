@@ -106,7 +106,10 @@ describe("Channels", () => {
     expect(screen.getByText("WhatsApp")).toBeTruthy();
     expect(screen.getByText("live")).toBeTruthy(); // telegram is running
     expect(screen.getByText("needs setup")).toBeTruthy(); // whatsapp not configured
-    expect(screen.getByText(/2 channels · 1 live · 1 configured/)).toBeTruthy();
+    // Summary moved from a single "2 channels · 1 live · 1 configured" string into metric widgets.
+    expect(screen.getByText("Total")).toBeTruthy();
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByText("Configured")).toBeTruthy();
   });
 
   it("sends a test message via a live account", async () => {

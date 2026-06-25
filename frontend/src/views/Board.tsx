@@ -621,6 +621,29 @@ export function Board() {
         </div>
       )}
 
+      {data && agentFilter.trim() && (
+        <div
+          className={cn(
+            "rounded-lg border px-3 py-2",
+            agentMailbox.tone === "warn"
+              ? "border-warn/40 bg-warn/10"
+              : agentMailbox.tone === "good"
+                ? "border-good/30 bg-good/5"
+                : "border-border bg-card",
+          )}
+        >
+          <div
+            className={cn(
+              "text-xs font-semibold",
+              agentMailbox.tone === "warn" ? "text-warn" : agentMailbox.tone === "good" ? "text-good" : "text-foreground/90",
+            )}
+          >
+            {agentMailbox.value}
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted">{agentMailbox.detail}</div>
+        </div>
+      )}
+
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !data ? (
@@ -635,7 +658,7 @@ export function Board() {
           <Muted>no {messageFilter} messages match this board view{agentFilter ? ` for ${agentFilter}` : ""}</Muted>
         )
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto" data-testid="board-message-list">
           <ul className="space-y-2">
             {messages.map((m, i) => {
               const ackedBy = messageAckedBy(m);

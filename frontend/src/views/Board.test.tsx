@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent, within } from "@testing-library/react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
@@ -189,6 +189,9 @@ describe("Board", () => {
   it("renders DM addressing, reply linkage, and the awaiting-reply badge", async () => {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/board/help") return Promise.resolve({ open_help: [{ topic: "help", id: "h1", from: "builder", text: "blocked" }] });
+      // The message-filter chip row (Awaiting/DM/…) renders alongside the agent
+      // filter, which requires the roster to have loaded.
+      if (path === "/api/agents") return Promise.resolve({ profiles: [{ slug: "planner" }, { slug: "researcher" }, { slug: "ops" }, { slug: "writer" }] });
       return Promise.resolve({
         count: 3,
         topics: { dm: 3 },
@@ -201,19 +204,23 @@ describe("Board", () => {
       });
     });
     render(<Board />);
-    await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
+    // The redesign renders a grouped TabNav AND the full interactive mailbox list;
+    // scope content assertions to the interactive list to target the canonical row.
+    await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
+    const list = () => within(screen.getByTestId("board-message-list"));
     // Recipients render as → chips.
-    expect(screen.getByText("researcher")).toBeTruthy();
+    expect(list().getByText("researcher")).toBeTruthy();
     // The reply is marked and the answered question carries no badge; the
     // unanswered one does (exactly one badge on the board).
-    expect(screen.getByText("reply")).toBeTruthy();
-    expect(screen.getByText("seen by writer")).toBeTruthy();
-    expect(screen.getAllByText("awaiting reply")).toHaveLength(1);
+    expect(list().getByText("reply")).toBeTruthy();
+    expect(list().getByText("seen by writer")).toBeTruthy();
+    expect(list().getAllByText("awaiting reply")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: /Awaiting1/ }));
-    expect(screen.getByText("deploy target?")).toBeTruthy();
-    expect(screen.queryByText("confirm?")).toBeNull();
-    expect(screen.getByText("awaiting")).toBeTruthy();
-    expect(screen.getAllByText("help").length).toBeGreaterThan(0);
+    expect(list().getByText("deploy target?")).toBeTruthy();
+    expect(list().queryByText("confirm?")).toBeNull();
+    expect(list().getByText("awaiting reply")).toBeTruthy();
+    // The open help request surfaces in the help banner above the board.
+    expect(screen.getByText(/open help request/)).toBeTruthy();
     expect(screen.getAllByText("1").length).toBeGreaterThanOrEqual(2);
   });
 
@@ -233,20 +240,21 @@ describe("Board", () => {
       });
     });
     render(<Board />);
-    await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
+    const list = () => within(screen.getByTestId("board-message-list"));
+    await waitFor(() => expect(list().getByText("deploy target?")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("Filter by agent"), { target: { value: "researcher" } });
     expect(location.hash).toBe("#board?agent=researcher");
     expect(screen.getByText("researcher mailbox: 1 waiting")).toBeTruthy();
     expect(screen.getByText("2 received · 0 sent · 0 acked · wake recipient -> researcher")).toBeTruthy();
-    expect(screen.getByText("deploy target?")).toBeTruthy();
-    expect(screen.getByText("all hands")).toBeTruthy();
-    expect(screen.queryByText("done")).toBeNull();
-    expect(screen.queryByText("draft")).toBeNull();
+    expect(list().getByText("deploy target?")).toBeTruthy();
+    expect(list().getByText("all hands")).toBeTruthy();
+    expect(list().queryByText("done")).toBeNull();
+    expect(list().queryByText("draft")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /DM1/ }));
-    expect(screen.getByText("deploy target?")).toBeTruthy();
-    expect(screen.queryByText("all hands")).toBeNull();
+    expect(list().getByText("deploy target?")).toBeTruthy();
+    expect(list().queryByText("all hands")).toBeNull();
   });
 
   it("opens with the agent filter from the board hash", async () => {
@@ -264,7 +272,7 @@ describe("Board", () => {
       });
     });
     render(<Board />);
-    await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
+    await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
 
     expect((screen.getByLabelText("Filter by agent") as HTMLSelectElement).value).toBe("researcher");
     expect(screen.queryByText("not yours")).toBeNull();
@@ -283,7 +291,7 @@ describe("Board", () => {
       });
     });
     render(<Board />);
-    await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
+    await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("Filter by agent"), { target: { value: "researcher" } });
     fireEvent.click(screen.getByRole("button", { name: "Ack as researcher" }));
@@ -310,7 +318,7 @@ describe("Board", () => {
       });
     });
     render(<Board />);
-    await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
+    await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("Filter by agent"), { target: { value: "researcher" } });
     fireEvent.click(screen.getByRole("button", { name: "Reply as researcher" }));
@@ -449,22 +457,20 @@ describe("Board", () => {
     });
   });
 
-  it("caps the topic chips and filters them when there are many (M829)", async () => {
+  it("handles a long topic tail without breaking the board view (M829)", async () => {
     const topics: Record<string, number> = {};
     for (let i = 0; i < 30; i++) topics[`topic-${i}`] = 30 - i; // 30 topics, sorted by count
     getJSON.mockResolvedValue({ count: 1, topics, messages: [{ topic: "topic-0", from: "a", text: "hi", ts_unix_ms: 1 }] });
     render(<Board />);
 
-    // The search box appears (>12 topics), and only the first 24 chips show + a "+6 more".
-    const search = await screen.findByLabelText("Filter topics");
-    expect(screen.getByText("+6 more")).toBeTruthy();
-    expect(screen.queryByText("topic-23")).toBeTruthy(); // 24th by count, within the cap
-    expect(screen.queryByText("topic-29")).toBeNull(); // tail, capped out
-
-    // Filtering narrows to the match (a tail topic becomes reachable).
-    fireEvent.change(search, { target: { value: "topic-29" } });
-    await waitFor(() => expect(screen.getByText("topic-29")).toBeTruthy());
-    expect(screen.queryByText("topic-23")).toBeNull();
+    // The redesign replaced the capped/searchable topic-chip row with the view TabNav;
+    // with many topics the board still renders the message in the interactive list and
+    // exposes the grouped TabNav rather than a long chip row.
+    const list = () => within(screen.getByTestId("board-message-list"));
+    await waitFor(() => expect(list().getByText("hi")).toBeTruthy());
+    expect(screen.getByRole("tablist", { name: "View tabs" })).toBeTruthy();
+    // The legacy chip-row search control is gone.
+    expect(screen.queryByLabelText("Filter topics")).toBeNull();
   });
 
   it("renders post text as markdown (M820): bold + list, not raw asterisks", async () => {
@@ -474,12 +480,14 @@ describe("Board", () => {
       messages: [{ topic: "general", from: "planner", text: "**done**\n\n- step one\n- step two", ts_unix_ms: 1 }],
     });
     render(<Board />);
-    // "done" renders inside a <strong>, not as literal "**done**".
-    const strong = await waitFor(() => screen.getByText("done"));
+    // Scope to the interactive mailbox list (the redesign also renders a grouped
+    // TabNav copy of each message). "done" renders inside a <strong>, not as "**done**".
+    const list = () => within(screen.getByTestId("board-message-list"));
+    const strong = await waitFor(() => list().getByText("done"));
     expect(strong.tagName).toBe("STRONG");
-    expect(screen.queryByText("**done**")).toBeNull();
+    expect(list().queryByText("**done**")).toBeNull();
     // The bullets render as list items.
-    expect(screen.getByText("step one").closest("li")).toBeTruthy();
-    expect(screen.getByText("step two").closest("li")).toBeTruthy();
+    expect(list().getByText("step one").closest("li")).toBeTruthy();
+    expect(list().getByText("step two").closest("li")).toBeTruthy();
   });
 });

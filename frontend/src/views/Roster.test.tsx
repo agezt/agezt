@@ -1978,16 +1978,20 @@ describe("Roster", () => {
     expect(screen.getByText("subagent identity · managed by lead · cycle agent · repeats on each wake · 2/5 cycles · retires at max cycles · 1 cycle / 1 total tasks · 1 blocked")).toBeTruthy();
     expect(screen.getByText("sleeping · manager wake: lead · 1 mailbox waiting")).toBeTruthy();
     expect(screen.getByText("paused · wake blocked · 1 mailbox waiting")).toBeTruthy();
-    expect(screen.getByText("inbox")).toBeTruthy();
-    expect(screen.getByText("attention")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Attention2/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Inbox2/ })).toBeTruthy();
+    // The roster summary band + filter segments expose the inbox/attention indicators
+    // (capitalized labels in the redesign's MetricWidget + segment row).
+    expect(screen.getAllByText("Inbox").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Attention").length).toBeGreaterThan(0);
+    // The roster filter segments are now Radix tabs (role="tab"); their counts depend
+    // on async board + schedule data.
+    expect(await screen.findByRole("tab", { name: /Attention2/ })).toBeTruthy();
+    expect(await screen.findByRole("tab", { name: /Inbox2/ })).toBeTruthy();
     expect(screen.getAllByText("inbox 1").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("custom · paused").length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(screen.getByRole("button", { name: /Attention2/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Attention2/ }));
     expect(screen.getByText("researcher")).toBeTruthy();
     expect(screen.getByText("ops")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Inbox2/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Inbox2/ }));
     expect(screen.getByText("researcher")).toBeTruthy();
     expect(screen.getByText("ops")).toBeTruthy();
     expect(screen.getAllByText("wake").length).toBeGreaterThan(0);
@@ -2195,9 +2199,9 @@ describe("Roster", () => {
 
     expect(screen.getByRole("button", { name: "Retire guardian-health" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Remove guardian-health" })).toBeNull();
-    expect(screen.getByText("guardians")).toBeTruthy();
-    expect(screen.getByText("1 guardian quiet")).toBeTruthy();
-    expect(screen.getByText("guardians quiet")).toBeTruthy();
+    // The guardian quieting posture now lives under the "Guardian noise" section
+    // (its quiet headline + detail), instead of standalone label badges.
+    expect(screen.getByText("Guardian noise")).toBeTruthy();
     expect(screen.getByText("1 active guardian · memory off · notify >= warning · cooldown >=8h")).toBeTruthy();
     expect(screen.getByText("system safety")).toBeTruthy();
     expect(screen.getByText("quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2")).toBeTruthy();
@@ -2252,8 +2256,9 @@ describe("Roster", () => {
       return Promise.resolve({});
     });
     render(withUI(<Roster />));
-    await waitFor(() => expect(screen.getByText("1/2 guardian review")).toBeTruthy());
-    expect(screen.getByText("1/2 guardians need quieting")).toBeTruthy();
+    // The noisy-guardian quieting state now surfaces under the "Guardian noise"
+    // section (headline + detail + quiet-target / frequent-schedule badges).
+    await waitFor(() => expect(screen.getByText("Guardian noise")).toBeTruthy());
     expect(screen.getByText("quiet action enforces memory off, isolated system memory scope, notify >= warning, cooldown >=8h, run/day caps, trust <= L2 · 1 frequent guardian schedule will be paused")).toBeTruthy();
     expect(screen.getByText("1 quiet target")).toBeTruthy();
     expect(screen.getByText("1 frequent schedule")).toBeTruthy();
@@ -2323,7 +2328,8 @@ describe("Roster", () => {
       return Promise.resolve({});
     });
     render(withUI(<Roster />));
-    await waitFor(() => expect(screen.getByText("guardian schedule pressure")).toBeTruthy());
+    // The schedule-pressure quieting state surfaces under the "Guardian noise" section.
+    await waitFor(() => expect(screen.getByText("Guardian noise")).toBeTruthy());
     expect(screen.getByText("1 active guardian quiet · 1 frequent guardian schedule will be paused")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Quiet noisy guardians" }));
@@ -2607,12 +2613,20 @@ describe("Roster", () => {
     render(withUI(<Roster />));
     await waitFor(() => expect(screen.getAllByText("direct").length).toBeGreaterThan(0));
 
-    fireEvent.click(screen.getByRole("button", { name: /Sub-agents1/ }));
+    // The roster filter segments are Radix tabs; selection activates on
+    // mousedown/focus (automatic activation mode), not a plain click.
+    const selectTab = (name: RegExp) => {
+      const tab = screen.getByRole("tab", { name });
+      fireEvent.mouseDown(tab);
+      fireEvent.focus(tab);
+    };
+    await screen.findByRole("tab", { name: /Sub-agents1/ });
+    selectTab(/Sub-agents1/);
     expect(screen.getByText("worker")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "direct" })).toBeNull();
     expect(screen.queryByRole("button", { name: "guardian" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /Repair1/ }));
+    selectTab(/Repair1/);
     expect(screen.getByText("broken")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "worker" })).toBeNull();
   });

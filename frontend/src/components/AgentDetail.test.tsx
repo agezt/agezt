@@ -1169,9 +1169,9 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     expect(await screen.findByText("Agent identity card")).toBeTruthy();
-    expect(screen.getByText("Presence")).toBeTruthy();
+    expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
     expect(screen.getByText("Daily")).toBeTruthy();
-    expect(screen.getByText("More sections: identity, model, repair, diagnostics, files")).toBeTruthy();
+    expect(screen.getByText("Identity & Maintenance")).toBeTruthy();
     expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Overview/ }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: /Soul/ }).getAttribute("aria-pressed")).toBe("false");
@@ -1193,9 +1193,12 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getAllByText("mailbox manual").length).toBeGreaterThan(0);
     expect(screen.getAllByText("idle DM, Help, Broadcast · channel wake allowed").length).toBeGreaterThan(0);
     expect(screen.getByText("Health contract")).toBeTruthy();
-    expect(screen.getByText("single attempt")).toBeTruthy();
+    // The Health contract card now shows cell labels with the value/posture in the
+    // hover title; the single-attempt retry posture renders in the retry-policy row.
+    expect(screen.getAllByText("single attempt; no run-level retry").length).toBeGreaterThan(0);
     expect(screen.getAllByText("manual").length).toBeGreaterThan(0);
-    expect(screen.getByText("active")).toBeTruthy();
+    expect(screen.getByText("wake guard")).toBeTruthy();
+    expect(screen.getByTitle(/wake guard: eligible for schedule/)).toBeTruthy();
     expect(screen.getByText("Agent entity contract")).toBeTruthy();
     const entityContract = screen.getByLabelText("ops entity contract");
     expect(entityContract.textContent).toContain("identity");
@@ -1559,8 +1562,12 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getAllByText("shell.exec").length).toBeGreaterThan(0);
     expect(screen.getAllByText("gpt-5").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/started a run: check disks/).length).toBeGreaterThan(0);
-    expect(screen.getByText("wake: none")).toBeTruthy();
+    // The redesign surfaces the live run via the "Now" panel on the overview; the
+    // last-activity summary moved to the Soul tab's last-activity row (asserted below).
+    expect(screen.getAllByText(/using tool · using tool · check disks · shell/).length).toBeGreaterThan(0);
+    // The wake source moved into the Status Dashboard: a "Wake source" cell showing "none".
+    expect(screen.getByText("Wake source")).toBeTruthy();
+    expect(screen.getAllByText("none").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/cycle 1\/3/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1\/3 cycles complete; retires at max cycles/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("managed by lead").length).toBeGreaterThan(0);
@@ -1577,20 +1584,22 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getByText("Resource passport")).toBeTruthy();
     expect(screen.getAllByText("workspace agents/ops · memory private · data lake via db · 1 config override").length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.getByText("2/3 visible · 1 owned · 1 blocked")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
+    // The "Now" panel's Inspect (scoped by its title) opens the focused run on the Activity tab.
+    fireEvent.click(screen.getByTitle("Inspect the active run in this agent"));
     expect(screen.getByText(/focused run/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Overview/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Inspect run/ }));
-    expect(screen.getAllByText(/active run/).length).toBeGreaterThan(0);
+    // The Status Dashboard's active-run card lets the operator inspect the run inline,
+    // which loads the run journal for the active correlation id.
+    expect(screen.getAllByText(/Active run/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
+    const inspectToggles = screen.getAllByRole("button", { name: "Inspect" });
+    fireEvent.click(inspectToggles[inspectToggles.length - 1]);
     await waitFor(() =>
       expect(getJSON).toHaveBeenCalledWith("/api/journal", {
         correlation_id: "corr-1",
         limit: "500",
       }),
     );
-    fireEvent.click(screen.getByTitle("Open the full agent activity timeline"));
-    expect(screen.getByText(/focused run/)).toBeTruthy();
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
