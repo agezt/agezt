@@ -426,4 +426,5 @@ dependency, a CGO requirement, or a substantial design phase:
 
 MIT. See [`LICENSE`](LICENSE). Dependency policy: every external
 dep requires a written justification in
-[`DEPENDENCIES.md`](DEPENDENCIES.md). Current count: 1 + 1 transitive.
+[`DEPENDENCIES.md`](DEPENDENCIES.md). Current count: 4 direct (plus their
+transitive graph) — see the table for the full resolved module list.
