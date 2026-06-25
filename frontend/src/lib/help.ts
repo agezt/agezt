@@ -29,6 +29,45 @@ export interface HelpTopic {
 
 export const HELP: Record<string, HelpTopic> = {
   // ───────────────────────────── Converse ─────────────────────────────
+  jarvis: {
+    title: "Jarvis",
+    intro:
+      "The presence surface — the three pillars that turn AGEZT from a tool into a companion, shown together as one live status: it hears you, acts for you, and knows you. Every number on this page is live.",
+    sections: [
+      {
+        heading: "The three pillars",
+        items: [
+          {
+            term: "It hears you (Voice)",
+            desc: "Hands-free conversation. Shows whether server text-to-speech is wired for a natural voice, or whether it falls back to the browser voice. Jumps to the Voice console to start talking.",
+          },
+          {
+            term: "It acts for you (Initiative)",
+            desc: "The Pulse heartbeat and its autonomy level — acting on its own, asking first, or just observing — plus live beats and how many observers are watching. Jumps to Autonomy to tune the dial.",
+          },
+          {
+            term: "It knows you (Profile)",
+            desc: "How many facets AGEZT has distilled about you as the operator, with a preview. Rebuild on demand, or jump to Memory to manage them.",
+          },
+        ],
+      },
+      {
+        heading: "Presence meter",
+        items: [
+          {
+            term: "X of 3 live",
+            desc: "A pillar is 'live' when it is actually doing its job: voice can speak, the heartbeat is running above 'observe only', and at least one profile facet exists. Three of three means fully present.",
+          },
+        ],
+      },
+    ],
+    related: [
+      { id: "voice", label: "Voice" },
+      { id: "autonomy", label: "Autonomy" },
+      { id: "memory", label: "Memory" },
+    ],
+  },
+
   chat: {
     title: "Chat",
     intro:

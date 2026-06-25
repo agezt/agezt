@@ -48,9 +48,9 @@ type Config struct {
 // the deltas, decides inform-or-ask, and briefs the user — every stage
 // journaled (SPEC-03 §1).
 type Engine struct {
-	bus       *bus.Bus
-	sal       *Salience
-	observers []Observer
+	bus        *bus.Bus
+	sal        *Salience
+	observers  []Observer
 	dial       Dial
 	initiative InitiativeLevel
 	cadence    time.Duration
@@ -512,6 +512,7 @@ type Status struct {
 	Observers     []string   `json:"observers"`
 	Removable     []string   `json:"removable"`
 	Dial          string     `json:"dial"`
+	Initiative    string     `json:"initiative"` // autonomy level (off|ask|act); M999
 	Quiet         QuietHours `json:"quiet"`
 	CadenceMS     int64      `json:"cadence_ms"`
 	LastTickMS    int64      `json:"last_tick_ms"`
@@ -541,6 +542,7 @@ func (e *Engine) Status() Status {
 		Observers:     names,
 		Removable:     removable,
 		Dial:          string(e.dial),
+		Initiative:    string(e.initiative),
 		Quiet:         e.quiet,
 		CadenceMS:     e.cadence.Milliseconds(),
 		LastTickMS:    e.lastTickMS,
@@ -561,6 +563,7 @@ func (e *Engine) StatusMap() map[string]any {
 		"observers":      s.Observers,
 		"removable":      s.Removable,
 		"dial":           s.Dial,
+		"initiative":     s.Initiative,
 		"quiet":          map[string]any{"enabled": s.Quiet.Enabled, "start": s.Quiet.Start, "end": s.Quiet.End, "spec": s.Quiet.Spec()},
 		"cadence_ms":     s.CadenceMS,
 		"last_tick_ms":   s.LastTickMS,
