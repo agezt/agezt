@@ -29,3 +29,18 @@ func (k *Kernel) DistillBrain(ctx context.Context, corr string) (memory.BrainDis
 	}
 	return k.memory.DistillBrain(ctx, corr, k.cfg.Provider, k.cfg.Model)
 }
+
+// DistillProfile runs one operator-profile distillation pass (M1000): synthesize
+// the operator's profile facets from accumulated shared-scope memory and write
+// each as a reinforced PREFERENCE record, so every subsequent run knows who it
+// works for. Same provider/model + "distill" budgeting class as DistillBrain.
+// Halted kernels refuse.
+func (k *Kernel) DistillProfile(ctx context.Context, corr string) (memory.ProfileReport, error) {
+	k.runsMu.Lock()
+	halted := k.halted
+	k.runsMu.Unlock()
+	if halted {
+		return memory.ProfileReport{}, ErrHalted
+	}
+	return k.memory.DistillProfile(ctx, corr, k.cfg.Provider, k.cfg.Model)
+}

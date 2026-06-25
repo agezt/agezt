@@ -59,6 +59,7 @@ const (
 	SystemTaskMemoryTidy      = "memory_tidy"
 	SystemTaskLogClean        = "log_clean"
 	SystemTaskGraveyardScan   = "graveyard_scan"
+	SystemTaskProfileDistill  = "profile_distill"
 )
 
 type SystemTaskInfo struct {
@@ -132,6 +133,17 @@ var systemTaskInfos = []SystemTaskInfo{
 		Executor:               "daemon",
 		EffectClass:            "report_only",
 		Effect:                 "Lists graveyard identities older than the retention window and journals an eligibility report; removal stays an explicit operator action (no auto-deletion).",
+		RecommendedIntervalSec: 24 * 3600,
+	},
+	{
+		Name:                   SystemTaskProfileDistill,
+		Label:                  "Profile distill",
+		Description:            "Synthesize the operator's profile (preferences, style, expertise, focus) from accumulated memory so every run knows who it works for.",
+		Category:               "memory",
+		Executor:               "daemon",
+		UsesLLM:                true,
+		EffectClass:            "memory_maintenance",
+		Effect:                 "Reads accumulated shared memory and writes/refreshes the operator-profile facets via one LLM pass (the 'distill' budgeting class).",
 		RecommendedIntervalSec: 24 * 3600,
 	},
 }

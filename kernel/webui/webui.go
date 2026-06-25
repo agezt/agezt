@@ -348,6 +348,9 @@ var writeRoutes = map[string]writeRoute{
 	// One brain-distillation pass (M804): merge related records, supersede
 	// the originals. No args; mirrors /api/reflect/run.
 	"/api/memory/consolidate": {controlplane.CmdMemoryConsolidate, nil},
+	// Operator-profile rebuild (M1000): synthesize the operator profile from
+	// accumulated memory. No args; mirrors /api/memory/consolidate.
+	"/api/profile/rebuild": {controlplane.CmdProfileRebuild, nil},
 	// Memory prune (M857): hard-remove soft-deleted records older than N days.
 	// dry_run reports the prunable count first; the UI confirms before pruning.
 	"/api/memory/prune": {controlplane.CmdMemoryPrune, []string{"older_than_days", "dry_run"}},

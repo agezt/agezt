@@ -20,7 +20,7 @@ import (
 // context; this is the operator's read/write path into it.
 func cmdMemory(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget|audit|clean|consolidate|prune|bulk-forget|find-related)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s memory: subcommand required (add|list|log|search|get|forget|audit|clean|consolidate|profile|prune|bulk-forget|find-related)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -44,6 +44,8 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return cmdMemoryClean(args[1:], stdout, stderr)
 	case "consolidate":
 		return cmdMemoryConsolidate(args[1:], stdout, stderr)
+	case "profile":
+		return cmdMemoryProfile(args[1:], stdout, stderr)
 	case "prune":
 		return cmdMemoryPrune(args[1:], stdout, stderr)
 	case "bulk-forget":
@@ -62,12 +64,13 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  audit [--json]         report expired, suspended, and competing memories\n")
 		fmt.Fprintf(stdout, "  clean [--execute]      hard-delete low-value log/transient memory records (dry-run by default)\n")
 		fmt.Fprintf(stdout, "  consolidate [--json]   one brain-distillation pass: merge related records, supersede originals\n")
+		fmt.Fprintf(stdout, "  profile [--json]       rebuild the operator profile from accumulated memory (M1000)\n")
 		fmt.Fprintf(stdout, "  prune [--days N] [--execute]   hard-delete soft-deleted records (dry-run by default)\n")
 		fmt.Fprintf(stdout, "  bulk-forget <id>...    soft-delete multiple records in one call\n")
 		fmt.Fprintf(stdout, "  find-related --id <id> [--limit N] [--json]\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|audit|clean|consolidate|prune|bulk-forget|find-related)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s memory: unknown subcommand %q (add|list|log|search|get|forget|promote|audit|clean|consolidate|profile|prune|bulk-forget|find-related)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -622,6 +625,40 @@ func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "consolidated %d of %d cluster(s): %d record(s) merged away (%d → ~%d active) — correlation %s\n",
 		int(merged), int(found), int(superseded), int(before), int(after), str(res["correlation_id"]))
+	return 0
+}
+
+// cmdMemoryProfile implements `agt memory profile [--json]` (M1000): one
+// synchronous operator-profile distillation pass on the daemon.
+func cmdMemoryProfile(args []string, stdout, stderr io.Writer) int {
+	asJSON := false
+	for _, a := range args {
+		if a == "--json" {
+			asJSON = true
+		}
+	}
+	c := dial(stderr)
+	if c == nil {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	res, err := c.Call(ctx, controlplane.CmdProfileRebuild, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s memory profile: %v\n", brand.CLI, err)
+		return 1
+	}
+	if asJSON {
+		return encodeJSON(stdout, res)
+	}
+	input, _ := res["input_records"].(float64)
+	written, _ := res["facets_written"].(float64)
+	if input == 0 {
+		fmt.Fprintf(stdout, "nothing to learn from yet — no accumulated memory to build a profile\n")
+		return 0
+	}
+	fmt.Fprintf(stdout, "operator profile rebuilt: %d facet(s) from %d memory record(s) — correlation %s\n",
+		int(written), int(input), str(res["correlation_id"]))
 	return 0
 }
 

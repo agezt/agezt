@@ -50,6 +50,30 @@ func (s *Server) handleMemoryConsolidate(conn net.Conn, req Request) {
 	})
 }
 
+// handleProfileRebuild (M1000) runs one synchronous operator-profile
+// distillation pass and returns its report. The pass journals memory.profiled +
+// memory.written under a fresh correlation.
+func (s *Server) handleProfileRebuild(conn net.Conn, req Request) {
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), memoryConsolidateTimeout)
+	defer cancel()
+	report, err := s.k.DistillProfile(ctx, corr)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"correlation_id": corr,
+			"input_records":  report.InputRecords,
+			"facets_written": report.FacetsWritten,
+			"facets":         report.Facets,
+		},
+	})
+}
+
 func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 	content, _ := req.Args["content"].(string)
 	if content == "" {

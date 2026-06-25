@@ -277,6 +277,9 @@ const (
 	// KindMemoryConsolidated (M804): one brain-distillation pass merged
 	// clusters of related records into consolidated summaries.
 	KindMemoryConsolidated Kind = "memory.consolidated"
+	// KindMemoryProfiled (M1000): one operator-profile distillation pass
+	// synthesized the operator's profile facets from accumulated memory.
+	KindMemoryProfiled Kind = "memory.profiled"
 	// KindMemoryPromoted (M915): a private (scoped) record was shared — its
 	// scope tag cleared so it joins the brain every agent recalls.
 	KindMemoryPromoted Kind = "memory.promoted"
@@ -504,6 +507,7 @@ var knownKinds = map[Kind]struct{}{
 	KindMemoryPruned:               {},
 	KindMemorySuperseded:           {},
 	KindMemoryConsolidated:         {},
+	KindMemoryProfiled:             {},
 	KindMemoryPromoted:             {},
 	KindMemorySuspended:            {},
 	KindMemoryCleaned:              {},
