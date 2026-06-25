@@ -214,6 +214,7 @@ func helpGroups() []helpGroup {
 			{"pulse", "live tail of the event bus + the proactive heartbeat", []string{
 				"pulse [--subject PATTERN] [--kind K] [--json]   live tail (Ctrl+C to exit)",
 				"pulse status [--json] | pulse pause | pulse resume",
+				"pulse asks [--json] | pulse asks {approve|reject} <issue_key>   ask-mode verdicts",
 			}},
 			{"changelog", "system-level changes folded from the journal", []string{
 				"changelog [N] [--since <dur>] [--json]",
