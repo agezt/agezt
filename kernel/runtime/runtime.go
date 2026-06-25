@@ -275,6 +275,11 @@ type Config struct {
 	MemoryTool            bool
 	MemoryDistill         bool
 	MemoryDistillMinTools int
+	// ProfileInject (M1000) prepends the learned operator profile (a separate
+	// shared-memory namespace, synthesized by DistillProfile) to every non-system
+	// run's System prompt, so the assistant knows who it works for. Gated by
+	// AGEZT_USER_PROFILE (default on); a no-op until a profile exists.
+	ProfileInject bool
 	// MemoryEmbedder, when non-nil, upgrades memory recall from the local
 	// feature-hash embedding to true provider embeddings (M884, DECISIONS C5
 	// opt-in). The kernel never picks an implementation — the daemon injects
@@ -3130,6 +3135,16 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if s := systemFromCtx(runCtx); s != "" {
 		system = s
 	}
+	// Operator profile (M1000): prepend what AGEZT has learned about the operator
+	// so every (non-system) run knows WHO it works for — distinct from the per-agent
+	// persona above (identity) and applied before the ephemeral task injections
+	// below, so it sits adjacent to the persona. Always-on (not intent-driven);
+	// a no-op until DistillProfile has synthesized a profile.
+	if k.cfg.ProfileInject && !systemAgent {
+		if p := k.memory.ProfileText(); p != "" {
+			system = injectUserProfile(system, p)
+		}
+	}
 	if k.cfg.MemoryInject && !systemAgent {
 		topK := k.cfg.MemoryTopK
 		if topK <= 0 {
@@ -3637,6 +3652,21 @@ func injectMemory(system string, hits []memory.Scored) string {
 	for _, h := range hits {
 		fmt.Fprintf(&b, "- [%s] %s: %s\n", h.Record.Type, h.Record.Subject, h.Record.Content)
 	}
+	if system != "" {
+		b.WriteString("\n")
+		b.WriteString(system)
+	}
+	return b.String()
+}
+
+// injectUserProfile prepends the learned operator profile (M1000) to the system
+// prompt so the agent always knows who it works for. profileText is the
+// pre-formatted facet block from memory.ProfileText (never empty here).
+func injectUserProfile(system, profileText string) string {
+	var b strings.Builder
+	b.WriteString("What you know about the operator you work for (apply naturally; don't recite):\n")
+	b.WriteString(profileText)
+	b.WriteString("\n")
 	if system != "" {
 		b.WriteString("\n")
 		b.WriteString(system)

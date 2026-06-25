@@ -29,6 +29,31 @@ beforeEach(() => {
   postJSON.mockResolvedValue({ id: "mem-1" });
 });
 
+describe("Operator Profile card (M1000)", () => {
+  it("renders profile facets and rebuilds on demand", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/memory")
+        return Promise.resolve({
+          records: [
+            { id: "p1", subject: "operator profile: expertise", content: "Go and React.", type: "PREFERENCE", tags: { source: "profile" } },
+            { id: "m1", subject: "kubernetes", content: "runs in frankfurt", type: "FACT" },
+          ],
+        });
+      return Promise.resolve(null); // audit
+    });
+    postAction.mockResolvedValue({ facets_written: 1, input_records: 5 });
+    render(<Memory />);
+
+    // The learned facet shows under the profile card (capitalized facet name).
+    await waitFor(() => expect(screen.getByText(/Go and React\./)).toBeTruthy());
+    expect(screen.getByText("expertise")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /rebuild/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/profile/rebuild", {}));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringMatching(/rebuilt: 1 facet/i), "success"));
+  });
+});
+
 describe("parseMemoryJSON (M750)", () => {
   const rec = (content: string) => ({ content, subject: "tz", type: "FACT" });
 

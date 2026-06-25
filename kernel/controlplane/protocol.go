@@ -851,6 +851,12 @@ const (
 	// Args: none. Returns the pass report (clusters, merges, supersessions).
 	CmdMemoryConsolidate = "memory_consolidate"
 
+	// CmdProfileRebuild (M1000) runs one operator-profile distillation pass:
+	// synthesize the operator's profile facets from accumulated shared memory and
+	// write them as reinforced PREFERENCE records. Args: none. Returns the report
+	// (input records, facets written).
+	CmdProfileRebuild = "profile_rebuild"
+
 	// CmdMemoryPrune hard-removes soft-deleted (tombstoned/superseded) records
 	// older than older_than_days — reclaiming dead weight so memory can't grow
 	// unbounded (M857). dry_run (default) reports hygiene + prunable count.

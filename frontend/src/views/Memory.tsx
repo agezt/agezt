@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle, UserRound } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
@@ -73,6 +73,10 @@ export function parseMemoryJSON(text: string): Record<string, unknown>[] {
 // Memory is the knowledge browser: every durable fact the agent has stored —
 // searchable by subject/content/tag, each card showing its type, confidence,
 // age and source, with one-click forget.
+// PROFILE_PREFIX namespaces the learned operator-profile facets (M1000); they are
+// ordinary PREFERENCE records the daemon injects into every run.
+const PROFILE_PREFIX = "operator profile: ";
+
 export function Memory() {
   const ui = useUI();
   const [records, setRecords] = useState<MemRecord[] | null>(null);
@@ -129,6 +133,19 @@ export function Memory() {
       setErr((e as Error).message);
     } finally {
       setLoading(false);
+    }
+  }
+  // rebuildProfile (M1000) synthesizes the operator profile from accumulated
+  // memory on demand — the daemon also does this on a daily timer.
+  async function rebuildProfile() {
+    try {
+      const res = await postAction<{ facets_written?: number; input_records?: number }>("/api/profile/rebuild", {});
+      const n = res.facets_written ?? 0;
+      const inp = res.input_records ?? 0;
+      ui.toast(inp === 0 ? "Nothing to learn from yet — no accumulated memory" : `Operator profile rebuilt: ${n} facet${n === 1 ? "" : "s"} from ${inp} memories`, inp === 0 ? "info" : "success");
+      await reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
     }
   }
   useEffect(() => {
@@ -272,13 +289,23 @@ export function Memory() {
 
   const f = q.trim().toLowerCase();
   const shown = useMemo(() => {
-    let list = [...(records || [])].sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
+    // Operator-profile facets (M1000) have their own card — keep them out of the
+    // general record list so they aren't shown twice.
+    let list = [...(records || [])]
+      .filter((r) => !(r.subject || "").startsWith(PROFILE_PREFIX))
+      .sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
     if (scopeFilter !== null) list = list.filter((r) => (r.tags?.scope || "") === scopeFilter);
     if (!f) return list;
     return list.filter((r) =>
       `${r.subject} ${r.content} ${r.type} ${Object.values(r.tags || {}).join(" ")}`.toLowerCase().includes(f),
     );
   }, [records, f, scopeFilter]);
+
+  // The learned operator profile (M1000): PREFERENCE facets on reserved subjects.
+  const profile = useMemo(
+    () => (records || []).filter((r) => (r.subject || "").startsWith(PROFILE_PREFIX)),
+    [records],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -333,6 +360,34 @@ export function Memory() {
           </>
         }
       />
+
+      <CollapsibleSection
+        icon={UserRound}
+        title="Operator Profile"
+        tone="accent"
+        defaultOpen={true}
+      >
+        <div className="flex items-center justify-between gap-2 pb-2">
+          <p className="text-xs text-muted">
+            What AGEZT has learned about you — injected into every run so it knows who it works for. Synthesized daily from your accumulated memory.
+          </p>
+          <Button size="sm" variant="ghost" onClick={rebuildProfile} title="Rebuild the operator profile from accumulated memory now">
+            <Sparkles className="size-3.5" /> Rebuild
+          </Button>
+        </div>
+        {profile.length === 0 ? (
+          <p className="text-xs text-muted">No profile yet — it builds up as you work, or click Rebuild to synthesize one now.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {profile.map((r) => (
+              <li key={r.id} className="text-sm">
+                <span className="font-medium capitalize text-accent">{(r.subject || "").slice(PROFILE_PREFIX.length)}</span>
+                <span className="text-muted">: {r.content}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CollapsibleSection>
 
       {audit && (
         <CollapsibleSection

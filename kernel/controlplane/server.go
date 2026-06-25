@@ -712,6 +712,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleMemorySearch(conn, req)
 	case CmdMemoryConsolidate:
 		s.handleMemoryConsolidate(conn, req)
+	case CmdProfileRebuild:
+		s.handleProfileRebuild(conn, req)
 	case CmdMemoryForget:
 		s.handleMemoryForget(conn, req)
 	case CmdMemoryPromote:

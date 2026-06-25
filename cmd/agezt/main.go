@@ -532,6 +532,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 			distillMinTools = n
 		}
 	}
+	// Operator profile (M1000): learn who the operator is and inject it into every
+	// run. Requires memory; default on, AGEZT_USER_PROFILE=off disables both the
+	// injection and the daily auto-synthesis.
+	profileOn := memOn && !strings.EqualFold(os.Getenv(brand.EnvPrefix+"USER_PROFILE"), "off")
 	// World-model per-run behaviour (entity injection + the `world` tool).
 	// The graph store and `agt world` CLI always work; this only gates the
 	// in-run wiring. AGEZT_WORLDMODEL=off disables it.
@@ -765,6 +769,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryInject:               memOn,
 		MemoryTool:                 memOn,
 		MemoryDistill:              memOn,
+		ProfileInject:              profileOn,
 		MemoryTopK:                 5,
 		MemoryDistillMinTools:      distillMinTools,
 		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
@@ -1687,6 +1692,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  brain distill    : %s\n", bdDesc)
 	} else {
 		fmt.Fprintf(stdout, "  brain distill    : on-demand (agt memory consolidate; set AGEZT_BRAIN_DISTILL_EVERY for a timer)\n")
+	}
+
+	// Operator profile (M1000): inject what we've learned about the operator into
+	// every run, and synthesize it on a daily timer. Off with AGEZT_USER_PROFILE=off.
+	if pdDesc := startProfileDistillTicker(ctx, k, profileOn, stdout); pdDesc != "" {
+		fmt.Fprintf(stdout, "  user profile     : on, auto-synthesis %s (agt profile rebuild)\n", pdDesc)
+	} else {
+		fmt.Fprintf(stdout, "  user profile     : off\n")
 	}
 
 	// Web UI (SPEC-07) — the SSE Live Monitor + read panels over the same
@@ -4201,6 +4214,41 @@ func startBrainDistillTicker(ctx context.Context, k *kernelruntime.Kernel, stdou
 	return "every " + every.String()
 }
 
+// startProfileDistillTicker runs the operator-profile synthesis on a low daily
+// cadence (M1000) when the profile feature is on, so AGEZT learns who the
+// operator is without being asked. Default 24h; AGEZT_USER_PROFILE_EVERY overrides
+// (operators can also schedule the profile_distill system task at a custom cadence
+// or run `agt profile rebuild`). Returns a banner description, or "" when off.
+func startProfileDistillTicker(ctx context.Context, k *kernelruntime.Kernel, on bool, stdout io.Writer) string {
+	if !on {
+		return ""
+	}
+	every := 24 * time.Hour
+	if raw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "USER_PROFILE_EVERY")); raw != "" {
+		if d, err := time.ParseDuration(raw); err == nil && d > 0 {
+			every = d
+		} else {
+			fmt.Fprintf(stdout, "  user profile     : invalid AGEZT_USER_PROFILE_EVERY %q (%v) — using 24h\n", raw, err)
+		}
+	}
+	go func() {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				corr := "profile-distill-" + ulid.New()
+				if _, err := k.DistillProfile(ctx, corr); err != nil {
+					fmt.Fprintf(stdout, "profile-distill pass failed: %v\n", err)
+				}
+			}
+		}
+	}()
+	return "every " + every.String()
+}
+
 // onOff renders a boolean as a banner-friendly enabled/disabled token.
 func onOff(b bool) string {
 	if b {
@@ -5669,9 +5717,38 @@ func runScheduledSystemTask(ctx context.Context, k *kernelruntime.Kernel, corr, 
 		return runScheduledLogClean(ctx, k, corr, scheduleID)
 	case cadence.SystemTaskGraveyardScan:
 		return runScheduledGraveyardScan(ctx, k, corr, scheduleID)
+	case cadence.SystemTaskProfileDistill:
+		return runScheduledProfileDistill(ctx, k, corr, scheduleID)
 	default:
 		return fmt.Errorf("schedule %s: unknown system task %q", scheduleID, task)
 	}
+}
+
+// runScheduledProfileDistill synthesizes the operator profile from accumulated
+// memory (M1000). LLM-backed (unlike the maintenance tasks), so it runs at a low
+// daily cadence; a no-op until there's enough accumulated memory to learn from.
+func runScheduledProfileDistill(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
+	if k.Memory() == nil {
+		return fmt.Errorf("schedule %s: memory unavailable", scheduleID)
+	}
+	report, err := k.DistillProfile(ctx, corr)
+	if err != nil {
+		return err
+	}
+	_, _ = k.Bus().Publish(event.Spec{
+		Subject:       "schedule.system_task.profile_distill",
+		Kind:          event.KindInfo,
+		Actor:         "schedule",
+		CorrelationID: corr,
+		Payload: map[string]any{
+			"schedule_id":    scheduleID,
+			"system_task":    cadence.SystemTaskProfileDistill,
+			"input_records":  report.InputRecords,
+			"facets_written": report.FacetsWritten,
+			"facets":         report.Facets,
+		},
+	})
+	return nil
 }
 
 // graveyardRetentionDays is the retention window for the graveyard scan: retired
