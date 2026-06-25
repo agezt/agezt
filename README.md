@@ -85,9 +85,9 @@ restart, a **vault encrypted at rest** with AES-256-GCM and **passphrase
 rotation**, and a **Linux warden** with `prlimit64`-enforced CPU/mem/FD
 limits and process-group SIGKILL.
 
-It reaches you on **eleven messaging channels** (Telegram, Slack, Discord, Matrix,
-SMS, WhatsApp, Signal, email, Microsoft Teams, Home Assistant, and generic
-webhooks) — inbound messages drive the agent (allowlisted, fail-closed; the
+It reaches you on **25+ messaging channels** (Telegram, Slack, Discord, Matrix,
+SMS, WhatsApp, Signal, email, Microsoft Teams, Home Assistant, IRC, Mastodon,
+LINE, Feishu, DingTalk, WeCom, and generic webhooks, among others) — inbound messages drive the agent (allowlisted, fail-closed; the
 account's own messages skipped so a reply never loops), outbound carries replies and
 Pulse briefs. Each channel can run **multiple accounts at once** (e.g. 10 email
 mailboxes, several bots) via guided **Connect pages** with per-channel help, QR /
@@ -386,7 +386,7 @@ The v1 substrate. Highlights:
 ## Verify
 
 ```bash
-make test     # 2315 tests, all green
+make test     # the full Go + frontend suite
 make build    # produces bin/agezt + bin/agt
 make gen      # regenerate SDK types from the contract
 ```
