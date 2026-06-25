@@ -35,6 +35,7 @@ import {
   Search,
   Gauge,
   Scissors,
+  Radio,
 } from "lucide-react";
 import { cn, fmtTime } from "@/lib/utils";
 import { money, fmtCount } from "@/lib/format";
@@ -398,6 +399,17 @@ export function Chat() {
             onText={(t) => setInput((cur) => (cur.trim() ? cur.trimEnd() + " " : "") + t)}
             disabled={busy}
           />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            title="Hands-free Voice mode"
+            onClick={() => {
+              location.hash = "voice";
+            }}
+          >
+            <Radio className="size-4" />
+          </Button>
           <textarea
             ref={taRef}
             value={input}

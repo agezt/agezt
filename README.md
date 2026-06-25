@@ -100,7 +100,11 @@ verification**; a supervised **public tunnel** (cloudflared/ngrok/custom) can
 expose the Web UI or REST API to the internet on demand; and you can **talk to it**
 — `agt transcribe <file>` and `agt listen` turn audio (a file or the microphone)
 into text via any OpenAI-compatible speech-to-text endpoint and feed it to the
-agent.
+agent. The Web UI also has a hands-free **Voice mode** (a dedicated console page):
+it listens, runs the agent, and **speaks the answer back sentence-by-sentence** as
+it streams, stopping the moment you talk over it (barge-in), with an optional wake
+word. It uses the configured `AGEZT_STT_*` / `AGEZT_TTS_*` backends for quality
+and falls back to the browser's built-in speech when they're unset.
 
 ## Quick start
 

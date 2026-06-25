@@ -105,6 +105,61 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  voice: {
+    title: "Voice",
+    intro:
+      "Hands-free conversation — the \"talk to AGEZT\" surface. Start it and just speak: it listens until you pause, runs your agent, and speaks the answer back sentence-by-sentence. Talk over it any time and it stops to listen.",
+    sections: [
+      {
+        heading: "The loop",
+        items: [
+          {
+            term: "Listening (VAD)",
+            desc: "After you start, the mic stays open and voice-activity detection waits for you to speak, then for a short trailing silence that marks the end of your turn — no push-to-talk.",
+          },
+          {
+            term: "Streaming speech",
+            desc: "The answer is spoken as it streams, one sentence at a time, instead of waiting for the whole reply — so it starts talking back almost immediately.",
+          },
+          {
+            term: "Barge-in",
+            desc: "Start talking while it's speaking and it stops instantly and listens — just like interrupting a person.",
+          },
+          {
+            term: "The orb",
+            desc: "The central orb reflects the current phase (idle, listening, thinking, speaking) and pulses with your mic level so you can see it's hearing you.",
+          },
+        ],
+      },
+      {
+        heading: "Controls",
+        items: [
+          {
+            term: "Wake word",
+            desc: "Toggle on to require saying \"agezt\" (or \"jarvis\") before a turn — fully hands-free. Off by default; turns start as soon as you speak after Start.",
+          },
+          {
+            term: "Agent",
+            desc: "Pick which roster agent answers, or leave on Default routing to let the daemon decide. Locked while a session is running.",
+          },
+          {
+            term: "High-quality voice",
+            desc: "When the daemon has a TTS backend configured (AGEZT_TTS_*), replies use that natural voice; otherwise it falls back to the browser's built-in speech.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Voice input needs an STT backend (AGEZT_STT_*) for transcription; without it the browser's own recognition is used where available.",
+      "The same conversation runs through the normal governed agent loop — tools, policy, and memory all apply.",
+    ],
+    related: [
+      { id: "chat", label: "Chat" },
+      { id: "agents", label: "Agents" },
+      { id: "connections", label: "Connections" },
+    ],
+  },
+
   inbox: {
     title: "Inbox",
     intro:
