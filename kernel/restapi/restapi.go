@@ -23,8 +23,7 @@
 //	POST /api/v1/update/apply      — validate and stage an update (M860)
 //
 // Security (SPEC-06): loopback-bound by the operator, token-authed on every
-// request (Authorization: Bearer <token>, or ?token= for convenience). Empty
-// token fails closed.
+// request (Authorization: Bearer <token>). Empty token fails closed.
 package restapi
 
 import (
@@ -182,15 +181,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
 	mux.HandleFunc("/api/v1/runs/", s.auth(s.handleRunByID))
 	// Mailbox (M937): the shared inter-agent message board for SDK apps —
-	// send/read messages, an inbox per name, replies, ack, topics.
-	mux.HandleFunc("/api/v1/mailbox/messages", s.auth(s.handleMailboxMessages))
-	mux.HandleFunc("/api/v1/mailbox/messages/", s.auth(s.handleMailboxMessageSub))
-	mux.HandleFunc("/api/v1/mailbox/inbox", s.auth(s.handleMailboxInbox))
-	mux.HandleFunc("/api/v1/mailbox/watch", s.auth(s.handleMailboxWatch))
-	mux.HandleFunc("/api/v1/mailbox/topics", s.auth(s.handleMailboxTopics))
+	// send/read messages, an inbox per name, replies, ack, topics. The board is a
+	// single daemon-global instance with no tenant partition, so it is gated to
+	// the admin token only (adminAuth) — a per-tenant token must not reach it and
+	// read/spoof across tenants. (V-011)
+	mux.HandleFunc("/api/v1/mailbox/messages", s.adminAuth(s.handleMailboxMessages))
+	mux.HandleFunc("/api/v1/mailbox/messages/", s.adminAuth(s.handleMailboxMessageSub))
+	mux.HandleFunc("/api/v1/mailbox/inbox", s.adminAuth(s.handleMailboxInbox))
+	mux.HandleFunc("/api/v1/mailbox/watch", s.adminAuth(s.handleMailboxWatch))
+	mux.HandleFunc("/api/v1/mailbox/topics", s.adminAuth(s.handleMailboxTopics))
 
-	mux.HandleFunc("/api/v1/update", s.auth(s.handleUpdateCheck))
-	mux.HandleFunc("/api/v1/update/apply", s.auth(s.handleUpdateApply))
+	// Self-update changes host-global daemon state — admin token only, never a
+	// per-tenant credential. (V-011)
+	mux.HandleFunc("/api/v1/update", s.adminAuth(s.handleUpdateCheck))
+	mux.HandleFunc("/api/v1/update/apply", s.adminAuth(s.handleUpdateApply))
 	return mux
 }
 
@@ -270,17 +274,17 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) authorized(r *http.Request) bool {
-	presented := bearerToken(r)
-	if presented == "" {
-		return false
-	}
 	// The daemon admin token authorizes the primary and any tenant.
-	if s.token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1 {
+	if s.adminAuthorized(r) {
 		return true
 	}
 	// Otherwise a per-tenant token authorizes ONLY its own tenant, and only when
 	// the request actually targets that tenant via the header.
 	if s.tenantAuth != nil {
+		presented := bearerToken(r)
+		if presented == "" {
+			return false
+		}
 		if id := strings.TrimSpace(r.Header.Get("X-Agezt-Tenant")); id != "" {
 			return s.tenantAuth(id, presented)
 		}
@@ -288,13 +292,44 @@ func (s *Server) authorized(r *http.Request) bool {
 	return false
 }
 
+// adminAuth gates a handler so ONLY the daemon admin token authorizes it;
+// per-tenant tokens are rejected. It backs daemon-global surfaces that are not
+// tenant-partitioned — the shared mailbox/board (M937) and the host-level
+// self-update endpoints. (V-011)
+//
+// Rationale: those routes operate on one shared instance with no tenant scoping,
+// and the control plane already excludes board_* (and admin/host ops) from
+// per-tenant token authorization (tenantTokenAllows). Without this gate a
+// per-tenant token could reach the shared board through the REST surface and
+// read any agent's inbox, spoof senders, or tail the cross-tenant firehose — a
+// cross-tenant IDOR bypass. In single-tenant deployments (no tenantAuth wired)
+// the admin token is the only credential, so this is a no-op there.
+func (s *Server) adminAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.adminAuthorized(r) {
+			writeErr(w, http.StatusUnauthorized, "unauthorized", "this endpoint requires the daemon admin token")
+			return
+		}
+		next(w, r)
+	}
+}
+
+// adminAuthorized reports whether the request presents the daemon admin token.
+func (s *Server) adminAuthorized(r *http.Request) bool {
+	presented := bearerToken(r)
+	if presented == "" {
+		return false
+	}
+	return s.token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1
+}
+
 // bearerToken extracts the presented token from the Authorization: Bearer
-// header, falling back to the ?token= query param (browser/EventSource convenience).
+// header. Query-string tokens are intentionally not accepted on this API surface.
 func bearerToken(r *http.Request) string {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
-	return r.URL.Query().Get("token")
+	return ""
 }
 
 // --- GET /api/v1/health ---
@@ -589,6 +624,7 @@ func methodNotAllowed(w http.ResponseWriter, allow string) {
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }

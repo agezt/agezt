@@ -16,8 +16,7 @@
 // chat.completion.chunk SSE frames.
 //
 // Security (SPEC-06): loopback-bound by the operator, token-authed on every
-// request (Authorization: Bearer <token>, or ?token= for convenience). Empty
-// token fails closed.
+// request (Authorization: Bearer <token>). Empty token fails closed.
 package openaiapi
 
 import (
@@ -255,12 +254,12 @@ func (s *Server) authorized(r *http.Request) bool {
 }
 
 // bearerToken extracts the presented token from the Authorization: Bearer
-// header, falling back to the ?token= query param (client convenience).
+// header. Query-string tokens are intentionally not accepted on this API surface.
 func bearerToken(r *http.Request) string {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
-	return r.URL.Query().Get("token")
+	return ""
 }
 
 // --- /v1/models ---
@@ -768,6 +767,7 @@ func estimateUsage(prompt, completion string) map[string]any {
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }

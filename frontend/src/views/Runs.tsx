@@ -19,7 +19,6 @@ import { EmptyState } from "@/components/ui/empty";
 import { cn, fmtTime } from "@/lib/utils";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
-import { TabNav } from "@/components/ui/tab-nav";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
@@ -106,6 +105,7 @@ export function Runs() {
   const focus = useRunFocus();
   const counts = runCounts(runs);
   const [q, setQ] = useState("");
+  const [bucket, setBucket] = useState<RunBucket | null>(null);
 
   useEffect(() => {
     if (!focus) return;
@@ -114,41 +114,9 @@ export function Runs() {
 
   const query = q.trim().toLowerCase();
 
-  const getShown = (filter: RunBucket | null) =>
-    runs.filter(
-      (r) => (!filter || runBucket(r) === filter) && (!query || runMatches(r, query)),
-    );
-
-  const tabs = [
-    {
-      id: "all",
-      label: "All",
-      icon: ListTree,
-      count: counts.total,
-      content: <RunList runs={getShown(null)} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
-    },
-    {
-      id: "running",
-      label: "Running",
-      icon: CircleDot,
-      count: counts.running,
-      content: <RunList runs={getShown("running")} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
-    },
-    {
-      id: "completed",
-      label: "Completed",
-      icon: CheckCircle2,
-      count: counts.completed,
-      content: <RunList runs={getShown("completed")} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
-    },
-    {
-      id: "failed",
-      label: "Failed",
-      icon: XOctagon,
-      count: counts.failed,
-      content: <RunList runs={getShown("failed")} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
-    },
-  ];
+  const shown = runs.filter(
+    (r) => (!bucket || runBucket(r) === bucket) && (!query || runMatches(r, query)),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -192,13 +160,61 @@ export function Runs() {
         />
       </MetricGrid>
 
-      <TabNav tabs={tabs} />
+      <RunBucketFilters counts={counts} bucket={bucket} setBucket={setBucket} />
+      <RunList runs={shown} total={runs.length} query={query} q={q} setQ={setQ} focus={focus} error={error} />
+    </div>
+  );
+}
+
+function RunBucketFilters({
+  counts,
+  bucket,
+  setBucket,
+}: {
+  counts: RunCounts;
+  bucket: RunBucket | null;
+  setBucket: (bucket: RunBucket | null) => void;
+}) {
+  const filters: Array<{ id: RunBucket | null; label: string; icon: typeof ListTree; count: number }> = [
+    { id: null, label: "all", icon: ListTree, count: counts.total },
+    { id: "running", label: "running", icon: CircleDot, count: counts.running },
+    { id: "completed", label: "completed", icon: CheckCircle2, count: counts.completed },
+    { id: "failed", label: "failed", icon: XOctagon, count: counts.failed },
+    { id: "other", label: "other", icon: Clock, count: counts.other },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-panel/50 p-1" aria-label="Run status filters">
+      {filters.map((f) => {
+        const Icon = f.icon;
+        const active = bucket === f.id;
+        return (
+          <button
+            key={f.label}
+            type="button"
+            aria-pressed={active}
+            aria-label={`${f.label} ${f.count}`}
+            disabled={f.count === 0}
+            onClick={() => setBucket(active ? null : f.id)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-45",
+              active ? "bg-accent/15 text-accent shadow-sm" : "text-muted hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {f.label}
+            <span className={cn("inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] tabular-nums", active ? "bg-accent/20 text-accent" : "bg-panel text-muted")}>
+              {f.count}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 function RunList({
   runs,
+  total,
   query,
   q,
   setQ,
@@ -206,6 +222,7 @@ function RunList({
   error,
 }: {
   runs: Run[];
+  total: number;
   query: string;
   q: string;
   setQ: (q: string) => void;
@@ -220,8 +237,8 @@ function RunList({
     return (
       <EmptyState
         icon={ListTree}
-        title="No runs yet"
-        hint="Completed and in-flight runs will be listed here — start one from Chat or the CLI."
+        title={total === 0 ? "No runs yet" : "no runs match"}
+        hint={total === 0 ? "Completed and in-flight runs will be listed here — start one from Chat or the CLI." : "Clear the filters to see the full run history."}
       />
     );
   }
@@ -234,7 +251,7 @@ function RunList({
       tone="muted"
       defaultOpen={true}
       actions={
-        runs.length > 4 ? (
+        total > 4 ? (
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
             <input
@@ -246,7 +263,7 @@ function RunList({
             />
             {query && (
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
-                {runs.length}
+                {runs.length}/{total}
               </span>
             )}
           </div>

@@ -212,12 +212,8 @@ func reconcileExistingGuardian(h Host, p roster.Profile) error {
 	}
 	_, _, err := h.UpdateAgent(p.Slug, func(dst *roster.Profile) {
 		dst.ToolDeny = appendUnique(dst.ToolDeny, "memory")
-		if dst.MaxCostMc == 0 || dst.MaxCostMc > maxCostMc {
-			dst.MaxCostMc = maxCostMc
-		}
-		if dst.MaxDailyMc == 0 || dst.MaxDailyMc > maxDailyMc {
-			dst.MaxDailyMc = maxDailyMc
-		}
+		dst.MaxCostMc = maxCostMc
+		dst.MaxDailyMc = maxDailyMc
 		if trustRank(dst.TrustCeiling) > trustRank(defaultTrustCeiling) {
 			dst.TrustCeiling = defaultTrustCeiling
 		}

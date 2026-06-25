@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
@@ -12,7 +12,6 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { TabNav } from "@/components/ui/tab-nav";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ErrorText } from "@/components/JsonView";
@@ -2070,6 +2069,58 @@ export function filterAgentRoster(
   });
 }
 
+type RosterFilterOption = { id: RosterFilter; label: string; icon: LucideIcon; count: number };
+
+function RosterFilterBar({
+  filters,
+  filter,
+  setFilter,
+}: {
+  filters: RosterFilterOption[];
+  filter: RosterFilter;
+  setFilter: (filter: RosterFilter) => void;
+}) {
+  const visible = filters.filter((item) => item.count > 0 || item.id === "all");
+  const attention = filters.find((item) => item.id === "attention")?.count || 0;
+  const inbox = filters.find((item) => item.id === "mailbox")?.count || 0;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {(attention > 0 || inbox > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {attention > 0 && <Badge variant="warn">attention</Badge>}
+          {inbox > 0 && <Badge variant="accent">inbox</Badge>}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-panel/50 p-1" aria-label="Roster filters">
+        {visible.map((item) => {
+          const Icon = item.icon;
+          const active = filter === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={active}
+              aria-label={`${item.label}${item.count}`}
+              onClick={() => setFilter(item.id)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+                active ? "bg-accent/15 text-accent shadow-sm" : "text-muted hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" aria-hidden />
+              {item.label}
+              <span className={cn("inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] tabular-nums", active ? "bg-accent/20 text-accent" : "bg-panel text-muted")}>
+                {item.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function agentRosterRank(p: AgentProfile): [number, number, number] {
   const lifecycle = p.retired ? 4 : p.enabled === false ? 3 : 0;
   const identity = agentIdentityKind(p);
@@ -3243,6 +3294,15 @@ export function Roster() {
           tone={guardianQuieting.tone === "warn" ? "warn" : guardianQuieting.tone === "good" ? "good" : "muted"}
           defaultOpen={guardianQuieting.tone === "warn"}
         >
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            <Badge variant="default">guardians</Badge>
+            <Badge variant={guardianQuieting.tone === "warn" ? "warn" : guardianQuieting.tone === "good" ? "good" : "default"}>
+              {guardianRisk}
+            </Badge>
+            <Badge variant={guardianQuieting.tone === "warn" ? "warn" : guardianQuieting.tone === "good" ? "good" : "default"}>
+              {guardianQuieting.label}
+            </Badge>
+          </div>
           <p className="text-xs text-muted">{guardianQuieting.detail}</p>
           {guardianQuieting.tone === "warn" && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -3260,20 +3320,20 @@ export function Roster() {
       )}
 
       {profiles && profiles.length > 0 && (
-        <TabNav
-          tabs={([
-            { id: "all" as RosterFilter, label: "All", icon: Network, count: list.length, content: null as React.ReactNode },
-            { id: "attention" as RosterFilter, label: "Attention", icon: AlertTriangle, count: attention, content: null as React.ReactNode },
-            { id: "direct" as RosterFilter, label: "Direct", icon: Bot, count: direct, content: null as React.ReactNode },
-            { id: "subagents" as RosterFilter, label: "Sub-agents", icon: GitBranch, count: subagents, content: null as React.ReactNode },
-            { id: "system" as RosterFilter, label: "System", icon: ShieldCheck, count: system, content: null as React.ReactNode },
-            { id: "repair" as RosterFilter, label: "Repair", icon: Wrench, count: repair, content: null as React.ReactNode },
-            { id: "mailbox" as RosterFilter, label: "Inbox", icon: Mail, count: mailboxAgents, content: null as React.ReactNode },
-            { id: "paused" as RosterFilter, label: "Paused", icon: Pause, count: paused, content: null as React.ReactNode },
-            { id: "graveyard" as RosterFilter, label: "Graveyard", icon: Skull, count: graveyard, content: null as React.ReactNode },
-          ] as { id: RosterFilter; label: string; icon: typeof Network; count: number; content: React.ReactNode }[]).filter(t => t.count > 0 || t.id === "all")}
-          value={rosterFilter}
-          onValueChange={(v) => setRosterFilter(v as RosterFilter)}
+        <RosterFilterBar
+          filter={rosterFilter}
+          setFilter={setRosterFilter}
+          filters={[
+            { id: "all", label: "All", icon: Network, count: list.length },
+            { id: "attention", label: "Attention", icon: AlertTriangle, count: attention },
+            { id: "direct", label: "Direct", icon: Bot, count: direct },
+            { id: "subagents", label: "Sub-agents", icon: GitBranch, count: subagents },
+            { id: "system", label: "System", icon: ShieldCheck, count: system },
+            { id: "repair", label: "Repair", icon: Wrench, count: repair },
+            { id: "mailbox", label: "Inbox", icon: Mail, count: mailboxAgents },
+            { id: "paused", label: "Paused", icon: Pause, count: paused },
+            { id: "graveyard", label: "Graveyard", icon: Skull, count: graveyard },
+          ]}
         />
       )}
 

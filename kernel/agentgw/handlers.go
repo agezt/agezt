@@ -6,9 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
+)
+
+const (
+	defaultMemorySearchLimit = 20
+	maxMemorySearchLimit     = 200
 )
 
 // handleEventbusSubscribe handles Server-Sent Events subscription to the event bus.
@@ -197,10 +203,7 @@ func (g *Gateway) handleMemorySearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 20
-	if l := r.URL.Query().Get("limit"); l != "" {
-		fmt.Sscanf(l, "%d", &limit)
-	}
+	limit := memorySearchLimit(r.URL.Query().Get("limit"))
 
 	if g.mem == nil {
 		responseError(w, http.StatusServiceUnavailable, "MEMORY_UNAVAILABLE", "memory manager not connected")
@@ -238,6 +241,24 @@ func (g *Gateway) handleMemorySearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseJSON(w, http.StatusOK, map[string]interface{}{"results": out})
+}
+
+func memorySearchLimit(raw string) int {
+	if raw == "" {
+		return defaultMemorySearchLimit
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultMemorySearchLimit
+	}
+	switch {
+	case parsed < 1:
+		return 1
+	case parsed > maxMemorySearchLimit:
+		return maxMemorySearchLimit
+	default:
+		return parsed
+	}
 }
 
 // handleMemoryDelete handles deleting a memory record (Forget).

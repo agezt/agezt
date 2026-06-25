@@ -31,7 +31,6 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { PageHeader } from "@/components/ui/page-header";
-import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
@@ -1304,17 +1303,36 @@ export function Schedules() {
               { id: "tool", label: "Tool", icon: Wrench, count: targets.tool },
             ];
             return (
-              <TabNav
-                tabs={filters.map((f) => ({
-                  id: f.id,
-                  label: f.label,
-                  icon: f.icon,
-                  count: f.count,
-                  content: null,
-                }))}
-                value={targetFilter}
-                onValueChange={(v) => setTargetFilter(v as ScheduleTargetFilter)}
-              />
+              <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-panel/50 p-1" aria-label="Schedule filters">
+                {filters.map((f) => {
+                  const Icon = f.icon;
+                  const active = targetFilter === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={`${f.label}${f.count}`}
+                      onClick={() => setTargetFilter(f.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+                        active ? "bg-accent/15 text-accent shadow-sm" : "text-muted hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="size-3.5" aria-hidden />
+                      {f.label}
+                      <span
+                        className={cn(
+                          "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] tabular-nums",
+                          active ? "bg-accent/20 text-accent" : "bg-panel text-muted",
+                        )}
+                      >
+                        {f.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })()}
           {fires.length > 0 && (

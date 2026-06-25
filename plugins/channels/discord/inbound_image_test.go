@@ -41,6 +41,10 @@ func TestDiscord_AttachmentImageBecomesDataURL(t *testing.T) {
 			return channel.Reply{Text: "seen"}, nil
 		},
 	})
+	// The attachment is served by a local httptest "cdn"; relax the H-001 host
+	// policy for this end-to-end image-flow test (host policy is unit-tested
+	// separately in TestValidDiscordAttachmentURL).
+	c.attachURLOK = func(string) error { return nil }
 
 	attURL := cdn.URL + "/attachments/pic.png"
 	body := []byte(fmt.Sprintf(`{"type":2,"id":"I1","token":"tok","channel_id":"C1","member":{"user":{"id":"U1"}},`+

@@ -395,6 +395,24 @@ func TestGateway_HandleMemorySearch_MemoryUnavailable(t *testing.T) {
 	}
 }
 
+func TestMemorySearchLimitClamp(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want int
+	}{
+		{"", defaultMemorySearchLimit},
+		{"abc", defaultMemorySearchLimit},
+		{"0", 1},
+		{"-5", 1},
+		{"7", 7},
+		{"999999", maxMemorySearchLimit},
+	} {
+		if got := memorySearchLimit(tc.raw); got != tc.want {
+			t.Errorf("memorySearchLimit(%q) = %d, want %d", tc.raw, got, tc.want)
+		}
+	}
+}
+
 // --- handleMemoryDelete ---
 
 func TestGateway_HandleMemoryDelete_MissingID(t *testing.T) {

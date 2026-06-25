@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
@@ -186,6 +187,59 @@ func TestTenantAuth(t *testing.T) {
 	}
 }
 
+// V-011: the shared mailbox/board and the host-global self-update endpoints are
+// daemon-global and not tenant-partitioned, so a per-tenant token must NOT reach
+// them (it could otherwise read/spoof across tenants on the one shared board).
+// The admin token still authorizes them; tenant tokens get 401. Per-tenant runs
+// remain allowed (those are tenant-bound via the resolver).
+func TestAdminOnlyRoutes_RejectTenantToken(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newServer(t, eng, "admin-tok")
+	st, err := board.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("board.Open: %v", err)
+	}
+	s.SetMailbox(st, func(board.Message, string) {})
+	s.SetTenantAuthorizer(func(id, presented string) bool {
+		return id == "alpha" && presented == "alpha-tok"
+	})
+
+	req := func(method, path, token, tenant string) int {
+		r := httptest.NewRequest(method, path, nil)
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		if tenant != "" {
+			r.Header.Set("X-Agezt-Tenant", tenant)
+		}
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, r)
+		return rec.Code
+	}
+
+	adminOnly := []string{
+		"/api/v1/mailbox/inbox?name=x",
+		"/api/v1/mailbox/topics",
+		"/api/v1/update",
+	}
+	for _, path := range adminOnly {
+		// A valid tenant token targeting its own tenant is still rejected here.
+		if got := req(http.MethodGet, path, "alpha-tok", "alpha"); got != http.StatusUnauthorized {
+			t.Errorf("%s with tenant token: status = %d, want 401", path, got)
+		}
+		// The admin token is accepted (it reaches the handler — not a 401).
+		if got := req(http.MethodGet, path, "admin-tok", ""); got == http.StatusUnauthorized {
+			t.Errorf("%s with admin token: got 401, want it to pass auth", path)
+		}
+	}
+
+	// A tenant-scoped route (health) still accepts the tenant token — the gate is
+	// specific to the daemon-global surfaces, not a blanket tenant lockout.
+	if got := req(http.MethodGet, "/api/v1/health", "alpha-tok", "alpha"); got != http.StatusOK {
+		t.Errorf("tenant token on /health: status = %d, want 200", got)
+	}
+}
+
 func TestHealth(t *testing.T) {
 	eng := &fakeEngine{model: "m", models: []string{"a", "b"}}
 	s := newServer(t, eng, "secret")
@@ -225,6 +279,12 @@ func TestAuthRequired(t *testing.T) {
 	}
 	if rec := do(t, s, http.MethodGet, "/api/v1/health", "", "wrong"); rec.Code != http.StatusUnauthorized {
 		t.Errorf("wrong token: %d", rec.Code)
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/health?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("query token must not authorize, got %d", rec.Code)
 	}
 }
 

@@ -18,6 +18,17 @@ beforeEach(() => {
 });
 
 describe("AuthGate", () => {
+  it("shows a session probe while auth state is unknown", () => {
+    getJSON.mockReturnValue(new Promise(() => {}));
+    render(
+      <AuthGate>
+        <div>app body</div>
+      </AuthGate>,
+    );
+    expect(screen.getByText("Checking console session")).toBeTruthy();
+    expect(screen.queryByText("app body")).toBeNull();
+  });
+
   it("renders children when no password is required", async () => {
     getJSON.mockResolvedValue({ password_required: false, authed: true });
     render(
@@ -84,6 +95,17 @@ describe("Login strict-mode trap", () => {
 });
 
 describe("Login", () => {
+  it("toggles password visibility", () => {
+    const onAuthed = vi.fn();
+    render(<Login onAuthed={onAuthed} />);
+    const input = screen.getByLabelText("Console password") as HTMLInputElement;
+    expect(input.type).toBe("password");
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(input.type).toBe("text");
+    fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(input.type).toBe("password");
+  });
+
   it("surfaces the error on a wrong password and does not advance", async () => {
     postJSON.mockRejectedValue(new Error("invalid password"));
     const onAuthed = vi.fn();

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -28,12 +29,38 @@ type kernelSource struct {
 	k        *kernelruntime.Kernel
 	baseDir  string
 	boardDir string
+	// fleetLock, when set, makes the AGENT-reachable EditAgent/CreateAgent paths
+	// refuse (V-012). It is an OPT-IN guardrail off by default — the project's
+	// default-allow posture is preserved unless an operator sets
+	// AGEZT_OVERSEER_FLEET_LOCK. Operator control-plane edits and the auto-repair
+	// daemon use other Source methods (RepairAgent/routing), so they are
+	// unaffected; only an agent self-administering the fleet via the `overseer`
+	// tool is gated.
+	fleetLock bool
 }
 
 // NewKernelSource builds the kernel-backed Source. baseDir is the daemon's base
 // directory; the board lives at <baseDir>/board.
 func NewKernelSource(k *kernelruntime.Kernel, baseDir string) Source {
-	return &kernelSource{k: k, baseDir: baseDir, boardDir: filepath.Join(baseDir, "board")}
+	return &kernelSource{
+		k:         k,
+		baseDir:   baseDir,
+		boardDir:  filepath.Join(baseDir, "board"),
+		fleetLock: fleetLockEnabled(),
+	}
+}
+
+// fleetLockEnabled reports whether agent-initiated fleet administration (editing
+// or creating agents via the overseer tool) is locked. Off by default — only an
+// explicit truthy AGEZT_OVERSEER_FLEET_LOCK turns it on, so the default-allow
+// posture is the default and the restriction is strictly opt-out.
+func fleetLockEnabled() bool {
+	switch strings.TrimSpace(strings.ToLower(os.Getenv(brand.EnvPrefix + "OVERSEER_FLEET_LOCK"))) {
+	case "1", "on", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *kernelSource) IsHalted() bool         { return s.k.IsHalted() }
@@ -58,7 +85,21 @@ func (s *kernelSource) SetAgentRetired(ref string, retired bool) (roster.Profile
 // uses). Identity/lifecycle fields (id/slug/enabled/retired) and the System flag
 // are NOT touched — a guardian can retune another agent but can't resurrect,
 // rename, or promote it to a protected guardian.
+//
+// A System-protected guardian (the daemon's own self-healing fleet) cannot be
+// edited through this tool at all. The overseer tool is agent-reachable —
+// CapOversee is default-allow — so without this guard an arbitrary agent could
+// rewrite a guardian's Soul/ToolAllow/ConfigOverrides and behaviorally
+// "defang" it even though the System flag itself is preserved (and RemoveProfile
+// already refuses to delete it). Operators can still edit guardians through the
+// admin control-plane path; only the agent-reachable tool path is restricted.
 func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile, error) {
+	if s.fleetLock {
+		return roster.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must make agent edits through the console/CLI")
+	}
+	if cur, ok := s.k.Roster().Get(ref); ok && cur.System {
+		return roster.Profile{}, fmt.Errorf("agent %q is a protected system guardian — it can be retuned only by an operator, not via the overseer tool", cur.Slug)
+	}
 	p, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
 		dst.Name = in.Name
 		dst.Soul = in.Soul
@@ -96,6 +137,9 @@ func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile,
 // CreateAgent adds a brand-new agent. System is forced off — only boot-time
 // guardian seeding may mint a protected agent.
 func (s *kernelSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
+	if s.fleetLock {
+		return roster.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
+	}
 	in.System = false
 	return s.k.AddProfile(in)
 }

@@ -58,8 +58,8 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: "Cockpit" }),
     ).toBeVisible();
-    await expect(page.getByText(/success rate/)).toBeVisible();
-    await expect(page.getByText(/active skills/)).toBeVisible();
+    await expect(page.getByText(/error rate/i)).toBeVisible();
+    await expect(page.getByText(/active skills/i)).toBeVisible();
 
     // Mobile shell regression guard: the top command bar and two-level nav may
     // scroll internally, but they must not create document-level horizontal
@@ -113,7 +113,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await page.getByRole("button", { name: /New schedule/ }).click();
     await expect(page.getByText("Daemon cron presets")).toBeVisible();
     await page.getByRole("button", { name: /Catalog sync.*every 24 hours/ }).click();
-    await expect(page.getByLabel("System task")).toHaveValue("catalog_sync");
+    await expect(page.getByLabel("System task", { exact: true })).toHaveValue("catalog_sync");
     await expect(page.getByText(/Recommended cadence: every 24 hours/)).toBeVisible();
     await expect(page.getByText(/cron runs system task Catalog sync/).first()).toBeVisible();
     await expect(page.getByText(/no LLM/).first()).toBeVisible();
@@ -140,7 +140,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // panels mount in the browser.
     await openView("Agents", "Agents");
     await expect(page.getByRole("heading", { level: 2, name: "Agents" })).toBeVisible();
-    const agentCard = page.locator('button[title*="identity page"]').first();
+    const agentCard = page.getByRole("button", { name: /Guardian · Health[\s\S]*guardian-health/ });
     await expect(agentCard).toBeVisible();
     await agentCard.click();
     await expect(page.getByText("Agent identity card")).toBeVisible();

@@ -120,8 +120,13 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 			return nil, "", fmt.Errorf("%w: %q needs one of %v", ErrMissingCredentials, p.ID, p.Env)
 		}
 		for _, name := range p.Env {
-			if v := strings.TrimSpace(lookup(name)); v != "" {
-				apiKey = v
+			for _, lookupName := range catalog.ProviderCredentialLookupNames(p.ID, name) {
+				if v := strings.TrimSpace(lookup(lookupName)); v != "" {
+					apiKey = v
+					break
+				}
+			}
+			if apiKey != "" {
 				break
 			}
 		}
@@ -385,6 +390,18 @@ func envLookup(lookup CredLookup, name string) string {
 	return lookup(name)
 }
 
+func providerEnvLookup(p *catalog.Provider, lookup CredLookup, name string) string {
+	if lookup == nil {
+		return ""
+	}
+	for _, lookupName := range catalog.ProviderCredentialLookupNames(p.ID, name) {
+		if v := lookup(lookupName); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // resolveAzureCreds extracts the Azure resource name and API key
 // from the catalog entry's env list. Azure providers carry two
 // credentials, not one — the standard "first non-empty wins" loop
@@ -406,7 +423,7 @@ func resolveAzureCreds(p *catalog.Provider, lookup CredLookup) (resource, key st
 			ErrMissingCredentials, p.ID, p.Env)
 	}
 	for _, name := range p.Env {
-		v := strings.TrimSpace(lookup(name))
+		v := strings.TrimSpace(providerEnvLookup(p, lookup, name))
 		if v == "" {
 			continue
 		}
@@ -464,11 +481,11 @@ func resolveVertexCreds(p *catalog.Provider, lookup CredLookup) (vertexCreds, er
 			ErrMissingCredentials, p.ID, p.Env)
 	}
 	vc := vertexCreds{
-		credsPath:   strings.TrimSpace(lookup("GOOGLE_APPLICATION_CREDENTIALS")),
-		project:     strings.TrimSpace(lookup("GOOGLE_VERTEX_PROJECT")),
-		location:    strings.TrimSpace(lookup("GOOGLE_VERTEX_LOCATION")),
-		useMetadata: isTruthy(lookup("GOOGLE_VERTEX_USE_METADATA")),
-		metadataURL: strings.TrimSpace(lookup("GOOGLE_VERTEX_METADATA_URL")),
+		credsPath:   strings.TrimSpace(providerEnvLookup(p, lookup, "GOOGLE_APPLICATION_CREDENTIALS")),
+		project:     strings.TrimSpace(providerEnvLookup(p, lookup, "GOOGLE_VERTEX_PROJECT")),
+		location:    strings.TrimSpace(providerEnvLookup(p, lookup, "GOOGLE_VERTEX_LOCATION")),
+		useMetadata: isTruthy(providerEnvLookup(p, lookup, "GOOGLE_VERTEX_USE_METADATA")),
+		metadataURL: strings.TrimSpace(providerEnvLookup(p, lookup, "GOOGLE_VERTEX_METADATA_URL")),
 	}
 	// A metadata URL override implies metadata auth — operators pointing
 	// at a proxy/sidecar shouldn't also have to flip the boolean.
@@ -536,7 +553,7 @@ func resolveBedrockCreds(p *catalog.Provider, lookup CredLookup) (bedrockAuth, e
 
 	// Region first — needed by both auth paths.
 	for _, name := range []string{"AWS_REGION", "AWS_DEFAULT_REGION"} {
-		if v := strings.TrimSpace(lookup(name)); v != "" {
+		if v := strings.TrimSpace(providerEnvLookup(p, lookup, name)); v != "" {
 			auth.Region = v
 			break
 		}
@@ -545,23 +562,23 @@ func resolveBedrockCreds(p *catalog.Provider, lookup CredLookup) (bedrockAuth, e
 	// Walk the catalog env list for the bearer token.
 	for _, name := range p.Env {
 		if strings.HasSuffix(name, "_BEARER_TOKEN_BEDROCK") {
-			if v := strings.TrimSpace(lookup(name)); v != "" {
+			if v := strings.TrimSpace(providerEnvLookup(p, lookup, name)); v != "" {
 				auth.Bearer = v
 			}
 		}
 	}
 	// Also accept the bare name (catalog name drift safety net).
 	if auth.Bearer == "" {
-		auth.Bearer = strings.TrimSpace(lookup("AWS_BEARER_TOKEN_BEDROCK"))
+		auth.Bearer = strings.TrimSpace(providerEnvLookup(p, lookup, "AWS_BEARER_TOKEN_BEDROCK"))
 	}
 
 	// SigV4 fallback — only check when bearer is absent. Both being
 	// set is a real operator scenario (they tried both at some
 	// point); we prefer bearer silently.
 	if auth.Bearer == "" {
-		akid := strings.TrimSpace(lookup("AWS_ACCESS_KEY_ID"))
-		secret := strings.TrimSpace(lookup("AWS_SECRET_ACCESS_KEY"))
-		sess := strings.TrimSpace(lookup("AWS_SESSION_TOKEN"))
+		akid := strings.TrimSpace(providerEnvLookup(p, lookup, "AWS_ACCESS_KEY_ID"))
+		secret := strings.TrimSpace(providerEnvLookup(p, lookup, "AWS_SECRET_ACCESS_KEY"))
+		sess := strings.TrimSpace(providerEnvLookup(p, lookup, "AWS_SESSION_TOKEN"))
 		if akid != "" && secret != "" {
 			auth.SigV4 = &bedrock.SigV4Creds{
 				AccessKeyID:     akid,

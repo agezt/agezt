@@ -1089,6 +1089,31 @@ func TestBuild_MissingCredsWithNilLookupReturnsErr(t *testing.T) {
 	}
 }
 
+func TestBuild_UsesProviderScopedCredential(t *testing.T) {
+	entry := newOpenAICatalogEntry("https://api.openai.com/v1")
+	entry.ID = "zai-coding-plan"
+	entry.Env = []string{"ZHIPU_API_KEY"}
+	lookup := func(name string) string {
+		if name == catalog.ProviderCredentialName("zai-coding-plan", "ZHIPU_API_KEY") {
+			return "zai-key"
+		}
+		return ""
+	}
+	prov, _, err := compat.Build(entry, "gpt-4o-mini", lookup)
+	if err != nil {
+		t.Fatalf("Build with scoped key: %v", err)
+	}
+	if prov.Name() != "zai-coding-plan" {
+		t.Errorf("Name()=%q want zai-coding-plan", prov.Name())
+	}
+
+	other := *entry
+	other.ID = "zhipu-ai"
+	if _, _, err := compat.Build(&other, "gpt-4o-mini", lookup); !errors.Is(err, compat.ErrMissingCredentials) {
+		t.Errorf("other provider sharing env got %v want ErrMissingCredentials", err)
+	}
+}
+
 func TestBuild_UnknownModelReturnsErr(t *testing.T) {
 	entry := newAnthCatalogEntry("https://api.anthropic.com")
 	_, _, err := compat.Build(entry, "model-that-doesnt-exist", func(string) string { return "k" })

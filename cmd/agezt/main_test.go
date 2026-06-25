@@ -326,6 +326,7 @@ func TestModelAdvisory(t *testing.T) {
 func TestBuildGovernor_UnconfiguredWhenNoProvider(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"PROVIDER", "")
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
+	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "")
 
 	gov, desc, model, err := buildGovernor(catalog.NewEmpty(), func(string) string { return "" }, t.TempDir())
 	if err != nil {
@@ -352,11 +353,40 @@ func TestBuildGovernor_UnconfiguredWhenNoProvider(t *testing.T) {
 	}
 }
 
+func TestBuildGovernor_DemoEchoRequiresExplicitEnv(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"PROVIDER", "")
+	t.Setenv(brand.EnvPrefix+"MODEL", "")
+	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "1")
+
+	gov, desc, model, err := buildGovernor(catalog.NewEmpty(), func(string) string { return "" }, t.TempDir())
+	if err != nil {
+		t.Fatalf("buildGovernor: %v", err)
+	}
+	if model != "mock" {
+		t.Errorf("run model = %q, want mock", model)
+	}
+	if !strings.Contains(desc, "demo echo") {
+		t.Errorf("banner desc = %q, want it to mention demo echo", desc)
+	}
+
+	resp, err := gov.Complete(context.Background(), agent.CompletionRequest{
+		Model:    "mock",
+		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello e2e"}},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if got := resp.Message.Content; got != "[echo] hello e2e" {
+		t.Errorf("response = %q, want %q", got, "[echo] hello e2e")
+	}
+}
+
 // TestSelectPrimary_UnknownProviderIsHardError: an explicit but unknown
 // AGEZT_PROVIDER is a loud error, never a silent degrade to mock.
 func TestSelectPrimary_UnknownProviderIsHardError(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"PROVIDER", "does-not-exist")
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
+	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "1")
 	if _, _, _, _, err := selectPrimary(catalog.NewEmpty(), func(string) string { return "" }, t.TempDir()); err == nil {
 		t.Fatal("unknown provider id should be a hard error")
 	}

@@ -223,6 +223,7 @@ func TestAuthRequired(t *testing.T) {
 	}{
 		{"no token", func(*http.Request) {}},
 		{"wrong bearer", func(r *http.Request) { r.Header.Set("Authorization", "Bearer nope") }},
+		{"query token", func(r *http.Request) { r.URL.RawQuery = "token=secret" }},
 	} {
 		req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 		tc.set(req)
@@ -446,7 +447,8 @@ func TestChatCompletionStreaming_ReasoningContent(t *testing.T) {
 func TestChatRejectsGET(t *testing.T) {
 	eng := &fakeEngine{model: "m"}
 	s := newAPIServer(t, eng, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions?token=secret", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/chat/completions", nil)
+	req.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {

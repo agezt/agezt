@@ -17,10 +17,25 @@ export function TabNav({
   onValueChange?: (value: string) => void;
   className?: string;
 }) {
+  const controlled = value !== undefined;
+  const [internalValue, setInternalValue] = React.useState(() => tabs[0]?.id);
+  const activeValue = controlled ? value : internalValue ?? tabs[0]?.id;
+
+  React.useEffect(() => {
+    if (controlled) return;
+    if (activeValue && tabs.some((tab) => tab.id === activeValue)) return;
+    setInternalValue(tabs[0]?.id);
+  }, [activeValue, controlled, tabs]);
+
+  function handleValueChange(next: string) {
+    if (!controlled) setInternalValue(next);
+    onValueChange?.(next);
+  }
+
   return (
     <TabsPrimitive.Root
-      value={value}
-      onValueChange={onValueChange}
+      value={activeValue}
+      onValueChange={handleValueChange}
       className={cn("flex flex-col gap-3", className)}
     >
       <TabsPrimitive.List
@@ -30,7 +45,7 @@ export function TabNav({
         aria-label="View tabs"
       >
         {tabs.map((tab) => (
-          <TabTrigger key={tab.id} tab={tab} value={value} />
+          <TabTrigger key={tab.id} tab={tab} value={activeValue} />
         ))}
       </TabsPrimitive.List>
       {tabs.map((tab) => (

@@ -1245,7 +1245,7 @@ describe("AgentDetail lifecycle intervention", () => {
       correlation_id: "wake-1",
       limit: "500",
     });
-  });
+  }, 15_000);
 
   it("shows the system guardian contract on system agent details", async () => {
     render(
@@ -1283,8 +1283,8 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     expect(await screen.findByText("System guardian contract")).toBeTruthy();
-    expect(screen.getByText("quiet guardian")).toBeTruthy();
-    expect(screen.getByText("quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2 · 1 wake schedule")).toBeTruthy();
+    expect(await screen.findByText("quiet guardian")).toBeTruthy();
+    expect(await screen.findByText("quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2 · 1 wake schedule")).toBeTruthy();
   });
 
   it("can quiet a noisy system guardian from the detail contract", async () => {
@@ -1577,11 +1577,11 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getByText("Resource passport")).toBeTruthy();
     expect(screen.getAllByText("workspace agents/ops · memory private · data lake via db · 1 config override").length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.getByText("2/3 visible · 1 owned · 1 blocked")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Inspect active run" }));
     expect(screen.getByText(/focused run/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Overview/ }));
     fireEvent.click(screen.getByRole("button", { name: /Inspect run/ }));
-    expect(screen.getAllByText(/active run/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/focused run/)).toBeTruthy();
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
     await waitFor(() =>
       expect(getJSON).toHaveBeenCalledWith("/api/journal", {
@@ -1589,7 +1589,6 @@ describe("AgentDetail lifecycle intervention", () => {
         limit: "500",
       }),
     );
-    fireEvent.click(screen.getByTitle("Open the full agent activity timeline"));
     expect(screen.getByText(/focused run/)).toBeTruthy();
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
 

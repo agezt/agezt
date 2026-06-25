@@ -96,7 +96,7 @@ export function Connections() {
             connectedLabel="keyed"
             items={keyed.map((p) => ({ key: p.id, label: p.name || p.id, tone: "good" as const }))}
             emptyHint="No provider connected"
-            actionLabel="Add provider"
+            actionLabel="Connect a provider"
             onAction={go("quickconnect")}
           />
           <SectionCard

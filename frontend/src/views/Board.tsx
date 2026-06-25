@@ -547,6 +547,71 @@ export function Board() {
         </div>
       )}
 
+      {data && (
+        <div className="space-y-2 rounded-lg border border-border bg-panel/30 p-2.5">
+          <div className="grid gap-2 sm:grid-cols-4">
+            <BoardStat label="messages" value={counts.messages} accent />
+            <BoardStat label="topics" value={counts.topics} />
+            <BoardStat label="awaiting" value={counts.awaiting} warn={counts.awaiting > 0} />
+            <BoardStat label="help" value={counts.help} warn={counts.help > 0} />
+          </div>
+          {agentFilter && (
+            <div className={cn(
+              "rounded-md border px-2.5 py-2 text-xs",
+              agentMailbox.tone === "warn" ? "border-warn/40 bg-warn/10 text-warn" :
+              agentMailbox.tone === "good" ? "border-good/30 bg-good/10 text-good" :
+              "border-border bg-card/45 text-muted",
+            )}>
+              <div className="font-semibold text-foreground">{agentMailbox.value}</div>
+              <div className="mt-0.5 text-muted">{agentMailbox.detail}</div>
+            </div>
+          )}
+          {topics.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {topics.length > 12 && (
+                <input
+                  value={topicQuery}
+                  onChange={(e) => setTopicQuery(e.target.value)}
+                  aria-label="Filter topics"
+                  placeholder="filter topics"
+                  className="h-7 min-w-36 rounded-full border border-border bg-panel px-2.5 text-xs outline-none focus-visible:border-accent"
+                />
+              )}
+              <button
+                onClick={() => setTopic(null)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                  !topic ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
+                )}
+              >
+                all topics
+              </button>
+              {visibleTopics.map(([name, count]) => (
+                <button
+                  key={name}
+                  onClick={() => setTopic(topic === name ? null : name)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                    topic === name ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
+                  )}
+                >
+                  {name}
+                  <span className="rounded-full bg-panel px-1 text-[10px] tabular-nums">{count}</span>
+                </button>
+              ))}
+              {!showAllTopics && hiddenCount > 0 && !topicQuery.trim() && (
+                <button
+                  onClick={() => setShowAllTopics(true)}
+                  className="rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:border-accent"
+                >
+                  +{hiddenCount} more
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {data && messages.length > 0 && (
         <TabNav
           value={topic ?? "all"}
@@ -558,7 +623,21 @@ export function Board() {
               icon: Inbox,
               count: messages.length,
               content: (
-                <BoardMessageGroups messages={messages} agentFilter={agentFilter} waiting={waiting} replyTo={replyTo} />
+                <BoardMessageGroups
+                  messages={messages}
+                  agentFilter={agentFilter}
+                  waiting={waiting}
+                  replyTo={replyTo}
+                  replyText={replyText}
+                  loading={loading}
+                  onToggleReply={(id) => {
+                    setReplyTo(replyTo === id ? "" : id);
+                    setReplyText("");
+                  }}
+                  onReplyTextChange={setReplyText}
+                  onSendReply={replyBoardMessage}
+                  onAck={ackBoardMessage}
+                />
               ),
             },
             ...(["decisions", "briefings", "board", "tool_calls"] as const).map((t) => {
@@ -570,7 +649,21 @@ export function Board() {
                 icon: t === "decisions" ? Zap : t === "briefings" ? MessageSquare : t === "board" ? Inbox : Terminal,
                 count: tabMessages.length,
                 content: (
-                  <BoardMessageGroups messages={tabMessages} agentFilter={agentFilter} waiting={waiting} replyTo={replyTo} />
+                  <BoardMessageGroups
+                    messages={tabMessages}
+                    agentFilter={agentFilter}
+                    waiting={waiting}
+                    replyTo={replyTo}
+                    replyText={replyText}
+                    loading={loading}
+                    onToggleReply={(id) => {
+                      setReplyTo(replyTo === id ? "" : id);
+                      setReplyText("");
+                    }}
+                    onReplyTextChange={setReplyText}
+                    onSendReply={replyBoardMessage}
+                    onAck={ackBoardMessage}
+                  />
                 ),
               };
             }).filter(Boolean) as { id: string; label: string; icon: ComponentType<{ className?: string }>; count: number; content: React.ReactNode }[],
@@ -578,24 +671,26 @@ export function Board() {
         />
       )}
 
-      {data && agents.length > 0 && (
+      {data && (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-xs text-muted">
-            <User className="size-3.5" />
-            <select
-              value={agentFilter}
-              onChange={(e) => changeAgentFilter(e.target.value)}
-              aria-label="Filter by agent"
-              className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
-            >
-              <option value="">All agents</option>
-              {agents.map((a) => (
-                <option key={a.slug} value={a.slug}>
-                  {agentLabel(a)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {agents.length > 0 && (
+            <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+              <User className="size-3.5" />
+              <select
+                value={agentFilter}
+                onChange={(e) => changeAgentFilter(e.target.value)}
+                aria-label="Filter by agent"
+                className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
+              >
+                <option value="">All agents</option>
+                {agents.map((a) => (
+                  <option key={a.slug} value={a.slug}>
+                    {agentLabel(a)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="flex flex-wrap items-center gap-1.5">
             {([
               ["all", "All"],
@@ -634,123 +729,33 @@ export function Board() {
         ) : (
           <Muted>no {messageFilter} messages match this board view{agentFilter ? ` for ${agentFilter}` : ""}</Muted>
         )
-      ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ul className="space-y-2">
-            {messages.map((m, i) => {
-              const ackedBy = messageAckedBy(m);
-              const selectedAgent = agentFilter.trim().toLowerCase();
-              const selectedAcked = !!selectedAgent && (m.acked_by || []).some((by) => by.trim().toLowerCase() === selectedAgent);
-              const canAckForSelected = !!agentFilter.trim() && !!m.id && !selectedAcked;
-              return (
-              <li key={i} className="glass rounded-xl p-3">
-                <div className="flex items-center gap-2">
-                  {ackedBy ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-good/40 bg-good/10 px-2 py-0.5 text-xs text-good" title={`acknowledged by ${ackedBy}`}>
-                      <CheckCheck className="size-3" />
-                      seen by {ackedBy}
-                    </span>
-                  ) : null}
-                  <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs text-accent">
-                    <Hash className="size-3 opacity-70" />
-                    {m.topic}
-                  </span>
-                  {m.from && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground/80">
-                      <User className="size-3 text-muted" />
-                      {m.from}
-                    </span>
-                  )}
-                  {m.help && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-xs text-warn" title="help request">
-                      <LifeBuoy className="size-3" />
-                      help
-                    </span>
-                  )}
-                  {m.to === "*" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent" title="broadcast to every agent">
-                      <Megaphone className="size-3" />
-                      all
-                    </span>
-                  ) : (
-                    m.to && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-accent">
-                        <ArrowRight className="size-3" />
-                        {m.to}
-                      </span>
-                    )
-                  )}
-                  {m.reply_to && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs text-muted" title={`reply to ${m.reply_to}`}>
-                      <CornerDownRight className="size-3" />
-                      reply
-                    </span>
-                  )}
-                  {m.id && waiting.has(m.id) && (
-                    <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-xs text-warn">
-                      awaiting reply
-                    </span>
-                  )}
-                  {canAckForSelected && (
-                    <span className="ml-auto flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={loading}
-                        onClick={() => {
-                          setReplyTo(replyTo === m.id ? "" : m.id || "");
-                          setReplyText("");
-                        }}
-                        title={`Reply to this board message as ${agentFilter}`}
-                      >
-                        <CornerDownRight className="size-3.5" /> Reply as {agentFilter}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={loading}
-                        onClick={() => m.id && ackBoardMessage(m.id)}
-                        title={`Acknowledge this board message as ${agentFilter}`}
-                      >
-                        <CheckCheck className="size-3.5" /> Ack as {agentFilter}
-                      </Button>
-                    </span>
-                  )}
-                  <span className="ml-auto font-mono text-xs text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</span>
-                </div>
-                <Markdown source={m.text} className="mt-1.5 text-sm text-foreground/90" />
-                {m.id && replyTo === m.id && (
-                  <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-border bg-card/60 p-2 sm:flex-row">
-                    <input
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) void replyBoardMessage(m.id || "");
-                      }}
-                      aria-label={`Reply to ${m.id}`}
-                      placeholder={`reply as ${agentFilter}`}
-                      className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus-visible:border-accent"
-                    />
-                    <Button size="sm" disabled={loading || !replyText.trim()} onClick={() => replyBoardMessage(m.id || "")}>
-                      <CornerDownRight className="size-3.5" /> Send reply
-                    </Button>
-                  </div>
-                )}
-              </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
+function BoardMessageGroups({
+  messages,
+  agentFilter,
+  waiting,
+  replyTo,
+  replyText,
+  loading,
+  onToggleReply,
+  onReplyTextChange,
+  onSendReply,
+  onAck,
+}: {
   messages: Msg[];
   agentFilter: string;
   waiting: Set<string>;
   replyTo: string;
+  replyText: string;
+  loading: boolean;
+  onToggleReply: (id: string) => void;
+  onReplyTextChange: (value: string) => void;
+  onSendReply: (id: string) => void;
+  onAck: (id: string) => void;
 }) {
   const groups = useMemo(() => {
     const map = new Map<string, Msg[]>();
@@ -762,36 +767,38 @@ function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [messages]);
 
-  if (groups.length === 0) {
-    return <Muted>no messages yet</Muted>;
-  }
+  const render = (msgs: Msg[]) =>
+    renderMessageList(msgs, agentFilter, waiting, replyTo, replyText, loading, onToggleReply, onReplyTextChange, onSendReply, onAck);
+
+  if (groups.length === 0) return <Muted>no messages yet</Muted>;
 
   if (groups.length === 1) {
-    return (
-      <div className="space-y-2">
-        {renderMessageList(groups[0][1], agentFilter, waiting, replyTo)}
-      </div>
-    );
+    return <div className="space-y-2">{render(groups[0][1])}</div>;
   }
 
   return (
     <div className="space-y-2">
       {groups.map(([topic, msgs]) => (
-        <CollapsibleSection
-          key={topic}
-          title={topic}
-          icon={Hash}
-          count={msgs.length}
-          defaultOpen={groups.length <= 3}
-        >
-          {renderMessageList(msgs, agentFilter, waiting, replyTo)}
+        <CollapsibleSection key={topic} title={topic} icon={Hash} count={msgs.length} defaultOpen={groups.length <= 3}>
+          {render(msgs)}
         </CollapsibleSection>
       ))}
     </div>
   );
 }
 
-function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string>, replyTo: string) {
+function renderMessageList(
+  msgs: Msg[],
+  agentFilter: string,
+  waiting: Set<string>,
+  replyTo: string,
+  replyText: string,
+  loading: boolean,
+  onToggleReply: (id: string) => void,
+  onReplyTextChange: (value: string) => void,
+  onSendReply: (id: string) => void,
+  onAck: (id: string) => void,
+) {
   return (
     <ul className="space-y-2">
       {msgs.map((m, i) => {
@@ -800,67 +807,81 @@ function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string
         const selectedAcked = !!selectedAgent && (m.acked_by || []).some((by) => by.trim().toLowerCase() === selectedAgent);
         const canAckForSelected = !!agentFilter.trim() && !!m.id && !selectedAcked;
         return (
-          <li key={i} className="glass rounded-xl p-3">
+          <li key={m.id || i} className="glass rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-1.5">
-              {m.help && (
-                <Badge variant="warn">
-                  <LifeBuoy className="size-3 mr-1" />
-                  help
-                </Badge>
-              )}
-              {m.to === "*" && (
-                <Badge variant="accent">
-                  <Megaphone className="size-3 mr-1" />
-                  all
-                </Badge>
-              )}
-              {m.reply_to && (
-                <Badge>
-                  <CornerDownRight className="size-3 mr-1" />
-                  reply
-                </Badge>
-              )}
               {ackedBy ? (
-                <Badge variant="good">
-                  <CheckCheck className="size-3 mr-1" />
-                  seen
-                </Badge>
+                <span className="inline-flex items-center gap-1 rounded-full border border-good/40 bg-good/10 px-2 py-0.5 text-xs text-good" title={`acknowledged by ${ackedBy}`}>
+                  <CheckCheck className="size-3" />
+                  seen by {ackedBy}
+                </span>
               ) : null}
-              {m.id && waiting.has(m.id) && (
-                <Badge variant="warn">awaiting</Badge>
-              )}
+              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs text-accent">
+                <Hash className="size-3 opacity-70" />
+                {m.topic}
+              </span>
               {m.from && (
-                <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-foreground/80">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground/80">
                   <User className="size-3 text-muted" />
                   {m.from}
                 </span>
               )}
-              {m.to && m.to !== "*" && (
-                <span className="flex items-center gap-0.5 text-[11px] text-accent">
-                  <ArrowRight className="size-3" />
-                  {m.to}
+              {m.help && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-xs text-warn" title="help request">
+                  <LifeBuoy className="size-3" />
+                  help
                 </span>
               )}
-              <span className="ml-auto font-mono text-xs text-muted">{fmtTime(m.ts_unix_ms)}</span>
+              {m.to === "*" ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent" title="broadcast to every agent">
+                  <Megaphone className="size-3" />
+                  all
+                </span>
+              ) : (
+                m.to && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-accent">
+                    <ArrowRight className="size-3" />
+                    {m.to}
+                  </span>
+                )
+              )}
+              {m.reply_to && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs text-muted" title={`reply to ${m.reply_to}`}>
+                  <CornerDownRight className="size-3" />
+                  reply
+                </span>
+              )}
+              {m.id && waiting.has(m.id) && (
+                <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-xs text-warn">
+                  awaiting reply
+                </span>
+              )}
+              {canAckForSelected && (
+                <span className="ml-auto flex items-center gap-1">
+                  <Button size="sm" variant="ghost" disabled={loading} onClick={() => m.id && onToggleReply(m.id)} title={`Reply to this board message as ${agentFilter}`}>
+                    <CornerDownRight className="size-3.5" /> Reply as {agentFilter}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={loading} onClick={() => m.id && onAck(m.id)} title={`Acknowledge this board message as ${agentFilter}`}>
+                    <CheckCheck className="size-3.5" /> Ack as {agentFilter}
+                  </Button>
+                </span>
+              )}
+              <span className="ml-auto font-mono text-xs text-muted opacity-70">{fmtTime(m.ts_unix_ms)}</span>
             </div>
             <Markdown source={m.text} className="mt-1.5 text-sm text-foreground/90" />
-            {canAckForSelected && (
-              <div className="mt-2 flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {}}
-                  title={`Reply as ${agentFilter}`}
-                >
-                  <CornerDownRight className="size-3.5" /> Reply
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {}}
-                  title={`Ack as ${agentFilter}`}
-                >
-                  <CheckCheck className="size-3.5" /> Ack
+            {m.id && replyTo === m.id && (
+              <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-border bg-card/60 p-2 sm:flex-row">
+                <input
+                  value={replyText}
+                  onChange={(e) => onReplyTextChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) onSendReply(m.id || "");
+                  }}
+                  aria-label={`Reply to ${m.id}`}
+                  placeholder={`reply as ${agentFilter}`}
+                  className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus-visible:border-accent"
+                />
+                <Button size="sm" disabled={loading || !replyText.trim()} onClick={() => onSendReply(m.id || "")}>
+                  <CornerDownRight className="size-3.5" /> Send reply
                 </Button>
               </div>
             )}

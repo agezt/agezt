@@ -2,11 +2,10 @@
 
 package controlplane
 
-// Provider keyring (M700): store many API keys per provider env var in the vault
-// and pick which is active — "store many, pick active". The active key is what
-// the provider's CredLookup reads (the bare env-var name); switching reloads the
-// provider in place. Values NEVER leave the daemon — list returns label + active
-// + last-4 fingerprint only, mirroring the Config Center's secret privacy rule.
+// Provider keyring (M700): store many API keys per provider and pick which is
+// active — "store many, pick active". Values NEVER leave the daemon — list
+// returns label + active + last-4 fingerprint only, mirroring the Config
+// Center's secret privacy rule.
 
 import (
 	"net"
@@ -14,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/creds"
 )
 
@@ -22,6 +22,7 @@ import (
 // AGEZT_ namespace is the Config Center's; provider creds live outside it
 // (OPENAI_API_KEY, ANTHROPIC_API_KEY, …), so reject AGEZT_ here.
 var providerEnvPattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_]*$`)
+var providerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
 
 // keyEnv validates and returns the env-var name from req.Args["env"].
 func keyEnv(req Request) (string, bool) {
@@ -31,6 +32,32 @@ func keyEnv(req Request) (string, bool) {
 		return "", false
 	}
 	return env, true
+}
+
+// keyTarget returns the display provider/env plus the actual vault keyring
+// target. Without args.provider this preserves the legacy env-global keyring;
+// with args.provider it stores under provider:<id>:<ENV>, so providers that
+// share the same models.dev env name do not share API keys accidentally.
+func keyTarget(req Request) (provider, env, target string, ok bool) {
+	env, ok = keyEnv(req)
+	if !ok {
+		return "", "", "", false
+	}
+	provider, _ = req.Args["provider"].(string)
+	provider = strings.TrimSpace(provider)
+	if provider != "" {
+		if !providerIDPattern.MatchString(provider) {
+			return "", "", "", false
+		}
+		target = catalog.ProviderCredentialName(provider, env)
+	} else {
+		target = env
+	}
+	return provider, env, target, true
+}
+
+func keyTargetError() Response {
+	return Response{Type: RespError, Error: "args.env must be a provider env var (UPPER_SNAKE, not AGEZT_*); args.provider, when set, must be a catalog provider id"}
 }
 
 func (s *Server) loadVault(conn net.Conn, req Request) (*creds.Store, bool) {
@@ -45,9 +72,11 @@ func (s *Server) loadVault(conn net.Conn, req Request) (*creds.Store, bool) {
 // handleProviderKeyList returns the keys stored for a provider env var — labels,
 // which is active, and a last-4 fingerprint. Never the values.
 func (s *Server) handleProviderKeyList(conn net.Conn, req Request) {
-	env, ok := keyEnv(req)
+	provider, env, target, ok := keyTarget(req)
 	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider env var (UPPER_SNAKE, not AGEZT_*)"})
+		resp := keyTargetError()
+		resp.ID = req.ID
+		s.writeResp(conn, resp)
 		return
 	}
 	vault, ok := s.loadVault(conn, req)
@@ -55,16 +84,18 @@ func (s *Server) handleProviderKeyList(conn net.Conn, req Request) {
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"env": env, "keys": vault.KeyringList(env),
+		"provider": provider, "env": env, "keys": vault.KeyringList(target),
 	}})
 }
 
 // handleProviderKeyAdd stores a new key under a label. If it becomes active (the
 // first key, or active=true), the provider is reloaded in place.
 func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
-	env, ok := keyEnv(req)
+	provider, env, target, ok := keyTarget(req)
 	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider env var (UPPER_SNAKE, not AGEZT_*)"})
+		resp := keyTargetError()
+		resp.ID = req.ID
+		s.writeResp(conn, resp)
 		return
 	}
 	label, _ := req.Args["label"].(string)
@@ -76,7 +107,7 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 	if !ok {
 		return
 	}
-	activeChanged, err := vault.KeyringAdd(env, label, value, makeActive)
+	activeChanged, err := vault.KeyringAdd(target, label, value, makeActive)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
@@ -85,7 +116,7 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save vault: " + err.Error()})
 		return
 	}
-	result := map[string]any{"env": env, "label": label, "added": true, "active_changed": activeChanged}
+	result := map[string]any{"provider": provider, "env": env, "label": label, "added": true, "active_changed": activeChanged}
 	if activeChanged {
 		if _, _, err := s.k.Reload(); err != nil {
 			result["reload_error"] = err.Error()
@@ -96,9 +127,11 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 
 // handleProviderKeyActivate switches the active key and reloads the provider.
 func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
-	env, ok := keyEnv(req)
+	provider, env, target, ok := keyTarget(req)
 	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider env var (UPPER_SNAKE, not AGEZT_*)"})
+		resp := keyTargetError()
+		resp.ID = req.ID
+		s.writeResp(conn, resp)
 		return
 	}
 	label, _ := req.Args["label"].(string)
@@ -108,7 +141,7 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 	if !ok {
 		return
 	}
-	if err := vault.KeyringActivate(env, label); err != nil {
+	if err := vault.KeyringActivate(target, label); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
@@ -116,7 +149,7 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save vault: " + err.Error()})
 		return
 	}
-	result := map[string]any{"env": env, "label": label, "active": true}
+	result := map[string]any{"provider": provider, "env": env, "label": label, "active": true}
 	if _, _, err := s.k.Reload(); err != nil {
 		result["reload_error"] = err.Error()
 	}
@@ -126,9 +159,11 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 // handleProviderKeyRemove deletes a key. Removing the active key clears the bare
 // name (provider uncredentialed until another is activated) and reloads.
 func (s *Server) handleProviderKeyRemove(conn net.Conn, req Request) {
-	env, ok := keyEnv(req)
+	provider, env, target, ok := keyTarget(req)
 	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider env var (UPPER_SNAKE, not AGEZT_*)"})
+		resp := keyTargetError()
+		resp.ID = req.ID
+		s.writeResp(conn, resp)
 		return
 	}
 	label, _ := req.Args["label"].(string)
@@ -138,12 +173,12 @@ func (s *Server) handleProviderKeyRemove(conn net.Conn, req Request) {
 	if !ok {
 		return
 	}
-	removed, wasActive := vault.KeyringRemove(env, label)
+	removed, wasActive := vault.KeyringRemove(target, label)
 	if err := vault.Save(); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save vault: " + err.Error()})
 		return
 	}
-	result := map[string]any{"env": env, "label": label, "removed": removed, "was_active": wasActive}
+	result := map[string]any{"provider": provider, "env": env, "label": label, "removed": removed, "was_active": wasActive}
 	if wasActive {
 		if _, _, err := s.k.Reload(); err != nil {
 			result["reload_error"] = err.Error()

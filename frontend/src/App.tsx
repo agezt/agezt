@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType, type LazyExoticComponent } from "react";
 import {
   MessageSquare,
   Activity as ActivityIcon,
@@ -52,6 +52,7 @@ import {
   HelpCircle,
   HardDrive,
   Shapes,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -87,72 +88,81 @@ import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/c
 import { downloadText } from "@/lib/export";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
-import { EventFeed } from "@/components/EventFeed";
-import { Chat } from "@/views/Chat";
-import { Activity } from "@/views/Activity";
-import { Mission } from "@/views/Mission";
-import { Autonomy } from "@/views/Autonomy";
-import { Health } from "@/views/Health";
-import { Analyst } from "@/views/Analyst";
-import { Alerts } from "@/views/Alerts";
-import { Search as SearchView } from "@/views/Search";
-import { Replay } from "@/views/Replay";
-import { Agents } from "@/views/Agents";
-import { Roster } from "@/views/Roster";
-import { Overseer } from "@/views/Overseer";
-import { Toolforge } from "@/views/Toolforge";
-import { Mcp } from "@/views/Mcp";
-import { Workflows } from "@/views/Workflows";
-import { Wizards } from "@/views/Wizards";
-import { Dashboard } from "@/views/Dashboard";
-import { Insights } from "@/views/Insights";
-import { Status } from "@/views/Status";
-import { Runs } from "@/views/Runs";
-import { Budget } from "@/views/Budget";
-import { FlowStudio } from "@/views/FlowStudio";
-import { Config } from "@/views/Config";
-import { ConfigCenter } from "@/views/ConfigCenter";
-import { Cache } from "@/views/Cache";
-import { Providers } from "@/views/Providers";
-import { QuickConnect } from "@/views/QuickConnect";
-import { Connections } from "@/views/Connections";
-import { Tools } from "@/views/Tools";
-import { Catalog } from "@/views/Catalog";
-import { Models } from "@/views/Models";
-import { Routing } from "@/views/Routing";
-import { Chains } from "@/views/Chains";
-import { Setup, anyCredentialed, type SetupCatalog } from "@/views/Setup";
-import { Toolbox } from "@/views/Toolbox";
-import { Market } from "@/views/Market";
-import { Channels } from "@/views/Channels";
-import { AgentPage } from "@/views/AgentPage";
-import { IncidentPage } from "@/views/IncidentPage";
-import { Files } from "@/views/Files";
-import { Data } from "@/views/Data";
-import { Council } from "@/views/Council";
-import { Conductor } from "@/views/Conductor";
-import { Persona } from "@/views/Persona";
-import { Prompts } from "@/views/Prompts";
-import { Backup } from "@/views/Backup";
-import { Policy } from "@/views/Policy";
-import { Schedules } from "@/views/Schedules";
-import { World } from "@/views/World";
-import { Skills } from "@/views/Skills";
-import { Standing } from "@/views/Standing";
-import { Memory } from "@/views/Memory";
-import { Inbox } from "@/views/Inbox";
-import { Board } from "@/views/Board";
-import { Reflect } from "@/views/Reflect";
-import { Approvals } from "@/views/Approvals";
-import { Sandbox } from "@/views/Sandbox";
-import { Storage } from "@/views/Storage";
-import { Artifacts } from "@/views/Artifacts";
+import { anyCredentialed, type SetupCatalog } from "@/lib/setup";
+
+type LazyView = LazyExoticComponent<ComponentType<any>>;
+type NavRender = ComponentType<any> | LazyView;
+
+function lazyNamed<T extends Record<string, unknown>>(loader: () => Promise<T>, key: keyof T): LazyView {
+  return lazy(async () => ({ default: (await loader())[key] as ComponentType<any> }));
+}
+
+const EventFeed = lazyNamed(() => import("@/components/EventFeed"), "EventFeed");
+const Chat = lazyNamed(() => import("@/views/Chat"), "Chat");
+const Activity = lazyNamed(() => import("@/views/Activity"), "Activity");
+const Mission = lazyNamed(() => import("@/views/Mission"), "Mission");
+const Autonomy = lazyNamed(() => import("@/views/Autonomy"), "Autonomy");
+const Health = lazyNamed(() => import("@/views/Health"), "Health");
+const Analyst = lazyNamed(() => import("@/views/Analyst"), "Analyst");
+const Alerts = lazyNamed(() => import("@/views/Alerts"), "Alerts");
+const SearchView = lazyNamed(() => import("@/views/Search"), "Search");
+const Replay = lazyNamed(() => import("@/views/Replay"), "Replay");
+const Agents = lazyNamed(() => import("@/views/Agents"), "Agents");
+const Roster = lazyNamed(() => import("@/views/Roster"), "Roster");
+const Overseer = lazyNamed(() => import("@/views/Overseer"), "Overseer");
+const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
+const Mcp = lazyNamed(() => import("@/views/Mcp"), "Mcp");
+const Workflows = lazyNamed(() => import("@/views/Workflows"), "Workflows");
+const Wizards = lazyNamed(() => import("@/views/Wizards"), "Wizards");
+const Dashboard = lazyNamed(() => import("@/views/Dashboard"), "Dashboard");
+const Insights = lazyNamed(() => import("@/views/Insights"), "Insights");
+const Status = lazyNamed(() => import("@/views/Status"), "Status");
+const Runs = lazyNamed(() => import("@/views/Runs"), "Runs");
+const Budget = lazyNamed(() => import("@/views/Budget"), "Budget");
+const FlowStudio = lazyNamed(() => import("@/views/FlowStudio"), "FlowStudio");
+const Config = lazyNamed(() => import("@/views/Config"), "Config");
+const ConfigCenter = lazyNamed(() => import("@/views/ConfigCenter"), "ConfigCenter");
+const Cache = lazyNamed(() => import("@/views/Cache"), "Cache");
+const Providers = lazyNamed(() => import("@/views/Providers"), "Providers");
+const QuickConnect = lazyNamed(() => import("@/views/QuickConnect"), "QuickConnect");
+const Connections = lazyNamed(() => import("@/views/Connections"), "Connections");
+const Tools = lazyNamed(() => import("@/views/Tools"), "Tools");
+const Catalog = lazyNamed(() => import("@/views/Catalog"), "Catalog");
+const Models = lazyNamed(() => import("@/views/Models"), "Models");
+const Routing = lazyNamed(() => import("@/views/Routing"), "Routing");
+const Chains = lazyNamed(() => import("@/views/Chains"), "Chains");
+const Setup = lazyNamed(() => import("@/views/Setup"), "Setup");
+const Toolbox = lazyNamed(() => import("@/views/Toolbox"), "Toolbox");
+const Market = lazyNamed(() => import("@/views/Market"), "Market");
+const Channels = lazyNamed(() => import("@/views/Channels"), "Channels");
+const AgentPage = lazyNamed(() => import("@/views/AgentPage"), "AgentPage");
+const IncidentPage = lazyNamed(() => import("@/views/IncidentPage"), "IncidentPage");
+const Files = lazyNamed(() => import("@/views/Files"), "Files");
+const Data = lazyNamed(() => import("@/views/Data"), "Data");
+const Council = lazyNamed(() => import("@/views/Council"), "Council");
+const Conductor = lazyNamed(() => import("@/views/Conductor"), "Conductor");
+const Persona = lazyNamed(() => import("@/views/Persona"), "Persona");
+const Prompts = lazyNamed(() => import("@/views/Prompts"), "Prompts");
+const Backup = lazyNamed(() => import("@/views/Backup"), "Backup");
+const Policy = lazyNamed(() => import("@/views/Policy"), "Policy");
+const Schedules = lazyNamed(() => import("@/views/Schedules"), "Schedules");
+const World = lazyNamed(() => import("@/views/World"), "World");
+const Skills = lazyNamed(() => import("@/views/Skills"), "Skills");
+const Standing = lazyNamed(() => import("@/views/Standing"), "Standing");
+const Memory = lazyNamed(() => import("@/views/Memory"), "Memory");
+const Inbox = lazyNamed(() => import("@/views/Inbox"), "Inbox");
+const Board = lazyNamed(() => import("@/views/Board"), "Board");
+const Reflect = lazyNamed(() => import("@/views/Reflect"), "Reflect");
+const Approvals = lazyNamed(() => import("@/views/Approvals"), "Approvals");
+const Sandbox = lazyNamed(() => import("@/views/Sandbox"), "Sandbox");
+const Storage = lazyNamed(() => import("@/views/Storage"), "Storage");
+const Artifacts = lazyNamed(() => import("@/views/Artifacts"), "Artifacts");
 
 interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
-  render: ComponentType;
+  render: NavRender;
 }
 
 interface NavGroup {
@@ -392,9 +402,10 @@ export default function App() {
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
 
-  // First-run setup (M816): auto-open the full-screen wizard when the daemon has
-  // no credentialed provider (it's on the mock fallback) — unless the operator
-  // dismissed it this install. Once any provider has a key, it never auto-shows.
+  // First-run setup (M816): auto-open the full-screen wizard until the catalog
+  // reports at least one usable provider. API-key providers become usable when a
+  // key exists; keyless/local providers become usable when they are runnable.
+  // Once dismissed for this install, it stays quiet until opened from nav.
   const [needsSetup, setNeedsSetup] = useState(false);
   useEffect(() => {
     if (localStorage.getItem("agezt.setup.skipped") === "1") return;
@@ -638,17 +649,19 @@ export default function App() {
         onNavigate={setActive}
       />
       {needsSetup && (
-        <Setup
-          overlay
-          onDone={() => {
-            setNeedsSetup(false);
-            setActive("chat");
-          }}
-          onSkip={() => {
-            localStorage.setItem("agezt.setup.skipped", "1");
-            setNeedsSetup(false);
-          }}
-        />
+        <Suspense fallback={<RouteLoading label="Setup" />}>
+          <Setup
+            overlay
+            onDone={() => {
+              setNeedsSetup(false);
+              setActive("chat");
+            }}
+            onSkip={() => {
+              localStorage.setItem("agezt.setup.skipped", "1");
+              setNeedsSetup(false);
+            }}
+          />
+        </Suspense>
       )}
       <input
         ref={appearanceFileRef}
@@ -816,18 +829,31 @@ export default function App() {
             key={incidentId ? `incident/${incidentId}` : agentSlug ? `agent/${agentSlug}` : hashKey || active}
             className="view-enter h-full"
           >
-            {incidentId ? (
-              <IncidentPage incidentId={incidentId} onNavigate={setActive} />
-            ) : agentSlug ? (
-              <AgentPage slug={agentSlug} onNavigate={setActive} />
-            ) : (
-              <View />
-            )}
+            <Suspense fallback={<RouteLoading label={incidentId ? "Incident" : agentSlug ? "Agent" : current.label} />}>
+              {incidentId ? (
+                <IncidentPage incidentId={incidentId} onNavigate={setActive} />
+              ) : agentSlug ? (
+                <AgentPage slug={agentSlug} onNavigate={setActive} />
+              ) : (
+                <View />
+              )}
+            </Suspense>
           </div>
         </main>
       </div>
     </div>
     </TooltipProvider>
+  );
+}
+
+function RouteLoading({ label }: { label: string }) {
+  return (
+    <div className="flex h-full min-h-[240px] items-center justify-center">
+      <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted shadow-e1">
+        <RefreshCw className="size-4 animate-spin" />
+        Loading {label}...
+      </div>
+    </div>
   );
 }
 

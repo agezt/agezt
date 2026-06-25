@@ -28,6 +28,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/envscrub"
 )
 
 // DefaultTimeout caps one delegated coding run.
@@ -137,8 +138,9 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		_, _ = t.run(rmCtx, t.Repo, nil, "git", "worktree", "remove", "--force", wt)
 	}()
 
-	// Run the external agent in the worktree with the task in the environment.
-	agentEnv := append(os.Environ(), "AGEZT_CODING_TASK="+task)
+	// Run the external agent in the worktree with a scrubbed environment. The
+	// task is the only AGEZT_* value intentionally handed to the child.
+	agentEnv := envscrub.With(envscrub.Scrubbed(), "AGEZT_CODING_TASK="+task)
 	shell, shellArg := platformShell()
 	agentOut, agentErr := t.run(ctx, wt, agentEnv, shell, shellArg, t.Cmd)
 

@@ -120,7 +120,7 @@ describe("Models key management", () => {
   function mockWithKeys(keys: any[]) {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/catalog") return Promise.resolve(KEYED);
-      if (path === "/api/provider/keys") return Promise.resolve({ env: "OPENAI_API_KEY", keys });
+      if (path === "/api/provider/keys") return Promise.resolve({ provider: "openai", env: "OPENAI_API_KEY", keys });
       return Promise.reject(new Error("unexpected " + path));
     });
   }
@@ -134,7 +134,7 @@ describe("Models key management", () => {
     await waitFor(() => expect(screen.getByText("OpenAI")).toBeTruthy());
     fireEvent.click(screen.getByText("OpenAI"));
 
-    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/provider/keys", { env: "OPENAI_API_KEY" }));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/provider/keys", { provider: "openai", env: "OPENAI_API_KEY" }));
     expect(screen.getByText("work")).toBeTruthy();
     expect(screen.getByText("…1111")).toBeTruthy();
     expect(screen.getByText("personal")).toBeTruthy();
@@ -161,6 +161,7 @@ describe("Models key management", () => {
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/provider/keys/add", {
+        provider: "openai",
         env: "OPENAI_API_KEY",
         label: "personal",
         value: "sk-secret-xyz",
@@ -182,7 +183,7 @@ describe("Models key management", () => {
 
     fireEvent.click(screen.getByText("activate"));
     await waitFor(() =>
-      expect(postAction).toHaveBeenCalledWith("/api/provider/keys/activate", { env: "OPENAI_API_KEY", label: "personal" }),
+      expect(postAction).toHaveBeenCalledWith("/api/provider/keys/activate", { provider: "openai", env: "OPENAI_API_KEY", label: "personal" }),
     );
   });
 });

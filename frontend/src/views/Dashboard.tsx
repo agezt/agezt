@@ -175,7 +175,7 @@ export function Dashboard() {
   const model = (status?.model as string) || "—";
   const byModel = stats?.by_model ? Object.entries(stats.by_model) : [];
   const maxModelSpend = Math.max(1, ...byModel.map(([, v]) => v.spent_microcents ?? 0));
-  const successPct = stats?.total ? Math.round((stats.success_rate ?? 0) * 100) : 0;
+  const errorPct = stats?.total ? Math.round(((stats.failed ?? 0) / stats.total) * 100) : 0;
   const schedTotal = Number(status?.schedules?.total ?? 0);
   const schedEnabled = Number(status?.schedules?.enabled ?? 0);
   const schedRunning = Number(status?.schedules?.running ?? 0);
@@ -193,7 +193,7 @@ export function Dashboard() {
           fleetOps={fleetOps}
           active={active}
           alerts={alerts}
-          successPct={successPct}
+          errorPct={errorPct}
           pctUsed={pctUsed}
           ceiling={ceiling}
           spent={spent}
@@ -203,6 +203,7 @@ export function Dashboard() {
           schedResidentOffline={schedResidentOffline}
           series={series}
           status={status}
+          events={events}
         />
       ),
     },
@@ -270,7 +271,7 @@ function OverviewTab({
   fleetOps,
   active,
   alerts,
-  successPct,
+  errorPct,
   pctUsed,
   ceiling,
   spent,
@@ -280,12 +281,13 @@ function OverviewTab({
   schedResidentOffline,
   series,
   status,
+  events,
 }: {
   stats: Stats | null;
   fleetOps: DashboardFleetOps | null;
   active: RootSummary[];
   alerts: RankedAlert[];
-  successPct: number;
+  errorPct: number;
   pctUsed: number;
   ceiling: number;
   spent: number;
@@ -295,6 +297,7 @@ function OverviewTab({
   schedResidentOffline: boolean;
   series: number[];
   status: Record<string, any> | null;
+  events: AgentEvent[];
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -345,10 +348,10 @@ function OverviewTab({
       {/* Key metrics grid */}
       <MetricGrid>
         <MetricWidget
-          icon={CheckCircle2}
-          label="Success rate"
-          value={`${successPct}%`}
-          tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
+          icon={XCircle}
+          label="error rate"
+          value={`${errorPct}%`}
+          tone={errorPct > 20 ? "bad" : errorPct > 0 ? "warn" : "good"}
           trend={[]}
         />
         <MetricWidget
@@ -362,7 +365,7 @@ function OverviewTab({
           icon={CalendarClock}
           label="Schedules"
           value={schedResidentOffline ? "offline" : `${schedRunning} live`}
-          subvalue={`${schedEnabled} of ${schedTotal} enabled`}
+          subvalue={schedTotal > 0 ? `of ${schedTotal} schedules` : `${schedEnabled} enabled`}
           tone={schedResidentOffline ? "bad" : schedRunning > 0 ? "accent" : "muted"}
           pulse={schedRunning > 0}
         />
@@ -376,6 +379,37 @@ function OverviewTab({
           pulse={true}
         />
       </MetricGrid>
+
+      <Advanced>
+        {events.length > 0 && (
+          <CollapsibleSection
+            icon={Radio}
+            title="Live stream"
+            count={events.length}
+            tone="accent"
+            defaultOpen={true}
+          >
+            <ul className="divide-y divide-border/60 text-xs">
+              {events.slice(0, 6).map((e, i) => (
+                <li key={e.id || i} className="flex items-center gap-2 py-1.5">
+                  <span className="w-16 shrink-0 tabular-nums text-muted">{fmtTime(e.ts_unix_ms)}</span>
+                  <IncidentBadges
+                    item={{
+                      subject: e.subject,
+                      phase: (e.payload as any)?.phase,
+                      mode: (e.payload as any)?.mode,
+                    }}
+                    mono
+                  />
+                  <span className="min-w-0 flex-1 truncate text-muted">
+                    {[eventSummary(e), e.subject].filter(Boolean).join(" · ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CollapsibleSection>
+        )}
+      </Advanced>
 
       {/* Fleet ops — compact strip */}
       {fleetOps && fleetOps.total > 0 && (
@@ -394,6 +428,9 @@ function OverviewTab({
             </button>
           }
         >
+          <p className="mb-2 text-xs text-muted">
+            {fleetOps.active} active · {fleetOps.paused} paused · {fleetOps.graveyard} graveyard
+          </p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
             <MiniMetric icon={Bot} label="agents" value={fleetOps.total} />
             <MiniMetric icon={Radio} label="awake" value={fleetOps.running} tone={fleetOps.running > 0 ? "accent" : "muted"} pulse={fleetOps.running > 0} />
@@ -408,12 +445,12 @@ function OverviewTab({
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {fleetOps.repair > 0 && (
                 <button onClick={() => (location.hash = "roster")} className="text-bad hover:text-bad/80">
-                  {fleetOps.repair} need repair
+                  {fleetOps.repair} agent need repair attention
                 </button>
               )}
               {fleetOps.mailboxBacklog > 0 && (
                 <button onClick={() => (location.hash = "board")} className="text-warn hover:text-warn/80">
-                  {fleetOps.mailboxBacklog} messages waiting
+                  {fleetOps.mailboxBacklog} mailbox message waiting across {fleetOps.mailboxAgents} agent
                 </button>
               )}
             </div>
@@ -460,7 +497,7 @@ function OverviewTab({
         <MetricWidget icon={Repeat} label="Running" value={stats?.running ?? 0} tone="accent" pulse={(stats?.running ?? 0) > 0} />
         <MetricWidget icon={CheckCircle2} label="Completed" value={stats?.completed ?? 0} tone="good" />
         <MetricWidget icon={XOctagon} label="Failed" value={stats?.failed ?? 0} tone={(stats?.failed ?? 0) > 0 ? "bad" : "muted"} />
-        <MetricWidget icon={GitBranch} label="Delegations" value={stats?.delegations ?? 0} tone={(stats?.delegations ?? 0) > 0 ? "accent" : "muted"} />
+        <MetricWidget icon={GitBranch} label="delegations" value={stats?.delegations ?? 0} tone={(stats?.delegations ?? 0) > 0 ? "accent" : "muted"} />
         <MetricWidget icon={CalendarClock} label="Active skills" value={status?.active_skills ?? 0} />
       </MetricGrid>
     </div>

@@ -1,61 +1,240 @@
-# Infrastructure / CI-CD / IaC Security Hunt — AGEZT
+# Infrastructure Security Audit — AGEZT
 
-Scope: `.github/workflows/ci.yml`, `.github/workflows/publish-sdks.yml`,
-`.github/actions/setup-go-safe/action.yml`, `scripts/ci-go-retry.sh`,
-`scripts/e2e-smoke.sh`, `scripts/webui-e2e.sh`. Globbed entire repo for
-Dockerfile*, docker-compose*, *.tf/*.tfvars, k8s/helm/charts/deploy/manifests.
+Scope: CI/CD, Docker, IaC, repo scripts, committed secrets. Read-only review.
+Auditor: Infrastructure hunter. Date: 2026-06-24.
 
-## Summary of posture (what is GOOD — context for the findings)
+## Executive summary
 
-- **No `pull_request_target`** anywhere. CI triggers on plain `pull_request`.
-- **Every CI job is fork-gated**: `if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository`. Fork PRs are skipped entirely, so untrusted fork code never executes on the self-hosted WSL runners. This is the correct mitigation for the "self-hosted + fork PR = RCE" class and it is applied consistently to all 14 jobs.
-- **`permissions: contents: read`** is set at the top level of BOTH workflows (least privilege; not default write-all).
-- **No `${{ github.event.* }}` (PR title/body/branch/author) is interpolated into any `run:` block.** The only `github.event.*` usage is inside `if:` expressions compared against `github.repository`. No `${{ github.head_ref }}` / `github.event.pull_request.*` reaches a shell. → No GHA script-injection sink found.
-- **No Dockerfiles, docker-compose, Terraform, or k8s/helm manifests exist** in the repo (confirmed by repo-wide glob). IaC attack surface for this hunt is empty.
-- `publish-sdks.yml` runs only on `release: published` and `workflow_dispatch` (both maintainer-gated, trusted events). Registry tokens (`PYPI_API_TOKEN`, `NPM_TOKEN`, `CARGO_REGISTRY_TOKEN`) are never exposed to fork/PR code. Publish steps no-op when the token secret is absent. This is well-scoped.
+The GitHub Actions pipeline is **unusually well-hardened** — among the best-configured aspects of this
+repo. It already implements most CI/CD supply-chain best practices: least-privilege `GITHUB_TOKEN`,
+all third-party actions SHA-pinned, no PR-head code exec with secrets, no script-injection sinks,
+`persist-credentials: false`, checksum-verified tool downloads, pinned tool versions.
 
----
+There is **no Docker, no docker-compose, no Terraform, and no Kubernetes/IaC** in the repository, so
+those classes are N/A (see §2/§3).
 
-## Findings
+The real risk surface is **(a) the self-hosted WSL runners combined with `pull_request` triggers**, and
+**(b) a set of loose, committed root utility scripts** — `list_vault.py`, the `*scout*` scripts, and
+`start-daemon.*` — which are debugging/operator scratch files that should not ship in a repo. Plus a
+local **`.env` containing a real `AGEZT_VAULT_PASSPHRASE` value** that, while correctly gitignored, sits
+unencrypted on disk and is referenced by `dev.ps1`.
 
-### INFRA-1 — Unpinned third-party actions (mutable tags, not SHA-pinned)
-- **Severity:** Medium
-- **CWE:** CWE-1357 (Reliance on Insufficiently Trustworthy Component) / CWE-829 (Inclusion of Functionality from Untrusted Control Sphere)
-- **Location:**
-  - `.github/workflows/ci.yml:37,53,70,86,107,108,131,132,150,152,176,177,193,210,242,243,261,278,339,342` — `actions/checkout@v4`, `actions/setup-go@v5`, `actions/setup-node@v4`, `actions/setup-python@v5`, `dtolnay/rust-toolchain@stable`
-  - `.github/actions/setup-go-safe/action.yml:41,88` — `actions/setup-go@v5`
-  - `.github/workflows/publish-sdks.yml:31,32,57,58,85,86` — same families + `dtolnay/rust-toolchain@stable`
-- **Attack:** All third-party actions are referenced by mutable Git tags (`@v4`, `@v5`, `@stable`) rather than full commit SHAs. If any upstream action (or its tag) is compromised — a hijacked maintainer account or a moved tag — the malicious version is pulled and executed automatically on the next run. On the SELF-HOSTED WSL runners this is code execution on persistent infrastructure (the runners reuse one WSL VM and share `/dev/shm`), not an ephemeral cloud VM. `dtolnay/rust-toolchain@stable` is a branch ref, which is the most mutable of all.
-- **Impact:** Supply-chain compromise → arbitrary code execution on the self-hosted runners and, in `publish-sdks.yml`, potential theft of PyPI/npm/crates.io publish tokens. Self-hosted runner persistence makes lateral movement / credential harvesting worse than on hosted runners.
-- **Confidence:** High that they are unpinned (factual). Medium on real-world exploitability (requires upstream compromise; these are first-party `actions/*` and a reputable `dtolnay` action).
-- **Remediation:** Pin every external action to a full 40-char commit SHA with the version in a trailing comment, e.g. `uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1`. Enable Dependabot for `github-actions` to bump the pins. Pin `dtolnay/rust-toolchain` to a SHA (a branch ref is especially risky).
-
-### INFRA-2 — CI installs build/scan tooling via `curl | tar` and `go install ...@latest` (unpinned binary supply chain)
-- **Severity:** Medium
-- **CWE:** CWE-494 (Download of Code Without Integrity Check)
-- **Location:**
-  - `.github/workflows/ci.yml:297-301` — `curl ... api.github.com/.../releases/latest` then `curl ... staticcheck_linux_amd64.tar.gz -o /tmp/sc.tgz; tar xzf` — no checksum/signature verification, latest release resolved dynamically.
-  - `.github/workflows/ci.yml:322` — `go install golang.org/x/vuln/cmd/govulncheck@latest`
-  - `.github/workflows/ci.yml:350` — `go install github.com/zricethezav/gitleaks/v8@latest`
-- **Attack:** The staticcheck tarball is downloaded over HTTPS but its integrity is never verified against a published checksum/signature; the release tag is whatever `releases/latest` returns at run time. `@latest` for govulncheck and gitleaks pulls whatever the proxy serves now. A compromised upstream release, a hijacked module version, or a MITM of the GitHub API/download (defense-in-depth) yields a malicious binary executed on the self-hosted runner with the workspace checkout present.
-- **Impact:** Arbitrary code execution on the persistent self-hosted runners during the `lint` and `secrets` jobs. These run on every push to `main` and on internal PRs.
-- **Confidence:** Medium (factual that there is no integrity check; exploitation requires upstream/registry compromise).
-- **Remediation:** Pin staticcheck to a specific release tag AND verify the published SHA256 of the tarball before extracting. Pin `govulncheck` and `gitleaks` to specific module versions (`...@vX.Y.Z`) rather than `@latest`, and rely on `go.sum`/GONOSUMCHECK defaults for integrity. Consider running these scanners via SHA-pinned actions instead of ad-hoc installs.
-
-### INFRA-3 — Self-hosted runners with shared mutable state (defense-in-depth concern)
-- **Severity:** Low (given INFRA-mitigation: fork PRs are gated off — see Posture)
-- **CWE:** CWE-668 (Exposure of Resource to Wrong Sphere)
-- **Location:** `.github/workflows/ci.yml` (all `runs-on: [self-hosted, Linux, X64]` jobs); `.github/actions/setup-go-safe/action.yml:35-37,57,84` (purge/stage to a shared `/dev/shm` and a hardcoded fallback `$HOME/actions-runner-2/_work/_tool`).
-- **Attack:** The three runners share one WSL VM and one `/dev/shm`. There is no `actions/checkout` `persist-credentials: false`, and the runners are not ephemeral, so any job that did execute attacker-influenced code (today blocked by the fork gate) could persist artifacts in `/dev/shm`/`$HOME` across jobs/branches and read the cached Go module tree and any runner-level credentials. The fork-PR gate is the *only* thing preventing untrusted code here; if that single `if:` is ever removed or weakened, the whole runner fleet is exposed.
-- **Impact:** Cross-job/cross-branch contamination and credential persistence on long-lived runners IF the fork gate is bypassed. Currently mitigated.
-- **Confidence:** Medium. This is a latent/defense-in-depth risk, not an active exploit — the fork gate holds today.
-- **Remediation:** Keep the fork-PR gate on every job (treat removing it as a security change). Add `with: persist-credentials: false` to `actions/checkout` steps. Prefer ephemeral runners (fresh VM/container per job) for the test legs. Do not rely on a hardcoded `actions-runner-2` fallback path. Consider requiring approval for first-time contributors' workflow runs in repo settings as a second layer.
+Findings below, highest severity first.
 
 ---
 
-## Notes / non-findings (checked, no issue)
+## §1. CI/CD
 
-- `publish-sdks.yml` runs on `ubuntu-latest` (GitHub-hosted) while the comment says hosted minutes are billing-blocked — operational, not a security issue. Token handling is correct (env-scoped, guarded by presence check, trusted triggers only).
-- No secret is `echo`'d / printed. e2e/webui-e2e scripts use a keyless echo mock (`AGEZT_DEMO_ECHO=1`) and bind only to `127.0.0.1`; the bearer tokens they grep from logs are ephemeral per-boot daemon tokens in a temp `AGEZT_HOME`, not repo secrets.
-- No `curl | bash`, no `eval` of remote content, no privileged docker, no host mounts (no docker artifacts at all).
-- `concurrency` + `cancel-in-progress` is set; gitleaks scans full history (`fetch-depth: 0`) — good.
+### INFRA-01 — Self-hosted runners execute on `pull_request` (fork-PR code-exec exposure) — MEDIUM
+
+- **Where:** `.github/workflows/ci.yml:16-19` (`on: pull_request:` with no `types`/branch filter) +
+  every job `runs-on: [self-hosted, Linux, X64]` (e.g. `ci.yml:33,51,70,88,113,139,158,188,205,225,252,285,302,380`).
+- **Issue:** All CI jobs run on **persistent self-hosted WSL runners** (project memory: 3 WSL systemd
+  runners, `wsl-runner-1..3`, all in one VM sharing one `/dev/shm`). The workflow triggers on
+  `pull_request`, which fires for **fork PRs**. Self-hosted runners are long-lived and non-ephemeral, so
+  a malicious fork PR that reaches the runner can persist on the host, poison the shared toolchain in
+  `/dev/shm`/`~/go/pkg/mod`, read other repos' checkouts under `_work`, or pivot into the developer's
+  WSL/Windows host.
+- **Mitigating controls already present (good):** every job is gated by
+  `if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository`
+  (`ci.yml:32,50,69,87,...`). This **skips all jobs for fork PRs** — only same-repo (branch) PRs and
+  pushes run. `permissions: contents: read` (`ci.yml:26-27`) and `persist-credentials: false` further
+  limit blast radius. This is the correct pattern and substantially closes the hole.
+- **Residual impact:** The `if:` guard is the *only* thing standing between a fork PR and the
+  self-hosted runner. It is correct today, but it is a per-job opt-in that is easy to forget on a newly
+  added job (a job without the guard would run fork code on the runner). GitHub's own guidance is that
+  **self-hosted runners should never be used on public repos with fork PRs**, because the runner is
+  non-ephemeral. There is no repo-level/org-level "require approval for fork PRs" backstop documented.
+- **Severity:** MEDIUM (LOW if the repo is private; the guard is currently effective, but the
+  architecture is fragile — one un-guarded job re-opens it).
+- **Fix:**
+  1. Restrict the trigger explicitly: `on: pull_request: branches: [main]` does NOT block forks — instead
+     set repo Settings → Actions → "Require approval for all outside collaborators" / "for first-time
+     contributors", and ideally "Require approval for all fork pull request runs".
+  2. Prefer **ephemeral** self-hosted runners (one job per runner, torn down after) over persistent
+     systemd runners, so PR code cannot persist on the host.
+  3. Add a CI lint/guard test that fails if any job is missing the
+     `pull_request.head.repo.full_name == github.repository` gate, so the protection can't silently
+     regress.
+
+### INFRA-02 — `setup-go-safe` re-purge step deletes a broad toolcache path with `rm -rf` driven by env — LOW
+
+- **Where:** `.github/actions/setup-go-safe/action.yml` — "Purge corrupt Go toolcache" step
+  (`rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4"`) and "Re-purge"
+  (`rm -rf "${RUNNER_TOOL_CACHE:-...}/go" "/dev/shm/goroot-${RUNNER_NAME:-shared}"`).
+- **Issue:** These `rm -rf` paths interpolate `$RUNNER_TOOL_CACHE` and `$RUNNER_NAME`. On GitHub-hosted
+  runners these are controlled by the platform, but on the **self-hosted** runners the environment is
+  under the operator's control, not an attacker's — so this is not directly exploitable. However, a
+  fallback hardcoded to another runner's home (`$HOME/actions-runner-2/...`) is a footgun: if
+  `RUNNER_TOOL_CACHE` is unset on runner-1 or runner-3, the purge targets `actions-runner-2`'s tree,
+  which on a shared WSL VM could delete the **wrong runner's** toolcache mid-job.
+- **Impact:** Reliability/integrity (cross-runner cache deletion), not a direct security breach.
+- **Severity:** LOW.
+- **Fix:** Drop the cross-runner hardcoded fallback; fail fast if `RUNNER_TOOL_CACHE`/`RUNNER_NAME` are
+  unset rather than guessing another runner's path.
+
+### CI/CD — verified GOOD (no finding)
+
+- **GITHUB_TOKEN least privilege:** `permissions: contents: read` at workflow level in both
+  `ci.yml:26` and `publish-sdks.yml:23`. No `write-all`, no missing block.
+- **Action pinning (supply-chain):** ALL third-party actions are pinned by full commit SHA with a
+  version comment — `actions/checkout@34e1148…` , `actions/setup-go@40f1582…`,
+  `actions/setup-node@49933ea…`, `actions/setup-python@a26af69…`, `dtolnay/rust-toolchain@29eef33…`.
+  No mutable `@v4`/`@main` tags.
+- **No script injection:** no `${{ github.event.* }}` (PR title/body/branch/comment) is interpolated
+  into any `run:` shell. Matrix vars (`${{ matrix.goos }}` etc.) are static, not attacker-controlled.
+- **No `pull_request_target` / `issue_comment` / `workflow_run`** triggers anywhere (grep clean) — the
+  classic "checkout PR head + secrets" RCE pattern is absent.
+- **Secrets handled correctly:** `publish-sdks.yml` reads registry tokens only into `env:` and guards
+  with `if [ -z "$TOKEN" ]`; tokens are never echoed. The `--redact` flag is used on gitleaks
+  (`ci.yml:398`). No `echo`/`printf` of any secret.
+- **Tool download integrity:** staticcheck tarball is downloaded over HTTPS and **SHA256-verified
+  against the publisher's signed sidecar** before extraction (`ci.yml:333-341`); `govulncheck`,
+  `gitleaks`, staticcheck are all **version-pinned** (`@v1.4.0`, `@v8.30.1`, `2026.1`) rather than
+  `@latest` (CWE-494 addressed).
+- **Secret scanning** runs in CI (gitleaks, full history `fetch-depth: 0`, `ci.yml:374-398`).
+
+---
+
+## §2. Docker — N/A
+
+No `Dockerfile`, `Dockerfile.*`, `docker-compose*.yml`, or `.dockerignore` exists anywhere in the repo
+(excluding `node_modules`). The product ships as static Go binaries (`agezt`, `agt`) with a go:embed'd
+web UI; there is no container build to review. **No finding.**
+
+## §3. IaC — N/A
+
+No Terraform (`*.tf`), no Kubernetes/Helm manifests, no CloudFormation, no Pulumi, no Ansible. There is
+no infrastructure-as-code in this repository. Open security groups / public buckets / missing
+encryption / hardcoded cloud creds are not applicable here. **No finding.**
+
+---
+
+## §4. Repo scripts
+
+### INFRA-03 — `list_vault.py` is a committed vault-probing scratch script — MEDIUM
+
+- **Where:** `D:/Codebox/PROJECTS/AGEZT/list_vault.py` (tracked in git).
+- **Issue:** This script invokes `agt vault status --json` and then enumerates the **process
+  environment for secrets** (`[k for k in os.environ if 'ANTHROPIC' in k or 'LLMGATEWAY' in k or
+  'API_KEY' in k.upper()]`) and **prints them** (`print("Relevant env vars:", env_keys)`). It prints
+  variable *names* only, not values — so it does not leak secret material directly. But:
+  - It is an **operator debugging artifact aimed squarely at the encrypted vault**, committed to the
+    repo. Shipping a "list_vault" tool normalizes vault-introspection and is exactly the kind of script
+    an attacker who lands code-exec would look for and extend (one-line change `os.environ[k]` →
+    prints the value).
+  - It depends on `agt` being on PATH and a running daemon; it has no place in version control.
+- **Impact:** Information disclosure aid / supply-chain hygiene; not a direct leak as written.
+- **Severity:** MEDIUM (because of intent + name + it touches the vault).
+- **Fix:** Delete `list_vault.py` from the repo and add it (and the other root scratch scripts) to
+  `.gitignore`, mirroring how the gateway-auth scratch scripts (`decode_jwt.py`, `verify_sig.py`, …) are
+  already gitignored at `.gitignore:64-74`.
+
+### INFRA-04 — Loose committed operator/debug scripts pollute the repo — LOW
+
+- **Where (all tracked):** `find_302ai.py`, `find_model.py`, `fix_scout.py`, `readlines.js`,
+  `update_scout_soul.py`, `update_scout_soul.go`, `scout_soul.ps1`, `set_scout_soul.ps1`,
+  `update_scout.bat`, `start-daemon.bat`, `start-daemon.ps1`.
+- **Issue:** These are one-off operator scratch files (model lookups against `models.dev`, the agent
+  "scout" persona setters, a `readlines.js` slicer, daemon launchers). They:
+  - `find_model.py` hardcodes a machine-specific absolute path
+    `C:\Users\ersin\.agezt\catalog\api.json` — leaks the operator's username and home layout into the
+    repo.
+  - `scout_soul.ps1` / `set_scout_soul.ps1` hardcode `D:\Codebox\PROJECTS\AGEZT\…` and call `agt.exe`
+    from PATH/CWD with shell-expanded content; `update_scout.bat` runs PowerShell with
+    `-ExecutionPolicy Bypass`. None take untrusted input, so there is no injection vector, but
+    `-ExecutionPolicy Bypass` on a committed launcher is a poor default to ship.
+  - `find_302ai.py` makes an unpinned `urllib` HTTPS request to `https://models.dev/api.json` (fine,
+    HTTPS, but it's debug-only).
+- **Impact:** Repo hygiene, username/path disclosure, no exploit.
+- **Severity:** LOW.
+- **Fix:** Move these to a gitignored `scratch/` dir or delete them. They are not part of the build and
+  most reference a hardcoded developer machine path.
+
+### INFRA-05 — `start-daemon.ps1` launches the daemon hidden, no integrity/path checks — LOW
+
+- **Where:** `start-daemon.ps1`, `start-daemon.bat`.
+- **Issue:** Both launch `agezt.exe` from a **hardcoded absolute path** with `-WindowStyle Hidden` /
+  `start ""`. Hidden-window auto-launch of a long-running network daemon is an anti-pattern (no console
+  to observe, easy to forget it's running, resembles a persistence mechanism). No code-signing or hash
+  check on the binary before launch.
+- **Severity:** LOW.
+- **Fix:** Run visibly (or as a managed service with logging), and resolve the binary relative to the
+  script, not a hardcoded `D:\…` path.
+
+### Scripts — verified GOOD (no finding)
+
+- **No `curl | bash` / `iwr | iex`** anywhere. The only network fetches are HTTPS to `models.dev`
+  (debug) and the CI staticcheck download (checksum-verified).
+- **`build.sh`** uses `set -euo pipefail`, fixed CGO posture, no secrets. Clean.
+- **`scripts/ci-go-retry.sh`, `e2e-smoke.sh`, `webui-e2e.sh`** use `mktemp -d` (safe temp dirs), bind
+  test servers to `127.0.0.1` only (no `0.0.0.0`), and pass bearer tokens via headers, not argv leaks.
+  No secrets committed. Clean.
+- **`dev.ps1`** explicitly isolates to `.\.dev-home` (never the real `~/.agezt`), parses `.env`
+  "without echoing secrets to the console," and passes only an allowlist of env vars through. Good
+  hygiene — see INFRA-06 for the one residual concern (the `.env` it reads).
+
+---
+
+## §5. .gitignore / committed secrets
+
+### INFRA-06 — `.env` on disk contains a real `AGEZT_VAULT_PASSPHRASE` value (gitignored, but plaintext) — MEDIUM
+
+- **Where:** `D:/Codebox/PROJECTS/AGEZT/.env` (line `AGEZT_VAULT_PASSPHRASE=NoPass…`), read by
+  `dev.ps1` (passes it through to `env:AGEZT_VAULT_PASSPHRASE`).
+- **Issue:** The `.env` is **correctly NOT tracked** by git (`git ls-files` shows nothing; `.gitignore`
+  covers `.env`, `.env.*`, `*.env` at lines 57-59) and has **never been committed** (`git log --all --
+  oneline -- .env` is empty). That part is good. However:
+  - The file's own comment says *"Vault passphrase — … DO NOT commit a value here"* and *"set via
+    environment variable or OS secrets manager at runtime"* — yet a literal passphrase value
+    (`AGEZT_VAULT_PASSPHRASE=NoPass…`) IS written into the file, contradicting the file's own guidance.
+  - It also contains commented-out **real-looking provider API keys** (`MINIMAX_API_KEY=sk-cp-…`,
+    `DEEPSEEK_API_KEY=sk-da0…`). Even commented, they are recoverable secret material sitting in
+    plaintext on disk.
+  - The vault is machine-bound-encrypted at rest (M934), but a passphrase in a world-readable `.env`
+    (perms `-rw-r--r--`) on the dev box undermines that — anyone/anything with read access to the repo
+    directory gets the passphrase and the commented keys.
+- **Impact:** Local plaintext secret exposure; one mis-`git add -f` or backup/sync away from leaking.
+  Not a committed-secret incident today.
+- **Severity:** MEDIUM (LOW if these keys are already-rotated/dummy; the passphrase being literal
+  against the file's own instruction is the concern).
+- **Fix:** Remove the literal `AGEZT_VAULT_PASSPHRASE` value (provide it via the OS keychain /
+  `export` at runtime as the comment itself instructs); scrub the commented real-looking API keys;
+  tighten file perms (e.g. `icacls`/`chmod 600`). Treat any key that ever sat in this file as
+  compromised and rotate.
+
+### §5 — verified GOOD (no finding)
+
+- `.env`, `.env.*`, `*.env`, `creds.json`, `agentgw.secret`, `*.token`, `token.txt`,
+  `*.bak`, `.dev-home/`, `bin/` are all gitignored (`.gitignore:57-90`). The gateway-auth scratch
+  scripts are explicitly gitignored (`.gitignore:64-74`).
+- **No live secrets in tracked files.** A `git grep` for `sk-…`, `AIza…`, `ghp_…`, `xox[bp]-…`
+  patterns over tracked files returned only **regex patterns and documentation examples**
+  (`kernel/configcenter/classifier.go:85,90` are the secret-detector's own regexes;
+  `.project/PHASE-M15-REDACTION-REPORT.md:98` is a redaction test fixture). No real credential is
+  committed.
+- No `*.pem`/`*.key`/`*.p12`/`*.pfx` files are tracked (the `kernel/agentgw/secret.go` hit is source
+  code, not a key file).
+- CI runs gitleaks over full history as a backstop (§1).
+
+---
+
+## Findings table
+
+| ID | Severity | Area | File | Issue |
+|----|----------|------|------|-------|
+| INFRA-01 | MEDIUM | CI/CD | ci.yml:16-19 + self-hosted runners | `pull_request` on persistent self-hosted WSL runners; protected only by per-job `if:` fork-guard (currently effective, fragile) |
+| INFRA-03 | MEDIUM | Scripts | list_vault.py | Committed vault-probing scratch script that enumerates secret env-var names |
+| INFRA-06 | MEDIUM | Secrets | .env | Literal `AGEZT_VAULT_PASSPHRASE` + commented real-looking API keys in plaintext on disk (gitignored, never committed) |
+| INFRA-02 | LOW | CI/CD | setup-go-safe/action.yml | `rm -rf` fallback hardcoded to `actions-runner-2`; can delete wrong runner's toolcache on shared VM |
+| INFRA-04 | LOW | Scripts | find_model.py, *scout*, readlines.js | Loose committed operator/debug scripts; hardcoded user path leaks `C:\Users\ersin\…`; `-ExecutionPolicy Bypass` launcher |
+| INFRA-05 | LOW | Scripts | start-daemon.ps1/.bat | Hidden-window daemon launch from hardcoded path, no binary integrity check |
+
+**Net:** 3 MEDIUM, 3 LOW. No HIGH/CRITICAL. No Docker/IaC. The GitHub Actions pipeline itself is
+strongly hardened (SHA-pinned actions, least-priv token, no PR-head-with-secrets exec, no script
+injection, checksum-verified downloads, pinned tool versions). The standout architectural risk is the
+**non-ephemeral self-hosted runner + `pull_request` trigger** (mitigated today by the fork-guard `if:`),
+and the standout hygiene issue is the **loose committed scratch scripts** (`list_vault.py` especially)
+plus the **plaintext `.env` vault passphrase**.
+
+Report written to: D:/Codebox/PROJECTS/AGEZT/security-report/infra-results.md

@@ -61,7 +61,10 @@ func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 	}
 	b := bus.New(j)
 	t.Cleanup(func() { b.Close(); j.Close() })
-	return New(b, client, token), b
+	s := New(b, client, token)
+	s.SetAllowedHosts("example.com")
+	s.allowQueryTokensForData = true
+	return s, b
 }
 
 // The embedded React SPA is served at "/": index.html with a #root mount and a
@@ -640,6 +643,29 @@ func TestAuthRequired(t *testing.T) {
 	}
 }
 
+func TestDataRoutesRejectQueryTokenByDefault(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{result: map[string]any{"ok": true}}, "secret")
+	s.allowQueryTokensForData = false
+	req := httptest.NewRequest(http.MethodGet, "/api/status?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("query token data route status = %d, want 401", rec.Code)
+	}
+}
+
+func TestDataRoutesAcceptBearerByDefault(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{result: map[string]any{"ok": true}}, "secret")
+	s.allowQueryTokensForData = false
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bearer data route status = %d, want 200", rec.Code)
+	}
+}
+
 func TestEmptyTokenNeverAuthorizes(t *testing.T) {
 	// A server with no token must reject everything (fail closed).
 	s, _ := newServer(t, &fakeCaller{}, "")
@@ -1152,6 +1178,39 @@ func TestSecurityHeadersOnEveryResponse(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHostAllowlistRejectsDNSRebindingHost(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{result: map[string]any{"ok": true}}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/status?token=secret", nil)
+	req.Host = "evil.example:8787"
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("rebound host status = %d, want 403", rec.Code)
+	}
+}
+
+func TestOriginRejectsCrossSiteMutation(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{result: map[string]any{"ok": true}}, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/halt?token=secret", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-site mutation status = %d, want 403", rec.Code)
+	}
+}
+
+func TestOriginAllowsSameHostMutation(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{result: map[string]any{"ok": true}}, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/halt?token=secret", nil)
+	req.Header.Set("Origin", "http://example.com")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("same-host mutation status = %d, want 200", rec.Code)
 	}
 }
 

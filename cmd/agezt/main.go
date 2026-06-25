@@ -110,6 +110,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/zalo"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
+	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
@@ -321,16 +322,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// construction read the env. configPinned (schema vars set in the real env) is
 	// handed to the control plane so the Config Center can show them read-only.
 	configPinned := injectConfig(baseDir, credStore, stdout)
+
+	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
+	// registers as a live provider once the operator signs in.
+	seedChatGPTCatalog(catStore)
+	cat, _ = catStore.Load()
+
 	// Credential resolution chain (M1.dd):
-	//   1. agezt vault (M1.w) — operator-managed, AES-256-GCM-at-rest
-	//   2. process env — `export FOO=...` always wins over file sources
+	//   1. agezt vault (M1.w) — provider-scoped keys first; legacy bare vault
+	//      keys only when that env name is unique in the catalog
+	//   2. process env — `export FOO=...` stays globally visible
 	//   3. ~/.aws/credentials + ~/.aws/config (AWS_PROFILE-aware)
 	//   4. EC2 IMDSv2 — instance-role credentials, refreshed on expiry
 	// The AWS-specific stages (3-4) answer ONLY the AWS_* names they
 	// know about; every other name falls through. Operators on a
 	// non-EC2 host pay only a brief, neg-cached IMDS timeout on the
 	// first lookup (then nothing for 30s) — the chain remains fast.
-	credLookup, awsChainDesc := buildAWSCredChain(credStore.Lookup)
+	credLookup, awsChainDesc := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 	credCount := len(credStore.Names())
 	atRest := "plaintext (set " + creds.PassphraseEnvVar + ", or unset " + creds.AutoEncryptEnvVar + " on a host with a machine id)"
 	switch {
@@ -344,11 +352,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 		atRest = "empty (will encrypt machine-bound on first save)"
 	}
 	credDesc := fmt.Sprintf("vault entries=%d at %s — at-rest: %s — %s", credCount, credStore.Path, atRest, awsChainDesc)
-
-	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
-	// registers as a live provider once the operator signs in.
-	seedChatGPTCatalog(catStore)
-	cat, _ = catStore.Load()
 
 	gov, govDesc, model, err := buildGovernor(cat, credLookup, baseDir)
 	if err != nil {
@@ -928,7 +931,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if redactor != nil {
 			redactor.SetSecrets(credSecrets(credStore))
 		}
-		freshLookup, _ := buildAWSCredChain(credStore.Lookup)
 
 		freshCat := catStore // We hold a *Store reference; pull fresh catalog snapshot
 		// catStore stays stable; the catalog data was reloaded by the
@@ -938,6 +940,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if err != nil {
 			return fmt.Errorf("catalog: %w", err)
 		}
+		freshLookup, _ := buildAWSCredChain(catalogScopedVaultLookup(c, credStore.Lookup))
 
 		// Re-run the same selection logic the boot path uses. Errors
 		// are surfaced to the operator rather than swallowed — a
@@ -999,7 +1002,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if cat == nil {
 			return "", false
 		}
-		lookup, _ := buildAWSCredChain(credStore.Lookup)
+		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		return cat.VisionCapableAmong(func(provID string) bool {
 			e := cat.Providers[provID]
 			return e != nil && compat.IsSupportedFamily(e.Family()) && e.HasCredentials(lookup)
@@ -1022,7 +1025,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if cat == nil {
 			return true
 		}
-		lookup, _ := buildAWSCredChain(credStore.Lookup)
+		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		// Accept a bare ("model") or provider-qualified ("provider/model") id.
 		want := modelID
 		if i := strings.IndexByte(modelID, '/'); i >= 0 {
@@ -1068,7 +1071,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if cat == nil {
 			return nil
 		}
-		lookup, _ := buildAWSCredChain(credStore.Lookup)
+		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		models := cat.BestModelsAcross(func(provID string) bool {
 			e := cat.Providers[provID]
 			return e != nil && compat.IsSupportedFamily(e.Family()) && e.HasCredentials(lookup)
@@ -4258,6 +4261,7 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		return ""
 	}
 	wsrv := webui.New(k.Bus(), client, token)
+	wsrv.SetAllowedHosts(webAllowedHosts(ln.Addr().String())...)
 	// Optional console password (M817 → M933): when AGEZT_WEB_PASSWORD is set, a
 	// token-less visit shows the login screen and the password opens the console
 	// (alternative door); the tokened banner URL keeps working alone. Wired as a
@@ -4300,6 +4304,21 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}
 	return desc
+}
+
+func webAllowedHosts(bindAddr string) []string {
+	var hosts []string
+	if h, _, err := net.SplitHostPort(bindAddr); err == nil {
+		if ip := net.ParseIP(h); ip == nil || !ip.IsUnspecified() {
+			hosts = append(hosts, h)
+		}
+	}
+	for _, h := range strings.Split(os.Getenv(brand.EnvPrefix+"WEB_ALLOWED_HOSTS"), ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts
 }
 
 // buildTunnel starts a public tunnel to a local HTTP service when AGEZT_TUNNEL
@@ -6076,8 +6095,10 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 // Governor (also serves as agent.Provider), a human-readable banner description,
 // and the run model for the kernel config ("" when none is configured).
 //
-// The daemon has NO default provider, NO credential auto-pick, NO offline mock
-// fallback, and NO default model (owner rule: "hiçbir default provider/model").
+// The daemon has NO default provider, NO credential auto-pick, NO silent offline
+// mock fallback, and NO default model (owner rule: "hiçbir default
+// provider/model"). The only mock path is the explicit AGEZT_DEMO_ECHO=1 e2e /
+// demo escape hatch.
 //
 // **Provider selection (catalog-driven):**
 //
@@ -6089,6 +6110,8 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 //	                                  fails every LLM call with an actionable
 //	                                  "configure a provider" error. The daemon,
 //	                                  Web UI, and Setup still run.
+//	$AGEZT_DEMO_ECHO=1               → explicit offline demo/e2e mock provider
+//	                                  when $AGEZT_PROVIDER is unset.
 //	$AGEZT_MODEL=<model-id>         → the run model. If unset, runs resolve their
 //	                                  model from per-task routing or a fallback
 //	                                  chain; with neither, the governor returns
@@ -6426,9 +6449,11 @@ func catalogModelIDs(cat *catalog.Catalog, providerID string) []string {
 //
 //  1. AGEZT_PROVIDER=<catalog id> → look up in cat; compat.Build it. The ONLY
 //     way to select a real primary; an unknown id is a hard error.
-//  2. AGEZT_PROVIDER unset        → the "unconfigured" sentinel primary. No
-//     auto-pick, no mock. The daemon boots so Setup/routing can be configured,
-//     but LLM runs fail fast with an actionable error.
+//  2. AGEZT_PROVIDER unset and AGEZT_DEMO_ECHO=1 → explicit offline e2e/demo
+//     mock provider.
+//  3. AGEZT_PROVIDER unset        → the "unconfigured" sentinel primary. No
+//     auto-pick, no silent mock. The daemon boots so Setup/routing can be
+//     configured, but LLM runs fail fast with an actionable error.
 //
 // The run model comes from AGEZT_MODEL when set; otherwise it is left empty and
 // resolved per-run from routing / a fallback chain (or ErrNoModelConfigured).
@@ -6464,6 +6489,16 @@ func selectPrimary(cat *catalog.Catalog, lookup func(string) string, baseDir str
 		return buildFromCatalog(entry, modelOverride, lookup)
 	}
 
+	if strings.TrimSpace(os.Getenv(brand.EnvPrefix+"DEMO_ECHO")) == "1" {
+		model := modelOverride
+		if model == "" {
+			model = "mock"
+		}
+		return demoEchoProvider(),
+			"demo echo mock (explicit " + brand.EnvPrefix + "DEMO_ECHO=1; offline e2e/demo)",
+			model, governor.AuthLocal, nil
+	}
+
 	// AGEZT_PROVIDER unset → boot UNCONFIGURED. The daemon, Web UI, and Setup all
 	// run so the operator can add a provider + key and configure routing/chains,
 	// but any LLM call fails fast with an actionable error (unconfiguredProvider).
@@ -6471,6 +6506,26 @@ func selectPrimary(cat *catalog.Catalog, lookup func(string) string, baseDir str
 	return unconfiguredProvider{},
 		"unconfigured (no " + brand.EnvPrefix + "PROVIDER set — add a provider + key in Setup → Providers; LLM runs fail until then)",
 		"", governor.AuthLocal, nil
+}
+
+func demoEchoProvider() *mock.Provider {
+	p := mock.New()
+	p.Responder = func(req agent.CompletionRequest) agent.CompletionResponse {
+		text := ""
+		for i := len(req.Messages) - 1; i >= 0; i-- {
+			if req.Messages[i].Role == agent.RoleUser {
+				text = strings.TrimSpace(req.Messages[i].Content)
+				if text != "" {
+					break
+				}
+			}
+		}
+		if text == "" {
+			text = "ok"
+		}
+		return mock.FinalText("[echo] " + text)
+	}
+	return p
 }
 
 // buildFromCatalog finalises a catalog entry into a wire Provider.

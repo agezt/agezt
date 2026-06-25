@@ -60,7 +60,7 @@ func TestListProvidersNeedingKeys(t *testing.T) {
 		"ollama-local": {ID: "ollama-local", NPM: "@ai-sdk/ollama"},
 	}}
 	store := creds.NewStore(t.TempDir())
-	_ = store.Set("OPENAI_API_KEY", "sk-configured")
+	_ = store.Set(catalog.ProviderCredentialName("openai", "OPENAI_API_KEY"), "sk-configured")
 
 	var out bytes.Buffer
 	if code := listProvidersNeedingKeys(cat, store, &out); code != 0 {
@@ -75,5 +75,31 @@ func TestListProvidersNeedingKeys(t *testing.T) {
 	}
 	if strings.Contains(s, "ollama-local") {
 		t.Errorf("keyless provider should be omitted; got:\n%s", s)
+	}
+}
+
+func TestListProvidersNeedingKeys_DuplicateEnvRequiresScopedVaultKey(t *testing.T) {
+	cat := &catalog.Catalog{Providers: map[string]*catalog.Provider{
+		"alpha": {ID: "alpha", NPM: "@ai-sdk/openai-compatible", Env: []string{"SHARED_API_KEY"}},
+		"beta":  {ID: "beta", NPM: "@ai-sdk/openai-compatible", Env: []string{"SHARED_API_KEY"}},
+	}}
+	store := creds.NewStore(t.TempDir())
+	_ = store.Set("SHARED_API_KEY", "legacy-key")
+
+	var out bytes.Buffer
+	if code := listProvidersNeedingKeys(cat, store, &out); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "0 ready, 2 unconfigured") {
+		t.Fatalf("shared legacy vault key should not configure both providers; got:\n%s", out.String())
+	}
+
+	_ = store.Set(catalog.ProviderCredentialName("alpha", "SHARED_API_KEY"), "alpha-key")
+	out.Reset()
+	if code := listProvidersNeedingKeys(cat, store, &out); code != 0 {
+		t.Fatalf("exit=%d want 0", code)
+	}
+	if !strings.Contains(out.String(), "1 ready, 1 unconfigured") {
+		t.Fatalf("scoped key should configure only alpha; got:\n%s", out.String())
 	}
 }

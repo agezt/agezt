@@ -60,7 +60,8 @@ func cmdQuickstart(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return 1
 	}
-	ready := keyedConfigured(cat, store.Lookup)
+	lookup := catalogCredentialLookup(cat, store.Lookup)
+	ready := keyedConfigured(cat, lookup)
 	if len(ready) > 0 {
 		fmt.Fprintf(stdout, "[2/4] Already configured: %s\n", strings.Join(ready, ", "))
 	} else {
@@ -97,7 +98,7 @@ func cmdQuickstart(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	if len(p.Env) > 0 && !p.HasCredentials(store.Lookup) {
+	if len(p.Env) > 0 && !p.HasCredentials(lookup) {
 		// Delegate to provider setup, which prompts on stdin and stores the key.
 		if code := cmdProviderSetup([]string{pid}, stdout, stderr); code != 0 {
 			return code

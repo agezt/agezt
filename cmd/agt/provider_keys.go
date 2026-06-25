@@ -36,11 +36,11 @@ func cmdProviderKeys(args []string, stdout, stderr io.Writer) int {
 		return cmdProviderKeysRemove(args[1:], stdout, stderr)
 	case "-h", "--help":
 		fmt.Fprintf(stdout, "usage: %s provider keys <subcommand>\n\n", brand.CLI)
-		fmt.Fprintf(stdout, "  list <ENV>                       list keys for a provider (label + active + last-4)\n")
-		fmt.Fprintf(stdout, "  add <ENV> <label> [value] [--active]   add a key (prompts if value omitted)\n")
-		fmt.Fprintf(stdout, "  activate <ENV> <label>           make a key the active one (reloads the provider)\n")
-		fmt.Fprintf(stdout, "  rm <ENV> <label>                 remove a key\n\n")
-		fmt.Fprintf(stdout, "ENV is the provider's key env var, e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY.\n")
+		fmt.Fprintf(stdout, "  list [--provider <id>] <ENV>                       list keys (label + active + last-4)\n")
+		fmt.Fprintf(stdout, "  add [--provider <id>] <ENV> <label> [value] [--active]   add a key (prompts if value omitted)\n")
+		fmt.Fprintf(stdout, "  activate [--provider <id>] <ENV> <label>           make a key active (reloads the provider)\n")
+		fmt.Fprintf(stdout, "  rm [--provider <id>] <ENV> <label>                 remove a key\n\n")
+		fmt.Fprintf(stdout, "ENV is the provider's key env var. --provider scopes storage to one catalog provider; without it, the legacy global env keyring is used.\n")
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s provider keys: unknown subcommand %q (list, add, activate, rm)\n", brand.CLI, args[0])
@@ -49,8 +49,12 @@ func cmdProviderKeys(args []string, stdout, stderr io.Writer) int {
 }
 
 func cmdProviderKeysList(args []string, stdout, stderr io.Writer) int {
+	provider, args, ok := providerKeysProviderFlag(args, stderr)
+	if !ok {
+		return 2
+	}
 	if len(args) != 1 {
-		fmt.Fprintf(stderr, "usage: %s provider keys list <ENV>\n", brand.CLI)
+		fmt.Fprintf(stderr, "usage: %s provider keys list [--provider <id>] <ENV>\n", brand.CLI)
 		return 2
 	}
 	c := dial(stderr)
@@ -59,18 +63,19 @@ func cmdProviderKeysList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyList, map[string]any{"env": args[0]})
+	res, err := c.Call(ctx, controlplane.CmdProviderKeyList, providerKeyRequest(provider, args[0]))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys list: %v\n", brand.CLI, err)
 		return 1
 	}
 	keys, _ := res["keys"].([]any)
+	target := providerKeyTargetLabel(provider, args[0])
 	if len(keys) == 0 {
-		fmt.Fprintf(stdout, "no keys stored for %s\n", args[0])
-		fmt.Fprintf(stdout, "add one with `%s provider keys add %s <label> <value>`\n", brand.CLI, args[0])
+		fmt.Fprintf(stdout, "no keys stored for %s\n", target)
+		fmt.Fprintf(stdout, "add one with `%s provider keys add %s%s <label> <value>`\n", brand.CLI, providerKeyProviderFlag(provider), args[0])
 		return 0
 	}
-	fmt.Fprintf(stdout, "keys for %s:\n", args[0])
+	fmt.Fprintf(stdout, "keys for %s:\n", target)
 	for _, ki := range keys {
 		m, _ := ki.(map[string]any)
 		label, _ := m["label"].(string)
@@ -87,16 +92,31 @@ func cmdProviderKeysList(args []string, stdout, stderr io.Writer) int {
 
 func cmdProviderKeysAdd(args []string, stdout, stderr io.Writer) int {
 	makeActive := false
+	provider := ""
 	pos := make([]string, 0, len(args))
-	for _, a := range args {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		if a == "--active" {
 			makeActive = true
+			continue
+		}
+		if a == "--provider" {
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s provider keys add: --provider needs a value\n", brand.CLI)
+				return 2
+			}
+			i++
+			provider = args[i]
+			continue
+		}
+		if strings.HasPrefix(a, "--provider=") {
+			provider = strings.TrimPrefix(a, "--provider=")
 			continue
 		}
 		pos = append(pos, a)
 	}
 	if len(pos) < 2 {
-		fmt.Fprintf(stderr, "usage: %s provider keys add <ENV> <label> [value] [--active]\n", brand.CLI)
+		fmt.Fprintf(stderr, "usage: %s provider keys add [--provider <id>] <ENV> <label> [value] [--active]\n", brand.CLI)
 		return 2
 	}
 	env, label := pos[0], pos[1]
@@ -122,22 +142,30 @@ func cmdProviderKeysAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyAdd, map[string]any{"env": env, "label": label, "value": value, "active": makeActive})
+	payload := providerKeyRequest(provider, env)
+	payload["label"] = label
+	payload["value"] = value
+	payload["active"] = makeActive
+	res, err := c.Call(ctx, controlplane.CmdProviderKeyAdd, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys add: %v\n", brand.CLI, err)
 		return 1
 	}
 	if ac, _ := res["active_changed"].(bool); ac {
-		fmt.Fprintf(stdout, "added %s/%s and made it active (provider reloaded)\n", env, label)
+		fmt.Fprintf(stdout, "added %s/%s and made it active (provider reloaded)\n", providerKeyTargetLabel(provider, env), label)
 	} else {
-		fmt.Fprintf(stdout, "added %s/%s (activate it with `%s provider keys activate %s %s`)\n", env, label, brand.CLI, env, label)
+		fmt.Fprintf(stdout, "added %s/%s (activate it with `%s provider keys activate %s%s %s`)\n", providerKeyTargetLabel(provider, env), label, brand.CLI, providerKeyProviderFlag(provider), env, label)
 	}
 	return 0
 }
 
 func cmdProviderKeysActivate(args []string, stdout, stderr io.Writer) int {
+	provider, args, ok := providerKeysProviderFlag(args, stderr)
+	if !ok {
+		return 2
+	}
 	if len(args) != 2 {
-		fmt.Fprintf(stderr, "usage: %s provider keys activate <ENV> <label>\n", brand.CLI)
+		fmt.Fprintf(stderr, "usage: %s provider keys activate [--provider <id>] <ENV> <label>\n", brand.CLI)
 		return 2
 	}
 	c := dial(stderr)
@@ -146,22 +174,28 @@ func cmdProviderKeysActivate(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyActivate, map[string]any{"env": args[0], "label": args[1]})
+	payload := providerKeyRequest(provider, args[0])
+	payload["label"] = args[1]
+	res, err := c.Call(ctx, controlplane.CmdProviderKeyActivate, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys activate: %v\n", brand.CLI, err)
 		return 1
 	}
 	if re, _ := res["reload_error"].(string); re != "" {
-		fmt.Fprintf(stdout, "activated %s/%s, but reload failed: %s\n", args[0], args[1], re)
+		fmt.Fprintf(stdout, "activated %s/%s, but reload failed: %s\n", providerKeyTargetLabel(provider, args[0]), args[1], re)
 		return 0
 	}
-	fmt.Fprintf(stdout, "activated %s/%s (provider reloaded)\n", args[0], args[1])
+	fmt.Fprintf(stdout, "activated %s/%s (provider reloaded)\n", providerKeyTargetLabel(provider, args[0]), args[1])
 	return 0
 }
 
 func cmdProviderKeysRemove(args []string, stdout, stderr io.Writer) int {
+	provider, args, ok := providerKeysProviderFlag(args, stderr)
+	if !ok {
+		return 2
+	}
 	if len(args) != 2 {
-		fmt.Fprintf(stderr, "usage: %s provider keys rm <ENV> <label>\n", brand.CLI)
+		fmt.Fprintf(stderr, "usage: %s provider keys rm [--provider <id>] <ENV> <label>\n", brand.CLI)
 		return 2
 	}
 	c := dial(stderr)
@@ -170,19 +204,66 @@ func cmdProviderKeysRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyRemove, map[string]any{"env": args[0], "label": args[1]})
+	payload := providerKeyRequest(provider, args[0])
+	payload["label"] = args[1]
+	res, err := c.Call(ctx, controlplane.CmdProviderKeyRemove, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys rm: %v\n", brand.CLI, err)
 		return 1
 	}
 	if removed, _ := res["removed"].(bool); !removed {
-		fmt.Fprintf(stdout, "%s/%s was not stored\n", args[0], args[1])
+		fmt.Fprintf(stdout, "%s/%s was not stored\n", providerKeyTargetLabel(provider, args[0]), args[1])
 		return 0
 	}
 	if wa, _ := res["was_active"].(bool); wa {
-		fmt.Fprintf(stdout, "removed %s/%s — it was active, so %s is now uncredentialed until you activate another key\n", args[0], args[1], args[0])
+		fmt.Fprintf(stdout, "removed %s/%s — it was active, so %s is now uncredentialed until you activate another key\n", providerKeyTargetLabel(provider, args[0]), args[1], providerKeyTargetLabel(provider, args[0]))
 	} else {
-		fmt.Fprintf(stdout, "removed %s/%s\n", args[0], args[1])
+		fmt.Fprintf(stdout, "removed %s/%s\n", providerKeyTargetLabel(provider, args[0]), args[1])
 	}
 	return 0
+}
+
+func providerKeysProviderFlag(args []string, stderr io.Writer) (string, []string, bool) {
+	provider := ""
+	pos := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--provider" {
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s provider keys: --provider needs a value\n", brand.CLI)
+				return "", nil, false
+			}
+			i++
+			provider = args[i]
+			continue
+		}
+		if strings.HasPrefix(a, "--provider=") {
+			provider = strings.TrimPrefix(a, "--provider=")
+			continue
+		}
+		pos = append(pos, a)
+	}
+	return strings.TrimSpace(provider), pos, true
+}
+
+func providerKeyRequest(provider, env string) map[string]any {
+	out := map[string]any{"env": env}
+	if strings.TrimSpace(provider) != "" {
+		out["provider"] = strings.TrimSpace(provider)
+	}
+	return out
+}
+
+func providerKeyTargetLabel(provider, env string) string {
+	if strings.TrimSpace(provider) == "" {
+		return env
+	}
+	return strings.TrimSpace(provider) + "/" + env
+}
+
+func providerKeyProviderFlag(provider string) string {
+	if strings.TrimSpace(provider) == "" {
+		return ""
+	}
+	return "--provider " + strings.TrimSpace(provider) + " "
 }

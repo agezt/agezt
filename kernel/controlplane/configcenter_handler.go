@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 // handleConfigCenterSet sets a config entry.
@@ -383,15 +384,29 @@ func (s *Server) handleConfigCenterHealth(conn net.Conn, req Request) {
 	})
 }
 
-// entryToMap converts a ConfigEntry to a map.
+// entryToMap converts a ConfigEntry to a map. Secret-rated values are never
+// emitted in cleartext: they are reduced to a masked fingerprint (and flagged
+// with "masked":true) so the value can't be read off the API response body —
+// the console already renders secrets as dots, and no consumer needs the raw
+// value back from a read/echo path. Reading the real value requires a deliberate
+// reveal path, not an incidental list/get.
 func entryToMap(e *configcenter.ConfigEntry) map[string]any {
+	value := e.Value
+	masked := false
+	if e.Rating == configcenter.RatingSecret {
+		value = creds.MaskValue(e.Value)
+		masked = true
+	}
 	m := map[string]any{
 		"key":        e.Key,
-		"value":      e.Value,
+		"value":      value,
 		"rating":     string(e.Rating),
 		"created_at": e.CreatedAt,
 		"updated_at": e.UpdatedAt,
 		"version":    e.Version,
+	}
+	if masked {
+		m["masked"] = true
 	}
 	if e.Description != "" {
 		m["description"] = e.Description

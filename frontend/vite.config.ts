@@ -18,5 +18,18 @@ export default defineConfig({
     sourcemap: false,
     assetsInlineLimit: 0,
     chunkSizeWarningLimit: 1500,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          minSize: 8 * 1024,
+          groups: [
+            { name: "react-vendor", test: /node_modules[\\/](react|react-dom)[\\/]/, priority: 40 },
+            { name: "ui-vendor", test: /node_modules[\\/](@radix-ui|lucide-react|class-variance-authority|clsx|tailwind-merge)[\\/]/, priority: 30 },
+            { name: "flow-vendor", test: /node_modules[\\/]@xyflow[\\/]/, priority: 20 },
+            { name: "vendor", test: /node_modules[\\/]/, priority: 10 },
+          ],
+        },
+      },
+    },
   },
 });

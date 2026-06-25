@@ -11,6 +11,8 @@ import {
   PROVIDER_PRESETS,
   familyNpm,
   familyLabel,
+  providerEnvFromId,
+  providerScopedKeyLabel,
   type ProviderPreset,
   type PresetFamily,
 } from "@/lib/providerPresets";
@@ -112,10 +114,11 @@ async function connectProvider(args: {
     model: args.model.trim(),
   });
   await postJSON("/api/provider/keys/add", {
+    provider: args.id,
     env: args.keyEnv,
     label: "default",
     value: args.key.trim(),
-    active: "true",
+    active: true,
   });
 }
 
@@ -177,6 +180,7 @@ function PresetCard({
   const [busy, setBusy] = useState(false);
   const [probe, setProbe] = useState<{ reachable?: boolean; authorized?: boolean; models?: number; error?: string } | null>(null);
   const [probing, setProbing] = useState(false);
+  const keyScope = providerScopedKeyLabel(preset.id, preset.keyEnv);
 
   async function connect() {
     if (!preset.keyless && !key.trim()) {
@@ -248,12 +252,17 @@ function PresetCard({
         <span className="text-[11px] text-muted">No API key — just Connect. Make sure the local server is running.</span>
       ) : (
         <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-wide text-muted">API key</span>
+          <span className="flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-muted">
+            <span>API key</span>
+            <span className="max-w-[65%] truncate rounded bg-panel px-1.5 py-0.5 font-mono text-[9px] normal-case tracking-normal text-accent">
+              {keyScope}
+            </span>
+          </span>
           <Input
             type="password"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder={`${preset.keyEnv}…`}
+            placeholder={`Paste key for ${preset.name}`}
             aria-label={`${preset.name} ${preset.tagline} key`}
             className="h-8 text-xs"
           />
@@ -261,10 +270,15 @@ function PresetCard({
       )}
 
       <details className="group">
-        <summary className="cursor-pointer text-xs text-muted hover:text-fg">Endpoint & model</summary>
+        <summary className="cursor-pointer text-xs text-muted hover:text-fg">Endpoint, model & key scope</summary>
         <div className="mt-2 flex flex-col gap-2">
           <Input value={api} onChange={(e) => setApi(e.target.value)} aria-label="Base URL" className="h-7 font-mono text-[11px]" />
           <Input value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model" className="h-7 font-mono text-[11px]" />
+          {!preset.keyless && (
+            <div className="rounded border border-border bg-panel/60 px-2 py-1 font-mono text-[10px] text-muted">
+              {keyScope}
+            </div>
+          )}
         </div>
       </details>
 
@@ -317,20 +331,24 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
     return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom-provider";
   }
 
+  const providerId = slug(name);
+  const derivedKeyEnv = providerEnvFromId(providerId);
+  const effectiveKeyEnv = (keyEnv.trim() || derivedKeyEnv).toUpperCase();
+  const keyScope = providerScopedKeyLabel(providerId, effectiveKeyEnv);
+
   async function connect() {
-    if (!name.trim() || !api.trim() || !keyEnv.trim() || !model.trim() || !key.trim()) {
-      ui.toast("Fill name, URL, key env, model and key", "error");
+    if (!name.trim() || !api.trim() || !model.trim() || !key.trim()) {
+      ui.toast("Fill name, URL, model and key", "error");
       return;
     }
-    if (!/^[A-Z][A-Z0-9_]*$/.test(keyEnv.trim())) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(effectiveKeyEnv)) {
       ui.toast("Key env must be UPPER_SNAKE (e.g. MYPROV_API_KEY)", "error");
       return;
     }
     setBusy(true);
     try {
-      const id = slug(name);
-      await connectProvider({ id, name: name.trim(), family, api, keyEnv: keyEnv.trim(), model, key });
-      if (makeDefault) await setDefaultProvider(id, model);
+      await connectProvider({ id: providerId, name: name.trim(), family, api, keyEnv: effectiveKeyEnv, model, key });
+      if (makeDefault) await setDefaultProvider(providerId, model);
       ui.toast(makeDefault ? `Connected ${name} — now the default brain` : `Connected ${name}`, "success");
       setKey("");
       onConnected();
@@ -348,10 +366,9 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
         <span className="text-sm font-semibold">Custom provider</span>
         <span className="text-xs text-muted">Any OpenAI- or Anthropic-compatible API</span>
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Provider name" className="h-8 text-xs" />
         <Input value={api} onChange={(e) => setApi(e.target.value)} placeholder="https://api…/v1" aria-label="Base URL" className="h-8 font-mono text-[11px]" />
-        <Input value={keyEnv} onChange={(e) => setKeyEnv(e.target.value)} placeholder="MYPROV_API_KEY" aria-label="Key env var" className="h-8 font-mono text-[11px]" />
         <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model-id" aria-label="Model" className="h-8 font-mono text-[11px]" />
         <select
           value={family}
@@ -363,6 +380,23 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
           <option value="anthropic">Anthropic-compatible</option>
         </select>
       </div>
+      <details className="group">
+        <summary className="cursor-pointer text-xs text-muted hover:text-fg">Provider id & vault scope</summary>
+        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,15rem)]">
+          <div className="rounded border border-border bg-panel/60 px-2 py-1.5 font-mono text-[10px] text-muted">
+            provider id: <span className="text-foreground">{providerId}</span>
+            <br />
+            vault target: <span className="text-accent">{keyScope}</span>
+          </div>
+          <Input
+            value={keyEnv}
+            onChange={(e) => setKeyEnv(e.target.value)}
+            placeholder={`auto: ${derivedKeyEnv}`}
+            aria-label="Key env var override"
+            className="h-8 font-mono text-[11px]"
+          />
+        </div>
+      </details>
       <div className="flex items-center gap-2">
         <Input
           type="password"

@@ -56,6 +56,7 @@ Thumbs.db
 # secrets / local env — never commit (API keys, tokens)
 .env
 .env.*
+!.env.example
 *.env
 creds.json
 # gateway HMAC signing secret (per-install, lives under the base dir; defensive)
@@ -73,6 +74,14 @@ temp_token.txt
 /debug_parse.py
 /check_len.py
 /test_gateway.py
+/fix_scout.py
+/scout_*.ps1
+/update_scout*
+/find_model.py
+/find_302ai.py
+/readlines.js
+/start-daemon.ps1
+/start-daemon.bat
 
 # binary backups (agezt.exe.bak, agt.exe.bak-*, …)
 *.bak
@@ -92,4 +101,4 @@ bin/
 .wrongstack/
 
 # local ad-hoc test-counting script (machine-specific path, not portable)
-scout_tests.ps1
+/scout_tests.ps1

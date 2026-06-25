@@ -248,7 +248,7 @@ export function ConfigCenter() {
                     values={values}
                     onSaved={loadValues}
                     toast={toast}
-                    defaultOpen={!!query.trim()}
+                    defaultOpen={true}
                   />
                 ))}
               </section>
@@ -467,6 +467,7 @@ function SectionCard({
         icon={Icon}
         title={section.name}
         description={registered ? `Registered by ${section.source}` : undefined}
+        actions={registered ? <Badge variant="accent">registered</Badge> : undefined}
         count={`${setCount}/${section.fields.length}`}
         defaultOpen={defaultOpen}
         tone="accent"

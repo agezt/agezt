@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
-	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
@@ -132,7 +131,7 @@ func cmdProviderCheck(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return 1
 	}
-	lookup := creds.ChainLookup(credStore.Lookup, os.Getenv)
+	lookup := catalogCredentialLookup(cat, credStore.Lookup)
 
 	// --stream only applies to single-provider, non-bench mode for v1.
 	// Bench would re-stream the same tokens N times (visually noisy);

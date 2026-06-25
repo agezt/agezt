@@ -154,7 +154,7 @@ export function Models() {
               />
             </div>
             <Button size="sm" onClick={sync} disabled={syncing} title="Pull the latest models from models.dev">
-              {syncing ? <RefreshCw className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />} Sync
+              {syncing ? <RefreshCw className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />} Sync models
             </Button>
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -163,10 +163,14 @@ export function Models() {
         }
       />
 
+      <p className="text-xs text-muted">
+        {providers.length} providers · {totalModels} models
+      </p>
+
       <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
         <MetricWidget icon={Layers} label="Providers" value={providers.length} tone="muted" />
         <MetricWidget icon={Brain} label="Models" value={totalModels} tone="muted" />
-        {syncedAt && <MetricWidget icon={RefreshCw} label="Last synced" value={fmtDateTime(syncedAt)} tone="muted" />}
+        <MetricWidget icon={RefreshCw} label="Last synced" value={syncedAt ? fmtDateTime(syncedAt) : "Never synced"} tone="muted" />
       </MetricGrid>
 
       <ChatGPTSignIn onChanged={reload} />
@@ -232,7 +236,7 @@ function ProviderCard({
       </button>
       {open && keyEnv && (
         <div className="border-t border-border/60 p-3">
-          <KeyManager env={keyEnv} onChanged={onChanged} />
+          <KeyManager providerId={provider.id} env={keyEnv} onChanged={onChanged} />
         </div>
       )}
       {open && models.length > 0 && (
@@ -410,7 +414,7 @@ function ChatGPTSignIn({ onChanged }: { onChanged: () => void }) {
 // add another, switch the active one, or remove one — "store many, pick active".
 // Values are write-only: existing keys show only a last-4 fingerprint; the add
 // field is a password input. Lazy-loads when its provider card is expanded.
-function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) {
+function KeyManager({ providerId, env, onChanged }: { providerId: string; env: string; onChanged: () => void }) {
   const { toast } = useUI();
   const [keys, setKeys] = useState<KeyInfo[] | null>(null);
   const [label, setLabel] = useState("");
@@ -420,13 +424,13 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
 
   const load = useCallback(async () => {
     try {
-      const r = await getJSON<{ keys?: KeyInfo[] }>("/api/provider/keys", { env });
+      const r = await getJSON<{ keys?: KeyInfo[] }>("/api/provider/keys", { provider: providerId, env });
       setKeys(r.keys || []);
     } catch (e) {
       toast((e as Error).message, "error");
       setKeys([]);
     }
-  }, [env, toast]);
+  }, [providerId, env, toast]);
   useEffect(() => {
     load();
   }, [load]);
@@ -435,7 +439,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
     if (!label.trim() || !value.trim()) return;
     setBusy(true);
     try {
-      await postJSON("/api/provider/keys/add", { env, label: label.trim(), value, active: makeActive });
+      await postJSON("/api/provider/keys/add", { provider: providerId, env, label: label.trim(), value, active: makeActive });
       toast(`Added key “${label.trim()}”${makeActive ? " (now active)" : ""}`, "success");
       setLabel("");
       setValue("");
@@ -451,7 +455,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
   async function activate(l: string) {
     setBusy(true);
     try {
-      await postAction("/api/provider/keys/activate", { env, label: l });
+      await postAction("/api/provider/keys/activate", { provider: providerId, env, label: l });
       toast(`“${l}” is now the active key`, "success");
       await load();
       onChanged();
@@ -464,7 +468,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
   async function remove(l: string) {
     setBusy(true);
     try {
-      await postAction("/api/provider/keys/remove", { env, label: l });
+      await postAction("/api/provider/keys/remove", { provider: providerId, env, label: l });
       toast(`Removed key “${l}”`, "success");
       await load();
       onChanged();

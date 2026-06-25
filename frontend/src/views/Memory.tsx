@@ -341,6 +341,9 @@ export function Memory() {
           tone="good"
           defaultOpen={true}
         >
+          <p className="mb-2 text-xs text-muted">
+            usable: {audit.usable ?? 0} · expired: {audit.expired ?? 0} · suspended: {audit.suspended ?? 0} · conflict load: {audit.contradiction_load ?? 0}
+          </p>
           <MetricGrid>
             <MetricWidget
               icon={ShieldCheck}

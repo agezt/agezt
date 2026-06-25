@@ -61,65 +61,65 @@ export function CollapsibleSection({
   return (
     <div className={cn("rounded-xl border border-border bg-card shadow-e1", className)}>
       {/* Header / collapse trigger */}
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={isOpen}
-        aria-controls={regionId}
+      <div
         className={cn(
           "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left",
-          "hover:bg-panel/60 transition-colors",
+          "transition-colors",
           headerClassName,
         )}
       >
-        {/* Icon badge */}
-        {Icon ? (
-          <span
-            className={cn(
-              "grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br ring-1 ring-inset",
-              toneCls,
-            )}
-          >
-            <Icon className="size-4" />
-          </span>
-        ) : null}
-
-        {/* Title + optional description */}
-        <span className="min-w-0 flex-1">
-          <span className="text-sm font-semibold text-foreground">{title}</span>
-          {description && isOpen ? (
-            <span className="ml-2 text-xs text-muted">{description}</span>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={isOpen}
+          aria-controls={regionId}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent/50"
+        >
+          {/* Icon badge */}
+          {Icon ? (
+            <span
+              className={cn(
+                "grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br ring-1 ring-inset",
+                toneCls,
+              )}
+            >
+              <Icon className="size-4" />
+            </span>
           ) : null}
-        </span>
 
-        {/* Count badge */}
-        {count !== undefined ? (
-          <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-panel px-1.5 py-0.5 text-xs font-semibold tabular-nums text-muted">
-            {count}
+          {/* Title + optional description */}
+          <span className="min-w-0 flex-1">
+            <span role="heading" aria-level={3} className="text-sm font-semibold text-foreground">{title}</span>
+            {description && isOpen ? (
+              <span className="ml-2 text-xs text-muted">{description}</span>
+            ) : null}
           </span>
-        ) : null}
 
-        {/* Actions slot — stop propagation so clicking buttons doesn't collapse */}
+          {/* Count badge */}
+          {count !== undefined ? (
+            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-panel px-1.5 py-0.5 text-xs font-semibold tabular-nums text-muted">
+              {count}
+            </span>
+          ) : null}
+
+          {/* Collapse chevron */}
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted transition-transform duration-200",
+              "motion-reduce:transition-none",
+              isOpen ? "rotate-0" : "-rotate-90",
+            )}
+            aria-hidden
+          />
+        </button>
+
+        {/* Actions slot — kept outside the trigger to avoid nested buttons. */}
         {actions ? (
-          <span
-            className="flex items-center gap-1"
-            onClick={(e) => { e.stopPropagation(); }}
-            onKeyDown={(e) => { e.stopPropagation(); }}
-          >
+          <span className="flex items-center gap-1">
             {actions}
           </span>
         ) : null}
-
-        {/* Collapse chevron */}
-        <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-muted transition-transform duration-200",
-            "motion-reduce:transition-none",
-            isOpen ? "rotate-0" : "-rotate-90",
-          )}
-          aria-hidden
-        />
-      </button>
+      </div>
 
       {/* Animated body */}
       <div

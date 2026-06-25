@@ -238,7 +238,8 @@ func TestResponses_StreamingNonStreamProviderEmitsAnswerOnce(t *testing.T) {
 func TestResponses_RejectsGET(t *testing.T) {
 	eng := &fakeEngine{model: "m"}
 	s := newAPIServer(t, eng, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/v1/responses?token=secret", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	req.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
