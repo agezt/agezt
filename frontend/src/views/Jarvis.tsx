@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, HeartPulse, Check, X,
+  Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, HeartPulse, Check, X, Power,
 } from "lucide-react";
 import { getJSON, postAction, authHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,19 @@ interface PulseAsk {
   reason?: string;
 }
 
+interface StandingOrder {
+  id?: string;
+  slug?: string;
+  name?: string;
+  enabled?: boolean;
+}
+
+// The seeded responder that turns initiative events (act, or an approved ask) into
+// a governed run. It ships DISABLED, so the whole act/ask loop is inert until armed.
+function isInitiativeResponder(o: StandingOrder): boolean {
+  return o.slug === "guardian-initiative" || /initiative/i.test(o.name || "");
+}
+
 type VoiceState = "probing" | "natural" | "browser";
 
 // navigate to another view by hash (the app routes on location.hash).
@@ -52,22 +65,43 @@ export function Jarvis() {
   const [records, setRecords] = useState<MemRecord[] | null>(null);
   const [voice, setVoice] = useState<VoiceState>("probing");
   const [asks, setAsks] = useState<PulseAsk[]>([]);
+  const [responder, setResponder] = useState<StandingOrder | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [arming, setArming] = useState(false);
   const probed = useRef(false);
 
   async function reload() {
     try {
-      const [p, m, a] = await Promise.all([
+      const [p, m, a, s] = await Promise.all([
         getJSON<PulseStatus>("/api/pulse").catch(() => null),
         getJSON<{ records?: MemRecord[] }>("/api/memory").catch(() => null),
         getJSON<{ asks?: PulseAsk[] }>("/api/pulse/asks").catch(() => null),
+        getJSON<{ orders?: StandingOrder[] }>("/api/standing").catch(() => null),
       ]);
       if (p) setPulse(p);
       if (m) setRecords(m.records || []);
       if (a) setAsks(a.asks || []);
+      if (s) setResponder((s.orders || []).find(isInitiativeResponder) || null);
     } catch {
       /* transient; keep last good */
+    }
+  }
+
+  // Arm the initiative responder (M999/M1001): without it, act-mode emits and
+  // approved asks promote to act, but nothing actually runs. One click here saves
+  // a trip to the Standing view.
+  async function armResponder() {
+    if (!responder?.id) return;
+    setArming(true);
+    try {
+      await postAction("/api/standing/enable", { id: responder.id, enabled: "true" });
+      ui.toast("autonomous action armed — the responder will now act on initiative", "success");
+      reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setArming(false);
     }
   }
 
@@ -271,6 +305,24 @@ export function Jarvis() {
             ) : null}
             {init === "act" ? " · actionable signals become governed actions." : init === "ask" ? " · actionable signals ask you first." : ""}
           </p>
+
+          {/* Responder arming (M999/M1001): the act/ask loop is inert until this is on. */}
+          {responder &&
+            (responder.enabled ? (
+              <div className="flex items-center gap-1.5 text-xs text-[var(--good)]">
+                <span className="inline-block size-1.5 rounded-full bg-[var(--good)]" />
+                Responder armed — initiative becomes governed action
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-sm">
+                <span className="min-w-0 text-muted-foreground">
+                  Responder <span className="font-medium text-amber-500">disarmed</span> — nothing acts yet
+                </span>
+                <Button size="sm" variant="accent" onClick={armResponder} disabled={arming}>
+                  <Power className={cn("size-3.5", arming && "animate-pulse")} /> Arm
+                </Button>
+              </div>
+            ))}
 
           {/* Pending asks (M1001): the operator's verdict on what it wants to act on. */}
           {asks.length > 0 && (

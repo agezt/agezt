@@ -107,4 +107,21 @@ describe("Jarvis presence view", () => {
       expect(postAction).toHaveBeenCalledWith("/api/pulse/asks/resolve", { issue_key: "ci-1", approve: "true" }),
     );
   });
+
+  it("arms the disarmed initiative responder in one click", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve(PULSE_ACT);
+      if (path === "/api/standing")
+        return Promise.resolve({ orders: [{ id: "ord-1", slug: "guardian-initiative", name: "Guardian · Initiative", enabled: false }] });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    postAction.mockResolvedValue({ ok: true });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText(/disarmed/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /arm/i }));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/standing/enable", { id: "ord-1", enabled: "true" }),
+    );
+  });
 });
