@@ -114,10 +114,11 @@ export function Runs() {
 
   const query = q.trim().toLowerCase();
 
+  // Runs in this bucket, ignoring the text query — used to decide whether the filter box shows,
+  // so it stays mounted (and keeps focus) even after a query narrows the visible list.
+  const bucketRuns = (filter: RunBucket | null) => runs.filter((r) => !filter || runBucket(r) === filter);
   const getShown = (filter: RunBucket | null) =>
-    runs.filter(
-      (r) => (!filter || runBucket(r) === filter) && (!query || runMatches(r, query)),
-    );
+    bucketRuns(filter).filter((r) => !query || runMatches(r, query));
 
   const tabs = [
     {
@@ -125,28 +126,28 @@ export function Runs() {
       label: "All",
       icon: ListTree,
       count: counts.total,
-      content: <RunList runs={getShown(null)} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown(null)} bucketTotal={bucketRuns(null).length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
     },
     {
       id: "running",
       label: "Running",
       icon: CircleDot,
       count: counts.running,
-      content: <RunList runs={getShown("running")} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown("running")} bucketTotal={bucketRuns("running").length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
     },
     {
       id: "completed",
       label: "Completed",
       icon: CheckCircle2,
       count: counts.completed,
-      content: <RunList runs={getShown("completed")} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown("completed")} bucketTotal={bucketRuns("completed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
     },
     {
       id: "failed",
       label: "Failed",
       icon: XOctagon,
       count: counts.failed,
-      content: <RunList runs={getShown("failed")} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown("failed")} bucketTotal={bucketRuns("failed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
     },
   ];
 
@@ -199,6 +200,7 @@ export function Runs() {
 
 function RunList({
   runs,
+  bucketTotal,
   query,
   q,
   setQ,
@@ -206,6 +208,7 @@ function RunList({
   error,
 }: {
   runs: Run[];
+  bucketTotal: number;
   query: string;
   q: string;
   setQ: (q: string) => void;
@@ -217,6 +220,13 @@ function RunList({
   }
 
   if (runs.length === 0) {
+    // Distinguish an empty bucket from a query that filtered everything out, so the filter
+    // box isn't lost (it lives in the CollapsibleSection actions, gated on bucketTotal).
+    if (query && bucketTotal > 4) {
+      return (
+        <EmptyState icon={Search} title="No runs match" hint={`Nothing matches “${query}”. Clear the filter to see all ${bucketTotal} runs.`} />
+      );
+    }
     return (
       <EmptyState
         icon={ListTree}
@@ -234,7 +244,7 @@ function RunList({
       tone="muted"
       defaultOpen={true}
       actions={
-        runs.length > 4 ? (
+        bucketTotal > 4 ? (
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
             <input

@@ -58,16 +58,18 @@ describe("Runs filter (M775)", () => {
     getJSON.mockResolvedValue({ runs });
     render(<Runs />);
     const input = await screen.findByLabelText("Filter runs");
-    // No count chip until a query is entered.
-    expect(screen.queryByText("2/5")).toBeNull();
+    // The count badge (a span beside the input) only appears once a query is entered, and now
+    // shows just the live match count — the redesign dropped the "/total" suffix (Runs.tsx RunList).
+    const badge = () => input.parentElement!.querySelector("span.absolute.right-2");
+    expect(badge()).toBeNull();
     // "failed" surfaces the two failed runs.
     fireEvent.change(input, { target: { value: "failed" } });
-    await waitFor(() => expect(screen.getByText("2/5")).toBeTruthy());
+    await waitFor(() => expect(badge()?.textContent).toBe("2"));
     expect(screen.getByText("deploy the API")).toBeTruthy();
     expect(screen.queryByText("write tests")).toBeNull();
-    // A non-matching query shows the empty hint.
+    // A non-matching query shows the "no runs match" empty state (filter stays mounted).
     fireEvent.change(input, { target: { value: "zzz" } });
-    await waitFor(() => expect(screen.getByText(/no runs match/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/No runs match/i)).toBeTruthy());
   });
 
   it("does not show the filter when there are four or fewer runs", async () => {
@@ -78,7 +80,17 @@ describe("Runs filter (M775)", () => {
   });
 });
 
-describe("Runs status chips (M923)", () => {
+// The status-chip row (M923) was replaced by an outcome TabNav (role="tab", count badge in
+// the accessible name). Tabs don't toggle off — the "All" tab restores the full list — and an
+// empty bucket renders a zero-count tab with an empty panel rather than a disabled chip.
+// Radix Tabs activate on pointer-down, not a bare click, under jsdom.
+const selectTab = (tab: HTMLElement) => {
+  fireEvent.pointerDown(tab, { button: 0, ctrlKey: false });
+  fireEvent.mouseDown(tab, { button: 0 });
+  fireEvent.click(tab);
+};
+
+describe("Runs status tabs (M923 → TabNav)", () => {
   const runs = [
     { correlation_id: "r1", status: "completed", intent: "summarize the inbox" },
     { correlation_id: "r2", status: "failed", intent: "deploy the API" },
@@ -87,26 +99,27 @@ describe("Runs status chips (M923)", () => {
     { correlation_id: "r5", status: "failed", intent: "build the frontend" },
   ];
 
-  it("narrows the list to one outcome when a chip is clicked, and clears on re-click", async () => {
+  it("narrows the list to one outcome when a tab is selected, and All restores it", async () => {
     getJSON.mockResolvedValue({ runs });
     render(<Runs />);
-    const failedChip = await screen.findByRole("button", { name: /failed 2/ });
-    fireEvent.click(failedChip);
-    // Only the two failed runs remain visible.
+    const failedTab = await screen.findByRole("tab", { name: /failed\s*2/i });
+    selectTab(failedTab);
+    // Only the two failed runs remain visible (inactive panels unmount).
     await waitFor(() => expect(screen.queryByText("write tests")).toBeNull());
     expect(screen.getByText("deploy the API")).toBeTruthy();
     expect(screen.getByText("build the frontend")).toBeTruthy();
-    expect(failedChip.getAttribute("aria-pressed")).toBe("true");
-    // Clicking the active chip again restores the full list.
-    fireEvent.click(failedChip);
+    expect(failedTab.getAttribute("aria-selected")).toBe("true");
+    // The All tab restores the full list.
+    selectTab(screen.getByRole("tab", { name: /all\s*5/i }));
     await waitFor(() => expect(screen.getByText("write tests")).toBeTruthy());
   });
 
-  it("disables a chip whose bucket has no runs", async () => {
-    getJSON.mockResolvedValue({ runs });
+  it("shows a zero-count tab with an empty panel for a bucket with no runs", async () => {
+    // No running runs → the Running tab carries a 0 count and selects into an empty state.
+    getJSON.mockResolvedValue({ runs: runs.filter((r) => r.status !== "running") });
     render(<Runs />);
-    // None of these runs are "other".
-    const otherChip = await screen.findByRole("button", { name: /other 0/ });
-    expect(otherChip).toHaveProperty("disabled", true);
+    const runningTab = await screen.findByRole("tab", { name: /running\s*0/i });
+    selectTab(runningTab);
+    await waitFor(() => expect(screen.getByText(/No runs yet/i)).toBeTruthy());
   });
 });

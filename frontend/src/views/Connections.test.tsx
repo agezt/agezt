@@ -30,7 +30,7 @@ describe("Connections", () => {
   it("navigates to the manage views via hash", async () => {
     render(<Connections />);
     await screen.findByText("Connections");
-    fireEvent.click(screen.getByRole("button", { name: /connect a provider/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add provider/i }));
     expect(location.hash).toBe("#quickconnect");
     fireEvent.click(screen.getByRole("button", { name: /manage channels/i }));
     expect(location.hash).toBe("#channels");

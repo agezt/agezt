@@ -62,7 +62,11 @@ describe("Models view", () => {
     expect(screen.getByText("keyed")).toBeTruthy();
     expect(screen.getByText("no key")).toBeTruthy();
     expect(screen.getByText(/Last synced/)).toBeTruthy();
-    expect(screen.getByText("2 providers · 2 models")).toBeTruthy();
+    // Summary moved from a single "2 providers · 2 models" string into separate metric widgets.
+    // ("Models" also appears as the page title, so assert the Providers label + the two counts.)
+    expect(screen.getByText("Providers")).toBeTruthy();
+    const twos = screen.getAllByText("2");
+    expect(twos.length).toBeGreaterThanOrEqual(2); // provider count and model count both 2
   });
 
   it("expands a provider to show its models", async () => {
@@ -81,7 +85,7 @@ describe("Models view", () => {
     render(withUI(<Models />));
     await waitFor(() => expect(screen.getByText("DeepSeek")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /Sync models/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Sync/ }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/catalog/sync", {}));
     await waitFor(() => expect(screen.getByText("Synced 21 providers · 210 models")).toBeTruthy());
   });

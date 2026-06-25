@@ -166,7 +166,12 @@ export function Models() {
       <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
         <MetricWidget icon={Layers} label="Providers" value={providers.length} tone="muted" />
         <MetricWidget icon={Brain} label="Models" value={totalModels} tone="muted" />
-        {syncedAt && <MetricWidget icon={RefreshCw} label="Last synced" value={fmtDateTime(syncedAt)} tone="muted" />}
+        <MetricWidget
+          icon={RefreshCw}
+          label="Last synced"
+          value={syncedAt ? fmtDateTime(syncedAt) : "Never synced"}
+          tone="muted"
+        />
       </MetricGrid>
 
       <ChatGPTSignIn onChanged={reload} />

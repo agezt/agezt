@@ -1253,6 +1253,14 @@ describe("Schedules fire-time preview (M744)", () => {
   });
 });
 
+// The cockpit target filter is now a TabNav (role="tab"; label + count concatenated in the
+// accessible name, e.g. "Workflow1"). Radix Tabs activate on pointer-down under jsdom.
+const selectScheduleTab = (tab: HTMLElement) => {
+  fireEvent.pointerDown(tab, { button: 0, ctrlKey: false });
+  fireEvent.mouseDown(tab, { button: 0 });
+  fireEvent.click(tab);
+};
+
 describe("Schedules job cards", () => {
   it("filters the schedule cockpit by target type", async () => {
     getJSON.mockImplementation((path: string) => {
@@ -1275,7 +1283,7 @@ describe("Schedules job cards", () => {
 
     render(withUI(<Schedules />));
     await waitFor(() => expect(screen.getByText("wake ops")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /Workflow1/ }));
+    selectScheduleTab(screen.getByRole("tab", { name: /Workflow\s*1/ }));
     expect(screen.getByText("Run workflow nightly-sync")).toBeTruthy();
     expect(screen.queryByText("wake ops")).toBeNull();
     expect(screen.queryByText("Run system task Catalog sync")).toBeNull();
@@ -1303,8 +1311,9 @@ describe("Schedules job cards", () => {
     render(withUI(<Schedules />));
     await waitFor(() => expect(screen.getByText("Run workflow nightly-sync")).toBeTruthy());
     expect(screen.getByText("attention")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Attention2/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Attention2/ }));
+    const attentionTab = screen.getByRole("tab", { name: /Attention\s*2/ });
+    expect(attentionTab).toBeTruthy();
+    selectScheduleTab(attentionTab);
     expect(screen.queryByText("Run workflow nightly-sync")).toBeNull();
     expect(screen.getByText("Run workflow gone-flow")).toBeTruthy();
     expect(screen.getByText("ping")).toBeTruthy();

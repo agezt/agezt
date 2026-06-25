@@ -124,8 +124,13 @@ describe("AgentPage", () => {
     // The Wake button should be present (it's a direct_callable agent).
     expect(screen.getByRole("button", { name: /Wake researcher/i })).toBeTruthy();
 
-    // The More sections disclosure should reveal identity/maintenance tabs.
-    expect(screen.getByText("More sections: identity, model, repair, diagnostics, files")).toBeTruthy();
+    // The Identity & Maintenance section should reveal the secondary tabs
+    // (soul, model, memory, skills, repair, diagnostics, files).
+    expect(screen.getByText("Identity & Maintenance")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Repair/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Files/ })).toBeTruthy();
   });
 
   it("shows a friendly empty state for missing agents", async () => {
