@@ -1697,7 +1697,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Operator profile (M1000): inject what we've learned about the operator into
 	// every run, and synthesize it on a daily timer. Off with AGEZT_USER_PROFILE=off.
 	if pdDesc := startProfileDistillTicker(ctx, k, profileOn, stdout); pdDesc != "" {
-		fmt.Fprintf(stdout, "  user profile     : on, auto-synthesis %s (agt profile rebuild)\n", pdDesc)
+		fmt.Fprintf(stdout, "  user profile     : on, auto-synthesis %s (agt memory profile)\n", pdDesc)
 	} else {
 		fmt.Fprintf(stdout, "  user profile     : off\n")
 	}
@@ -4218,7 +4218,7 @@ func startBrainDistillTicker(ctx context.Context, k *kernelruntime.Kernel, stdou
 // cadence (M1000) when the profile feature is on, so AGEZT learns who the
 // operator is without being asked. Default 24h; AGEZT_USER_PROFILE_EVERY overrides
 // (operators can also schedule the profile_distill system task at a custom cadence
-// or run `agt profile rebuild`). Returns a banner description, or "" when off.
+// or run `agt memory profile`). Returns a banner description, or "" when off.
 func startProfileDistillTicker(ctx context.Context, k *kernelruntime.Kernel, on bool, stdout io.Writer) string {
 	if !on {
 		return ""
