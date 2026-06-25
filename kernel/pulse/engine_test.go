@@ -130,6 +130,60 @@ func TestInitiativeActEmission(t *testing.T) {
 	}
 }
 
+// TestPendingAsksLifecycle verifies the M1001 ask queue: actionable observations
+// under initiative=ask are queued for the operator (not acted), rejection just drops
+// one, and approval re-emits the other onto pulse.initiative.act (the act path). Two
+// distinct deltas are used so novelty suppression doesn't fold them together.
+func TestPendingAsksLifecycle(t *testing.T) {
+	d1 := Delta{Source: "probe:ci", Kind: "probe_failed", Summary: "ci failed", Hints: map[string]string{"severity": "high"}}
+	d2 := Delta{Source: "probe:disk", Kind: "low_space", Summary: "disk low", Hints: map[string]string{"severity": "high"}}
+	obs := &fakeObserver{name: "fake", deltas: []Delta{d1, d2}}
+	e, j := newEngine(t, Config{Observers: []Observer{obs}, Dial: DialBalanced, Initiative: InitiativeAsk, Sink: &capturingSink{}})
+
+	e.tickOnce(context.Background())
+
+	// Both asks are queued; the act subject was NOT fired (ask ≠ act).
+	asks := e.PendingAsks()
+	if len(asks) != 2 {
+		t.Fatalf("want 2 pending asks, got %d", len(asks))
+	}
+	if got := countSubject(t, j, event.KindInitiativeAct, "pulse.initiative.act"); got != 0 {
+		t.Fatalf("ask mode must not fire the act subject, got %d", got)
+	}
+	k0, _ := asks[0]["issue_key"].(string)
+	k1, _ := asks[1]["issue_key"].(string)
+	if k0 == "" || k1 == "" || k0 == k1 {
+		t.Fatalf("expected two distinct issue_keys, got %q and %q", k0, k1)
+	}
+
+	// Reject one: drops it, emits no act event, leaves the other queued.
+	if found, acted := e.ResolveAsk(k0, false); !found || acted {
+		t.Fatalf("reject: found=%v acted=%v, want true,false", found, acted)
+	}
+	if len(e.PendingAsks()) != 1 {
+		t.Fatalf("reject should leave exactly one queued, got %d", len(e.PendingAsks()))
+	}
+	if got := countSubject(t, j, event.KindInitiativeAct, "pulse.initiative.act"); got != 0 {
+		t.Fatalf("reject must not emit an act event, got %d", got)
+	}
+
+	// Approve the other: re-emits onto the act subject, queue empties.
+	if found, acted := e.ResolveAsk(k1, true); !found || !acted {
+		t.Fatalf("approve: found=%v acted=%v, want true,true", found, acted)
+	}
+	if len(e.PendingAsks()) != 0 {
+		t.Fatalf("approve should empty the queue")
+	}
+	if got := countSubject(t, j, event.KindInitiativeAct, "pulse.initiative.act"); got != 1 {
+		t.Fatalf("approve should emit exactly one act event, got %d", got)
+	}
+
+	// A second resolve of the same key is a no-op (already gone).
+	if found, _ := e.ResolveAsk(k1, true); found {
+		t.Fatal("resolving an already-resolved ask should report not found")
+	}
+}
+
 // TestSetInitiativeLive verifies the live setter normalizes and applies.
 func TestSetInitiativeLive(t *testing.T) {
 	e, _ := newEngine(t, Config{Initiative: InitiativeAct})

@@ -44,6 +44,8 @@ type PulseController interface {
 	SetQuietHours(spec string) string
 	FlushDigest() int
 	RemoveObserver(name string) int
+	PendingAsks() []map[string]any
+	ResolveAsk(issueKey string, approve bool) (found, acted bool)
 }
 
 // SetPulse wires the live engine. Safe to call once after construction,
@@ -88,6 +90,45 @@ func (s *Server) handlePulseBeat(conn net.Conn, req Request) {
 	}
 	s.pulse.Beat()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"triggered": true}})
+}
+
+// handlePulseAsks lists the actionable observations awaiting an operator verdict
+// under initiative=ask (M1001) — what the Jarvis presence pillar renders so the ask
+// path isn't a silent dead-end.
+func (s *Server) handlePulseAsks(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"asks": []any{}}})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"asks": s.pulse.PendingAsks()}})
+}
+
+// handlePulseAskResolve settles one pending ask (M1001). args.issue_key picks it;
+// args.approve (bool, or "true"/"false" string from the webui) decides — approval
+// re-emits the signal onto pulse.initiative.act so the responder can act on it.
+func (s *Server) handlePulseAskResolve(conn net.Conn, req Request) {
+	if s.pulse == nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
+		return
+	}
+	key, _ := req.Args["issue_key"].(string)
+	if key == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.issue_key is required"})
+		return
+	}
+	approve := false
+	switch v := req.Args["approve"].(type) {
+	case bool:
+		approve = v
+	case string:
+		approve = v == "true" || v == "1"
+	}
+	found, acted := s.pulse.ResolveAsk(key, approve)
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no pending ask with that issue_key (already resolved?)"})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"resolved": true, "approved": approve, "acted": acted}})
 }
 
 // handlePulseCadence changes the heartbeat interval live (M757). seconds may arrive
