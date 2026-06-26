@@ -3,6 +3,7 @@ import {
   Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, HeartPulse, Check, X, Power,
 } from "lucide-react";
 import { getJSON, postAction, authHeaders } from "@/lib/api";
+import type { AgentEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -59,6 +60,16 @@ function go(id: string) {
   window.location.hash = id;
 }
 
+// Compact relative time for the recent-initiative feed ("3m", "2h", "just now").
+function agoLabel(ms?: number): string {
+  if (!ms) return "";
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 45) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  if (s < 86400) return `${Math.round(s / 3600)}h`;
+  return `${Math.round(s / 86400)}d`;
+}
+
 export function Jarvis() {
   const ui = useUI();
   const [pulse, setPulse] = useState<PulseStatus | null>(null);
@@ -70,20 +81,23 @@ export function Jarvis() {
   const [resolving, setResolving] = useState<string | null>(null);
   const [arming, setArming] = useState(false);
   const [beating, setBeating] = useState(false);
+  const [recent, setRecent] = useState<AgentEvent[]>([]);
   const probed = useRef(false);
 
   async function reload() {
     try {
-      const [p, m, a, s] = await Promise.all([
+      const [p, m, a, s, j] = await Promise.all([
         getJSON<PulseStatus>("/api/pulse").catch(() => null),
         getJSON<{ records?: MemRecord[] }>("/api/memory").catch(() => null),
         getJSON<{ asks?: PulseAsk[] }>("/api/pulse/asks").catch(() => null),
         getJSON<{ orders?: StandingOrder[] }>("/api/standing").catch(() => null),
+        getJSON<{ events?: AgentEvent[] }>("/api/journal", { kind: "initiative.act", limit: "6" }).catch(() => null),
       ]);
       if (p) setPulse(p);
       if (m) setRecords(m.records || []);
       if (a) setAsks(a.asks || []);
       if (s) setResponder((s.orders || []).find(isInitiativeResponder) || null);
+      if (j) setRecent((j.events || []).slice().reverse());
     } catch {
       /* transient; keep last good */
     }
@@ -425,6 +439,39 @@ export function Jarvis() {
           </div>
         </Pillar>
       </div>
+
+      {/* Recent initiative — what Jarvis flagged/acted on lately (M1003), so armed
+          autonomy isn't a black box. Hidden until there's something to show. */}
+      {recent.length > 0 && (
+        <div className="glass rounded-2xl p-4">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <Zap className="size-3.5" /> Recent initiative
+          </div>
+          <ul className="divide-y divide-border/60">
+            {recent.map((e, i) => {
+              const asked = (e.subject || "").endsWith(".ask");
+              const p = e.payload || {};
+              return (
+                <li key={e.id || i} className="flex items-center gap-2 py-1.5 text-sm">
+                  <span
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                      asked ? "bg-amber-500/15 text-amber-500" : "bg-[var(--good)]/15 text-[var(--good)]",
+                    )}
+                  >
+                    {asked ? "asked" : "acted"}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate" title={p.reason || p.summary}>
+                    {p.summary || p.source || p.issue_key || "an observation"}
+                  </span>
+                  {p.source && <span className="shrink-0 text-xs text-muted-foreground">{p.source}</span>}
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{agoLabel(e.ts_unix_ms)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

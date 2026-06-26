@@ -136,4 +136,25 @@ describe("Jarvis presence view", () => {
     fireEvent.click(screen.getByRole("button", { name: /think now/i }));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/beat", {}));
   });
+
+  it("shows the recent-initiative feed with act/ask badges (M1003)", async () => {
+    getJSON.mockImplementation((path: string, params?: Record<string, string>) => {
+      if (path === "/api/pulse") return Promise.resolve(PULSE_ACT);
+      if (path === "/api/journal" && params?.kind === "initiative.act")
+        return Promise.resolve({
+          events: [
+            { id: "e1", subject: "pulse.initiative.act", ts_unix_ms: Date.now(), payload: { summary: "restarted stuck run", source: "self:health" } },
+            { id: "e2", subject: "pulse.initiative.ask", ts_unix_ms: Date.now(), payload: { summary: "disk almost full", source: "probe:disk" } },
+          ],
+        });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("Recent initiative")).toBeTruthy());
+    expect(screen.getByText("disk almost full")).toBeTruthy();
+    expect(screen.getByText("restarted stuck run")).toBeTruthy();
+    expect(screen.getByText("acted")).toBeTruthy();
+    expect(screen.getByText("asked")).toBeTruthy();
+  });
 });
