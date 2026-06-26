@@ -2,16 +2,22 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
+import type { AgentEvent } from "@/lib/events";
+
 const getJSON = vi.fn();
+let liveEvents: AgentEvent[] = [];
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 vi.mock("@/lib/events", () => ({
-  useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
+  useEvents: () => ({ events: liveEvents, connected: true, subscribe: () => () => {} }),
 }));
 
 import { Runs, runMatches, runBucket, runCounts } from "@/views/Runs";
 
 afterEach(cleanup);
-beforeEach(() => getJSON.mockReset());
+beforeEach(() => {
+  getJSON.mockReset();
+  liveEvents = [];
+});
 
 describe("runMatches (M775)", () => {
   it("matches on intent, status, or correlation id (case-insensitive)", () => {
@@ -87,6 +93,18 @@ describe("Runs filter (M775)", () => {
     render(<Runs />);
     // The events mock reports connected:true, so the header pill reads "live".
     expect(await screen.findByText("live")).toBeTruthy();
+  });
+
+  it("surfaces a running run's live phase + tool from the event stream (M-live-phase)", async () => {
+    const corr = "run-live-1";
+    // Stream is newest-first; the fold reverses it, so the latest event (tool.invoked) wins the phase.
+    liveEvents = [
+      { kind: "tool.invoked", correlation_id: corr, actor: "research-agent", payload: { tool: "web_search" } },
+      { kind: "task.received", correlation_id: corr, actor: "research-agent", payload: { intent: "research" } },
+    ] as AgentEvent[];
+    getJSON.mockResolvedValue({ runs: [{ correlation_id: corr, status: "running", intent: "research pricing" }] });
+    render(<Runs />);
+    expect(await screen.findByText("using tool · web_search")).toBeTruthy();
   });
 });
 
