@@ -340,6 +340,12 @@ func (s *Server) handleMailboxWatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
 		return
 	}
+	// Bound concurrent watch streams per client (V-009) before subscribing.
+	release, ok := s.sseGate(w, r)
+	if !ok {
+		return
+	}
+	defer release()
 	name := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("name")))
 	topic := strings.TrimSpace(r.URL.Query().Get("topic"))
 

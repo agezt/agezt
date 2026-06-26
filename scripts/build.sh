@@ -5,10 +5,10 @@
 # Explicitly builds with CGO_ENABLED=0 (pure Go, no C dependencies)
 #
 # Usage:
-#   ./build.sh              # Build all packages
-#   ./build.sh test         # Run tests
-#   ./build.sh race         # Run tests with race detector (requires GCC)
-#   ./build.sh clean        # Clean build artifacts
+#   ./scripts/build.sh              # Build all packages
+#   ./scripts/build.sh test         # Run tests
+#   ./scripts/build.sh race         # Run tests with race detector (requires GCC)
+#   ./scripts/build.sh clean        # Clean build artifacts
 #
 # Note: Race detector requires CGO (GCC). For normal builds, CGO is disabled.
 
@@ -18,7 +18,8 @@ set -euo pipefail
 export CGO_ENABLED=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 
 case "${1:-build}" in
     build)

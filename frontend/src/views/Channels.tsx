@@ -585,6 +585,12 @@ export function Channels() {
       />
 
       {rows && (
+        <p className="text-xs text-muted">
+          {rows.length} channels · {liveCount} live · {configuredCount} configured
+        </p>
+      )}
+
+      {rows && (
         <MetricGrid>
           <MetricWidget icon={Radio} label="Total" value={rows.length} tone="muted" />
           <MetricWidget

@@ -31,7 +31,9 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -89,6 +91,11 @@ type Server struct {
 	// M933 alternative-door default (token OR session).
 	passwordStrict bool
 	sessions       *sessionStore
+	allowedHosts   map[string]bool
+	// allowQueryTokensForData preserves legacy package tests that still pass
+	// ?token= to /api/*; production data routes use Bearer/session, except
+	// /events where EventSource cannot set Authorization.
+	allowQueryTokensForData bool
 }
 
 // SetTranscriber wires the speech-to-text backend for POST /api/transcribe
@@ -101,6 +108,23 @@ func (s *Server) SetTranscriber(t Transcriber) { s.transcriber = t }
 // so the browser degrades to its built-in voice. Called once at startup, before
 // Handler().
 func (s *Server) SetSynthesizer(t Synthesizer) { s.synthesizer = t }
+
+// SetAllowedHosts permits additional non-IP Host header values for deployments
+// behind a domain or tunnel. Loopback names and IP literals are accepted by
+// default; explicit hosts are for DNS names such as a reverse-proxy hostname.
+func (s *Server) SetAllowedHosts(hosts ...string) {
+	if len(hosts) == 0 {
+		return
+	}
+	if s.allowedHosts == nil {
+		s.allowedHosts = map[string]bool{}
+	}
+	for _, h := range hosts {
+		if host := hostName(h); host != "" {
+			s.allowedHosts[strings.ToLower(host)] = true
+		}
+	}
+}
 
 // New builds a Server. token gates every request; bus drives the live feed;
 // client proxies read commands. The embedded SPA bundle is sub-rooted so the
@@ -259,9 +283,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
 	"/api/plan_history":  {controlplane.CmdPlanHistory, []string{"limit", "status"}},
-	// Provider keyring list (M700): labels + active + last-4 for one env var.
+	// Provider keyring list (M700): labels + active + last-4 for one provider/env.
 	// Read-only — values never leave the daemon.
-	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"env"}},
+	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"provider", "env"}},
 	// Forecast a schedule's next fire times (M744): id + how many. Read-only preview.
 	"/api/schedule/test": {controlplane.CmdScheduleTest, []string{"id", "count"}},
 	// Schedule firing history (M976): cronjob executions as structured actions,
@@ -411,8 +435,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
-	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"env", "label"}},
-	"/api/provider/keys/remove":   {controlplane.CmdProviderKeyRemove, []string{"env", "label"}},
+	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"provider", "env", "label"}},
+	"/api/provider/keys/remove":   {controlplane.CmdProviderKeyRemove, []string{"provider", "env", "label"}},
 	// Multi-account channel: remove a labelled account (deletes its stored fields).
 	"/api/channel/account/remove": {controlplane.CmdChannelAccountRemove, []string{"kind", "label"}},
 }
@@ -446,8 +470,8 @@ var jsonRoutes = map[string]writeRoute{
 	// the Sync button posts {}.
 	"/api/catalog/sync": {controlplane.CmdCatalogSync, []string{"url"}},
 	// Provider keyring add (M700): the value is a secret, so it travels in the
-	// POST body (not a query arg). env+label+value(+active).
-	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"env", "label", "value", "active"}},
+	// POST body (not a query arg). provider+env+label+value(+active).
+	"/api/provider/keys/add": {controlplane.CmdProviderKeyAdd, []string{"provider", "env", "label", "value", "active"}},
 	// Multi-account channel: set one field of an account instance. The value may be
 	// a secret, so it travels in the POST body. kind+label(""=default)+name+value.
 	"/api/channel/account/set": {controlplane.CmdChannelAccountSet, []string{"kind", "label", "name", "value"}},
@@ -998,13 +1022,21 @@ func historyTurns(raw any) []convo.Turn {
 func (s *Server) secure(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
+		if !s.hostAllowed(r.Host) {
+			http.Error(w, "forbidden host", http.StatusForbidden)
+			return
+		}
+		if !sameOriginMutation(r) {
+			http.Error(w, "forbidden origin", http.StatusForbidden)
+			return
+		}
 		next(w, r)
 	}
 }
 
-// auth wraps a handler with security headers + token checking. The browser
-// passes the token in the query string (EventSource can't set headers); API
-// callers may use either the query or an Authorization: Bearer header.
+// auth wraps a handler with security headers + data-route token checking.
+// API callers use Authorization: Bearer; /events is the only data route that
+// keeps ?token= because browser EventSource cannot set headers.
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return s.secure(func(w http.ResponseWriter, r *http.Request) {
 		if !s.authorized(r) {
@@ -1067,15 +1099,92 @@ func setSecurityHeaders(w http.ResponseWriter) {
 			"frame-ancestors 'none'")
 }
 
-// tokenPresented reports whether the request carries the valid console token —
-// the FIRST factor, via ?token= (EventSource can't set headers) or a Bearer
-// header (API callers).
+func (s *Server) hostAllowed(hostport string) bool {
+	host := hostName(hostport)
+	if host == "" {
+		return false
+	}
+	lower := strings.ToLower(host)
+	if lower == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return !ip.IsUnspecified()
+	}
+	return s.allowedHosts[lower]
+}
+
+func sameOriginMutation(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	}
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		return false
+	}
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(canonicalHostPort(u.Host), canonicalHostPort(r.Host))
+}
+
+func hostName(hostport string) string {
+	h := strings.TrimSpace(hostport)
+	if h == "" {
+		return ""
+	}
+	if strings.HasPrefix(h, "[") {
+		if end := strings.Index(h, "]"); end > 0 {
+			return strings.TrimSuffix(h[1:end], ".")
+		}
+	}
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		return strings.TrimSuffix(strings.Trim(host, "[]"), ".")
+	}
+	if strings.Count(h, ":") == 1 {
+		if host, _, ok := strings.Cut(h, ":"); ok {
+			return strings.TrimSuffix(host, ".")
+		}
+	}
+	return strings.TrimSuffix(strings.Trim(h, "[]"), ".")
+}
+
+func canonicalHostPort(hostport string) string {
+	h := strings.TrimSpace(strings.ToLower(hostport))
+	if h == "" {
+		return ""
+	}
+	if host, port, err := net.SplitHostPort(h); err == nil {
+		return strings.TrimSuffix(strings.Trim(host, "[]"), ".") + ":" + port
+	}
+	return strings.TrimSuffix(strings.Trim(h, "[]"), ".")
+}
+
+// tokenPresented reports whether the request carries the valid console token.
+// Shell/deep-link requests still accept ?token= because the daemon banner URL
+// is how an operator first opens the console.
 func (s *Server) tokenPresented(r *http.Request) bool {
+	return s.tokenPresentedFrom(r, true)
+}
+
+func (s *Server) dataTokenPresented(r *http.Request) bool {
+	allowQuery := r.URL.Path == "/events" || s.allowQueryTokensForData
+	return s.tokenPresentedFrom(r, allowQuery)
+}
+
+func (s *Server) tokenPresentedFrom(r *http.Request, allowQuery bool) bool {
 	if s.token == "" {
 		return false // never serve without a configured token
 	}
-	if s.tokenMatch(r.URL.Query().Get("token")) {
-		return true
+	if allowQuery {
+		if s.tokenMatch(r.URL.Query().Get("token")) {
+			return true
+		}
 	}
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return s.tokenMatch(strings.TrimPrefix(h, "Bearer "))
@@ -1092,12 +1201,12 @@ func (s *Server) tokenPresented(r *http.Request) bool {
 func (s *Server) authorized(r *http.Request) bool {
 	pw := s.consolePassword()
 	if pw == "" {
-		return s.tokenPresented(r)
+		return s.dataTokenPresented(r)
 	}
 	if s.passwordStrict {
-		return s.tokenPresented(r) && s.sessionValid(r)
+		return s.dataTokenPresented(r) && s.sessionValid(r)
 	}
-	return s.tokenPresented(r) || s.sessionValid(r)
+	return s.dataTokenPresented(r) || s.sessionValid(r)
 }
 
 // tokenMatch compares a presented token against the configured one in CONSTANT
@@ -1195,6 +1304,13 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
+	// Bound concurrent firehose streams per client (V-009) before allocating a
+	// subscription — refuses with 429 when a client is over its generous cap.
+	release, ok := sseGate(w, r)
+	if !ok {
+		return
+	}
+	defer release()
 	sub, err := s.bus.Subscribe(">", 256)
 	if err != nil {
 		http.Error(w, "subscribe: "+err.Error(), http.StatusInternalServerError)

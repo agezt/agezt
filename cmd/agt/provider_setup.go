@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 
@@ -69,16 +71,18 @@ func cmdProviderSetup(args []string, stdout, stderr io.Writer) int {
 	if api := strings.TrimSpace(p.API); api != "" {
 		fmt.Fprintf(stdout, "  endpoint: %s\n", api)
 	}
+	duplicateEnv := cat.DuplicateCredentialEnvs()
 	added := 0
 	for _, env := range p.Env {
-		if store.Has(env) {
-			fmt.Fprintf(stdout, "  %s — already set (%s); skipping. Use `%s provider creds set %s` to change.\n",
-				env, creds.MaskValue(store.Get(env)), brand.CLI, env)
+		if name, value, ok := providerCredentialStored(store, duplicateEnv, p.ID, env); ok {
+			fmt.Fprintf(stdout, "  %s — already set for %s (%s); skipping. Use `%s provider keys add --provider %s %s <label>` to add another.\n",
+				env, p.ID, creds.MaskValue(value), brand.CLI, p.ID, env)
+			if name == env {
+				fmt.Fprintf(stdout, "      note: using legacy/global %s; provider-scoped keys override it.\n", env)
+			}
 			continue
 		}
-		// Reuse the exact prompt+persist+mask path of `creds set`: passing
-		// just the name makes it read the value from stdin.
-		if code := cmdCredsSet(store, []string{env}, stdout, stderr); code != 0 {
+		if code := promptProviderCredential(store, p.ID, env, stdout, stderr); code != 0 {
 			return code
 		}
 		added++
@@ -104,13 +108,14 @@ func listProvidersNeedingKeys(cat *catalog.Catalog, store *creds.Store, stdout i
 		missing    []string
 	}
 	var ready, pending []row
+	duplicateEnv := cat.DuplicateCredentialEnvs()
 	for _, p := range cat.ProviderList() {
 		if len(p.Env) == 0 {
 			continue // keyless
 		}
 		r := row{id: p.ID, family: string(p.Family())}
 		for _, env := range p.Env {
-			if !store.Has(env) {
+			if _, _, ok := providerCredentialStored(store, duplicateEnv, p.ID, env); !ok {
 				r.missing = append(r.missing, env)
 			}
 		}
@@ -140,6 +145,46 @@ func listProvidersNeedingKeys(cat *catalog.Catalog, store *creds.Store, stdout i
 	if len(pending) == 0 && len(ready) == 0 {
 		fmt.Fprintf(stdout, "  (no keyed providers in the catalog — try `%s catalog sync`)\n", brand.CLI)
 	}
+	return 0
+}
+
+func providerCredentialStored(store *creds.Store, duplicateEnv map[string]bool, providerID, env string) (name, value string, ok bool) {
+	env = strings.TrimSpace(env)
+	for _, candidate := range catalog.ProviderCredentialLookupNames(providerID, env) {
+		if candidate == env && duplicateEnv[env] {
+			continue
+		}
+		if store.Has(candidate) {
+			return candidate, store.Get(candidate), true
+		}
+	}
+	return "", "", false
+}
+
+func promptProviderCredential(store *creds.Store, providerID, env string, stdout, stderr io.Writer) int {
+	fmt.Fprintf(stdout, "value for %s/%s: ", providerID, env)
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		fmt.Fprintf(stderr, "%s: read stdin: %v\n", brand.CLI, err)
+		return 1
+	}
+	value := strings.TrimRight(line, "\r\n")
+	if strings.TrimSpace(value) == "" {
+		fmt.Fprintf(stderr, "%s: value is empty\n", brand.CLI)
+		return 2
+	}
+	name := catalog.ProviderCredentialName(providerID, env)
+	if err := store.Set(name, value); err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
+		return 1
+	}
+	if err := store.Save(); err != nil {
+		fmt.Fprintf(stderr, "%s: save vault: %v\n", brand.CLI, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "stored %s for %s = %s in %s\n", env, providerID, creds.MaskValue(value), store.Path)
+	fmt.Fprintf(stdout, "run `%s provider reload` to apply (or restart the daemon)\n", brand.CLI)
 	return 0
 }
 

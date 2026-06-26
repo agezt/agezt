@@ -22,11 +22,15 @@ import (
 //     as exactly MaxRaw and pass `> MaxRaw` truncated.
 func TestDiscord_AttachmentSizeCapBoundary(t *testing.T) {
 	chanWith := func(cdn *httptest.Server) *Channel {
-		return New(Config{
+		c := New(Config{
 			PublicKey: "00", Token: "bot-test", ApplicationID: "APP1",
 			HTTPClient: cdn.Client(),
 			Allowlist:  channel.NewAllowlist([]string{"C1"}),
 		})
+		// This test exercises the download size cap, not the H-001 host policy;
+		// point the fetch at the local httptest server.
+		c.attachURLOK = func(string) error { return nil }
+		return c
 	}
 	serveN := func(n int) *httptest.Server {
 		body := make([]byte, n)

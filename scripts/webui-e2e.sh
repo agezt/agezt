@@ -35,7 +35,7 @@ export AGEZT_HOME="$TMP/home"; mkdir -p "$AGEZT_HOME"
 
 PORT_WEB=18787
 echo "starting daemon (demo echo, Web UI on :$PORT_WEB)…"
-AGEZT_DEMO_ECHO=1 AGEZT_WEB_ADDR=127.0.0.1:$PORT_WEB \
+AGEZT_DEMO_ECHO=1 AGEZT_MODEL=mock AGEZT_WEB_ADDR=127.0.0.1:$PORT_WEB \
   "$AGEZT_BIN" > "$AGEZT_HOME/daemon.log" 2>&1 &
 DPID=$!
 for _ in $(seq 1 50); do grep -q 'daemon ready' "$AGEZT_HOME/daemon.log" 2>/dev/null && break; sleep 0.3; done

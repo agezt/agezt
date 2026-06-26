@@ -31,6 +31,7 @@ import (
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/envscrub"
 )
 
 // DefaultTimeout caps one delegated ACP session.
@@ -238,6 +239,7 @@ func platformShell() (string, string) {
 func spawnAgent(ctx context.Context, cmdStr, cwd string) (*transport, error) {
 	shell, arg := platformShell()
 	c := exec.Command(shell, arg, cmdStr) // not CommandContext: we manage teardown via close()
+	c.Env = envscrub.Scrubbed()
 	if cwd != "" {
 		c.Dir = cwd
 	}

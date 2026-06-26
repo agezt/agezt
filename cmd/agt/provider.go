@@ -147,6 +147,10 @@ func cmdCredsList(store *creds.Store, stdout, stderr io.Writer) int {
 				if _, ok := nameToProvider[env]; !ok {
 					nameToProvider[env] = p.ID
 				}
+				scoped := catalog.ProviderCredentialName(p.ID, env)
+				if _, ok := nameToProvider[scoped]; !ok {
+					nameToProvider[scoped] = p.ID
+				}
 			}
 		}
 	}

@@ -37,6 +37,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
@@ -126,6 +127,23 @@ func buildAWSCredChain(vaultLookup func(string) string) (func(string) string, st
 		desc = "AWS chain: vault → env → " + strings.Join(descParts, " → ") + " → default(file+IMDS)"
 	}
 	return creds.ChainLookup(layers...), desc
+}
+
+func catalogScopedVaultLookup(cat *catalog.Catalog, vaultLookup func(string) string) func(string) string {
+	if vaultLookup == nil {
+		vaultLookup = func(string) string { return "" }
+	}
+	duplicateEnv := cat.DuplicateCredentialEnvs()
+	return func(name string) string {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return ""
+		}
+		if catalog.IsProviderCredentialName(name) || !duplicateEnv[name] {
+			return vaultLookup(name)
+		}
+		return ""
+	}
 }
 
 // parseAssumeRoleDurationSeconds parses the optional STS AssumeRole session

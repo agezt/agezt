@@ -5,6 +5,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/catalog"
 )
 
 // TestBuildAWSCredChain_WebIdentityAutoActivates: the standard EKS-injected
@@ -61,5 +63,28 @@ func TestParseAssumeRoleDurationSeconds(t *testing.T) {
 		if got := parseAssumeRoleDurationSeconds(c.in); got != c.want {
 			t.Errorf("parseAssumeRoleDurationSeconds(%q) = %d, want %d", c.in, got, c.want)
 		}
+	}
+}
+
+func TestCatalogScopedVaultLookup_SuppressesDuplicateBareVaultKeys(t *testing.T) {
+	cat := &catalog.Catalog{Providers: map[string]*catalog.Provider{
+		"alpha": {ID: "alpha", Env: []string{"SHARED_API_KEY", "ALPHA_API_KEY"}},
+		"beta":  {ID: "beta", Env: []string{"SHARED_API_KEY"}},
+	}}
+	values := map[string]string{
+		"SHARED_API_KEY": "legacy-key",
+		"ALPHA_API_KEY":  "unique-key",
+		catalog.ProviderCredentialName("alpha", "SHARED_API_KEY"): "scoped-key",
+	}
+	lookup := catalogScopedVaultLookup(cat, func(name string) string { return values[name] })
+
+	if got := lookup("SHARED_API_KEY"); got != "" {
+		t.Fatalf("duplicate bare vault key leaked through lookup: %q", got)
+	}
+	if got := lookup("ALPHA_API_KEY"); got != "unique-key" {
+		t.Fatalf("unique bare vault key = %q, want unique-key", got)
+	}
+	if got := lookup(catalog.ProviderCredentialName("alpha", "SHARED_API_KEY")); got != "scoped-key" {
+		t.Fatalf("provider-scoped vault key = %q, want scoped-key", got)
 	}
 }

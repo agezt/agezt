@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
@@ -54,8 +55,18 @@ func New(baseURL, model, apiKey string) *Client {
 		BaseURL: baseURL,
 		Model:   model,
 		APIKey:  apiKey,
-		HTTP:    &http.Client{Timeout: DefaultTimeout},
+		HTTP:    defaultHTTPClient(),
 	}
+}
+
+// defaultHTTPClient builds the adapter's HTTP client. It is netguard-protected
+// for parity with every other provider adapter — link-local/cloud-metadata
+// (169.254.169.254) and other dangerous ranges are blocked on the initial dial
+// and each redirect hop. Loopback and private ranges are intentionally ALLOWED
+// because a local/LAN inference server (Ollama at http://localhost:11434, etc.)
+// is a documented, first-class destination for this adapter.
+func defaultHTTPClient() *http.Client {
+	return netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(DefaultTimeout)
 }
 
 func (c *Client) endpoint() string {
@@ -107,7 +118,7 @@ func (c *Client) EmbedBatch(ctx context.Context, texts []string) ([][]float32, e
 	}
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: DefaultTimeout}
+		client = defaultHTTPClient()
 	}
 	resp, err := client.Do(req)
 	if err != nil {

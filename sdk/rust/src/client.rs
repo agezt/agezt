@@ -520,8 +520,7 @@ fn api_error(status: u16, body: &str) -> Error {
     let mut message = String::new();
     if let Ok(v) = Value::parse(body) {
         match v.get("error") {
-            Some(Value::Object(_)) => {
-                let err = v.get("error").unwrap();
+            Some(err @ Value::Object(_)) => {
                 kind = err.str("type").unwrap_or("").to_string();
                 message = err.str("message").unwrap_or("").to_string();
             }

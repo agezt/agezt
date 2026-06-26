@@ -10,8 +10,7 @@ package main
 
 import (
 	"bytes"
-	"os"
-	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -27,46 +26,39 @@ func helpNames() map[string]bool {
 	return out
 }
 
-// dispatchAliases are dispatch tokens that are aliases of documented commands
-// (flags and synonyms), not commands of their own.
-var dispatchAliases = map[string]bool{
-	"-v": true, "--version": true,
-	"-h": true, "--help": true,
-}
-
-var caseRe = regexp.MustCompile(`(?m)^\tcase ("(?:[^"]+)"(?:, "(?:[^"]+)")*):`)
-
-// TestHelp_CoversEveryCommand: every `case "<cmd>"` in main.go's run() switch
-// must have a help entry (aliases excepted). One-directional on purpose: the
-// help table may document a command a sibling branch is still landing.
-func TestHelp_CoversEveryCommand(t *testing.T) {
-	src, err := os.ReadFile("main.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Scope to the run() dispatch only — main.go has other switches whose
-	// cases are subcommands, not top-level commands.
-	body := string(src)
-	if i := strings.Index(body, "func run("); i >= 0 {
-		body = body[i:]
-		if j := strings.Index(body[1:], "\nfunc "); j >= 0 {
-			body = body[:j+1]
-		}
-	}
+// TestHelp_CoversEveryRegisteredCommand: every real top-level command in the
+// registry must have a help entry. The dispatch layer now routes through
+// CommandRegistry, so scanning main.go's old switch would miss newly registered
+// commands and let `agt <cmd> -h` fall through to live command execution.
+func TestHelp_CoversEveryRegisteredCommand(t *testing.T) {
 	documented := helpNames()
 	var missing []string
-	for _, m := range caseRe.FindAllStringSubmatch(body, -1) {
-		for _, tok := range strings.Split(m[1], ",") {
-			name := strings.Trim(strings.TrimSpace(tok), `"`)
-			if dispatchAliases[name] || documented[name] {
-				continue
-			}
-			missing = append(missing, name)
+	for _, cmd := range AllCommands() {
+		if !documented[cmd.Name] {
+			missing = append(missing, cmd.Name)
 		}
 	}
+	sort.Strings(missing)
 	if len(missing) > 0 {
-		t.Errorf("commands dispatched in main.go but missing from helpGroups (help.go): %v\n"+
+		t.Errorf("commands registered in CommandRegistry but missing from helpGroups (help.go): %v\n"+
 			"add a commandHelp entry so the command is discoverable", missing)
+	}
+}
+
+func TestHelp_DocumentsOnlyRegisteredCommands(t *testing.T) {
+	registered := map[string]bool{}
+	for _, cmd := range AllCommands() {
+		registered[cmd.Name] = true
+	}
+	var stale []string
+	for name := range helpNames() {
+		if !registered[name] {
+			stale = append(stale, name)
+		}
+	}
+	sort.Strings(stale)
+	if len(stale) > 0 {
+		t.Errorf("helpGroups documents commands that are not registered: %v", stale)
 	}
 }
 
@@ -98,17 +90,15 @@ func TestUniformDashH(t *testing.T) {
 	// No daemon, fresh home: if interception leaked through to a command that
 	// dials the control plane, it would error (non-zero) — failing this test.
 	t.Setenv("AGEZT_HOME", t.TempDir())
-	for _, g := range helpGroups() {
-		for _, c := range g.commands {
-			for _, flag := range []string{"-h", "--help"} {
-				var out, errOut bytes.Buffer
-				if code := run([]string{c.name, flag}, &out, &errOut); code != 0 {
-					t.Errorf("agt %s %s: exit=%d stderr=%s (must answer from the help table)", c.name, flag, code, errOut.String())
-					continue
-				}
-				if !strings.Contains(out.String(), c.name) {
-					t.Errorf("agt %s %s output does not mention the command:\n%s", c.name, flag, out.String())
-				}
+	for _, cmd := range AllCommands() {
+		for _, flag := range []string{"-h", "--help"} {
+			var out, errOut bytes.Buffer
+			if code := run([]string{cmd.Name, flag}, &out, &errOut); code != 0 {
+				t.Errorf("agt %s %s: exit=%d stderr=%s (must answer from the help table)", cmd.Name, flag, code, errOut.String())
+				continue
+			}
+			if !strings.Contains(out.String(), cmd.Name) {
+				t.Errorf("agt %s %s output does not mention the command:\n%s", cmd.Name, flag, out.String())
 			}
 		}
 	}

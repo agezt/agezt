@@ -56,6 +56,72 @@ type Provider struct {
 	Models map[string]*Model `json:"models,omitempty"`
 }
 
+const providerCredentialPrefix = "provider:"
+
+// ProviderCredentialName returns the vault key used for a credential scoped to a
+// specific catalog provider. The underlying env var is still surfaced separately
+// for compatibility with real process env vars and legacy vault entries.
+func ProviderCredentialName(providerID, env string) string {
+	providerID = strings.TrimSpace(providerID)
+	env = strings.TrimSpace(env)
+	if providerID == "" || env == "" {
+		return env
+	}
+	return providerCredentialPrefix + providerID + ":" + env
+}
+
+// IsProviderCredentialName reports whether name is a provider-scoped vault key
+// produced by ProviderCredentialName.
+func IsProviderCredentialName(name string) bool {
+	return strings.HasPrefix(strings.TrimSpace(name), providerCredentialPrefix)
+}
+
+// ProviderCredentialLookupNames returns the lookup order for one provider/env
+// pair: provider-scoped vault key first, then the legacy/global env name.
+func ProviderCredentialLookupNames(providerID, env string) []string {
+	env = strings.TrimSpace(env)
+	scoped := ProviderCredentialName(providerID, env)
+	if scoped == "" {
+		return nil
+	}
+	if scoped == env {
+		return []string{env}
+	}
+	return []string{scoped, env}
+}
+
+// DuplicateCredentialEnvs returns env-var names used by more than one provider
+// in this catalog. Callers use it to avoid treating a legacy bare vault entry as
+// credentials for every provider that happens to share the same upstream env
+// name. Real process env vars remain global; this only informs vault fallback.
+func (c *Catalog) DuplicateCredentialEnvs() map[string]bool {
+	out := map[string]bool{}
+	if c == nil {
+		return out
+	}
+	counts := map[string]int{}
+	for _, p := range c.Providers {
+		if p == nil {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, env := range p.Env {
+			env = strings.TrimSpace(env)
+			if env == "" || seen[env] {
+				continue
+			}
+			seen[env] = true
+			counts[env]++
+		}
+	}
+	for env, count := range counts {
+		if count > 1 {
+			out[env] = true
+		}
+	}
+	return out
+}
+
 // HasCredentials reports whether any of the configured env-var names
 // is set in env. Used by the Governor to filter the registry to
 // providers we can actually call.
@@ -64,9 +130,14 @@ func (p *Provider) HasCredentials(lookup func(string) string) bool {
 		// No credentials required (local services like Ollama).
 		return true
 	}
+	if lookup == nil {
+		return false
+	}
 	for _, name := range p.Env {
-		if v := lookup(name); v != "" {
-			return true
+		for _, lookupName := range ProviderCredentialLookupNames(p.ID, name) {
+			if v := lookup(lookupName); v != "" {
+				return true
+			}
 		}
 	}
 	return false

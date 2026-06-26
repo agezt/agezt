@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
@@ -92,7 +93,13 @@ func httpClient(c *http.Client) *http.Client {
 	if c != nil {
 		return c
 	}
-	return &http.Client{Timeout: DefaultTimeout}
+	// Netguard-protected for parity with every other provider adapter: link-local
+	// / cloud-metadata (169.254.169.254) and other dangerous ranges are blocked on
+	// the initial dial and each redirect hop. Loopback and private ranges are
+	// intentionally ALLOWED — a local STT/TTS server (faster-whisper / Kokoro /
+	// Piper behind an OpenAI shim at http://localhost:…) is a documented, first-
+	// class destination for this adapter.
+	return netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(DefaultTimeout)
 }
 
 // Transcribe POSTs the audio as multipart/form-data and returns the text.

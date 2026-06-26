@@ -1,149 +1,132 @@
-# AGEZT Architecture Map (Security RECON)
+# AGEZT — Architecture & Attack-Surface Map (RECON)
 
-Audit target: `D:\Codebox\PROJECTS\AGEZT`
-AGEZT is a self-hosted autonomous multi-agent platform: a Go kernel + plugin set, administered over an HTTP control surface and a React/TS web console (built into `kernel/webui/dist`, `go:embed`-ded). Agents run LLM loops that can execute code, run shell, fetch URLs, use MCP servers, and talk over ~27 comm channels.
-
-> **Design context (do NOT re-flag as a vuln):** AGEZT intentionally ships a **default-allow capability posture** — agents, `code_exec`, `shell`, network egress are deliberately max-capability / allow-by-default by owner decision (`memory/default-allow-posture.md`, `codeexec-capability-posture.md`). The *security boundaries that matter* are: the **control-plane admin token**, the **web console auth (token/password/session)**, the **agent-gateway token**, the **credential vault**, the **netguard SSRF guard**, and **any non-loopback / tunnel exposure**. This map points the hunt at those.
+Read-only recon for a security audit. Scope: Go daemon `agezt` + `agt` CLI + embedded React/TS web console.
+All references are `file:line` against `D:/Codebox/PROJECTS/AGEZT`.
 
 ---
 
-## 1. Tech stack
+## 1. Languages / Frameworks
 
-- **Language / runtime:** Go **1.26.4** (`go.mod:3`). 505 non-test Go files.
-- **HTTP routing:** stdlib `net/http` + `http.ServeMux` everywhere. No third-party router/framework.
-  - Web console: `kernel/webui/webui.go:558` (`Handler()` builds the mux).
-  - Agent gateway: `kernel/agentgw/gateway.go:117` (uses Go 1.22 method-pattern routes, e.g. `"POST /v1/memory/write"`).
-  - REST API: `kernel/restapi/restapi.go:166+`. OpenAI-compatible API: `kernel/openaiapi/openaiapi.go`.
-- **Control plane is NOT HTTP:** it is a **custom newline-delimited JSON-over-TCP protocol** on loopback (`kernel/controlplane/server.go:249` binds `127.0.0.1:0`; one giant command switch at `server.go:506-1055`).
-- **Crypto:** stdlib only (lean-deps policy excludes `x/crypto`). AES-256-GCM vault, hand-rolled PBKDF2-HMAC-SHA256 (`kernel/creds/encrypt.go`), HMAC-SHA256 JWT-like gateway tokens (`kernel/agentgw/token.go`).
-- **Frontend (`frontend/package.json`):** React **19.2**, Vite **8**, TypeScript **6**, Tailwind **4**, Radix UI primitives, `@xyflow/react` (React Flow), lucide-react, CVA + tailwind-merge, self-hosted Inter font. Tests: Vitest + Playwright.
+| Layer | Stack |
+|---|---|
+| Daemon / CLI | **Go 1.26.4** (`go.mod:3`). Minimal deps: `coder/websocket`, `emersion/go-imap`, `btcec` (secp256k1/Ed25519-adjacent), `blake3`. Std-lib `net/http` for all servers. |
+| Frontend | **React 19 + TypeScript 6 + Vite 8**, Tailwind 4, Radix UI, `@xyflow/react` (flow canvas), lucide-react (`frontend/package.json:16-44`). Built and `go:embed`-ded into the daemon binary (`kernel/webui/dist/`). |
+| Tests | Go `testing`; frontend Vitest + Playwright. |
 
-## 2. Application type & components
-
-| Component | Path | Role | Network surface |
-|---|---|---|---|
-| Control-plane daemon | `cmd/agezt/main.go` (`func main`) | The kernel host: runs agents, schedules, channels, all HTTP residents | loopback TCP control plane + optionally web/REST/OpenAI/webhook/channel HTTP servers |
-| CLI | `cmd/agt/main.go` | Operator client; talks the control-plane protocol; mints gateway tokens; `agt vault` | local |
-| Agent gateway | `kernel/agentgw/` | HTTP API that **agent subprocess code** calls (eventbus/memory/log/config + token mint) | Unix socket by default (`@agezt/agentgw.sock`), **can be TCP** |
-| Web console | `kernel/webui/` | Embedded React SPA + thin proxy to control-plane commands | HTTP, default `127.0.0.1:8787` |
-| REST API | `kernel/restapi/` | Native REST (`/api/v1/*`) incl. mailbox | HTTP, opt-in `AGEZT_REST_ADDR` |
-| OpenAI-compatible API | `kernel/openaiapi/` | Drop-in `/v1/chat/completions` etc. that runs the governed loop | HTTP, opt-in `AGEZT_API_ADDR` |
-| SDKs / plugins | `sdk/`, `plugins/` | Providers, 28 tools, ~27 channels, builtin skills/market | n/a |
-
-## 3. Entry points (where external / untrusted input enters)
-
-### 3a. Web console HTTP (`kernel/webui/webui.go`) — primary admin attack surface
-Route registration: `Handler()` at `webui.go:558`. Auth wrappers: `auth()` (`webui.go:976`), `secure()` (no token, `webui.go:966`), `shellAuth()` (`webui.go:992`).
-
-- **Token-gated (`auth`)** — the bulk:
-  - `apiRoutes` (read-only proxies) — `webui.go:104-172` (~50 GET routes).
-  - `readArgsRoutes` (read with allowlisted query args) — `webui.go:186-268`.
-  - `writeRoutes` (POST-only, query-arg mutations) — `webui.go:273-389` (halt/resume/decide, agent lifecycle, edict set_level/deny, provider keys activate/remove, mcp attach/detach, etc.).
-  - `jsonRoutes` (POST JSON body mutations) — `webui.go:398-540` (agents add/edit/capabilities, config/set, routing/set, provider/keys/add, channel/account/set, council/conductor ask, workflows save/run, **provider/probe with key in body**, redact/test, etc.).
-  - SSE streams: `/events` (`auth`, `webui.go:578`, whole bus firehose), `/api/run` (`runStreamProxy`, `webui.go:592`), `/api/plan/run`, `/api/toolbox/install`, `/api/market/install|uninstall`, `/api/transcribe`, `/api/artifact/raw`.
-- **PUBLIC / token-free (`secure`), no data but worth scrutiny:**
-  - `/` SPA shell (`shellAuth`, `webui.go:564`) — served credential-free when a console password is configured.
-  - `/api/authmeta`, `/api/login`, `/api/logout` (`webui.go:568-570`) — the token-less password door.
-  - `/assets/`, `/favicon.ico` — static bundle.
-  - **`/hooks/<workflow>`** (`webui.go:608`, `handleWorkflowHook` at `:674`) — the **one deliberately console-token-free write path**; auth is the per-workflow secret (`X-Agezt-Secret` header or `?secret=`), verified constant-time by the control plane. Fires a workflow → runs an agent. POST, 256 KiB body cap.
-  - **`/oauth/callback`** (`webui.go:612`, `handleOAuthCallback` at `:619`) — public; provider redirects here with `?code&state`; security rests on the unguessable `state`.
-
-### 3b. Control-plane protocol (`kernel/controlplane/server.go`)
-- Loopback TCP, ~250 commands (`server.go:506-1055`). Every webui/REST/CLI mutation funnels here.
-- Auth at `handleConn` `server.go:485-504`: primary token (constant-time, `tokenIsPrimary` `:325`) authorizes everything; otherwise a named **tenant** + that tenant's token, restricted to `tenantTokenAllows()` commands and pinned to its tenant. 16 MiB pre-auth request cap (`:343`), per-conn panic recover (`:1072`).
-
-### 3c. Agent gateway (`kernel/agentgw/gateway.go`) — agent-subprocess → kernel
-- Endpoints `gateway.go:120-151`: eventbus subscribe/publish, memory write/delete/search, log read/write, agent list/query, **`POST /v1/token/create`** (mint child token), config get/set/audit. `GET /health` is **unauthenticated** (`:151`).
-- Auth: `withAuth` (`:216`) requires `Authorization: Bearer` HMAC token; rate-limited per subprocess id; audited.
-- Token model: HMAC-SHA256 JWT-like (`token.go`); alg pinned to HS256 (`token.go:99`, closes alg-confusion); child mint intersects caps with parent + clamps expiry/rate (`gateway.go:359-438`).
-- **Secret resolution (`secret.go`):** `AGEZT_AGENTGW_TOKEN_SECRET` env → `<baseDir>/agentgw.secret` (0600) → fresh CSPRNG persisted O_EXCL. The former hardcoded `"change-me-in-production"` was removed (see `memory/agentgw-security-hardening.md`).
-- **Listener can be Unix socket OR TCP** (`gateway.go:163-180`) — `tcp://host:port` makes the gateway network-reachable. Default is an abstract unix socket.
-
-### 3d. Comm channels (`kernel/channel/` + `plugins/channels/*`) — untrusted inbound messages
-- 27+ channels. Inbound handling pattern (telegram `plugins/channels/telegram/telegram.go:238` `handleInbound`):
-  - **Allowlist enforced, fail-closed** (`telegram.go:267-289`): non-allowlisted sender is journaled and refused; photos/voice file refs only dereferenced for allowlisted senders.
-  - Per-message panic isolation via `channel.Guard` (`kernel/channel/guard.go:21`).
-- Webhook-style channels (slack/discord/teams/webhook/whatsappgw/…) expose their own HTTP listeners on `AGEZT_<CHAN>_ADDR`; signature/secret verification is per-channel — **worth auditing each** (HMAC check, replay, allowlist).
-
-### 3e. MCP servers (`kernel/mcp/`)
-- `client.go` (stdio: spawns a subprocess), `http.go` (remote Streamable-HTTP), `store.go`.
-- **Remote MCP client relaxes netguard** with `AllowLoopback()`+`AllowPrivate()` (`http.go:75`) — an operator/agent-registered MCP endpoint URL can legitimately reach loopback + RFC1918. Registration is gated (admin via `/api/mcp/add`, or agent via mcp self-install tool), but this is an internal-network reach surface to note.
-
-### 3f. CLI (`cmd/agt/`)
-- Local operator tool. Notable security-relevant: `cmd/agt/vault.go` (encrypt/migrate vault), `cmd/agt/netguard.go`, channel/tool admin. Mints gateway tokens using the shared secret.
-
-### 3g. Agent tools — untrusted LLM output → dangerous sinks (`plugins/tools/`, 28 tools)
-| Tool | Sink | Containment |
-|---|---|---|
-| `shell` (`shell/shell.go`) | OS command exec via warden | `ProfileNone` on non-Linux = **full daemon privileges**; gated only by Edict trust ladder + hard-deny (`shell.go:13-17`). WorkDir scoped. |
-| `code_exec` (`codeexec/codeexec.go`) | Writes+runs Python/Node/Deno | Per-call scratch dir, **scrubbed env (no AGEZT_\* / secrets)**, Deno FS jail, best-effort rlimits real only on Linux+namespace (`codeexec.go:12-26,44-59`). Gated by `code.exec` Edict, journaled. |
-| `fetch` / `http` / `websearch` / `browser` | Outbound HTTP | netguard-protected client (default-deny internal/metadata); relaxed per `AllowLoopback`/`AllowPrivate` flags (`fetch.go:73-88`). |
-| `file` (`file/file.go`) | FS read/write | **Workspace-confined**: `filepath.Abs`+`Rel` containment, refuses `..`, absolute-outside-root, and symlink escape (`file.go:4-14, 556, 638`); per-agent workdir rebasing. |
-| `voice`, `send_media`, `notify`, `db`, `mcptool`, `forgetool`, `overseertool`, `peer`, `schedule`, `standingtool`, `workflowtool`, `config` | various | each routes through Edict + journal. |
-
-## 4. Trust boundaries & authentication model
-
-- **Control plane (loopback TCP):** primary admin **token** (32-byte hex, minted per daemon start, written to `<base>/runtime/token` 0600) — full authority. Optional **tenant tokens** with a restricted command allowlist. Constant-time compares throughout (`server.go:325`).
-- **Web console (`kernel/webui/`):** three modes (`authorized()` `webui.go:1060`, `session.go`):
-  1. **Token-only** (no password set) — pre-M817 default; `?token=` or `Authorization: Bearer`.
-  2. **Password "alternative door"** (default when `AGEZT_WEB_PASSWORD` set) — token **OR** session cookie. Login is **token-free** (`webui.go:569`), constant-time password compare (`session.go:200`), failed-attempt lockout (8 fails → 5 min, `session.go:113-121`), HttpOnly/SameSite=Strict/Secure-if-TLS cookie (`session.go:211`), 12 h sliding TTL, in-memory sessions.
-  3. **Strict** (`AGEZT_WEB_PASSWORD_STRICT=on`) — token **AND** session (two factors) for non-loopback exposure.
-- **Public web routes (bypass token):** `/` shell, `/api/authmeta|login|logout`, `/assets/`, `/favicon.ico`, **`/hooks/<workflow>`** (per-workflow secret), **`/oauth/callback`** (state nonce). These are the explicit auth-bypass set — primary audit focus.
-- **Agent gateway:** Bearer HMAC token, caps enforced, child-mint subset-only. `/health` unauthenticated.
-- **REST / OpenAI API:** Bearer token (or `?token=`), constant-time (`restapi.go:278`), empty token fails closed; per-tenant token via `X-Agezt-Tenant`. `/healthz`/`/readyz` unauth; `/metrics` token-authed (exposes spend).
-- **Default exposure is loopback.** Non-loopback bind prints a `[WARNING: not loopback]` (`main.go:4299`). `AGEZT_TUNNEL` / `AGEZT_TUNNEL_CMD` can expose any local service to the **public internet** (`main.go:4314`) — combined with token-only auth, a leaked `?token=` URL or password is the whole game.
-
-## 5. Dangerous sinks
-
-- **Command / process execution:** `plugins/tools/shell/shell.go` (host shell), `plugins/tools/codeexec/codeexec.go` (writes+runs code), MCP stdio (`kernel/mcp/client.go` spawns subprocess), tunnel supervisor (`main.go:4314`, runs `cloudflared`/`ngrok`/custom command), toolbox install (host package manager via `CmdToolboxInstall`).
-- **File read/write:** `plugins/tools/file/file.go` (workspace-confined), artifact store, sandbox project files (`CmdSandboxFile`, path-confined per comment `webui.go:198`), skill resource reads (`CmdSkillReadFile`, "path-confined").
-- **Outbound HTTP / SSRF surface:** `fetch`/`http`/`websearch`/`browser` tools, MCP remote http, provider calls, `provider/probe` + `whatsappgw/status|qr` (operator-supplied `url` POSTed → server-side request), webhook delivery, models.dev catalog sync (`CmdCatalogSync` with optional `url` override). All tool egress *should* go through `kernel/netguard` — verify each path actually uses it.
-- **Template / HTML rendering:** `oauthResultPage` (`webui.go:645`) uses `fmt.Fprintf` into HTML with a hand-rolled `htmlEscape` (`:659`) — check the error message path is fully escaped.
-- **SQL/DB:** `plugins/tools/db/` + Personal Data Lake (`CmdData*`) — check query construction.
-- **Deserialization:** pervasive `json.Unmarshal` of untrusted bodies; gateway token payload (`token.go`); vault envelope (`encrypt.go`); workflow/plan/agent-profile JSON. Go's `encoding/json` is memory-safe, but type-confusion / oversized maps are worth a look (body caps exist: 1 MiB webui, 1 MiB gateway, 16 MiB control plane).
-
-## 6. Secret / credential handling
-
-- **Vault** (`kernel/creds/`): `creds.json` 0600 under base dir; **AES-256-GCM at rest, encrypted by default since M934** (`encrypt.go`). Passphrase from `AGEZT_VAULT_PASSPHRASE`. PBKDF2-HMAC-SHA256 200k iters (`encrypt.go:305`), min-iter floor 100k on decrypt (`:213`), legacy hmac-chain KDF still accepted for old vaults. Derived-key cache keyed by SHA-256(passphrase) (`:283`). Machine-bound auto-encrypt: `kernel/creds/machine*.go`.
-- **Provider keyring** (`kernel/creds/keyring.go`): multi-key per provider env var, store-many-pick-active; values never leave daemon (`/api/provider/keys` returns last-4 only, `webui.go:241`).
-- **Gateway signing secret** (`kernel/agentgw/secret.go`): per-install, `<base>/agentgw.secret` 0600 or env.
-- **Console password:** a vault SECRET, bridged into env at boot, live-read per gate (`main.go:4271`).
-- **Env vars:** `AGEZT_*` namespace; **scrubbed from `code_exec` child env** (`codeexec.go:16-17`). New `AGEZT_*` vars must be registered in controlplane `configEnvVars` or a guard test fails (`memory/config-envvars-guard.md`).
-- **Secret scrubbing:** a live redactor scrubs secrets from journal/logs; `CmdRedactTest` / `/api/redact/test` dry-runs it (body-only so the probe never lands in a URL/access log, `webui.go:537`).
-
-## 7. Existing security controls (intentional — don't re-flag as bugs)
-
-- **netguard SSRF guard** (`kernel/netguard/netguard.go`): validates the **resolved IP at the dialer** on initial dial AND every redirect hop (defeats DNS rebinding + redirect-to-metadata); blocks loopback, RFC1918+ULA, link-local incl. `169.254.169.254`, CGNAT 100.64/10, NAT64/IPv4-compat IPv6 embeddings (`:119`), 0.0.0.0/8, multicast/broadcast. Opt-in relax per range. On-block journaling.
-- **Constant-time token/password compares** everywhere (`subtle.ConstantTimeCompare`): control plane, webui token + password, REST.
-- **Pre-auth body caps + panic recovery**: control plane 16 MiB + `recoverConn`; gateway 1 MiB + 1 MB header; webui 1 MiB JSON / 256 KiB webhook / 4 KiB login.
-- **Allowlist discipline on the web proxy**: every webui route forwards only named args; no generic passthrough; mutations POST-only (`writeProxy` `:1253`).
-- **Security headers** (`setSecurityHeaders` `webui.go:1021`): CSP `default-src 'none'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'`, X-Frame-Options DENY, Referrer-Policy no-referrer (keeps `?token=` out of Referer), nosniff. Set before auth so even 401s carry them.
-- **CSRF posture:** writes are POST-only + token in query/Bearer (not auto-sent by a cross-site form); password session cookie is SameSite=Strict. (Note: a cross-site `fetch` cannot read the token, and SameSite=Strict blocks cookie attachment — but verify no state-changing GET exists.)
-- **Channel allowlists, fail-closed**; per-message panic isolation (`channel.Guard`).
-- **HITL approvals / Edict capability ladder / budgets**: `kernel/approval`, edict deny-lists + trust ceilings, per-run/per-agent cost caps, governor model routing.
-- **Tenant isolation** (control plane + REST): separate kernels/journals, restricted command set.
-- **JWT alg pinning** (`token.go:99`), child-token subset enforcement, rate-limit map eviction (CWE-770 bound).
-- **Reaper / pulse / guardians**: autonomous self-monitoring (not a control boundary but reduces blast radius).
-
-## 8. Top 10 highest-risk areas to hunt (ranked)
-
-1. **Web console auth-bypass routes** — `/hooks/<workflow>` (`handleWorkflowHook` `webui.go:674`) and `/oauth/callback` (`:619`): workflow-secret comparison (constant-time? per-workflow? replay?), name-path handling (`strings.Contains(name,"/")` only), and whether a fired workflow can run arbitrary agent actions; `state` nonce generation/expiry/binding for OAuth callback.
-2. **Non-loopback / tunnel exposure with token-only auth** — `AGEZT_WEB_ADDR` beyond loopback + `AGEZT_TUNNEL` (`main.go:4299,4314`). Token travels in `?token=` URL; assess token leakage (logs, history, referer despite no-referrer), and whether strict mode is actually required/enforced when exposed.
-3. **Agent gateway when bound as TCP** (`gateway.go:163-180`) — default unix socket is local, but `tcp://` makes the HMAC-token API network-reachable; review token-secret distribution, `/health` unauth info, child-mint cap-escalation edge cases, and whether RunID inheritance can be abused across runs.
-4. **SSRF via operator/agent-supplied URLs that may bypass netguard** — `provider/probe`, `whatsappgw/status|qr`, `catalog/sync` (url override), MCP remote http (deliberately AllowLoopback+AllowPrivate, `mcp/http.go:75`), webhook delivery. Confirm each constructs its client through netguard; hunt any `http.Get`/`http.DefaultClient`/raw `http.Client` on a user-controlled URL.
-5. **Vault & passphrase handling** — `kernel/creds/encrypt.go`: KDF correctness (hand-rolled PBKDF2), legacy-KDF downgrade acceptance, kdf-cache key collision risk, passphrase sourcing/exposure in env + process listing, machine-bound key derivation (`machine*.go`), and plaintext-vault auto-detection (`isEncryptedVault`).
-6. **Per-channel inbound HTTP webhook verification** — slack/discord/teams/webhook/whatsappgw/line/feishu/wecom/dingtalk/zalo listeners on `AGEZT_<CHAN>_ADDR`: HMAC signature check presence/constant-time, replay protection, allowlist enforcement parity with telegram, and unauthenticated-sender → agent-drive paths.
-7. **Shell / code_exec containment claims vs reality** — on non-Linux (this is a Windows-primary repo) `shell` runs at `ProfileNone` (full daemon privileges). Verify Edict hard-deny is the only gate and cannot be bypassed via auto-approve caps (`runtime.WithAutoApproveCapabilities`, `server.go:1690`), per-run `tools` override, or agent-self-edit (self-repair `streamRun`).
-8. **HTML / message injection in operator-facing render paths** — `oauthResultPage` `htmlEscape` completeness (`webui.go:659`), and any place untrusted text (channel messages, tool output, agent names) reaches the SPA without the CSP catching it (CSP allows `img-src data:` + `style-src 'unsafe-inline'`).
-9. **Authorization gaps inside the control-plane command switch** — 250 commands (`server.go:506`); confirm tenant-token allowlist (`tenantTokenAllows`) cannot reach destructive/global commands (agent remove/edit, edict set_level, provider keys, config set, market install, shutdown) and that `tenant` arg pinning (`:498-503`) is honored by every handler that reads it.
-10. **Personal Data Lake / DB tool query construction & path-confined file reads** — `plugins/tools/db/`, `CmdData*` handlers, `CmdSandboxFile`/`CmdSkillReadFile` "path-confined" claims (verify the confinement against `..`, absolute paths, symlinks, and Windows path quirks like `\\`, drive letters, alternate streams).
+Architecture: single Go process (`agezt`) hosts a kernel runtime + multiple optional network listeners; `agt` is a thin CLI that talks to the daemon over a loopback control-plane socket. The web console is a SPA embedded in and served by the daemon.
 
 ---
 
-### Quick reference — route-registration files
-- `kernel/webui/webui.go` (`Handler()` @558; route tables @104/186/273/398)
-- `kernel/controlplane/server.go` (command switch @506)
-- `kernel/agentgw/gateway.go` (`Listen()` @117)
-- `kernel/restapi/restapi.go` (`Handler()` @166)
-- `kernel/openaiapi/openaiapi.go`
-- `cmd/agezt/main.go` (HTTP residents: `buildWebUI` @4182, `buildOpenAIAPI` @4686, `buildRESTAPI` @4749, `buildTunnel` @4314, channel listeners @2567+)
+## 2. Network Listeners & Trust Boundaries
+
+All HTTP servers use `newGuardedHTTPServer` (slow-loris read-header/idle timeouts; `cmd/agezt/main.go:4203`). A non-loopback bind prints a `[WARNING: not loopback]` banner but is **not blocked** — the operator is trusted (default-allow posture).
+
+| Listener | Bind / Transport | Default | Auth | Source |
+|---|---|---|---|---|
+| **Web console** | `127.0.0.1:8787` (TCP loopback); falls back to `127.0.0.1:0` if busy | **ON by default** | per-boot 32-byte hex token (query/header) + optional `AGEZT_WEB_PASSWORD` | `cmd/agezt/main.go:4220-4304` (`net.Listen` @4250) |
+| **Control plane** | `127.0.0.1:0` (TCP loopback, ephemeral port) | always on | per-boot token in `runtime/control.token` (0600) | `kernel/controlplane/server.go:256`; addr/token files @409-421 |
+| **OpenAI-compat API** | `AGEZT_API_ADDR` (operator-supplied host:port) | **OFF** unless env set | per-boot Bearer token | `cmd/agezt/main.go:4688-4749` (`net.Listen` @4703) |
+| **REST API** | `AGEZT_REST_ADDR` (operator-supplied) | **OFF** unless env set | per-boot Bearer token | `cmd/agezt/main.go:4754-...` (`net.Listen` @4766) |
+| **Agent gateway** | abstract unix socket `@agezt/agentgw.sock` by default; TCP only if `AGEZT_AGENTGW_SOCKET=host:port` | on (socket) | per-install HMAC-SHA256 JWT | `kernel/agentgw/gateway.go:160-180` |
+| **ChatGPT OAuth callback** | `127.0.0.1:1455` (TCP loopback) | only during a sign-in flow; auto-expires | unguessable `state` param | `kernel/controlplane/provider_oauth.go:65`; `kernel/chatgptauth/chatgptauth.go:42-43` |
+| **Channel inbound** (slack/discord/etc.) | operator-set `*_ADDR`, e.g. `127.0.0.1:8840` | per-channel opt-in | per-channel allowlist | `cmd/agezt/main.go` channel build funcs |
+| **Tunnel** (cloudflared/ngrok) | exposes a local listener to the **public internet** | OFF unless `AGEZT_TUNNEL*` set | inherits target's auth only | `cmd/agezt/main.go:4307-4359` |
+
+**Trust boundaries.** The strong default is loopback-only TCP + local sockets; nothing binds `0.0.0.0` implicitly (`main.go:4217`). The principal trust boundaries are:
+- **Browser ⇄ web console** (token/password) — the main human boundary.
+- **`agt`/SDK ⇄ control plane** — any local process that can read the 0600 `control.token` is fully authorized (bearer-secret, **not** OS peer-credential).
+- **Agent-authored code/commands ⇄ host** — the agent tool surface (§5) is the largest *internal* boundary: a model can run shell/code on the host.
+- **Daemon ⇄ external providers / fetched web content** — egress + prompt-injection surface.
+- **Tunnel** collapses the loopback boundary to the public internet when enabled — high-risk toggle.
+
+---
+
+## 3. HTTP Route Inventory & Registration
+
+### 3a. Web console — `kernel/webui/webui.go`
+Routes registered in `Handler()` (`webui.go:562-617`) via stdlib `ServeMux` and three middleware wrappers:
+- `s.secure(...)` — security headers only, **NO auth** (`webui.go:970`).
+- `s.auth(...)` — headers **+ token/session auth** (`webui.go:980`).
+- `s.shellAuth(...)` — shell-only gate (`webui.go:996`).
+
+**Public (no auth):** `/` SPA shell (shellAuth, serves login if token-less, @568) · `/api/authmeta`, `/api/login`, `/api/logout` (@572-574) · `/assets/`, `/favicon.ico` (@580-581) · `/hooks/<workflow>` — authed by **per-workflow secret** (`X-Agezt-Secret`/`?secret=`), console-token-free (@612, verify @678-731) · `/oauth/callback` — security via unguessable `state` (@616).
+
+**Gated (`s.auth`):** `/events` (SSE firehose, @1164) · large allowlisted route tables — `apiRoutes` read proxies (@104-172), `readArgsRoutes` (@186-272), `writeRoutes` POST mutations (@277-393), `jsonRoutes` POST-JSON mutations (@402-544) · `/api/plan/run`, `/api/run`, `/api/toolbox/install`, `/api/market/install|uninstall`, `/api/transcribe`, `/api/artifact/raw` (@582-607). Every webui data route is a **proxied control-plane Cmd*** call with a fixed arg/key allowlist (no generic passthrough).
+
+### 3b. REST API — `kernel/restapi/restapi.go:172-194`
+Public: `/healthz`, `/readyz` only. Gated (`s.auth`): `/metrics`, `/api/v1/health|models|runs|runs/{corr}`, `/api/v1/mailbox/*` (incl. SSE `watch`), `/api/v1/update`, `/api/v1/update/apply`.
+
+### 3c. OpenAI-compat API — `kernel/openaiapi/openaiapi.go:168-178`
+**All 5 routes gated** (no public endpoint): `POST /v1/chat/completions`, `POST /v1/responses`, `GET /v1/models`, `GET /v1/models/{id}`, `POST /v1/audio/transcriptions`.
+
+### 3d. Agent gateway — `kernel/agentgw/gateway.go:117-151` (Go 1.22 method-prefixed patterns)
+Public: `GET /health` only. Gated (`withAuth` + per-handler capability check): eventbus subscribe/publish, memory write/delete/search, log read/write, agent list/query, **`POST /v1/token/create`**, config get/list/search/set/audit.
+
+---
+
+## 4. AuthN/Z Model
+
+**Control plane** (`kernel/controlplane/server.go`): line-delimited JSON over loopback TCP. Token minted with `crypto/rand`, hex (@260-265), written to `runtime/control.token` (0600) + addr to `control.addr` (0600) (@409-421). Per-request gate `tokenIsPrimary` uses **`subtle.ConstantTimeCompare`** (@325-336, gate @485). Pre-auth request bounded to 16 MiB (`readBoundedLine` @338-368). Fallback **tenant-token** auth: must name `tenant` + present its token, allowlisted commands only (@486-503). Per-connection panic recovery (@1074). No TLS (loopback design).
+
+**Web console** (`kernel/webui/webui.go`, `session.go`):
+- Token compared constant-time (`tokenMatch` @1079; empty server token never serves @1045). Accepted via `?token=` (EventSource) or `Authorization: Bearer` (@1049-1054).
+- Password: `SetPasswordFn`/`SetPasswordStrict` live-read `AGEZT_WEB_PASSWORD` (`session.go:133-152`). `authorized()` (@1064-1073): no password → token only; password set → **token OR session** (default, M933 alt-door); strict (`AGEZT_WEB_PASSWORD_STRICT=on`) → **token AND session**.
+- Login `handleLogin` (`session.go:177-221`): constant-time compare (@200), **brute-force lockout 8 fails → 5-min cooldown** (@36-40,188), 4 KiB body cap.
+- Sessions: in-memory, 32-byte `crypto/rand` id, 12h sliding TTL. Cookie `HttpOnly`+`SameSite=Strict`+`Secure`-when-TLS (@211-251).
+- **No CSRF token.** Mitigations: SameSite=Strict, POST-only mutations, fixed allowlists, loopback bind, `Referrer-Policy: no-referrer`, strict CSP (`default-src 'none'`, @1025-1040). Cookie-only auth (no token) on a cross-site simple POST is the residual concern to verify.
+
+**APIs** (rest/openai): Bearer header **or `?token=` query** (token-in-URL leakage risk), constant-time compare (`restapi.go:278`, `openaiapi.go:244`). Tenant routing via `X-Agezt-Tenant`: per-tenant token authorizes only its own tenant; admin token authorizes any (`restapi.go:277-288`). **Mailbox is daemon-global, NOT tenant-partitioned** (`mailbox.go:25`) — cross-tenant channel to verify.
+
+**Agent gateway** (`kernel/agentgw/`): HMAC-SHA256 JWT, verified with **`hmac.Equal`** (`token.go:124`); alg/typ/iss/aud pinned, `alg:none` rejected (`token.go:99-145`); expiry checked. Signing key via `ResolveTokenSecret`: env `AGEZT_AGENTGW_TOKEN_SECRET` → `agentgw.secret` file (0600) → fresh CSPRNG (`secret.go:40-130`). **Prior hole (hardcoded secret + unauth mint) is closed**: `/v1/token/create` requires a valid parent token; child caps must be a **subset** of parent (403 on escalation), expiry/rate clamped to parent, RunID inherited (`gateway.go:359-427`). Per-handler capability re-check after `withAuth` (`capabilities.go:47`). Note: abstract-unix-socket default has **no filesystem perm gate** — any local process in the namespace can connect; entire trust = the JWT.
+
+---
+
+## 5. Agent Capability Surface
+
+Capability mapping single-source: `kernel/edict/toolmap.go:20`. **Default-allow is intentional** (owner posture): `DefaultLevels()` sets **every** capability to `LevelAllow` (`kernel/edict/edict.go:606-612`); `AGEZT_ALLOW_ALL` adds `UnknownAllow` for future tools.
+
+**Dangerous tools** (`plugins/tools/*`):
+- **`shell`** (CRITICAL) — arbitrary OS command via `cmd /S /C` (Win) / `sh -c` (`shell/shell.go:227`). Env scrubbed (`shell/env.go:25` allowlist + `isSecretName` drop). **No in-tool command allow/denylist** — only Edict gates it.
+- **`code_exec`** (CRITICAL) — writes & runs arbitrary Python/Node/Deno, installs pip pkgs (`codeexec/codeexec.go`). Env scrubbed (`runtimes.go:120-156`); workdir-confined.
+- **`coding`** (HIGH) — spawns external coding agent (Claude Code/Codex/Aider). **Passes full `os.Environ()` un-scrubbed** (`coding/coding.go:141`) → child inherits daemon API keys (flag for hunt).
+- **`mcp` / `acp_agent`** (HIGH) — agent self-installs/spawns arbitrary MCP/ACP subprocesses.
+- **`overseer`** (HIGH) — cancel runs, halt/resume daemon, pause/retire agents.
+- **`remote_run`, `forge_*`, `schedule`, `standing`, `workflow`, `config`, `homeassistant`** (MEDIUM) — autonomy / config-write / physical actuation.
+- **`http`/`fetch`/`web_search`/`browser.read`** (MEDIUM) — netguard-guarded egress.
+
+**Sandbox reality (key finding):** both `shell` and `code_exec` request `ProfileNamespace`, but the **warden downgrades all profiles to `ProfileNone` on every platform** (`kernel/warden/warden.go:15-21,469`) — there is **no container/VM/namespace jail today**. Containment = timeout + output cap + workdir + env-scrub + (Linux-only) best-effort rlimits + `setpgid`. The "sandbox" is essentially env-scrubbing plus Deno's `--allow-read/write/env` fs-flags (`runtimes.go:96-110`).
+
+**Egress / SSRF** (`kernel/netguard/netguard.go`): in-process Go HTTP tools route through netguard, which validates the **resolved IP** at dial + every redirect hop (@176), default-blocking loopback, RFC1918/ULA, link-local incl. **169.254.169.254**, CGNAT, 0.0.0.0/8, and IPv6-embedded-v4 smuggling (@119). Metadata needs `AllowLinkLocal()` which **no tool sets**. **Gap:** `code_exec` Python/Node get **raw host network, NOT behind netguard** — model-written code can reach `127.0.0.1` / RFC1918 / `169.254.169.254` directly.
+
+**Restriction rails** (default-allow ⇒ these are the real controls): **F4 hard-deny floor** (immutable, shell-scoped: fork-bomb, `rm -rf /`, mkfs/wipefs, `dd of=/dev/...`, shutdown/reboot — `edict.go:617-639`, evasion-normalized @360); **netguard** (HTTP tools only); **governor budgets** (separate); **HITL approval gates** layered in the runtime — EpistemicEscalation, IntentRegretGating, **PromptInjectionGuard** (`runtime/runtime.go:1565-1631`, default-deny on 5-min timeout). Hard-deny can never be removed at runtime (`edict.go:513,863`).
+
+---
+
+## 6. Secret / Credential Storage (`kernel/creds/`)
+
+- **Single vault file** `<baseDir>/creds.json` (default `~/.agezt/creds.json`, `creds.go:47,82`). Atomic write → forced **0600** (`atomicWriteVault` @209-235, re-chmod after rename for Windows/rename-widen).
+- **Provider API keys live here** as `ENV_VAR_NAME → value` pairs; multi-key keyring adds `NAME#label` slots, mirrors active key to the bare env name (`keyring.go:14-104`). Lookup vault-first-then-env (`ChainLookup` @360). `KeyringList` returns only label/active/last-4, never values.
+- **Encryption on by default (machine-bound, M934)** (`encrypt.go`, `machine.go`): AES-256-GCM envelope (random 12-byte nonce + 32-byte salt per save); **PBKDF2-HMAC-SHA256 @ 200,000 iters** (`encrypt.go:100,296-321`); decrypt refuses `kdf_iter < 100000` (downgrade guard @213). Passphrase chain (`machine.go:77-85`): `AGEZT_VAULT_PASSPHRASE` → machine+user-bound key (`SHA-256("...v1|"+machineID+"|"+uid)`, unless `AGEZT_VAULT_AUTOENCRYPT=off`) → `""` plaintext. Plaintext vaults still load (`isEncryptedVault` @137).
+- **Honest limit (documented, `machine.go:19-23`):** machine key only protects the file *leaving the machine*; **any same-user local process can re-derive it**. Real secrecy requires `AGEZT_VAULT_PASSPHRASE`.
+- Gateway signing secret in `agentgw.secret` (0600); control-plane token in `runtime/control.token` (0600).
+
+---
+
+## 7. Prioritized High-Risk Areas for the Hunt Phase
+
+1. **No real sandbox isolation.** `shell` + `code_exec` run as plain child processes with the daemon's full privileges (warden = `ProfileNone` everywhere). With default-allow, a single prompt-injection that reaches these tools = host RCE. Validate the approval-gate chain is the *only* thing standing between untrusted input and shell/code execution. (`warden.go:15-21,469`; `runtime.go:1565-1631`)
+2. **`code_exec` network bypasses netguard.** Python/Node scripts can hit `127.0.0.1`, RFC1918, and cloud metadata `169.254.169.254` directly — full SSRF/credential-exfil from inside the "sandbox." (`codeexec/runtimes.go`, no netguard wiring)
+3. **`coding` tool leaks the daemon environment.** `append(os.Environ(), …)` hands API keys / `AGEZT_*` to the spawned external coding agent un-scrubbed, unlike shell/code_exec. (`coding/coding.go:141`)
+4. **Web console CSRF posture.** No CSRF token; in token-OR-session (default password) mode a cookie-only-authed cross-site POST is the theoretical gap. Verify every mutating route truly requires a non-cookie secret and SameSite covers all flows. (`webui.go:1064-1073`; `session.go`)
+5. **`?token=` query-param auth on REST/OpenAI APIs** — token leaks into access logs, proxies, browser history, Referer. (`restapi.go:293`, `openaiapi.go:259`)
+6. **Tunnel + non-loopback bind = silent public exposure.** `AGEZT_TUNNEL*` / non-loopback `*_ADDR` only warns, never blocks; combined with default-allow agent tools this exposes RCE to the internet behind a single bearer token. (`main.go:4307`, `4745`)
+7. **Agentgw abstract unix socket has no OS perm gate.** Any local process in the namespace can reach it; all trust = the HMAC JWT. Confirm the per-install secret can't be downgraded to the ephemeral process-random key in a way a co-resident process could exploit, and re-audit the child-token subset/clamp logic. (`gateway.go:160-180,359-427`; `secret.go`)
+8. **Vault same-user weakness.** Machine-bound encryption gives no protection against local same-user code; provider keys are recoverable by any process running as the user when `AGEZT_VAULT_PASSPHRASE` is unset. Assess whether the threat model documentation matches operator expectations. (`machine.go:19-23`)
+9. **OpenAI `image_url` server-side fetch (SSRF).** Trace attacker-controlled http(s) `image_url` (`images []string`) from `openaiapi.go:417-472` into provider/kernel adapters — confirm the daemon doesn't fetch these URLs server-side without netguard. (`openaiapi.go`, provider adapters)
+10. **Mailbox is daemon-global across tenants.** A tenant-scoped token reads/writes the shared board (`restapi/mailbox.go:25`) — verify intended, not a cross-tenant leak.
+11. **Webhook (`/hooks/<workflow>`) per-workflow secret path** — console-token-free public route; audit secret generation/comparison and replay/timing. (`webui.go:678-731`)
+12. **Prompt-injection guard precision** — per project memory this was reworked (PR #432, possibly unmerged); since it is a primary rail in front of shell/code_exec under default-allow, confirm the deployed guard logic and its causal-window gating actually fire. (`runtime.go:1578`)
+
+---
+
+*Recon complete — read-only, no source modified.*

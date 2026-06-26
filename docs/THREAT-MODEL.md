@@ -432,6 +432,26 @@ Minimum posture for a production deployment:
    (failing schedule, egress block, throttling) alert before they become
    incidents.
 
+### Hardening knobs (opt-in)
+
+Every capability ships permissive by default (default-allow); restriction is
+opt-**out**. These environment variables tighten specific surfaces without
+changing default behavior unless you set them. All are read at startup and
+surfaced by `agt config show`.
+
+| Env var | Default | Effect when set |
+|---|---|---|
+| `AGEZT_WEB_PASSWORD_STRICT=on` | off | Console requires the boot token **and** a password session for every request (token-AND-session), instead of token-OR-session. Recommended whenever a console password is set or the UI is tunnel-exposed. Maps to T5. |
+| `AGEZT_WEB_ALLOWED_HOSTS=host1,host2` | loopback | Host allowlist for console mutating routes (Origin/`Sec-Fetch-Site` defense). Set to your real hostname(s) when fronting the console with a reverse proxy/tunnel. Maps to T5. |
+| `AGEZT_OVERSEER_FLEET_LOCK=on` | off | The agent-reachable `overseer` tool can no longer **edit or create agents** (no agent→fleet-admin self-administration). Operator control-plane edits and the auto-repair daemon are unaffected. System-guardian edits are always refused regardless. Maps to T2. |
+| `AGEZT_VAULT_PASSPHRASE=…` | machine-bound | Encrypts the credential vault with a passphrase instead of the machine-bound default — the only mode that resists same-user local code reading secrets. Source it from an OS secret manager, not a committed file. Maps to T4. |
+| `AGEZT_SANDBOX_NO_NET=1` | network on | Drops network from `code_exec`/`shell` sandbox children, closing the in-process-netguard-bypass egress path (incl. cloud metadata) for sandboxed code. Set it when an agent runs untrusted code. Maps to T3/T9. |
+| `AGEZT_AUTO_REPAIR=off` | armed | Disables the self-healing daemon that lets guardian agents retune the fleet, if you prefer all fleet changes to be operator-driven. Maps to T2. |
+
+Bind addresses (`AGEZT_API_ADDR` / `AGEZT_REST_ADDR` / `AGEZT_WEB_ADDR`) default
+to loopback; only set a non-loopback value behind an authenticating proxy
+(checklist item 1).
+
 ---
 
 ## Claims guardrails

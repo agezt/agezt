@@ -164,6 +164,55 @@ func TestHasCredentials(t *testing.T) {
 	}
 }
 
+func TestHasCredentials_ProviderScopedBeforeGlobal(t *testing.T) {
+	zai := &catalog.Provider{ID: "zai-coding-plan", Env: []string{"ZHIPU_API_KEY"}}
+	zhipu := &catalog.Provider{ID: "zhipu-ai", Env: []string{"ZHIPU_API_KEY"}}
+	lookup := func(name string) string {
+		if name == catalog.ProviderCredentialName("zai-coding-plan", "ZHIPU_API_KEY") {
+			return "zai-key"
+		}
+		return ""
+	}
+	if !zai.HasCredentials(lookup) {
+		t.Error("provider-scoped key should credential the matching provider")
+	}
+	if zhipu.HasCredentials(lookup) {
+		t.Error("provider-scoped key must not credential a different provider sharing the same env")
+	}
+	if !zhipu.HasCredentials(func(name string) string {
+		if name == "ZHIPU_API_KEY" {
+			return "global-key"
+		}
+		return ""
+	}) {
+		t.Error("legacy/global env name should remain a fallback")
+	}
+}
+
+func TestDuplicateCredentialEnvs(t *testing.T) {
+	cat := &catalog.Catalog{Providers: map[string]*catalog.Provider{
+		"alpha": {ID: "alpha", Env: []string{"SHARED_API_KEY", "ALPHA_API_KEY", "SHARED_API_KEY"}},
+		"beta":  {ID: "beta", Env: []string{"SHARED_API_KEY"}},
+		"gamma": {ID: "gamma", Env: []string{"GAMMA_API_KEY"}},
+	}}
+	got := cat.DuplicateCredentialEnvs()
+	if !got["SHARED_API_KEY"] {
+		t.Fatalf("SHARED_API_KEY should be marked duplicate; got %v", got)
+	}
+	if got["ALPHA_API_KEY"] || got["GAMMA_API_KEY"] {
+		t.Fatalf("unique env names should not be marked duplicate; got %v", got)
+	}
+}
+
+func TestIsProviderCredentialName(t *testing.T) {
+	if !catalog.IsProviderCredentialName(catalog.ProviderCredentialName("alpha", "ALPHA_API_KEY")) {
+		t.Fatal("provider-scoped credential name was not recognised")
+	}
+	if catalog.IsProviderCredentialName("ALPHA_API_KEY") {
+		t.Fatal("bare env name should not be recognised as provider-scoped")
+	}
+}
+
 // ---- FindModel ----
 
 func TestFindModel_QualifiedID(t *testing.T) {

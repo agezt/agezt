@@ -72,6 +72,7 @@ try {
 
   Write-Host "starting daemon (demo echo, Web UI on :$Port)..."
   $env:AGEZT_DEMO_ECHO = "1"
+  $env:AGEZT_MODEL = "mock"
   $env:AGEZT_WEB_ADDR = "127.0.0.1:$Port"
   $proc = Start-Process -FilePath $AgeztBin -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru -WindowStyle Hidden
 
@@ -128,6 +129,7 @@ try {
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
   }
   Remove-Item Env:AGEZT_DEMO_ECHO -ErrorAction SilentlyContinue
+  Remove-Item Env:AGEZT_MODEL -ErrorAction SilentlyContinue
   Remove-Item Env:AGEZT_WEB_ADDR -ErrorAction SilentlyContinue
   Remove-Item Env:AGEZT_HOME -ErrorAction SilentlyContinue
   Remove-Item Env:GOMAXPROCS -ErrorAction SilentlyContinue

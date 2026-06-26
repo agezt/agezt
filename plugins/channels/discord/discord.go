@@ -35,6 +35,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -98,6 +99,10 @@ type Channel struct {
 	bus     *bus.Bus
 	handler channel.InboundHandler
 	now     func() time.Time // injectable clock for signature freshness (tests)
+	// attachURLOK validates an attachment URL before the server-side fetch (H-001).
+	// Defaults to validDiscordAttachmentURL (https + Discord-CDN host); injectable
+	// so tests can point the download at a local httptest server.
+	attachURLOK func(string) error
 	// baseCtx is the daemon-lifetime context: async inbound runs detach from the
 	// short-lived HTTP request context but stay tied to baseCtx so a clean shutdown
 	// cancels them after the drain window instead of leaving them to be killed by
@@ -121,17 +126,18 @@ func New(cfg Config) *Channel {
 		pub = ed25519.PublicKey(b)
 	}
 	return &Channel{
-		token:   cfg.Token,
-		pubKey:  pub,
-		appID:   cfg.ApplicationID,
-		addr:    cfg.Addr,
-		base:    base,
-		client:  client,
-		allow:   cfg.Allowlist,
-		bus:     cfg.Bus,
-		handler: cfg.Handler,
-		now:     time.Now,
-		baseCtx: context.Background(),
+		token:       cfg.Token,
+		pubKey:      pub,
+		appID:       cfg.ApplicationID,
+		addr:        cfg.Addr,
+		base:        base,
+		client:      client,
+		allow:       cfg.Allowlist,
+		bus:         cfg.Bus,
+		handler:     cfg.Handler,
+		now:         time.Now,
+		baseCtx:     context.Background(),
+		attachURLOK: validDiscordAttachmentURL,
 	}
 }
 
@@ -390,10 +396,45 @@ func (c *Channel) handleCommand(w http.ResponseWriter, in discordInteraction) {
 // within the control-plane request cap (16 MiB; base64 ≈ 4/3 × raw).
 const discordAttachMaxRaw = 12 << 20
 
+// validDiscordAttachmentURL accepts only https URLs whose host is a Discord CDN
+// host (cdn.discordapp.com / media.discordapp.net, or any sub-domain of
+// discordapp.com / discordapp.net). This bounds the server-side attachment fetch
+// to Discord's own content network, so the URL field of a (signed) interaction
+// can't be used to make the daemon fetch an arbitrary host. (H-001)
+func validDiscordAttachmentURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("discord attachment: bad url: %w", err)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("discord attachment: non-https url rejected")
+	}
+	host := strings.ToLower(u.Hostname())
+	ok := host == "cdn.discordapp.com" || host == "media.discordapp.net" ||
+		strings.HasSuffix(host, ".discordapp.com") || strings.HasSuffix(host, ".discordapp.net")
+	if !ok {
+		return fmt.Errorf("discord attachment: host %q is not a Discord CDN host", host)
+	}
+	return nil
+}
+
 // fetchAttachmentDataURL downloads a Discord attachment (a public CDN url, no
 // auth) and returns it as an inline data: URL using the attachment's reported
 // content type (M249).
 func (c *Channel) fetchAttachmentDataURL(ctx context.Context, att discordAttachment) (string, error) {
+	// Defense-in-depth (H-001): the attachment URL arrives inside a signed Discord
+	// interaction and should always be an https Discord-CDN URL — but this is a
+	// server-side fetch driven by provider JSON, so validate the scheme + host
+	// before dialing rather than trusting the field. Anything that isn't https on
+	// a discordapp CDN host is refused, so a malformed/hostile URL can't turn this
+	// into an SSRF probe of arbitrary hosts.
+	check := c.attachURLOK
+	if check == nil {
+		check = validDiscordAttachmentURL
+	}
+	if err := check(att.URL); err != nil {
+		return "", err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, att.URL, nil)
 	if err != nil {
 		return "", err

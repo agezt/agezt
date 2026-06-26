@@ -38,7 +38,17 @@ func (s *Server) handleArtifactRaw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "artifact decode failed", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", safeContentType(r.URL.Query().Get("mime")))
+	ct := safeContentType(r.URL.Query().Get("mime"))
+	w.Header().Set("Content-Type", ct)
+	if ct == "image/svg+xml" {
+		// SVG is an active document: an attacker-influenced stored SVG opened by
+		// DIRECT navigation would otherwise run its embedded <script> in the
+		// console origin (stored XSS — nosniff doesn't help, the type is genuinely
+		// SVG). The `sandbox` CSP directive puts the response in a unique-origin
+		// sandbox with scripts disabled, which blocks that while leaving normal
+		// <img src> embedding (where SVG scripts never run) fully functional.
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:")
+	}
 	if r.URL.Query().Get("download") == "1" {
 		name := sanitizeFilename(r.URL.Query().Get("name"))
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")

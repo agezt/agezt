@@ -1,9 +1,9 @@
 # dev.ps1 - one-shot dev loop: isolated home + seeded vault + build + run.
 #
-#   .\dev.ps1              build agezt.exe/agt.exe, seed .dev-home, run the daemon
-#   .\dev.ps1 -Fresh       wipe .dev-home first (clean vault/journal/state)
-#   .\dev.ps1 -SkipBuild   reuse bin\*.exe from the last build
-#   .\dev.ps1 -WebAddr 127.0.0.1:9000   serve the console elsewhere
+#   .\scripts\dev.ps1              build agezt.exe/agt.exe, seed .dev-home, run the daemon
+#   .\scripts\dev.ps1 -Fresh       wipe .dev-home first (clean vault/journal/state)
+#   .\scripts\dev.ps1 -SkipBuild   reuse bin\*.exe from the last build
+#   .\scripts\dev.ps1 -WebAddr 127.0.0.1:9000   serve the console elsewhere
 #
 # Frontend commands must be run from the repo's frontend directory:
 #   cd .\frontend
@@ -27,7 +27,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = $PSScriptRoot
+$ScriptDir = $PSScriptRoot
+$Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
 $DevHome = Join-Path $Root ".dev-home"
 $Bin = Join-Path $Root "bin"

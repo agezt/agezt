@@ -73,13 +73,14 @@ const (
 	// CmdWhatsAppGatewayQR fetches the gateway's login QR (args: url, backend,
 	// session, key) as a data: URL, so the wizard can render it inline to scan.
 	CmdWhatsAppGatewayQR = "whatsappgw_qr"
-	// Provider keyring (M700): store many API keys per provider env var and pick
-	// the active one. List never returns values (label + active + last-4 only).
-	// Add/Activate/Remove mutate the vault and reload the provider in place.
-	CmdProviderKeyList     = "provider_key_list"     // args: env
-	CmdProviderKeyAdd      = "provider_key_add"      // args: env, label, value, active?
-	CmdProviderKeyActivate = "provider_key_activate" // args: env, label
-	CmdProviderKeyRemove   = "provider_key_remove"   // args: env, label
+	// Provider keyring (M700): store many API keys per provider/env and pick the
+	// active one. args.provider is optional for legacy env-global keyrings. List
+	// never returns values (label + active + last-4 only). Mutations reload the
+	// provider in place.
+	CmdProviderKeyList     = "provider_key_list"     // args: provider?, env
+	CmdProviderKeyAdd      = "provider_key_add"      // args: provider?, env, label, value, active?
+	CmdProviderKeyActivate = "provider_key_activate" // args: provider?, env, label
+	CmdProviderKeyRemove   = "provider_key_remove"   // args: provider?, env, label
 	// Per-task model routing (M703): view/edit the governor's per-task-type model
 	// fallback chains. Set: args{chains} → live + persisted.
 	CmdRoutingGet = "routing_get"

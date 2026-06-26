@@ -44,6 +44,9 @@ func TestStandingUsageDescribesWakeRules(t *testing.T) {
 	if !strings.Contains(text, "show standing wake rules") {
 		t.Fatalf("usage should describe standing orders as wake rules, got %q", text)
 	}
+	if !strings.Contains(text, "edit <id>") || !strings.Contains(text, "--agent SLUG") {
+		t.Fatalf("usage should expose standing edit agent binding, got %q", text)
+	}
 }
 
 func TestCmdStandingAdd_RequiresNameAndTrigger(t *testing.T) {
@@ -65,6 +68,42 @@ func TestCmdStandingAdd_RejectsBadCooldown(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "--cooldown") {
 		t.Fatalf("expected cooldown error, got %q", errOut.String())
+	}
+}
+
+func TestCmdStandingEdit_RequiresIDAndField(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdStandingEdit(nil, &out, &errOut); code != 2 {
+		t.Fatalf("edit without id should exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "standing edit <id>") {
+		t.Fatalf("expected edit usage, got %q", errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cmdStandingEdit([]string{"order-1"}, &out, &errOut); code != 2 {
+		t.Fatalf("edit without a field should exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "at least one field") {
+		t.Fatalf("expected field-required error, got %q", errOut.String())
+	}
+}
+
+func TestCmdStandingEdit_RejectsBadValues(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdStandingEdit([]string{"order-1", "--cooldown", "soon"}, &out, &errOut); code != 2 {
+		t.Fatalf("bad cooldown should exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "--cooldown") {
+		t.Fatalf("expected cooldown error, got %q", errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if code := cmdStandingEdit([]string{"order-1", "--assure", "-1"}, &out, &errOut); code != 2 {
+		t.Fatalf("bad assure should exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "--assure") {
+		t.Fatalf("expected assure error, got %q", errOut.String())
 	}
 }
 

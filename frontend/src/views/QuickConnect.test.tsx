@@ -25,7 +25,8 @@ describe("QuickConnect", () => {
   it("renders the branded gallery with coding-plan + popular cards", async () => {
     render(withUI(<QuickConnect />));
     await screen.findByText("Quick Connect");
-    expect(screen.getAllByText("Z.ai GLM").length).toBeGreaterThan(0); // two cards (OpenAI + Anthropic)
+    expect(screen.getAllByText("Z.ai API").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Z.ai Coding Plan").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DeepSeek").length).toBeGreaterThan(0);
     expect(screen.getByText("OpenRouter")).toBeTruthy();
     expect(screen.getByText("Custom provider")).toBeTruthy();
@@ -50,9 +51,10 @@ describe("QuickConnect", () => {
       model: "deepseek-chat",
     })));
     expect(postJSON).toHaveBeenCalledWith("/api/provider/keys/add", expect.objectContaining({
+      provider: "deepseek",
       env: "DEEPSEEK_API_KEY",
       value: "sk-test",
-      active: "true",
+      active: true,
     }));
   });
 

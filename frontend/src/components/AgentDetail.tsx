@@ -1237,6 +1237,9 @@ export function AgentDetail({
         <div className="mt-4 mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted">
           Identity &amp; Maintenance
         </div>
+        <div className="mb-2 px-1 text-[11px] text-muted/80">
+          More sections: identity, model, repair, diagnostics, files
+        </div>
         <div className="flex flex-wrap gap-2">
           {SECONDARY_TAB_GROUPS.flatMap((g) => g.tabs).map((id) => (
             <AgentDetailTabButton
@@ -1913,7 +1916,13 @@ function AgentNowPanel({
         )}
       </div>
       {onInspect && (
-        <Button size="sm" variant="ghost" onClick={onInspect} title="Inspect the active run in this agent">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onInspect}
+          title="Inspect the active run in this agent"
+          aria-label="Inspect active run"
+        >
           <ScrollText className="size-3.5" /> Inspect
         </Button>
       )}
@@ -2202,12 +2211,14 @@ function Stat({
   icon: Icon,
   label,
   value,
+  detail,
   accent,
   tone,
 }: {
   icon: typeof Bot;
   label: string;
   value: React.ReactNode;
+  detail?: React.ReactNode;
   accent?: boolean;
   tone?: "good" | "warn" | "bad" | "accent" | "muted";
 }) {
@@ -2237,6 +2248,11 @@ function Stat({
       <div className={cn("mt-2 text-xl font-bold tabular-nums tracking-tight", valueColor)}>
         {value}
       </div>
+      {detail ? (
+        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted/80">
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2683,7 +2699,7 @@ function Overview({
             )}>
               {livePresence.value}
             </span>
-            <span className="text-[10px] text-muted/70">Presence</span>
+            <span className="text-[10px] text-muted/70">Live presence</span>
           </div>
 
           {/* Last Activity */}
@@ -2703,7 +2719,7 @@ function Overview({
               <CalendarClock className="size-5 text-muted" />
             </div>
             <span className="text-sm font-bold text-foreground/90">
-              {runtimeStatus.wakeText || "manual"}
+              {runtimeStatus.wakeText || "wake: none"}
             </span>
             <span className="text-[10px] text-muted/70">Wake source</span>
           </div>
@@ -2754,6 +2770,8 @@ function Overview({
                 onView("activity");
               }}
               className="text-xs"
+              title="Inspect run"
+              aria-label="Inspect run"
             >
               <ListTree className="size-3.5" />
             </Button>
@@ -2927,6 +2945,7 @@ function Overview({
                 ? fmtAgo(summary.lastStartedMs)
                 : "never"
           }
+          detail={runtimeStatus.lastActivitySummary}
         />
         <Stat
           icon={
@@ -3018,6 +3037,9 @@ function Overview({
                   entry.tone === "muted" && "text-muted",
                 )}>
                   {entry.label}
+                </div>
+                <div className="max-w-full truncate text-[9px] text-muted/85">
+                  {entry.value}
                 </div>
               </div>
             ))}

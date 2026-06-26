@@ -46,16 +46,35 @@ export function familyLabel(f: PresetFamily): string {
   return f === "anthropic" ? "Anthropic-compatible" : "OpenAI-compatible";
 }
 
+export function providerScopedKeyLabel(providerId: string, env: string): string {
+  const cleanEnv = env.trim();
+  return cleanEnv ? `provider:${providerId}:${cleanEnv}` : "keyless";
+}
+
+export function providerEnvFromId(providerId: string): string {
+  const token = providerId
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `${token || "CUSTOM_PROVIDER"}_API_KEY`;
+}
+
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   // ---- Coding / token plans (the headline gallery) ----
   {
-    id: "zai-coding", name: "Z.ai GLM", vendor: "zai", tagline: "Coding plan", category: "coding",
-    family: "openai-compatible", api: "https://api.z.ai/api/coding/paas/v4", keyEnv: "ZAI_API_KEY", model: "glm-4.6",
+    id: "zai", name: "Z.ai API", vendor: "zai", tagline: "General models", category: "coding",
+    family: "openai-compatible", api: "https://api.z.ai/api/paas/v4", keyEnv: "ZAI_API_KEY", model: "glm-5.2",
     color: "#2563eb", glyph: "Z", signupUrl: "https://z.ai/manage-apikey/apikey-list", docsUrl: "https://docs.z.ai/",
   },
   {
-    id: "zai-anthropic", name: "Z.ai GLM", vendor: "zai", tagline: "Coding · Claude-style", category: "coding",
-    family: "anthropic", api: "https://api.z.ai/api/anthropic", keyEnv: "ZAI_API_KEY", model: "glm-4.6",
+    id: "zai-coding-plan", name: "Z.ai Coding Plan", vendor: "zai", tagline: "Coding plan", category: "coding",
+    family: "openai-compatible", api: "https://api.z.ai/api/coding/paas/v4", keyEnv: "ZAI_API_KEY", model: "glm-5.2",
+    color: "#2563eb", glyph: "Z", signupUrl: "https://z.ai/manage-apikey/apikey-list", docsUrl: "https://docs.z.ai/",
+  },
+  {
+    id: "zai-coding-plan-anthropic", name: "Z.ai Coding Plan", vendor: "zai", tagline: "Claude-style", category: "coding",
+    family: "anthropic", api: "https://api.z.ai/api/anthropic", keyEnv: "ZAI_API_KEY", model: "glm-5.2",
     color: "#2563eb", glyph: "Z", signupUrl: "https://z.ai/manage-apikey/apikey-list", docsUrl: "https://docs.z.ai/",
   },
   {

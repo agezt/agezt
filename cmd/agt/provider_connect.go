@@ -117,13 +117,13 @@ func cmdProviderConnect(args []string, stdout, stderr io.Writer) int {
 
 	// 2. Store the key (secret path), if given.
 	if key != "" {
-		if _, err := c.Call(ctx, controlplane.CmdProviderKeyAdd, map[string]any{"env": env, "label": "default", "value": key, "active": true}); err != nil {
+		if _, err := c.Call(ctx, controlplane.CmdProviderKeyAdd, map[string]any{"provider": id, "env": env, "label": "default", "value": key, "active": true}); err != nil {
 			fmt.Fprintf(stderr, "%s: provider saved, but storing the key failed: %v\n", brand.CLI, err)
 			return 1
 		}
 		fmt.Fprintf(stdout, "stored key in %s (active)\n", env)
 	} else if env != "" {
-		fmt.Fprintf(stdout, "add a key with `%s provider keys add %s default <value> --active`\n", brand.CLI, env)
+		fmt.Fprintf(stdout, "add a key with `%s provider keys add --provider %s %s default <value> --active`\n", brand.CLI, id, env)
 	}
 
 	// 3. Make it the default brain, if asked.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -40,9 +41,11 @@ func TestLive_SpawnRealACPPeer(t *testing.T) {
 		t.Skip("test binary path contains spaces; live shell spawn would need per-shell quoting")
 	}
 	cmd := os.Args[0] + " -test.run=^TestACPPeerProcess$"
-
-	// The spawned child inherits our environment; the flag turns it into a peer.
-	t.Setenv("AGEZT_ACP_PEER", "1")
+	if runtime.GOOS == "windows" {
+		cmd = "set AGEZT_ACP_PEER=1&& " + cmd
+	} else {
+		cmd = "AGEZT_ACP_PEER=1 " + cmd
+	}
 
 	tool := &Tool{Cmd: cmd, Cwd: ".", dial: spawnAgent} // the REAL dial
 
