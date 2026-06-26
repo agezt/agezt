@@ -438,7 +438,10 @@ function OverviewTab({
             {active.slice(0, 6).map((r) => (
               <button
                 key={r.id}
-                onClick={() => (location.hash = "agents")}
+                onClick={() => {
+                  focusRun(r.id);
+                  location.hash = "runs";
+                }}
                 className="flex flex-col gap-2 rounded-lg border border-border bg-panel/60 p-3 text-left transition-colors hover:border-accent hover:bg-panel"
               >
                 <div className="flex items-center gap-2">

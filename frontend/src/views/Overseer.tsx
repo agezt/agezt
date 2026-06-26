@@ -16,6 +16,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
+import { focusRun } from "@/lib/runfocus";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
@@ -233,10 +234,11 @@ export function Overseer() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (corr) focusRun(corr);
                           location.hash = "runs";
                         }}
                         className="w-full rounded-md border border-border bg-panel/50 px-2.5 py-1.5 text-left shadow-e1 transition-[background-color,border-color,box-shadow] hover:border-accent/50 hover:bg-panel hover:shadow-e2"
-                        title="Open in Runs"
+                        title="Open this run in Runs"
                       >
                         <div className="flex items-center gap-2">
                           <CircleDot className="size-3.5 shrink-0 animate-pulse text-accent" />
