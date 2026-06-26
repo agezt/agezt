@@ -45,6 +45,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { JarvisPresenceCard } from "@/components/JarvisPresenceCard";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface RunRow {
@@ -341,6 +342,9 @@ function OverviewTab({
           </ul>
         </CollapsibleSection>
       )}
+
+      {/* Jarvis presence — discoverable entry point to the triad (M1002). */}
+      <JarvisPresenceCard />
 
       {/* Key metrics grid */}
       <MetricGrid>
