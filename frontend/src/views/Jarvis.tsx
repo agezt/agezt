@@ -69,6 +69,7 @@ export function Jarvis() {
   const [rebuilding, setRebuilding] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [arming, setArming] = useState(false);
+  const [beating, setBeating] = useState(false);
   const probed = useRef(false);
 
   async function reload() {
@@ -127,6 +128,22 @@ export function Jarvis() {
       ui.toast((e as Error).message, "error");
     } finally {
       setResolving(null);
+    }
+  }
+
+  // Trigger one on-demand heartbeat ("think now", M756) — poke Pulse to sweep its
+  // observers right now; any actionable finding shows up as a new pending ask.
+  async function thinkNow() {
+    setBeating(true);
+    try {
+      await postAction("/api/pulse/beat", {});
+      ui.toast("thinking now — checking for anything that needs you", "info");
+      // The beat runs async on the daemon; give it a beat, then refresh.
+      window.setTimeout(reload, 1000);
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBeating(false);
     }
   }
 
@@ -356,7 +373,17 @@ export function Jarvis() {
             </div>
           )}
 
-          <PillarCTA label="Tune autonomy" onClick={() => go("autonomy")} />
+          <div className="flex items-center gap-3">
+            <PillarCTA label="Tune autonomy" onClick={() => go("autonomy")} />
+            <button
+              onClick={thinkNow}
+              disabled={beating}
+              title="Run one heartbeat now"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              <Zap className={cn("size-3.5", beating && "animate-pulse")} /> Think now
+            </button>
+          </div>
         </Pillar>
 
         {/* PROFILE — it knows you */}

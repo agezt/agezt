@@ -124,4 +124,16 @@ describe("Jarvis presence view", () => {
       expect(postAction).toHaveBeenCalledWith("/api/standing/enable", { id: "ord-1", enabled: "true" }),
     );
   });
+
+  it("triggers an on-demand heartbeat with Think now", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/pulse" ? Promise.resolve(PULSE_ACT) : Promise.resolve(PROFILE_RECORDS),
+    );
+    postAction.mockResolvedValue({ triggered: true });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("Acting on its own")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /think now/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/beat", {}));
+  });
 });
