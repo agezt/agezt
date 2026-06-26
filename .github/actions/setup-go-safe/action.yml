@@ -34,7 +34,10 @@ runs:
   steps:
     - name: Purge corrupt Go toolcache (self-hosted runner workaround)
       shell: bash
-      run: rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go/1.26.4" || true
+      run: |
+        set -euo pipefail
+        : "${RUNNER_TOOL_CACHE:?RUNNER_TOOL_CACHE must be set on self-hosted runners}"
+        rm -rf "$RUNNER_TOOL_CACHE/go/1.26.4" || true
 
     - name: Install Go (latest stable)
       id: go-install
@@ -53,8 +56,9 @@ runs:
       shell: bash
       run: |
         set -e
+        : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
         SRC="$(go env GOROOT)"
-        DST="/dev/shm/goroot-${RUNNER_NAME:-shared}"
+        DST="/dev/shm/goroot-${RUNNER_NAME}"
         rm -rf "$DST"
         cp -a "$SRC" "$DST"
         echo "GOROOT=$DST" >> "$GITHUB_ENV"
@@ -80,8 +84,11 @@ runs:
       if: steps.verify.outcome == 'failure'
       shell: bash
       run: |
+        set -euo pipefail
+        : "${RUNNER_TOOL_CACHE:?RUNNER_TOOL_CACHE must be set on self-hosted runners}"
+        : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
         echo "::warning::Go toolchain corrupt even on tmpfs; re-downloading toolchain once."
-        rm -rf "${RUNNER_TOOL_CACHE:-$HOME/actions-runner-2/_work/_tool}/go" "/dev/shm/goroot-${RUNNER_NAME:-shared}"
+        rm -rf "$RUNNER_TOOL_CACHE/go" "/dev/shm/goroot-${RUNNER_NAME}"
 
     - name: Re-install Go (latest stable)
       if: steps.verify.outcome == 'failure'
@@ -96,8 +103,9 @@ runs:
       shell: bash
       run: |
         set -e
+        : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
         SRC="$(go env GOROOT)"
-        DST="/dev/shm/goroot-${RUNNER_NAME:-shared}"
+        DST="/dev/shm/goroot-${RUNNER_NAME}"
         rm -rf "$DST"
         cp -a "$SRC" "$DST"
         echo "GOROOT=$DST" >> "$GITHUB_ENV"
