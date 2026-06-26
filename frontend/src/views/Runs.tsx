@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RefreshCw,
   ChevronRight,
@@ -11,6 +11,8 @@ import {
   CircleDot,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
+import { useEvents } from "@/lib/events";
+import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge, statusVariant } from "@/components/ui/badge";
@@ -31,10 +33,13 @@ interface Run {
   started_unix_ms?: number;
 }
 
-function RunRow({ run, focus }: { run: Run; focus?: string | null }) {
+function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: LiveRunContext }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isFocus = !!focus && focus === run.correlation_id;
+  // For a still-running row, surface what the agent is doing right now (folded
+  // from the live event stream) so the list reads as a monitor, not a log.
+  const livePhase = run.status === "running" ? ctx?.phase : undefined;
 
   useEffect(() => {
     if (!isFocus) return;
@@ -52,6 +57,15 @@ function RunRow({ run, focus }: { run: Run; focus?: string | null }) {
         {open ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
         <Badge variant={statusVariant(run.status)}>{run.status || "?"}</Badge>
         <span className="truncate">{run.intent || run.correlation_id || "run"}</span>
+        {livePhase && (
+          <span
+            className="hidden shrink-0 items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent sm:inline-flex"
+            title={ctx?.agent ? `${ctx.agent} · ${livePhase}` : livePhase}
+          >
+            <CircleDot className="size-3 animate-pulse" />
+            {ctx?.tool ? `${livePhase} · ${ctx.tool}` : livePhase}
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-muted">
           {run.duration_ms ? `${run.duration_ms}ms` : ""} {fmtTime(run.started_unix_ms)}
         </span>
@@ -102,15 +116,47 @@ export function runCounts(runs: Run[]): RunCounts {
 
 export function Runs() {
   const { data, error, loading, reload } = usePanel<{ runs?: Run[] }>("/api/runs");
+  const { events, connected } = useEvents();
   const runs = data?.runs || [];
   const focus = useRunFocus();
   const counts = runCounts(runs);
   const [q, setQ] = useState("");
+  // Per-run live context (current phase/tool/agent) folded from the event stream,
+  // shared with the Overseer monitor. Keyed by correlation id.
+  const liveCtx = useMemo(() => buildLiveRunContexts(events), [events]);
 
   useEffect(() => {
     if (!focus) return;
     const target = runs.find((r) => r.correlation_id === focus);
   }, [focus, runs]);
+
+  // Live: refetch (debounced) when a run's state changes on the event stream, so the
+  // list and the metric counters update within ~1s instead of only on manual reload.
+  // Open run detail panels keep their state across reloads (RunRow is keyed by id).
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const head = events[0]?.kind;
+  useEffect(() => {
+    if (
+      head === "task.received" ||
+      head === "task.completed" ||
+      head === "task.failed" ||
+      head === "schedule.fired"
+    ) {
+      if (debounce.current) clearTimeout(debounce.current);
+      debounce.current = setTimeout(reload, 600);
+    }
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [head, events[0]?.id]);
+
+  // Slow fallback poll so the list still freshens if the event stream drops.
+  useEffect(() => {
+    const id = setInterval(reload, 10000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const query = q.trim().toLowerCase();
 
@@ -126,28 +172,28 @@ export function Runs() {
       label: "All",
       icon: ListTree,
       count: counts.total,
-      content: <RunList runs={getShown(null)} bucketTotal={bucketRuns(null).length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown(null)} bucketTotal={bucketRuns(null).length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
     },
     {
       id: "running",
       label: "Running",
       icon: CircleDot,
       count: counts.running,
-      content: <RunList runs={getShown("running")} bucketTotal={bucketRuns("running").length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown("running")} bucketTotal={bucketRuns("running").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
     },
     {
       id: "completed",
       label: "Completed",
       icon: CheckCircle2,
       count: counts.completed,
-      content: <RunList runs={getShown("completed")} bucketTotal={bucketRuns("completed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown("completed")} bucketTotal={bucketRuns("completed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
     },
     {
       id: "failed",
       label: "Failed",
       icon: XOctagon,
       count: counts.failed,
-      content: <RunList runs={getShown("failed")} bucketTotal={bucketRuns("failed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} />,
+      content: <RunList runs={getShown("failed")} bucketTotal={bucketRuns("failed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
     },
   ];
 
@@ -158,6 +204,20 @@ export function Runs() {
         title="Runs"
         actions={
           <>
+            <span
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
+              )}
+              title={
+                connected
+                  ? "Live event stream connected — runs update automatically"
+                  : "Stream disconnected — polling every 10s"
+              }
+            >
+              <CircleDot className={cn("size-3", connected && "animate-pulse")} />
+              {connected ? "live" : "offline"}
+            </span>
             <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
               <RefreshCw className={loading ? "animate-spin" : ""} />
             </Button>
@@ -206,6 +266,7 @@ function RunList({
   setQ,
   focus,
   error,
+  liveCtx,
 }: {
   runs: Run[];
   bucketTotal: number;
@@ -214,6 +275,7 @@ function RunList({
   setQ: (q: string) => void;
   focus?: string | null;
   error?: string | null;
+  liveCtx: Record<string, LiveRunContext>;
 }) {
   if (error) {
     return <ErrorText>{error}</ErrorText>;
@@ -264,7 +326,7 @@ function RunList({
       }
     >
       {runs.map((r, i) => (
-        <RunRow key={r.correlation_id || i} run={r} focus={focus} />
+        <RunRow key={r.correlation_id || i} run={r} focus={focus} ctx={liveCtx[r.correlation_id || ""]} />
       ))}
     </CollapsibleSection>
   );

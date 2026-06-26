@@ -62,7 +62,7 @@ func TestAuditReportsExpiredSuspendedAndContradictions(t *testing.T) {
 	now := fixedNow
 	m.now = func() time.Time { return now }
 	expired, _, _ := m.Remember("c", RememberSpec{
-		Subject: "old", Content: "stale", HalfLifeMS: int64(time.Millisecond / time.Millisecond),
+		Subject: "old", Content: "stale", HalfLifeMS: 1,
 	})
 	suspended, _, _ := m.Remember("c", RememberSpec{Subject: "thin", Content: "uncertain"})
 	_, _ = m.Suspend("c", suspended.ID, "needs source")

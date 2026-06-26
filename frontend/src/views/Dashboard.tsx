@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   RefreshCw,
@@ -30,6 +30,7 @@ import { getJSON } from "@/lib/api";
 import { ConnectivityStrip } from "@/views/Connections";
 import { Advanced, Calm } from "@/components/ui/advanced";
 import { useEvents, type AgentEvent } from "@/lib/events";
+import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { incidentRootId } from "@/lib/incidents";
 import { focusRun } from "@/lib/runfocus";
@@ -115,6 +116,9 @@ const MAX_SERIES = 32;
 
 export function Dashboard() {
   const { events, connected } = useEvents();
+  // Per-run live context (current phase/tool) folded from the event stream, shared
+  // with the Overseer and Runs monitors. Lets the active-run cards show activity.
+  const liveCtx = useMemo(() => buildLiveRunContexts(events), [events]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
   const [status, setStatus] = useState<Record<string, any> | null>(null);
@@ -193,6 +197,7 @@ export function Dashboard() {
           stats={stats}
           fleetOps={fleetOps}
           active={active}
+          liveCtx={liveCtx}
           alerts={alerts}
           successPct={successPct}
           pctUsed={pctUsed}
@@ -270,6 +275,7 @@ function OverviewTab({
   stats,
   fleetOps,
   active,
+  liveCtx,
   alerts,
   successPct,
   pctUsed,
@@ -285,6 +291,7 @@ function OverviewTab({
   stats: Stats | null;
   fleetOps: DashboardFleetOps | null;
   active: RootSummary[];
+  liveCtx: Record<string, LiveRunContext>;
   alerts: RankedAlert[];
   successPct: number;
   pctUsed: number;
@@ -435,10 +442,15 @@ function OverviewTab({
           defaultOpen={active.length <= 3}
         >
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {active.slice(0, 6).map((r) => (
+            {active.slice(0, 6).map((r) => {
+              const ctx = liveCtx[r.id];
+              return (
               <button
                 key={r.id}
-                onClick={() => (location.hash = "agents")}
+                onClick={() => {
+                  focusRun(r.id);
+                  location.hash = "runs";
+                }}
                 className="flex flex-col gap-2 rounded-lg border border-border bg-panel/60 p-3 text-left transition-colors hover:border-accent hover:bg-panel"
               >
                 <div className="flex items-center gap-2">
@@ -448,13 +460,19 @@ function OverviewTab({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  {ctx?.phase && (
+                    <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-accent" title={ctx.agent ? `${ctx.agent} · ${ctx.phase}` : ctx.phase}>
+                      {ctx.tool ? `${ctx.phase} · ${ctx.tool}` : ctx.phase}
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1"><Bot className="size-3" /> {r.agents}</span>
                   {r.subAgents > 0 && <span className="inline-flex items-center gap-1"><GitBranch className="size-3" /> {r.subAgents}</span>}
                   <span className="inline-flex items-center gap-1"><Coins className="size-3" /> {money(r.treeSpentMc)}</span>
                   {r.model && <span className="ml-auto truncate font-mono opacity-70" title={r.model}>{r.model}</span>}
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </CollapsibleSection>
       )}
