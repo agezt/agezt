@@ -11,6 +11,7 @@ import {
   CircleDot,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
+import { useEvents } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge, statusVariant } from "@/components/ui/badge";
@@ -102,6 +103,7 @@ export function runCounts(runs: Run[]): RunCounts {
 
 export function Runs() {
   const { data, error, loading, reload } = usePanel<{ runs?: Run[] }>("/api/runs");
+  const { events, connected } = useEvents();
   const runs = data?.runs || [];
   const focus = useRunFocus();
   const counts = runCounts(runs);
@@ -111,6 +113,34 @@ export function Runs() {
     if (!focus) return;
     const target = runs.find((r) => r.correlation_id === focus);
   }, [focus, runs]);
+
+  // Live: refetch (debounced) when a run's state changes on the event stream, so the
+  // list and the metric counters update within ~1s instead of only on manual reload.
+  // Open run detail panels keep their state across reloads (RunRow is keyed by id).
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const head = events[0]?.kind;
+  useEffect(() => {
+    if (
+      head === "task.received" ||
+      head === "task.completed" ||
+      head === "task.failed" ||
+      head === "schedule.fired"
+    ) {
+      if (debounce.current) clearTimeout(debounce.current);
+      debounce.current = setTimeout(reload, 600);
+    }
+    return () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [head, events[0]?.id]);
+
+  // Slow fallback poll so the list still freshens if the event stream drops.
+  useEffect(() => {
+    const id = setInterval(reload, 10000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const query = q.trim().toLowerCase();
 
@@ -158,6 +188,20 @@ export function Runs() {
         title="Runs"
         actions={
           <>
+            <span
+              className={cn(
+                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
+              )}
+              title={
+                connected
+                  ? "Live event stream connected — runs update automatically"
+                  : "Stream disconnected — polling every 10s"
+              }
+            >
+              <CircleDot className={cn("size-3", connected && "animate-pulse")} />
+              {connected ? "live" : "offline"}
+            </span>
             <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
               <RefreshCw className={loading ? "animate-spin" : ""} />
             </Button>

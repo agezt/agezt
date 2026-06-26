@@ -4,6 +4,9 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 const getJSON = vi.fn();
 vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
+vi.mock("@/lib/events", () => ({
+  useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
+}));
 
 import { Runs, runMatches, runBucket, runCounts } from "@/views/Runs";
 
@@ -77,6 +80,13 @@ describe("Runs filter (M775)", () => {
     render(<Runs />);
     await waitFor(() => expect(screen.getByText("write tests")).toBeTruthy());
     expect(screen.queryByLabelText("Filter runs")).toBeNull();
+  });
+
+  it("shows a live indicator wired to the event stream (M-live-runs)", async () => {
+    getJSON.mockResolvedValue({ runs });
+    render(<Runs />);
+    // The events mock reports connected:true, so the header pill reads "live".
+    expect(await screen.findByText("live")).toBeTruthy();
   });
 });
 
