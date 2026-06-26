@@ -5,10 +5,18 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import type { AgentEvent } from "@/lib/events";
 
 const getJSON = vi.fn();
+const postAction = vi.fn();
 let liveEvents: AgentEvent[] = [];
-vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
+vi.mock("@/lib/api", () => ({
+  getJSON: (...a: unknown[]) => getJSON(...a),
+  postAction: (...a: unknown[]) => postAction(...a),
+}));
 vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: liveEvents, connected: true, subscribe: () => () => {} }),
+}));
+// Stub the UI feedback context: confirm auto-approves so the stop flow proceeds.
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ toast: () => {}, confirm: () => Promise.resolve(true) }),
 }));
 
 import { Runs, runMatches, runBucket, runCounts } from "@/views/Runs";
@@ -16,6 +24,7 @@ import { Runs, runMatches, runBucket, runCounts } from "@/views/Runs";
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
+  postAction.mockReset();
   liveEvents = [];
 });
 
@@ -116,6 +125,23 @@ describe("Runs filter (M775)", () => {
     });
     render(<Runs />);
     expect(await screen.findByText("thinking")).toBeTruthy();
+  });
+
+  it("stops a running run via the cancel_run endpoint (M-stop-run)", async () => {
+    postAction.mockResolvedValue({});
+    getJSON.mockResolvedValue({ runs: [{ correlation_id: "r9", status: "running", intent: "stuck run" }] });
+    render(<Runs />);
+    const stopBtn = await screen.findByLabelText("Stop this run");
+    fireEvent.click(stopBtn);
+    // confirm() is stubbed true, so the cancel_run call fires with the correlation id.
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/cancel_run", { correlation: "r9" }));
+  });
+
+  it("shows no stop control on a finished run", async () => {
+    getJSON.mockResolvedValue({ runs: [{ correlation_id: "done", status: "completed", intent: "all done" }] });
+    render(<Runs />);
+    await screen.findByText("all done");
+    expect(screen.queryByLabelText("Stop this run")).toBeNull();
   });
 });
 

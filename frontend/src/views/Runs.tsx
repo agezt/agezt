@@ -9,8 +9,11 @@ import {
   XOctagon,
   Clock,
   CircleDot,
+  CircleStop,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
+import { postAction } from "@/lib/api";
+import { useUI } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { Button } from "@/components/ui/button";
@@ -46,6 +49,34 @@ function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: Li
   // (authoritative from the full journal) so it shows even on a fresh page load.
   const livePhase = run.status === "running" ? (ctx?.phase ?? run.phase) : undefined;
   const liveTool = ctx?.tool ?? run.tool;
+  const ui = useUI();
+  const [stopping, setStopping] = useState(false);
+  const corr = run.correlation_id || "";
+
+  // Cancel an in-flight run from the monitor (the daemon-side cancel_run, M32).
+  // Confirmed because it ends real work; the run's terminal event then refreshes
+  // the list. Guarded so a double-click can't fire twice.
+  const stop = async () => {
+    if (!corr || stopping) return;
+    if (
+      !(await ui.confirm({
+        title: "Stop this run?",
+        message: `“${run.intent || corr}” will be cancelled. Work already done is kept; the run ends now.`,
+        confirmLabel: "Stop run",
+        danger: true,
+      }))
+    )
+      return;
+    setStopping(true);
+    try {
+      await postAction("/api/cancel_run", { correlation: corr });
+      ui.toast("Run cancelled", "success");
+    } catch (err) {
+      ui.toast(`Couldn't stop the run: ${err}`, "error");
+    } finally {
+      setStopping(false);
+    }
+  };
 
   useEffect(() => {
     if (!isFocus) return;
@@ -56,9 +87,10 @@ function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: Li
 
   return (
     <div ref={ref} className={cn("border-b border-border/60", isFocus && "bg-accent/5")}>
+      <div className="flex items-center">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-1 py-1.5 text-left hover:bg-panel"
+        className="flex flex-1 items-center gap-2 px-1 py-1.5 text-left hover:bg-panel"
       >
         {open ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
         <Badge variant={statusVariant(run.status)}>{run.status || "?"}</Badge>
@@ -76,6 +108,21 @@ function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: Li
           {run.duration_ms ? `${run.duration_ms}ms` : ""} {fmtTime(run.started_unix_ms)}
         </span>
       </button>
+      {run.status === "running" && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void stop();
+          }}
+          disabled={stopping}
+          title="Stop this run"
+          aria-label="Stop this run"
+          className="shrink-0 px-2 py-1.5 text-muted transition-colors hover:text-bad disabled:opacity-50"
+        >
+          <CircleStop className={cn("size-4", stopping && "animate-pulse")} />
+        </button>
+      )}
+      </div>
       {open && (
         <div className="px-7 pb-3 pt-1 text-sm">
           <RunDetailLoader correlationId={run.correlation_id} status={run.status} durationMs={run.duration_ms} />
