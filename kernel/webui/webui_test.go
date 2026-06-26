@@ -680,7 +680,7 @@ func TestAPIReadOnly(t *testing.T) {
 		"catalog_list": true, "sandbox_list": true,
 		"config_schema": true, "config_values": true, "routing_get": true, "chains_get": true, "persona_get": true, "prompts_get": true, "version": true,
 		"channel_list": true, "acp_agents": true,
-		"pulse_status": true, "journal_verify": true, "storage_stats": true,
+		"pulse_status": true, "pulse_asks": true, "journal_verify": true, "storage_stats": true,
 		"data_collections": true,
 		"council_members":  true,
 		"conductor_roles":  true,
