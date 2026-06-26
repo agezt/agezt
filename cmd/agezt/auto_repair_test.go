@@ -962,14 +962,10 @@ func TestApplyAutoRepairResolution_DelegationFailureIsJournaled(t *testing.T) {
 	if outcome != nil {
 		t.Fatalf("delegation failure should not return direct outcome: %+v", outcome)
 	}
-	tail, err := k.Journal().Tail(20)
-	if err != nil {
-		t.Fatalf("journal tail: %v", err)
-	}
 	var found bool
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for !found && time.Now().Before(deadline) {
-		tail, err = k.Journal().Tail(20)
+		tail, err := k.Journal().Tail(20)
 		if err != nil {
 			t.Fatalf("journal tail: %v", err)
 		}
