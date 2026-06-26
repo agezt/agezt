@@ -31,15 +31,21 @@ interface Run {
   intent?: string;
   duration_ms?: number;
   started_unix_ms?: number;
+  // Server-folded live activity (authoritative, present only for running runs) —
+  // a fallback for the client-side event fold so the phase shows on a fresh load.
+  phase?: string;
+  tool?: string;
 }
 
 function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: LiveRunContext }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isFocus = !!focus && focus === run.correlation_id;
-  // For a still-running row, surface what the agent is doing right now (folded
-  // from the live event stream) so the list reads as a monitor, not a log.
-  const livePhase = run.status === "running" ? ctx?.phase : undefined;
+  // For a still-running row, surface what the agent is doing right now. Prefer the
+  // client-side event fold (most real-time); fall back to the server-folded phase
+  // (authoritative from the full journal) so it shows even on a fresh page load.
+  const livePhase = run.status === "running" ? (ctx?.phase ?? run.phase) : undefined;
+  const liveTool = ctx?.tool ?? run.tool;
 
   useEffect(() => {
     if (!isFocus) return;
@@ -63,7 +69,7 @@ function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: Li
             title={ctx?.agent ? `${ctx.agent} · ${livePhase}` : livePhase}
           >
             <CircleDot className="size-3 animate-pulse" />
-            {ctx?.tool ? `${livePhase} · ${ctx.tool}` : livePhase}
+            {liveTool ? `${livePhase} · ${liveTool}` : livePhase}
           </span>
         )}
         <span className="ml-auto shrink-0 text-muted">

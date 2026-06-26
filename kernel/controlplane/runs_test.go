@@ -111,6 +111,80 @@ func TestRunsList_UncompletedRunsReportRunning(t *testing.T) {
 	}
 }
 
+// TestRunsList_LivePhaseForRunningRun — a still-running run surfaces its CURRENT
+// activity phase (folded last-wins from lifecycle events) and the tool in flight,
+// so the live monitors can show what it's doing even on a fresh page load.
+func TestRunsList_LivePhaseForRunningRun(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	const corr = "live-phase-run"
+	pub := func(kind event.Kind, payload any) {
+		if _, err := k.Bus().Publish(event.Spec{
+			Subject:       "agent.lp.task",
+			Kind:          kind,
+			Actor:         "agent-lp",
+			CorrelationID: corr,
+			Payload:       payload,
+		}); err != nil {
+			t.Fatalf("Publish %s: %v", kind, err)
+		}
+	}
+	// received → thinking → using tool: the last lifecycle event wins the phase.
+	pub(event.KindTaskReceived, map[string]string{"intent": "research"})
+	pub(event.KindLLMRequest, map[string]string{"model": "m"})
+	pub(event.KindToolInvoked, map[string]any{"tool": "web_search", "call_id": "c1"})
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	rows, _ := res["runs"].([]any)
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "running" {
+		t.Fatalf("status = %q want running", got)
+	}
+	if got, _ := row["phase"].(string); got != "using tool" {
+		t.Errorf("phase = %q want %q (last lifecycle event wins)", got, "using tool")
+	}
+	if got, _ := row["tool"].(string); got != "web_search" {
+		t.Errorf("tool = %q want web_search", got)
+	}
+}
+
+// TestRunsList_TerminalRunHasNoPhase — a completed run carries no live phase; its
+// terminal status is the authoritative descriptor, so the monitors don't show a
+// stale "using tool" on a finished run.
+func TestRunsList_TerminalRunHasNoPhase(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	const corr = "done-run"
+	for _, e := range []struct {
+		kind    event.Kind
+		payload any
+	}{
+		{event.KindTaskReceived, map[string]string{"intent": "x"}},
+		{event.KindToolInvoked, map[string]any{"tool": "calc"}},
+		{event.KindTaskCompleted, map[string]any{"iters": 1}},
+	} {
+		if _, err := k.Bus().Publish(event.Spec{Subject: "agent.d.task", Kind: e.kind, Actor: "a", CorrelationID: corr, Payload: e.payload}); err != nil {
+			t.Fatalf("Publish %s: %v", e.kind, err)
+		}
+	}
+
+	res, err := c.Call(context.Background(), controlplane.CmdRunsList, nil)
+	if err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	rows, _ := res["runs"].([]any)
+	row, _ := rows[0].(map[string]any)
+	if got, _ := row["status"].(string); got != "completed" {
+		t.Fatalf("status = %q want completed", got)
+	}
+	if _, has := row["phase"]; has {
+		t.Errorf("completed run should carry no phase, got %v", row["phase"])
+	}
+}
+
 // TestRunsList_SortsByStartedDesc — newest runs come first.
 // Publish two pairs with controlled correlations and ensure
 // the result is in reverse-chronological order.

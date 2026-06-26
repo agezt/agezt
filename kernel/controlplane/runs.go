@@ -76,6 +76,15 @@ type runEntry struct {
 	// not started as a named agent. Lets the Agents gallery distinguish
 	// agent runs from plain chat conversations.
 	Agent string
+	// Phase is the run's CURRENT activity, folded last-wins from its
+	// lifecycle events (starting / thinking / using tool / observing tool /
+	// continuing). Authoritative because it comes from the full journal, so
+	// the live monitors can show what a running run is doing even on a fresh
+	// page load — unlike the client-side fold, which only sees the in-memory
+	// event buffer. Only meaningful while the run is still running; a terminal
+	// run reports its status instead. Tool names the tool in flight, if any.
+	Phase string
+	Tool  string
 }
 
 // runEntryStatus reports a run's terminal status (M61), the single source of
@@ -121,6 +130,9 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 			}
 			entry.StartedUnixMS = e.TSUnixMS
 			entry.StartedSeq = e.Seq
+			if entry.Phase == "" {
+				entry.Phase = "starting"
+			}
 			// Pull intent out of the payload — agent.go writes it as
 			// {"intent": "..."} on KindTaskReceived (see kernel/agent).
 			if intent := extractIntent(e.Payload); intent != "" {
@@ -201,6 +213,32 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 						entry.Model = m
 					}
 				}
+			}
+		// Activity phase (last-wins forward, so the final value is the run's
+		// CURRENT phase). Guarded on an existing entry — a lifecycle event for
+		// an unknown correlation must not conjure a phantom run, exactly as
+		// budget.consumed above. Only surfaced for still-running runs.
+		case event.KindLLMRequest:
+			if entry, ok := runs[e.CorrelationID]; ok {
+				entry.Phase = "thinking"
+			}
+		case event.KindToolInvoked:
+			if entry, ok := runs[e.CorrelationID]; ok {
+				entry.Phase = "using tool"
+				if t := extractTool(e.Payload); t != "" {
+					entry.Tool = t
+				}
+			}
+		case event.KindToolResult:
+			if entry, ok := runs[e.CorrelationID]; ok {
+				entry.Phase = "observing tool"
+				if t := extractTool(e.Payload); t != "" {
+					entry.Tool = t
+				}
+			}
+		case event.KindTaskContinued:
+			if entry, ok := runs[e.CorrelationID]; ok {
+				entry.Phase = "continuing"
 			}
 		}
 		return nil
@@ -322,7 +360,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			// session. Not "running" — the daemon that owned it is gone.
 			status = "abandoned"
 		}
-		out = append(out, map[string]any{
+		row := map[string]any{
 			"correlation_id":     r.CorrelationID,
 			"intent":             r.Intent,
 			"status":             status,
@@ -336,7 +374,17 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 			"model":              r.Model,             // primary (first-routed) model (M123; "" if unpriced/mock)
 			"answer_preview":     r.AnswerPreview,     // one-line excerpt of the final answer (M52; "" if none)
 			"agent":              r.Agent,             // roster agent slug (M73; "" for chat runs)
-		})
+		}
+		// Live activity phase — authoritative (folded from the full journal), so the
+		// monitors show what a running run is doing even on a fresh load. Only for
+		// running runs; a terminal run's status already says how it ended.
+		if status == "running" && r.Phase != "" {
+			row["phase"] = r.Phase
+			if r.Tool != "" {
+				row["tool"] = r.Tool
+			}
+		}
+		out = append(out, row)
 	}
 
 	s.writeResp(conn, Response{
@@ -662,6 +710,22 @@ func extractAgent(payload json.RawMessage) string {
 		return ""
 	}
 	return p.Agent
+}
+
+// extractTool pulls "tool" out of a tool.invoked / tool.result payload
+// (agent.go writes it as {"tool": "<name>", ...}). Returns "" if missing or
+// malformed — the run then reports its phase without a tool name.
+func extractTool(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var p struct {
+		Tool string `json:"tool"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return ""
+	}
+	return p.Tool
 }
 
 // extractIters pulls "iters" out of a task.completed payload.

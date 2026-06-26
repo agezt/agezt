@@ -106,6 +106,17 @@ describe("Runs filter (M775)", () => {
     render(<Runs />);
     expect(await screen.findByText("using tool · web_search")).toBeTruthy();
   });
+
+  it("falls back to the server-folded phase when the event buffer is empty (M-server-phase)", async () => {
+    // Fresh load: no client-side events yet, but the run payload carries the
+    // server's authoritative phase, so the row still shows what it's doing.
+    liveEvents = [];
+    getJSON.mockResolvedValue({
+      runs: [{ correlation_id: "r", status: "running", intent: "x", phase: "thinking" }],
+    });
+    render(<Runs />);
+    expect(await screen.findByText("thinking")).toBeTruthy();
+  });
 });
 
 // The status-chip row (M923) was replaced by an outcome TabNav (role="tab", count badge in
