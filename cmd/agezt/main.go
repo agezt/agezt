@@ -291,7 +291,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// on disk is fine: selectPrimary will fall through to the offline
 	// mock and surface a hint in the banner.
 	catStore := catalog.NewStore(filepath.Join(baseDir, "catalog"))
-	cat, err := catStore.Load()
+	// Validate the catalog file loads; the value is reloaded post-seed (below),
+	// so only the error matters here.
+	_, err = catStore.Load()
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: catalog load: %v\n", brand.Binary, err)
 		return 1
@@ -328,7 +330,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
 	// registers as a live provider once the operator signs in.
 	seedChatGPTCatalog(catStore)
-	cat, _ = catStore.Load()
+	cat, _ := catStore.Load()
 
 	// Credential resolution chain (M1.dd):
 	//   1. agezt vault (M1.w) — provider-scoped keys first; legacy bare vault
