@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { ToolCallRow, runPhaseSteps } from "@/components/RunDetail";
+import { RunDetailCards, ToolCallRow, runPhaseSteps } from "@/components/RunDetail";
 import type { ToolCall } from "@/lib/rundetail";
 
 afterEach(cleanup);
@@ -97,5 +97,42 @@ describe("runPhaseSteps", () => {
 
     expect(steps[0].phase).toBe("retrying");
     expect(steps[0].detail).toBe("attempt 2/4 · wait 2m 5s · backoff exponential · retry_on error,timeout · timeout");
+  });
+
+  it("shows sub-agent delegation phases", () => {
+    const steps = runPhaseSteps([
+      {
+        seq: 1,
+        kind: "subagent.spawned",
+        payload: { task: "fetch docs", child_correlation: "sub", depth: 1, agent: "researcher", async: true },
+      },
+      {
+        seq: 2,
+        kind: "subagent.completed",
+        payload: { child_correlation: "sub", ok: false, async: true, error: "cancelled" },
+      },
+    ]);
+    expect(steps[0].phase).toBe("delegating");
+    expect(steps[0].detail).toContain("fetch docs");
+    expect(steps[0].detail).toContain("child: sub");
+    expect(steps[0].detail).toContain("async");
+    expect(steps[1].phase).toBe("delegation failed");
+    expect(steps[1].detail).toContain("cancelled");
+  });
+});
+
+describe("RunDetailCards", () => {
+  it("summarizes delegated sub-agent counts", () => {
+    render(
+      <RunDetailCards
+        arc={[
+          { seq: 1, kind: "subagent.spawned", payload: { child_correlation: "sub", task: "fetch docs" } },
+          { seq: 2, kind: "subagent.completed", payload: { child_correlation: "sub", ok: true, async: true, chars: 128 } },
+          { seq: 3, kind: "subagent.completed", payload: { child_correlation: "sub2", ok: false, async: true, error: "cancelled" } },
+        ]}
+      />,
+    );
+    expect(screen.getByText("delegations")).toBeTruthy();
+    expect(screen.getByText("1 spawned / 1 completed / 1 failed")).toBeTruthy();
   });
 });

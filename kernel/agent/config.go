@@ -139,6 +139,9 @@ type ContextConfig struct {
 	// falls back to the head snippet. nil (the default) keeps the head-snippet
 	// behaviour with zero extra provider calls. (M398, SPEC-10 §3)
 	SummarizeElided func(ctx context.Context, toolOutput string) (string, error)
+	// ContextRescueMarkers marks tool outputs that must be preserved during
+	// compaction even when old. Used for skill bundle reads/resources.
+	ContextRescueMarkers []string
 }
 
 // ArtifactConfig controls large output offloading to content-addressed storage.

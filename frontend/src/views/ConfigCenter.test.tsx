@@ -11,7 +11,13 @@ vi.mock("@/lib/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-import { ConfigCenter, agentConfigScopeLabel, summarizeAgentConfigEntries } from "@/views/ConfigCenter";
+import {
+  ConfigCenter,
+  agentConfigScopeLabel,
+  reloadBoundariesFromSections,
+  summarizeAgentConfigEntries,
+  summarizeReloadBoundaries,
+} from "@/views/ConfigCenter";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -100,6 +106,11 @@ beforeEach(() => {
 });
 
 describe("ConfigCenter view", () => {
+  it("summarizes reload boundaries from the schema", () => {
+    const boundaries = reloadBoundariesFromSections(SCHEMA.sections);
+    expect(summarizeReloadBoundaries(boundaries)).toEqual({ live: 2, restart: 3 });
+  });
+
   it("summarizes agent config scope and sensitivity", () => {
     expect(agentConfigScopeLabel({ key: "agent/ops/runtime", allowed_agents: ["ops"] })).toBe("identity-bound");
     expect(agentConfigScopeLabel({ key: "shared/api-key", excluded_agents: ["ops"] })).toBe("shared with denylist");
@@ -118,6 +129,9 @@ describe("ConfigCenter view", () => {
     mockFetch();
     render(withUI(<ConfigCenter />));
     await waitFor(() => expect(sectionCard("Provider & Model")).toBeTruthy());
+    expect(screen.getByText("Reload boundaries")).toBeTruthy();
+    expect(screen.getByText("2 live")).toBeTruthy();
+    expect(screen.getByText("3 restart")).toBeTruthy();
     expect(sectionHeading("Agent Runtime Config")).toBeTruthy();
     expect(sectionCard("Telegram")).toBeTruthy();
     // Category headings exist.

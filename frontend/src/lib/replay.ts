@@ -54,6 +54,25 @@ function clip(s: unknown, n: number): string {
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
+function subagentSpawnDetail(p: Record<string, any>): string {
+  return [
+    p.task ? clip(p.task, 160) : "",
+    p.child_correlation ? `child ${p.child_correlation}` : "",
+    num(p.depth) > 0 ? `depth ${num(p.depth)}` : "",
+    p.agent ? `agent ${p.agent}` : "",
+    p.async ? "async" : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function subagentCompletedDetail(p: Record<string, any>): string {
+  return [
+    p.child_correlation ? `child ${p.child_correlation}` : "",
+    num(p.chars) > 0 ? `${num(p.chars).toLocaleString()} chars` : "",
+    p.error ? clip(p.error, 160) : "",
+    p.async ? "async" : "",
+  ].filter(Boolean).join(" · ");
+}
+
 // buildReplay folds a run's event arc into an ordered list of replay steps with
 // running totals. Pure — unit-tested directly.
 export function buildReplay(arc: AgentEvent[]): ReplayStep[] {
@@ -141,8 +160,13 @@ export function buildReplay(arc: AgentEvent[]): ReplayStep[] {
         break;
       case "subagent.spawned":
         title = "sub-agent spawned";
-        detail = clip(p.intent || p.correlation_id, 200);
+        detail = subagentSpawnDetail(p);
         tone = "steer";
+        break;
+      case "subagent.completed":
+        title = p.ok === false ? "sub-agent failed" : "sub-agent completed";
+        detail = subagentCompletedDetail(p);
+        tone = p.ok === false ? "fail" : "done";
         break;
       case "task.completed":
         title = "✓ completed";

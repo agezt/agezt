@@ -77,6 +77,25 @@ function retryDetail(e: AgentEvent): string {
   ].filter(Boolean).join(" · ");
 }
 
+function subagentSpawnDetail(e: AgentEvent): string {
+  return [
+    payloadString(e, "task") ? clip(payloadString(e, "task"), 100) : "",
+    payloadString(e, "child_correlation") ? `child: ${payloadString(e, "child_correlation")}` : "",
+    payloadNumber(e, "depth") ? `depth: ${payloadNumber(e, "depth")}` : "",
+    payloadString(e, "agent") ? `agent: ${payloadString(e, "agent")}` : "",
+    e.payload?.async ? "async" : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function subagentCompletedDetail(e: AgentEvent): string {
+  return [
+    payloadString(e, "child_correlation") ? `child: ${payloadString(e, "child_correlation")}` : "",
+    payloadNumber(e, "chars") ? `${payloadNumber(e, "chars")?.toLocaleString()} chars` : "",
+    payloadString(e, "error") ? clip(payloadString(e, "error"), 100) : "",
+    e.payload?.async ? "async" : "",
+  ].filter(Boolean).join(" · ");
+}
+
 function formatRetryDelay(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const sec = Math.round(ms / 1000);
@@ -156,6 +175,22 @@ export function runPhaseSteps(arc: AgentEvent[]): RunPhaseStep[] {
             kind: e.kind,
             phase: "steered",
             detail: clip(payloadString(e, "directive"), 100),
+          };
+        case "subagent.spawned":
+          return {
+            key: `${e.seq || i}:subagent-spawned`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: "delegating",
+            detail: subagentSpawnDetail(e),
+          };
+        case "subagent.completed":
+          return {
+            key: `${e.seq || i}:subagent-completed`,
+            ts: e.ts_unix_ms,
+            kind: e.kind,
+            phase: e.payload?.ok === false ? "delegation failed" : "delegation completed",
+            detail: subagentCompletedDetail(e),
           };
         case "task.completed":
           return { key: `${e.seq || i}:completed`, ts: e.ts_unix_ms, kind: e.kind, phase: "completed" };
@@ -276,6 +311,7 @@ export function RunDetailCards({
 }) {
   const d = deriveDetail(arc);
   const status = d.status || fallbackStatus;
+  const delegations = d.subagentsSpawned + d.subagentsCompleted + d.subagentsFailed;
   return (
     <div className="space-y-3">
       <KeyValue
@@ -283,6 +319,16 @@ export function RunDetailCards({
           ["status", <Badge variant={statusVariant(status)}>{status || "?"}</Badge>],
           ["model", d.model || <Muted>—</Muted>],
           ["iterations", d.iterations || <Muted>—</Muted>],
+          [
+            "delegations",
+            delegations ? (
+              <span>
+                {d.subagentsSpawned} spawned / {d.subagentsCompleted} completed / {d.subagentsFailed} failed
+              </span>
+            ) : (
+              <Muted>—</Muted>
+            ),
+          ],
           [
             "tokens",
             d.hasBudget ? (

@@ -1,0 +1,10 @@
+[
+  {
+    "apply": "live",
+    "envs": ["AGEZT_MODEL", "AGEZT_PROVIDER"]
+  },
+  {
+    "apply": "restart",
+    "envs": ["AGEZT_CONTEXT_BUDGET", "AGEZT_X_WEATHER_API_KEY"]
+  }
+]

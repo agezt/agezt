@@ -1,0 +1,13 @@
+{
+  "task": "summarize the failing CI logs",
+  "child_correlation": "run-child-example",
+  "depth": 1,
+  "parent": "run-parent-example",
+  "model": "claude-sonnet-4-6",
+  "task_type": "delegate",
+  "agent": "ci-worker",
+  "wake_source": "delegated",
+  "delegated_by": "lead",
+  "parent_correlation_id": "run-parent-example",
+  "async": true
+}

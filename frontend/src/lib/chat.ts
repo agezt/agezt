@@ -44,6 +44,8 @@ export interface TurnCompaction {
   reclaimedChars: number;
   beforeChars: number;
   afterChars: number;
+  skillRescuedCount?: number;
+  skillRescuedChars?: number;
 }
 
 // TurnContext is the turn's context-window accounting (M925), folded from the
@@ -193,12 +195,15 @@ export function foldChatFrame(prev: ChatTurn, f: ChatFrame): ChatTurn {
       }
       break;
     case "context.compacted":
-      ctx().compactions.push({
+      const compaction: TurnCompaction = {
         elided: num(p.elided),
         reclaimedChars: num(p.reclaimed_chars),
         beforeChars: num(p.context_chars_before),
         afterChars: num(p.context_chars_after),
-      });
+      };
+      if (num(p.skill_rescued_count) > 0) compaction.skillRescuedCount = num(p.skill_rescued_count);
+      if (num(p.skill_rescued_chars) > 0) compaction.skillRescuedChars = num(p.skill_rescued_chars);
+      ctx().compactions.push(compaction);
       break;
     case "budget.consumed":
       t.costMicrocents += num(p.cost_microcents);

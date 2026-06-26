@@ -59,6 +59,35 @@ func TestConfig_ReturnsResolvedPathsAndCounts(t *testing.T) {
 	}
 }
 
+func TestConfigSchema_ReturnsReloadBoundaries(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	res, err := c.Call(context.Background(), controlplane.CmdConfigSchema, nil)
+	if err != nil {
+		t.Fatalf("config_schema: %v", err)
+	}
+	if sections, _ := res["sections"].([]any); len(sections) == 0 {
+		t.Fatalf("sections missing from config_schema: %+v", res)
+	}
+	boundaries, _ := res["reload_boundaries"].([]any)
+	if len(boundaries) < 2 {
+		t.Fatalf("reload_boundaries missing/incomplete: %+v", res["reload_boundaries"])
+	}
+	byApply := map[string][]any{}
+	for _, raw := range boundaries {
+		row, _ := raw.(map[string]any)
+		apply, _ := row["apply"].(string)
+		envs, _ := row["envs"].([]any)
+		byApply[apply] = envs
+	}
+	if !containsAnyString(byApply["live"], "AGEZT_PROVIDER") || !containsAnyString(byApply["live"], "AGEZT_MODEL") {
+		t.Fatalf("live reload boundary should include provider/model fields: %+v", byApply["live"])
+	}
+	if !containsAnyString(byApply["restart"], "AGEZT_TELEGRAM_TOKEN") {
+		t.Fatalf("restart reload boundary should include channel fields: %+v", byApply["restart"])
+	}
+}
+
 // TestConfig_EnvPresenceIsBooleanNotValue is the privacy contract:
 // when AGEZT_VAULT_PASSPHRASE is set, the response should include
 // the key with value `true` — NOT the passphrase itself. This is
@@ -109,4 +138,13 @@ func TestConfig_SystemPromptPresenceOnly(t *testing.T) {
 	if _, ok := res["system_prompt"]; ok {
 		t.Errorf("system_prompt key present in response; only system_prompt_set is permitted")
 	}
+}
+
+func containsAnyString(values []any, want string) bool {
+	for _, v := range values {
+		if s, _ := v.(string); s == want {
+			return true
+		}
+	}
+	return false
 }

@@ -25,8 +25,10 @@ import (
 // any skill/plugin-registered sections from <baseDir>/schemas/*.json.
 func (s *Server) handleConfigSchema(conn net.Conn, req Request) {
 	reg := settings.NewRegistry(s.baseDir)
+	sections := reg.Sections()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"sections": reg.Sections(),
+		"sections":          sections,
+		"reload_boundaries": settings.ReloadBoundaries(sections),
 	}})
 }
 

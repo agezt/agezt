@@ -24,6 +24,9 @@ export interface RunDetail {
   cachedTokens: number;
   costMicrocents: number;
   hasBudget: boolean;
+  subagentsSpawned: number;
+  subagentsCompleted: number;
+  subagentsFailed: number;
   status?: string;
   answer?: string;
   toolCalls: ToolCall[];
@@ -64,6 +67,9 @@ export function deriveDetail(arc: AgentEvent[]): RunDetail {
     cachedTokens: 0,
     costMicrocents: 0,
     hasBudget: false,
+    subagentsSpawned: 0,
+    subagentsCompleted: 0,
+    subagentsFailed: 0,
     toolCalls: [],
   };
   const byCall = new Map<string, ToolCall>();
@@ -117,6 +123,13 @@ export function deriveDetail(arc: AgentEvent[]): RunDetail {
         if (p.output != null) c.output = String(p.output);
         break;
       }
+      case "subagent.spawned":
+        d.subagentsSpawned++;
+        break;
+      case "subagent.completed":
+        if (p.ok === false) d.subagentsFailed++;
+        else d.subagentsCompleted++;
+        break;
       case "task.completed":
         d.status = "completed";
         if (p.answer != null) d.answer = String(p.answer);

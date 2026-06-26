@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // chat.ts pulls in api.ts (streamRun → withToken), which reads location at module
 // load — jsdom provides it. The fold/parse logic under test is pure regardless.
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
   foldChatFrame,
@@ -14,6 +15,10 @@ import {
   HISTORY_SUMMARY_KEEP,
   type ChatFrame,
 } from "@/lib/chat";
+
+function contractFixture<T>(name: string): T {
+  return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
+}
 
 // A realistic streaming arc: provider streams tokens, calls one governed tool,
 // then the run finishes with a terminal `done` envelope.
@@ -245,6 +250,37 @@ describe("foldChatFrame", () => {
     expect(t.context?.compactions).toEqual([
       { elided: 2, reclaimedChars: 8000, beforeChars: 45000, afterChars: 37000 },
     ]);
+  });
+
+  it("records rescued skill resources on context.compacted events", () => {
+    const t = fold([
+      {
+        kind: "context.compacted",
+        payload: {
+          elided: 1,
+          reclaimed_chars: 4000,
+          context_chars_before: 12000,
+          context_chars_after: 8000,
+          skill_rescued_count: 1,
+          skill_rescued_chars: 2200,
+        },
+      },
+    ]);
+    expect(t.context?.compactions[0]).toEqual({
+      elided: 1,
+      reclaimedChars: 4000,
+      beforeChars: 12000,
+      afterChars: 8000,
+      skillRescuedCount: 1,
+      skillRescuedChars: 2200,
+    });
+  });
+
+  it("folds the shared context.compacted skill rescue fixture", () => {
+    const payload = contractFixture<Record<string, unknown>>("context_compacted_skill_rescue.json");
+    const t = fold([{ kind: "context.compacted", payload }]);
+    expect(t.context?.compactions[0].skillRescuedCount).toBe(1);
+    expect(t.context?.compactions[0].skillRescuedChars).toBe(2200);
   });
 
   it("does not mutate the previous turn's context accounting", () => {

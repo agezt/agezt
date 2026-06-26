@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { deriveDetail, num, mergeEvents } from "@/lib/rundetail";
 import type { AgentEvent } from "@/lib/events";
+
+function contractFixture<T>(name: string): T {
+  return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
+}
 
 // A realistic HA-tool run arc (mirrors what /api/journal returns), deliberately
 // out of seq order to prove deriveDetail sorts before folding.
@@ -75,6 +80,18 @@ describe("deriveDetail", () => {
     expect(d.toolCalls).toHaveLength(1);
     expect(d.toolCalls[0].allow).toBe(false);
     expect(d.toolCalls[0].hardDenied).toBe(true);
+  });
+
+  it("counts delegated sub-agent spawn and completion outcomes", () => {
+    const completed = contractFixture<Record<string, unknown>>("subagent_completed_async.json");
+    const d = deriveDetail([
+      { seq: 1, kind: "subagent.spawned", payload: { child_correlation: "run-child-example", task: "fetch docs", async: true } },
+      { seq: 2, kind: "subagent.completed", payload: completed },
+      { seq: 3, kind: "subagent.completed", payload: { child_correlation: "run-child-2", ok: false, async: true, error: "cancelled" } },
+    ]);
+    expect(d.subagentsSpawned).toBe(1);
+    expect(d.subagentsCompleted).toBe(1);
+    expect(d.subagentsFailed).toBe(1);
   });
 
   it("records a failed run's error as the answer", () => {

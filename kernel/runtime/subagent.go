@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/skill"
 
 	"github.com/agezt/agezt/internal/apperrors"
 )
@@ -661,6 +662,13 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		if allow, ok := toolsFromCtx(p.childCtx); ok {
 			runTools = filterTools(runTools, allow)
 		}
+		toolDiscoveryMax := k.cfg.ToolDiscoveryMax
+		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
+			toolDiscoveryMax = v
+		}
+		if toolDiscoveryMax > 0 && len(runTools) > toolDiscoveryMax {
+			runTools = withToolSearch(runTools)
+		}
 		maxIter := k.cfg.MaxIter
 		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_MAX_ITER"); ok {
 			maxIter = v
@@ -677,15 +685,15 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_PARALLEL_TOOLS"); ok {
 			maxParallelTools = v
 		}
-		toolDiscoveryMax := k.cfg.ToolDiscoveryMax
-		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
-			toolDiscoveryMax = v
-		}
 		observationDeltas := k.cfg.ObservationDeltas
 		if v, ok := agentConfigBoolOverride(p.childCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
 			observationDeltas = v
 		}
-		system, skills := k.subAgentInjectedSystem(p.childCtx, p.childCorr, p.actor, p.task, p.system)
+		toolSelector := agent.LexicalToolSelector(toolDiscoveryMax)
+		if _, ok := runTools[toolSearchName]; ok && toolDiscoveryMax > 0 {
+			toolSelector = agent.DeferredLexicalToolSelector(toolDiscoveryMax, []string{toolSearchName})
+		}
+		system, skills, task := k.subAgentInjectedSystem(p.childCtx, p.childCorr, p.actor, p.task, p.system)
 		activatedSkillIDs = appendUniqueStrings(activatedSkillIDs, skills...)
 		answer, err := agent.Run(p.childCtx, agent.LoopConfig{
 			Provider:             k.cfg.Provider,
@@ -709,11 +717,12 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 			Actor:                p.actor,
 			CorrelationID:        p.childCorr,
 			Policy:               k.policyHook,
-			ToolSelector:         agent.LexicalToolSelector(toolDiscoveryMax),
+			ToolSelector:         toolSelector,
 			ToolResultHook:       k.completeAgentNoiseNotify,
 			ObservationDeltas:    observationDeltas,
+			ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
 			Steer:                p.rc, // M631: individual sub-agent steering
-		}, p.task)
+		}, task)
 		return answer, skills, err
 	}
 	answer, _, err := runOnce()
@@ -767,9 +776,13 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 	return answer, nil
 }
 
-func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string) {
+func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string, string) {
+	directive := skill.ParseActivationDirective(intent)
+	if directive.Explicit && directive.CleanIntent != "" {
+		intent = directive.CleanIntent
+	}
 	if systemAgentFromCtx(ctx) {
-		return system, nil
+		return system, nil, intent
 	}
 	if k.cfg.MemoryInject && k.memory != nil {
 		topK := k.cfg.MemoryTopK
@@ -801,24 +814,54 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 			topK = 3
 		}
 		agentSlug := agentSlugFromCtx(ctx)
-		if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
-			system = injectSkills(system, hits)
-			for _, h := range hits {
-				activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
+		if directive.Explicit {
+			hits, missing, err := k.forge.ActivateExplicitFor(corr, agentSlug, intent, directive.Refs, topK)
+			if err == nil {
+				if len(hits) > 0 {
+					system = injectSkills(system, hits)
+					for _, h := range hits {
+						activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
+					}
+				}
+				chosen := skillContextCandidates(hits, time.Now().UnixMilli())
+				for i := range chosen {
+					chosen[i].Chosen = true
+					chosen[i].Reason = "selected:subagent_skill_explicit_activation"
+				}
+				summary := candidateSummary(chosen, nil)
+				summary["source"] = "subagent_skill_explicit_activation"
+				summary["activation"] = "explicit"
+				summary["refs"] = directive.Refs
+				if len(missing) > 0 {
+					summary["missing"] = missing
+				}
+				k.publishContextSelection(corr, actor, contextSelectionManifest{
+					Phase:   "skill",
+					Query:   intent,
+					Chosen:  chosen,
+					Summary: summary,
+				})
 			}
-			chosen, rejected := splitContextCandidates(skillContextCandidates(hits, time.Now().UnixMilli()), chosenIDSet(activatedSkillIDs), "subagent_skill_injection")
-			summary := candidateSummary(chosen, rejected)
-			summary["source"] = "subagent_skill_injection"
-			k.publishContextSelection(corr, actor, contextSelectionManifest{
-				Phase:    "skill",
-				Query:    intent,
-				Chosen:   chosen,
-				Rejected: rejected,
-				Summary:  summary,
-			})
+		} else {
+			if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
+				system = injectSkills(system, hits)
+				for _, h := range hits {
+					activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
+				}
+				chosen, rejected := splitContextCandidates(skillContextCandidates(hits, time.Now().UnixMilli()), chosenIDSet(activatedSkillIDs), "subagent_skill_injection")
+				summary := candidateSummary(chosen, rejected)
+				summary["source"] = "subagent_skill_injection"
+				k.publishContextSelection(corr, actor, contextSelectionManifest{
+					Phase:    "skill",
+					Query:    intent,
+					Chosen:   chosen,
+					Rejected: rejected,
+					Summary:  summary,
+				})
+			}
 		}
 	}
-	return system, activatedSkillIDs
+	return system, activatedSkillIDs, intent
 }
 
 func appendUniqueStrings(in []string, values ...string) []string {

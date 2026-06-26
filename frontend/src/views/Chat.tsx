@@ -1372,6 +1372,10 @@ const ROLE_FILL: Record<string, string> = {
   tool: "bg-accent/25",
 };
 
+function rescuedSkillSummary(count: number, chars: number): string {
+  return `${count} skill resource${count === 1 ? "" : "s"} kept · ${fmtCount(chars)} chars`;
+}
+
 // ContextModal is the context breakdown (M925): how full the window got, where
 // the context came from (role split from the last llm.request), what the
 // provider actually billed (token usage incl. cache hits), and what compaction
@@ -1528,21 +1532,33 @@ export function ContextModal({
               <p className="text-muted">None needed — the context fit the budget.</p>
             ) : (
               <div className="space-y-1">
-                {c.compactions.map((e, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <Scissors className="size-3 shrink-0 text-warn" />
-                    <span>
-                      {e.elided} tool output{e.elided === 1 ? "" : "s"} elided · reclaimed {fmtCount(e.reclaimedChars)}{" "}
-                      chars
-                      {e.beforeChars > 0 && (
-                        <span className="text-muted">
-                          {" "}
-                          ({fmtCount(e.beforeChars)} → {fmtCount(e.afterChars)})
+                {c.compactions.map((e, i) => {
+                  const rescuedCount = e.skillRescuedCount || 0;
+                  const rescuedChars = e.skillRescuedChars || 0;
+                  return (
+                    <div key={i} className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <Scissors className="size-3 shrink-0 text-warn" />
+                        <span>
+                          {e.elided} tool output{e.elided === 1 ? "" : "s"} elided · reclaimed {fmtCount(e.reclaimedChars)}{" "}
+                          chars
+                          {e.beforeChars > 0 && (
+                            <span className="text-muted">
+                              {" "}
+                              ({fmtCount(e.beforeChars)} → {fmtCount(e.afterChars)})
+                            </span>
+                          )}
                         </span>
+                      </div>
+                      {rescuedCount > 0 && (
+                        <div className="ml-4 flex items-center gap-1.5 text-good">
+                          <Sparkles className="size-3 shrink-0" />
+                          <span>{rescuedSkillSummary(rescuedCount, rescuedChars)}</span>
+                        </div>
                       )}
-                    </span>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1594,6 +1610,8 @@ export function SummaryDivider({ summary }: { summary: HistorySummary }) {
 export function CompactionNote({ events }: { events: TurnCompaction[] }) {
   const elided = events.reduce((a, e) => a + e.elided, 0);
   const reclaimed = events.reduce((a, e) => a + e.reclaimedChars, 0);
+  const rescuedCount = events.reduce((a, e) => a + (e.skillRescuedCount || 0), 0);
+  const rescuedChars = events.reduce((a, e) => a + (e.skillRescuedChars || 0), 0);
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-panel/40 px-2 py-1 text-xs text-muted">
       <Scissors className="size-3.5 shrink-0" />
@@ -1601,6 +1619,7 @@ export function CompactionNote({ events }: { events: TurnCompaction[] }) {
       <span>
         {elided} old tool output{elided === 1 ? "" : "s"} elided · {fmtCount(reclaimed)} chars reclaimed
       </span>
+      {rescuedCount > 0 && <span className="text-good">{rescuedSkillSummary(rescuedCount, rescuedChars)}</span>}
     </div>
   );
 }

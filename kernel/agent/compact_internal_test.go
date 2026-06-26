@@ -208,6 +208,31 @@ func TestCompactMessages_AbstractiveSummary(t *testing.T) {
 	}
 }
 
+func TestCompactMessages_RescuesMarkedToolOutputs(t *testing.T) {
+	rescued := `{"_agezt_context_rescue":"skill_resource","content":"` + strings.Repeat("S", 1000) + `"}`
+	ordinary := strings.Repeat("O", 1000)
+	msgs := []Message{
+		{Role: RoleUser, Content: "use the skill docs"},
+		{Role: RoleAssistant, Content: "reading skill resource"},
+		{Role: RoleTool, Content: rescued, ToolCallID: "skill-read"},
+		{Role: RoleAssistant, Content: "reading logs"},
+		{Role: RoleTool, Content: ordinary, ToolCallID: "log-read"},
+		{Role: RoleAssistant, Content: "reading more logs"},
+		{Role: RoleTool, Content: ordinary, ToolCallID: "log-read-2"},
+	}
+	before, _ := contextSize("sys", msgs)
+	out, stats := compactMessagesDetailed("sys", msgs, before-900, 2, 0, nil, []string{DefaultContextRescueMarker})
+	if stats.Rescued != 1 || stats.RescuedChars != len(rescued) {
+		t.Fatalf("rescue stats = %+v, want one rescued skill resource", stats)
+	}
+	if strings.HasPrefix(out[2].Content, elidedStubPrefix) {
+		t.Fatal("marked skill resource must not be elided")
+	}
+	if stats.Elided == 0 || !strings.HasPrefix(out[4].Content, elidedStubPrefix) {
+		t.Fatalf("ordinary older output should be elided, stats=%+v out[4]=%q", stats, out[4].Content)
+	}
+}
+
 func TestHeadSnippet(t *testing.T) {
 	if got := headSnippet("hello world", 80); got != "hello world" {
 		t.Errorf("short string should pass through, got %q", got)

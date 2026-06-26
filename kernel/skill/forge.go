@@ -497,9 +497,83 @@ func (f *Forge) ActivateFor(corr, agentSlug, intent string, limit int) ([]Scored
 		_ = f.store.Put(sk)
 	}
 	f.publish(event.KindSkillActivated, corr, map[string]any{
-		"intent": intent, "matched": len(hits), "ids": ids,
+		"intent": intent, "matched": len(hits), "ids": ids, "activation": "auto",
 	})
 	return hits, nil
+}
+
+// ActivateExplicitFor activates active skills by exact name, full id, or unique
+// id prefix. It is the explicit counterpart to intent retrieval: a slash
+// directive can name the procedure to load without relying on keyword overlap,
+// but it still cannot bypass visibility or lifecycle state.
+func (f *Forge) ActivateExplicitFor(corr, agentSlug, intent string, refs []string, limit int) ([]Scored, []string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	all, err := f.store.All()
+	if err != nil {
+		return nil, nil, err
+	}
+	nowMS := f.now().UnixMilli()
+	hits := make([]Scored, 0, len(refs))
+	missing := make([]string, 0)
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		sk, ok := resolveActiveVisible(all, agentSlug, ref)
+		if !ok {
+			missing = append(missing, strings.TrimSpace(ref))
+			continue
+		}
+		if seen[sk.ID] {
+			continue
+		}
+		seen[sk.ID] = true
+		if limit > 0 && len(hits) >= limit {
+			break
+		}
+		sk.Metrics.Uses++
+		sk.Metrics.LastUsedMS = nowMS
+		if err := f.store.Put(sk); err != nil {
+			return nil, missing, err
+		}
+		hits = append(hits, Scored{Skill: sk, Score: 1})
+	}
+	if len(hits) > 0 || len(missing) > 0 {
+		ids := make([]string, 0, len(hits))
+		for _, h := range hits {
+			ids = append(ids, h.Skill.ID)
+		}
+		f.publish(event.KindSkillActivated, corr, map[string]any{
+			"intent": intent, "matched": len(hits), "ids": ids,
+			"activation": "explicit", "refs": refs, "missing": missing,
+		})
+	}
+	return hits, missing, nil
+}
+
+func resolveActiveVisible(all []Skill, agentSlug, ref string) (Skill, bool) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return Skill{}, false
+	}
+	refLower := strings.ToLower(ref)
+	var prefix Skill
+	prefixMatches := 0
+	for _, sk := range all {
+		if !sk.Active() || !visibleTo(sk, agentSlug) {
+			continue
+		}
+		switch {
+		case sk.ID == ref || strings.EqualFold(sk.Name, ref):
+			return sk, true
+		case strings.HasPrefix(sk.ID, refLower):
+			prefix = sk
+			prefixMatches++
+		}
+	}
+	if prefixMatches == 1 {
+		return prefix, true
+	}
+	return Skill{}, false
 }
 
 // RecordOutcome bumps success/failure metrics for the given skill ids and, on a

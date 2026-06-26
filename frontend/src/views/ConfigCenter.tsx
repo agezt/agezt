@@ -41,6 +41,7 @@ import { Badge } from "@/components/ui/badge";
 // real .env wins. Each save reports live (provider/model) vs restart.
 
 type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
+type ApplyMode = "live" | "restart";
 
 interface Field {
   env: string;
@@ -49,7 +50,7 @@ interface Field {
   secret: boolean;
   required: boolean;
   help?: string;
-  apply: "live" | "restart";
+  apply: ApplyMode;
   options?: string[];
   read_only?: boolean; // system-managed: shown but not editable here
   locked?: boolean; // value may change but never be cleared
@@ -60,6 +61,14 @@ interface Section {
   help?: string;
   source?: string;
   fields: Field[];
+}
+interface ReloadBoundary {
+  apply: ApplyMode;
+  envs: string[];
+}
+interface ConfigSchemaResponse {
+  sections?: Section[];
+  reload_boundaries?: ReloadBoundary[];
 }
 interface ValueEntry {
   env: string;
@@ -117,9 +126,61 @@ function sectionDomID(id: string): string {
   return `cfg-section-${id}`;
 }
 
+export function reloadBoundariesFromSections(sections: Array<{ fields: Array<{ env: string; apply?: string }> }>): ReloadBoundary[] {
+  const grouped: Record<ApplyMode, Set<string>> = { live: new Set(), restart: new Set() };
+  for (const sec of sections) {
+    for (const field of sec.fields) {
+      const apply: ApplyMode = field.apply === "live" ? "live" : "restart";
+      grouped[apply].add(field.env);
+    }
+  }
+  return (["live", "restart"] as ApplyMode[])
+    .map((apply) => ({ apply, envs: Array.from(grouped[apply]).sort() }))
+    .filter((boundary) => boundary.envs.length > 0);
+}
+
+export function summarizeReloadBoundaries(boundaries: ReloadBoundary[]): Record<ApplyMode, number> {
+  return boundaries.reduce<Record<ApplyMode, number>>(
+    (acc, boundary) => {
+      acc[boundary.apply] += boundary.envs.length;
+      return acc;
+    },
+    { live: 0, restart: 0 },
+  );
+}
+
+function envPreview(envs: string[]): string {
+  if (envs.length === 0) return "No settings";
+  const visible = envs.slice(0, 8).join(", ");
+  return envs.length > 8 ? `${visible}, +${envs.length - 8} more` : visible;
+}
+
+function ReloadBoundarySummary({ boundaries, setCount }: { boundaries: ReloadBoundary[]; setCount: number }) {
+  const summary = summarizeReloadBoundaries(boundaries);
+  if (summary.live + summary.restart === 0) return null;
+  const live = boundaries.find((b) => b.apply === "live")?.envs || [];
+  const restart = boundaries.find((b) => b.apply === "restart")?.envs || [];
+  return (
+    <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs">
+      <div className="mr-1 flex items-center gap-2 font-medium text-foreground">
+        <RefreshCw className="size-3.5 text-accent" />
+        <span>Reload boundaries</span>
+      </div>
+      <Badge variant="accent" title={envPreview(live)}>
+        <Zap className="size-2.5" /> {summary.live} live
+      </Badge>
+      <Badge variant="default" title={envPreview(restart)}>
+        <RotateCw className="size-2.5" /> {summary.restart} restart
+      </Badge>
+      {setCount > 0 && <span className="text-muted">{setCount} configured</span>}
+    </section>
+  );
+}
+
 export function ConfigCenter() {
   const { toast } = useUI();
   const [sections, setSections] = useState<Section[] | null>(null);
+  const [reloadBoundaries, setReloadBoundaries] = useState<ReloadBoundary[]>([]);
   const [values, setValues] = useState<Record<string, ValueEntry>>({});
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,8 +196,10 @@ export function ConfigCenter() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [sch] = await Promise.all([getJSON<{ sections?: Section[] }>("/api/config/schema"), loadValues()]);
-      setSections(sch.sections || []);
+      const [sch] = await Promise.all([getJSON<ConfigSchemaResponse>("/api/config/schema"), loadValues()]);
+      const nextSections = sch.sections || [];
+      setSections(nextSections);
+      setReloadBoundaries(sch.reload_boundaries?.length ? sch.reload_boundaries : reloadBoundariesFromSections(nextSections));
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -150,6 +213,10 @@ export function ConfigCenter() {
   }, [reload]);
 
   const setCount = useMemo(() => Object.values(values).filter((v) => v.set).length, [values]);
+  const boundarySummary = useMemo(
+    () => (reloadBoundaries.length ? reloadBoundaries : sections ? reloadBoundariesFromSections(sections) : []),
+    [reloadBoundaries, sections],
+  );
 
   // Filter fields by the search query (env or label substring); drop emptied sections.
   const q = query.trim().toLowerCase();
@@ -199,6 +266,8 @@ export function ConfigCenter() {
           </>
         }
       />
+
+      {sections && <ReloadBoundarySummary boundaries={boundarySummary} setCount={setCount} />}
 
       <AgentRuntimeConfigPanel toast={toast} />
 

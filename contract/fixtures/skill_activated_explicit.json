@@ -1,0 +1,8 @@
+{
+  "intent": "please help with this flaky build",
+  "matched": 1,
+  "ids": ["skill_diagnose_ci_example"],
+  "activation": "explicit",
+  "refs": ["diagnose-ci"],
+  "missing": []
+}

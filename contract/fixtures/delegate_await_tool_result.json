@@ -1,0 +1,10 @@
+{
+  "tool": "delegate_await",
+  "call_id": "await-001",
+  "output": "sub-agent answer summary",
+  "error": false,
+  "observation_trust": "",
+  "observation_source": "",
+  "directive_like": false,
+  "directive_matches": []
+}

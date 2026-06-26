@@ -59,6 +59,38 @@ func TestLexicalToolSelector_NoMatchReturnsAll(t *testing.T) {
 	}
 }
 
+func TestDeferredLexicalToolSelector_PinsSearchAndHidesNoMatch(t *testing.T) {
+	tools := []agent.ToolDef{
+		{Name: "tool_search", Description: "Search deferred tool catalog", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "calendar", Description: "Create calendar events", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "notify", Description: "Send a message", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
+	sel := agent.DeferredLexicalToolSelector(1, []string{"tool_search"})
+	got, err := sel(context.Background(), agent.ToolSelectionRequest{Intent: "solve the thing", Tools: tools})
+	if err != nil {
+		t.Fatalf("selector: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "tool_search" {
+		t.Fatalf("selected %v, want only pinned tool_search", toolDefNames(got))
+	}
+}
+
+func TestDeferredLexicalToolSelector_PinsSearchWithRelevantTool(t *testing.T) {
+	tools := []agent.ToolDef{
+		{Name: "tool_search", Description: "Search deferred tool catalog", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "calendar", Description: "Create calendar events", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "file", Description: "Read and write files", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}
+	sel := agent.DeferredLexicalToolSelector(1, []string{"tool_search"})
+	got, err := sel(context.Background(), agent.ToolSelectionRequest{Intent: "read notes.txt", Tools: tools})
+	if err != nil {
+		t.Fatalf("selector: %v", err)
+	}
+	if len(got) != 2 || got[0].Name != "tool_search" || got[1].Name != "file" {
+		t.Fatalf("selected %v, want [tool_search file]", toolDefNames(got))
+	}
+}
+
 func TestRun_ToolSelectorFiltersProviderRequest(t *testing.T) {
 	b, j := newTestBus(t)
 	var offered []agent.ToolDef

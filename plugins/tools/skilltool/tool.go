@@ -124,6 +124,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		v := skillView(sk)
 		v["body"] = sk.Body
+		v[agent.DefaultContextRescueMarker] = "skill_body"
 		if len(sk.Lineage) > 0 {
 			v["lineage"] = sk.Lineage
 		}
@@ -169,7 +170,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		return okJSON(map[string]any{
 			"id": shortID(sk.ID), "name": sk.Name, "dir": bundles.Dir(sk.Name),
-			"files": files, "count": len(files),
+			"files": files, "count": len(files), agent.DefaultContextRescueMarker: "skill_files",
 		}), nil
 
 	case "read":
@@ -190,7 +191,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		return okJSON(map[string]any{
 			"id": shortID(sk.ID), "name": sk.Name, "path": in.Path,
-			"content": string(data), "bytes": len(data),
+			"content": string(data), "bytes": len(data), agent.DefaultContextRescueMarker: "skill_resource",
 		}), nil
 
 	case "":

@@ -427,6 +427,11 @@ type LoopConfig struct {
 	// falls back to the head snippet. nil (the default) keeps the head-snippet
 	// behaviour with zero extra provider calls. (M398, SPEC-10 §3)
 	SummarizeElided func(ctx context.Context, toolOutput string) (string, error)
+	// ContextRescueMarkers marks tool outputs that must be preserved during
+	// compaction even when they are old. Runtime uses this for skill bundle reads
+	// so a just-loaded procedure/resource is not summarized away before the model
+	// can apply it. Empty keeps historical oldest-tool-output elision.
+	ContextRescueMarkers []string
 
 	// Steer, when non-nil, is the per-run live-steering control surface (M608).
 	// At the top of each iteration the loop calls Steer.Wait (blocking while the
@@ -541,6 +546,7 @@ func (lc LoopConfig) WithContextConfig(cc ContextConfig) LoopConfig {
 	lc.ContextProtectLast = cc.ContextProtectLast
 	lc.ContextProtectFirst = cc.ContextProtectFirst
 	lc.SummarizeElided = cc.SummarizeElided
+	lc.ContextRescueMarkers = cc.ContextRescueMarkers
 	return lc
 }
 
@@ -620,6 +626,11 @@ const elidedHeadSnippetChars = 80
 // still capped so the stub stays small.
 const elidedSummaryChars = 160
 
+// DefaultContextRescueMarker is the stable marker a tool can include in its
+// textual result to request preservation across compaction. It is deliberately
+// namespaced so ordinary tool JSON does not trip it accidentally.
+const DefaultContextRescueMarker = "_agezt_context_rescue"
+
 // headSnippet returns the first n characters of s with internal whitespace runs
 // collapsed to single spaces, suffixed with "…" when truncated. It is the
 // extractive preview embedded in a compaction stub (M397): deterministic,
@@ -646,12 +657,24 @@ func headSnippet(s string, n int) string {
 // deterministic head snippet. It keeps compactMessages testable (pass a
 // deterministic fake) while letting the loop wrap a cached provider call.
 func compactMessages(system string, messages []Message, budget, protectLast, protectFirst int, summarize func(string) string) (out []Message, elided, reclaimed int) {
+	out, stats := compactMessagesDetailed(system, messages, budget, protectLast, protectFirst, summarize, nil)
+	return out, stats.Elided, stats.Reclaimed
+}
+
+type compactionStats struct {
+	Elided       int
+	Reclaimed    int
+	Rescued      int
+	RescuedChars int
+}
+
+func compactMessagesDetailed(system string, messages []Message, budget, protectLast, protectFirst int, summarize func(string) string, rescueMarkers []string) (out []Message, stats compactionStats) {
 	if budget <= 0 {
-		return messages, 0, 0
+		return messages, stats
 	}
 	total, _ := contextSize(system, messages)
 	if total <= budget {
-		return messages, 0, 0
+		return messages, stats
 	}
 	if protectLast <= 0 {
 		protectLast = DefaultContextProtectLast
@@ -666,6 +689,11 @@ func compactMessages(system string, messages []Message, budget, protectLast, pro
 	for i := start; i < limit && total > budget; i++ {
 		m := out[i]
 		if m.Role != RoleTool || m.Content == "" || strings.HasPrefix(m.Content, elidedStubPrefix) {
+			continue
+		}
+		if rescuedToolOutput(m.Content, rescueMarkers) {
+			stats.Rescued++
+			stats.RescuedChars += len(m.Content)
 			continue
 		}
 		orig := len(m.Content)
@@ -688,11 +716,20 @@ func compactMessages(system string, messages []Message, budget, protectLast, pro
 		}
 		out[i].Content = stub
 		delta := orig - len(stub)
-		reclaimed += delta
+		stats.Reclaimed += delta
 		total -= delta
-		elided++
+		stats.Elided++
 	}
-	return out, elided, reclaimed
+	return out, stats
+}
+
+func rescuedToolOutput(content string, markers []string) bool {
+	for _, marker := range markers {
+		if marker != "" && strings.Contains(content, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // ArtifactPutter is the slice of a content-addressed store the loop needs to
@@ -1201,17 +1238,22 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		// is auditable, not silent. No-op when ContextBudget is 0.
 		if cfg.ContextBudget > 0 {
 			before, _ := contextSize(cfg.System, messages)
-			compacted, elided, reclaimed := compactMessages(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast, cfg.ContextProtectFirst, summarizeElided)
-			if elided > 0 {
+			compacted, stats := compactMessagesDetailed(cfg.System, messages, cfg.ContextBudget, cfg.ContextProtectLast, cfg.ContextProtectFirst, summarizeElided, cfg.ContextRescueMarkers)
+			if stats.Elided > 0 {
 				messages = compacted
 				after, _ := contextSize(cfg.System, messages)
-				if _, err := publish(event.KindContextCompacted, "context", map[string]any{
-					"elided":               elided,
-					"reclaimed_chars":      reclaimed,
+				payload := map[string]any{
+					"elided":               stats.Elided,
+					"reclaimed_chars":      stats.Reclaimed,
 					"context_chars_before": before,
 					"context_chars_after":  after,
 					"budget":               cfg.ContextBudget,
-				}); err != nil {
+				}
+				if stats.Rescued > 0 {
+					payload["skill_rescued_count"] = stats.Rescued
+					payload["skill_rescued_chars"] = stats.RescuedChars
+				}
+				if _, err := publish(event.KindContextCompacted, "context", payload); err != nil {
 					return "", apperrors.Wrap(ctx, "agent: publish context.compacted", err)
 				}
 			}

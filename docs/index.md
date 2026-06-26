@@ -7,8 +7,11 @@ Start here when evaluating, operating, or integrating AGEZT.
 | Document | Use when you need to... |
 |---|---|
 | [COMPARISON.md](COMPARISON.md) | understand how AGEZT differs from generic agent frameworks without unverifiable competitor claims |
-| [../ARCHITECTURE.md](../ARCHITECTURE.md) | understand the core agent identity, runtime, Web UI, and source-of-truth layout |
-| [../ARCHITECTURAL-REPORT.md](../ARCHITECTURAL-REPORT.md) | read the broader generated architecture report and module map |
+| [DEER-FLOW-AGEZT-REPORT.md](DEER-FLOW-AGEZT-REPORT.md) | review what AGEZT can pragmatically borrow from ByteDance DeerFlow |
+| [DEER-FLOW-IMPLEMENTATION-PLAN.md](DEER-FLOW-IMPLEMENTATION-PLAN.md) | track the concrete implementation plan for DeerFlow-inspired AGEZT changes |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | understand the core agent identity, runtime, Web UI, and source-of-truth layout |
+| [AGENT-LOOP-INVARIANTS.md](AGENT-LOOP-INVARIANTS.md) | preserve policy, tool, compaction, delegation, and reload ordering while changing the loop |
+| [ARCHITECTURAL-REPORT.md](ARCHITECTURAL-REPORT.md) | read the broader generated architecture report and module map |
 
 ## Security and governance
 
@@ -23,6 +26,7 @@ Start here when evaluating, operating, or integrating AGEZT.
 | Document | Use when you need to... |
 |---|---|
 | [OPERATIONS.md](OPERATIONS.md) | run day-2 operations: health, metrics, cost, policy triage, backup/restore, incident runbooks |
+| [../Install.md](../Install.md) | bootstrap, verify, and build the repo with repeatable commands |
 | [GRAVEYARD-POLICY.md](GRAVEYARD-POLICY.md) | understand retired-agent retention posture and the bar for any future destructive automation |
 | [CONNECT.md](CONNECT.md) | connect providers and messaging channels, including OAuth and multiple accounts |
 | [CONSOLE.md](CONSOLE.md) | understand and operate the embedded Web UI console |

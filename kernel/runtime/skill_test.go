@@ -4,6 +4,7 @@ package runtime_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -86,6 +87,63 @@ func TestDraftSkillNotInjected(t *testing.T) {
 	}
 	if gotSystem != "base" {
 		t.Fatalf("draft skill must not be injected, got %q", gotSystem)
+	}
+}
+
+func TestExplicitSkillDirectiveActivatesNamedSkill(t *testing.T) {
+	prov := mock.New(mock.FinalText("answered"))
+	var gotSystem, gotUser string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		gotSystem = req.System
+		if len(req.Messages) > 0 {
+			gotUser = req.Messages[0].Content
+		}
+	}
+
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:     t.TempDir(),
+		Provider:    prov,
+		System:      "base prompt",
+		SkillInject: true,
+		SkillTopK:   3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	sk, _, err := k.Forge().Create("seed", skill.CreateSpec{
+		Name:        "diagnose-ci",
+		Description: "only activates by explicit name in this test",
+		Body:        "always inspect the CI log artifact first",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	promoteToActive(t, k.Forge(), sk.ID)
+
+	if _, _, err := k.Run(context.Background(), "/skill diagnose-ci\nplease help with this flaky build"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(gotSystem, "inspect the CI log artifact") {
+		t.Fatalf("explicit skill body was not injected; got:\n%s", gotSystem)
+	}
+	if gotUser != "please help with this flaky build" {
+		t.Fatalf("skill directive should be stripped from task prompt, got %q", gotUser)
+	}
+	var payload struct {
+		Activation string   `json:"activation"`
+		Refs       []string `json:"refs"`
+		IDs        []string `json:"ids"`
+	}
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindSkillActivated {
+			_ = json.Unmarshal(e.Payload, &payload)
+		}
+		return nil
+	})
+	if payload.Activation != "explicit" || len(payload.Refs) != 1 || payload.Refs[0] != "diagnose-ci" || len(payload.IDs) != 1 || payload.IDs[0] != sk.ID {
+		t.Fatalf("skill.activated payload = %+v", payload)
 	}
 }
 

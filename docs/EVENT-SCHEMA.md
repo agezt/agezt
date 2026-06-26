@@ -47,6 +47,10 @@ Important existing invariants from code comments:
 - Add a new subject under an existing namespace when existing subjects continue to be emitted.
 - Add a new optional core field only at the end of `event.Event` with `omitempty` and tests proving hash compatibility assumptions remain valid.
 
+Current example: `context.compacted` may include optional
+`skill_rescued_count` and `skill_rescued_chars` when marked skill/resource tool
+outputs were preserved during compaction.
+
 ### Requires migration note or compatibility window
 
 - Rename an event kind.

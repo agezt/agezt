@@ -30,8 +30,26 @@ type ToolSelector func(ctx context.Context, req ToolSelectionRequest) ([]ToolDef
 // a positive match, it returns all tools rather than hiding a needed capability.
 // max <= 0 disables selection.
 func LexicalToolSelector(max int) ToolSelector {
+	return lexicalToolSelector(max, nil, true)
+}
+
+// DeferredLexicalToolSelector ranks tools like LexicalToolSelector, but keeps
+// pinned catalog/search tools visible and does not fall back to exposing every
+// schema on a no-match turn. This is the small-schema mode: the model can call a
+// pinned discovery tool to promote the right capability into later context.
+func DeferredLexicalToolSelector(max int, pinned []string) ToolSelector {
+	return lexicalToolSelector(max, pinned, false)
+}
+
+func lexicalToolSelector(max int, pinned []string, fallbackAll bool) ToolSelector {
 	if max <= 0 {
 		return nil
+	}
+	pinnedSet := map[string]bool{}
+	for _, name := range pinned {
+		if strings.TrimSpace(name) != "" {
+			pinnedSet[name] = true
+		}
 	}
 	return func(_ context.Context, req ToolSelectionRequest) ([]ToolDef, error) {
 		if len(req.Tools) <= max {
@@ -45,7 +63,10 @@ func LexicalToolSelector(max int) ToolSelector {
 		}
 		q := tokenSet(query)
 		if len(q) == 0 {
-			return append([]ToolDef(nil), req.Tools...), nil
+			if fallbackAll {
+				return append([]ToolDef(nil), req.Tools...), nil
+			}
+			return pinnedTools(req.Tools, pinnedSet), nil
 		}
 
 		type scored struct {
@@ -55,7 +76,14 @@ func LexicalToolSelector(max int) ToolSelector {
 		}
 		rows := make([]scored, 0, len(req.Tools))
 		for i, t := range req.Tools {
+			if pinnedSet[t.Name] {
+				continue
+			}
 			rows = append(rows, scored{def: t, score: toolScore(q, t), index: i})
+		}
+		pinnedOut := pinnedTools(req.Tools, pinnedSet)
+		if len(rows) == 0 {
+			return pinnedOut, nil
 		}
 		sort.SliceStable(rows, func(i, j int) bool {
 			if rows[i].score != rows[j].score {
@@ -67,21 +95,40 @@ func LexicalToolSelector(max int) ToolSelector {
 			return rows[i].index < rows[j].index
 		})
 		if rows[0].score <= 0 {
-			return append([]ToolDef(nil), req.Tools...), nil
+			if fallbackAll {
+				return append([]ToolDef(nil), req.Tools...), nil
+			}
+			return pinnedOut, nil
 		}
 		limit := max
 		if limit > len(rows) {
 			limit = len(rows)
 		}
-		out := make([]ToolDef, 0, limit)
+		out := make([]ToolDef, 0, len(pinnedOut)+limit)
+		out = append(out, pinnedOut...)
+		selected := 0
 		for _, row := range rows {
-			if row.score <= 0 || len(out) >= limit {
+			if row.score <= 0 || selected >= limit {
 				break
 			}
 			out = append(out, row.def)
+			selected++
 		}
 		return out, nil
 	}
+}
+
+func pinnedTools(tools []ToolDef, pinned map[string]bool) []ToolDef {
+	if len(pinned) == 0 {
+		return nil
+	}
+	out := make([]ToolDef, 0, len(pinned))
+	for _, t := range tools {
+		if pinned[t.Name] {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func normalizeSelectedTools(available, selected []ToolDef) []ToolDef {

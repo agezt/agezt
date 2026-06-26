@@ -62,6 +62,32 @@ func TestRegistry_RegisterAndMerge(t *testing.T) {
 	}
 }
 
+func TestReloadBoundaries(t *testing.T) {
+	r := NewRegistry(t.TempDir())
+	if err := r.Register(sampleSection()); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	boundaries := ReloadBoundaries(r.Sections())
+	if len(boundaries) < 2 {
+		t.Fatalf("expected live and restart boundaries, got %+v", boundaries)
+	}
+	var live, restart []string
+	for _, b := range boundaries {
+		switch b.Apply {
+		case ApplyLive:
+			live = b.Envs
+		case ApplyRestart:
+			restart = b.Envs
+		}
+	}
+	if !contains(live, "AGEZT_PROVIDER") || !contains(live, "AGEZT_MODEL") {
+		t.Fatalf("live boundary missing provider/model: %v", live)
+	}
+	if !contains(restart, "AGEZT_X_WEATHER_API_KEY") {
+		t.Fatalf("registered field should require restart: %v", restart)
+	}
+}
+
 func TestRegistry_Unregister(t *testing.T) {
 	dir := t.TempDir()
 	r := NewRegistry(dir)
@@ -80,6 +106,15 @@ func TestRegistry_Unregister(t *testing.T) {
 	if err != nil || removed {
 		t.Fatalf("unregister missing: removed=%v err=%v", removed, err)
 	}
+}
+
+func contains(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestRegistry_LockedSectionNeedsForce(t *testing.T) {

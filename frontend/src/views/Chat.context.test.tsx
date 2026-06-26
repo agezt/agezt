@@ -93,12 +93,13 @@ describe("ContextModal", () => {
   it("lists each compaction with before → after sizes", () => {
     const t = turnWith({
       context: ctx({
-        compactions: [{ elided: 2, reclaimedChars: 8000, beforeChars: 45000, afterChars: 37000 }],
+        compactions: [{ elided: 2, reclaimedChars: 8000, beforeChars: 45000, afterChars: 37000, skillRescuedCount: 1, skillRescuedChars: 2200 }],
       }),
     });
     render(<ContextModal turn={t} windowTokens={64000} onClose={() => {}} />);
     expect(screen.getByText(/2 tool outputs elided · reclaimed 8\.0K\s+chars/)).toBeTruthy();
     expect(screen.getByText(/\(45K → 37K\)/)).toBeTruthy();
+    expect(screen.getByText("1 skill resource kept · 2.2K chars")).toBeTruthy();
   });
 
   it("escape closes it", () => {
@@ -121,5 +122,17 @@ describe("CompactionNote", () => {
     );
     expect(screen.getByText("context compacted")).toBeTruthy();
     expect(screen.getByText("3 old tool outputs elided · 10K chars reclaimed")).toBeTruthy();
+  });
+
+  it("shows rescued skill resources when compaction preserved them", () => {
+    render(
+      <CompactionNote
+        events={[
+          { elided: 1, reclaimedChars: 4000, beforeChars: 12000, afterChars: 8000, skillRescuedCount: 1, skillRescuedChars: 2200 },
+          { elided: 1, reclaimedChars: 3000, beforeChars: 13000, afterChars: 10000, skillRescuedCount: 2, skillRescuedChars: 1200 },
+        ]}
+      />,
+    );
+    expect(screen.getByText("3 skill resources kept · 3.4K chars")).toBeTruthy();
   });
 });

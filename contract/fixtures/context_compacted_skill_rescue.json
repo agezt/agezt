@@ -1,0 +1,9 @@
+{
+  "elided": 1,
+  "reclaimed_chars": 4000,
+  "context_chars_before": 12000,
+  "context_chars_after": 8000,
+  "budget": 9000,
+  "skill_rescued_count": 1,
+  "skill_rescued_chars": 2200
+}

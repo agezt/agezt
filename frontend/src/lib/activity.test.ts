@@ -76,6 +76,33 @@ describe("foldActivityEvent", () => {
     expect(tree[0].children.map((c) => c.corr)).toEqual(["sub"]);
   });
 
+  it("folds async sub-agent completion onto the child run", () => {
+    const s = fold([
+      { kind: "task.received", correlation_id: "lead", payload: { intent: "big job" } },
+      { kind: "subagent.spawned", correlation_id: "lead", payload: { child_correlation: "sub", parent: "lead", task: "fetch docs", depth: 1 } },
+      { kind: "subagent.completed", correlation_id: "lead", ts_unix_ms: 44, seq: 7, payload: { child_correlation: "sub", ok: true, async: true, chars: 128 } },
+    ]);
+    expect(s.sub.parentCorr).toBe("lead");
+    expect(s.sub.status).toBe("completed");
+    expect(s.sub.endedMs).toBe(44);
+    expect(s.sub.activity).toBe("delegation completed · 128 chars");
+    expect(s.lead.activity).toBe("delegation completed: sub");
+
+    const tree = buildTree(s);
+    expect(tree[0].children.map((c) => c.corr)).toEqual(["sub"]);
+  });
+
+  it("folds async sub-agent completion failures onto the child run", () => {
+    const s = fold([
+      { kind: "task.received", correlation_id: "lead", payload: { intent: "big job" } },
+      { kind: "subagent.completed", correlation_id: "lead", ts_unix_ms: 55, payload: { child_correlation: "sub", ok: false, async: true, error: "cancelled" } },
+    ]);
+    expect(s.sub.parentCorr).toBe("lead");
+    expect(s.sub.status).toBe("failed");
+    expect(s.sub.activity).toBe("delegation failed: cancelled");
+    expect(s.lead.activity).toBe("delegation failed: sub");
+  });
+
   it("marks a failed run with its reason", () => {
     const s = fold([
       { kind: "task.received", correlation_id: "r1", payload: {} },

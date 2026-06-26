@@ -3099,6 +3099,10 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runCtx = worldmodel.WithCorrelation(runCtx, corr)
 	runCtx = skill.WithCorrelation(runCtx, corr)
 	systemAgent := systemAgentFromCtx(runCtx)
+	skillDirective := skill.ParseActivationDirective(intent)
+	if skillDirective.Explicit && skillDirective.CleanIntent != "" {
+		intent = skillDirective.CleanIntent
+	}
 	intentFrame, ok := intentmodel.FrameFromContext(runCtx)
 	if !ok {
 		intentFrame = intentmodel.Interpret(intent)
@@ -3216,29 +3220,58 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 			topK = 3
 		}
 		agentSlug := agentSlugFromCtx(runCtx)
-		var candidates []contextCandidate
-		if all, err := k.forge.List(); err == nil {
-			pool := all[:0:0]
-			for _, sk := range all {
-				if sk.Agent == "" || sk.Agent == agentSlug {
-					pool = append(pool, sk)
+		if skillDirective.Explicit {
+			hits, missing, err := k.forge.ActivateExplicitFor(corr, agentSlug, intent, skillDirective.Refs, topK)
+			if err == nil {
+				if len(hits) > 0 {
+					system = injectSkills(system, hits)
+					for _, h := range hits {
+						activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)
+					}
 				}
+				chosen := skillContextCandidates(hits, time.Now().UnixMilli())
+				for i := range chosen {
+					chosen[i].Chosen = true
+					chosen[i].Reason = "selected:skill_explicit_activation"
+				}
+				summary := candidateSummary(chosen, nil)
+				summary["activation"] = "explicit"
+				summary["refs"] = skillDirective.Refs
+				if len(missing) > 0 {
+					summary["missing"] = missing
+				}
+				k.publishContextSelection(corr, actor, contextSelectionManifest{
+					Phase:   "skill",
+					Query:   intent,
+					Chosen:  chosen,
+					Summary: summary,
+				})
 			}
-			candidates = skillContextCandidates(skill.Retrieve(pool, intent, contextSelectionCandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
-		}
-		if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
-			system = injectSkills(system, hits)
-			for _, h := range hits {
-				activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)
+		} else {
+			var candidates []contextCandidate
+			if all, err := k.forge.List(); err == nil {
+				pool := all[:0:0]
+				for _, sk := range all {
+					if sk.Agent == "" || sk.Agent == agentSlug {
+						pool = append(pool, sk)
+					}
+				}
+				candidates = skillContextCandidates(skill.Retrieve(pool, intent, contextSelectionCandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
 			}
-			chosen, rejected := splitContextCandidates(candidates, chosenIDSet(activatedSkillIDs), "skill_activation")
-			k.publishContextSelection(corr, actor, contextSelectionManifest{
-				Phase:    "skill",
-				Query:    intent,
-				Chosen:   chosen,
-				Rejected: rejected,
-				Summary:  candidateSummary(chosen, rejected),
-			})
+			if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
+				system = injectSkills(system, hits)
+				for _, h := range hits {
+					activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)
+				}
+				chosen, rejected := splitContextCandidates(candidates, chosenIDSet(activatedSkillIDs), "skill_activation")
+				k.publishContextSelection(corr, actor, contextSelectionManifest{
+					Phase:    "skill",
+					Query:    intent,
+					Chosen:   chosen,
+					Rejected: rejected,
+					Summary:  candidateSummary(chosen, rejected),
+				})
+			}
 		}
 	}
 
@@ -3276,6 +3309,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
 	if allow, ok := toolsFromCtx(runCtx); ok {
 		runTools = filterTools(runTools, allow)
+	}
+	toolDiscoveryMax := k.cfg.ToolDiscoveryMax
+	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
+		toolDiscoveryMax = v
+	}
+	if toolDiscoveryMax > 0 && len(runTools) > toolDiscoveryMax {
+		runTools = withToolSearch(runTools)
 	}
 
 	// Host-environment preamble (M609): prepend OS/arch, the shell the shell tool
@@ -3338,13 +3378,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_PARALLEL_TOOLS"); ok {
 		maxParallelTools = v
 	}
-	toolDiscoveryMax := k.cfg.ToolDiscoveryMax
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
-		toolDiscoveryMax = v
-	}
 	observationDeltas := k.cfg.ObservationDeltas
 	if v, ok := agentConfigBoolOverride(runCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
 		observationDeltas = v
+	}
+	toolSelector := agent.LexicalToolSelector(toolDiscoveryMax)
+	if _, ok := runTools[toolSearchName]; ok && toolDiscoveryMax > 0 {
+		toolSelector = agent.DeferredLexicalToolSelector(toolDiscoveryMax, []string{toolSearchName})
 	}
 	wake := wakeContextFromCtx(runCtx)
 
@@ -3373,7 +3413,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		Actor:                actor,
 		CorrelationID:        corr,
 		Policy:               k.policyHook,
-		ToolSelector:         agent.LexicalToolSelector(toolDiscoveryMax),
+		ToolSelector:         toolSelector,
 		ToolResultHook:       k.completeAgentNoiseNotify,
 		ObservationDeltas:    observationDeltas,
 		ToolMemo:             agent.NewToolMemo(agent.DefaultToolMemoTTL, agent.DefaultToolMemoMaxEntries),
@@ -3386,7 +3426,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		ContextBudget:        ctxBudget,                 // M393/M394: context budgeting (SPEC-10 §3)
 		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
 		SummarizeElided:      summarizeElided,           // M398: abstractive summary of dropped outputs
-		Steer:                rc,                        // M608: live operator steering
+		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
+		Steer:                rc, // M608: live operator steering
 	}, intent)
 
 	// Deregister the steering control the instant the agent loop returns — BEFORE

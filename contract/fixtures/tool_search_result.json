@@ -1,0 +1,11 @@
+{
+  "query": "read project files",
+  "count": 1,
+  "tools": [
+    {
+      "name": "file",
+      "description": "Read and write project files",
+      "score": 8
+    }
+  ]
+}

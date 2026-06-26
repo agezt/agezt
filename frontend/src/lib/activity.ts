@@ -97,6 +97,31 @@ export function foldActivityEvent(state: ActivityState, e: AgentEvent): Activity
     return next;
   }
 
+  if (kind === "subagent.completed") {
+    const child = String(p.child_correlation || "");
+    if (!child) return state;
+    const next = { ...state };
+    const c = { ...(next[child] || blankRun(child)) };
+    if (!c.parentCorr) c.parentCorr = corr;
+    c.status = p.ok === false ? "failed" : "completed";
+    c.endedMs = num(e.ts_unix_ms) || c.endedMs;
+    const chars = num(p.chars);
+    c.activity =
+      c.status === "completed"
+        ? `delegation completed${chars > 0 ? ` · ${chars.toLocaleString()} chars` : ""}`
+        : `delegation failed${p.error ? `: ${String(p.error)}` : ""}`;
+    c.lastSeq = Math.max(c.lastSeq, num(e.seq));
+    next[child] = c;
+    if (next[corr]) {
+      next[corr] = {
+        ...next[corr],
+        activity: c.status === "completed" ? `delegation completed: ${child}` : `delegation failed: ${child}`,
+        lastSeq: Math.max(next[corr].lastSeq, num(e.seq)),
+      };
+    }
+    return pruneFinished(next);
+  }
+
   const existing = state[corr];
   // Ignore events for runs we never saw begin — otherwise the capped firehose
   // buffer could resurrect long-finished correlations on mount. Repair and

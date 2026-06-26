@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { buildReplay } from "@/lib/replay";
 import type { AgentEvent } from "@/lib/events";
 
 function ev(seq: number, kind: string, payload: any = {}): AgentEvent {
   return { seq, kind, ts_unix_ms: 1000 + seq, payload, correlation_id: "r1" };
+}
+
+function contractFixture<T>(name: string): T {
+  return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
 }
 
 describe("buildReplay", () => {
@@ -55,6 +60,24 @@ describe("buildReplay", () => {
     ]);
     expect(steps.map((s) => s.tone)).toEqual(["steer", "steer", "steer"]);
     expect(steps[1].detail).toContain("focus on X");
+  });
+
+  it("formats sub-agent spawn and async completion steps", () => {
+    const completed = contractFixture<Record<string, unknown>>("subagent_completed_async.json");
+    const steps = buildReplay([
+      ev(1, "subagent.spawned", { task: "fetch docs", child_correlation: "sub", depth: 1, async: true }),
+      ev(2, "subagent.completed", completed),
+      ev(3, "subagent.completed", { child_correlation: "sub2", ok: false, async: true, error: "cancelled" }),
+    ]);
+    expect(steps[0]).toMatchObject({ title: "sub-agent spawned", tone: "steer" });
+    expect(steps[0].detail).toContain("fetch docs");
+    expect(steps[0].detail).toContain("child sub");
+    expect(steps[0].detail).toContain("async");
+    expect(steps[1]).toMatchObject({ title: "sub-agent completed", tone: "done" });
+    expect(steps[1].detail).toContain("child run-child-example");
+    expect(steps[1].detail).toContain("128 chars");
+    expect(steps[2]).toMatchObject({ title: "sub-agent failed", tone: "fail" });
+    expect(steps[2].detail).toContain("cancelled");
   });
 
   it("carries the iteration forward (sticky) onto later non-iter steps", () => {

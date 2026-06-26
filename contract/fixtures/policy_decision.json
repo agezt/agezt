@@ -1,0 +1,13 @@
+{
+  "tool": "shell",
+  "call_id": "call-001",
+  "capability": "shell",
+  "allow": false,
+  "reason": "requires approval",
+  "would_ask": true,
+  "hard_denied": false,
+  "effect_class": "irreversible",
+  "affected_resources": ["workspace"],
+  "schema_hash": "sha256:example",
+  "input_shape": "object"
+}
