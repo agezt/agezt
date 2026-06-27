@@ -50,7 +50,7 @@ beforeEach(() => {
 describe("Voice view", () => {
   it("renders the header, orb prompt, and start control", () => {
     render(withUI(<Voice />));
-    expect(screen.getByRole("heading", { name: "Voice" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Voice", level: 2 })).toBeTruthy();
     expect(screen.getByText(/hands-free conversation/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /start talking/i })).toBeTruthy();
   });
@@ -77,20 +77,23 @@ describe("Voice view", () => {
     expect(localStorage.getItem("agezt.voice.wake")).toBe("1");
   });
 
-  it("renders the inline voice setup panel with STT + TTS fields", async () => {
+  it("renders the inline voice setup with Hearing + Voice provider pickers", async () => {
     render(withUI(<Voice />));
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/config/values"));
     expect(screen.getByText("Voice setup")).toBeTruthy();
-    // Auto-opened because nothing is configured — both halves are editable here.
-    expect(screen.getByText("Transcription API URL")).toBeTruthy();
-    expect(screen.getByText("Synthesis model")).toBeTruthy();
-    expect(screen.getByText(/Hearing not set/i)).toBeTruthy();
+    // Auto-opened because nothing is configured — both halves present.
+    expect(screen.getByRole("heading", { name: "Hearing" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Voice", level: 4 })).toBeTruthy();
+    // Provider chips from the catalog (Groq appears in both halves).
+    expect(screen.getAllByRole("button", { name: /groq/i }).length).toBeGreaterThan(0);
   });
 
-  it("applies a preset by saving config to the daemon", async () => {
+  it("selects a provider and writes its endpoint + model to the daemon", async () => {
     render(withUI(<Voice />));
     await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /openai/i }));
+    // Click the first OpenAI chip (Hearing half).
+    fireEvent.click(screen.getAllByRole("button", { name: "OpenAI" })[0]);
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_URL", value: "https://api.openai.com/v1" }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_MODEL", value: "gpt-4o-transcribe" }));
   });
 });
