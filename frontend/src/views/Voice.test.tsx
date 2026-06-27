@@ -96,4 +96,13 @@ describe("Voice view", () => {
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_URL", value: "https://api.openai.com/v1" }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_MODEL", value: "gpt-4o-transcribe" }));
   });
+
+  it("selects a native provider and writes its dialect (ElevenLabs)", async () => {
+    render(withUI(<Voice />));
+    await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
+    // Second ElevenLabs chip is the Voice (TTS) half.
+    fireEvent.click(screen.getAllByRole("button", { name: "ElevenLabs" })[1]);
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_PROVIDER", value: "elevenlabs" }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_URL", value: "https://api.elevenlabs.io" }));
+  });
 });

@@ -22,18 +22,27 @@ export interface SpeechVoice {
   label?: string;
 }
 
+export type SpeechDialect = "openai" | "elevenlabs" | "deepgram" | "cartesia";
+
 export interface SpeechProvider {
   id: string;
   name: string; // friendly display name
   blurb: string; // one warm sentence about what it is / when to pick it
-  baseURL: string; // includes /v1
+  baseURL: string; // includes /v1 for OpenAI-compatible; native bases have none
   needsKey: boolean;
   local?: boolean; // runs on the operator's own machine — private, free
+  /** Wire dialect — maps to AGEZT_*_PROVIDER. Omitted == "openai". */
+  dialect?: SpeechDialect;
   models: SpeechModel[];
   /** TTS only: default voice list. */
   voices?: SpeechVoice[];
   /** TTS only: voices that depend on the chosen model (overrides `voices`). */
   voicesByModel?: Record<string, SpeechVoice[]>;
+  /** TTS only: voice is a free-text id (ElevenLabs voice_id, Cartesia id). */
+  voiceFree?: boolean;
+  /** TTS only: the model name carries the voice (Deepgram Aura) — no voice field. */
+  voiceInModel?: boolean;
+  voiceHint?: string; // placeholder for a free-text voice field
   keyHint?: string; // placeholder for the API-key input
   keyLink?: string; // where to get a key
 }
@@ -68,6 +77,35 @@ export const STT_PROVIDERS: SpeechProvider[] = [
     models: [
       { id: "whisper-large-v3-turbo", label: "Whisper Large v3 Turbo", note: "fastest" },
       { id: "whisper-large-v3", label: "Whisper Large v3", note: "most accurate" },
+    ],
+  },
+  {
+    id: "elevenlabs",
+    name: "ElevenLabs",
+    blurb: "Scribe — top-tier accuracy across 99 languages.",
+    baseURL: "https://api.elevenlabs.io",
+    needsKey: true,
+    dialect: "elevenlabs",
+    keyHint: "xi-api-key",
+    keyLink: "https://elevenlabs.io/app/settings/api-keys",
+    models: [
+      { id: "scribe_v2", label: "Scribe v2", note: "best" },
+      { id: "scribe_v1", label: "Scribe v1", note: "legacy" },
+    ],
+  },
+  {
+    id: "deepgram",
+    name: "Deepgram",
+    blurb: "Nova-3 — fast, accurate, streaming-grade.",
+    baseURL: "https://api.deepgram.com",
+    needsKey: true,
+    dialect: "deepgram",
+    keyHint: "Deepgram API key",
+    keyLink: "https://console.deepgram.com/",
+    models: [
+      { id: "nova-3", label: "Nova-3", note: "best" },
+      { id: "nova-2", label: "Nova-2" },
+      { id: "whisper-large", label: "Whisper (hosted)" },
     ],
   },
   {
@@ -144,6 +182,60 @@ export const TTS_PROVIDERS: SpeechProvider[] = [
     },
   },
   {
+    id: "elevenlabs",
+    name: "ElevenLabs",
+    blurb: "The most lifelike voices — paste any voice_id from your library.",
+    baseURL: "https://api.elevenlabs.io",
+    needsKey: true,
+    dialect: "elevenlabs",
+    voiceFree: true,
+    voiceHint: "voice_id from your ElevenLabs library",
+    keyHint: "xi-api-key",
+    keyLink: "https://elevenlabs.io/app/voice-library",
+    models: [
+      { id: "eleven_v3", label: "Eleven v3", note: "most expressive" },
+      { id: "eleven_multilingual_v2", label: "Multilingual v2", note: "default" },
+      { id: "eleven_turbo_v2_5", label: "Turbo v2.5", note: "low latency" },
+      { id: "eleven_flash_v2_5", label: "Flash v2.5", note: "fastest" },
+    ],
+  },
+  {
+    id: "deepgram",
+    name: "Deepgram",
+    blurb: "Aura-2 — natural, real-time voices. Pick a voice as the model.",
+    baseURL: "https://api.deepgram.com",
+    needsKey: true,
+    dialect: "deepgram",
+    voiceInModel: true,
+    keyHint: "Deepgram API key",
+    keyLink: "https://console.deepgram.com/",
+    models: [
+      { id: "aura-2-thalia-en", label: "Thalia", note: "F · US" },
+      { id: "aura-2-andromeda-en", label: "Andromeda", note: "F · US" },
+      { id: "aura-2-helena-en", label: "Helena", note: "F · US" },
+      { id: "aura-2-apollo-en", label: "Apollo", note: "M · US" },
+      { id: "aura-2-arcas-en", label: "Arcas", note: "M · US" },
+      { id: "aura-2-aries-en", label: "Aries", note: "M · US" },
+    ],
+  },
+  {
+    id: "cartesia",
+    name: "Cartesia",
+    blurb: "Sonic — ultra-low latency, expressive. Paste a Cartesia voice id.",
+    baseURL: "https://api.cartesia.ai",
+    needsKey: true,
+    dialect: "cartesia",
+    voiceFree: true,
+    voiceHint: "Cartesia voice id",
+    keyHint: "Cartesia API key",
+    keyLink: "https://play.cartesia.ai/keys",
+    models: [
+      { id: "sonic-3.5", label: "Sonic 3.5", note: "newest" },
+      { id: "sonic-3", label: "Sonic 3" },
+      { id: "sonic-2", label: "Sonic 2" },
+    ],
+  },
+  {
     id: "kokoro",
     name: "Local · Kokoro",
     blurb: "Self-hosted Kokoro — surprisingly good, private, free, no key.",
@@ -195,6 +287,20 @@ export function providerFor(list: SpeechProvider[], url?: string): SpeechProvide
   if (!url || !url.trim()) return undefined;
   const target = normBase(url);
   return list.find((p) => normBase(p.baseURL) === target);
+}
+
+// selectProvider resolves the active catalog entry from stored config: a native
+// dialect (elevenlabs/deepgram/cartesia) identifies its single entry directly;
+// otherwise (OpenAI-compatible) we match by base URL, since many share dialect.
+export function selectProvider(list: SpeechProvider[], url?: string, dialect?: string): SpeechProvider | undefined {
+  const d = (dialect || "").trim().toLowerCase();
+  if (d && d !== "openai") return list.find((p) => (p.dialect || "openai") === d);
+  return providerFor(list, url);
+}
+
+// dialectOf returns the AGEZT_*_PROVIDER value to persist for a provider.
+export function dialectOf(p: SpeechProvider): string {
+  return p.dialect || "openai";
 }
 
 // voicesFor returns the voice list appropriate to the chosen model.

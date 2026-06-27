@@ -714,19 +714,34 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// + AGEZT_TTS_MODEL to let them synthesize spoken replies. Local (faster-
 	// whisper / Kokoro behind an OpenAI shim) or hosted (api.openai.com/v1 +
 	// AGEZT_STT_KEY / AGEZT_TTS_KEY). Unset → no voice tool is registered.
+	// AGEZT_STT_PROVIDER / AGEZT_TTS_PROVIDER pick the wire dialect (default
+	// "openai", any OpenAI-compatible endpoint). Native providers — ElevenLabs,
+	// Deepgram, Cartesia — speak their own shapes and supply their own default
+	// base URL, so a URL is optional for them. Boot-resilient: a misconfigured
+	// half warns and disables itself rather than failing the daemon.
 	voiceAdapter := &voice.Adapter{}
-	if sttURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_URL")); sttURL != "" {
-		if sttModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL")); sttModel == "" {
+	sttProvider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_PROVIDER"))
+	sttURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_URL"))
+	sttModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL"))
+	if sttURL != "" || voiceProviderIsNative(sttProvider) {
+		if sttModel == "" && !voiceProviderIsNative(sttProvider) {
 			fmt.Fprintf(stderr, "%s: %sSTT_URL is set but %sSTT_MODEL is empty — transcription disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else if sttClient, err := voice.NewSTT(sttProvider, voice.Config{BaseURL: sttURL, Model: sttModel, APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_KEY"))}); err != nil {
+			fmt.Fprintf(stderr, "%s: transcription disabled: %v\n", brand.Binary, err)
 		} else {
-			voiceAdapter.STT = &voice.STTClient{BaseURL: sttURL, Model: sttModel, APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_KEY"))}
+			voiceAdapter.STT = sttClient
 		}
 	}
-	if ttsURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_URL")); ttsURL != "" {
-		if ttsModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_MODEL")); ttsModel == "" {
+	ttsProvider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_PROVIDER"))
+	ttsURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_URL"))
+	ttsModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_MODEL"))
+	if ttsURL != "" || voiceProviderIsNative(ttsProvider) {
+		if ttsModel == "" && !voiceProviderIsNative(ttsProvider) {
 			fmt.Fprintf(stderr, "%s: %sTTS_URL is set but %sTTS_MODEL is empty — synthesis disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
+		} else if ttsClient, err := voice.NewTTS(ttsProvider, voice.Config{BaseURL: ttsURL, Model: ttsModel, Voice: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_VOICE")), APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_KEY"))}); err != nil {
+			fmt.Fprintf(stderr, "%s: synthesis disabled: %v\n", brand.Binary, err)
 		} else {
-			voiceAdapter.TTS = &voice.TTSClient{BaseURL: ttsURL, Model: ttsModel, Voice: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_VOICE")), APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_KEY"))}
+			voiceAdapter.TTS = ttsClient
 		}
 	}
 	var voiceCfg kernelruntime.Voice
@@ -4355,10 +4370,15 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	wsrv.SetPasswordFn(func() string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")) })
 	wsrv.SetPasswordStrict(strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on"))
 	passwordOn := strings.TrimSpace(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD")) != ""
-	// Wire speech-to-text for the chat mic button (M689) when an STT endpoint is
-	// configured. Guard on the concrete pointer so a nil never becomes a non-nil
-	// interface (which would make /api/transcribe think STT is configured).
-	if t := sttTranscriberFromEnv(); t != nil {
+	// Wire speech-to-text for the chat mic button (M689) and the console Voice
+	// mode. Prefer the runtime voice adapter so native providers (ElevenLabs /
+	// Deepgram), not just OpenAI-compatible endpoints, drive browser transcription;
+	// fall back to the standalone AGEZT_STT_API_* client. Guard the concrete
+	// pointer in the fallback so a nil never becomes a non-nil interface.
+	if v := k.Voice(); v != nil && v.HasSTT() {
+		wsrv.SetTranscriber(voiceTranscriberShim{v})
+		fmt.Fprintf(stdout, "  voice input      : enabled (chat mic → speech-to-text)\n")
+	} else if t := sttTranscriberFromEnv(); t != nil {
 		wsrv.SetTranscriber(t)
 		fmt.Fprintf(stdout, "  voice input      : enabled (chat mic → speech-to-text)\n")
 	}
@@ -6918,6 +6938,28 @@ func boardSubjectSlug(topic string) string {
 // $AGEZT_WORKSPACE, or <baseDir>/workspace by default. Used by buildTools (to
 // scope the tools) and by the kernel Config (to tell the model where it is via
 // the M609 environment preamble), so the two never drift.
+// voiceProviderIsNative reports whether a STT/TTS provider id names a native
+// (non-OpenAI-compatible) backend that supplies its own default base URL — so a
+// URL isn't required to enable that half.
+func voiceProviderIsNative(p string) bool {
+	switch strings.ToLower(strings.TrimSpace(p)) {
+	case voice.ProviderElevenLabs, voice.ProviderDeepgram, voice.ProviderCartesia:
+		return true
+	default:
+		return false
+	}
+}
+
+// voiceTranscriberShim adapts the runtime Voice adapter (Transcribe(ctx, audio,
+// filename)) to the webui.Transcriber seam (Transcribe(ctx, filename, audio)) so
+// the console mic and Voice-mode STT flow through whatever provider the voice
+// adapter is configured for — ElevenLabs / Deepgram included, not just OpenAI.
+type voiceTranscriberShim struct{ v kernelruntime.Voice }
+
+func (s voiceTranscriberShim) Transcribe(ctx context.Context, filename string, audio []byte) (string, error) {
+	return s.v.Transcribe(ctx, audio, filename)
+}
+
 // sttTranscriberFromEnv builds the speech-to-text client from AGEZT_STT_* (or a
 // fallback OPENAI_API_KEY), or returns nil when no STT endpoint is configured.
 // Shared by the Web UI mic button (/api/transcribe, M689) and the OpenAI-
