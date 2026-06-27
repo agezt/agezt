@@ -102,3 +102,7 @@ bin/
 
 # local ad-hoc test-counting script (machine-specific path, not portable)
 /scout_tests.ps1
+
+# npm is the source of truth for frontend (VULN-010); keep a stray pnpm lock out.
+frontend/pnpm-lock.yaml
+pnpm-lock.yaml

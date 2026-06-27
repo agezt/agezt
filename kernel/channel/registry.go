@@ -2,7 +2,18 @@
 
 package channel
 
-import "sort"
+import (
+	"sort"
+	"sync"
+)
+
+// mu guards the three process-global maps below (registry/live/liveInstances).
+// Writers run during daemon boot (RegisterAll, SetLive, SetLiveInstances) AFTER
+// the control-plane listener has already started serving, so a channel-list
+// request can race a boot-time write. Unsynchronised map read-vs-write is a
+// fatal, unrecoverable Go runtime abort (it bypasses recover()), i.e. a
+// remote-triggerable crash DoS — hence the lock (CWE-362, finding VULN-002).
+var mu sync.RWMutex
 
 // Manifest is a channel's self-description for the "systematik" channel layer:
 // the metadata the Channels wizard renders (display name, what it is, transport,
@@ -46,10 +57,16 @@ type MediaCaps struct {
 var registry = map[string]Manifest{}
 
 // RegisterManifest adds (or replaces) a channel manifest by kind. Idempotent.
-func RegisterManifest(m Manifest) { registry[m.Kind] = m }
+func RegisterManifest(m Manifest) {
+	mu.Lock()
+	defer mu.Unlock()
+	registry[m.Kind] = m
+}
 
 // Manifests returns all registered channel manifests, ordered by display name.
 func Manifests() []Manifest {
+	mu.RLock()
+	defer mu.RUnlock()
 	out := make([]Manifest, 0, len(registry))
 	for _, m := range registry {
 		out = append(out, m)
@@ -60,6 +77,8 @@ func Manifests() []Manifest {
 
 // LookupManifest returns the manifest for a kind, if registered.
 func LookupManifest(kind string) (Manifest, bool) {
+	mu.RLock()
+	defer mu.RUnlock()
 	m, ok := registry[kind]
 	return m, ok
 }
@@ -76,11 +95,17 @@ func SetLive(kinds []string) {
 	for _, k := range kinds {
 		next[k] = true
 	}
+	mu.Lock()
+	defer mu.Unlock()
 	live = next
 }
 
 // IsLive reports whether a channel kind is currently running.
-func IsLive(kind string) bool { return live[kind] }
+func IsLive(kind string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return live[kind]
+}
 
 // InstanceKey addresses a channel account-instance: the bare kind for the
 // default account, "kind#label" for a labelled one.
@@ -102,9 +127,15 @@ func SetLiveInstances(keys []string) {
 	for _, k := range keys {
 		next[k] = true
 	}
+	mu.Lock()
+	defer mu.Unlock()
 	liveInstances = next
 }
 
 // IsLiveInstance reports whether a specific instance key is running. The default
 // account's key is the bare kind; a labelled account's is "kind#label".
-func IsLiveInstance(key string) bool { return liveInstances[key] }
+func IsLiveInstance(key string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	return liveInstances[key]
+}

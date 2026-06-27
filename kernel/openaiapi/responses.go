@@ -310,7 +310,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 		}
 		final := responseObject(eng, respID, model, full.String(), reasoningBuf.String(), intent, corr, status)
 		if res.err != nil {
-			final["error"] = map[string]any{"message": res.err.Error(), "type": "upstream_error"}
+			final["error"] = map[string]any{"message": redactErr(res.err.Error()), "type": "upstream_error"}
 			send("response.failed", map[string]any{"response": final})
 		} else {
 			send("response.completed", map[string]any{"response": final})

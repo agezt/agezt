@@ -338,10 +338,14 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
   );
 }
 
-// ViewerBody renders the artifact by category. HTML is the new trick: the
-// fetched markup runs live inside a sandboxed iframe via srcdoc — scripts may
-// run, but with no same-origin access the frame can't touch the console's
-// token or API. Everything else mirrors the Files preview (M842).
+// ViewerBody renders the artifact by category. HTML artifacts render inside a
+// fully-sandboxed iframe via srcdoc. Security (VULN-008): the sandbox grants NO
+// tokens — in particular no `allow-scripts` — so artifact markup (which is
+// attacker-influenceable via channel/agent output) is shown as STATIC HTML/CSS
+// and cannot execute JavaScript. Combined with the absent `allow-same-origin`,
+// the frame can neither run scripts nor reach the console's token/API/cookies.
+// `referrerpolicy=no-referrer` keeps the parent URL out of any markup-triggered
+// request. Everything else mirrors the Files preview (M842).
 function ViewerBody({ entry, category, full }: { entry: ArtifactEntry; category: ArtifactCategory; full: boolean }) {
   const fetchText = category === "html" || category === "markdown" || category === "json" || category === "code" || category === "text";
   const [text, setText] = useState<string | null>(null);
@@ -395,7 +399,8 @@ function ViewerBody({ entry, category, full }: { entry: ArtifactEntry; category:
     return (
       <iframe
         srcDoc={text}
-        sandbox="allow-scripts"
+        sandbox=""
+        referrerPolicy="no-referrer"
         title={entry.name || "html"}
         className={cn("w-full rounded-md border border-border bg-white", frameH)}
       />

@@ -34,8 +34,22 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
+// errRedactor scrubs known secret patterns (API keys, tokens, bearer creds) from
+// error strings before they are returned to the HTTP client (VULN-012). Raw
+// upstream provider / STT errors are echoed back on the upstream_error and
+// stt_error paths; a pathological upstream error could surface a request fragment
+// or credential. The recipient is the already-privileged operator, so this is
+// defense-in-depth — but live HTTP responses bypass the journal redactor, so we
+// scrub here too. The built-in pattern set is active without configured literals,
+// and the Redactor is safe for concurrent use.
+var errRedactor = redact.New()
+
+// redactErr returns msg with secret-shaped spans masked. Safe on any string.
+func redactErr(msg string) string { return errRedactor.Redact(msg) }
 
 // maxRequestBodyBytes caps an HTTP request body (M198). The OpenAI-compatible
 // surface is network-exposed and token-authed, but a token holder (or a
@@ -723,7 +737,7 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 			finish := "stop"
 			if r.err != nil {
 				finish = "error"
-				sendContent("\n[error: " + r.err.Error() + "]")
+				sendContent("\n[error: " + redactErr(r.err.Error()) + "]")
 			} else if full.Len() == 0 && r.ans != "" {
 				// Defensive: the run produced an answer but emitted no llm.token
 				// events — i.e. the provider is non-streaming (it satisfies
@@ -775,7 +789,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 // writeErr emits an OpenAI-shaped error envelope.
 func writeErr(w http.ResponseWriter, code int, typ, msg string) {
 	writeJSON(w, code, map[string]any{
-		"error": map[string]any{"message": msg, "type": typ},
+		"error": map[string]any{"message": redactErr(msg), "type": typ},
 	})
 }
 

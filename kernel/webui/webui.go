@@ -35,6 +35,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
@@ -96,6 +97,16 @@ type Server struct {
 	// ?token= to /api/*; production data routes use Bearer/session, except
 	// /events where EventSource cannot set Authorization.
 	allowQueryTokensForData bool
+
+	// hookRL throttles the token-free POST /hooks/ webhook (VULN-007). The path is
+	// authenticated only by a per-workflow secret; without a frequency cap, anyone
+	// who learns one secret could loop it and launch unbounded governed (paid) runs
+	// up to the soft daily budget. Buckets are keyed by "workflow|source-IP" so one
+	// abusive source on one workflow is throttled without starving distinct legit
+	// senders. Lazily initialised; idle buckets are evicted.
+	hookRLMu   sync.Mutex
+	hookRL     map[string]*hookBucket
+	hookRLOnce sync.Once
 }
 
 // SetTranscriber wires the speech-to-text backend for POST /api/transcribe
@@ -721,6 +732,63 @@ func htmlEscape(s string) string {
 // not file uploads.
 const webhookBodyCap = 256 * 1024
 
+// Hook rate-limit tuning (VULN-007). A legitimate webhook fires far below this;
+// the cap exists to stop a tight abuse loop on a leaked secret, not to meter
+// callers. Fixed 60s window with a burst headroom, per workflow+source bucket.
+const (
+	hookRatePerMin    = 60   // sustained fires/min per workflow+source
+	hookRateBurst     = 30   // extra fires allowed within a window
+	hookRLMaxBuckets  = 4096 // memory bound across distinct workflow+source keys
+	hookRLIdleEvictMs = 5 * 60_000
+)
+
+// hookBucket is a fixed-window counter for one workflow+source key. On window
+// rollover the count resets; a request is refused once count exceeds max+burst.
+type hookBucket struct {
+	count     int
+	windowEnd int64
+	lastSeen  int64
+}
+
+// allowHook reports whether a /hooks/ request for key may proceed, counting it
+// when so. Buckets are created on demand and evicted when idle; the map is bounded
+// so a flood of distinct keys can't grow it without limit.
+func (s *Server) allowHook(key string) bool {
+	now := time.Now().UnixMilli()
+	s.hookRLMu.Lock()
+	defer s.hookRLMu.Unlock()
+	s.hookRLOnce.Do(func() { s.hookRL = make(map[string]*hookBucket) })
+
+	b, ok := s.hookRL[key]
+	if !ok {
+		if len(s.hookRL) >= hookRLMaxBuckets {
+			for k, v := range s.hookRL { // evict idle buckets; if none, drop one arbitrary
+				if v.lastSeen < now-hookRLIdleEvictMs {
+					delete(s.hookRL, k)
+				}
+			}
+			if len(s.hookRL) >= hookRLMaxBuckets {
+				for k := range s.hookRL {
+					delete(s.hookRL, k)
+					break
+				}
+			}
+		}
+		b = &hookBucket{windowEnd: now + 60_000}
+		s.hookRL[key] = b
+	}
+	b.lastSeen = now
+	if now >= b.windowEnd {
+		b.count = 0
+		b.windowEnd = now + 60_000
+	}
+	if b.count >= hookRatePerMin+hookRateBurst {
+		return false
+	}
+	b.count++
+	return true
+}
+
 // handleWorkflowHook accepts POST /hooks/<workflow-name> from external
 // systems. The secret rides the X-Agezt-Secret header (or ?secret= for
 // callers that can't set headers). A JSON body becomes
@@ -735,6 +803,14 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/hooks/")
 	if name == "" || strings.Contains(name, "/") {
 		http.Error(w, "webhook refused", http.StatusNotFound)
+		return
+	}
+	// Throttle before doing any work (VULN-007): cap fires per workflow+source so a
+	// leaked secret can't be looped into unbounded paid runs. Keyed pre-auth on the
+	// path + source IP, so a prober also can't burn budget probing secrets.
+	if !s.allowHook(name + "|" + streamClientKey(r)) {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
 		return
 	}
 	secret := r.Header.Get("X-Agezt-Secret")
