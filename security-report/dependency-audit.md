@@ -1,129 +1,99 @@
-# Dependency Audit — AGEZT
+# SC: Dependency Audit — AGEZT
 
-Read-only supply-chain / dependency review of `go.mod`/`go.sum` and `frontend/package.json`/`package-lock.json`.
+> Scanner: `sc-dependency-audit` (security-check pipeline, Phase 1)
+> Repo root: `D:\Codebox\PROJECTS\AGEZT`
+> Method: **static manifest + lock-file analysis** (no `npm audit` / network advisory calls).
+> CVE/version flags are **based on version heuristics — verify against a live advisory DB
+> (osv.dev, GitHub Advisories, govulncheck) before acting.**
 
-**Date:** 2026-06-24
-**Scope:** declared direct + indirect dependencies, replace/git/non-canonical sources, lockfile integrity, known-CVE version flagging.
+## Scope
 
----
+Manifests audited (worktree copies under `.claude/worktrees/*` and `.worktrees/*` and
+all `node_modules/**/package.json` were **excluded** — only canonical repo manifests):
 
-## Executive summary
-
-This is a **deliberately lean dependency tree** — one of the strongest aspects of the project's security posture.
-
-- **Go:** only **4 direct** + 6 indirect modules. No web framework, no JWT library, no `gorilla/*`, no `yaml.v2`, no ORM. The HTTP server, control-plane protocol, crypto and auth are all in-tree (`kernel/*`, `plugins/*`), which removes whole classes of third-party CVE exposure (but shifts the risk to the in-house code — out of scope for this phase).
-- **Frontend:** modern, recently bumped to bleeding-edge (React 19, Vite 8, TS 6, Tailwind 4, lucide 1). All sources are the canonical npm registry; no git deps.
-- **No `replace =>` directives, no `toolchain` pin, no vendored/forked modules, no git-based or non-canonical sources** in either ecosystem.
-
-There are **no high-confidence known-CVE versions** in the current dependency set. The concerns below are mostly **pre-release/beta pins** and **maintenance/freshness** items, not active CVEs.
-
----
-
-## 1. Go — version & direct dependencies
-
-**Go toolchain declared:** `go 1.26.4` (modern; well past the EOL'd 1.19/1.20 lines that carried the bulk of stdlib CVEs). No separate `toolchain` directive, so the build uses whatever local/CI Go satisfies `>=1.26.4`. **Recommendation:** the security-relevant surface for a Go project is largely the **stdlib version of the building toolchain** — ensure CI builds with a patched 1.26.x (Go security fixes ship in the toolchain, not in these modules). Confidence: high.
-
-### Direct (`require` block 1)
-
-| Module | Version | Notes / Risk | Remediation |
-|---|---|---|---|
-| `github.com/btcsuite/btcd/btcec/v2` | v2.5.0 | secp256k1 ECDSA/Schnorr. Maintained, widely used. No known CVE at this version. Used presumably for Ed25519/secp signature verify (update-signing / agentgw). | None required; keep current. Confidence: med-high. |
-| `github.com/coder/websocket` | v1.8.15 | The maintained successor to `nhooyr.io/websocket` (renamed). Actively maintained, no known CVE. **Good choice** — notably *not* `gorilla/websocket` (which was archived for a period and has had advisories). | None. Confidence: high. |
-| `github.com/emersion/go-imap/v2` | **v2.0.0-beta.8** | **Pre-release/beta pin.** v2 of go-imap is still beta; API and security fixes can land without semver guarantees. IMAP parsing handles attacker-influenced (mailbox) data, so parser bugs here are reachable from the email channel. | Track go-imap v2 releases; move to a stable v2.0.0 when published, and re-pin promptly on beta bumps. Confidence: med (risk is "beta, not stabilized" rather than a specific CVE). |
-| `lukechampine.com/blake3` | v1.4.1 | BLAKE3 hashing. Small, maintained, no known CVE. | None. Confidence: high. |
-
-### Indirect
-
-| Module | Version | Notes |
+| Ecosystem | Manifest(s) | Lock file(s) |
 |---|---|---|
-| `github.com/btcsuite/btcd/chainhash/v2` | v2.0.0 | transitive of btcec. Fine. |
-| `github.com/decred/dcrd/crypto/blake256` | v1.1.0 | transitive (secp256k1). Fine. |
-| `github.com/decred/dcrd/dcrec/secp256k1/v4` | v4.4.1 | the actual secp256k1 impl behind btcec. Maintained. Fine. |
-| `github.com/emersion/go-message` | v0.18.2 | MIME/message parsing — **attacker-influenced input** (email bodies/headers). Maintained; no known CVE at 0.18.2, but parser-class risk. Keep updated. Confidence: med. |
-| `github.com/emersion/go-sasl` | v0.0.0-20241020182733 (pseudo-version) | SASL auth. Pseudo-version = pinned to a commit, no tagged release. Common for this module; acceptable but means no semver. Confidence: med. |
-| `github.com/klauspost/cpuid/v2` | **v2.0.9** | Noticeably **old** (2021-era) relative to the rest of the tree (current line is v2.2.x). Pulled in transitively (likely via blake3). Low security impact (CPU feature detection), but it's the one clearly stale module. | Allow `go get -u` to advance it to v2.2.x. Confidence: med. |
+| Go | `go.mod`, `go.sum` (single root module, **no nested plugin modules**) | `go.sum` |
+| Node/TS (webui) | `frontend/package.json` | `frontend/pnpm-lock.yaml` **and** `frontend/package-lock.json` (both present) |
+| Node/TS (SDK) | `sdk/typescript/package.json` | `sdk/typescript/package-lock.json` |
+| Python (SDK) | `sdk/python/pyproject.toml` | none (zero deps) |
+| Rust (SDK) | `sdk/rust/Cargo.toml` | `sdk/rust/Cargo.lock` (zero deps) |
+| Docs | `DEPENDENCIES.md` (justified-deps policy doc) | — |
 
-**Not present (positive findings):** no `golang.org/x/crypto` or `golang.org/x/net` in the *required build* (they appear in `go.sum` only as historical `/go.mod` hashes from transitive graph resolution — see §4), no `dgrijalva/jwt-go` / `golang-jwt`, no `gorilla/*`, no `gopkg.in/yaml.v2`, no `text/template`-driven web libs. This avoids the classic Go CVE cluster.
-
----
-
-## 2. Frontend — direct dependencies (`package.json`)
-
-Project memory notes a recent "her şey son sürüm" bump to latest (Vite 8 / TS 6 / lucide 1). Confirmed — the tree is at or near the bleeding edge.
-
-### Runtime dependencies
-
-| Package | Range | Notes / Risk | Remediation |
-|---|---|---|---|
-| `react` / `react-dom` | ^19.2.7 | React 19, current. No known CVE. | None. |
-| `@xyflow/react` | ^12.11.0 | React Flow (Flow Studio canvas). Maintained. No known CVE. | None. |
-| `@radix-ui/react-*` (dropdown/scroll-area/tabs/tooltip) | ^2.1.17 / ^1.x | Maintained, security-clean. | None. |
-| `lucide-react` | ^1.18.0 | Icons. v1 line (very new). Cosmetic, negligible security surface. | None. |
-| `@fontsource-variable/inter` | ^5.2.8 | Self-hosted font (good — avoids 3rd-party CDN/font exfil). | None. |
-| `class-variance-authority` | ^0.7.1 | CVA. Pre-1.0 but stable and tiny. | None. |
-| `clsx` | ^2.1.1 | Tiny classname util. Fine. | None. |
-| `tailwind-merge` | ^3.6.0 | Fine. | None. |
-
-### Dev dependencies (build/test only — not shipped to the embedded SPA bundle)
-
-| Package | Range | Notes |
-|---|---|---|
-| `vite` | ^8.0.16 | Vite 8, very new. **Caret range** means CI can float within v8. Historically Vite has had **dev-server** advisories (path traversal / `server.fs.deny` bypass, e.g. CVE-2025-3072x series in v5/v6) — these affect the **dev server only**, not the `go:embed`-ded production build, so impact is low for shipped artifacts. Keep current. Confidence: med. |
-| `vitest` | ^4.1.8 | v4, current. Test-only. Past `vitest`/`vite-node` advisories were dev-server RCE via the API server — test-only exposure. | 
-| `typescript` | ^6.0.3 | TS 6. Build-only. No security surface. |
-| `tailwindcss` / `@tailwindcss/vite` | ^4.3.1 | Tailwind 4. Build-only. |
-| `@vitejs/plugin-react` | ^6.0.2 | Build-only. |
-| `@playwright/test` | ^1.60.0 | E2E, dev-only. |
-| `@testing-library/*`, `jsdom ^29`, `@types/*` | — | Test/types only. `jsdom` historically had ReDoS/prototype-pollution advisories in old majors; v29 is current. Test-only. |
-
-### `overrides`
-
-```json
-"overrides": { "undici": "^7.28.0" }
-```
-**Positive finding.** This forces `undici` to `^7.28.0` across the transitive tree (the lock shows a transitive `undici: ^7.25.0` dependency at line 2505). `undici` has had multiple CVEs in older majors (proxy-auth leak, decompression DoS, CRLF). Pinning to a recent v7 is a **deliberate, correct supply-chain hardening move**. Confidence: high.
+Notable absence: no root `package.json`, no `requirements.txt`/`Pipfile`, no `.npmrc`/`pip.conf`.
 
 ---
 
-## 3. Replace / git / forked / vendored code
+## Severity-tagged findings
 
-- **`go.mod`:** **No `replace =>` directives, no `exclude`, no `toolchain` pin, no `// vendored` modules.** No forked/local code hidden behind a replace. Clean. Confidence: high.
-- **`frontend/package-lock.json`:** every `"resolved"` points at `https://registry.npmjs.org/`. **No `git+https`, `git+ssh`, `git://`, `github:`, or `codeload` sources, no `file:` links.** All deps come from the canonical registry. Confidence: high.
+| ID | Severity | Conf. | Ecosystem | Package / Artifact | Type | Finding |
+|---|---|---|---|---|---|---|
+| DEP-001 | **Medium** | 85 | npm | `frontend/` — dual lock files | Supply-chain integrity | Both `pnpm-lock.yaml` AND `package-lock.json` are committed for the same `package.json`. Two sources of truth diverge over time; CI/devs using different package managers resolve different trees. Pick one (the repo builds with pnpm — lockfileVersion 9.0) and delete the other. |
+| DEP-002 | **Medium** | 80 | npm | `undici` override `^7.28.0` | Lock drift / unpinned | `frontend/package.json` declares `overrides.undici: ^7.28.0`, but `pnpm-lock.yaml` resolved `undici@7.27.2` and contains **no `overrides:` block**. The lock predates the override → the security-motivated pin is **not actually enforced** in the installed tree. Run `pnpm install` to re-resolve and commit the updated lock. (undici <7.x has had SSRF/redirect CVEs; the intent of the pin is good but currently ineffective.) |
+| DEP-003 | **Low–Medium** | 70 | npm | `typescript ^6.0.3`, `vite ^8.0.16`, `vitest ^4.1.8`, `@vitejs/plugin-react ^6.0.2`, `@types/node ^25.9.3` (frontend) / `^26.0.1` (sdk), `jsdom ^29.1.1` | Bleeding-edge / recently-bumped dev-deps | TS 6.0, Vite 8, Vitest 4, plugin-react 6, @types/node 25/26 are **very new major versions** (well ahead of the typical stable line at audit time). The prompt's noted "@types/node 22→26, typescript 5.9→6.0" bumps land here. All are **dev/build-only** (compiled into the static `dist/` bundle; Node never runs at AGEZT runtime), so runtime exposure is low — but new majors widen the window for a malicious-release / regression. Pin exact versions (drop `^`) for build reproducibility and watch advisories. |
+| DEP-004 | **Low** | 75 | npm | `@types/node` skew: `^25.9.3` (frontend) vs `^26.0.1` (sdk/typescript) | Version inconsistency | Two different `@types/node` majors across the two TS projects. Harmless functionally but a maintenance smell; align them. |
+| DEP-005 | **Low** | 90 | npm | `lucide-react ^1.18.0` | Version heuristic | `lucide-react` historically tracked `0.x`. A `1.x` line is unusual — **verify this is the genuine `lucide-react` at the resolved version and not a republished/typosquat artifact.** (No url/git dep was found in the lock, which is reassuring; resolution should be checked against the npm registry record.) |
+| DEP-006 | **Low** | 88 | Go | `github.com/emersion/go-imap/v2 v2.0.0-beta.8` | Pre-release / unpinned-quality | A `beta` dependency is a **direct, compiled** dep (email channel inbound IMAP). Beta APIs/behaviour can change and may carry unaudited parsing code paths (IMAP/MIME parsing is attack-surface for malicious mail). Track for a stable release; treat untrusted mail input defensively. |
+| DEP-007 | **Low** | 92 | Go | `github.com/klauspost/cpuid/v2 v2.0.9` | Outdated transitive | Pulled in by `lukechampine.com/blake3` for SIMD detection. v2.0.9 is **old** (the v2 line has advanced well past .0.9). Low risk (CPU-feature detection, pure-Go), but it lags. Bumps come for free via `go get -u lukechampine.com/blake3` / `go mod tidy`. |
+| DEP-008 | **Info/Low** | 95 | Go | `golang.org/x/{net,crypto,text,sys,sync,term,tools,mod,xerrors}`, `testify`, `go-spew`, `go-difflib`, `goldmark`, `yaml.v3` | Graph-only — NOT built | These appear in `DEPENDENCIES.md` and `go.sum` but **`go.sum` holds only their `/go.mod` hashes, not module `h1:` hashes** → they are graph-only and **compiled into zero AGEZT binaries**. The often-flagged old `golang.org/x/net v0.6.0` / `golang.org/x/crypto` pseudo-versions are therefore **not a runtime exposure** here. No action needed beyond awareness; `go mod tidy` may prune some. |
+| DEP-009 | **Info** | 99 | Go | `go 1.26.4` directive | Toolchain | `go.mod` requires Go 1.26.4. Ensure the build toolchain matches and is itself patched (Go std-lib CVEs are fixed by toolchain upgrades, independent of these modules). |
 
-No vendored directory (`/vendor`) is referenced in the build path for hidden third-party Go code.
-
----
-
-## 4. Lockfile integrity & non-canonical sources
-
-- **`go.sum`:** present and consistent with `go.mod`. Every required module has both an `h1:` (zip) and `/go.mod` hash. The extra `golang.org/x/*` and `yuin/goldmark` entries (lines 21–51) are **`/go.mod`-only hashes** (no `h1:` zip hash) — these are *graph-resolution residue* (modules consulted during MVS but **not in the final build set**), which is normal and **not** a sign those packages are linked into the binary. Their absence of `h1:` lines confirms they aren't downloaded/built. No integrity mismatch observed. Confidence: high.
-- **`package-lock.json`:** `lockfileVersion: 3` (npm 7+), with integrity hashes. Sources canonical (§3). No anomalies. Confidence: high.
-- **Recommendation:** enforce reproducible installs in CI — `go mod verify` + `go build -mod=readonly` (or `-mod=mod` discipline), and `npm ci` (not `npm install`) so the lockfile is the source of truth and floating caret ranges don't silently advance build inputs.
-
----
-
-## 5. Unmaintained / archived dependencies
-
-- **None positively identified as archived.** Notably the project **avoided** the common archived/abandoned traps: it uses `coder/websocket` (the maintained rename) rather than the formerly-archived `gorilla/websocket`, and uses no `dgrijalva/jwt-go` (deprecated).
-- **Watch items (maintenance, not abandonment):**
-  - `github.com/klauspost/cpuid/v2 @ v2.0.9` — clearly stale relative to the tree; advance to v2.2.x.
-  - `github.com/emersion/go-imap/v2 @ beta.8` and `go-sasl @ pseudo-version` — pre-stable pins on the **email-channel parsing path**, which processes attacker-influenced input. Highest-priority freshness items because of reachability, even absent a named CVE.
+No **Critical** or **High** findings. No git/URL/`file:`/`link:` dependencies, no `postinstall`/`preinstall`/`prepare` lifecycle scripts, and no `requiresBuild`/`hasInstallScript`/`deprecated`/`patchedDependencies` markers were found in `frontend/pnpm-lock.yaml`.
 
 ---
 
-## Prioritized remediation list
+## Per-ecosystem detail
 
-| # | Item | Version | Risk | Action | Confidence |
-|---|---|---|---|---|---|
-| 1 | `emersion/go-imap/v2` | v2.0.0-**beta.8** | Beta parser on attacker-influenced email input; no semver/security guarantees | Track releases; move to stable v2.0.0 when published; re-pin promptly on beta bumps | med |
-| 2 | `emersion/go-message` | v0.18.2 | MIME parser on attacker input | Keep current; subscribe to advisories | med |
-| 3 | Go toolchain | build-time | Stdlib CVEs ship in the toolchain, not modules | Ensure CI builds with a patched **1.26.x**; consider adding a `toolchain` directive to pin a known-good patched version | high |
-| 4 | `klauspost/cpuid/v2` | v2.0.9 | Stale (2021); low security impact | `go get -u` → v2.2.x | med |
-| 5 | `vite` / `vitest` (dev) | ^8 / ^4 | Dev-server advisory class (path traversal/RCE) — **dev only**, not shipped | Keep current; never expose the Vite dev server beyond localhost | med |
-| 6 | CI install discipline | — | Floating caret ranges + `npm install` can drift build inputs | Use `npm ci` + `go build -mod=readonly` + `go mod verify` | high |
+### Go (core kernel + plugins) — cleanest ecosystem
+- **Single module** `github.com/agezt/agezt`; no nested `go.mod`.
+- **9 modules actually compiled** (have `h1:` hashes): `btcec/v2 v2.5.0`, `coder/websocket v1.8.15`, `chainhash/v2 v2.0.0`, `go-spew v1.1.1`, `dcrd/crypto/blake256 v1.1.0`, `dcrd/dcrec/secp256k1/v4 v4.4.1`, `go-imap/v2 v2.0.0-beta.8`, `go-message v0.18.2`, `go-sasl …b788ff22d5a6`, `cpuid/v2 v2.0.9`, `blake3 v1.4.1`. (`go-spew` is test-only.)
+- **No `replace` directives** (the SKILL flags local/non-standard replaces — none here, good).
+- All direct deps are pure-Go, MIT/ISC-compatible, and individually justified in `DEPENDENCIES.md`. `go.sum` integrity is intact (paired hashes present for built modules).
+- Direct: 4. Indirect (manifest): 6. Graph-only/test (go.sum, not built): ~14.
 
-**No action items rated high-severity** — there is no high-confidence known-CVE version in the current build set. The strongest residual exposure is the **beta email-parsing stack (#1/#2)** because of input reachability.
+### Node/TS — webui (`frontend/`)
+- Build/dev tooling only ships as a static `go:embed`-ded `dist/` bundle; **Node is never executed at AGEZT runtime**, which substantially lowers the blast radius of dev-dep CVEs.
+- Both lock files resolve **234 packages** (≈471 snapshot lines in pnpm-lock). Runtime deps are React 19, Radix UI, `@xyflow/react`, `clsx`, `tailwind-merge`, `class-variance-authority`, `lucide-react`, `@fontsource-variable/inter`.
+- Build chain: Vite 8 / Rollup / esbuild (`@esbuild/win32-x64@0.25.12` seen on disk — **≥0.25.0, so NOT affected by the esbuild dev-server CORS advisory GHSA-67mh-4wv8-2f99**), `lightningcss 1.32.0`, `nanoid 3.3.12` (≥3.3.8, not the predictable-ID CVE).
+- Concerns: DEP-001/002/003/004/005 above.
+
+### Node/TS — SDK (`sdk/typescript/`)
+- **Zero runtime dependencies.** Dev-only `@types/node ^26.0.1` + `typescript ^6.0.3`. `engines.node >=18`. Lowest-risk Node surface. (Version skew vs frontend — DEP-004.)
+
+### Python SDK (`sdk/python/`)
+- `dependencies = []` — **stdlib only** (urllib+json). `requires-python >=3.9`, `setuptools>=61` build backend (standard, no custom build scripts). No risk.
+
+### Rust SDK (`sdk/rust/`)
+- `Cargo.toml` empty `[dependencies]`; `Cargo.lock` contains only the crate itself. **Zero deps, no `build.rs`.** No risk.
+
+### Licenses
+- Project + all four SDKs are MIT. Go deps are MIT/ISC. No GPL/AGPL copyleft, no unlicensed or proprietary deps observed. The npm graph was not exhaustively license-scanned (234 transitive); React/Radix/Vite ecosystem is overwhelmingly MIT — no obvious copyleft, but a full `license-checker` pass is recommended for completeness.
+
+### Typosquat / dependency-confusion
+- No `.npmrc`/registry config and no scoped→public confusion vectors found. SDK packages are correctly scoped (`@agezt/sdk`). Only typosquat-worth-verifying item is `lucide-react@1.x` (DEP-005), flagged for its unusual major version, not because of a name mismatch.
 
 ---
 
-*End of dependency audit. CVE judgments are based on version knowledge only (no network/scanner run); confidence is marked per finding.*
+## Dependency Audit Summary
+
+- **Total dependencies:** ~480 across all ecosystems
+  - Go: ~24 in graph (direct 4, indirect-manifest 6, graph-only/test ~14) — **11 compiled, 9 prod**
+  - npm webui: 234 resolved (direct 13 runtime + 13 dev)
+  - npm SDK: 2 (dev-only)
+  - Python SDK: 0
+  - Rust SDK: 0
+- **Ecosystems scanned:** Go, npm (×2 projects), PyPI, crates.io
+- **Known vulnerabilities found (version-heuristic):** 0 Critical, 0 High, 2 Medium (DEP-001 integrity, DEP-002 ineffective security-pin), 6 Low/Info
+- **Typosquatting risks:** 1 (DEP-005 — verify `lucide-react@1.x`)
+- **Dependency-confusion risks:** 0
+- **License concerns:** 0 obvious (full npm license sweep recommended)
+- **Outdated dependencies:** 2 notable (DEP-007 `cpuid v2.0.9`; DEP-006 `go-imap beta.8`) + bleeding-edge dev majors (DEP-003)
+- **Supply-chain hygiene wins:** no postinstall scripts, no git/url deps, no `replace` directives, no CGO in core, SDKs are zero-dep, Go core compiles only 9 prod modules.
+
+## Recommended actions (priority order)
+1. **DEP-002** — `pnpm install` to re-resolve so the `undici ^7.28.0` override actually applies, commit the refreshed lock.
+2. **DEP-001** — delete whichever of `package-lock.json` / `pnpm-lock.yaml` is not the source of truth (keep pnpm).
+3. **DEP-005** — confirm `lucide-react@1.x` provenance on the npm registry.
+4. **DEP-003/004** — pin exact dev-dep versions; align `@types/node` across the two TS projects.
+5. **DEP-006/007** — track `go-imap` stable release; `go get -u lukechampine.com/blake3 && go mod tidy` to refresh `cpuid`.
+6. Run live `govulncheck ./...` (Go) and `pnpm audit` / `osv-scanner` (npm) when network is available to convert these heuristic flags into confirmed advisories.
