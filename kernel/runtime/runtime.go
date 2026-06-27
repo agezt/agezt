@@ -2386,11 +2386,6 @@ func agentToolPolicyFromCtx(ctx context.Context) agentToolPolicy {
 	return v
 }
 
-func agentLifecycleFromCtx(ctx context.Context) roster.AgentLifecycle {
-	v, _ := ctx.Value(ctxKeyAgentLifecycle).(roster.AgentLifecycle)
-	return v
-}
-
 func agentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool) {
 	v, ok := ctx.Value(ctxKeyAgentRetryPolicy).(roster.RetryPolicy)
 	if !ok {
