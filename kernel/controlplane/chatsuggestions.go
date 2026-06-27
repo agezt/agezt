@@ -33,7 +33,9 @@ type ChatSuggestion struct {
 // based on the recent conversation turns and tool activity. The session_id
 // arg is optional (used for future per-session suggestion memory).
 // Args: session_id (string, optional), turns ([{role,text}], optional),
-//       tools ([string], optional — recently used tool names).
+//
+//	tools ([string], optional — recently used tool names).
+//
 // Returns: { suggestions: [ChatSuggestion] }.
 func (s *Server) handleChatSuggestions(conn net.Conn, req Request) {
 	var sessionID string
