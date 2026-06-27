@@ -63,6 +63,24 @@ describe("Jarvis presence view", () => {
     expect(screen.getByText(/3 of 3/)).toBeTruthy();
   });
 
+  it("reports a wired speech provider for both hearing and speaking", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/pulse" ? Promise.resolve(PULSE_ACT) : Promise.resolve(PROFILE_RECORDS),
+    );
+    // TTS ok (natural voice); transcribe 400 (configured — STT present, just no file).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/api/tts" ? ({ status: 200, ok: true } as Response) : ({ status: 400, ok: false } as Response),
+      ),
+    );
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("a speech provider")).toBeTruthy());
+    expect(screen.getByText("a natural voice")).toBeTruthy();
+    expect(screen.getByText(/Fully wired/)).toBeTruthy();
+  });
+
   it("shows the dormant headlines and a lower count when pillars are off", async () => {
     getJSON.mockImplementation((path: string) =>
       path === "/api/pulse"
