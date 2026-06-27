@@ -76,6 +76,15 @@ func TestTriggeredIntent(t *testing.T) {
 	if !strings.Contains(got, "pulse.observer.system:reaper") || !strings.Contains(got, `"agent_slug": "builder"`) {
 		t.Fatalf("triggered intent should carry event context, got %q", got)
 	}
+	// VULN-004: the (attacker-influenceable) trigger payload must be fenced as
+	// untrusted data-not-instructions, and the order's own intent must remain
+	// outside that envelope as the authentic goal.
+	if !strings.Contains(got, "UNTRUSTED OBSERVATION") || !strings.Contains(got, "external_data_not_instructions") {
+		t.Errorf("trigger payload should be wrapped as an untrusted observation, got %q", got)
+	}
+	if i := strings.Index(got, "END UNTRUSTED OBSERVATION"); i < 0 || !strings.Contains(got[i:], "diagnose it") {
+		t.Errorf("the order's own intent must follow the untrusted envelope, got %q", got)
+	}
 	if standing.TriggeredIntent("do it", "manual", map[string]any{"x": 1}) != "do it" {
 		t.Error("manual triggers should not prepend context")
 	}

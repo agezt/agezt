@@ -1,230 +1,137 @@
-# Code-Execution & Deserialization Audit — AGEZT
+# Security Findings — CODE EXECUTION domain (command injection / RCE / sandbox escape / deserialization)
 
-Scope: Remote/arbitrary code execution, insecure deserialization, and the agent
-code-execution / sandbox (warden) subsystem. Read-only review.
+> Scanner: code-exec hunter (sc-cmdi, sc-rce, sc-deserialization).
+> Repo: `D:\Codebox\PROJECTS\AGEZT`, branch `main`.
+> Scope note: `.worktrees/rebased-main/**` is a duplicate working copy of the main tree and was
+> EXCLUDED from findings (every file there mirrors a canonical `kernel/…` / `plugins/…` file). All
+> `*_test.go` files are context only, never findings.
+>
+> **Framing applied per task brief:** the agent running arbitrary code via `code_exec`, arbitrary
+> shell via `shell`, spawning MCP stdio servers, installing host CLI tools via the toolbox, and
+> delegating to external coding/ACP agents are all INTENDED product capabilities and are NOT reported
+> as vulnerabilities. What was hunted: (1) untrusted input (channel/web/OpenAI-API/lower-trust tool
+> args) reaching host exec OUTSIDE the warden/sandbox boundary; (2) sandbox/warden escape & env-scrub
+> gaps; (3) Windows `cmd /S /C` verbatim-quoting binary-substitution bugs; (4) MCP stdio spawn with
+> attacker-influenced command/args; (5) unsafe deserialization (gob / YAML / JSON→interface type
+> confusion / JWT alg-confusion / plugin loading).
 
-## TL;DR
+## Summary
 
-The sandbox/warden subsystem is well-engineered and the deliberately-permissive
-posture (sandbox runs arbitrary code, net-on by default) is **not** counted as a
-flaw per the documented design. The non-negotiables the design rests on —
-secret-scrub, workdir confinement, audit, and "agent input is never a raw shell
-line" — hold in `code_exec`, `shell`, `mcp`, and `acp_agent`. No Go `plugin.Open`
-/ `.so` loading, no `gob`, no `yaml.Unmarshal` of untrusted config, and no
-reflection-driven exec sink was found. All `json.Unmarshal` sites decode into
-concrete structs, not exec-dispatching `interface{}` type switches.
+**No exploitable vulnerabilities found in the code-execution domain.** The execution surface is
+unusually disciplined: a single `kernel/warden` choke point for sandboxed exec, array-form
+`exec.Command` everywhere (no `sh -c` string interpolation of model/untrusted data), consistent
+env-scrubbing before every child process, slug-only resolution of agent-influenced agent selectors,
+and capability/Edict gating on every spawn. The deserialization surface is effectively nil: **no
+`encoding/gob`, no YAML, no `plugin.Open`, no `json.Unmarshal` into `interface{}` type-confusion**
+sinks exist in the shipping tree; all JSON decoding targets concrete structs (a code-execution-safe
+format), and the agentgw JWT path is alg/typ/iss/aud-pinned with constant-time HMAC.
 
-Two **real** findings, both MEDIUM and both in the *operator-configured external
-agent bridges* (not the sandbox): they run with the **full unscrubbed daemon
-environment**, contradicting the secret-scrub posture every other exec path
-upholds. Everything else is either intended design or already correctly
-defended.
+| Severity | Count |
+|----------|-------|
+| Critical | 0 |
+| High     | 0 |
+| Medium   | 0 |
+| Low      | 0 |
+| Informational / verified-safe (defensive notes) | 5 |
 
-The host-level RCE-capable surfaces (toolbox installer, MCP/market arbitrary
-`command` spawn, AWS `credential_process`, self-update) are all gated behind the
-**localhost-only, admin-token-authenticated** control plane and/or explicit
-operator opt-in env gates — i.e. the operator trust boundary, not the
-agent/prompt-injection boundary. Those are documented as intended; notes below.
-
----
-
-## REAL FINDINGS
-
-### F1 (MEDIUM) — `coding` tool leaks the entire daemon environment to the external agent
-- File: `plugins/tools/coding/coding.go:141`
-  ```go
-  agentEnv := append(os.Environ(), "AGEZT_CODING_TASK="+task)
-  shell, shellArg := platformShell()
-  agentOut, agentErr := t.run(ctx, wt, agentEnv, shell, shellArg, t.Cmd)
-  ```
-- Boundary escaped: every *other* exec path in the codebase (`code_exec`,
-  `shell`, `mcp.Dial`) builds a **scrubbed** env via `scrubEnv`/`scrubbedEnv`
-  that drops `AGEZT_*`, `*KEY*`, `*TOKEN*`, `*SECRET*`, `AWS_*`, etc. The coding
-  bridge instead forwards `os.Environ()` verbatim. The configured command
-  (`AGEZT_CODING_CMD`, e.g. `claude -p "$AGEZT_CODING_TASK"`) and the third-party
-  coding-agent binary it launches therefore see the daemon's provider API keys,
-  vault-derived secrets, AWS creds, and the control-plane admin token if it is in
-  the environment.
-- Attacker path: the `task` is fully model-controlled (and thus prompt-injectable).
-  While `task` is passed safely via env var (no shell-quoting of model output —
-  good, see note N4), the *agent that receives it* can read every secret from its
-  own environment and exfiltrate them (it has network + repo access by design).
-  A prompt-injected `task` such as "print all env vars / POST them to X" turns a
-  full secret dump into a one-shot. The tool is gated by Edict, but once allowed,
-  the blast radius is "all daemon secrets," which the scrub posture exists to
-  prevent.
-- Why it matters: the project memory explicitly states secret-scrub is
-  "non-negotiable." This path violates it for a class of operator-configured
-  third-party binaries.
-- Severity: MEDIUM (requires the operator to have configured + allowed the
-  coding bridge; but then any model/injection has full secret reach).
-- Fix: build a scrubbed env (reuse the `shell.scrubEnv` / `codeexec.scrubEnv`
-  allowlist) and append only `AGEZT_CODING_TASK` plus whatever the coding agent
-  legitimately needs (PATH, HOME, git identity). If a particular agent needs a
-  provider key, require it to be named explicitly (the MCP `env` opt-in model in
-  `kernel/mcp/client.go:appendEnv` is the right precedent).
-
-### F2 (MEDIUM) — `acp_agent` tool spawns the external ACP agent with the full daemon environment
-- File: `plugins/tools/acpagent/acpagent.go:238-255` (`spawnAgent`)
-  ```go
-  c := exec.Command(shell, arg, cmdStr) // no c.Env set → inherits os.Environ()
-  ```
-- Same class as F1: `spawnAgent` never sets `c.Env`, so Go inherits the parent
-  (daemon) environment, handing all secrets to the spawned ACP agent (Claude
-  Code / Codex / Gemini CLI / etc.).
-- Attacker path: the *command* is correctly slug-restricted (see N3 — agent input
-  cannot inject a raw shell line), so this is **not** an arbitrary-exec flaw. But
-  the spawned trusted-command binary still runs with unscrubbed secrets; a
-  prompt-injected `task` steers that agent (which has its own tools/network) and
-  can have it read+exfiltrate the inherited secrets.
-- Severity: MEDIUM (same gating + same blast radius as F1).
-- Fix: set `c.Env` to a scrubbed allowlist before `c.Start()`, mirroring the
-  shell/codeexec scrub. ACP agents that genuinely need a key should get it via an
-  explicit per-agent opt-in, not ambient inheritance.
-
-> F1/F2 share a root cause and a fix: the two "delegate to an external
-> operator-configured agent" bridges were written before/around the M957 scrub
-> work and never adopted it. They are the only exec paths that inherit
-> `os.Environ()` wholesale.
+**Most serious item:** None rise to a finding. The single most security-load-bearing construct is the
+Windows verbatim command-line builder `fixupWindowsCmd` (`kernel/warden/cmdline_windows.go:26`), which
+sets `SysProcAttr.CmdLine = cmd /S /C "<command>"`. It was reviewed for binary-substitution / quote-
+breakout and judged **safe in its current call paths** — see INFO-1. It is flagged only as the place
+to re-review if a *new, lower-trust* caller of the shell tool is ever added.
 
 ---
 
-## INTENDED DESIGN (verified, not flaws)
+## Verified-safe / defensive notes (no action required)
 
-### `code_exec` sandbox (`plugins/tools/codeexec/`)
-- Secret scrub: `scrubEnv` (runtimes.go:120) is allowlist-only and drops
-  `isSecretName` matches + everything outside the allowlist. Correct.
-- Path confinement: `sanitizeRelFile` (runtimes.go:193) rejects abs paths, `..`,
-  NUL, and Windows drive-relative `C:foo` (colon check). `slug` (runtimes.go:168)
-  cannot produce a separator or `..`, so project dirs can't escape
-  `SandboxRoot/projects`. Verified no traversal.
-- Argv built without a shell (`buildArgv`); Deno is OS-jailed to the workdir with
-  `--allow-read/write=<dir>`, `--no-prompt`, and **no** `--allow-run` (can't shell
-  out). Python/Node rely on the warden profile (real isolation only on
-  Linux+namespace; honestly reported as downgraded elsewhere — `render`/events do
-  not overstate containment).
-- `validatePackages` (packages.go:27) blocks pip-flag injection (`-`-prefixed,
-  whitespace/NUL). pip runs via exec, no shell. Correct.
-- Running arbitrary model code IS the design; gated by `code.exec` Edict cap +
-  journaled. Not a flaw.
+### INFO-1 — Windows verbatim `cmd /S /C "<command>"` builder (reviewed, safe)
+- **File:** `kernel/warden/cmdline_windows.go:26-44`; caller `plugins/tools/shell/shell.go:167`.
+- **CWE considered:** CWE-78 (argument/command injection via Windows quoting).
+- **Analysis:** `fixupWindowsCmd` only rewrites the command line when `Args[0]` is `cmd`/`cmd.exe` and
+  `Args[1]` is `/c`; the executed binary remains `cmd.Path` (resolved from `Args[0]`), so the raw
+  `CmdLine` cannot redirect execution to a *different* program — it only changes how cmd.exe parses
+  the trailing command. The trailing command is the agent-supplied `shell` tool input, which is the
+  product's intended capability (agent → shell, gated by Edict). `cmd /S` strips exactly the outer
+  quote pair, so an embedded quote in the model's command can alter cmd.exe tokenization, but that is
+  *within* a shell the agent already fully controls — no privilege boundary is crossed. Env is scrubbed
+  (`shell.go:172 scrubEnv`), output capped, timeout enforced.
+- **Residual:** The construction is only safe because the trailing command originates from the agent
+  (edict-gated) and `Args[2:]` for the shell tool is a single element. If a future caller passes a
+  multi-element `Args[2:]` built from a *lower-trust* source (e.g. a raw channel webhook) straight into
+  a `{"cmd","/c",…}` warden Spec, the `strings.Join(Args[2:], " ")` at line 39 would concatenate
+  attacker fragments into one cmd.exe line. No such caller exists today. **Re-review this file whenever
+  a new warden caller is added.** Confidence: 90 (safe today).
 
-### `shell` tool (`plugins/tools/shell/`)
-- `scrubEnv` (env.go) allowlist with secret-drop; HOME/TMP redirected to workdir.
-- Windows `fixupWindowsCmd` (warden/cmdline_windows.go) builds `cmd /S /C
-  "<command>"` verbatim. `<command>` is model-supplied, but executing arbitrary
-  shell commands is the tool's whole purpose (gated by Edict). The `/S` outer-quote
-  stripping is the documented robust form; no additional injection beyond the
-  intended "run a shell command" capability.
+### INFO-2 — `code_exec` sandbox: env-scrub + Deno FS jail + package-flag validation (verified)
+- **Files:** `plugins/tools/codeexec/codeexec.go`, `runtimes.go:120 scrubEnv`, `packages.go:27
+  validatePackages`, `buildArgv` at `runtimes.go:96`.
+- Model-written code runs through the warden with: a scrubbed allowlist env that drops the entire
+  `AGEZT_*` namespace and anything containing `KEY/TOKEN/SECRET/PASSWORD/CRED/AWS_` (`isSecretName`,
+  `runtimes.go:156`); `HOME`/`TMP` repointed into the per-run scratch dir; Deno launched with
+  `--allow-read=<dir> --allow-write=<dir>` and **no `--allow-run`** (blocks shell-out escape of the FS
+  jail); extra-file names validated against absolute/`..`/drive-relative traversal (`sanitizeRelFile`,
+  `runtimes.go:193`); project names slugged to a single safe path segment (`slug`, `runtimes.go:168`).
+- pip packages are array-appended to `python -m pip install` (no shell) and pre-validated to reject
+  pip-flag injection (`-`-prefixed) and whitespace/NUL (`packages.go:27`). **Safe.** Confidence: 90.
 
-### warden engine (`kernel/warden/`)
-- `Spec.Argv[0]` is the binary; engine never spawns a shell itself — callers must
-  pass `{sh,-c,...}` explicitly. nil `Env` → **empty** env (not inheritance) is
-  the documented anti-leak default (warden.go:291). Good.
-- Linux hardening (warden_linux.go): setpgid kill-sweep + best-effort prlimits.
-  The `unsafe`/Syscall6 prlimit block is confined and correct. No namespace/seccomp
-  yet, honestly reported via downgrade events. Design-acknowledged.
+### INFO-3 — MCP stdio spawn uses array-form exec + scrubbed env; registration is cap-gated
+- **Files:** `kernel/mcp/client.go:112 Dial` (`exec.Command(command, args...)`), `store.go:122
+  Validate` (name/env-key/header-name regexes, arg/env/header count caps).
+- The server `Command`/`Args` are spawned array-form (never through a shell), the child gets the
+  `scrubbedEnv()` allowlist (`client.go:320`) plus only operator-typed per-server `Env` entries, and
+  registering/attaching a server is gated by the `mcp.install` Edict capability (Ask by default). An
+  agent (prompt-injection) cannot register a server silently, and even a registered server's command
+  cannot inject shell metacharacters because there is no shell. **Safe.** Confidence: 88.
 
-### plugin host (`kernel/plugin/host.go`)
-- Out-of-process stdio JSON-RPC children; **no** Go `plugin.Open`/`.so` dlopen.
-  Binary pinning (BLAKE3 via `VerifyPin`), tool allowlist, frame-size caps,
-  bounded callbacks, advertised-tool cap. `json.Unmarshal` decodes into concrete
-  structs only. Plugin path/args/env come from operator wiring (`Config`), not
-  agent input.
+### INFO-4 — Agent-influenced ACP `agent` selector is slug-only (CWE-78 closed by design)
+- **Files:** `plugins/tools/acpagent/acpagent.go:132`, `kernel/acpcatalog/acpcatalog.go:266
+  ResolveCommand`.
+- The `acp_agent` tool's `agent` field is LLM/prompt-injection-influenceable and the spawn does run
+  through a platform shell (`spawnAgent`, `acpagent.go:241` `sh -c`/`cmd /C`). But `ResolveCommand`
+  treats `ref` strictly as a catalog slug: a non-slug `ref` is rejected (`ok=false`), and the executed
+  command string is taken from the trusted `acpcatalog.Catalog`, never from the caller's string. A raw
+  arbitrary command is only reachable via the operator-set `AGEZT_ACP_AGENT_CMD` fallback (used only
+  when `ref` is empty). The `coding` tool likewise passes the model's task via the `AGEZT_CODING_TASK`
+  env var, never interpolated into the command line (`coding.go:143-145`). **Safe.** Confidence: 88.
 
-### MCP client (`kernel/mcp/client.go`)
-- `Dial` spawns `exec.Command(command, args...)` with a **scrubbed** base env
-  (`scrubbedEnv`) plus operator-explicit per-server `env` overlay (`appendEnv`) —
-  the correct "credentialed server gets exactly what the operator typed" model.
-  `command`/`args` originate from the MCP registry, populated only via the
-  admin-token control plane (`controlplane/mcp.go handleMCPAdd → k.AddMCPServer`)
-  or an operator-installed market pack. Not agent-reachable. `mcp.Validate`
-  (store.go:122) checks shape, not command trust — acceptable given the operator
-  gate.
-
-### `acp_agent` command resolution (`kernel/acpcatalog/acpcatalog.go:266`)
-- CWE-78 explicitly defended: attacker-influenced `ref` MUST be an installed
-  catalog slug; the executed command comes from the trusted catalog, never the
-  caller's string. Raw commands only via operator `fallback` (env). Correct.
-  (Env leak in the *spawn* is F2; the *command* path is safe.)
-
-### Toolforge (script-tool forge) — no HITL bypass
-- `controlplane/toolforge.go`: agents can draft/edit/test forged tools, but
-  **Promote** (`handleToolforgePromote → k.PromoteScriptTool`) is an
-  operator-only control-plane op. An agent cannot self-promote a script tool to
-  the auto-offered `forge_<name>` active state. Forged tools run in the same
-  code-exec sandbox and every `forge_*` call is classified `CapCodeExec`
-  (`kernel/edict/toolmap.go:25`). Gate intact.
-
-### Market install (`kernel/market/`)
-- Install materializes skills (sandbox-run) + registers MCP servers; it does NOT
-  host-install tools (`manager.go:280` reports tool requirements only — host exec
-  needs explicit Toolbox consent). Remote sync (`sync.go`) is netguard-screened
-  (SSRF), same-host pack refs, content-hash + optional Ed25519 signature
-  (`VerifyPack`). An MCP server registered by an **unsigned** pack from a
-  remote source can carry an arbitrary `command` — but adding the source
-  (`agt market add`) and installing (`agt market install`) are both
-  admin-token control-plane actions, and attach is a further operator step.
-  Operator-trust-boundary, consistent with intended design. (Hardening idea: warn
-  loudly when an unsigned remote pack contributes a stdio MCP `command`.)
-
-### Self-update (`kernel/update/update.go`)
-- SHA256 + Ed25519 verification before atomic rename; netguard-screened fetch;
-  fail-safe (no auto-restart on validation failure). Correct.
-
-### AWS `credential_process` (`kernel/creds/aws.go:149`)
-- Execs an arbitrary binary from `~/.aws/{config,credentials}` — classic RCE
-  sink — but **double-gated**: requires `AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED=1`
-  (opt-in, documented footgun) AND the command comes from the operator's own
-  `~/.aws` files, not agent input. `splitCommandLine` (aws.go:195) refuses to run
-  a mis-split argv (unterminated quote → error, no half-parsed exec). Reads at
-  daemon boot/reload only. Operator-trust-boundary; intended.
-
-### Toolbox installer (`kernel/toolbox/toolbox.go`)
-- Host-level `exec.Command` of package managers (winget/brew/apt/...). Argv comes
-  from the **static in-Go `Catalog`** (toolbox/catalog.go), selected by a tool
-  `name` that must match a catalog entry (`byName`); the install argv is never
-  built from caller free-text. Reached only via the admin-token control plane.
-  Per memory `[[cli-toolbox]]` this is intentionally un-sandboxed (an installer
-  must change the host). Operator-trust-boundary; intended.
+### INFO-5 — Host-level exec (toolbox install, watchdog, update, tunnel, AWS credential_process): trust boundary correct
+- **Files:** `kernel/toolbox/toolbox.go:264` (install), `cmd/agezt/watchdog.go:223`,
+  `kernel/update/update.go:691 SpawnRestart`, `kernel/tunnel/tunnel.go:227`, `kernel/creds/aws.go:149
+  runCredentialProcess`, `cmd/agt/listen.go:123`.
+- These deliberately run host-level (un-sandboxed) processes, but every one is fed from a *trusted*
+  source and uses array-form exec:
+  - toolbox `Install` runs only catalog-defined recipes resolved by exact `byName` lookup; the
+    user-supplied `name` selects a recipe, it is never interpolated into argv.
+  - watchdog/update re-spawn the daemon's own `os.Executable()` with fixed args.
+  - tunnel command is operator-configured (`AGEZT_TUNNEL`/`AGEZT_TUNNEL_CMD`).
+  - AWS `credential_process` is **opt-in** behind `AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED=1`, reads the
+    command from the operator's local `~/.aws/{config,credentials}`, and tokenizes it with a custom
+    splitter into array-form `osexec.CommandContext` — **not** a shell (`aws.go:161,195`).
+  - `agt listen` splits the operator-set `AGEZT_VOICE_RECORD_CMD` with `strings.Fields` (no shell) and
+    substitutes only a generated temp path + integer seconds.
+  None of these are reachable from channel/web/OpenAI untrusted ingress. **Safe.** Confidence: 85.
 
 ---
 
-## NOTES / LOWER-PRIORITY OBSERVATIONS
+## Deserialization sweep result
 
-- N1 — Control-plane auth boundary confirmed: `controlplane/server.go` binds
-  `127.0.0.1:0` only, mints a random per-process token to a `0600` file, and uses
-  constant-time comparison (`tokenIsPrimary`). All host-RCE-capable management
-  ops (MCP add, toolbox install, market add/install, update) sit behind this
-  admin token. The agent/prompt-injection boundary therefore does NOT reach those
-  ops — good architectural separation. (If a tunnel/agentgw ever exposes the
-  control plane beyond loopback, re-audit; out of scope here.)
+- `encoding/gob`: **0 occurrences** in the shipping tree (no Go-gadget surface).
+- YAML: no YAML parser dependency; nothing to unsafe-load.
+- `plugin.Open` (Go native plugins): **not used**; third-party plugins are separate subprocesses
+  hash-pinned with BLAKE3 (`kernel/plugin/pin.go`), not loaded into the daemon address space.
+- `json.Unmarshal`/`json.NewDecoder`: all sinks decode into concrete structs (channels into
+  `getUpdatesResp` etc. behind `io.LimitReader` caps; agentgw into `TokenClaims`/`ConfigSetRequest`;
+  update into `Manifest`). JSON is a code-execution-safe format (no arbitrary object instantiation),
+  and no `interface{}`/`any` type-confusion dispatch was found.
+- JWT (agentgw, `kernel/agentgw/token.go`): alg pinned to `HS256`, `typ` pinned to `JWT`, `iss`/`aud`
+  pinned, signature compared with `hmac.Equal` (constant-time) — classic alg-confusion / `none`-alg
+  hole is explicitly closed (`token.go:99-115`). **No deserialization finding.**
 
-- N2 — `mcp.Server.Command` / `Args` have no path/traversal validation
-  (store.go:122 checks name/transport/arg-emptiness only). Acceptable today
-  because the field is operator-only, but if a future feature ever lets a less
-  privileged principal (tenant token, agent op) register MCP servers, this becomes
-  a direct host-exec primitive. Flag for defense-in-depth.
+## Conclusion
 
-- N3 — Deserialization sweep: every `json.Unmarshal` reviewed decodes into a
-  concrete typed struct (`input`, `shellInput`, `ScriptTool`, `mcp.Server`,
-  `Pack`, IMDS/cred docs, plugin frames). No `interface{}` type-switch-then-exec,
-  no `gob`, no `yaml` of untrusted bytes. Insecure-deserialization risk: none
-  found.
-
-- N4 — Good pattern worth preserving: both external-agent bridges pass the
-  model-controlled task via an **environment variable** (`AGEZT_CODING_TASK`) /
-  ACP protocol field rather than interpolating it into the shell line — this
-  correctly avoids shell-injection of model output. F1/F2 are about the *env
-  contents leaking secrets*, not about task injection.
-
----
-
-## Suggested fix priority
-1. F1 + F2 (shared fix): scrub the env for the coding/acp_agent external-agent
-   spawns; allow secrets only via explicit per-agent opt-in.
-2. N2: add command/path validation (or an allowlist) to `mcp.Validate` as
-   defense-in-depth before any non-admin principal can reach MCP registration.
-3. Market: surface a clear warning when an unsigned remote pack registers a
-   stdio MCP `command`.
-
-Report written to: D:/Codebox/PROJECTS/AGEZT/security-report/code-exec-results.md
+The code-execution attack surface is the product's core and is correspondingly well-guarded. Across
+warden, `code_exec`, `shell`, MCP stdio, the ACP/coding bridges, the toolbox installer, and all CLI
+host-exec, every command is built array-form from trusted or intentionally-agent-controlled inputs
+with scrubbed environments, and the one shell-string spawn reachable from agent input (ACP) is
+slug-constrained. No command injection, no RCE-via-eval, no sandbox-escape, and no insecure
+deserialization were identified.

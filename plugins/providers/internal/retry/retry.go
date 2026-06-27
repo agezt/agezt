@@ -6,11 +6,12 @@ package retry
 import (
 	"context"
 	"errors"
-	"io"
 	"math/rand"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
 // Config controls retry behavior.
@@ -252,12 +253,20 @@ func atoiNonNeg(s string) (int, bool) {
 }
 
 // ReadBody is a helper that reads and closes a response body,
-// returning an error for non-2xx status codes.
+// returning an error for non-2xx status codes. Both the error and success paths
+// are size-bounded via httpread.All (VULN-011): a provider endpoint is
+// operator-configured/semi-trusted, so a plain io.ReadAll of a multi-gigabyte or
+// never-ending body would OOM the daemon. An over-size body yields a clean error
+// rather than memory exhaustion, and the read error on the non-2xx path is now
+// surfaced instead of silently dropped.
 func ReadBody(resp *http.Response) ([]byte, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := httpread.All(resp.Body, 0)
+		if err != nil && !errors.Is(err, httpread.ErrResponseTooLarge) {
+			return nil, err
+		}
 		return nil, &HTTPError{StatusCode: resp.StatusCode, Body: string(body)}
 	}
-	return io.ReadAll(resp.Body)
+	return httpread.All(resp.Body, 0)
 }

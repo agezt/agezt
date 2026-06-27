@@ -2002,9 +2002,22 @@ func rootFromCtx(ctx context.Context) string {
 // consults it so a normally auto-allowed capability is downgraded to Ask (or
 // Deny) within this run. ceiling >= LevelAllow is a no-op (no clamp). Used by the
 // standing-order runner to bound an order's autonomy.
+//
+// The ceiling is monotonically TIGHTENING down a delegation tree: if the context
+// already carries a tighter (lower) ceiling, that one is kept. A child run (e.g. a
+// delegated sub-agent whose profile declares a looser TrustCeiling) can therefore
+// never loosen the bound its parent was started with — only narrow it. Without
+// this, WithAgentProfile re-applying a target profile's higher ceiling would
+// overwrite a standing-order initiative cap and let delegation escape it
+// (CWE-269, security finding VULN-001).
 func WithTrustCeiling(ctx context.Context, ceiling edict.TrustLevel) context.Context {
 	if ceiling >= edict.LevelAllow {
+		// "No clamp" must not erase an existing tighter ceiling: leave ctx as-is so
+		// any inherited cap survives.
 		return ctx
+	}
+	if existing, ok := trustCeilingFromCtx(ctx); ok && existing < ceiling {
+		ceiling = existing
 	}
 	return context.WithValue(ctx, ctxKeyTrustCeiling, ceiling)
 }
@@ -2370,11 +2383,6 @@ func systemAgentFromCtx(ctx context.Context) bool {
 
 func agentToolPolicyFromCtx(ctx context.Context) agentToolPolicy {
 	v, _ := ctx.Value(ctxKeyAgentToolPolicy).(agentToolPolicy)
-	return v
-}
-
-func agentLifecycleFromCtx(ctx context.Context) roster.AgentLifecycle {
-	v, _ := ctx.Value(ctxKeyAgentLifecycle).(roster.AgentLifecycle)
 	return v
 }
 

@@ -1,0 +1,23 @@
+# Code owners — require a trusted reviewer for the most security-sensitive paths
+# (security finding VULN-013). Enforced only when branch protection on `main` has
+# "Require review from Code Owners" enabled; this file is the in-repo half.
+#
+# Last matching pattern wins (GitHub semantics), so order from broad to specific.
+
+# Default owner for everything.
+*                           @ersinkoc
+
+# CI/CD and Actions config carry the fork-PR trust gate, SHA pins,
+# `permissions: contents: read`, and `persist-credentials: false` (VULN-009).
+# A change here can silently weaken every workflow guardrail.
+/.github/                   @ersinkoc
+
+# Trust, capability, and execution boundary of the agent runtime.
+/kernel/edict/              @ersinkoc
+/kernel/runtime/            @ersinkoc
+/kernel/warden/             @ersinkoc
+/kernel/netguard/           @ersinkoc
+/kernel/agentgw/            @ersinkoc
+/kernel/redact/             @ersinkoc
+/kernel/creds/              @ersinkoc
+/kernel/standing/           @ersinkoc

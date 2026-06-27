@@ -5130,6 +5130,17 @@ func buildAlertNotify(ctx context.Context, k *kernelruntime.Kernel, sink pulse.B
 // max_trust and the level implied by its initiative mode (inform_only→L0, ask→L1).
 // Returns (level, false) when neither caps — the firing runs uncapped, the
 // pre-M999 default for orders with empty mode and no max_trust.
+//
+// Fail-safe for act_or_ask (VULN-003): an order whose mode is the explicit
+// autonomous dial "act_or_ask" but which leaves max_trust blank would otherwise
+// fire UNCAPPED (L4) — the most permissive setting silently meaning "no clamp",
+// despite the operator having chosen a mode whose very name implies bounded
+// autonomy. Because such a firing is unattended and its trigger payload can be
+// attacker-influenced (VULN-004), it must not run uncapped by omission. We default
+// it to L2 (ask-first), mirroring the seeded guardian-initiative responder. An
+// operator who genuinely wants uncapped act_or_ask autonomy opts in explicitly by
+// setting max_trust=L4. Empty/unset mode is left untouched so pre-M999 and
+// non-initiative orders keep their existing behaviour.
 func standingTrustCeiling(in standing.Initiative) (edict.TrustLevel, bool) {
 	ceil := edict.LevelAllow
 	have := false
@@ -5143,6 +5154,9 @@ func standingTrustCeiling(in standing.Initiative) (edict.TrustLevel, bool) {
 			}
 			have = true
 		}
+	}
+	if !have && in.Mode == standing.InitiativeActOrAsk {
+		ceil, have = edict.LevelAskFirst, true
 	}
 	return ceil, have
 }
