@@ -106,3 +106,6 @@ bin/
 # npm is the source of truth for frontend (VULN-010); keep a stray pnpm lock out.
 frontend/pnpm-lock.yaml
 pnpm-lock.yaml
+
+# Local git worktrees must never be committed (an orphan gitlink breaks actions/checkout).
+.worktrees/
