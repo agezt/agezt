@@ -43,7 +43,7 @@ import { Badge } from "@/components/ui/badge";
 type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
 type ApplyMode = "live" | "restart";
 
-interface Field {
+export interface Field {
   env: string;
   label: string;
   type: FieldType;
@@ -70,7 +70,7 @@ interface ConfigSchemaResponse {
   sections?: Section[];
   reload_boundaries?: ReloadBoundary[];
 }
-interface ValueEntry {
+export interface ValueEntry {
   env: string;
   secret: boolean;
   env_pinned: boolean;
@@ -551,7 +551,7 @@ function SectionCard({
   );
 }
 
-function FieldRow({
+export function FieldRow({
   field,
   entry,
   onSaved,

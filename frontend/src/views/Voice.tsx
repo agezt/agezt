@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { getJSON } from "@/lib/api";
 import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/lib/voiceSession";
+import { VoiceSetup } from "@/views/VoiceSetup";
 
 const WAKE_KEY = "agezt.voice.wake";
 const AGENT_KEY = "agezt.voice.agent";
@@ -225,6 +226,9 @@ export function Voice() {
           </div>
         </Card>
       </div>
+
+      {/* Inline setup — wire up speech servers here without leaving the cockpit. */}
+      <VoiceSetup />
     </div>
   );
 }

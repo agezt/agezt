@@ -4,8 +4,10 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
+const postJSON = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
+  postJSON: (...a: unknown[]) => postJSON(...a),
   authHeaders: () => new Headers(),
   withToken: (p: string) => p,
 }));
@@ -30,7 +32,16 @@ const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
-  getJSON.mockResolvedValue({ profiles: [{ slug: "researcher", name: "Researcher" }, { slug: "ops" }] });
+  postJSON.mockReset();
+  postJSON.mockResolvedValue({ env: "AGEZT_STT_URL", saved: true, applied: "restart" });
+  // Route by path: roster for the picker, plus the voice config schema/values the
+  // inline VoiceSetup panel reads. Values start empty (nothing configured).
+  getJSON.mockImplementation((path: string) => {
+    if (path === "/api/agents") return Promise.resolve({ profiles: [{ slug: "researcher", name: "Researcher" }, { slug: "ops" }] });
+    if (path === "/api/config/values") return Promise.resolve({ fields: [] });
+    if (path === "/api/config/schema") return Promise.resolve({ sections: [] });
+    return Promise.resolve({});
+  });
   start.mockReset();
   stop.mockReset();
   localStorage.clear();
@@ -64,5 +75,22 @@ describe("Voice view", () => {
     fireEvent.click(sw);
     expect(sw.getAttribute("aria-checked")).toBe("true");
     expect(localStorage.getItem("agezt.voice.wake")).toBe("1");
+  });
+
+  it("renders the inline voice setup panel with STT + TTS fields", async () => {
+    render(withUI(<Voice />));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/config/values"));
+    expect(screen.getByText("Voice setup")).toBeTruthy();
+    // Auto-opened because nothing is configured — both halves are editable here.
+    expect(screen.getByText("Transcription API URL")).toBeTruthy();
+    expect(screen.getByText("Synthesis model")).toBeTruthy();
+    expect(screen.getByText(/Hearing not set/i)).toBeTruthy();
+  });
+
+  it("applies a preset by saving config to the daemon", async () => {
+    render(withUI(<Voice />));
+    await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /openai/i }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_URL", value: "https://api.openai.com/v1" }));
   });
 });
