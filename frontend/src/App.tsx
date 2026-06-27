@@ -72,6 +72,7 @@ import { ApprovalsBell } from "@/components/ApprovalsBell";
 import { NotifyToggle } from "@/components/NotifyToggle";
 import { Vitals } from "@/components/Vitals";
 import { FleetNowBar } from "@/components/FleetNowBar";
+import { ActivityChip } from "@/components/ActivityChip";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -699,6 +700,8 @@ export default function App() {
       <Header
         connected={connected}
         chatActive={active === "chat" && !agentSlug}
+        activeRunCount={activeRunCount}
+        onNavigate={setActive}
         onOpenChat={() => setActive("chat")}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
@@ -868,12 +871,16 @@ function RouteLoading({ label }: { label: string }) {
 function Header({
   connected,
   chatActive,
+  activeRunCount,
+  onNavigate,
   onOpenChat,
   onOpenPalette,
   onOpenHelp,
 }: {
   connected: boolean;
   chatActive: boolean;
+  activeRunCount: number;
+  onNavigate: (id: string) => void;
   onOpenChat: () => void;
   onOpenPalette: () => void;
   onOpenHelp: () => void;
@@ -905,6 +912,10 @@ function Header({
       >
         ● {connected ? "live" : "disconnected"}
       </span>
+      {/* Always-visible "something is working" chip: lights up whenever a run is
+          in flight anywhere (chat reply, tool call, autonomous agent), so the
+          background never reads as a frozen screen. */}
+      <ActivityChip count={activeRunCount} onClick={() => onNavigate("overseer")} />
       <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
         {/* Always-on Chat button (M985): the chat surface is the product's core
             ([[product-layer-priority]]), but the two-level nav buries it two
