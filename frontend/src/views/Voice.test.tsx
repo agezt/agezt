@@ -4,8 +4,10 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
+const postJSON = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
+  postJSON: (...a: unknown[]) => postJSON(...a),
   authHeaders: () => new Headers(),
   withToken: (p: string) => p,
 }));
@@ -30,7 +32,16 @@ const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
-  getJSON.mockResolvedValue({ profiles: [{ slug: "researcher", name: "Researcher" }, { slug: "ops" }] });
+  postJSON.mockReset();
+  postJSON.mockResolvedValue({ env: "AGEZT_STT_URL", saved: true, applied: "restart" });
+  // Route by path: roster for the picker, plus the voice config schema/values the
+  // inline VoiceSetup panel reads. Values start empty (nothing configured).
+  getJSON.mockImplementation((path: string) => {
+    if (path === "/api/agents") return Promise.resolve({ profiles: [{ slug: "researcher", name: "Researcher" }, { slug: "ops" }] });
+    if (path === "/api/config/values") return Promise.resolve({ fields: [] });
+    if (path === "/api/config/schema") return Promise.resolve({ sections: [] });
+    return Promise.resolve({});
+  });
   start.mockReset();
   stop.mockReset();
   localStorage.clear();
@@ -39,7 +50,7 @@ beforeEach(() => {
 describe("Voice view", () => {
   it("renders the header, orb prompt, and start control", () => {
     render(withUI(<Voice />));
-    expect(screen.getByRole("heading", { name: "Voice" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Voice", level: 2 })).toBeTruthy();
     expect(screen.getByText(/hands-free conversation/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /start talking/i })).toBeTruthy();
   });
@@ -64,5 +75,34 @@ describe("Voice view", () => {
     fireEvent.click(sw);
     expect(sw.getAttribute("aria-checked")).toBe("true");
     expect(localStorage.getItem("agezt.voice.wake")).toBe("1");
+  });
+
+  it("renders the inline voice setup with Hearing + Voice provider pickers", async () => {
+    render(withUI(<Voice />));
+    await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/config/values"));
+    expect(screen.getByText("Voice setup")).toBeTruthy();
+    // Auto-opened because nothing is configured — both halves present.
+    expect(screen.getByRole("heading", { name: "Hearing" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Voice", level: 4 })).toBeTruthy();
+    // Provider chips from the catalog (Groq appears in both halves).
+    expect(screen.getAllByRole("button", { name: /groq/i }).length).toBeGreaterThan(0);
+  });
+
+  it("selects a provider and writes its endpoint + model to the daemon", async () => {
+    render(withUI(<Voice />));
+    await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
+    // Click the first OpenAI chip (Hearing half).
+    fireEvent.click(screen.getAllByRole("button", { name: "OpenAI" })[0]);
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_URL", value: "https://api.openai.com/v1" }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_MODEL", value: "gpt-4o-transcribe" }));
+  });
+
+  it("selects a native provider and writes its dialect (ElevenLabs)", async () => {
+    render(withUI(<Voice />));
+    await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
+    // Second ElevenLabs chip is the Voice (TTS) half.
+    fireEvent.click(screen.getAllByRole("button", { name: "ElevenLabs" })[1]);
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_PROVIDER", value: "elevenlabs" }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_URL", value: "https://api.elevenlabs.io" }));
   });
 });

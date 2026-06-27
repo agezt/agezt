@@ -53,10 +53,96 @@ type TTSClient struct {
 	HTTP    *http.Client
 }
 
-// Adapter bundles the optional STT and TTS halves. Either may be nil.
+// STTBackend transcribes audio → text. Implemented by the OpenAI-compatible
+// STTClient and by native providers that speak their own wire shape (ElevenLabs
+// Scribe, Deepgram Listen).
+type STTBackend interface {
+	Transcribe(ctx context.Context, audio []byte, filename string) (string, error)
+}
+
+// TTSBackend synthesizes text → audio bytes + MIME type. Implemented by the
+// OpenAI-compatible TTSClient and by native providers (ElevenLabs, Deepgram
+// Aura, Cartesia Sonic).
+type TTSBackend interface {
+	Speak(ctx context.Context, text string) ([]byte, string, error)
+}
+
+// Adapter bundles the optional STT and TTS halves. Either may be nil. The halves
+// are backends, so a hosted OpenAI-compatible endpoint and a native provider
+// (ElevenLabs/Deepgram/Cartesia) are interchangeable behind the same seam.
 type Adapter struct {
-	STT *STTClient
-	TTS *TTSClient
+	STT STTBackend
+	TTS TTSBackend
+}
+
+// Provider identifiers for NewSTT/NewTTS (case-insensitive; "" == openai).
+const (
+	ProviderOpenAI     = "openai"
+	ProviderElevenLabs = "elevenlabs"
+	ProviderDeepgram   = "deepgram"
+	ProviderCartesia   = "cartesia"
+)
+
+// Config carries the settings for one half. BaseURL is optional for native
+// providers — each supplies its own default API root.
+type Config struct {
+	BaseURL string
+	Model   string
+	Voice   string
+	APIKey  string
+	HTTP    *http.Client
+}
+
+func normProvider(p string) string {
+	p = strings.ToLower(strings.TrimSpace(p))
+	if p == "" {
+		return ProviderOpenAI
+	}
+	return p
+}
+
+func orDefault(v, def string) string {
+	if strings.TrimSpace(v) == "" {
+		return def
+	}
+	return v
+}
+
+// NewSTT builds a transcription backend for the named provider. OpenAI (and any
+// OpenAI-compatible endpoint) needs a BaseURL; native providers default it.
+func NewSTT(provider string, cfg Config) (STTBackend, error) {
+	switch normProvider(provider) {
+	case ProviderOpenAI:
+		if strings.TrimSpace(cfg.BaseURL) == "" {
+			return nil, errors.New("voice: STT URL required")
+		}
+		return &STTClient{BaseURL: cfg.BaseURL, Model: cfg.Model, APIKey: cfg.APIKey, HTTP: cfg.HTTP}, nil
+	case ProviderElevenLabs:
+		return &elevenLabsSTT{base: orDefault(cfg.BaseURL, elevenLabsBase), model: orDefault(cfg.Model, "scribe_v2"), key: cfg.APIKey, http: cfg.HTTP}, nil
+	case ProviderDeepgram:
+		return &deepgramSTT{base: orDefault(cfg.BaseURL, deepgramBase), model: orDefault(cfg.Model, "nova-3"), key: cfg.APIKey, http: cfg.HTTP}, nil
+	default:
+		return nil, fmt.Errorf("voice: unknown STT provider %q", provider)
+	}
+}
+
+// NewTTS builds a synthesis backend for the named provider.
+func NewTTS(provider string, cfg Config) (TTSBackend, error) {
+	switch normProvider(provider) {
+	case ProviderOpenAI:
+		if strings.TrimSpace(cfg.BaseURL) == "" {
+			return nil, errors.New("voice: TTS URL required")
+		}
+		return &TTSClient{BaseURL: cfg.BaseURL, Model: cfg.Model, Voice: cfg.Voice, APIKey: cfg.APIKey, HTTP: cfg.HTTP}, nil
+	case ProviderElevenLabs:
+		return &elevenLabsTTS{base: orDefault(cfg.BaseURL, elevenLabsBase), model: orDefault(cfg.Model, "eleven_multilingual_v2"), voice: cfg.Voice, key: cfg.APIKey, http: cfg.HTTP}, nil
+	case ProviderDeepgram:
+		return &deepgramTTS{base: orDefault(cfg.BaseURL, deepgramBase), model: orDefault(cfg.Model, "aura-2-thalia-en"), key: cfg.APIKey, http: cfg.HTTP}, nil
+	case ProviderCartesia:
+		return &cartesiaTTS{base: orDefault(cfg.BaseURL, cartesiaBase), model: orDefault(cfg.Model, "sonic-3.5"), voice: cfg.Voice, key: cfg.APIKey, http: cfg.HTTP}, nil
+	default:
+		return nil, fmt.Errorf("voice: unknown TTS provider %q", provider)
+	}
 }
 
 // HasSTT reports whether transcription is configured.

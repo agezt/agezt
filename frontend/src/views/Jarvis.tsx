@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, HeartPulse, Check, X, Power,
+  Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, Volume2, HeartPulse, Check, X, Power,
 } from "lucide-react";
 import { getJSON, postAction, authHeaders } from "@/lib/api";
 import type { AgentEvent } from "@/lib/events";
@@ -54,6 +54,7 @@ function isInitiativeResponder(o: StandingOrder): boolean {
 }
 
 type VoiceState = "probing" | "natural" | "browser";
+type HearState = "probing" | "server" | "browser";
 
 // navigate to another view by hash (the app routes on location.hash).
 function go(id: string) {
@@ -75,6 +76,7 @@ export function Jarvis() {
   const [pulse, setPulse] = useState<PulseStatus | null>(null);
   const [records, setRecords] = useState<MemRecord[] | null>(null);
   const [voice, setVoice] = useState<VoiceState>("probing");
+  const [hear, setHear] = useState<HearState>("probing");
   const [asks, setAsks] = useState<PulseAsk[]>([]);
   const [responder, setResponder] = useState<StandingOrder | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
@@ -161,9 +163,12 @@ export function Jarvis() {
     }
   }
 
-  // One-shot voice probe: ask the server TTS for a single space. 501 = not
-  // configured (we fall back to the browser voice, which is always available).
-  async function probeVoice() {
+  // One-shot speech probe: both halves report 501 when unconfigured, so a tiny
+  // request to each tells us whether a real provider is wired (natural voice /
+  // server transcription) or we fall back to the browser's built-in speech.
+  // /api/transcribe checks "configured?" before parsing, so an empty POST is a
+  // safe, cheap probe (501 = no STT; anything else = a provider is wired).
+  async function probeSpeech() {
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -174,13 +179,19 @@ export function Jarvis() {
     } catch {
       setVoice("browser");
     }
+    try {
+      const res = await fetch("/api/transcribe", { method: "POST", headers: authHeaders() });
+      setHear(res.status === 501 ? "browser" : "server");
+    } catch {
+      setHear("browser");
+    }
   }
 
   useEffect(() => {
     reload();
     if (!probed.current) {
       probed.current = true;
-      probeVoice();
+      probeSpeech();
     }
     const id = setInterval(reload, 6000);
     return () => clearInterval(id);
@@ -291,12 +302,22 @@ export function Jarvis() {
           }
           tone="converse"
         >
+          <div className="space-y-1 text-sm">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Ear className="size-3.5 shrink-0" /> Hearing:{" "}
+              <span className="text-foreground">{hear === "probing" ? "…" : hear === "server" ? "a speech provider" : "your browser"}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Volume2 className="size-3.5 shrink-0" /> Speaking:{" "}
+              <span className="text-foreground">{voice === "probing" ? "…" : voice === "natural" ? "a natural voice" : "your browser"}</span>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
-            {voice === "natural"
-              ? "Server text-to-speech is wired — replies stream back in a natural voice with barge-in."
-              : "Hands-free conversation works through your browser's built-in voice. Set AGEZT_TTS_* for a richer one."}
+            {voice === "natural" && hear === "server"
+              ? "Fully wired — it listens and replies in a natural voice, with barge-in."
+              : "Hands-free conversation works through your browser. Pick a provider — OpenAI, ElevenLabs, Groq, Deepgram or a local server — on the Voice page for natural speech."}
           </p>
-          <PillarCTA label="Start talking" onClick={() => go("voice")} />
+          <PillarCTA label={voice === "natural" && hear === "server" ? "Start talking" : "Set up voice"} onClick={() => go("voice")} />
         </Pillar>
 
         {/* INITIATIVE — it acts for you */}
