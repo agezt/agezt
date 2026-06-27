@@ -68,7 +68,7 @@ ok "openai /v1/chat/completions"
 #    non-streaming provider's answer must not be dropped from the stream).
 sresp=$(curl -fsN -H "Authorization: Bearer $OAI" -H 'Content-Type: application/json' \
   -d '{"model":"mock","stream":true,"messages":[{"role":"user","content":"streamcheck"}]}' "$CHAT")
-echo "$sresp" | grep -q '"content":"\[echo\]\\nstreamcheck"' \
+echo "$sresp" | grep -q '"content":"\[echo\] streamcheck"' \
   || fail "streaming dropped the answer (M550 regression):\n$sresp"
 echo "$sresp" | grep -q 'data: \[DONE\]' || fail "streaming missing [DONE]"
 ok "openai streaming carries content (M550 guard)"

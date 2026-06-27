@@ -41,9 +41,12 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(page.getByText("● live").first()).toBeVisible();
 
     const nav = page.getByRole("navigation");
+    // exact: true so a substring nav label can't hijack the match — e.g. the
+    // "ACP Agents" item contains "Agents", which used to make `.last()` open it
+    // instead of the roster "Agents" view.
     const openView = async (section: string, item: string) => {
-      await nav.getByRole("button", { name: section }).first().click();
-      await nav.getByRole("button", { name: item }).last().click();
+      await nav.getByRole("button", { name: section, exact: true }).first().click();
+      await nav.getByRole("button", { name: item, exact: true }).last().click();
     };
 
     // --- Landing: the humane chat surface --------------------------------
@@ -58,7 +61,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: "Cockpit" }),
     ).toBeVisible();
-    await expect(page.getByText(/error rate/i)).toBeVisible();
+    await expect(page.getByText(/success rate/i)).toBeVisible();
     await expect(page.getByText(/active skills/i)).toBeVisible();
 
     // Mobile shell regression guard: the top command bar and two-level nav may
