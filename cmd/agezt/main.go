@@ -6757,6 +6757,24 @@ func buildFromCatalog(entry *catalog.Provider, modelOverride string, lookup func
 	if constructModel == "" {
 		return nil, "", "", "", fmt.Errorf("provider %q in catalog has no models; set %sMODEL", entry.ID, brand.EnvPrefix)
 	}
+	// Auto-repair a cross-provider default model (don't hard-fail the boot):
+	// AGEZT_MODEL may name a model this provider's catalog doesn't serve because
+	// it is resolved per-run through routing / a fallback chain on a DIFFERENT
+	// provider (e.g. AGEZT_PROVIDER=minimax-coding-plan + AGEZT_MODEL=gpt-5.4,
+	// where gpt-5.4 rides @new-chain). compat.Build only needs a concrete,
+	// catalog-valid id to construct the wire, so fall back to the inert
+	// placeholder for CONSTRUCTION while keeping runModel as the override — the
+	// governor still resolves the real model per run (or fails that one run with
+	// an actionable error), instead of the whole daemon refusing to start.
+	if modelOverride != "" {
+		if _, ok := entry.Models[modelOverride]; !ok {
+			placeholder := compat.FirstModelID(entry)
+			fmt.Fprintf(os.Stderr,
+				"%s: %sMODEL %q is not in provider %q's catalog — treating it as a routing/fallback-chain model and constructing %q with placeholder %q (set %sMODEL to one of this provider's models to silence)\n",
+				brand.Binary, brand.EnvPrefix, modelOverride, entry.ID, entry.ID, placeholder, brand.EnvPrefix)
+			constructModel = placeholder
+		}
+	}
 	prov, _, err := compat.Build(entry, constructModel, lookup)
 	if err != nil {
 		return nil, "", "", "", err
