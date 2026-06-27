@@ -317,6 +317,48 @@ func TestModelAdvisory(t *testing.T) {
 	}
 }
 
+// TestBuildFromCatalog_CrossProviderModelDoesNotFailBoot: AGEZT_MODEL may name a
+// model the chosen provider's catalog doesn't serve because it is resolved per-run
+// through a fallback chain on a DIFFERENT provider (e.g. provider=minimax-coding-plan
+// + model=gpt-5.4 via @new-chain). buildFromCatalog must auto-repair this — construct
+// the wire with an inert catalog-valid placeholder while preserving the override as
+// the run model — instead of hard-failing the daemon boot (the user-reported
+// "compat: ... has no model" startup crash).
+func TestBuildFromCatalog_CrossProviderModelDoesNotFailBoot(t *testing.T) {
+	entry := &catalog.Provider{
+		ID: "minimax-coding-plan", NPM: "@ai-sdk/openai-compatible",
+		API: "http://localhost:9/v1", // local-family (no Env) → no creds needed to construct
+		Models: map[string]*catalog.Model{
+			"minimax-m2": {ID: "minimax-m2", ToolCall: true, Limit: catalog.Limit{Context: 200000}},
+		},
+	}
+	lookup := func(string) string { return "" }
+
+	// Model NOT in this provider's catalog → must NOT error; run model preserved
+	// for routing, provider still constructed.
+	prov, _, runModel, _, err := buildFromCatalog(entry, "gpt-5.4", lookup)
+	if err != nil {
+		t.Fatalf("cross-provider model must not fail boot, got error: %v", err)
+	}
+	if prov == nil {
+		t.Fatal("provider should still be constructed with the placeholder model")
+	}
+	if runModel != "gpt-5.4" {
+		t.Errorf("run model should stay the override %q for routing, got %q", "gpt-5.4", runModel)
+	}
+
+	// A catalog-valid override still works unchanged.
+	if _, _, rm, _, err := buildFromCatalog(entry, "minimax-m2", lookup); err != nil || rm != "minimax-m2" {
+		t.Errorf("valid model: got (%q, %v), want (minimax-m2, nil)", rm, err)
+	}
+
+	// A provider with no models at all is still a hard error (nothing to construct).
+	empty := &catalog.Provider{ID: "empty", NPM: "@ai-sdk/openai-compatible", API: "http://localhost:9/v1"}
+	if _, _, _, _, err := buildFromCatalog(empty, "gpt-5.4", lookup); err == nil {
+		t.Error("a provider with zero catalog models should still error")
+	}
+}
+
 // TestBuildGovernor_UnconfiguredWhenNoProvider: with no AGEZT_PROVIDER and no
 // credentialed catalog, the daemon must boot the "unconfigured" sentinel — NOT a
 // mock and NOT an auto-picked provider — and must surface no default run model.
