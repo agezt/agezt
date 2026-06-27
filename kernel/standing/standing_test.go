@@ -18,7 +18,7 @@ func TestInitiativeModeMaxAutonomyTrust(t *testing.T) {
 		{InitiativeInformOnly, "L0", true},
 		{InitiativeAsk, "L1", true},
 		{InitiativeActOrAsk, "", false},
-		{"", "", false},        // unset → unchanged (backward compatible)
+		{"", "", false},         // unset → unchanged (backward compatible)
 		{"nonsense", "", false}, // unknown → no extra cap, never panics
 	}
 	for _, c := range cases {
