@@ -87,8 +87,8 @@ func TestNew_ErrorsWithoutConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tu.Name() != "cloudflared" {
-		t.Errorf("Name() = %q, want cloudflared", tu.Name())
+	if len(tu.cmd) == 0 || tu.cmd[0] != "cloudflared" {
+		t.Errorf("cmd = %v, want cloudflared command", tu.cmd)
 	}
 }
 

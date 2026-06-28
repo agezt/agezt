@@ -29,7 +29,14 @@ func TestWrap_NoMiddlewareReturnsSame(t *testing.T) {
 
 func TestWrap_NonStreamingStaysNonStreaming(t *testing.T) {
 	p := &recordingProvider{}
-	w := Wrap(p, LoggingMiddleware("rec", nil))
+	w := Wrap(p, Middleware{
+		Name: "test",
+		WrapComplete: func(next CompleteFunc) CompleteFunc {
+			return func(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+				return next(ctx, req)
+			}
+		},
+	})
 	if _, ok := w.(StreamingProvider); ok {
 		t.Fatal("wrapping a non-streaming provider should not advertise streaming")
 	}

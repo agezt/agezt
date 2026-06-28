@@ -76,7 +76,7 @@ func TestCatalogIntegrity(t *testing.T) {
 		t.Fatal("catalog is empty")
 	}
 	cats := map[string]bool{}
-	for _, c := range Categories() {
+	for _, c := range catalogCategories() {
 		cats[c] = true
 	}
 	seen := map[string]bool{}
@@ -102,6 +102,10 @@ func TestCatalogIntegrity(t *testing.T) {
 			}
 		}
 	}
+}
+
+func catalogCategories() []string {
+	return []string{"runtime", "pkgmgr", "vcs", "search", "data", "media", "build", "net", "archive", "cloud", "shell", "ai"}
 }
 
 func TestInstall_UnknownToolSkips(t *testing.T) {

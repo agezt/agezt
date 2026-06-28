@@ -112,19 +112,6 @@ const (
 	CapConfigWrite  AgentCapability = "config.write"  // Set/modify config values (privileged)
 )
 
-// AllAgentCaps returns all available agent capabilities.
-func AllAgentCaps() []AgentCapability {
-	return []AgentCapability{
-		CapEventbusPublish, CapEventbusSubscribe,
-		CapChannelSend, CapChannelRead, CapChannelList,
-		CapMemoryRead, CapMemoryWrite, CapMemoryDelete, CapMemorySearch, CapMemoryList,
-		CapLogRead, CapLogWrite,
-		CapAgentList, CapAgentQuery,
-		CapDBQuery, CapDBRead, CapDBWrite,
-		CapConfigAccess, CapConfigList, CapConfigSearch, CapConfigWrite,
-	}
-}
-
 // AuditEntry records one capability access event.
 type AuditEntry struct {
 	Timestamp  time.Time `json:"ts"`

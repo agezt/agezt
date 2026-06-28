@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -28,7 +30,7 @@ func TestRun_AsAgent_MemoryScope(t *testing.T) {
 	prov.OnRequest = func(req agent.CompletionRequest) { systems = append(systems, req.System) }
 	k, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider:     prov,
-		Tools:        map[string]agent.Tool{"shell": shell.New()},
+		Tools:        map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryInject: true,
 	})
 	ctx := context.Background()

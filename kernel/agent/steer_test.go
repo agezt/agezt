@@ -62,7 +62,7 @@ func (steerNoopTool) Invoke(context.Context, json.RawMessage) (agent.Result, err
 func TestSteer_DirectiveFoldedAsUserTurn(t *testing.T) {
 	b, j := newTestBus(t)
 	// First call asks for the noop tool (→ a second iteration); second call ends.
-	prov := mock.New(mock.ToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
+	prov := mock.New(testToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
 	var sawDirective bool
 	var mu sync.Mutex
 	prov.OnRequest = func(req agent.CompletionRequest) {
@@ -125,7 +125,7 @@ func TestSteer_DirectiveFoldedAsUserTurn(t *testing.T) {
 // mode=note, so the model treats it as FYI rather than a re-prioritisation.
 func TestSteer_NoteUsesSofterPrefix(t *testing.T) {
 	b, j := newTestBus(t)
-	prov := mock.New(mock.ToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
+	prov := mock.New(testToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
 	var sawNote, sawSteerPrefix bool
 	var mu sync.Mutex
 	prov.OnRequest = func(req agent.CompletionRequest) {

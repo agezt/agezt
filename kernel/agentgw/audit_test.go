@@ -16,6 +16,41 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 )
 
+func WriteJSONEntry(w io.Writer, entry AuditEntry) error {
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func ReadAuditLog(path string) ([]AuditEntry, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("agentgw: audit: open: %w", err)
+	}
+	defer f.Close()
+
+	var entries []AuditEntry
+	dec := json.NewDecoder(f)
+	for {
+		var entry AuditEntry
+		if err := dec.Decode(&entry); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("agentgw: audit: decode: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+func AuditDir(baseDir string) string {
+	return filepath.Join(baseDir, "agentgw", "audit")
+}
+
 // TestAuditLogger_Log tests that Log buffers entries and flushes at capacity.
 func TestAuditLogger_Log(t *testing.T) {
 	dir := t.TempDir()

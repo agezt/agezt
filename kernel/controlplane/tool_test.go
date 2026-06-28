@@ -9,11 +9,13 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -44,7 +46,7 @@ func TestToolList_ReturnsRegisteredTools(t *testing.T) {
 	if row["name"] != "shell" {
 		t.Errorf("name = %v want shell", row["name"])
 	}
-	// Description comes from shell.New().Definition(); we don't pin
+	// Description comes from shell.NewWithWarden(warden.New(nil)).Definition(); we don't pin
 	// the exact text (it can evolve) but it must be non-empty so the
 	// CLI has something to render.
 	if desc, _ := row["description"].(string); desc == "" {
@@ -108,8 +110,8 @@ func TestToolList_SortsByName(t *testing.T) {
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]agent.Tool{
-			"zeta":  shell.New(),
-			"alpha": shell.New(),
+			"zeta":  shell.NewWithWarden(warden.New(nil)),
+			"alpha": shell.NewWithWarden(warden.New(nil)),
 		},
 	})
 	if err != nil {
@@ -130,7 +132,7 @@ func TestToolList_SortsByName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Both fixture tools wrap shell.New(), so they advertise the
+	// Both fixture tools wrap shell.NewWithWarden(warden.New(nil)), so they advertise the
 	// SAME Definition().Name ("shell"). The handler sorts on the
 	// definition name, not the map key — verify the count is 2
 	// and the order is stable across repeated calls.

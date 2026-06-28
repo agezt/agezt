@@ -37,7 +37,7 @@ func TestRun_OffloadsLargeToolOutput(t *testing.T) {
 	big := strings.Repeat("DATA", 5000) // 20 KB, well over the 8 KiB default
 
 	prov := mock.New(
-		mock.ToolUse("call-1", "dump", map[string]any{}),
+		testToolUse("call-1", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -94,7 +94,7 @@ func TestRun_SmallToolOutputStaysInline(t *testing.T) {
 	store, _ := artifact.Open(t.TempDir())
 
 	prov := mock.New(
-		mock.ToolUse("call-1", "dump", map[string]any{}),
+		testToolUse("call-1", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{

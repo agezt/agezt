@@ -12,12 +12,14 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/file"
 	"github.com/agezt/agezt/plugins/tools/shell"
@@ -50,7 +52,7 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		Model:        "default-model",
-		Tools:        map[string]agent.Tool{"shell": shell.New()},
+		Tools:        map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryInject: true,
 	})
 	if err != nil {
@@ -100,7 +102,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 		t.Fatalf("file.New: %v", err)
 	}
 	prov := mock.New(
-		mock.ToolUse("c1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "from researcher"}),
+		testToolUse("c1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "from researcher"}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{
@@ -135,7 +137,7 @@ func TestWithAgentProfile_WorkdirRejectsEscape(t *testing.T) {
 
 func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
 		mock.FinalText("done"),
 	)
 	var requests []agent.CompletionRequest
@@ -144,7 +146,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
 		Model:                 "default-model",
-		Tools:                 map[string]agent.Tool{"shell": shell.New()},
+		Tools:                 map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		System:                "base",
 		MemoryInject:          true,
 		MemoryDistill:         true,
@@ -473,7 +475,7 @@ func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   prov,
-		Tools:      map[string]agent.Tool{"shell": shell.New()},
+		Tools:      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryTool: true,
 	})
 	if err != nil {

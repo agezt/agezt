@@ -33,7 +33,6 @@ import (
 type Guard struct {
 	allowLoopback bool
 	allowPrivate  bool // RFC1918 + ULA
-	allowLinkqual bool // link-local (169.254/16, fe80::/10) — includes cloud metadata
 	onBlock       func(ip, reason string)
 }
 
@@ -47,10 +46,6 @@ func AllowLoopback() Option { return func(g *Guard) { g.allowLoopback = true } }
 // AllowPrivate permits RFC1918 (10/8, 172.16/12, 192.168/16) and IPv6 ULA
 // (fc00::/7). Use for tools meant to reach the local network.
 func AllowPrivate() Option { return func(g *Guard) { g.allowPrivate = true } }
-
-// AllowLinkLocal permits link-local addresses, INCLUDING the cloud metadata
-// endpoint (169.254.169.254). Dangerous; only for explicit, trusted use.
-func AllowLinkLocal() Option { return func(g *Guard) { g.allowLinkqual = true } }
 
 // OnBlock installs a callback invoked (with the resolved IP and reason) every
 // time the guard refuses a dial (M109). The daemon uses it to journal a
@@ -96,9 +91,6 @@ func (g *Guard) Allowed(ip net.IP) (bool, string) {
 		}
 		return false, "loopback"
 	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
-		if g.allowLinkqual {
-			return true, ""
-		}
 		return false, "link-local (cloud metadata / autoconf)"
 	case ip.IsPrivate() || isCGNAT(ip):
 		if g.allowPrivate {

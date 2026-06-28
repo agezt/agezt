@@ -125,11 +125,6 @@ func NewAllowlist(ids []string) Allowlist {
 	return Allowlist{ids: m}
 }
 
-// ParseAllowlist parses a comma-separated list of chat ids.
-func ParseAllowlist(s string) Allowlist {
-	return NewAllowlist(strings.Split(s, ","))
-}
-
 // Allows reports whether chatID may drive the agent.
 func (a Allowlist) Allows(chatID string) bool {
 	_, ok := a.ids[strings.TrimSpace(chatID)]

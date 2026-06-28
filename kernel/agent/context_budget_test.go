@@ -23,9 +23,9 @@ func TestRun_ContextBudgetCompacts(t *testing.T) {
 	// Three tool rounds, then a final answer — enough history that the oldest
 	// tool outputs fall outside the protected tail.
 	prov := mock.New(
-		mock.ToolUse("c1", "dump", map[string]any{}),
-		mock.ToolUse("c2", "dump", map[string]any{}),
-		mock.ToolUse("c3", "dump", map[string]any{}),
+		testToolUse("c1", "dump", map[string]any{}),
+		testToolUse("c2", "dump", map[string]any{}),
+		testToolUse("c3", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -73,9 +73,9 @@ func TestRun_EventOrderPolicyResultBeforeCompaction(t *testing.T) {
 	b, j := newTestBus(t)
 	big := strings.Repeat("Z", 4000)
 	prov := mock.New(
-		mock.ToolUse("c1", "dump", map[string]any{}),
-		mock.ToolUse("c2", "dump", map[string]any{}),
-		mock.ToolUse("c3", "dump", map[string]any{}),
+		testToolUse("c1", "dump", map[string]any{}),
+		testToolUse("c2", "dump", map[string]any{}),
+		testToolUse("c3", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -139,9 +139,9 @@ func TestRun_ContextCompactionPayloadReportsSkillRescue(t *testing.T) {
 	marked := `{"_agezt_context_rescue":"skill_resource","content":"` + strings.Repeat("S", 4000) + `"}`
 	plain := strings.Repeat("P", 4000)
 	prov := mock.New(
-		mock.ToolUse("c1", "skillread", map[string]any{}),
-		mock.ToolUse("c2", "dump", map[string]any{}),
-		mock.ToolUse("c3", "dump", map[string]any{}),
+		testToolUse("c1", "skillread", map[string]any{}),
+		testToolUse("c2", "dump", map[string]any{}),
+		testToolUse("c3", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -178,8 +178,8 @@ func TestRun_NoContextBudgetNoCompaction(t *testing.T) {
 	b, j := newTestBus(t)
 	big := strings.Repeat("Z", 4000)
 	prov := mock.New(
-		mock.ToolUse("c1", "dump", map[string]any{}),
-		mock.ToolUse("c2", "dump", map[string]any{}),
+		testToolUse("c1", "dump", map[string]any{}),
+		testToolUse("c2", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{

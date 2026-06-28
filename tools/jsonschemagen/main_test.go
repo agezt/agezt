@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -109,5 +110,5 @@ func TestEndToEndContract(t *testing.T) {
 }
 
 func readFile(p string) ([]byte, error) {
-	return readAll(p)
+	return os.ReadFile(p)
 }

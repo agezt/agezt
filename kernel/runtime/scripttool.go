@@ -131,6 +131,13 @@ func (k *Kernel) RequestToolPromotion(ctx context.Context, corr, ref string) (to
 	if !st.TestedOK {
 		return toolforge.ScriptTool{}, "", "", toolforge.ErrUntested
 	}
+	if k.cfg.AutoPromoteScriptTools {
+		promoted, err := k.PromoteScriptTool(corr, st.Name)
+		if err != nil {
+			return st, approval.DecisionGrant, "auto-promote enabled", err
+		}
+		return promoted, approval.DecisionGrant, "auto-promote enabled", nil
+	}
 	out := k.approvals.Submit(ctx, approval.SubmitSpec{
 		Capability:    "toolforge.promote",
 		ToolName:      "toolforge.promote",

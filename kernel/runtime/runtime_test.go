@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -23,7 +25,7 @@ func newKernel(t *testing.T, prov agent.Provider) *runtime.Kernel {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -98,7 +100,7 @@ func TestRunWith_TimesOut(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    &blockingProvider{}, // never returns until ctx done
-		Tools:       map[string]agent.Tool{"shell": shell.New()},
+		Tools:       map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MaxDuration: 30 * time.Millisecond,
 	})
 	if err != nil {
@@ -140,7 +142,7 @@ func TestRunWith_PerRunTimeoutOverride(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: &blockingProvider{}, // never returns until ctx done
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		// MaxDuration deliberately 0 — only the per-run override should bound it.
 	})
 	if err != nil {
@@ -167,7 +169,7 @@ func TestRunWith_HaltBeatsTimeout(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    &blockingProvider{},
-		Tools:       map[string]agent.Tool{"shell": shell.New()},
+		Tools:       map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MaxDuration: 10 * time.Second, // far longer than the test
 	})
 	if err != nil {
@@ -227,7 +229,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: &blockingProvider{},
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -332,7 +334,7 @@ func TestParentOf(t *testing.T) {
 
 func TestWhy_ReturnsCorrelationGroup(t *testing.T) {
 	k := newKernel(t, mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo ok"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo ok"}),
 		mock.FinalText("ok printed"),
 	))
 	ans, _, err := k.Run(context.Background(), "list things")

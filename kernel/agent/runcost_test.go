@@ -23,7 +23,7 @@ func sumCost(_ string, in, out int) int64 { return int64(in + out) }
 func TestRun_PerRunCostCap_Terminates(t *testing.T) {
 	b, j := newTestBus(t)
 	// One scripted final response carrying 2000 tokens of usage.
-	prov := mock.New(mock.WithUsage(mock.FinalText("done"),
+	prov := mock.New(testWithUsage(mock.FinalText("done"),
 		agent.Usage{InputTokens: 1200, OutputTokens: 800, Model: "mock"}))
 
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -67,7 +67,7 @@ func TestRun_PerRunCostCap_Terminates(t *testing.T) {
 // let a run spend exactly its budget and then run one more (over-budget) round.
 func TestRun_PerRunCostCap_ExactlyAtCap(t *testing.T) {
 	b, _ := newTestBus(t)
-	prov := mock.New(mock.WithUsage(mock.FinalText("done"),
+	prov := mock.New(testWithUsage(mock.FinalText("done"),
 		agent.Usage{InputTokens: 1000, OutputTokens: 500, Model: "mock"})) // 1500 tokens → 1500 microcents
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-exact",
@@ -83,7 +83,7 @@ func TestRun_PerRunCostCap_ExactlyAtCap(t *testing.T) {
 // normally (M166).
 func TestRun_PerRunCostCap_UnderBudget(t *testing.T) {
 	b, _ := newTestBus(t)
-	prov := mock.New(mock.WithUsage(mock.FinalText("ok"),
+	prov := mock.New(testWithUsage(mock.FinalText("ok"),
 		agent.Usage{InputTokens: 100, OutputTokens: 50, Model: "mock"}))
 
 	ans, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -104,7 +104,7 @@ func TestRun_PerRunCostCap_UnderBudget(t *testing.T) {
 func TestRun_PerRunCostCap_InertWithoutCostFn(t *testing.T) {
 	b, _ := newTestBus(t)
 	mk := func() agent.Provider {
-		return mock.New(mock.WithUsage(mock.FinalText("ok"),
+		return mock.New(testWithUsage(mock.FinalText("ok"),
 			agent.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000, Model: "mock"}))
 	}
 

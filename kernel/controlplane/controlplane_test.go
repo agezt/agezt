@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -25,7 +27,7 @@ func startPair(t *testing.T, prov agent.Provider) (*runtime.Kernel, *controlplan
 	t.Helper()
 	return startPairWithConfig(t, runtime.Config{
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 }
 
@@ -190,7 +192,7 @@ func TestRun_SystemOverride(t *testing.T) {
 
 func TestRun_WithToolCalls(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo via-cp"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo via-cp"}),
 		mock.FinalText("printed via-cp"),
 	)
 	_, _, c, _ := startPair(t, prov)

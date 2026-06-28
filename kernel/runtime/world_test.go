@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
@@ -81,7 +83,7 @@ func TestWorldToolRegisteredWhenEnabled(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   t.TempDir(),
 		Provider:  mock.New(mock.FinalText("ok")),
-		Tools:     map[string]agent.Tool{"shell": shell.New()},
+		Tools:     map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		WorldTool: true,
 	})
 	if err != nil {

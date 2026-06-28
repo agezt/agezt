@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	"github.com/agezt/agezt/plugins/tools/artifacts"
 	"github.com/agezt/agezt/plugins/tools/boardtool"
@@ -46,7 +47,7 @@ func TestFirstPartyToolDefinitionsDeclareEffects(t *testing.T) {
 		artifacts.New(),
 		boardtool.New(),
 		browser.New(),
-		codeexec.New(t.TempDir(), map[string]string{"python": "python"}),
+		codeexec.NewWithWarden(warden.New(nil), t.TempDir(), map[string]string{"python": "python"}, true),
 		coding.New("agent", t.TempDir()),
 		config.New(t.TempDir()),
 		council.New(),
@@ -60,10 +61,10 @@ func TestFirstPartyToolDefinitionsDeclareEffects(t *testing.T) {
 		mcptool.New(),
 		notify.New(),
 		overseertool.New(),
-		peer.New(map[string]peer.Peer{"main": {Name: "main", URL: "https://peer.example"}}),
+		peer.NewWithTenants(map[string]peer.Peer{"main": {Name: "main", URL: "https://peer.example"}}, nil),
 		runstool.New(),
 		schedule.New(),
-		shell.New(),
+		shell.NewWithWarden(warden.New(nil)),
 		skilltool.New(),
 		standingtool.New(),
 		websearch.New(),

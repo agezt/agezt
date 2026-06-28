@@ -50,25 +50,3 @@ func TestValidateJSON_RejectsCycle(t *testing.T) {
 		t.Errorf("err should mention cycle: %v", err)
 	}
 }
-
-// TestValidate_AcceptsProgrammaticPlan covers the in-memory
-// variant — useful for callers building Plans without going through
-// JSON. Same rules apply.
-func TestValidate_AcceptsProgrammaticPlan(t *testing.T) {
-	p := planner.Plan{
-		Name: "in-mem",
-		Nodes: []planner.Node{
-			{ID: "x", Kind: "loop", Intent: "do x"},
-			{ID: "y", Kind: "gate", Description: "approve?", Deps: []string{"x"}},
-		},
-	}
-	if err := planner.Validate(p); err != nil {
-		t.Errorf("Validate on good plan: %v", err)
-	}
-
-	// And the rejection path — gate without description.
-	bad := planner.Plan{Nodes: []planner.Node{{ID: "x", Kind: "gate"}}}
-	if err := planner.Validate(bad); err == nil {
-		t.Error("expected error for empty gate description")
-	}
-}

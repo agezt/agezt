@@ -24,7 +24,7 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 	// (claude-sonnet-4-6 at the fallback price = 300M microcents/MTok → 0.1 MTok ≈
 	// 30M microcents ≈ $0.03), comfortably over the $0.01 cap below.
 	mkProv := func() agent.Provider {
-		return mock.New(mock.WithUsage(mock.FinalText("done"),
+		return mock.New(testWithUsage(mock.FinalText("done"),
 			agent.Usage{Model: "claude-sonnet-4-6", InputTokens: 100_000, OutputTokens: 0}))
 	}
 

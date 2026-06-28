@@ -128,27 +128,21 @@ func (s *sessionStore) noteSuccess() {
 	s.mu.Unlock()
 }
 
-// SetPassword wires the optional console password (AGEZT_WEB_PASSWORD). Empty =
-// token-only. Called once at startup, before Handler(), like SetTranscriber.
-func (s *Server) SetPassword(pw string) { s.password = strings.TrimSpace(pw) }
-
 // SetPasswordFn wires a LIVE password source (M933): evaluated on each gate
 // decision, so a password set from the Setup wizard / Config Center (which
-// updates the process env) takes effect without a daemon restart. When set it
-// supersedes the static SetPassword value.
+// updates the process env) takes effect without a daemon restart.
 func (s *Server) SetPasswordFn(fn func() string) { s.passwordFn = fn }
 
 // SetPasswordStrict restores the M817 compose semantics (token AND password
 // session on every data route) instead of the M933 alternative-door default.
 func (s *Server) SetPasswordStrict(on bool) { s.passwordStrict = on }
 
-// consolePassword returns the live console password: the SetPasswordFn source
-// when wired, else the static SetPassword value. Empty = no password gate.
+// consolePassword returns the live console password. Empty = no password gate.
 func (s *Server) consolePassword() string {
 	if s.passwordFn != nil {
 		return strings.TrimSpace(s.passwordFn())
 	}
-	return s.password
+	return ""
 }
 
 // sessionValid reports whether the request carries a live session cookie.

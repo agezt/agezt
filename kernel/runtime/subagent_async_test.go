@@ -90,14 +90,14 @@ func TestSubAgent_AsyncSpawnAndAwait(t *testing.T) {
 		childText: "child says hi",
 		lead: []func(agent.CompletionRequest) agent.CompletionResponse{
 			func(agent.CompletionRequest) agent.CompletionResponse {
-				return mock.ToolUse("a1", "delegate", map[string]any{"task": "t1", "async": true})
+				return testToolUse("a1", "delegate", map[string]any{"task": "t1", "async": true})
 			},
 			func(req agent.CompletionRequest) agent.CompletionResponse {
 				m := spawnIDRe.FindStringSubmatch(lastToolMessage(req))
 				if m == nil {
 					return mock.FinalText("BUG: no spawn id in tool result")
 				}
-				return mock.ToolUse("a2", "delegate_await", map[string]any{"spawn_id": m[1]})
+				return testToolUse("a2", "delegate_await", map[string]any{"spawn_id": m[1]})
 			},
 			func(req agent.CompletionRequest) agent.CompletionResponse {
 				return mock.FinalText("lead got: " + lastToolMessage(req))
@@ -152,7 +152,7 @@ func TestSubAgent_AsyncOrphanCancelledAtRunEnd(t *testing.T) {
 		childBlocks: true,
 		lead: []func(agent.CompletionRequest) agent.CompletionResponse{
 			func(agent.CompletionRequest) agent.CompletionResponse {
-				return mock.ToolUse("a1", "delegate", map[string]any{"task": "t1", "async": true})
+				return testToolUse("a1", "delegate", map[string]any{"task": "t1", "async": true})
 			},
 			func(agent.CompletionRequest) agent.CompletionResponse {
 				return mock.FinalText("lead done without awaiting")

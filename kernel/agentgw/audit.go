@@ -5,9 +5,7 @@ package agentgw
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -100,42 +98,4 @@ func (a *AuditLogger) writeEntries(entries []AuditEntry) {
 			fmt.Fprintf(os.Stderr, "agentgw: audit: append: %v\n", err)
 		}
 	}
-}
-
-// WriteJSONEntry writes a single audit entry as JSON to w.
-func WriteJSONEntry(w io.Writer, entry AuditEntry) error {
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(data)
-	return err
-}
-
-// ReadAuditLog reads audit entries from a journal file.
-func ReadAuditLog(path string) ([]AuditEntry, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("agentgw: audit: open: %w", err)
-	}
-	defer f.Close()
-
-	var entries []AuditEntry
-	dec := json.NewDecoder(f)
-	for {
-		var entry AuditEntry
-		if err := dec.Decode(&entry); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, fmt.Errorf("agentgw: audit: decode: %w", err)
-		}
-		entries = append(entries, entry)
-	}
-
-	return entries, nil
-}
-
-// AuditDir returns the directory where audit logs are stored.
-func AuditDir(baseDir string) string {
-	return filepath.Join(baseDir, "agentgw", "audit")
 }

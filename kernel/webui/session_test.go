@@ -21,7 +21,7 @@ var cookieRe = regexp.MustCompile(sessionCookie + `=([0-9a-f]+)`)
 func TestPasswordGate_TokenAloneIsNotEnough(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")
-	s.SetPassword("hunter2")
+	s.SetPasswordFn(func() string { return "hunter2" })
 	s.SetPasswordStrict(true)
 
 	// A data route with a good token but NO session → 401 (password required).
@@ -83,7 +83,7 @@ func TestPasswordGate_TokenAloneIsNotEnough(t *testing.T) {
 func TestPasswordGate_AlternativeDoor(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")
-	s.SetPassword("hunter2")
+	s.SetPasswordFn(func() string { return "hunter2" })
 
 	// Token alone still opens data routes (it is a door, not a half-key).
 	req := httptest.NewRequest(http.MethodGet, "/api/status?token=secret", nil)
@@ -180,7 +180,7 @@ func TestNoPassword_TokenSuffices(t *testing.T) {
 func TestLogin_LockoutAfterRepeatedFailures(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")
-	s.SetPassword("hunter2")
+	s.SetPasswordFn(func() string { return "hunter2" })
 
 	for i := 0; i < maxLoginFails; i++ {
 		if rec := postLogin(t, s, `{"password":"x"}`); rec.Code != http.StatusUnauthorized {
@@ -197,7 +197,7 @@ func TestLogin_LockoutAfterRepeatedFailures(t *testing.T) {
 func TestLogout_RevokesSession(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"ok": true}}
 	s, _ := newServer(t, fc, "secret")
-	s.SetPassword("hunter2")
+	s.SetPasswordFn(func() string { return "hunter2" })
 
 	rec := postLogin(t, s, `{"password":"hunter2"}`)
 	sid := cookieRe.FindStringSubmatch(rec.Header().Get("Set-Cookie"))[1]

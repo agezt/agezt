@@ -77,7 +77,7 @@ func promoteEcho(t *testing.T, k *runtime.Kernel, runner *stubRunner) toolforge.
 // stdout flows back into the loop.
 func TestRunWith_OffersAndExecutesForgedTool(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "forge_echo", map[string]any{"text": "merhaba"}),
+		testToolUse("c1", "forge_echo", map[string]any{"text": "merhaba"}),
 		mock.FinalText("done"),
 	)
 	var first agent.CompletionRequest
@@ -298,5 +298,46 @@ func TestRequestToolPromotion(t *testing.T) {
 	}
 	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", "ghost"); err == nil {
 		t.Fatal("ghost accepted")
+	}
+}
+
+func TestRequestToolPromotion_AutoPromote(t *testing.T) {
+	runner := &stubRunner{out: "ok"}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:                t.TempDir(),
+		Provider:               mock.New(mock.FinalText("unused")),
+		ScriptRunner:           runner,
+		AutoPromoteScriptTools: true,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+		Name: "fast", Description: "fast path", Language: "python", Code: "print('ok')",
+	})
+	if err != nil {
+		t.Fatalf("draft: %v", err)
+	}
+	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", st.Name); !errors.Is(err, toolforge.ErrUntested) {
+		t.Fatalf("untested err = %v", err)
+	}
+	if _, _, err := k.TestScriptTool(context.Background(), "", st.Name, "{}"); err != nil {
+		t.Fatalf("test: %v", err)
+	}
+
+	promoted, decision, reason, err := k.RequestToolPromotion(context.Background(), "", st.Name)
+	if err != nil {
+		t.Fatalf("auto promote: %v", err)
+	}
+	if decision != approval.DecisionGrant || reason != "auto-promote enabled" {
+		t.Fatalf("decision/reason = %q/%q, want grant/auto-promote enabled", decision, reason)
+	}
+	if promoted.Status != toolforge.StatusActive {
+		t.Fatalf("status = %s, want active", promoted.Status)
+	}
+	if pending := k.Approvals().Pending(); len(pending) != 0 {
+		t.Fatalf("auto promote left %d pending approval(s)", len(pending))
 	}
 }

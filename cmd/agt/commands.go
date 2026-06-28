@@ -40,19 +40,6 @@ func lookup(name string) *Command {
 	return CommandRegistry[name]
 }
 
-// AllCommands returns all registered commands sorted by name.
-func AllCommands() []*Command {
-	seen := make(map[string]bool)
-	var cmds []*Command
-	for _, cmd := range CommandRegistry {
-		if !seen[cmd.Name] {
-			cmds = append(cmds, cmd)
-			seen[cmd.Name] = true
-		}
-	}
-	return cmds
-}
-
 // ExecuteCommand looks up and runs a command by name.
 func ExecuteCommand(name string, args []string, stdout, stderr io.Writer) int {
 	cmd := lookup(name)
@@ -66,13 +53,4 @@ func ExecuteCommand(name string, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	return cmd.Run(args, stdout, stderr)
-}
-
-// RunHelp runs the help handler for a command.
-func RunHelp(name string, args []string, stdout, stderr io.Writer) int {
-	cmd := lookup(name)
-	if cmd == nil || cmd.HelpHandler == nil {
-		return 2
-	}
-	return cmd.HelpHandler(args, stdout, stderr)
 }

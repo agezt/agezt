@@ -9,11 +9,33 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+// SetPublicKey configures the trusted release-signing key for tests. Pass an
+// empty string to clear it.
+func SetPublicKey(hexKey string) error {
+	pubKeyMu.Lock()
+	defer pubKeyMu.Unlock()
+	if strings.TrimSpace(hexKey) == "" {
+		updatePubKey = nil
+		return nil
+	}
+	raw, err := hex.DecodeString(strings.TrimSpace(hexKey))
+	if err != nil {
+		return fmt.Errorf("update: bad public key hex: %w", err)
+	}
+	if len(raw) != ed25519.PublicKeySize {
+		return fmt.Errorf("update: public key is %d bytes, want %d", len(raw), ed25519.PublicKeySize)
+	}
+	updatePubKey = ed25519.PublicKey(raw)
+	return nil
+}
 
 // withKey installs a fresh Ed25519 keypair for the duration of the test and
 // returns the private key (to sign with) and the hex public key. It clears the

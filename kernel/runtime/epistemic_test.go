@@ -57,7 +57,7 @@ func (t epistemicTool) Invoke(context.Context, json.RawMessage) (agent.Result, e
 func TestRunWith_EpistemicSignalsJournaledWithoutEscalation(t *testing.T) {
 	var calls int32
 	prov := mock.New(
-		mock.ToolUse("c1", "freshprobe", map[string]any{"target": "latest release"}),
+		testToolUse("c1", "freshprobe", map[string]any{"target": "latest release"}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{
@@ -123,7 +123,7 @@ func TestRunWith_EpistemicEscalationRoutesLowConfidenceToApproval(t *testing.T) 
 	var calls int32
 	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
 	prov := mock.New(
-		mock.ToolUse("c1", "riskprobe", map[string]any{"target": "prod"}),
+		testToolUse("c1", "riskprobe", map[string]any{"target": "prod"}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{
@@ -180,9 +180,9 @@ func TestRunWith_EpistemicEscalationMatchesHistoricalFailureConditions(t *testin
 	var calls int32
 	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
 	prov := mock.New(
-		mock.ToolUse("c1", "histprobe", map[string]any{"target": "prod"}),
+		testToolUse("c1", "histprobe", map[string]any{"target": "prod"}),
 		mock.FinalText("first done"),
-		mock.ToolUse("c2", "histprobe", map[string]any{"target": "prod"}),
+		testToolUse("c2", "histprobe", map[string]any{"target": "prod"}),
 		mock.FinalText("second done"),
 	)
 	k, err := runtime.Open(runtime.Config{

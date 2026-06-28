@@ -185,10 +185,10 @@ func TestTenantToken_InvalidRejected(t *testing.T) {
 func TestRunsAreTenantScoped(t *testing.T) {
 	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
 	reg := withTenants(t, srv, dir)
-	if _, err := reg.Acquire("acme", time.Now()); err != nil {
+	tk, err := reg.Acquire("acme", time.Now())
+	if err != nil {
 		t.Fatalf("Acquire: %v", err)
 	}
-	tk, _ := reg.Get("acme")
 	tenantK := tk.Kernel.(*runtime.Kernel)
 
 	publishRun := func(k *runtime.Kernel, corr string) {
@@ -242,7 +242,10 @@ func TestWhyIsTenantScoped(t *testing.T) {
 	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
 	reg := withTenants(t, srv, dir)
 	tok := mustTenant(t, reg, "acme")
-	tk, _ := reg.Get("acme")
+	tk, err := reg.Acquire("acme", time.Now())
+	if err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
 	tenantK := tk.Kernel.(*runtime.Kernel)
 
 	publish := func(k *runtime.Kernel, corr string) string {

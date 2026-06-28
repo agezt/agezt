@@ -34,11 +34,20 @@ func TestTemplatesValidate(t *testing.T) {
 }
 
 func TestTemplateByName(t *testing.T) {
-	tpl, ok := TemplateByName("resilient-fetch")
+	tpl, ok := templateByName("resilient-fetch")
 	if !ok || tpl.Title == "" {
 		t.Fatalf("TemplateByName: %v %v", tpl, ok)
 	}
-	if _, ok := TemplateByName("ghost"); ok {
+	if _, ok := templateByName("ghost"); ok {
 		t.Fatal("ghost template found")
 	}
+}
+
+func templateByName(name string) (Template, bool) {
+	for _, t := range Templates() {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return Template{}, false
 }

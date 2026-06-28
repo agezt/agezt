@@ -62,7 +62,8 @@ func TestValidID(t *testing.T) {
 
 func TestRegistry_AcquireIsIdempotentAndIsolated(t *testing.T) {
 	o := newFakeOpener()
-	reg, err := tenant.New(t.TempDir(), o.open)
+	root := t.TempDir()
+	reg, err := tenant.New(root, o.open)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestRegistry_AcquireIsIdempotentAndIsolated(t *testing.T) {
 	if a1.BaseDir == b.BaseDir {
 		t.Error("tenants must have distinct base dirs")
 	}
-	if filepath.Dir(a1.BaseDir) != reg.Root() || filepath.Base(a1.BaseDir) != "alpha" {
+	if filepath.Dir(a1.BaseDir) != root || filepath.Base(a1.BaseDir) != "alpha" {
 		t.Errorf("alpha base dir %q not <root>/alpha", a1.BaseDir)
 	}
 	if reg.Count() != 2 {
@@ -347,8 +348,8 @@ func TestRegistry_RealKernelsAreIsolated(t *testing.T) {
 
 	// Each tenant's journal is a separate file under its own base dir, and holds
 	// only its own intent.
-	alphaJournal := readAll(t, filepath.Join(reg.Root(), "alpha", "journal"))
-	betaJournal := readAll(t, filepath.Join(reg.Root(), "beta", "journal"))
+	alphaJournal := readAll(t, filepath.Join(kernels["alpha"].BaseDir(), "journal"))
+	betaJournal := readAll(t, filepath.Join(kernels["beta"].BaseDir(), "journal"))
 	if !strings.Contains(alphaJournal, "alpha-secret-intent") || strings.Contains(alphaJournal, "beta-secret-intent") {
 		t.Error("alpha journal must contain only alpha's intent")
 	}

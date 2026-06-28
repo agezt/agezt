@@ -84,10 +84,7 @@ func TestAllowed_OptIns(t *testing.T) {
 	if ok, _ := netguard.New(netguard.AllowPrivate()).Allowed(net.ParseIP("10.1.2.3")); !ok {
 		t.Error("AllowPrivate should permit 10.1.2.3")
 	}
-	if ok, _ := netguard.New(netguard.AllowLinkLocal()).Allowed(net.ParseIP("169.254.169.254")); !ok {
-		t.Error("AllowLinkLocal should permit the metadata endpoint")
-	}
-	// Opt-ins are independent: AllowPrivate must NOT unblock the metadata endpoint.
+	// AllowPrivate must NOT unblock the metadata endpoint.
 	if ok, _ := netguard.New(netguard.AllowPrivate()).Allowed(net.ParseIP("169.254.169.254")); ok {
 		t.Error("AllowPrivate must not unblock link-local metadata")
 	}

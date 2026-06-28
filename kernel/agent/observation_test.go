@@ -48,8 +48,8 @@ func TestRun_ObservationDeltasFeedsDeltaButJournalsRaw(t *testing.T) {
 	tool := &changingObservationTool{outputs: []string{"alpha\nbeta", "alpha\nbeta\ngamma"}}
 	var lastToolContent string
 	prov := mock.New(
-		mock.ToolUse("c1", "watch", map[string]any{}),
-		mock.ToolUse("c2", "watch", map[string]any{}),
+		testToolUse("c1", "watch", map[string]any{}),
+		testToolUse("c2", "watch", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	prov.OnRequest = func(req agent.CompletionRequest) {

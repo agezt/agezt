@@ -19,9 +19,6 @@ func RegisterAll() {
 	}
 }
 
-// Manifests returns the built-in manifests (for tests / inspection).
-func Manifests() []channel.Manifest { return append([]channel.Manifest(nil), manifests...) }
-
 var manifests = []channel.Manifest{
 	{
 		Kind: "telegram", Display: "Telegram", Transport: "long-poll", Duplex: true,

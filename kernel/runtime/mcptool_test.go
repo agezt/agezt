@@ -55,7 +55,7 @@ func openMCPKernel(t *testing.T, prov agent.Provider, conn *fakeMCPConn) (*runti
 // server's text comes back.
 func TestAttach_OffersAndForwardsBridgedTool(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "mcp_fake_greet", map[string]any{"name": "ersin"}),
+		testToolUse("c1", "mcp_fake_greet", map[string]any{"name": "ersin"}),
 		mock.FinalText("done"),
 	)
 	var first agent.CompletionRequest
@@ -203,7 +203,7 @@ func TestAttach_ToolAllowFilters(t *testing.T) {
 // connection. Context-efficient MCP management.
 func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "mcp_fake", map[string]any{"tool": "greet", "arguments": map[string]any{"name": "ersin"}}),
+		testToolUse("c1", "mcp_fake", map[string]any{"tool": "greet", "arguments": map[string]any{"name": "ersin"}}),
 		mock.FinalText("done"),
 	)
 	var first agent.CompletionRequest

@@ -41,7 +41,7 @@ func (s *stubbornTool) Invoke(context.Context, json.RawMessage) (agent.Result, e
 func TestClose_DrainsInFlightRun(t *testing.T) {
 	tool := &stubbornTool{sleep: 300 * time.Millisecond, started: make(chan struct{})}
 	prov := mock.New(
-		mock.ToolUse("c1", "stubborn", map[string]any{}),
+		testToolUse("c1", "stubborn", map[string]any{}),
 		mock.FinalText("never reached"),
 	)
 	k, err := runtime.Open(runtime.Config{
@@ -78,7 +78,7 @@ func TestClose_DrainsInFlightRun(t *testing.T) {
 func TestClose_DrainTimeoutBounds(t *testing.T) {
 	tool := &stubbornTool{sleep: 2 * time.Second, started: make(chan struct{})}
 	prov := mock.New(
-		mock.ToolUse("c1", "stubborn", map[string]any{}),
+		testToolUse("c1", "stubborn", map[string]any{}),
 		mock.FinalText("never reached"),
 	)
 	k, err := runtime.Open(runtime.Config{

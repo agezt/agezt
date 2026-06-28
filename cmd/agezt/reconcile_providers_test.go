@@ -12,9 +12,12 @@ package main
 // providers kept failing until a daemon restart.
 
 import (
+	"context"
+	"fmt"
 	"slices"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -77,6 +80,19 @@ func reconcileLookup(name string) string {
 		return "test-key"
 	}
 	return ""
+}
+
+// alwaysFailProvider errors on every call with a non-cancel/non-budget error so
+// shouldFallback returns true. It forces the Governor's fallback chain to engage.
+type alwaysFailProvider struct{ name string }
+
+func (p *alwaysFailProvider) Name() string { return p.name }
+
+func (p *alwaysFailProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("demo-shim: simulated primary failure")
 }
 
 func TestReconcileAlternateProviders_RegistersKeyedAlternates(t *testing.T) {

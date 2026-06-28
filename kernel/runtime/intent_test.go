@@ -22,7 +22,7 @@ func TestRunWith_IntentRegretGateRoutesAmbiguousHighRegretActionToApproval(t *te
 	var invoked int32
 	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
 	prov := mock.New(
-		mock.ToolUse("c1", "approvalprobe", map[string]any{"path": "legacy/2023"}),
+		testToolUse("c1", "approvalprobe", map[string]any{"path": "legacy/2023"}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{

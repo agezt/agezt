@@ -104,20 +104,20 @@ func TestSchema_SecretFieldsArePasswords(t *testing.T) {
 }
 
 func TestSchema_FieldByEnv(t *testing.T) {
-	f, ok := FieldByEnv("AGEZT_TELEGRAM_TOKEN")
+	f, ok := builtinFieldByEnv("AGEZT_TELEGRAM_TOKEN")
 	if !ok || !f.Secret || f.Apply != ApplyRestart {
 		t.Errorf("telegram token field wrong: %+v ok=%v", f, ok)
 	}
-	if pf, ok := FieldByEnv("AGEZT_PROVIDER"); !ok || pf.Apply != ApplyLive {
+	if pf, ok := builtinFieldByEnv("AGEZT_PROVIDER"); !ok || pf.Apply != ApplyLive {
 		t.Errorf("provider should be live-apply: %+v ok=%v", pf, ok)
 	}
-	if _, ok := FieldByEnv("AGEZT_NOT_A_FIELD"); ok {
+	if _, ok := builtinFieldByEnv("AGEZT_NOT_A_FIELD"); ok {
 		t.Error("unknown env should not resolve")
 	}
 }
 
 func TestValidate(t *testing.T) {
-	num, _ := FieldByEnv("AGEZT_RATE_PER_MIN")
+	num, _ := builtinFieldByEnv("AGEZT_RATE_PER_MIN")
 	if err := Validate(num, "abc"); err == nil {
 		t.Error("non-numeric should fail number validation")
 	}
@@ -127,18 +127,29 @@ func TestValidate(t *testing.T) {
 	if err := Validate(num, ""); err != nil {
 		t.Error("empty always allowed (clearing a field)")
 	}
-	sel, _ := FieldByEnv("AGEZT_APPROVAL_MODE")
+	sel, _ := builtinFieldByEnv("AGEZT_APPROVAL_MODE")
 	if err := Validate(sel, "nonsense"); err == nil {
 		t.Error("out-of-set select value should fail")
 	}
 	if err := Validate(sel, "ask"); err != nil {
 		t.Errorf("ask is valid: %v", err)
 	}
-	bf, _ := FieldByEnv("AGEZT_ALLOW_ALL")
+	bf, _ := builtinFieldByEnv("AGEZT_ALLOW_ALL")
 	if err := Validate(bf, "maybe"); err == nil {
 		t.Error("non-bool should fail")
 	}
 	if err := Validate(bf, "on"); err != nil {
 		t.Errorf("on is a valid bool: %v", err)
 	}
+}
+
+func builtinFieldByEnv(env string) (Field, bool) {
+	for _, s := range Schema() {
+		for _, f := range s.Fields {
+			if f.Env == env {
+				return f, true
+			}
+		}
+	}
+	return Field{}, false
 }

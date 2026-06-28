@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -149,14 +151,14 @@ func TestExplicitSkillDirectiveActivatesNamedSkill(t *testing.T) {
 
 func TestForgeProposesAfterMultiToolRun(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
 		mock.FinalText("done the multi-step thing"),
 		mock.FinalText(`{"skill":{"name":"do-the-thing","description":"a reusable procedure","triggers":["ops"],"body":"step one then step two","tools":["shell"]}}`),
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:            t.TempDir(),
 		Provider:           prov,
-		Tools:              map[string]agent.Tool{"shell": shell.New()},
+		Tools:              map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SkillForge:         true,
 		SkillForgeMinTools: 1,
 	})

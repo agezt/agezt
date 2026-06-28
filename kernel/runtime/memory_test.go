@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -93,7 +95,7 @@ func TestMemoryToolRegisteredWhenEnabled(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   mock.New(mock.FinalText("ok")),
-		Tools:      map[string]agent.Tool{"shell": shell.New()},
+		Tools:      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryTool: true,
 	})
 	if err != nil {
@@ -113,7 +115,7 @@ func TestMemoryToolAbsentByDefault(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -128,14 +130,14 @@ func TestAutoDistillAfterMultiToolRun(t *testing.T) {
 	// Scripted: one shell tool call, a final answer, then the distill
 	// LLM call returns a JSON facts payload (consumed from the same mock).
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
 		mock.FinalText("the project is a go monorepo"),
 		mock.FinalText(`{"facts":[{"subject":"lictor","content":"lictor is the agezt monorepo","type":"FACT"}]}`),
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
-		Tools:                 map[string]agent.Tool{"shell": shell.New()},
+		Tools:                 map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryDistill:         true,
 		MemoryDistillMinTools: 1,
 	})

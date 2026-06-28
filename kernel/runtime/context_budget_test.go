@@ -50,9 +50,9 @@ func TestRun_AutoContextBudgetFromCatalog(t *testing.T) {
 	}
 
 	prov := mock.New(
-		mock.ToolUse("c1", "dump", map[string]any{}),
-		mock.ToolUse("c2", "dump", map[string]any{}),
-		mock.ToolUse("c3", "dump", map[string]any{}),
+		testToolUse("c1", "dump", map[string]any{}),
+		testToolUse("c2", "dump", map[string]any{}),
+		testToolUse("c3", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{
@@ -93,9 +93,9 @@ func TestRun_AutoContextBudgetFromCatalog(t *testing.T) {
 func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 	newProv := func() *mock.Provider {
 		return mock.New(
-			mock.ToolUse("c1", "dump", map[string]any{}),
-			mock.ToolUse("c2", "dump", map[string]any{}),
-			mock.ToolUse("c3", "dump", map[string]any{}),
+			testToolUse("c1", "dump", map[string]any{}),
+			testToolUse("c2", "dump", map[string]any{}),
+			testToolUse("c3", "dump", map[string]any{}),
 			mock.FinalText("done"),
 		)
 	}
@@ -169,7 +169,7 @@ func TestRun_ContextSummarizeEmbedsAbstractiveSummary(t *testing.T) {
 		}
 		if toolTurns < 3 {
 			toolTurns++
-			return mock.ToolUse("c", "dump", map[string]any{})
+			return testToolUse("c", "dump", map[string]any{})
 		}
 		return mock.FinalText("done")
 	}}
@@ -196,8 +196,8 @@ func TestRun_ContextSummarizeEmbedsAbstractiveSummary(t *testing.T) {
 // catalog leaves compaction off (no guessing a window) — no context.compacted.
 func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "dump", map[string]any{}),
-		mock.ToolUse("c2", "dump", map[string]any{}),
+		testToolUse("c1", "dump", map[string]any{}),
+		testToolUse("c2", "dump", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{
@@ -261,7 +261,7 @@ func TestRun_ContextSummarizeReasoningHeadroom(t *testing.T) {
 				}
 				if toolTurns < 3 {
 					toolTurns++
-					return mock.ToolUse("c", "dump", map[string]any{})
+					return testToolUse("c", "dump", map[string]any{})
 				}
 				return mock.FinalText("done")
 			}}

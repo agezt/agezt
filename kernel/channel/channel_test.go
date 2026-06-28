@@ -2,7 +2,10 @@
 
 package channel
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAllowlist(t *testing.T) {
 	a := NewAllowlist([]string{"123", " 456 ", "", "  "})
@@ -28,13 +31,17 @@ func TestAllowlistEmptyFailsClosed(t *testing.T) {
 }
 
 func TestParseAllowlist(t *testing.T) {
-	a := ParseAllowlist("11, 22 ,33")
+	a := parseAllowlist("11, 22 ,33")
 	for _, id := range []string{"11", "22", "33"} {
 		if !a.Allows(id) {
 			t.Errorf("id %q should be allowed", id)
 		}
 	}
-	if !ParseAllowlist("").Empty() {
+	if !parseAllowlist("").Empty() {
 		t.Fatal("empty string → empty allowlist")
 	}
+}
+
+func parseAllowlist(s string) Allowlist {
+	return NewAllowlist(strings.Split(s, ","))
 }

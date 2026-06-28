@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -45,7 +47,7 @@ func TestRunWith_ExplicitModelBeatsTaskChain(t *testing.T) {
 		BaseDir:  t.TempDir(),
 		Provider: gov,
 		Model:    "default-model",
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -234,10 +236,10 @@ func tail(s string) string {
 func TestRun_ToolCallRoundtrip(t *testing.T) {
 	b, j := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("call-1", "shell", map[string]string{"command": "echo hello"}),
+		testToolUse("call-1", "shell", map[string]string{"command": "echo hello"}),
 		mock.FinalText("The shell printed 'hello'."),
 	)
-	sh := shell.New()
+	sh := shell.NewWithWarden(warden.New(nil))
 
 	got, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
@@ -276,7 +278,7 @@ func TestRun_ToolCallRoundtrip(t *testing.T) {
 func TestRun_PolicyDeny_SkipsToolInvoke(t *testing.T) {
 	b, j := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo nope"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo nope"}),
 		mock.FinalText("the call was denied; proceeding without it"),
 	)
 	denyAll := func(_ context.Context, _ agent.ToolCall) agent.PolicyVerdict {
@@ -289,7 +291,7 @@ func TestRun_PolicyDeny_SkipsToolInvoke(t *testing.T) {
 	}
 	ans, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
-		Tools:         map[string]agent.Tool{"shell": shell.New()},
+		Tools:         map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:           b,
 		Actor:         "agent-deny",
 		CorrelationID: "corr-deny",
@@ -335,7 +337,7 @@ func TestRun_PolicyDeny_SkipsToolInvoke(t *testing.T) {
 func TestRun_HardDeniedTool_DroppedFromLaterOffers(t *testing.T) {
 	b, j := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo nope"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo nope"}),
 		mock.FinalText("ok, proceeding without it"),
 	)
 	denyShell := func(_ context.Context, _ agent.ToolCall) agent.PolicyVerdict {
@@ -343,7 +345,7 @@ func TestRun_HardDeniedTool_DroppedFromLaterOffers(t *testing.T) {
 	}
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
-		Tools:         map[string]agent.Tool{"shell": shell.New()},
+		Tools:         map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:           b,
 		Actor:         "agent-drop",
 		CorrelationID: "corr-drop",
@@ -377,7 +379,7 @@ func TestRun_HardDeniedTool_DroppedFromLaterOffers(t *testing.T) {
 func TestRun_UnknownTool_RecordedNotFatal(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("call-1", "nonexistent", map[string]string{}),
+		testToolUse("call-1", "nonexistent", map[string]string{}),
 		mock.FinalText("I tried but the tool was missing."),
 	)
 	got, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -451,7 +453,7 @@ func TestRun_ToolSchemaValidationBoundary(t *testing.T) {
 			tool := &strictSchemaTool{}
 			policyCalls := 0
 			prov := mock.New(
-				mock.ToolUse("c1", "strict", tc.input),
+				testToolUse("c1", "strict", tc.input),
 				mock.FinalText("done"),
 			)
 			if _, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -546,8 +548,8 @@ func (t fixedResultTool) Invoke(context.Context, json.RawMessage) (agent.Result,
 func TestRun_UntrustedObservationIsWrappedAndTaintsPolicy(t *testing.T) {
 	b, j := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("read-1", "browser.read", map[string]any{}),
-		mock.ToolUse("shell-1", "shell", map[string]any{}),
+		testToolUse("read-1", "browser.read", map[string]any{}),
+		testToolUse("shell-1", "shell", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	var sawShellTaint bool
@@ -640,7 +642,7 @@ func TestRun_OpenObjectToolSchemaAllowsExtraFields(t *testing.T) {
 	b, _ := newTestBus(t)
 	tool := &countingTool{}
 	prov := mock.New(
-		mock.ToolUse("c1", "echo", map[string]any{"anything": "goes"}),
+		testToolUse("c1", "echo", map[string]any{"anything": "goes"}),
 		mock.FinalText("done"),
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -695,7 +697,7 @@ func TestRun_MaxIterStops(t *testing.T) {
 
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:        prov,
-		Tools:           map[string]agent.Tool{"shell": shell.New()},
+		Tools:           map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:             b,
 		Actor:           "agent-loop",
 		CorrelationID:   "corr-loop",
@@ -782,7 +784,7 @@ func TestRun_MaxIterEmitsTaskFailed(t *testing.T) {
 	b, j := newTestBus(t)
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:        &repeatingToolUseProvider{},
-		Tools:           map[string]agent.Tool{"shell": shell.New()},
+		Tools:           map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:             b,
 		Actor:           "agent-loop",
 		CorrelationID:   "corr-loop",
@@ -836,7 +838,7 @@ func TestRun_AutoContinue_FinishesPastMaxIter(t *testing.T) {
 	prov := &finishAfterProvider{finishAt: 3}
 	ans, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:              b,
 		Actor:            "agent-loop",
 		CorrelationID:    "corr-cont",
@@ -862,7 +864,7 @@ func TestRun_AutoContinue_BoundedByMax(t *testing.T) {
 	prov := &repeatingToolUseProvider{}
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:              b,
 		Actor:            "agent-loop",
 		CorrelationID:    "corr-cont2",
@@ -950,7 +952,7 @@ func TestRun_ToolTimeoutFeedsErrorNotFailure(t *testing.T) {
 	// Round 1: model asks for the slow tool. Round 2: it gives a final
 	// answer (after seeing the timeout error result).
 	prov := mock.New(
-		mock.ToolUse("c1", "slow", map[string]string{}),
+		testToolUse("c1", "slow", map[string]string{}),
 		mock.FinalText("gave up on the slow tool"),
 	)
 	ans, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -1000,12 +1002,12 @@ func TestRun_ToolTimeoutFeedsErrorNotFailure(t *testing.T) {
 func TestRun_FastToolUnderTimeoutUnaffected(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
+		testToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
 		mock.FinalText("done"),
 	)
 	ans, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
-		Tools:         map[string]agent.Tool{"shell": shell.New()},
+		Tools:         map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Bus:           b,
 		Actor:         "agent-ft",
 		CorrelationID: "corr-ft",
@@ -1026,7 +1028,7 @@ func TestRun_FastToolUnderTimeoutUnaffected(t *testing.T) {
 func TestRun_RunCancelDuringToolFailsRun(t *testing.T) {
 	b, j := newTestBus(t)
 	prov := mock.New(
-		mock.ToolUse("c1", "slow", map[string]string{}),
+		testToolUse("c1", "slow", map[string]string{}),
 		mock.FinalText("should never reach here"),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1441,8 +1443,8 @@ func TestRun_ToolMemoCachesReadOnlyResultsAfterPolicy(t *testing.T) {
 	b, j := newTestBus(t)
 	tool := &countingTool{}
 	prov := mock.New(
-		mock.ToolUse("c1", "echo", map[string]any{"x": 1}),
-		mock.ToolUse("c2", "echo", map[string]any{"x": 1}),
+		testToolUse("c1", "echo", map[string]any{"x": 1}),
+		testToolUse("c2", "echo", map[string]any{"x": 1}),
 		mock.FinalText("done"),
 	)
 

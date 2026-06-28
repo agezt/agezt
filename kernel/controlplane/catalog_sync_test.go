@@ -17,8 +17,10 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -54,7 +56,7 @@ func TestCatalogSync_TriggersProviderReload(t *testing.T) {
 	var reloads atomic.Int32
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(),
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		OnReload: func() error { reloads.Add(1); return nil },
 	})
 
@@ -85,7 +87,7 @@ func TestCatalogSync_ProviderReloadFailureIsNonFatal(t *testing.T) {
 
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(),
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		OnReload: func() error { return context.DeadlineExceeded },
 	})
 

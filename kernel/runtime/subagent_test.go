@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -36,7 +38,7 @@ func openSpendKernel(t *testing.T, prov agent.Provider, spendCapMC int64) *runti
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   g,
-		Tools:                      map[string]agent.Tool{"shell": shell.New()},
+		Tools:                      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Model:                      "claude-sonnet-4-6", // priced, so usage → non-zero spend
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           1,
@@ -54,7 +56,7 @@ func openSpendKernel(t *testing.T, prov agent.Provider, spendCapMC int64) *runti
 // non-zero cost. 2000/1000 tokens on claude-sonnet-4-6 = 2_100_000 microcents
 // ($0.0021) per call.
 func withUsage(r agent.CompletionResponse) agent.CompletionResponse {
-	return mock.WithUsage(r, agent.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
+	return testWithUsage(r, agent.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
 }
 
 func TestSubAgent_SpendGuard(t *testing.T) {
@@ -63,12 +65,12 @@ func TestSubAgent_SpendGuard(t *testing.T) {
 	// by the third the sub-agents have spent $0.0042 ≥ $0.0030, so it's refused —
 	// the cost analogue of the fan-out guard. Two spawns; the lead still finishes.
 	prov := mock.New(
-		withUsage(mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"})), // lead r1
-		withUsage(mock.FinalText("child 1 done")),                               // child 1
-		withUsage(mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"})), // lead r2
-		withUsage(mock.FinalText("child 2 done")),                               // child 2
-		withUsage(mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"})), // lead r3 — refused on spend
-		withUsage(mock.FinalText("lead done")),                                  // lead final
+		withUsage(testToolUse("c1", "delegate", map[string]any{"task": "t1"})), // lead r1
+		withUsage(mock.FinalText("child 1 done")),                              // child 1
+		withUsage(testToolUse("c2", "delegate", map[string]any{"task": "t2"})), // lead r2
+		withUsage(mock.FinalText("child 2 done")),                              // child 2
+		withUsage(testToolUse("c3", "delegate", map[string]any{"task": "t3"})), // lead r3 — refused on spend
+		withUsage(mock.FinalText("lead done")),                                 // lead final
 	)
 	k := openSpendKernel(t, prov, 3_000_000) // $0.0030
 	col := &collector{}
@@ -92,11 +94,11 @@ func TestSubAgent_SpendUnboundedByDefault(t *testing.T) {
 	// SubAgentMaxSpendMicrocents=0 keeps the historical behaviour: spend never
 	// blocks a delegation. Three delegate rounds → three spawns.
 	prov := mock.New(
-		withUsage(mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"})),
+		withUsage(testToolUse("c1", "delegate", map[string]any{"task": "t1"})),
 		withUsage(mock.FinalText("child 1")),
-		withUsage(mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"})),
+		withUsage(testToolUse("c2", "delegate", map[string]any{"task": "t2"})),
 		withUsage(mock.FinalText("child 2")),
-		withUsage(mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"})),
+		withUsage(testToolUse("c3", "delegate", map[string]any{"task": "t3"})),
 		withUsage(mock.FinalText("child 3")),
 		withUsage(mock.FinalText("lead done")),
 	)
@@ -151,7 +153,7 @@ func openSubAgentKernel(t *testing.T, prov agent.Provider, depth int) *runtime.K
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: depth,
 	})
@@ -165,7 +167,7 @@ func openSubAgentKernel(t *testing.T, prov agent.Provider, depth int) *runtime.K
 func TestSubAgent_DelegationFlow(t *testing.T) {
 	// Parent asks delegate → child answers → parent uses it.
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "find the module name"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "find the module name"}),
 		mock.FinalText("module github.com/agezt/agezt"),         // child's run
 		mock.FinalText("The module is github.com/agezt/agezt."), // parent's final
 	)
@@ -242,10 +244,10 @@ func TestSubAgent_DepthGuard(t *testing.T) {
 	// ONE spawn is ever journaled. The child still completes (the failed
 	// delegation surfaces as a tool error it works around).
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "level 1"}), // parent delegates
-		mock.ToolUse("c2", "delegate", map[string]any{"task": "level 2"}), // child tries to delegate
-		mock.FinalText("child done"),                                      // child's final after the refusal
-		mock.FinalText("parent done"),                                     // parent's final
+		testToolUse("c1", "delegate", map[string]any{"task": "level 1"}), // parent delegates
+		testToolUse("c2", "delegate", map[string]any{"task": "level 2"}), // child tries to delegate
+		mock.FinalText("child done"),                                     // child's final after the refusal
+		mock.FinalText("parent done"),                                    // parent's final
 	)
 	k := openSubAgentKernel(t, prov, 1)
 	col := &collector{}
@@ -272,17 +274,17 @@ func TestSubAgent_FanoutGuard(t *testing.T) {
 	// breadth, independently. The script is consumed in call order: each lead
 	// round produces one response, each spawned child consumes the next.
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"}), // lead round 1
-		mock.FinalText("child 1 done"),                               // child 1
-		mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"}), // lead round 2
-		mock.FinalText("child 2 done"),                               // child 2
-		mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"}), // lead round 3 — refused, no child runs
-		mock.FinalText("lead done"),                                  // lead final after the refusal
+		testToolUse("c1", "delegate", map[string]any{"task": "t1"}), // lead round 1
+		mock.FinalText("child 1 done"),                              // child 1
+		testToolUse("c2", "delegate", map[string]any{"task": "t2"}), // lead round 2
+		mock.FinalText("child 2 done"),                              // child 2
+		testToolUse("c3", "delegate", map[string]any{"task": "t3"}), // lead round 3 — refused, no child runs
+		mock.FinalText("lead done"),                                 // lead final after the refusal
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:           t.TempDir(),
 		Provider:          prov,
-		Tools:             map[string]agent.Tool{"shell": shell.New()},
+		Tools:             map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:      true,
 		SubAgentMaxDepth:  1,
 		SubAgentMaxFanout: 2,
@@ -314,11 +316,11 @@ func TestSubAgent_FanoutUnboundedByDefault(t *testing.T) {
 	// may spawn as many sub-agents as it asks for. Three delegate rounds → three
 	// spawns, none refused.
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "t1"}),
 		mock.FinalText("child 1"),
-		mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"}),
+		testToolUse("c2", "delegate", map[string]any{"task": "t2"}),
 		mock.FinalText("child 2"),
-		mock.ToolUse("c3", "delegate", map[string]any{"task": "t3"}),
+		testToolUse("c3", "delegate", map[string]any{"task": "t3"}),
 		mock.FinalText("child 3"),
 		mock.FinalText("lead done"),
 	)
@@ -344,17 +346,17 @@ func TestSubAgent_TotalGuard_BoundsWholeTreeAcrossDepths(t *testing.T) {
 	// then child A's SECOND delegate is refused because the tree total is full.
 	// The script is consumed depth-first (delegate blocks on its child):
 	prov := mock.New(
-		mock.ToolUse("l1", "delegate", map[string]any{"task": "A"}),  // lead → child A (spawn 1)
-		mock.ToolUse("a1", "delegate", map[string]any{"task": "A1"}), // child A → grandchild A1 (spawn 2)
-		mock.FinalText("leaf done"),                                  // grandchild A1
-		mock.ToolUse("a2", "delegate", map[string]any{"task": "A2"}), // child A 2nd delegate — REFUSED (total=2)
-		mock.FinalText("child A done"),                               // child A final after the refusal
-		mock.FinalText("lead done"),                                  // lead final
+		testToolUse("l1", "delegate", map[string]any{"task": "A"}),  // lead → child A (spawn 1)
+		testToolUse("a1", "delegate", map[string]any{"task": "A1"}), // child A → grandchild A1 (spawn 2)
+		mock.FinalText("leaf done"),                                 // grandchild A1
+		testToolUse("a2", "delegate", map[string]any{"task": "A2"}), // child A 2nd delegate — REFUSED (total=2)
+		mock.FinalText("child A done"),                              // child A final after the refusal
+		mock.FinalText("lead done"),                                 // lead final
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 3, // deep nesting allowed; the TOTAL cap is what bounds the tree
 		SubAgentMaxTotal: 2,
@@ -403,18 +405,18 @@ func TestSubAgent_TotalUnboundedByDefault(t *testing.T) {
 	// tree may hold as many sub-agents as it asks for. Lead → child A → grandchild
 	// A1, then child A spawns a second grandchild A2 — three spawns, none refused.
 	prov := mock.New(
-		mock.ToolUse("l1", "delegate", map[string]any{"task": "A"}),  // lead → child A
-		mock.ToolUse("a1", "delegate", map[string]any{"task": "A1"}), // child A → grandchild A1
-		mock.FinalText("leaf 1"),                                     // grandchild A1
-		mock.ToolUse("a2", "delegate", map[string]any{"task": "A2"}), // child A → grandchild A2
-		mock.FinalText("leaf 2"),                                     // grandchild A2
-		mock.FinalText("child A done"),                               // child A final
-		mock.FinalText("lead done"),                                  // lead final
+		testToolUse("l1", "delegate", map[string]any{"task": "A"}),  // lead → child A
+		testToolUse("a1", "delegate", map[string]any{"task": "A1"}), // child A → grandchild A1
+		mock.FinalText("leaf 1"),                                    // grandchild A1
+		testToolUse("a2", "delegate", map[string]any{"task": "A2"}), // child A → grandchild A2
+		mock.FinalText("leaf 2"),                                    // grandchild A2
+		mock.FinalText("child A done"),                              // child A final
+		mock.FinalText("lead done"),                                 // lead final
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 3, // no total cap
 	})
@@ -447,7 +449,7 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "default-model",
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -468,7 +470,7 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	prov2.OnRequest = func(req agent.CompletionRequest) { sawModel = req.Model }
 	k2, _ := runtime.Open(runtime.Config{
 		BaseDir: t.TempDir(), Provider: prov2, Model: "default-model",
-		Tools: map[string]agent.Tool{"shell": shell.New()},
+		Tools: map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	t.Cleanup(func() { k2.Close() })
 	if _, err := k2.RunWith(context.Background(), k2.NewCorrelation(), "hi"); err != nil {
@@ -484,7 +486,7 @@ func TestSubAgent_ModelOverride(t *testing.T) {
 	// lead keeps the daemon default — per-sub-agent model selection (M705). The
 	// spawn event records the chosen model + task_type for observability.
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "do it", "model": "child-model", "task_type": "code"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "do it", "model": "child-model", "task_type": "code"}),
 		mock.FinalText("child done"), // child's run (on child-model)
 		mock.FinalText("lead done"),  // lead's final (on lead-default)
 	)
@@ -499,7 +501,7 @@ func TestSubAgent_ModelOverride(t *testing.T) {
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "lead-default",
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 	})
@@ -564,7 +566,7 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 	// sub-agent inherits the daemon default model and the task_type defaults to
 	// "delegate".
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "do it"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "do it"}),
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
@@ -579,7 +581,7 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "lead-default",
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 	})
@@ -627,7 +629,7 @@ func TestSubAgent_DisabledByDefault(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -656,7 +658,7 @@ func openSpendKernelDepth(t *testing.T, prov agent.Provider, spendCapMC int64, d
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   g,
-		Tools:                      map[string]agent.Tool{"shell": shell.New()},
+		Tools:                      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Model:                      "claude-sonnet-4-6",
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           depth,
@@ -685,12 +687,12 @@ func openSpendKernelDepth(t *testing.T, prov agent.Provider, spendCapMC int64, d
 // correct → 2 spawns (child + grandchild), buggy → 3.
 func TestSubAgent_SpendGuardCountsTransitiveDescendants(t *testing.T) {
 	prov := mock.New(
-		withUsage(mock.ToolUse("c1", "delegate", map[string]any{"task": "t1"})),  // lead r1 → child
-		withUsage(mock.ToolUse("g1", "delegate", map[string]any{"task": "t1a"})), // child r1 → grandchild
-		withUsage(mock.FinalText("grandchild done")),                             // grandchild
-		withUsage(mock.FinalText("child done")),                                  // child r2
-		withUsage(mock.ToolUse("c2", "delegate", map[string]any{"task": "t2"})),  // lead r2 → REFUSED on transitive spend
-		withUsage(mock.FinalText("lead done")),                                   // lead final
+		withUsage(testToolUse("c1", "delegate", map[string]any{"task": "t1"})),  // lead r1 → child
+		withUsage(testToolUse("g1", "delegate", map[string]any{"task": "t1a"})), // child r1 → grandchild
+		withUsage(mock.FinalText("grandchild done")),                            // grandchild
+		withUsage(mock.FinalText("child done")),                                 // child r2
+		withUsage(testToolUse("c2", "delegate", map[string]any{"task": "t2"})),  // lead r2 → REFUSED on transitive spend
+		withUsage(mock.FinalText("lead done")),                                  // lead final
 	)
 	k := openSpendKernelDepth(t, prov, 5_000_000, 2) // $0.0050 cap, depth 2
 	col := &collector{}

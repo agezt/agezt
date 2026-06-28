@@ -448,8 +448,11 @@ func builtinSections() []Section {
 			Help: "Network surfaces the daemon serves. Restart to apply.",
 			Fields: []Field{
 				{Env: "AGEZT_WEB_ADDR", Label: "Web UI addr", Type: TypeText, Apply: ApplyRestart, Help: "Where the console listens. Blank = on at 127.0.0.1:8787; set 'off' to disable."},
+				{Env: "AGEZT_WEB_OPEN", Label: "Open browser on startup", Type: TypeBool, Apply: ApplyRestart, Help: "on/default = opening agezt.exe opens the console in your browser; off = print the URL only."},
 				{Env: "AGEZT_WEB_PASSWORD", Label: "Web UI password", Type: TypePassword, Secret: true, Apply: ApplyLive,
-					Help: "Console password (M933): with it set you can open the console WITHOUT the URL token and log in here. Applies live. Blank = token-only."},
+					Help: "Console password: set a new one here; applies live. If blank on loopback, AGEZT uses the built-in first password 'agezt'."},
+				{Env: "AGEZT_WEB_PASSWORD_DEFAULT", Label: "Built-in loopback password", Type: TypeBool, Apply: ApplyRestart,
+					Help: "on/default = use the first password 'agezt' when no Web UI password is configured and the console is loopback-only; off = token-only until you set one."},
 				{Env: "AGEZT_WEB_PASSWORD_STRICT", Label: "Password strict mode", Type: TypeBool, Apply: ApplyRestart,
 					Help: "on = token AND password both required on every request (two factors) — for consoles exposed beyond loopback. Default: password OR token opens the console."},
 				{Env: "AGEZT_API_ADDR", Label: "OpenAI-compatible API addr", Type: TypeText, Apply: ApplyRestart},
@@ -486,7 +489,10 @@ func builtinSections() []Section {
 			ID: "security", Name: "Security & Policy",
 			Help: "Autonomy posture. Restart to apply.",
 			Fields: []Field{
-				{Env: "AGEZT_APPROVAL_MODE", Label: "Approval mode", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "ask", "allow", "deny"}, Help: "How HITL approvals resolve by default."},
+				{Env: "AGEZT_APPROVAL_MODE", Label: "Approval mode", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "allow", "deny", "prompt", "ask"}, Help: "How Ask-class capability decisions resolve by default. Empty = allow; ask is an alias for prompt."},
+				{Env: "AGEZT_AUTO_APPROVE_CAPS", Label: "Auto-approved capabilities", Type: TypeText, Apply: ApplyRestart, Help: "Empty/all = auto-grant all known HITL capability prompts; off = disable; or provide a comma-separated capability list."},
+				{Env: "AGEZT_TOOLFORGE_AUTO_PROMOTE", Label: "Tool Forge auto-promote", Type: TypeBool, Apply: ApplyRestart, Help: "on/default = tested agent-forged tools go live when the agent requests promotion; off = require operator promotion."},
+				{Env: "AGEZT_PROMPT_INJECTION_GUARD", Label: "Prompt-injection guard", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "warn", "on", "block", "off"}, Help: "warn/default journals directive-like untrusted content without blocking; on/block routes downstream effectful actions to HITL."},
 				{Env: "AGEZT_ALLOW_ALL", Label: "Allow all (DANGEROUS)", Type: TypeBool, Apply: ApplyRestart, Help: "Master permissive switch — grants every capability and opens the network tools."},
 			},
 		},
@@ -495,18 +501,6 @@ func builtinSections() []Section {
 		secs[i].Source = SourceBuiltin
 	}
 	return secs
-}
-
-// FieldByEnv returns the schema field for an env-var name, and whether it's known.
-func FieldByEnv(env string) (Field, bool) {
-	for _, s := range Schema() {
-		for _, f := range s.Fields {
-			if f.Env == env {
-				return f, true
-			}
-		}
-	}
-	return Field{}, false
 }
 
 // Validate checks a value against its field's type. Empty is always allowed

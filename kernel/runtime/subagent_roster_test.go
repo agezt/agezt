@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -25,7 +27,7 @@ import (
 // the system prompt, and the spawn event records who the child ran as (M784).
 func TestDelegate_AsNamedAgent(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "dig deep", "agent": "researcher"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "dig deep", "agent": "researcher"}),
 		mock.FinalText("found it"), // child's run
 		mock.FinalText("done"),     // lead's final
 	)
@@ -115,7 +117,7 @@ func TestDelegate_AsNamedAgent(t *testing.T) {
 
 func TestDelegate_NamedAgentToolPolicyFiltersChildTools(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "restricted work", "agent": "worker"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "restricted work", "agent": "worker"}),
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
@@ -157,15 +159,15 @@ func TestDelegate_NamedAgentToolPolicyFiltersChildTools(t *testing.T) {
 
 func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "notify once", "agent": "worker"}),
-		mock.ToolUse("c2", "notify", map[string]any{"text": "needs attention", "severity": "warning"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "notify once", "agent": "worker"}),
+		testToolUse("c2", "notify", map[string]any{"text": "needs attention", "severity": "warning"}),
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New(), "notify": quietTool{name: "notify"}},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil)), "notify": quietTool{name: "notify"}},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		Edict:            edict.New(edict.Options{UnknownAllow: true}),
@@ -204,7 +206,7 @@ func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 
 func TestDelegate_NamedAgentCycleLifecycleCompletes(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "complete cycle", "agent": "worker"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "complete cycle", "agent": "worker"}),
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
@@ -248,7 +250,7 @@ func TestDelegate_NamedAgentCycleLifecycleCompletes(t *testing.T) {
 func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 	directFalse := false
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
@@ -274,7 +276,7 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 	}
 
 	prov2 := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
 		mock.FinalText("other done"),
 	)
 	k2 := openSubAgentKernel(t, prov2, 1)
@@ -301,7 +303,7 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 	directFalse := false
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
 		mock.FinalText("child done"),
 		mock.FinalText("owner done"),
 	)
@@ -327,7 +329,7 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 	}
 
 	prov2 := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
 		mock.FinalText("other done"),
 	)
 	k2 := openSubAgentKernel(t, prov2, 1)
@@ -378,7 +380,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveParent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			directFalse := false
 			prov := mock.New(
-				mock.ToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
+				testToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
 				mock.FinalText("lead done"),
 			)
 			k := openSubAgentKernel(t, prov, 1)
@@ -433,7 +435,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			directFalse := false
 			prov := mock.New(
-				mock.ToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
+				testToolUse("c1", "delegate", map[string]any{"task": "work", "agent": "worker"}),
 				mock.FinalText("owner done"),
 			)
 			k := openSubAgentKernel(t, prov, 1)
@@ -466,15 +468,15 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 // without the child naming itself.
 func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "check notes", "agent": "researcher"}),
-		mock.ToolUse("c2", "memory", map[string]any{"action": "recall", "query": "target"}), // child turn 1
+		testToolUse("c1", "delegate", map[string]any{"task": "check notes", "agent": "researcher"}),
+		testToolUse("c2", "memory", map[string]any{"action": "recall", "query": "target"}), // child turn 1
 		mock.FinalText("child done"), // child turn 2
 		mock.FinalText("lead done"),  // lead final
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.New()},
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		MemoryTool:       true,
@@ -516,7 +518,7 @@ func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 
 func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "handle project atlas ci", "agent": "researcher"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "handle project atlas ci", "agent": "researcher"}),
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
@@ -529,7 +531,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
-		Tools:        map[string]agent.Tool{"shell": shell.New()},
+		Tools:        map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool: true,
 		MemoryInject: true,
 		SkillInject:  true,
@@ -585,7 +587,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 // carry the profile's fallback chain (M787), primary first, dupes skipped.
 func TestDelegate_AgentModelChainFollowsChild(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "researcher"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "researcher"}),
 		mock.FinalText("child"),
 		mock.FinalText("lead"),
 	)
@@ -616,7 +618,7 @@ func TestDelegate_AgentModelChainFollowsChild(t *testing.T) {
 
 func TestDelegate_AgentConfigOverrideModelFollowsChild(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "researcher"}),
+		testToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "researcher"}),
 		mock.FinalText("child"),
 		mock.FinalText("lead"),
 	)
@@ -654,7 +656,7 @@ func TestDelegate_AgentConfigOverrideModelFollowsChild(t *testing.T) {
 
 func TestDelegate_ExplicitModelWinsOverConfigOverride(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{
+		testToolUse("c1", "delegate", map[string]any{
 			"task": "t", "agent": "researcher", "model": "explicit-model"}),
 		mock.FinalText("child"),
 		mock.FinalText("lead"),
@@ -690,7 +692,7 @@ func TestDelegate_ExplicitModelWinsOverConfigOverride(t *testing.T) {
 // the profile's — the profile only fills gaps.
 func TestDelegate_ExplicitModelWinsOverProfile(t *testing.T) {
 	prov := mock.New(
-		mock.ToolUse("c1", "delegate", map[string]any{
+		testToolUse("c1", "delegate", map[string]any{
 			"task": "t", "agent": "researcher", "model": "explicit-model"}),
 		mock.FinalText("child"),
 		mock.FinalText("lead"),
@@ -746,7 +748,7 @@ func TestDelegate_UnknownOrPausedAgentRefused(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			prov := mock.New(
-				mock.ToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "ghost"}),
+				testToolUse("c1", "delegate", map[string]any{"task": "t", "agent": "ghost"}),
 				mock.FinalText("lead adapted"), // the lead's next turn after the tool error
 			)
 			k := openSubAgentKernel(t, prov, 1)

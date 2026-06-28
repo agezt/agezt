@@ -7,6 +7,15 @@ import (
 	"testing"
 )
 
+func active(l *Limiter, key string) int {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.active[key]
+}
+
 func TestAcquire_CapAndRelease(t *testing.T) {
 	l := New(2)
 
@@ -21,7 +30,7 @@ func TestAcquire_CapAndRelease(t *testing.T) {
 	if _, ok := l.Acquire("a"); ok {
 		t.Fatal("third acquire should be refused (over cap)")
 	}
-	if got := l.Active("a"); got != 2 {
+	if got := active(l, "a"); got != 2 {
 		t.Fatalf("active = %d, want 2", got)
 	}
 
@@ -45,7 +54,7 @@ func TestRelease_Idempotent(t *testing.T) {
 	r, _ := l.Acquire("k")
 	r()
 	r() // second call must not underflow / free an extra slot
-	if got := l.Active("k"); got != 0 {
+	if got := active(l, "k"); got != 0 {
 		t.Fatalf("active = %d, want 0", got)
 	}
 	// Capacity is exactly 1, not 2 (no phantom slot from the double release).
@@ -85,7 +94,7 @@ func TestKeyMapDrainsToZero(t *testing.T) {
 	for _, r := range rels {
 		r()
 	}
-	if got := l.Active("k"); got != 0 {
+	if got := active(l, "k"); got != 0 {
 		t.Fatalf("active = %d, want 0 (map should drain)", got)
 	}
 }
@@ -103,7 +112,7 @@ func TestConcurrentAcquireRelease(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if got := l.Active("shared"); got != 0 {
+	if got := active(l, "shared"); got != 0 {
 		t.Fatalf("active = %d, want 0 after all release", got)
 	}
 }

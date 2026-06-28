@@ -11,6 +11,11 @@ func bigToolMsg(id string, n int) Message {
 	return Message{Role: RoleTool, Content: strings.Repeat("x", n), ToolCallID: id}
 }
 
+func compactMessages(system string, messages []Message, budget, protectLast, protectFirst int, summarize func(string) string) (out []Message, elided, reclaimed int) {
+	out, stats := compactMessagesDetailed(system, messages, budget, protectLast, protectFirst, summarize, nil)
+	return out, stats.Elided, stats.Reclaimed
+}
+
 // convo builds a realistic-ish transcript: user, then K (assistant, tool) pairs.
 func convo(toolBytes int, pairs int) []Message {
 	msgs := []Message{{Role: RoleUser, Content: "do the thing"}}

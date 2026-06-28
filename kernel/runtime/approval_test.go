@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -93,7 +95,7 @@ func waitForPending(t *testing.T, reg *approval.Registry) approval.Request {
 func TestRunWith_ApprovalGrantedRunsTool(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("c1", "approvalprobe", map[string]any{}),
+		testToolUse("c1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, reg := newApprovalKernel(t, prov, &invoked, 5*time.Second)
@@ -152,8 +154,8 @@ func TestRunWith_ApprovalBundleUsesFirstPartyToolEffect(t *testing.T) {
 	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   t.TempDir(),
-		Provider:  mock.New(mock.ToolUse("c1", "shell", map[string]any{"command": "echo no"}), mock.FinalText("done")),
-		Tools:     map[string]agent.Tool{"shell": shell.New()},
+		Provider:  mock.New(testToolUse("c1", "shell", map[string]any{"command": "echo no"}), mock.FinalText("done")),
+		Tools:     map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Edict:     eng,
 		Approvals: reg,
 	})
@@ -204,7 +206,7 @@ func TestRunWith_ApprovalBundleUsesFirstPartyToolEffect(t *testing.T) {
 func TestRunWith_ApprovalDeniedBlocksTool(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("c1", "approvalprobe", map[string]any{}),
+		testToolUse("c1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, reg := newApprovalKernel(t, prov, &invoked, 5*time.Second)
@@ -246,7 +248,7 @@ func TestRunWith_ApprovalDeniedBlocksTool(t *testing.T) {
 func TestRunWith_ApprovalTimeoutBlocksTool(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("c1", "approvalprobe", map[string]any{}),
+		testToolUse("c1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	// Short timeout, and we deliberately never Resolve — Submit returns

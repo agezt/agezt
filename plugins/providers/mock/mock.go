@@ -6,7 +6,6 @@ package mock
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 
@@ -77,32 +76,5 @@ func FinalText(text string) agent.CompletionResponse {
 	return agent.CompletionResponse{
 		Message:    agent.Message{Role: agent.RoleAssistant, Content: text},
 		StopReason: agent.StopEndTurn,
-	}
-}
-
-// WithUsage attaches token usage to a scripted response so a Governor
-// wrapping the mock computes a non-zero cost and journals a meaningful
-// budget.consumed event — letting offline demos and tests exercise the
-// spend path (M47) without a real provider. Set usage.Model to a priced
-// model id when the configured model is free/unknown.
-func WithUsage(resp agent.CompletionResponse, usage agent.Usage) agent.CompletionResponse {
-	resp.Usage = usage
-	return resp
-}
-
-// ToolUse is a convenience constructor for a response that asks the loop to
-// invoke one tool. input is JSON-marshaled.
-func ToolUse(callID, toolName string, input any) agent.CompletionResponse {
-	raw, err := json.Marshal(input)
-	if err != nil {
-		// In test code; panic is fine and surfaces typos fast.
-		panic("mock.ToolUse: marshal input: " + err.Error())
-	}
-	return agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
-			ToolCalls: []agent.ToolCall{{ID: callID, Name: toolName, Input: raw}},
-		},
-		StopReason: agent.StopToolUse,
 	}
 }

@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -46,7 +48,7 @@ func TestPluginList_ReturnsManifestSortedByPrefix(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"shell": shell.New()},
+		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		// Deliberately reverse-alphabetical insertion to make the
 		// handler's sort visible — if it returned insertion order
 		// we'd see "search" before "browser".

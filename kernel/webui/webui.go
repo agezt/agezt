@@ -84,9 +84,8 @@ type Server struct {
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
 	synthesizer Synthesizer // optional TTS backend for /api/tts (nil = not configured)
-	password    string      // optional console password (M817); "" = token-only
-	// passwordFn is the LIVE password source (M933); supersedes password when
-	// set, so a Setup/Config-Center edit applies without a restart.
+	// passwordFn is the LIVE password source (M933), so a Setup/Config-Center
+	// edit applies without a restart.
 	passwordFn func() string
 	// passwordStrict restores M817 compose (token AND session) instead of the
 	// M933 alternative-door default (token OR session).

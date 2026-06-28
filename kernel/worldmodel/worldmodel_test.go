@@ -32,9 +32,6 @@ func TestNormalizeKindVerb(t *testing.T) {
 	if got := NormalizeKind("spaceship"); got != "spaceship" {
 		t.Errorf("unknown kind should be kept verbatim, got %q", got)
 	}
-	if !ValidKind(KindRepo) || ValidKind("spaceship") {
-		t.Errorf("ValidKind membership wrong")
-	}
 	if NormalizeVerb("") != DefaultVerb || NormalizeVerb("OWNS") != VerbOwns {
 		t.Errorf("verb normalization wrong")
 	}

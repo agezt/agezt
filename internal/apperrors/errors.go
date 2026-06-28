@@ -12,9 +12,6 @@
 //   - Use [Wrapf] for formatted context messages.
 //     Example: Wrapf(ctx, "agent: provider %s", name, err) -> "agent: provider anthropic: <original>"
 //
-//   - Use [Join] to combine multiple errors.
-//     Example: Join(err1, err2) -> "op1: ... | op2: ..."
-//
 //   - Sentinel errors should be defined at package level using errors.New.
 //     Example: var ErrNotFound = errors.New("controlplane: not found")
 //
@@ -27,7 +24,6 @@ package apperrors
 
 import (
 	"context"
-	"errors"
 	"fmt"
 )
 
@@ -102,79 +98,4 @@ func WrapSimplef(format string, err error, args ...any) error {
 		return nil
 	}
 	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
-}
-
-// Join combines multiple errors into a single error.
-// If only one error is non-nil, returns that error.
-// If all errors are nil, returns nil.
-// If multiple errors are provided, returns an error that contains all of them.
-//
-// Usage:
-//
-//	Join(err1, err2, err3)
-//
-// The resulting error message uses " | " as separator.
-func Join(errs ...error) error {
-	// Filter out nil errors
-	var nonNil []error
-	for _, err := range errs {
-		if err != nil {
-			nonNil = append(nonNil, err)
-		}
-	}
-
-	switch len(nonNil) {
-	case 0:
-		return nil
-	case 1:
-		return nonNil[0]
-	default:
-		errStrs := make([]string, len(nonNil))
-		for i, err := range nonNil {
-			errStrs[i] = err.Error()
-		}
-		return fmt.Errorf("%s", joinStrings(errStrs, " | "))
-	}
-}
-
-// joinStrings joins strings with a separator.
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	if len(strs) == 1 {
-		return strs[0]
-	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
-}
-
-// Is reports whether any error in err's chain matches target.
-// This is equivalent to errors.Is but handles nil gracefully.
-func Is(err, target error) bool {
-	if err == nil || target == nil {
-		return false
-	}
-	return errors.Is(err, target)
-}
-
-// As reports whether any error in err's chain is of type target.
-// This is equivalent to errors.As but handles nil gracefully.
-func As(err error, target any) bool {
-	if err == nil || target == nil {
-		return false
-	}
-	return errors.As(err, target)
-}
-
-// Unwrap returns the next error in the chain.
-// This is equivalent to errors.Unwrap but handles nil gracefully.
-func Unwrap(err error) error {
-	if err == nil {
-		return nil
-	}
-	return errors.Unwrap(err)
 }
