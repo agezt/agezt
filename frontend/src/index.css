@@ -172,14 +172,25 @@ h4 { font-weight: 550; }
   box-shadow:
     var(--elev-2),
     inset 0 1px 0 oklch(1 0 0 / 0.06);
-  /* A soft gradient edge for depth — the top-left edge catches a hint of accent,
-     the bottom-right recedes into shadow. Only in dark mode where glass is
-     translucent and the edge is visible. */
-  border-image: linear-gradient(135deg,
-    color-mix(in oklch, var(--accent) 20%, transparent) 0%,
-    color-mix(in oklch, var(--border) 70%, transparent) 50%,
-    color-mix(in oklch, var(--accent-2) 10%, transparent) 100%
-  ) 1;
+  /* A soft gradient pseudo-edge for depth — uses a positioned ::after element
+     so it respects border-radius (unlike border-image which overrides it). */
+  position: relative;
+}
+.dark .glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--accent) 25%, transparent) 0%,
+    color-mix(in oklch, var(--border) 80%, transparent) 60%,
+    color-mix(in oklch, var(--accent-2) 15%, transparent) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 /* Accent gradient text — for the brand wordmark and big hero numbers. */
@@ -230,6 +241,16 @@ h4 { font-weight: 550; }
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 25%, transparent);
+}
+
+/* Container glow — lights up when any child element is focused. Used on
+   the chat composer, search bars with icons, and grouped form controls. */
+.focus-within-glow {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.focus-within-glow:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 20%, transparent);
 }
 
 /* A warm gradient hairline for section dividers — replaces plain borders

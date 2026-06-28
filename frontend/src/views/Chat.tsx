@@ -350,7 +350,7 @@ export function Chat() {
             <button
               onClick={jumpToLatest}
               title="Jump to latest"
-              className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs shadow-lg shadow-black/20 transition-colors hover:border-accent hover:text-accent"
+              className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs shadow-lg shadow-black/20 transition-all hover:shadow-xl hover:-translate-y-0.5"
             >
               <ArrowDown className="size-3.5" /> Jump to latest
             </button>
@@ -386,7 +386,7 @@ export function Chat() {
         {/* Attachment feature preserved in state for future use */}
         {/* Composer surface (M995): input + controls in one elevated card that
             lights an accent ring on focus, like a modern chat composer. */}
-        <div className="rounded-xl bg-panel/40 px-2 py-1.5 shadow-e1 transition-all focus-within:shadow-e2 focus-within:ring-2 focus-within:ring-accent/25">
+        <div className="rounded-xl bg-panel/40 px-2 py-1.5 shadow-e1 transition-all focus-within-glow">
         <div className="flex items-end gap-2">
           <Button
             variant="ghost"
@@ -722,7 +722,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
             key={`${p.title}-${i}`}
             onClick={() => onPick(p.text)}
             title={hasSaved || fromMemory ? p.text : undefined}
-            className="rounded-full bg-panel/60 px-3 py-1 text-xs text-muted shadow-e1 transition-all hover:-translate-y-0.5 hover:bg-accent/10 hover:text-accent"
+            className="rounded-full bg-panel/60 px-3 py-1 text-xs text-muted shadow-sm transition-all hover:-translate-y-0.5 hover:bg-accent/10 hover:text-accent hover:shadow-md"
           >
             {p.title}
           </button>
