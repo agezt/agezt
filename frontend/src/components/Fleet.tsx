@@ -237,11 +237,11 @@ function WakeStateBand({ e, trigger }: { e: FleetEntity; trigger?: { mode: Trigg
   return (
     <div
       className={cn(
-        "flex min-h-[3rem] items-center gap-2 rounded-lg border px-2 py-1.5",
-        state.tone === "live" && "border-accent/45 bg-accent/10 text-accent",
-        state.tone === "good" && "border-good/30 bg-good/10 text-good",
-        state.tone === "muted" && "border-border bg-panel/25 text-muted",
-        state.tone === "plain" && "border-border bg-panel/30 text-foreground/75",
+        "flex min-h-[3rem] items-center gap-2 rounded-lg px-2 py-1.5",
+        state.tone === "live" && "bg-accent/10 text-accent",
+        state.tone === "good" && "bg-good/10 text-good",
+        state.tone === "muted" && "bg-panel/25 text-muted",
+        state.tone === "plain" && "bg-panel/30 text-foreground/75",
       )}
     >
       <Icon className={cn("size-4 shrink-0", state.mode === "running" && "work-pulse")} />
@@ -264,7 +264,7 @@ export function TriggerChip({ mode, label }: { mode: TriggerMode; label: string 
   return (
     <span
       title={`${mode} · ${label}`}
-      className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-panel/50 px-1.5 py-0.5 text-xs text-foreground/80"
+      className="inline-flex max-w-full items-center gap-1 rounded-md bg-panel/50 px-1.5 py-0.5 text-xs text-foreground/80"
     >
       <Icon className="size-2.5 shrink-0 text-muted" />
       <span className="truncate font-mono">{label}</span>
@@ -349,7 +349,7 @@ export function FleetCard({
         (e.state === "paused" || e.state === "retired") && "opacity-60",
       )}
     >
-      <div className="flex items-start gap-2 border-b border-border bg-panel/35 p-3">
+      <div className="flex items-start gap-2 border-b border-border/50 bg-panel/35 p-3">
         <AgentAvatar
           slug={e.slug}
           name={e.name}
@@ -362,7 +362,7 @@ export function FleetCard({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <span
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-card/70 px-1.5 py-0.5 text-xs font-medium"
+              className="inline-flex max-w-full items-center gap-1 rounded-md bg-card/70 px-1.5 py-0.5 text-xs font-medium"
               style={color ? { color } : undefined}
             >
               <Kind className="size-2.5 shrink-0" /> <span className="truncate">{KIND_META[e.kind].label}</span>
@@ -408,11 +408,11 @@ export function FleetCard({
         </div>
 
         {e.description ? (
-          <div className="mt-auto line-clamp-2 rounded-lg border border-border bg-panel/30 px-2 py-1.5 text-sm text-muted" title={e.description}>
+          <div className="mt-auto line-clamp-2 rounded-lg bg-panel/40 px-2 py-1.5 text-sm text-muted" title={e.description}>
             {clip(e.description, 140)}
           </div>
         ) : (
-          <div className="mt-auto rounded-lg border border-dashed border-border bg-panel/20 px-2 py-1.5 text-sm text-muted">
+          <div className="mt-auto rounded-lg border border-dashed border-border/50 bg-panel/20 px-2 py-1.5 text-sm text-muted">
             no description
           </div>
         )}

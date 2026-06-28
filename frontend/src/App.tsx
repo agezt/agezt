@@ -745,12 +745,12 @@ export default function App() {
                   }
                 >
                   <g.icon className="size-5" />
-                  <span className="text-[8px] font-semibold leading-none tracking-normal">{g.label}</span>
+                  <span className="text-[9px] font-semibold leading-none tracking-normal">{g.label}</span>
                   {isActiveSection && !on && (
                     <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.62 0.16 ${hue})` }} />
                   )}
                   {sectionBadge > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[8px] font-bold leading-3.5 text-white">
+                    <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[9px] font-bold leading-3.5 text-white">
                       {sectionBadge > 99 ? "99+" : sectionBadge}
                     </span>
                   )}
