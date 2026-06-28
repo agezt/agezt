@@ -372,3 +372,33 @@ function EmptyInspector({ icon: Icon, text }: { icon: LucideIcon; text: string }
     </div>
   );
 }
+
+// InspectorClosedBar — a 1-line footer bar shown when the inspector is closed.
+// Shows live LLM call count and a "bugs" icon. Click to open the full panel.
+export function InspectorClosedBar({
+  onOpen,
+  activeLlmCount,
+}: {
+  onOpen: () => void;
+  activeLlmCount: number;
+}) {
+  return (
+    <button
+      onClick={onOpen}
+      title="Open debug inspector (Ctrl+Shift+I)"
+      className="flex shrink-0 items-center gap-2 border-t border-border/30 bg-panel/60 px-3 py-0.5 text-[11px] text-muted/70 transition-colors hover:bg-panel hover:text-muted"
+    >
+      <Bug className="size-3" />
+      <span>LLM calls</span>
+      {activeLlmCount > 0 ? (
+        <span className="inline-flex items-center gap-1 rounded bg-accent/10 px-1 font-medium text-accent">
+          <span className="think-dot"><span /><span /><span /></span>
+          {activeLlmCount} active
+        </span>
+      ) : (
+        <span className="text-muted/50">idle</span>
+      )}
+      <span className="ml-auto text-[10px] text-muted/40">Ctrl+Shift+I</span>
+    </button>
+  );
+}

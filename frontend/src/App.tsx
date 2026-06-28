@@ -67,7 +67,7 @@ import { attentionAlertCount } from "@/lib/alerts";
 import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
 import { CommandPalette } from "@/components/CommandPalette";
 import { HelpDrawer } from "@/components/HelpDrawer";
-import { Inspector } from "@/components/Inspector";
+import { Inspector, InspectorClosedBar } from "@/components/Inspector";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";
@@ -880,7 +880,11 @@ export default function App() {
         </main>
       </div>
     </div>
-    <Inspector open={inspectorOpen} onClose={() => setInspectorOpen(false)} />
+    {inspectorOpen ? (
+      <Inspector open onClose={() => setInspectorOpen(false)} />
+    ) : (
+      <InspectorClosedBar onOpen={() => setInspectorOpen(true)} activeLlmCount={activeLlmCount} />
+    )}
     </TooltipProvider>
   );
 }
