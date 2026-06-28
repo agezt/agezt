@@ -191,8 +191,8 @@ export function Inspector({ open, onClose }: { open: boolean; onClose: () => voi
 
         {/* Active indicator */}
         {activeCount > 0 && (
-          <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
-            <Loader2 className="size-2.5 animate-spin" />
+          <span className="ml-1 inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+            <span className="think-dot"><span /><span /><span /></span>
             {activeCount} active
           </span>
         )}
