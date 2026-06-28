@@ -1,7 +1,6 @@
-import { Settings } from "lucide-react";
+import { Brain, Cable, FolderOpen, Gauge, Network, Puzzle, Route, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
 import { Panel, Stats, Count } from "@/components/Panel";
-import { KeyValue, JsonView } from "@/components/JsonView";
-import { Disclosure } from "@/components/ui/disclosure";
+import { Badge } from "@/components/ui/badge";
 
 // CATEGORIES buckets the AGEZT_* settings (sans prefix) into labelled groups so
 // the Config view reads like a settings panel instead of a flat chip cloud. Rules
@@ -26,6 +25,23 @@ function categorize(key: string): string {
 }
 
 const SECTION_ORDER = [...CATEGORIES.map((c) => c.label), "Other"];
+const SECTION_ICON: Record<string, LucideIcon> = {
+  "Provider & Model": Brain,
+  Channels: Cable,
+  Interfaces: Network,
+  "Autonomy & Learning": Gauge,
+  "Security & Policy": ShieldCheck,
+  "Tools & Plugins": Puzzle,
+  Other: Settings,
+};
+
+function compactKeys(keys: string[]): string[] {
+  return keys.map((k) => k.replace(/^AGEZT_/, "")).slice(0, 8);
+}
+
+function objectCount(value: unknown): number {
+  return value && typeof value === "object" ? Object.keys(value as Record<string, unknown>).length : 0;
+}
 
 export function Config() {
   return (
@@ -60,44 +76,80 @@ export function Config() {
                 {setKeys.length} setting{setKeys.length === 1 ? "" : "s"} configured · {sections.length} group
                 {sections.length === 1 ? "" : "s"}
               </Count>
-              <div className="mt-2 space-y-3">
+              <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {sections.map((sec) => {
                   const keys = buckets.get(sec)!;
+                  const Icon = SECTION_ICON[sec] || Settings;
+                  const shown = compactKeys(keys);
+                  const hidden = Math.max(0, keys.length - shown.length);
                   return (
-                    <Disclosure
+                    <section
                       key={sec}
-                      className="glass rounded-xl px-2 py-1"
-                      summary={
-                        <span className="flex w-full items-center gap-2">
-                          <span className="text-xs font-semibold uppercase tracking-wider text-accent">{sec}</span>
-                          <span className="ml-auto font-mono text-xs text-muted">{keys.length}</span>
-                        </span>
-                      }
+                      className="rounded-lg border border-border bg-panel/45 p-2"
+                      aria-label={`Config group: ${sec}`}
                     >
-                      <div className="flex flex-wrap gap-1 px-1 pb-1">
-                        {keys.map((k) => (
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="grid size-7 place-items-center rounded-md border border-accent/30 bg-accent/10 text-accent">
+                          <Icon className="size-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-normal text-foreground">
+                          {sec}
+                        </span>
+                        <Badge variant="default">{keys.length}</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {shown.map((k) => (
                           <span
                             key={k}
                             className="rounded border border-border bg-panel px-1.5 py-0.5 font-mono text-xs text-foreground/80"
-                            title={k}
+                            title={`AGEZT_${k}`}
                           >
-                            {k.replace(/^AGEZT_/, "")}
+                            {k}
                           </span>
                         ))}
+                        {hidden > 0 && (
+                          <span className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-xs text-muted">
+                            +{hidden}
+                          </span>
+                        )}
                       </div>
-                    </Disclosure>
+                    </section>
                   );
                 })}
               </div>
             </div>
 
             {d.paths && (
-              <div>
-                <Count>paths</Count>
-                <KeyValue pairs={Object.entries(d.paths).map(([k, v]) => [k, String(v)])} />
-              </div>
+              <section className="rounded-lg border border-border bg-panel/45 p-2" aria-label="Config paths">
+                <div className="mb-2 flex items-center gap-2">
+                  <FolderOpen className="size-4 text-accent" />
+                  <Count>paths · {objectCount(d.paths)} entries</Count>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-2">
+                  {Object.entries(d.paths as Record<string, unknown>).slice(0, 6).map(([k, v]) => (
+                    <div key={k} className="min-w-0 rounded-md border border-border/70 bg-card/50 px-2 py-1">
+                      <div className="truncate text-[10px] uppercase tracking-normal text-muted">{k}</div>
+                      <div className="truncate font-mono text-xs text-foreground" title={String(v)}>{String(v)}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
-            {d.routing && <JsonView value={d.routing} />}
+            {d.routing && (
+              <section className="rounded-lg border border-border bg-panel/45 p-2" aria-label="Config routing">
+                <div className="mb-2 flex items-center gap-2">
+                  <Route className="size-4 text-accent" />
+                  <Count>routing · {objectCount(d.routing)} entries</Count>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {Object.keys(d.routing as Record<string, unknown>).slice(0, 10).map((k) => (
+                    <span key={k} className="rounded border border-border bg-card px-1.5 py-0.5 font-mono text-xs text-foreground/80">
+                      {k}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         );
       }}

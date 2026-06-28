@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ReactFlow,
   Background,
@@ -394,7 +394,7 @@ function WfNodeView({ data, selected }: NodeProps<WfRFNode>) {
       {/* Coloured header band: a tint of the type colour + icon, so the graph
           reads at a glance by colour and shape, not by reading labels. */}
       <div
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold tracking-wide uppercase"
+        className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold tracking-normal uppercase"
         style={{ color, backgroundColor: `color-mix(in oklch, ${color} 14%, transparent)` }}
       >
         {Icon && <Icon className="size-3" />}
@@ -513,6 +513,66 @@ const FIELD_SPECS: Record<string, FieldSpec[]> = {
 
 const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent w-full";
+
+function NodeOptionPicker({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={value === option}
+          onClick={() => onChange(option)}
+          className={cn(
+            "min-h-8 rounded-md border px-2 text-xs font-medium transition-colors",
+            value === option
+              ? "border-accent bg-accent/15 text-accent"
+              : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+          )}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function WorkflowModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 // reliabilitySpecs lists the per-node settings the panel edits: a timeout
 // for anything that does work, retries only where failure is transient by
@@ -643,18 +703,12 @@ function NodePanel({
               className={cn(inputCls, "resize-y font-mono text-xs")}
             />
           ) : f.kind === "select" || f.kind === "bool" ? (
-            <select
+            <NodeOptionPicker
+              label={f.label}
               value={vals[f.key] || (f.kind === "bool" ? "false" : (f.options?.[0] ?? ""))}
-              onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))}
-              aria-label={f.label}
-              className={inputCls}
-            >
-              {(f.kind === "bool" ? ["false", "true"] : f.options || []).map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+              options={f.kind === "bool" ? ["false", "true"] : f.options || []}
+              onChange={(value) => setVals((s) => ({ ...s, [f.key]: value }))}
+            />
           ) : (
             <input
               value={vals[f.key] || ""}
@@ -668,7 +722,7 @@ function NodePanel({
       ))}
       {relSpecs.length > 0 && (
         <>
-          <div className="mt-1 text-xs font-semibold tracking-wide text-muted uppercase">Reliability</div>
+          <div className="mt-1 text-xs font-semibold tracking-normal text-muted uppercase">Reliability</div>
           {relSpecs.map((f) => (
             <label key={f.key} className="flex flex-col gap-1 text-[11px] text-muted">
               {f.label}
@@ -697,7 +751,7 @@ function NodePanel({
       </div>
       {onTest && node.data.wfType !== "trigger" && (
         <>
-          <div className="mt-1 text-xs font-semibold tracking-wide text-muted uppercase">Test this node</div>
+          <div className="mt-1 text-xs font-semibold tracking-normal text-muted uppercase">Test this node</div>
           <label className="flex flex-col gap-1 text-[11px] text-muted">
             Upstream data (JSON, optional) — node ids → their outputs
             <textarea
@@ -741,7 +795,7 @@ function NodePanel({
       {runInfo && (
         <div className="mt-2 space-y-1 rounded-md border border-border bg-panel p-2" aria-label="Last run data">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold tracking-wide text-muted uppercase">Last run</span>
+            <span className="text-xs font-semibold tracking-normal text-muted uppercase">Last run</span>
             <Badge variant={runInfo.ok !== false || runInfo.handled ? "good" : "bad"}>
               {runInfo.ok !== false ? "ok" : runInfo.handled ? "rescued" : "failed"}
             </Badge>
@@ -880,6 +934,65 @@ export interface WfTemplate {
   workflow: Wf;
 }
 
+function TemplatePicker({
+  templates,
+  value,
+  onChange,
+}: {
+  templates: WfTemplate[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2" role="group" aria-label="Start from template">
+      <button
+        type="button"
+        onClick={() => onChange("")}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
+          value === ""
+            ? "border-accent bg-accent/10 text-foreground"
+            : "border-border bg-card/40 text-muted hover:border-accent/50 hover:text-foreground",
+        )}
+      >
+        <Plus className="size-3.5 shrink-0" />
+        <span className="min-w-0">
+          <span className="block font-semibold">Blank canvas</span>
+          <span className="block truncate text-[11px] text-muted">Start with one trigger node</span>
+        </span>
+      </button>
+      {templates.map((t) => {
+        const selected = value === t.name;
+        const nodeCount = t.node_count ?? t.workflow?.nodes?.length ?? "?";
+        return (
+          <button
+            key={t.name}
+            type="button"
+            onClick={() => onChange(t.name)}
+            className={cn(
+              "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
+              selected
+                ? "border-accent bg-accent/10 text-foreground"
+                : "border-border bg-card/40 text-muted hover:border-accent/50 hover:text-foreground",
+            )}
+          >
+            <WorkflowIcon className="mt-0.5 size-3.5 shrink-0 text-accent" />
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2 font-semibold">
+                <span>{t.title}</span>
+                <span className="rounded-md border border-border/70 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                  {nodeCount} nodes
+                </span>
+              </span>
+              <span className="mt-0.5 block truncate text-[11px] text-muted">{t.description}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---- run history (M806) --------------------------------------------------------
 
 export interface WfRunNodeEvent {
@@ -961,7 +1074,7 @@ export function RunsDrawer({
   return (
     <div className="glass rounded-xl p-2">
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-xs font-semibold tracking-wide text-muted uppercase">Run history</span>
+        <span className="text-xs font-semibold tracking-normal text-muted uppercase">Run history</span>
         <Button size="sm" variant="ghost" onClick={load} aria-label="Refresh runs">
           <RefreshCw className="h-3 w-3" />
         </Button>
@@ -1229,12 +1342,7 @@ export function Workflows() {
             {nodes.length} node(s) · {edges.length} edge(s)
           </span>
           <span className="ml-auto flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setCopilotOpen((v) => !v)}
-              aria-label="Toggle copilot"
-            >
+            <Button size="sm" variant="ghost" onClick={() => setCopilotOpen(true)} aria-label="Toggle copilot">
               <Sparkles className="h-3.5 w-3.5" /> Copilot
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setRunsOpen((v) => !v)} aria-label="Toggle run history">
@@ -1250,23 +1358,26 @@ export function Workflows() {
           </span>
         </div>
         {copilotOpen && (
-          <CopilotPanel
-            name={editing.name}
-            graph={fromFlow(editing.name, editing.description || "", nodes, edges)}
-            onDraft={(wf) => {
-              const { nodes: ns, edges: es } = toFlow(wf);
-              setNodes(ns);
-              setEdges(es);
-              setSelected(null);
-              setNodeStatus({});
-              setEditing((cur) => (cur ? { ...cur, description: wf.description || cur.description } : cur));
-              ui.toast(
-                `copilot drafted ${wf.nodes?.length ?? 0} node(s) — review the canvas, then Save`,
-                "success",
-              );
-            }}
-            onError={(msg) => ui.toast(msg, "error")}
-          />
+          <WorkflowModal title="Workflow copilot" icon={Sparkles} onClose={() => setCopilotOpen(false)}>
+            <CopilotPanel
+              name={editing.name}
+              graph={fromFlow(editing.name, editing.description || "", nodes, edges)}
+              onDraft={(wf) => {
+                const { nodes: ns, edges: es } = toFlow(wf);
+                setNodes(ns);
+                setEdges(es);
+                setSelected(null);
+                setNodeStatus({});
+                setEditing((cur) => (cur ? { ...cur, description: wf.description || cur.description } : cur));
+                setCopilotOpen(false);
+                ui.toast(
+                  `copilot drafted ${wf.nodes?.length ?? 0} node(s) — review the canvas, then Save`,
+                  "success",
+                );
+              }}
+              onError={(msg) => ui.toast(msg, "error")}
+            />
+          </WorkflowModal>
         )}
         {runsOpen && (
           <RunsDrawer
@@ -1285,7 +1396,7 @@ export function Workflows() {
         )}
         <div className="flex min-h-0 flex-1 rounded-lg border border-border">
           <div className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-card p-2">
-            <div className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Nodes</div>
+            <div className="mb-1 text-xs font-semibold tracking-normal text-muted uppercase">Nodes</div>
             {Object.entries(NODE_META)
               .filter(([t]) => t !== "trigger")
               .map(([t, m]) => {
@@ -1382,51 +1493,48 @@ export function Workflows() {
             <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
             </Button>
-            <Button size="sm" onClick={() => setCreating((v) => !v)}>
-              {creating ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-              {creating ? "Close" : "New workflow"}
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              New workflow
             </Button>
           </>
         }
       />
 
       {creating && (
-        <div className="flex items-end gap-2 rounded-lg border border-accent/30 bg-card p-3">
-          <label className="flex flex-1 flex-col gap-1 text-[11px] text-muted">
-            Name — permanent handle (lowercase)
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. daily-triage"
-              aria-label="Workflow name"
-              className={inputCls}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] text-muted">
-            Start from
-            <select
-              value={fromTemplate}
-              onChange={(e) => setFromTemplate(e.target.value)}
-              aria-label="Start from template"
-              className={inputCls}
-            >
-              <option value="">Blank canvas</option>
-              {(templates || []).map((t) => (
-                <option key={t.name} value={t.name}>
-                  {t.title} ({t.node_count ?? t.workflow?.nodes?.length ?? "?"} nodes)
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button size="sm" onClick={startNew} aria-label="Create workflow">
-            <Plus className="h-3.5 w-3.5" /> Open canvas
-          </Button>
-        </div>
-      )}
-      {creating && fromTemplate && (
-        <p className="text-[11px] text-muted">
-          {templates?.find((t) => t.name === fromTemplate)?.description}
-        </p>
+        <WorkflowModal title="New workflow" icon={Plus} onClose={() => setCreating(false)}>
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
+              <label className="flex flex-col gap-1 text-[11px] text-muted">
+                Name — permanent handle (lowercase)
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="e.g. daily-triage"
+                  aria-label="Workflow name"
+                  className={inputCls}
+                />
+              </label>
+              <div className="flex flex-col gap-1 text-[11px] text-muted">
+                Start from
+                <TemplatePicker templates={templates || []} value={fromTemplate} onChange={setFromTemplate} />
+              </div>
+            </div>
+            {fromTemplate && (
+              <div className="rounded-lg border border-border bg-card p-3 text-xs text-muted">
+                {templates?.find((t) => t.name === fromTemplate)?.description}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={startNew} aria-label="Create workflow">
+                <Plus className="h-3.5 w-3.5" /> Open canvas
+              </Button>
+            </div>
+          </div>
+        </WorkflowModal>
       )}
 
       {err && <ErrorText>{err}</ErrorText>}

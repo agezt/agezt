@@ -706,7 +706,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-      <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/30 to-accent/5 text-accent shadow-e2 ring-1 ring-inset ring-accent/20">
+      <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent/30 to-accent/5 text-accent shadow-e2 ring-1 ring-inset ring-accent/20">
         <Sparkles className="size-6" />
       </div>
       <div>
@@ -859,7 +859,7 @@ export function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: str
   if (editing) {
     return (
       <div className="flex justify-end gap-2">
-        <div className="w-full max-w-[85%] rounded-2xl rounded-br-sm border border-accent/40 bg-accent/10 p-2">
+        <div className="w-full max-w-[85%] rounded-xl rounded-br-sm border border-accent/40 bg-accent/10 p-2">
           <textarea
             ref={ref}
             value={draft}
@@ -905,7 +905,7 @@ export function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: str
           <Pencil className="size-3.5" />
         </button>
       )}
-      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent/15 px-3.5 py-2 text-sm text-foreground whitespace-pre-wrap break-words">
+      <div className="max-w-[85%] rounded-xl rounded-br-sm bg-accent/15 px-3.5 py-2 text-sm text-foreground whitespace-pre-wrap break-words">
         {text}
       </div>
       <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-muted">
@@ -1409,7 +1409,7 @@ export function ContextModal({
     ...Object.keys(byRole).filter((r) => !ROLE_ORDER.includes(r) && byRole[r] > 0),
   ];
   const totalChars = roles.reduce((a, r) => a + byRole[r], 0) || c.chars;
-  const section = "px-3 pt-2.5 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted";
+  const section = "px-3 pt-2.5 pb-0.5 text-xs font-semibold uppercase tracking-normal text-muted";
 
   return (
     <div
@@ -1718,7 +1718,7 @@ function LearnedChips({ corr }: { corr: string }) {
           className="inline-flex items-center gap-1 rounded-full border border-border bg-panel px-2 py-0.5 text-xs"
           title={`${m.action} · ${m.type}`}
         >
-          <span className="font-semibold uppercase tracking-wider text-accent">{m.type}</span>
+          <span className="font-semibold uppercase tracking-normal text-accent">{m.type}</span>
           <span className="max-w-[16rem] truncate">{m.subject || "(memory)"}</span>
           <button
             onClick={() => forget(m.id, m.subject)}
@@ -1770,13 +1770,13 @@ function ToolChip({ c }: { c: ChatTool }) {
         <div className="border-t border-border">
           {c.input && (
             <div>
-              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Arguments</div>
+              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-normal text-muted">Arguments</div>
               <ToolOutput text={c.input} />
             </div>
           )}
           {c.output && (
             <div>
-              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
                 {c.error ? "Error" : "Result"}
               </div>
               <ToolOutput text={c.output} />

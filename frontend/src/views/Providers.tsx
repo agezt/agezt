@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Cpu, RefreshCw, Route, GitFork, RotateCw } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -10,7 +10,6 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { BarList } from "@/components/Charts";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface Stats {
   routed?: number;
@@ -138,11 +137,21 @@ export function Providers() {
             <MetricWidget icon={Cpu} label="Providers" value={rows.length} tone="muted" />
           </MetricGrid>
 
-          <CollapsibleSection title="Routes by provider" icon={Cpu} tone="muted" defaultOpen={true}>
+          <ProviderPanel
+            title="Routes by provider"
+            icon={Cpu}
+            status={rows.length ? `${rows.length} active` : "waiting for routes"}
+            tone={rows.length ? "accent" : "muted"}
+          >
             {rows.length ? <BarList rows={rows} /> : <Muted>no routing decisions yet</Muted>}
-          </CollapsibleSection>
+          </ProviderPanel>
 
-          <CollapsibleSection title="Routing activity" icon={Route} tone="muted" defaultOpen={true}>
+          <ProviderPanel
+            title="Routing activity"
+            icon={Route}
+            status={log.length ? `${log.length} recent` : "quiet"}
+            tone={log.some((ev) => ev.kind === "fallback") ? "warn" : log.length ? "accent" : "muted"}
+          >
             {log.length === 0 ? (
               <Muted>no routing events</Muted>
             ) : (
@@ -165,11 +174,45 @@ export function Providers() {
                 ))}
               </ul>
             )}
-          </CollapsibleSection>
+          </ProviderPanel>
         </>
       )}
     </div>
   );
 }
 
-// Tile and Card removed — replaced by MetricWidget/MetricGrid and CollapsibleSection
+function ProviderPanel({
+  title,
+  icon: Icon,
+  status,
+  tone,
+  children,
+}: {
+  title: string;
+  icon: typeof Cpu;
+  status: string;
+  tone: "accent" | "warn" | "bad" | "good" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    good: "border-good/35 bg-good/5 text-good",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}

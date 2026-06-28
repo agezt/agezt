@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CalendarClock,
   RefreshCw,
@@ -33,7 +33,6 @@ import { ErrorText } from "@/components/JsonView";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface Sched {
   id: string;
@@ -1196,6 +1195,10 @@ export function Schedules() {
     () => (items ? filterScheduleItems(items, targetFilter, profiles, workflows, tools, systemTaskInfo) : []),
     [items, profiles, targetFilter, tools, workflows, systemTaskInfo],
   );
+  const editingSchedule = useMemo(
+    () => (editingId ? (items || []).find((s) => s.id === editingId) || null : null),
+    [editingId, items],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -1204,8 +1207,8 @@ export function Schedules() {
         title="Schedules"
         actions={
           <>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a schedule">
-              {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New schedule
+            <Button size="sm" onClick={() => setShowForm(true)} title="Create a schedule">
+              <Plus className="size-3.5" /> New schedule
             </Button>
             {attentionCount > 0 && (
               <Button
@@ -1242,22 +1245,6 @@ export function Schedules() {
           </>
         }
       />
-
-      {showForm && (
-        <NewScheduleForm
-          onCreated={() => {
-            setShowForm(false);
-            ui.toast("Schedule created", "success");
-            void reload();
-          }}
-          onError={(m) => ui.toast(m, "error")}
-          agents={profiles}
-          workflows={workflows}
-          tools={tools}
-          systemTasks={systemTasks}
-          systemTaskInfo={systemTaskInfo}
-        />
-      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -1318,12 +1305,10 @@ export function Schedules() {
             );
           })()}
           {fires.length > 0 && (
-            <CollapsibleSection
+            <ScheduleEventPanel
               icon={Zap}
               title="Recent firings"
-              count={fires.length}
-              tone="accent"
-              defaultOpen={false}
+              status={`${fires.length} event${fires.length === 1 ? "" : "s"}`}
             >
               <div className="grid gap-1.5 md:grid-cols-2">
                 {fires.map((f, idx) => (
@@ -1344,7 +1329,7 @@ export function Schedules() {
                   </div>
                 ))}
               </div>
-            </CollapsibleSection>
+            </ScheduleEventPanel>
           )}
           {shownItems.length === 0 ? (
             <EmptyState icon={CalendarClock} title="No matching schedules" hint="Try a different target filter." />
@@ -1378,7 +1363,7 @@ export function Schedules() {
                   </Badge>
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider",
+                      "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-normal",
                       sourceTone(s.source),
                     )}
                     title={`source: ${s.source || "?"}`}
@@ -1484,9 +1469,9 @@ export function Schedules() {
                       {s.enabled === false ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
                     </button>
                     <button
-                      onClick={() => setEditingId((cur) => (cur === s.id ? null : s.id))}
+                      onClick={() => setEditingId(s.id)}
                       disabled={busy === s.id}
-                      title={editingId === s.id ? "Close editor" : "Edit"}
+                      title="Edit"
                       className={cn(
                         "transition-colors disabled:opacity-50",
                         editingId === s.id ? "text-accent" : "text-muted hover:text-accent",
@@ -1548,7 +1533,7 @@ export function Schedules() {
                 >
                   <div
                     className={cn(
-                      "mb-1 flex items-center gap-1.5 font-semibold uppercase tracking-wider",
+                      "mb-1 flex items-center gap-1.5 font-semibold uppercase tracking-normal",
                       executionManifest.tone === "good"
                         ? "text-good"
                         : executionManifest.tone === "warn"
@@ -1563,7 +1548,7 @@ export function Schedules() {
                   <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-6">
                     {Object.entries(executionManifest.fields).map(([label, value]) => (
                       <div key={label} className="min-w-0 rounded bg-background/35 px-1.5 py-1">
-                        <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted/75">{label}</div>
+                        <div className="truncate text-xs font-semibold uppercase tracking-normal text-muted/75">{label}</div>
                         <div className="truncate text-sm font-medium text-foreground/85">{value}</div>
                       </div>
                     ))}
@@ -1669,39 +1654,6 @@ export function Schedules() {
                     )}
                   </ol>
                 )}
-                {editingId === s.id && (
-                  <div className="mt-2">
-                    <NewScheduleForm
-                      editId={s.id}
-                      initialIntent={s.intent}
-                      initialModel={s.model || ""}
-                      initialAgent={s.agent}
-                      initialTarget={s.target === "workflow" ? "workflow" : s.target === "system_task" ? "system_task" : s.target === "tool" ? "tool" : "agent"}
-                      initialWorkflow={s.workflow || ""}
-                      initialPayload={s.payload === undefined ? "" : JSON.stringify(s.payload, null, 2)}
-                      initialSystemTask={s.system_task || "catalog_sync"}
-                      initialTool={s.tool || ""}
-                      initialMode={s.mode}
-                      initialIntervalSec={s.interval_sec}
-                      initialAtMinutes={s.at_minutes}
-                      initialEndMinutes={s.end_minutes}
-                      initialDays={s.days}
-                      initialTz={s.tz}
-                      initialOnceAtUnix={s.once_at_unix || (s.mode === "once" ? s.next_run_unix : undefined)}
-                      agents={profiles}
-                      workflows={workflows}
-                      tools={tools}
-                      systemTasks={systemTasks}
-                      systemTaskInfo={systemTaskInfo}
-                      onCreated={() => {
-                        setEditingId(null);
-                        ui.toast("Schedule updated", "success");
-                        void reload();
-                      }}
-                      onError={(m) => ui.toast(m, "error")}
-                    />
-                  </div>
-                )}
               </li>
               );
             })}
@@ -1709,6 +1661,117 @@ export function Schedules() {
           )}
         </div>
       )}
+
+      {showForm && (
+        <ScheduleModal title="New schedule" onClose={() => setShowForm(false)}>
+          <NewScheduleForm
+            onCreated={() => {
+              setShowForm(false);
+              ui.toast("Schedule created", "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+            agents={profiles}
+            workflows={workflows}
+            tools={tools}
+            systemTasks={systemTasks}
+            systemTaskInfo={systemTaskInfo}
+          />
+        </ScheduleModal>
+      )}
+
+      {editingSchedule && (
+        <ScheduleModal title={`Edit ${editingSchedule.intent || editingSchedule.id}`} onClose={() => setEditingId(null)}>
+          <NewScheduleForm
+            editId={editingSchedule.id}
+            initialIntent={editingSchedule.intent}
+            initialModel={editingSchedule.model || ""}
+            initialAgent={editingSchedule.agent}
+            initialTarget={editingSchedule.target === "workflow" ? "workflow" : editingSchedule.target === "system_task" ? "system_task" : editingSchedule.target === "tool" ? "tool" : "agent"}
+            initialWorkflow={editingSchedule.workflow || ""}
+            initialPayload={editingSchedule.payload === undefined ? "" : JSON.stringify(editingSchedule.payload, null, 2)}
+            initialSystemTask={editingSchedule.system_task || "catalog_sync"}
+            initialTool={editingSchedule.tool || ""}
+            initialMode={editingSchedule.mode}
+            initialIntervalSec={editingSchedule.interval_sec}
+            initialAtMinutes={editingSchedule.at_minutes}
+            initialEndMinutes={editingSchedule.end_minutes}
+            initialDays={editingSchedule.days}
+            initialTz={editingSchedule.tz}
+            initialOnceAtUnix={editingSchedule.once_at_unix || (editingSchedule.mode === "once" ? editingSchedule.next_run_unix : undefined)}
+            agents={profiles}
+            workflows={workflows}
+            tools={tools}
+            systemTasks={systemTasks}
+            systemTaskInfo={systemTaskInfo}
+            onCreated={() => {
+              setEditingId(null);
+              ui.toast("Schedule updated", "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </ScheduleModal>
+      )}
+    </div>
+  );
+}
+
+function ScheduleEventPanel({
+  icon: Icon,
+  title,
+  status,
+  children,
+}: {
+  icon: typeof Zap;
+  title: string;
+  status: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ScheduleModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-4xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <CalendarClock className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close schedule modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -1716,7 +1779,7 @@ export function Schedules() {
 function SchedStat({ label, value, accent }: { label: string; value: number | string; accent?: boolean }) {
   return (
     <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
     </div>
   );
@@ -1747,7 +1810,7 @@ function ScheduleCommandStrip({ items, id }: { items: ScheduleCommandStripItem[]
                 item.tone === "accent" && "bg-accent",
               )}
             />
-            <span className="truncate text-xs font-semibold uppercase tracking-wider text-muted/80">{item.label}</span>
+            <span className="truncate text-xs font-semibold uppercase tracking-normal text-muted/80">{item.label}</span>
           </div>
           <div
             className={cn(
@@ -1770,7 +1833,7 @@ function ScheduleCommandStrip({ items, id }: { items: ScheduleCommandStripItem[]
 function ScheduleCronjobLedger({ items, id }: { items: ScheduleCommandStripItem[]; id: string }) {
   return (
     <div className="mt-1.5 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${id} cronjob ledger`}>
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted/80">Cronjob ledger</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted/80">Cronjob ledger</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-5">
         {items.map((item) => (
           <div
@@ -1785,7 +1848,7 @@ function ScheduleCronjobLedger({ items, id }: { items: ScheduleCommandStripItem[
               item.tone === "muted" && "text-muted",
             )}
           >
-            <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted/75">{item.label}</div>
+            <div className="truncate text-xs font-semibold uppercase tracking-normal text-muted/75">{item.label}</div>
             <div className="truncate text-sm font-medium">{item.value}</div>
           </div>
         ))}
@@ -1871,6 +1934,88 @@ function systemTaskLabel(tasks: ScheduleSystemTaskInfo[], name: string): string 
 
 type ScheduleMode = "interval" | "continuous" | "window" | "daily" | "once";
 export type ScheduleTarget = "agent" | "workflow" | "system_task" | "tool";
+
+interface ScheduleChoice {
+  value: string;
+  label: string;
+  detail?: string;
+  disabled?: boolean;
+  icon?: ReactNode;
+}
+
+function ScheduleChoicePicker({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ScheduleChoice[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-sm text-muted">
+      <span>{label}</span>
+      <div className="grid gap-1.5" role="group" aria-label={label}>
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <button
+              key={option.value || "__empty"}
+              type="button"
+              disabled={option.disabled}
+              aria-pressed={selected}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex min-h-10 items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
+                selected
+                  ? "border-accent bg-accent/10 text-foreground"
+                  : "border-border bg-panel/45 text-muted hover:border-accent/50 hover:text-foreground",
+                option.disabled && "cursor-not-allowed opacity-45 hover:border-border hover:text-muted",
+              )}
+            >
+              {option.icon && <span className="mt-0.5 shrink-0 text-accent">{option.icon}</span>}
+              <span className="min-w-0">
+                <span className="block truncate font-semibold">{option.label}</span>
+                {option.detail && <span className="mt-0.5 block truncate text-[11px] text-muted">{option.detail}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ScheduleUnitPicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: "minutes" | "hours";
+  onChange: (value: "minutes" | "hours") => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border border-border" role="group" aria-label={label}>
+      {(["minutes", "hours"] as const).map((unit) => (
+        <button
+          key={unit}
+          type="button"
+          aria-pressed={value === unit}
+          onClick={() => onChange(unit)}
+          className={cn(
+            "px-2 py-1 text-xs transition-colors",
+            value === unit ? "bg-accent/15 text-accent" : "bg-panel text-muted hover:text-foreground",
+          )}
+        >
+          {unit}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function scheduleExecutionContract(input: {
   target: ScheduleTarget;
@@ -2187,6 +2332,19 @@ export function NewScheduleForm({
   };
   const formManifestTone = payloadContract.includes("invalid") ? "bad" : formManifest.tone;
   const formManifestDetail = `trigger ${formManifestFields.trigger} · target ${formManifestFields.target} · executor ${formManifestFields.executor} · identity ${formManifestFields.identity} · ${formManifestFields.payload} · ${formManifestFields.llm}`;
+  const agentOptions: ScheduleChoice[] = [
+    { value: "", label: "No roster agent", detail: "Run without binding a roster identity", icon: <Bot className="size-3.5" /> },
+    ...agents.map((a) => ({
+      value: a.slug,
+      label: agentLabel(agents, a.slug),
+      detail: scheduleAgentStateLabel(a).trim().replace(/[()]/g, "") || "ready for direct scheduling",
+      disabled: scheduleAgentDisabled(a),
+      icon: <Bot className="size-3.5" />,
+    })),
+    ...(initialAgent && !agents.some((a) => a.slug === initialAgent)
+      ? [{ value: initialAgent, label: initialAgent, detail: "existing binding", icon: <Bot className="size-3.5" /> }]
+      : []),
+  ];
 
   async function create() {
     if (!valid) return;
@@ -2304,84 +2462,64 @@ export function NewScheduleForm({
   return (
     <div className="glass rounded-xl p-3">
       <div className="grid gap-2 sm:grid-cols-[minmax(150px,190px)_minmax(180px,240px)_1fr]">
-        <label className="flex flex-col gap-1 text-sm text-muted">
-          Target
-          <select
-            value={target}
-            onChange={(e) => changeTarget(e.target.value as ScheduleTarget)}
-            aria-label="Schedule target"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          >
-            <option value="agent">Agent task</option>
-            <option value="workflow">Workflow</option>
-            <option value="system_task">System task</option>
-            <option value="tool">Tool</option>
-          </select>
-        </label>
+        <ScheduleChoicePicker
+          label="Schedule target"
+          value={target}
+          onChange={(value) => changeTarget(value as ScheduleTarget)}
+          options={[
+            { value: "agent", label: "Agent task", detail: "Wake a roster identity", icon: <Bot className="size-3.5" /> },
+            { value: "workflow", label: "Workflow", detail: "Trigger a saved graph", icon: <GitFork className="size-3.5" /> },
+            { value: "system_task", label: "System task", detail: "Daemon cron job", icon: <ShieldCheck className="size-3.5" /> },
+            { value: "tool", label: "Tool", detail: "Typed tool call", icon: <Wrench className="size-3.5" /> },
+          ]}
+        />
         {target === "agent" ? (
-          <label className="flex flex-col gap-1 text-sm text-muted">
-            Roster agent
-            <select
-              value={agentRef}
-              onChange={(e) => setAgentRef(e.target.value)}
-              aria-label="Roster agent"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-            >
-              <option value="">No roster agent</option>
-              {agents.map((a) => (
-                <option key={a.slug} value={a.slug} disabled={scheduleAgentDisabled(a)}>
-                  {agentLabel(agents, a.slug)}
-                  {scheduleAgentStateLabel(a)}
-                </option>
-              ))}
-              {initialAgent && !agents.some((a) => a.slug === initialAgent) && (
-                <option value={initialAgent}>{initialAgent}</option>
-              )}
-            </select>
+          <div className="flex flex-col gap-1 text-sm text-muted">
+            <ScheduleChoicePicker label="Roster agent" value={agentRef} onChange={setAgentRef} options={agentOptions} />
             {selectedAgentIssue && (
               <span className="text-xs leading-snug text-warn">{selectedAgentIssue}</span>
             )}
             {selectedToolAgentIssue && (
               <span className="text-xs leading-snug text-warn">{selectedToolAgentIssue}</span>
             )}
-          </label>
+          </div>
         ) : target === "workflow" ? (
-          <label className="flex flex-col gap-1 text-sm text-muted">
-            Workflow
-            <select
-              value={workflowRef}
-              onChange={(e) => setWorkflowRef(e.target.value)}
-              aria-label="Workflow"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-            >
-              <option value="">Select workflow</option>
-              {workflows.map((w) => (
-                <option key={w.id || w.name} value={w.name} disabled={w.enabled === false}>
-                  {workflowLabel(workflows, w.name)}
-                  {w.enabled === false ? " (disabled)" : ""}
-                </option>
-              ))}
-              {initialWorkflow && !workflows.some((w) => w.name === initialWorkflow || w.id === initialWorkflow) && (
-                <option value={initialWorkflow}>{initialWorkflow}</option>
-              )}
-            </select>
-          </label>
+          <ScheduleChoicePicker
+            label="Workflow"
+            value={workflowRef}
+            onChange={setWorkflowRef}
+            options={[
+              { value: "", label: "Select workflow", detail: "Choose a graph before saving", icon: <GitFork className="size-3.5" /> },
+              ...workflows.map((w) => ({
+                value: w.name,
+                label: workflowLabel(workflows, w.name),
+                detail: w.enabled === false ? "disabled" : "enabled workflow",
+                disabled: w.enabled === false,
+                icon: <GitFork className="size-3.5" />,
+              })),
+              ...(initialWorkflow && !workflows.some((w) => w.name === initialWorkflow || w.id === initialWorkflow)
+                ? [{ value: initialWorkflow, label: initialWorkflow, detail: "existing binding", icon: <GitFork className="size-3.5" /> }]
+                : []),
+            ]}
+          />
         ) : target === "system_task" ? (
-          <label className="flex flex-col gap-1 text-sm text-muted">
-            System task
-            <select
+          <div className="flex flex-col gap-1 text-sm text-muted">
+            <ScheduleChoicePicker
+              label="System task"
               value={systemTask}
-              onChange={(e) => setSystemTask(e.target.value)}
-              aria-label="System task"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-            >
-              {effectiveSystemTasks.map((task) => (
-                <option key={task} value={task}>
-                  {systemTaskLabel(effectiveSystemTaskInfo, task)}
-                </option>
-              ))}
-              {initialSystemTask && !effectiveSystemTasks.includes(initialSystemTask) && <option value={initialSystemTask}>{initialSystemTask}</option>}
-            </select>
+              onChange={setSystemTask}
+              options={[
+                ...effectiveSystemTasks.map((task) => ({
+                  value: task,
+                  label: systemTaskLabel(effectiveSystemTaskInfo, task),
+                  detail: systemTaskExecutionLabel(effectiveSystemTaskInfo.find((info) => info.name === task)),
+                  icon: <ShieldCheck className="size-3.5" />,
+                })),
+                ...(initialSystemTask && !effectiveSystemTasks.includes(initialSystemTask)
+                  ? [{ value: initialSystemTask, label: initialSystemTask, detail: "existing binding", icon: <ShieldCheck className="size-3.5" /> }]
+                  : []),
+              ]}
+            />
             {selectedSystemTaskInfo?.description && (
               <span className="text-xs leading-snug text-muted/80">
                 {selectedSystemTaskInfo.description}
@@ -2397,25 +2535,25 @@ export function NewScheduleForm({
                 {intervalParts(selectedSystemTaskInfo.recommended_interval_sec).unit}
               </span>
             )}
-          </label>
+          </div>
         ) : (
-          <label className="flex flex-col gap-1 text-sm text-muted">
-            Tool
-            <select
-              value={toolRef}
-              onChange={(e) => setToolRef(e.target.value)}
-              aria-label="Tool"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-            >
-              <option value="">Select tool</option>
-              {tools.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {toolLabel(tools, t.name)}
-                </option>
-              ))}
-              {initialTool && !tools.some((t) => t.name === initialTool) && <option value={initialTool}>{initialTool}</option>}
-            </select>
-          </label>
+          <ScheduleChoicePicker
+            label="Tool"
+            value={toolRef}
+            onChange={setToolRef}
+            options={[
+              { value: "", label: "Select tool", detail: "Choose a typed tool call", icon: <Wrench className="size-3.5" /> },
+              ...tools.map((t) => ({
+                value: t.name,
+                label: t.name,
+                detail: t.description || "tool",
+                icon: <Wrench className="size-3.5" />,
+              })),
+              ...(initialTool && !tools.some((t) => t.name === initialTool)
+                ? [{ value: initialTool, label: initialTool, detail: "existing binding", icon: <Wrench className="size-3.5" /> }]
+                : []),
+            ]}
+          />
         )}
         <label className="flex flex-col gap-1 text-sm text-muted">
           {taskLabel}
@@ -2432,7 +2570,7 @@ export function NewScheduleForm({
 
       {!editing && (
         <div className="mt-2 rounded-md border border-border bg-panel/35 px-2 py-1.5">
-          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
             <Wrench className="size-3" /> Daemon cron presets
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -2457,7 +2595,7 @@ export function NewScheduleForm({
         summary={<span className="text-sm font-medium text-foreground/80">Details — manifest &amp; contract</span>}
       >
       <div className="mt-1 rounded-md border border-border bg-panel/35 px-2 py-1.5 text-sm text-muted">
-        <span className="font-semibold uppercase tracking-wider text-foreground/70">Execution</span>{" "}
+        <span className="font-semibold uppercase tracking-normal text-foreground/70">Execution</span>{" "}
         <span>{executionContract}</span>
         {payloadContract && <span> · {payloadContract}</span>}
       </div>
@@ -2476,13 +2614,13 @@ export function NewScheduleForm({
         aria-label="Schedule target manifest"
         title={formManifestDetail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <ShieldCheck className="size-3" /> Target manifest · {formManifest.label}
         </div>
         <div className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
           {Object.entries(formManifestFields).map(([key, value]) => (
             <div key={key} className="min-w-0 rounded border border-border/55 bg-panel/45 px-2 py-1">
-              <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted/80">
+              <div className="truncate text-xs font-semibold uppercase tracking-normal text-muted/80">
                 {key}
               </div>
               <div className="mt-0.5 truncate text-xs text-foreground/85" title={value}>
@@ -2504,7 +2642,7 @@ export function NewScheduleForm({
         )}
         title={formContract.detail}
       >
-        <span className="font-semibold uppercase tracking-wider text-foreground/70">Cron contract</span>{" "}
+        <span className="font-semibold uppercase tracking-normal text-foreground/70">Cron contract</span>{" "}
         <span className={cn(formContract.tone === "good" && "text-good", formContract.tone === "warn" && "text-warn")}>
           {formContract.label}
         </span>
@@ -2522,7 +2660,7 @@ export function NewScheduleForm({
         )}
         title={identityBoundary.detail}
       >
-        <span className="font-semibold uppercase tracking-wider text-foreground/70">Identity boundary</span>{" "}
+        <span className="font-semibold uppercase tracking-normal text-foreground/70">Identity boundary</span>{" "}
         <span className={cn(identityBoundary.tone === "good" && "text-good", identityBoundary.tone === "warn" && "text-warn")}>
           {identityBoundary.label}
         </span>
@@ -2532,32 +2670,23 @@ export function NewScheduleForm({
 
       {showRunAsAgent && (
         <div className={cn("mt-2 grid gap-2", target === "workflow" && "sm:grid-cols-2")}>
-          <label className="flex flex-col gap-1 text-sm text-muted">
-            Run as agent
-            <select
+          <div className="flex flex-col gap-1 text-sm text-muted">
+            <ScheduleChoicePicker
+              label="Run as agent"
               value={agentRef}
-              onChange={(e) => setAgentRef(e.target.value)}
-              aria-label="Run as agent"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-            >
-              <option value="">System identity</option>
-              {agents.map((a) => (
-                <option key={a.slug} value={a.slug} disabled={scheduleAgentDisabled(a)}>
-                  {agentLabel(agents, a.slug)}
-                  {scheduleAgentStateLabel(a)}
-                </option>
-              ))}
-              {initialAgent && !agents.some((a) => a.slug === initialAgent) && (
-                <option value={initialAgent}>{initialAgent}</option>
-              )}
-            </select>
+              onChange={setAgentRef}
+              options={[
+                { value: "", label: "System identity", detail: "Daemon policy boundary", icon: <ShieldCheck className="size-3.5" /> },
+                ...agentOptions.slice(1),
+              ]}
+            />
             {selectedAgentIssue && (
               <span className="text-xs leading-snug text-warn">{selectedAgentIssue}</span>
             )}
             {selectedToolAgentIssue && (
               <span className="text-xs leading-snug text-warn">{selectedToolAgentIssue}</span>
             )}
-          </label>
+          </div>
           {target === "workflow" && (
             <label className="flex flex-col gap-1 text-sm text-muted">
               Model override
@@ -2644,18 +2773,14 @@ export function NewScheduleForm({
                 aria-label={mode === "continuous" ? "Cycle cooldown amount" : "Interval amount"}
                 className="w-20 rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
               />
-              <select
+              <ScheduleUnitPicker
+                label={mode === "continuous" ? "Cycle cooldown unit" : "Interval unit"}
                 value={everyUnit}
-                onChange={(e) => {
-                  setEveryUnit(e.target.value as "minutes" | "hours");
+                onChange={(unit) => {
+                  setEveryUnit(unit);
                   setTimingDirty(true);
                 }}
-                aria-label={mode === "continuous" ? "Cycle cooldown unit" : "Interval unit"}
-                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-              >
-                <option value="minutes">minutes</option>
-                <option value="hours">hours</option>
-              </select>
+              />
               {mode === "continuous" && <span className="text-sm text-muted">after each completed run</span>}
             </div>
           )}
@@ -2672,18 +2797,14 @@ export function NewScheduleForm({
                 aria-label="Window interval amount"
                 className="w-20 rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
               />
-              <select
+              <ScheduleUnitPicker
+                label="Window interval unit"
                 value={everyUnit}
-                onChange={(e) => {
-                  setEveryUnit(e.target.value as "minutes" | "hours");
+                onChange={(unit) => {
+                  setEveryUnit(unit);
                   setTimingDirty(true);
                 }}
-                aria-label="Window interval unit"
-                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-              >
-                <option value="minutes">minutes</option>
-                <option value="hours">hours</option>
-              </select>
+              />
               <input
                 type="time"
                 value={windowStart}

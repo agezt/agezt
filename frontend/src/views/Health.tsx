@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, CheckSquare, Stethoscope, CalendarClock, CheckCircle2, XOctagon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Sparkline, BarRow } from "@/components/Widgets";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 
 interface Status {
@@ -263,25 +262,22 @@ export function Health() {
         />
       </MetricGrid>
 
-      {/* Activity pulse */}
-      <CollapsibleSection
+      <HealthPanel
         icon={HeartPulse}
         title="Activity pulse"
-        description={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
+        status={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting..."}
         tone="accent"
-        defaultOpen={true}
       >
         <Sparkline data={series} tone="accent" height={64} />
-      </CollapsibleSection>
+      </HealthPanel>
 
       {/* Provider fallback breakdown */}
       {fallbacks.length > 0 && (
-        <CollapsibleSection
+        <HealthPanel
           icon={ShieldAlert}
           title="Provider fallbacks"
-          count={prov?.fallbacks}
+          status={`${prov?.fallbacks ?? 0} routed away`}
           tone="warn"
-          defaultOpen={true}
         >
           <div className="space-y-1.5">
             {fallbacks
@@ -293,9 +289,45 @@ export function Health() {
           {st?.provider_fallbacks?.last_reason && (
             <div className="mt-2 text-xs text-muted">last: {st.provider_fallbacks.last_reason}</div>
           )}
-        </CollapsibleSection>
+        </HealthPanel>
       )}
     </div>
+  );
+}
+
+function HealthPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: typeof HeartPulse;
+  title: string;
+  status?: string;
+  tone: "accent" | "warn" | "bad" | "good" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    good: "border-good/35 bg-good/5 text-good",
+    muted: "border-border bg-card text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {status && <div className="truncate text-xs text-muted">{status}</div>}
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -338,5 +370,3 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
     </div>
   );
 }
-
-

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Scale, Users, Send, Loader2, Gavel, AlertTriangle, Pencil, Plus, X, Check } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Scale, Users, Send, Loader2, Gavel, AlertTriangle, Pencil, Plus, X, Check, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -170,7 +170,7 @@ export function Council() {
               <Pencil className="size-3" /> Edit
             </Button>
           ) : (
-            <span className="text-xs text-muted">Editing members</span>
+            <span className="text-xs text-muted">Editing</span>
           )
         }
       />
@@ -188,11 +188,7 @@ export function Council() {
 
       {/* Edit mode: per-member model picker */}
       {editMode && (
-        <div className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-card p-3">
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <Users className="size-3.5" />
-            <span>Select a model for each council seat</span>
-          </div>
+        <CouncilModal title="Council seats" icon={Users} onClose={cancelEdit}>
           <div className="flex flex-col gap-2">
             {draftMembers.map((m, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -218,13 +214,13 @@ export function Council() {
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addMember}>
               <Plus className="size-3" /> Add seat
             </Button>
-            <span className="ml-auto text-xs text-muted">Tip: leave seat name blank to auto-name as Elder N</span>
+            <span className="ml-auto text-xs text-muted">{draftMembers.length} seats</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="mt-3 flex items-center gap-2 border-t border-border/70 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -247,7 +243,7 @@ export function Council() {
           {draftMembers.some((m) => !m.model) && (
             <p className="text-xs text-muted">Each seat must have a model selected.</p>
           )}
-        </div>
+        </CouncilModal>
       )}
 
       <div className="glass flex flex-col gap-2 rounded-xl p-3">
@@ -258,23 +254,31 @@ export function Council() {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") ask();
           }}
           placeholder="Put a hard question before the council… (⌘/Ctrl+Enter to convene)"
+          aria-label="Council question"
           rows={3}
           className="w-full resize-y rounded-md border border-border bg-panel px-3 py-2 text-sm outline-none focus-visible:border-accent"
           disabled={asking}
         />
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[11px] text-muted">
-            deliberation rounds
-            <input
-              type="number"
-              min={0}
-              max={5}
-              value={rounds}
-              onChange={(e) => setRounds(Math.max(0, Math.min(5, Number(e.target.value) || 0)))}
-              className="w-14 rounded-md border border-border bg-panel px-2 py-1 text-xs outline-none focus-visible:border-accent"
-              disabled={asking}
-            />
-          </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-panel p-1" aria-label="Deliberation rounds">
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setRounds(n)}
+                disabled={asking}
+                className={cn(
+                  "h-6 min-w-7 rounded-md px-2 text-xs font-medium transition-colors",
+                  rounds === n ? "bg-accent text-accent-foreground" : "text-muted hover:bg-card hover:text-foreground",
+                )}
+                aria-pressed={rounds === n}
+                title={`${n} deliberation round${n === 1 ? "" : "s"}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-muted">deliberation rounds</span>
           <Button className="ml-auto" size="sm" onClick={ask} disabled={asking || !question.trim() || members.length === 0}>
             {asking ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
             {asking ? "Deliberating…" : "Convene"}
@@ -292,6 +296,38 @@ export function Council() {
             No keyed providers — add an API key for at least one provider and the council will convene.
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CouncilModal({
+  title,
+  icon: Icon,
+  children,
+  onClose,
+}: {
+  title: string;
+  icon: LucideIcon;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Icon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Pick the named models that deliberate as a panel.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close council modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 overflow-auto p-4">{children}</div>
       </div>
     </div>
   );
@@ -341,7 +377,7 @@ function CouncilLive({ run }: { run: CouncilRun }) {
           <Markdown source={run.consensus} className="text-sm text-foreground/90" />
           {run.dissent && (
             <div className="mt-3 rounded-md border border-warn/40 bg-warn/10 p-2.5">
-              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-warn">
+              <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-warn">
                 <AlertTriangle className="size-3" /> Dissent
               </div>
               <Markdown source={run.dissent} className="text-xs text-foreground/80" />
@@ -356,7 +392,7 @@ function CouncilLive({ run }: { run: CouncilRun }) {
         const stillThinking = thinkingNow.filter((t) => t.round === g.round);
         return (
           <div key={g.round}>
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{roundLabel(g.round)}</div>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">{roundLabel(g.round)}</div>
             <div className="grid gap-2 md:grid-cols-2">
               {g.opinions.map((op, i) => (
                 <div key={op.seat + i} className="view-enter glass rounded-xl p-3">

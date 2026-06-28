@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronLeft,
   LifeBuoy,
@@ -10,6 +10,9 @@ import {
   Play,
   Send,
   Wrench,
+  X,
+  GitBranch,
+  type LucideIcon,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
@@ -56,6 +59,39 @@ import { fmtTime } from "@/lib/utils";
 
 interface IncidentAlert extends RankedAlert {}
 
+function IncidentModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-3xl rounded-xl border border-border bg-panel shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function IncidentPage({
   incidentId,
   onNavigate,
@@ -76,6 +112,9 @@ export function IncidentPage({
   const [forceTaskType, setForceTaskType] = useState("");
   const [forceChainText, setForceChainText] = useState("");
   const [showRepair, setShowRepair] = useState(false);
+  const [resolutionOpen, setResolutionOpen] = useState(false);
+  const [resolutionMode, setResolutionMode] = useState<"delegate" | "force">("delegate");
+  const [noteOpen, setNoteOpen] = useState(false);
 
   async function load() {
     const [a, j, p] = await Promise.allSettled([
@@ -581,7 +620,7 @@ export function IncidentPage({
       {treeOps && (
         <div className="glass rounded-xl p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-semibold uppercase tracking-wider text-muted">
+            <span className="font-semibold uppercase tracking-normal text-muted">
               repair ops
             </span>
             <span className={incidentPhaseBadgeClass(treeOps.tone, true)}>
@@ -598,13 +637,13 @@ export function IncidentPage({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div className="space-y-3">
           <div className="glass rounded-xl p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted">
               Repair incident tree
             </div>
             <DoctorIncidentTrees trees={trees} />
           </div>
           <div className="glass rounded-xl p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
               <ShieldAlert className="size-3.5" /> Related alerts
             </div>
             {alerts.length === 0 ? (
@@ -628,7 +667,7 @@ export function IncidentPage({
             )}
           </div>
           <div className="glass rounded-xl p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
               <Wrench className="size-3.5" /> Resolution history
             </div>
             {resolutionRows.length === 0 ? (
@@ -695,7 +734,7 @@ export function IncidentPage({
 
         <div className="space-y-3">
           <div className="glass rounded-xl p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
               <Wrench className="size-3.5" /> Operations
             </div>
             {!ops.rootSlug || !rootProfile ? (
@@ -845,13 +884,30 @@ export function IncidentPage({
                       <Play className="size-3.5" /> Wake owner
                     </Button>
                   )}
+                  {ops.humanRequired && !rootProfile.retired && (
+                    <Button
+                      size="sm"
+                      variant={resolutionOpen ? "accent" : "ghost"}
+                      onClick={() => setResolutionOpen(true)}
+                    >
+                      <Send className="size-3.5" /> Resolve incident
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={noteOpen ? "accent" : "ghost"}
+                    disabled={!noteTarget}
+                    onClick={() => setNoteOpen(true)}
+                  >
+                    <Send className="size-3.5" /> Operator note
+                  </Button>
                   {!rootProfile.retired && (
                     <Button
                       size="sm"
                       variant={showRepair ? "accent" : "ghost"}
-                      onClick={() => setShowRepair((v) => !v)}
+                      onClick={() => setShowRepair(true)}
                     >
-                      <Wrench className="size-3.5" /> {showRepair ? "Hide repair" : ops.policyKind === "routing_force_exhausted" ? "Routing console" : "Repair console"}
+                      <Wrench className="size-3.5" /> {ops.policyKind === "routing_force_exhausted" ? "Routing console" : "Repair console"}
                     </Button>
                   )}
                 </div>
@@ -879,11 +935,42 @@ export function IncidentPage({
                   </div>
                 )}
 
-                {ops.humanRequired && !rootProfile.retired && (
-                  <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
-                    <div className="text-[11px] font-medium text-amber-100">
-                      Direct incident resolution
-                    </div>
+                {resolutionOpen && ops.humanRequired && !rootProfile.retired && (
+                  <IncidentModal title="Resolve incident" icon={Send} onClose={() => setResolutionOpen(false)}>
+                    <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-medium text-amber-100">
+                            Direct incident resolution
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-amber-100/70">
+                            Pick one controlled resolution path; the other controls stay out of the way.
+                          </div>
+                        </div>
+                        <div className="flex rounded-lg border border-amber-400/20 bg-black/10 p-1" aria-label="Resolution action">
+                          <button
+                            type="button"
+                            onClick={() => setResolutionMode("delegate")}
+                            className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors ${
+                              resolutionMode === "delegate" ? "bg-amber-400/20 text-amber-50" : "text-amber-100/70 hover:text-amber-50"
+                            }`}
+                            aria-pressed={resolutionMode === "delegate"}
+                          >
+                            <Send className="size-3" /> Delegate
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResolutionMode("force")}
+                            className={`inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs transition-colors ${
+                              resolutionMode === "force" ? "bg-amber-400/20 text-amber-50" : "text-amber-100/70 hover:text-amber-50"
+                            }`}
+                            aria-pressed={resolutionMode === "force"}
+                          >
+                            <GitBranch className="size-3" /> Force chain
+                          </button>
+                        </div>
+                      </div>
+                    {resolutionMode === "delegate" && (
                     <div className="space-y-2">
                       <div className="text-[11px] text-amber-100/80">
                         Delegate this exhausted routing incident to a concrete owner.
@@ -1031,6 +1118,8 @@ export function IncidentPage({
                         </div>
                       )}
                     </div>
+                    )}
+                    {resolutionMode === "force" && (
                     <div className="space-y-2">
                       <div className="text-[11px] text-amber-100/80">
                         Force a new chain only when you have a concrete replacement. Current exhausted chain:{" "}
@@ -1139,46 +1228,56 @@ export function IncidentPage({
                         </Button>
                       </div>
                     </div>
-                  </div>
+                    )}
+                    </div>
+                  </IncidentModal>
                 )}
 
-                <div className="space-y-2">
-                  <div className="text-[11px] text-muted">
-                    {ops.humanRequired
-                      ? "Send an in-band operator note to the current owner chain. Exhausted routing incidents should stay inside mailbox/escalation rather than drifting into ad hoc chat."
-                      : "Send a help-thread note to the current owner chain. This keeps the incident inside the mailbox/escalation path instead of becoming an out-of-band comment."}
-                  </div>
-                  <textarea
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    placeholder={
-                      noteTarget
-                        ? `message ${noteTarget} about ${rootProfile.slug}`
-                        : "no owner/parent target found for this incident"
-                    }
-                    rows={3}
-                    className="w-full rounded-md border border-border bg-panel px-2 py-1.5 text-xs text-foreground outline-none focus-visible:border-accent"
-                  />
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
-                    <span>
-                      target{" "}
-                      <span className="font-mono text-foreground/85">
-                        {noteTarget || "(none)"}
-                      </span>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={!noteTarget || !noteText.trim() || busy === `note:${noteTarget}`}
-                      onClick={sendOperatorNote}
-                    >
-                      <Send className="size-3.5" /> Send note
-                    </Button>
-                  </div>
-                </div>
+                {noteOpen && (
+                  <IncidentModal title="Operator note" icon={Send} onClose={() => setNoteOpen(false)}>
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-muted">
+                        {ops.humanRequired
+                          ? "Send an in-band operator note to the current owner chain. Exhausted routing incidents should stay inside mailbox/escalation rather than drifting into ad hoc chat."
+                          : "Send a help-thread note to the current owner chain. This keeps the incident inside the mailbox/escalation path instead of becoming an out-of-band comment."}
+                      </div>
+                      <textarea
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder={
+                          noteTarget
+                            ? `message ${noteTarget} about ${rootProfile.slug}`
+                            : "no owner/parent target found for this incident"
+                        }
+                        rows={3}
+                        className="w-full rounded-md border border-border bg-panel px-2 py-1.5 text-xs text-foreground outline-none focus-visible:border-accent"
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
+                        <span>
+                          target{" "}
+                          <span className="font-mono text-foreground/85">
+                            {noteTarget || "(none)"}
+                          </span>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!noteTarget || !noteText.trim() || busy === `note:${noteTarget}`}
+                          onClick={sendOperatorNote}
+                        >
+                          <Send className="size-3.5" /> Send note
+                        </Button>
+                      </div>
+                    </div>
+                  </IncidentModal>
+                )}
 
                 {showRepair && (
-                  <div className="rounded-lg border border-border bg-panel/20 p-2.5">
+                  <IncidentModal
+                    title={ops.policyKind === "routing_force_exhausted" ? "Routing console" : "Repair console"}
+                    icon={Wrench}
+                    onClose={() => setShowRepair(false)}
+                  >
                     <AgentRepair
                       slug={rootProfile.slug}
                       profile={rootProfile}
@@ -1188,13 +1287,13 @@ export function IncidentPage({
                       configIssues={ops.configIssues}
                       onApplied={() => void load()}
                     />
-                  </div>
+                  </IncidentModal>
                 )}
               </div>
             )}
           </div>
           <div className="glass rounded-xl p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted">
               Related agents
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1213,7 +1312,7 @@ export function IncidentPage({
             </div>
           </div>
           <div className="glass rounded-xl p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted">
               Selected node
             </div>
             <div className="space-y-1.5 text-[11px]">

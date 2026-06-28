@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Activity,
   RefreshCw,
@@ -27,27 +27,23 @@ import {
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { getJSON } from "@/lib/api";
-import { ConnectivityStrip } from "@/views/Connections";
-import { Advanced, Calm } from "@/components/ui/advanced";
+import { Advanced } from "@/components/ui/advanced";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { incidentRootId } from "@/lib/incidents";
 import { focusRun } from "@/lib/runfocus";
 import { openIncident } from "@/lib/incidentnav";
-import { doctorIncidentPhase, doctorIncidentSourceLabel } from "@/lib/autonomy";
 import {
   IncidentBadges,
 } from "@/components/IncidentBadges";
 import { Button } from "@/components/ui/button";
 import { fmtTime, clip } from "@/lib/utils";
-import { Ring, Sparkline, BarRow } from "@/components/Widgets";
-import { PageHeader } from "@/components/ui/page-header";
+import { Sparkline, BarRow } from "@/components/Widgets";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { JarvisPresenceCard } from "@/components/JarvisPresenceCard";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 interface RunRow {
   correlation_id?: string;
@@ -250,7 +246,7 @@ export function Dashboard() {
             <Activity className="size-5" />
           </span>
           <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Cockpit</h2>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Cockpit</h2>
             <span className={cn(
               "inline-flex items-center gap-1 text-xs font-medium",
               connected ? "text-good" : "text-bad",
@@ -308,12 +304,11 @@ function OverviewTab({
     <div className="flex flex-col gap-3">
       {/* Alerts — always visible when present */}
       {alerts.length > 0 && (
-        <CollapsibleSection
+        <DashboardPanel
           icon={ShieldAlert}
           title="Needs attention"
-          count={alerts.length}
+          status={`${alerts.length} alert${alerts.length === 1 ? "" : "s"}`}
           tone="bad"
-          defaultOpen={true}
         >
           <ul className="space-y-1">
             {alerts.map((a) => {
@@ -347,7 +342,7 @@ function OverviewTab({
               );
             })}
           </ul>
-        </CollapsibleSection>
+        </DashboardPanel>
       )}
 
       {/* Jarvis presence — discoverable entry point to the triad (M1002). */}
@@ -390,12 +385,11 @@ function OverviewTab({
 
       {/* Fleet ops — compact strip */}
       {fleetOps && fleetOps.total > 0 && (
-        <CollapsibleSection
+        <DashboardPanel
           icon={Bot}
           title="Agent operations"
-          count={`${fleetOps.running} awake`}
+          status={`${fleetOps.running} awake`}
           tone="accent"
-          defaultOpen={true}
           actions={
             <button
               onClick={() => (location.hash = "roster")}
@@ -429,17 +423,16 @@ function OverviewTab({
               )}
             </div>
           )}
-        </CollapsibleSection>
+        </DashboardPanel>
       )}
 
       {/* Active runs */}
       {active.length > 0 && (
-        <CollapsibleSection
+        <DashboardPanel
           icon={Repeat}
           title="Active runs"
-          count={active.length}
+          status={`${active.length} running`}
           tone="accent"
-          defaultOpen={active.length <= 3}
         >
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {active.slice(0, 6).map((r) => {
@@ -474,7 +467,7 @@ function OverviewTab({
               );
             })}
           </div>
-        </CollapsibleSection>
+        </DashboardPanel>
       )}
 
       {/* Run counters */}
@@ -505,17 +498,17 @@ function ActivityTab({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <CollapsibleSection
+        <DashboardPanel
           icon={Gauge}
           title="Activity pulse"
           tone="accent"
-          defaultOpen={true}
+          status={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting"}
         >
           <Sparkline data={series} tone="accent" height={48} />
           <p className="mt-1 text-xs text-muted">
             {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
           </p>
-        </CollapsibleSection>
+        </DashboardPanel>
       </div>
 
       <Advanced>
@@ -589,11 +582,11 @@ function BudgetTab({
       </MetricGrid>
 
       {byModel.length > 0 && (
-        <CollapsibleSection
+        <DashboardPanel
           icon={Network}
           title="Spend by model"
           tone="accent"
-          defaultOpen={true}
+          status={`${byModel.length} model${byModel.length === 1 ? "" : "s"}`}
         >
           <div className="space-y-2">
             {byModel
@@ -609,20 +602,20 @@ function BudgetTab({
                 />
               ))}
           </div>
-        </CollapsibleSection>
+        </DashboardPanel>
       )}
 
-      <CollapsibleSection
+      <DashboardPanel
         icon={Wallet}
         title="Budget settings"
         tone="muted"
-        defaultOpen={false}
+        status={budget?.strict_pricing ? "strict pricing" : "soft ceiling"}
       >
         <div className="space-y-1 text-sm text-muted">
           <p>Ceiling: {money(budget?.ceiling_mc ?? 0)}</p>
           <p>Strict pricing: {budget?.strict_pricing ? "on" : "off"}</p>
         </div>
-      </CollapsibleSection>
+      </DashboardPanel>
     </div>
   );
 }
@@ -651,6 +644,47 @@ function MiniMetric({
       </div>
       <div className={cn("text-base font-semibold tabular-nums", colorCls)}>{value}</div>
     </div>
+  );
+}
+
+type DashboardPanelTone = "accent" | "good" | "warn" | "bad" | "muted";
+
+function DashboardPanel({
+  icon: Icon,
+  title,
+  status,
+  tone = "muted",
+  actions,
+  children,
+}: {
+  icon: typeof Activity;
+  title: string;
+  status?: string;
+  tone?: DashboardPanelTone;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const toneCls: Record<DashboardPanelTone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    good: "border-good/35 bg-good/5 text-good",
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {status && <div className="truncate text-xs text-muted">{status}</div>}
+        </div>
+        {actions}
+      </div>
+      {children}
+    </section>
   );
 }
 

@@ -184,6 +184,7 @@ describe("NewServerForm", () => {
     expect(btn().disabled).toBe(true); // no URL yet
 
     fireEvent.change(screen.getByLabelText("Server URL"), { target: { value: "https://api.example.com/mcp" } });
+    fireEvent.click(screen.getByRole("button", { name: /Advanced guardrails/ }));
     fireEvent.change(screen.getByLabelText("Server headers"), {
       target: { value: "Authorization: Bearer ghp_x" },
     });
@@ -212,6 +213,7 @@ describe("NewServerForm", () => {
     render(<NewServerForm onCreated={() => {}} onError={() => {}} />);
     fireEvent.change(screen.getByLabelText("Server name"), { target: { value: "github" } });
     fireEvent.change(screen.getByLabelText("Server command"), { target: { value: "npx" } });
+    fireEvent.click(screen.getByRole("button", { name: /Advanced guardrails/ }));
     fireEvent.click(screen.getByLabelText("Lazy load tools"));
     fireEvent.click(screen.getByRole("button", { name: /Register server/ }));
 

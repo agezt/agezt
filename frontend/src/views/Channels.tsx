@@ -430,8 +430,7 @@ function ConnectForm({
 function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => void }) {
   const ui = useUI();
   const accounts = accountsOf(row);
-  const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null); // account label being edited
+  const [activeForm, setActiveForm] = useState<{ account: ChannelAccount; isNew: boolean } | null>(null);
   const [testTo, setTestTo] = useState("");
   const [testingKey, setTestingKey] = useState<string>("");
 
@@ -473,14 +472,13 @@ function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => 
     <div className="mt-2 space-y-2 border-t border-border/50 pt-2">
       {accounts.map((a) => {
         const key = instanceKey(row.kind, a.label);
-        const editingThis = editing === a.label;
         return (
           <div key={key} className="rounded-md border border-border/40 bg-background/30 p-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-foreground">{a.label || "default"}</span>
               <StatusBadge live={a.live} configured={a.configured} />
               <div className="ml-auto flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setEditing(editingThis ? null : a.label)}>
+                <Button variant="ghost" size="sm" onClick={() => setActiveForm({ account: a, isNew: false })}>
                   <Pencil className="size-3.5" /> Edit
                 </Button>
                 {a.label !== "" && (
@@ -514,35 +512,57 @@ function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => 
                 Send test
               </Button>
             </div>
-
-            {editingThis && (
-              <div className="mt-2">
-                <ConnectForm
-                  row={row}
-                  account={a}
-                  isNew={false}
-                  onClose={() => setEditing(null)}
-                  onSaved={onChanged}
-                />
-              </div>
-            )}
           </div>
         );
       })}
 
-      {adding ? (
-        <ConnectForm
-          row={row}
-          account={{ label: "", fields: row.fields.map((f) => ({ ...f, value: "", set: false })) }}
-          isNew
-          onClose={() => setAdding(false)}
-          onSaved={onChanged}
-        />
-      ) : (
-        <Button variant="ghost" size="sm" onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" /> Add account
-        </Button>
+      <Button variant="ghost" size="sm" onClick={() => setActiveForm({ account: { label: "", fields: row.fields.map((f) => ({ ...f, value: "", set: false })) }, isNew: true })}>
+        <Plus className="size-3.5" /> Add account
+      </Button>
+
+      {activeForm && (
+        <ChannelModal title={`${activeForm.isNew ? "Add" : "Edit"} ${row.display}${activeForm.account.label ? ` · ${activeForm.account.label}` : ""}`} onClose={() => setActiveForm(null)}>
+          <ConnectForm
+            row={row}
+            account={activeForm.account}
+            isNew={activeForm.isNew}
+            onClose={() => setActiveForm(null)}
+            onSaved={onChanged}
+          />
+        </ChannelModal>
       )}
+    </div>
+  );
+}
+
+function ChannelModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Radio className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close channel setup">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

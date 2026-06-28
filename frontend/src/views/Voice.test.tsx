@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
@@ -59,6 +59,8 @@ describe("Voice view", () => {
     render(withUI(<Voice />));
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/agents"));
     await waitFor(() => expect(screen.getByText("Researcher")).toBeTruthy());
+    fireEvent.click(within(screen.getByRole("group", { name: "Voice agent" })).getByRole("button", { name: "Researcher" }));
+    expect(localStorage.getItem("agezt.voice.agent")).toBe("researcher");
   });
 
   it("starts a session and swaps to a Stop control", () => {
@@ -77,11 +79,12 @@ describe("Voice view", () => {
     expect(localStorage.getItem("agezt.voice.wake")).toBe("1");
   });
 
-  it("renders the inline voice setup with Hearing + Voice provider pickers", async () => {
+  it("opens voice setup with Hearing + Voice provider pickers", async () => {
     render(withUI(<Voice />));
+    fireEvent.click(screen.getByRole("button", { name: /setup/i }));
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/config/values"));
-    expect(screen.getByText("Voice setup")).toBeTruthy();
-    // Auto-opened because nothing is configured — both halves present.
+    expect(screen.getAllByText("Voice setup").length).toBeGreaterThanOrEqual(1);
+    // Opened in the setup modal because nothing is configured — both halves present.
     expect(screen.getByRole("heading", { name: "Hearing" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Voice", level: 4 })).toBeTruthy();
     // Provider chips from the catalog (Groq appears in both halves).
@@ -90,7 +93,8 @@ describe("Voice view", () => {
 
   it("selects a provider and writes its endpoint + model to the daemon", async () => {
     render(withUI(<Voice />));
-    await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /setup/i }));
+    await waitFor(() => expect(screen.getAllByText("Voice setup").length).toBeGreaterThanOrEqual(1));
     // Click the first OpenAI chip (Hearing half).
     fireEvent.click(screen.getAllByRole("button", { name: "OpenAI" })[0]);
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_STT_URL", value: "https://api.openai.com/v1" }));
@@ -99,7 +103,8 @@ describe("Voice view", () => {
 
   it("selects a native provider and writes its dialect (ElevenLabs)", async () => {
     render(withUI(<Voice />));
-    await waitFor(() => expect(screen.getByText("Voice setup")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /setup/i }));
+    await waitFor(() => expect(screen.getAllByText("Voice setup").length).toBeGreaterThanOrEqual(1));
     // Second ElevenLabs chip is the Voice (TTS) half.
     fireEvent.click(screen.getAllByRole("button", { name: "ElevenLabs" })[1]);
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_PROVIDER", value: "elevenlabs" }));

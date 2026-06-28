@@ -46,7 +46,6 @@ import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import type { AgentProfile } from "@/views/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
@@ -376,7 +375,7 @@ export function Agents() {
             <aside className="glass min-h-0 overflow-auto rounded-xl p-3 lg:w-96 lg:shrink-0">
               <div className="mb-2 flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+                  <div className="text-xs font-semibold uppercase tracking-normal text-muted">
                     {pickedNode.root ? "lead" : `sub-agent · L${pickedNode.depth}`}
                   </div>
                   <div className="truncate text-xs font-medium" title={pickedNode.intent || pickedNode.id}>
@@ -752,7 +751,7 @@ function BigStat({
 }) {
   return (
     <div className={cn("glass rounded-xl p-2.5 transition-shadow hover:shadow-e3", accent && "glow-accent")}>
-      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-2xl font-bold tabular-nums", accent ? "text-gradient" : "text-foreground")}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Waves,
   RefreshCw,
@@ -19,6 +19,8 @@ import {
   Moon,
   LifeBuoy,
   GitBranch,
+  Bell,
+  Gauge,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
@@ -32,6 +34,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { openIncident } from "@/lib/incidentnav";
+import { Disclosure } from "@/components/ui/disclosure";
 import {
   autonomyEventMatches,
   doctorIncidentTrees,
@@ -57,7 +60,7 @@ const catMeta: Record<string, { icon: LucideIcon; tone: string }> = {
 };
 
 // Autonomy is the "living organism" pane: a curated, newest-first timeline of
-// everything the daemon did ON ITS OWN — schedules and standing orders firing,
+// everything the daemon did ON ITS OWN - schedules and standing orders firing,
 // skills learned/promoted, do-it-for-sure completion checks, pulse briefings.
 // Unlike the raw Live Stream it keeps only self-directed milestones, so the
 // operator can see their Jarvis acting unprompted. Read-only; polls live.
@@ -119,7 +122,7 @@ export function Autonomy() {
       <PageHeader
         icon={Waves}
         title="Autonomy"
-        description="A live timeline of everything the daemon did on its own — schedules, standing orders, learned skills, pulse briefings."
+        description="A live timeline of everything the daemon did on its own - schedules, standing orders, learned skills, pulse briefings."
         actions={
           <>
             <span className="text-xs text-muted">
@@ -195,7 +198,7 @@ export function Autonomy() {
         <SkeletonList count={4} lines={2} />
       ) : items.length === 0 ? (
         <Muted>
-          nothing autonomous yet — when a schedule or standing order fires, a
+          nothing autonomous yet - when a schedule or standing order fires, a
           skill is learned, or a do-it-for-sure check runs, it shows here. The
           system is quiet, not asleep.
         </Muted>
@@ -217,7 +220,7 @@ export function Autonomy() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{it.title}</span>
-                      <span className="rounded bg-panel px-1.5 py-0.5 text-xs uppercase tracking-wider text-muted">
+                      <span className="rounded bg-panel px-1.5 py-0.5 text-xs uppercase tracking-normal text-muted">
                         {it.category}
                       </span>
                       {it.category === "doctor" && <IncidentBadges item={it} />}
@@ -255,11 +258,11 @@ interface PulseStatus {
   digest_pending?: number;
 }
 
-// The proactivity dial (M758): how much reaches you — quiet (alerts only), balanced
+// The proactivity dial (M758): how much reaches you - quiet (alerts only), balanced
 // (notify and up), chatty (digests too).
 const DIALS = ["quiet", "balanced", "chatty"];
 
-// Cadence presets for live retuning (M757), in seconds — how often the agent checks in.
+// Cadence presets for live retuning (M757), in seconds - how often the agent checks in.
 const CADENCE_PRESETS = [10, 30, 60, 300, 900, 3600];
 
 // cadenceLabel formats a second count as a compact human interval (10s, 5m, 1h).
@@ -269,8 +272,8 @@ export function cadenceLabel(sec: number): string {
   return `${Math.round(sec / 3600)}h`;
 }
 
-// PulseControl surfaces the proactive heartbeat — the engine that drives the daemon's
-// self-directed work — with its live status and a pause/resume master switch (M743),
+// PulseControl surfaces the proactive heartbeat - the engine that drives the daemon's
+// self-directed work - with its live status and a pause/resume master switch (M743),
 // an on-demand "beat now" (M756), and a live cadence selector (M757). Pausing
 // suppresses new beats (in-flight work finishes); the daemon goes reactive-only until
 // resumed. Previously this was reachable only via `agt pulse` on the CLI.
@@ -285,6 +288,7 @@ export function PulseControl() {
   const [probeName, setProbeName] = useState("");
   const [probeCmd, setProbeCmd] = useState("");
   const [quietHours, setQuietHours] = useState("");
+  const [quietOpen, setQuietOpen] = useState(false);
 
   async function load() {
     try {
@@ -309,8 +313,8 @@ export function PulseControl() {
       );
       ui.toast(
         st.paused
-          ? "Pulse resumed — proactivity is back on"
-          : "Pulse paused — the daemon is reactive-only",
+          ? "Pulse resumed - proactivity is back on"
+          : "Pulse paused - the daemon is reactive-only",
         "success",
       );
       await load();
@@ -321,14 +325,14 @@ export function PulseControl() {
     }
   }
 
-  // Beat now (M756): fire one heartbeat on demand — the agent checks its observers and
+  // Beat now (M756): fire one heartbeat on demand - the agent checks its observers and
   // may raise an initiative immediately, without waiting for the cadence. Works even
   // while paused (an explicit one-off override). Results surface in the feed.
   async function beatNow() {
     setBeating(true);
     try {
       await postAction("/api/pulse/beat", {});
-      ui.toast("Heartbeat triggered — the agent is checking in now", "success");
+      ui.toast("Heartbeat triggered - the agent is checking in now", "success");
       setTimeout(load, 1500);
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -337,7 +341,7 @@ export function PulseControl() {
     }
   }
 
-  // Retune (M757): change how often the agent checks in, live. Runtime-only — resets
+  // Retune (M757): change how often the agent checks in, live. Runtime-only - resets
   // to the configured default on restart.
   async function setCadence(seconds: string) {
     try {
@@ -391,11 +395,12 @@ export function PulseControl() {
         min_pct: watchPct,
       });
       ui.toast(
-        `Now watching ${r?.observer || watchPath.trim()} — alerts under ${watchPct}% free`,
+        `Now watching ${r?.observer || watchPath.trim()} - alerts under ${watchPct}% free`,
         "success",
       );
       setWatchPath("");
       setWatchKind("");
+      setWatchPct("10");
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -403,7 +408,7 @@ export function PulseControl() {
   }
 
   // Add a command-probe watch (M768): the agent runs the command each beat and alerts
-  // when its pass/fail flips — e.g. watch CI or a build.
+  // when its pass/fail flips - e.g. watch CI or a build.
   async function addProbe() {
     if (!probeName.trim() || !probeCmd.trim()) return;
     try {
@@ -412,7 +417,7 @@ export function PulseControl() {
         command: probeCmd.trim(),
       });
       ui.toast(
-        `Now watching ${r?.observer || probeName.trim()} — alerts when it flips`,
+        `Now watching ${r?.observer || probeName.trim()} - alerts when it flips`,
         "success",
       );
       setProbeName("");
@@ -425,7 +430,7 @@ export function PulseControl() {
   }
 
   // Set or clear quiet hours (M770): during the window only alert/act briefs break
-  // through, regardless of the dial — so the agent won't ping you overnight. `spec` is
+  // through, regardless of the dial - so the agent won't ping you overnight. `spec` is
   // "START-END" 24h (e.g. "22-7"); an empty spec clears it.
   async function setQuiet(spec: string) {
     try {
@@ -437,6 +442,7 @@ export function PulseControl() {
         "success",
       );
       setQuietHours("");
+      setQuietOpen(false);
       await load();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -490,7 +496,7 @@ export function PulseControl() {
         <span className="text-sm font-semibold">Proactive heartbeat</span>
         <span
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider",
+            "rounded-full px-1.5 py-0.5 text-xs font-semibold uppercase tracking-normal",
             paused ? "bg-panel text-muted" : "bg-good/15 text-good",
           )}
         >
@@ -503,45 +509,57 @@ export function PulseControl() {
             : ""}
           {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
         </span>
-        <label
-          className="ml-auto flex items-center gap-1 text-[11px] text-muted"
+        <div
+          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-panel p-1"
+          aria-label="Proactivity dial"
           title="How proactive the agent is (quiet=alerts only, chatty=digests too)"
         >
-          dial
-          <select
-            value={DIALS.includes(st.dial || "") ? st.dial : "balanced"}
-            onChange={(e) => setDial(e.target.value)}
-            aria-label="Proactivity dial"
-            className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
-          >
-            {DIALS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label
-          className="flex items-center gap-1 text-[11px] text-muted"
+          {DIALS.map((d) => {
+            const active = (DIALS.includes(st.dial || "") ? st.dial : "balanced") === d;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDial(d)}
+                className={cn(
+                  "inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors",
+                  active ? "bg-accent text-accent-foreground" : "text-muted hover:bg-card hover:text-foreground",
+                )}
+                aria-pressed={active}
+              >
+                <Bell className="size-3" /> {d}
+              </button>
+            );
+          })}
+        </div>
+        <div
+          className="inline-flex items-center gap-1 rounded-lg border border-border bg-panel p-1"
+          aria-label="Heartbeat cadence"
           title="How often the agent checks in (live; resets to the default on restart)"
         >
-          every
-          <select
-            value={CADENCE_PRESETS.includes(curSec) ? String(curSec) : ""}
-            onChange={(e) => setCadence(e.target.value)}
-            aria-label="Heartbeat cadence"
-            className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
-          >
-            {!CADENCE_PRESETS.includes(curSec) && curSec > 0 && (
-              <option value="">{cadenceLabel(curSec)} (current)</option>
-            )}
-            {CADENCE_PRESETS.map((s) => (
-              <option key={s} value={s}>
+          {!CADENCE_PRESETS.includes(curSec) && curSec > 0 && (
+            <span className="inline-flex h-6 items-center gap-1 rounded-md bg-card px-2 text-xs text-muted">
+              <Gauge className="size-3" /> {cadenceLabel(curSec)}
+            </span>
+          )}
+          {CADENCE_PRESETS.map((s) => {
+            const active = curSec === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setCadence(String(s))}
+                className={cn(
+                  "h-6 min-w-9 rounded-md px-2 text-xs font-medium transition-colors",
+                  active ? "bg-accent text-accent-foreground" : "text-muted hover:bg-card hover:text-foreground",
+                )}
+                aria-pressed={active}
+              >
                 {cadenceLabel(s)}
-              </option>
-            ))}
-          </select>
-        </label>
+              </button>
+            );
+          })}
+        </div>
         {(st.digest_pending ?? 0) > 0 && (
           <Button
             size="sm"
@@ -585,7 +603,7 @@ export function PulseControl() {
         </Button>
       </div>
 
-      {/* The live observer set — each is polled every beat. Runtime-added watches
+      {/* The live observer set - each is polled every beat. Runtime-added watches
           (M767/M768) carry a remove control (M769); built-ins like self:health don't. */}
       {(st.observers?.length ?? 0) > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
@@ -614,11 +632,11 @@ export function PulseControl() {
         </div>
       )}
 
-      {/* Add a watch — disk (M767) or command-probe (M768) */}
+      {/* Add a watch - disk (M767) or command-probe (M768) */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
         <span className="text-muted">watch:</span>
         <button
-          onClick={() => setWatchKind((v) => (v === "disk" ? "" : "disk"))}
+          onClick={() => setWatchKind("disk")}
           className={cn(
             "inline-flex items-center gap-1 transition-colors",
             watchKind === "disk"
@@ -630,7 +648,7 @@ export function PulseControl() {
           <Eye className="size-3" /> a disk
         </button>
         <button
-          onClick={() => setWatchKind((v) => (v === "probe" ? "" : "probe"))}
+          onClick={() => setWatchKind("probe")}
           className={cn(
             "inline-flex items-center gap-1 transition-colors",
             watchKind === "probe"
@@ -642,52 +660,77 @@ export function PulseControl() {
           <Activity className="size-3" /> a command
         </button>
         {watchKind === "disk" && (
-          <>
-            <input
-              value={watchPath}
-              onChange={(e) => setWatchPath(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addWatch();
-              }}
-              placeholder="path (e.g. / or C:\\)"
-              aria-label="Watch disk path"
-              className="h-7 w-36 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
-            />
-            <span>under</span>
-            <input
-              type="number"
-              min={1}
-              max={99}
-              value={watchPct}
-              onChange={(e) => setWatchPct(e.target.value)}
-              aria-label="Watch min percent free"
-              className="h-7 w-14 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
-            />
-            <span>% free</span>
-            <Button size="sm" onClick={addWatch} disabled={!watchPath.trim()}>
+          <PulseModal title="Watch disk" icon={Eye} onClose={() => setWatchKind("")}>
+            <div className="space-y-2">
+              <PulseFormBlock icon={Eye} title="Target" meta={watchPath.trim() || "disk path required"} defaultOpen>
+                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                  Path
+                  <input
+                    value={watchPath}
+                    onChange={(e) => setWatchPath(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addWatch();
+                    }}
+                    placeholder="path (e.g. / or C:\\)"
+                    aria-label="Watch disk path"
+                    className="h-9 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+                  />
+                </label>
+              </PulseFormBlock>
+              <PulseFormBlock icon={Gauge} title="Guard" meta={`alert under ${watchPct || "?"}% free`}>
+                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                  Alert under %
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={watchPct}
+                    onChange={(e) => setWatchPct(e.target.value)}
+                    aria-label="Watch min percent free"
+                    className="h-9 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
+                  />
+                </label>
+              </PulseFormBlock>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button size="sm" onClick={addWatch} disabled={!watchPath.trim()}>
               <Plus className="size-3.5" /> Watch
             </Button>
-          </>
+            </div>
+          </PulseModal>
         )}
         {watchKind === "probe" && (
-          <>
-            <input
-              value={probeName}
-              onChange={(e) => setProbeName(e.target.value)}
-              placeholder="name (e.g. ci)"
-              aria-label="Probe name"
-              className="h-7 w-24 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
-            />
-            <input
-              value={probeCmd}
-              onChange={(e) => setProbeCmd(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addProbe();
-              }}
-              placeholder="command (e.g. make test)"
-              aria-label="Probe command"
-              className="h-7 w-44 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
-            />
+          <PulseModal title="Watch command" icon={Activity} onClose={() => setWatchKind("")}>
+            <div className="space-y-2">
+              <PulseFormBlock icon={Activity} title="Signal" meta={probeName.trim() || "probe name required"} defaultOpen>
+                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                  Name
+                  <input
+                    value={probeName}
+                    onChange={(e) => setProbeName(e.target.value)}
+                    placeholder="name (e.g. ci)"
+                    aria-label="Probe name"
+                    className="h-9 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
+                  />
+                </label>
+              </PulseFormBlock>
+              <PulseFormBlock icon={Play} title="Command" meta={probeCmd.trim() || "command required"} defaultOpen>
+                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                  Command
+                  <input
+                    value={probeCmd}
+                    onChange={(e) => setProbeCmd(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addProbe();
+                    }}
+                    placeholder="command (e.g. make test)"
+                    aria-label="Probe command"
+                    className="h-9 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+                  />
+                </label>
+              </PulseFormBlock>
+            </div>
+            <div className="mt-4 flex justify-end">
             <Button
               size="sm"
               onClick={addProbe}
@@ -695,12 +738,13 @@ export function PulseControl() {
             >
               <Plus className="size-3.5" /> Watch
             </Button>
-          </>
+            </div>
+          </PulseModal>
         )}
       </div>
 
       {/* Quiet hours (M770): during the window only alert/act briefs break through,
-          regardless of the dial — so the agent won't ping you overnight. */}
+          regardless of the dial - so the agent won't ping you overnight. */}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted">
         <span className="inline-flex items-center gap-1 text-muted">
           <Moon className="size-3" /> quiet hours:
@@ -722,27 +766,106 @@ export function PulseControl() {
             <span>only alerts break through</span>
           </>
         ) : (
-          <span>off — the agent may notify any hour</span>
+          <span>off - the agent may notify any hour</span>
         )}
-        <input
-          value={quietHours}
-          onChange={(e) => setQuietHours(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && quietHours.trim())
-              setQuiet(quietHours.trim());
-          }}
-          placeholder="22-7"
-          aria-label="Quiet hours window"
-          className="ml-auto h-7 w-20 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
-        />
-        <Button
-          size="sm"
-          onClick={() => setQuiet(quietHours.trim())}
-          disabled={!quietHours.trim()}
-        >
-          Set
+        <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setQuietOpen(true)}>
+          <Moon className="size-3.5" /> Set
         </Button>
+        {quietOpen && (
+          <PulseModal title="Quiet hours" icon={Moon} onClose={() => setQuietOpen(false)}>
+            <PulseFormBlock icon={Moon} title="Window" meta={quietHours.trim() || "22-7 format"} defaultOpen>
+              <label className="flex flex-col gap-1 text-[11px] text-muted">
+                Window
+                <input
+                  value={quietHours}
+                  onChange={(e) => setQuietHours(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && quietHours.trim())
+                      setQuiet(quietHours.trim());
+                  }}
+                  placeholder="22-7"
+                  aria-label="Quiet hours window"
+                  className="h-9 rounded-md border border-border bg-panel px-2 font-mono text-xs text-foreground outline-none focus-visible:border-accent"
+                />
+              </label>
+            </PulseFormBlock>
+            <div className="mt-4 flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => setQuiet(quietHours.trim())}
+                disabled={!quietHours.trim()}
+              >
+                Set
+              </Button>
+            </div>
+          </PulseModal>
+        )}
       </div>
     </div>
+  );
+}
+
+function PulseModal({
+  title,
+  icon: Icon,
+  children,
+  onClose,
+}: {
+  title: string;
+  icon: LucideIcon;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Icon className="size-4" />
+          </span>
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{title}</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close pulse modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function PulseFormBlock({
+  icon: Icon,
+  title,
+  meta,
+  children,
+  defaultOpen = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <Disclosure
+      defaultOpen={defaultOpen}
+      className="rounded-lg border border-border bg-panel/45"
+      summaryClassName="px-2.5 py-2"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
+            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
+          </span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
   );
 }

@@ -14,6 +14,10 @@ import {
   KeyRound,
   BrainCircuit,
   LockKeyhole,
+  LogIn,
+  MessageCircle,
+  Send,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
@@ -56,7 +60,7 @@ export {
 
 // ---- the wizard ---------------------------------------------------------------
 
-type Step = "catalog" | "provider" | "model" | "routing" | "password" | "done";
+type Step = "catalog" | "access" | "provider" | "model" | "routing" | "telegram" | "done";
 type RoutingMode = "simple" | "default" | "tasks";
 
 interface SetupRoutingResp {
@@ -71,13 +75,16 @@ interface SetupChainsResp {
 
 const SETUP_STEPS: { id: Exclude<Step, "done">; label: string; detail: string; icon: LucideIcon }[] = [
   { id: "catalog", label: "Catalog", detail: "models.dev sync", icon: Database },
+  { id: "access", label: "Access", detail: "console password", icon: LockKeyhole },
   { id: "provider", label: "Provider", detail: "scoped key", icon: KeyRound },
   { id: "model", label: "Model", detail: "primary brain", icon: BrainCircuit },
   { id: "routing", label: "Routing", detail: "fallback ladder", icon: Route },
-  { id: "password", label: "Password", detail: "web console", icon: LockKeyhole },
+  { id: "telegram", label: "Telegram", detail: "operator channel", icon: MessageCircle },
 ];
 
-const STEP_ORDER: Step[] = ["catalog", "provider", "model", "routing", "password", "done"];
+const STEP_ORDER: Step[] = ["catalog", "access", "provider", "model", "routing", "telegram", "done"];
+const DEFAULT_WEB_PASSWORD = "agezt";
+const CHATGPT_DEFAULT_MODEL = "gpt-5-codex";
 
 function setupStepIndex(step: Step): number {
   return step === "done" ? SETUP_STEPS.length : Math.max(0, SETUP_STEPS.findIndex((s) => s.id === step));
@@ -109,6 +116,9 @@ export function Setup({
   const [chainsInfo, setChainsInfo] = useState<SetupChainsResp | null>(null);
   const [routingTasks, setRoutingTasks] = useState<string[]>([]);
   const [providerReadyText, setProviderReadyText] = useState("Provider ready");
+  const [chatGPT, setChatGPT] = useState<{ busy?: boolean; status?: string; error?: string }>({});
+  const [telegramToken, setTelegramToken] = useState("");
+  const [telegramChatID, setTelegramChatID] = useState("");
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -116,7 +126,7 @@ export function Setup({
       const c = await getJSON<SetupCatalog>("/api/catalog");
       setCat(c);
       // Skip straight past steps already satisfied so a re-open isn't tedious.
-      if ((c.providers?.length ?? 0) > 0) setStep((s) => (s === "catalog" ? "provider" : s));
+      if ((c.providers?.length ?? 0) > 0) setStep((s) => (s === "catalog" ? "access" : s));
     } catch (e) {
       ui.toast((e as Error).message, "error");
     } finally {
@@ -191,9 +201,50 @@ export function Setup({
     try {
       await postJSON("/api/catalog/sync", {});
       await loadCatalog();
-      setStep("provider");
+      setStep("access");
     } catch (e) {
       ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startChatGPTLogin() {
+    setBusy(true);
+    setChatGPT({ busy: true, status: "Opening ChatGPT sign-in…", error: undefined });
+    try {
+      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>("/api/provider/oauth/start", {
+        provider: "chatgpt",
+      });
+      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start ChatGPT sign-in");
+      window.open(r.authorize_url, "_blank", "noopener,noreferrer");
+      setChatGPT({ busy: true, status: "Waiting for ChatGPT authorization…", error: undefined });
+      for (let i = 0; i < 150; i++) {
+        await new Promise((res) => setTimeout(res, 2000));
+        const st = await postJSON<{ status?: string; connected?: boolean; email?: string; account?: string; error?: string }>(
+          "/api/provider/oauth/status",
+          { state: r.state },
+        );
+        if (st.status === "done" || st.connected) {
+          await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: "chatgpt" });
+          await postJSON("/api/config/set", { name: "AGEZT_MODEL", value: CHATGPT_DEFAULT_MODEL });
+          await postAction("/api/provider/reload", {});
+          const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
+          if (fresh) {
+            setCat(fresh);
+            setPicked(fresh.providers?.find((p) => p.id === "chatgpt") || null);
+          }
+          setSelectedModel(CHATGPT_DEFAULT_MODEL);
+          setProviderReadyText(st.email ? `ChatGPT signed in as ${st.email}` : "ChatGPT signed in");
+          setChatGPT({ busy: false, status: "Connected", error: undefined });
+          setStep("routing");
+          return;
+        }
+        if (st.status === "error") throw new Error(st.error || "ChatGPT sign-in failed");
+      }
+      throw new Error("timed out waiting for ChatGPT sign-in");
+    } catch (e) {
+      setChatGPT({ busy: false, error: (e as Error).message });
     } finally {
       setBusy(false);
     }
@@ -295,7 +346,7 @@ export function Setup({
       return;
     }
     if (routingMode === "simple") {
-      setStep("password");
+      setStep("telegram");
       return;
     }
 
@@ -313,7 +364,7 @@ export function Setup({
         setRoutingInfo({ ...(routingInfo || {}), chains: nextRouting });
       }
 
-      setStep("password");
+      setStep("telegram");
     } catch (e) {
       ui.toast((e as Error).message, "error");
     } finally {
@@ -321,10 +372,6 @@ export function Setup({
     }
   }
 
-  // Console password (M933): an optional setup step. Saved as the
-  // AGEZT_WEB_PASSWORD secret (vault) via the same config-set route the model
-  // step uses; the daemon applies it LIVE, so password login at the bare
-  // console address works immediately — no restart, no tokened URL needed.
   const [pwVal, setPwVal] = useState("");
   const [pwVal2, setPwVal2] = useState("");
   async function applyPassword() {
@@ -342,6 +389,37 @@ export function Setup({
       await postJSON("/api/config/set", { name: "AGEZT_WEB_PASSWORD", value: pw });
       setPwVal("");
       setPwVal2("");
+      setStep("provider");
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyDefaultPassword() {
+    setPwVal("");
+    setPwVal2("");
+    setStep("provider");
+  }
+
+  async function applyTelegram() {
+    const token = telegramToken.trim();
+    const chat = telegramChatID.trim();
+    if (!token && !chat) {
+      setStep("done");
+      return;
+    }
+    if (!token || !chat) {
+      ui.toast("Telegram bot token and chat id are both required", "error");
+      return;
+    }
+    setBusy(true);
+    try {
+      await postJSON("/api/channel/account/set", { kind: "telegram", label: "", name: "AGEZT_TELEGRAM_TOKEN", value: token });
+      await postJSON("/api/channel/account/set", { kind: "telegram", label: "", name: "AGEZT_TELEGRAM_CHAT_ID", value: chat });
+      setTelegramToken("");
+      setTelegramChatID("");
       setStep("done");
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -373,7 +451,7 @@ export function Setup({
           </div>
           <div className="min-w-0">
             <h2 className="text-lg font-semibold leading-tight">AGEZT setup</h2>
-            <p className="mt-1 text-xs text-muted">Provider, model, routing, console access.</p>
+            <p className="mt-1 text-xs text-muted">Access, provider, routing, Telegram.</p>
           </div>
         </div>
 
@@ -430,8 +508,76 @@ export function Setup({
         </Card>
       )}
 
+      {step === "access" && (
+        <Card title="Console access">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+            <div className="rounded-md border border-accent/40 bg-accent/5 p-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <ShieldCheck className="h-4 w-4 text-accent" />
+                Default local password
+              </div>
+              <p className="mt-1 text-sm text-muted">
+                The loopback console starts with <code className="rounded bg-card px-1 font-mono text-foreground">{DEFAULT_WEB_PASSWORD}</code>.
+                You can keep it for first run or replace it now.
+              </p>
+              <Button size="sm" variant="ghost" onClick={applyDefaultPassword} className="mt-3" aria-label="Keep default password">
+                Keep default <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <div className="rounded-md border border-border bg-panel/50 p-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <LockKeyhole className="h-4 w-4 text-accent" />
+                Choose password
+              </div>
+              <div className="mt-2 flex flex-col gap-2">
+                <input
+                  type="password"
+                  value={pwVal}
+                  onChange={(e) => setPwVal(e.target.value)}
+                  placeholder="new console password"
+                  aria-label="Console password"
+                  className="rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
+                />
+                <input
+                  type="password"
+                  value={pwVal2}
+                  onChange={(e) => setPwVal2(e.target.value)}
+                  placeholder="repeat password"
+                  aria-label="Repeat console password"
+                  className="rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
+                />
+                <Button size="sm" onClick={applyPassword} disabled={busy} aria-label="Set console password">
+                  {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                  Set and continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {step === "provider" && (
-        <Card title="Choose a provider and add its key">
+        <Card title="Choose a provider">
+          <div className="mb-3 rounded-md border border-good/30 bg-good/10 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-sm font-medium text-good">
+                  <LogIn className="h-4 w-4" />
+                  ChatGPT subscription login
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  Sign in with ChatGPT, then AGEZT uses the ChatGPT provider and {CHATGPT_DEFAULT_MODEL}.
+                </p>
+              </div>
+              <Button size="sm" variant="accent" onClick={startChatGPTLogin} disabled={busy || chatGPT.busy} aria-label="Sign in with ChatGPT">
+                {chatGPT.busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+                Sign in
+              </Button>
+            </div>
+            {chatGPT.status && <div className="mt-2 text-xs text-muted">{chatGPT.status}</div>}
+            {chatGPT.error && <div className="mt-2 text-xs text-bad">{chatGPT.error}</div>}
+          </div>
+
           <div className="flex items-center gap-2 rounded-md border border-border bg-panel px-2">
             <Search className="h-3.5 w-3.5 text-muted" />
             <input
@@ -479,7 +625,7 @@ export function Setup({
                 </div>
               ) : pickedKeyEnv ? (
                 <label className="flex flex-col gap-1 text-[11px] text-muted">
-                  {picked.id} API key — stored in the encrypted vault as {pickedKeyEnv}
+                  {picked.id} API key — stored in AGEZT's encrypted provider vault
                   <input
                     type="password"
                     value={keyVal}
@@ -606,22 +752,20 @@ export function Setup({
           {routingMode === "tasks" && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {routeTaskChoices.map((task) => (
-                <label
+                <button
                   key={task}
+                  type="button"
+                  onClick={() => toggleTask(task)}
+                  aria-pressed={effectiveRoutingTasks.includes(task)}
+                  aria-label={`Route ${task} through setup chain`}
                   className={cn(
-                    "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-1 text-xs",
+                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs transition-colors",
                     effectiveRoutingTasks.includes(task) ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted",
                   )}
                 >
-                  <input
-                    type="checkbox"
-                    className="size-3 accent-current"
-                    checked={effectiveRoutingTasks.includes(task)}
-                    onChange={() => toggleTask(task)}
-                    aria-label={`Route ${task} through setup chain`}
-                  />
+                  <Check className={cn("size-3", effectiveRoutingTasks.includes(task) ? "text-accent" : "text-transparent")} />
                   <span className="font-mono">{task}</span>
-                </label>
+                </button>
               ))}
             </div>
           )}
@@ -643,36 +787,43 @@ export function Setup({
         </Card>
       )}
 
-      {step === "password" && (
-        <Card title="Console password (optional)">
+      {step === "telegram" && (
+        <Card title="Telegram operator channel">
           <p className="text-sm text-muted">
-            Log in at the plain console address — no tokened URL needed. Stored encrypted; applies immediately.
+            Add a bot token and chat id if you want AGEZT to send operator notifications and receive messages after restart.
           </p>
-          <div className="mt-2 flex max-w-sm flex-col gap-2">
-            <input
-              type="password"
-              value={pwVal}
-              onChange={(e) => setPwVal(e.target.value)}
-              placeholder="console password"
-              aria-label="Console password"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
-            />
-            <input
-              type="password"
-              value={pwVal2}
-              onChange={(e) => setPwVal2(e.target.value)}
-              placeholder="repeat password"
-              aria-label="Repeat console password"
-              className="rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
-            />
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={applyPassword} disabled={busy} aria-label="Set console password">
-                <ArrowRight className="h-3.5 w-3.5" /> Set password
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setStep("done")} aria-label="Skip password">
-                Skip
-              </Button>
-            </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Bot token
+              <input
+                type="password"
+                value={telegramToken}
+                onChange={(e) => setTelegramToken(e.target.value)}
+                placeholder="123456:ABC..."
+                aria-label="Telegram bot token"
+                className="rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Chat id or allowlist
+              <input
+                value={telegramChatID}
+                onChange={(e) => setTelegramChatID(e.target.value)}
+                placeholder="123456789 or 111,222"
+                aria-label="Telegram chat id"
+                className="rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
+              />
+            </label>
+            <Button size="sm" onClick={applyTelegram} disabled={busy} aria-label="Save Telegram">
+              {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Save
+            </Button>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setStep("done")} aria-label="Skip Telegram">
+              Skip Telegram
+            </Button>
+            <span className="text-xs text-muted">Telegram changes are stored now and become live after restart.</span>
           </div>
         </Card>
       )}
@@ -785,7 +936,7 @@ function ModeButton({
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">{title}</div>
+      <div className="mb-2 text-xs font-semibold tracking-normal text-muted uppercase">{title}</div>
       {children}
     </div>
   );

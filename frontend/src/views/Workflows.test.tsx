@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
@@ -268,7 +268,11 @@ describe("template gallery", () => {
     fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/workflows/templates"));
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "probe" } });
-    fireEvent.change(screen.getByLabelText("Start from template"), { target: { value: "resilient-fetch" } });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Start from template" })).getByRole("button", {
+        name: /Resilient fetch/,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
     await waitFor(() => expect(screen.getByText("probe")).toBeTruthy());
     // Select the fetch node → panel opens with the Test section.
@@ -302,7 +306,11 @@ describe("template gallery", () => {
     fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/workflows/templates"));
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "asy" } });
-    fireEvent.change(screen.getByLabelText("Start from template"), { target: { value: "resilient-fetch" } });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Start from template" })).getByRole("button", {
+        name: /Resilient fetch/,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
     await waitFor(() => expect(screen.getByText("asy")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
@@ -324,7 +332,11 @@ describe("template gallery", () => {
     fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/workflows/templates"));
     fireEvent.change(screen.getByLabelText("Workflow name"), { target: { value: "my-fetch" } });
-    fireEvent.change(screen.getByLabelText("Start from template"), { target: { value: "resilient-fetch" } });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Start from template" })).getByRole("button", {
+        name: /Resilient fetch/,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
     // The canvas opened on the template graph under the NEW name.
     await waitFor(() => expect(screen.getByText("my-fetch")).toBeTruthy());

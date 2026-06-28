@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Network, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Play } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Network, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Play, X } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export function Conductor() {
   const [maxRounds, setMaxRounds] = useState(2);
   const [plan, setPlan] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
 
@@ -89,6 +90,7 @@ export function Conductor() {
         corr,
       });
       applyConductorResult(corr, res);
+      setTaskOpen(false);
       ui.toast(res.passed ? "Conductor verified the answer" : "Conductor finished — not verified", res.passed ? "success" : "info");
     } catch (e) {
       setError((e as Error).message);
@@ -105,6 +107,11 @@ export function Conductor() {
         icon={Network}
         title="Conductor"
         description="Thinker → Worker → Verifier on different models — solve a hard task and verify it (running the code when it can)."
+        actions={
+          <Button size="sm" onClick={() => setTaskOpen(true)}>
+            <Send className="size-3.5" /> New task
+          </Button>
+        }
       />
 
       {noModels && (
@@ -114,8 +121,8 @@ export function Conductor() {
         </Card>
       )}
 
-      {/* Task + controls */}
-      <Card glass className="gap-3 p-4">
+      {taskOpen && (
+      <ConductorModal title="New conductor task" onClose={() => setTaskOpen(false)}>
         <textarea
           value={task}
           onChange={(e) => setTask(e.target.value)}
@@ -123,25 +130,13 @@ export function Conductor() {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) go();
           }}
           rows={3}
+          aria-label="Conductor task"
           placeholder="Describe a hard, verifiable task — e.g. “Write and test a Python function that returns the nth prime.”"
           className="w-full resize-y rounded-lg border border-border bg-panel p-3 text-sm outline-none focus:border-accent/50"
         />
 
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <label className="flex items-center gap-1.5 text-muted">
-            <span>Max rounds</span>
-            <select
-              value={maxRounds}
-              onChange={(e) => setMaxRounds(Number(e.target.value))}
-              className="rounded-md border border-border bg-panel px-2 py-1 text-foreground outline-none focus:border-accent/50"
-            >
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <RoundPicker value={maxRounds} onChange={setMaxRounds} />
           <label className="flex items-center gap-1.5 text-muted">
             <input type="checkbox" checked={plan} onChange={(e) => setPlan(e.target.checked)} />
             <span>Tailor role instructions first</span>
@@ -169,11 +164,58 @@ export function Conductor() {
             <RolePicker label="Verifier" value={verifier} onChange={setVerifier} auto={roles?.verifier} tint={ROLE_META.verifier.tint} />
           </div>
         )}
-      </Card>
+      </ConductorModal>
+      )}
 
       {error && <ErrorText>{error}</ErrorText>}
 
       {run && <RunView run={run} />}
+    </div>
+  );
+}
+
+function RoundPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-muted" role="group" aria-label="Max rounds">
+      <span className="mr-0.5 text-xs">Max rounds</span>
+      {[1, 2, 3, 4, 5, 6].map((n) => (
+        <button
+          key={n}
+          type="button"
+          aria-pressed={value === n}
+          onClick={() => onChange(n)}
+          className={cn(
+            "grid size-7 place-items-center rounded-md border text-xs font-semibold transition-colors",
+            value === n
+              ? "border-accent bg-accent/15 text-accent"
+              : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+          )}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ConductorModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Network className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Give the panel a hard task; role overrides stay tucked away until needed.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close conductor modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4">{children}</div>
+      </div>
     </div>
   );
 }
@@ -241,14 +283,14 @@ function RunView({ run }: { run: ConductorRun }) {
       {/* Final answer (once available) */}
       {run.answer && (
         <Card glass className="gap-2 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted">Answer</div>
+          <div className="text-xs font-semibold uppercase tracking-normal text-muted">Answer</div>
           <Markdown source={run.answer} />
         </Card>
       )}
 
       {run.plan && (
         <Card glass className="gap-2 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted">Coordination plan</div>
+          <div className="text-xs font-semibold uppercase tracking-normal text-muted">Coordination plan</div>
           <Markdown source={run.plan} />
         </Card>
       )}
@@ -256,7 +298,7 @@ function RunView({ run }: { run: ConductorRun }) {
       {/* Transcript (streams live) */}
       {run.steps.length > 0 && (
         <div className="flex flex-col gap-2">
-          <div className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Transcript</div>
+          <div className="px-1 text-xs font-semibold uppercase tracking-normal text-muted">Transcript</div>
           {run.steps.map((s, i) => (
             <StepCard key={`${s.role}#${s.round}#${i}`} step={s} />
           ))}

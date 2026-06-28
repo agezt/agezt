@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload, Users, AlertTriangle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload, Users, AlertTriangle, ClipboardList, TimerReset, type LucideIcon } from "lucide-react";
 import { AgentPicker } from "@/components/AgentPicker";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface Trigger {
   type?: string;
@@ -60,6 +61,11 @@ interface WhyEvent {
 }
 
 type StandingFilter = "all" | "attention";
+const INITIATIVE_MODES = [
+  { value: "", label: "inform", title: "default inform-only mode" },
+  { value: "ask", label: "ask", title: "approval required for effectful work" },
+  { value: "act_or_ask", label: "act/ask", title: "act inside trust ceiling, ask when unsure" },
+];
 
 // kindLabel turns a standing.* event kind into a short human label for the history.
 function kindLabel(kind?: string): string {
@@ -186,6 +192,10 @@ export function Standing() {
     () => (orders ? filterStandingOrders(orders, filter, agentBySlug) : []),
     [agentBySlug, filter, orders],
   );
+  const editingOrder = useMemo(
+    () => (editingId ? (orders || []).find((o) => o.id === editingId) || null : null),
+    [editingId, orders],
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   function exportOrders() {
@@ -269,8 +279,8 @@ export function Standing() {
             <Button variant="ghost" size="sm" onClick={exportOrders} disabled={!orders || orders.length === 0} title="Export standing orders to a file">
               <Download className="size-3.5" /> Export
             </Button>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Create a standing order">
-              {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} New order
+            <Button size="sm" onClick={() => setShowForm(true)} title="Create a standing order">
+              <Plus className="size-3.5" /> New order
             </Button>
             {attentionCount > 0 && (
               <Button
@@ -289,17 +299,6 @@ export function Standing() {
           </>
         }
       />
-
-      {showForm && (
-        <NewOrderForm
-          onCreated={(name) => {
-            setShowForm(false);
-            ui.toast(`Standing order “${name}” created`, "success");
-            void reload();
-          }}
-          onError={(m) => ui.toast(m, "error")}
-        />
-      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -355,7 +354,7 @@ export function Standing() {
                   <Badge variant={o.enabled ? "good" : "default"}>{o.enabled ? "active" : "paused"}</Badge>
                   <span className="text-sm font-semibold">{o.name || o.id}</span>
                   {o.initiative?.mode && (
-                    <span className="rounded bg-panel px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-muted">
+                    <span className="rounded bg-panel px-1.5 py-0.5 text-xs font-semibold uppercase tracking-normal text-muted">
                       {o.initiative.mode}
                     </span>
                   )}
@@ -408,9 +407,9 @@ export function Standing() {
                       {o.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                     </button>
                     <button
-                      onClick={() => setEditingId((cur) => (cur === o.id ? null : o.id))}
+                      onClick={() => setEditingId(o.id)}
                       disabled={busy === o.id}
-                      title={editingId === o.id ? "Close editor" : "Edit"}
+                      title="Edit"
                       className={cn(
                         "transition-colors disabled:opacity-50",
                         editingId === o.id ? "text-accent" : "text-muted hover:text-accent",
@@ -486,7 +485,7 @@ export function Standing() {
                     ) : (
                       history.events.map((ev, i) => (
                         <li key={ev.seq ?? i} className="flex items-center gap-2">
-                          <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                          <span className="rounded bg-panel px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-normal text-accent">
                             {kindLabel(ev.kind)}
                           </span>
                           {typeof ev.payload?.action === "string" && (
@@ -498,25 +497,71 @@ export function Standing() {
                     )}
                   </ol>
                 )}
-                {editingId === o.id && (
-                  <div className="mt-2">
-                    <EditOrderForm
-                      order={o}
-                      onSaved={(name) => {
-                        setEditingId(null);
-                        ui.toast(`Standing order “${name}” updated`, "success");
-                        void reload();
-                      }}
-                      onError={(m) => ui.toast(m, "error")}
-                    />
-                  </div>
-                )}
               </li>
               );
             })}
           </ul>
         </div>
       )}
+
+      {showForm && (
+        <StandingModal title="New standing order" onClose={() => setShowForm(false)}>
+          <NewOrderForm
+            onCreated={(name) => {
+              setShowForm(false);
+              ui.toast(`Standing order “${name}” created`, "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </StandingModal>
+      )}
+
+      {editingOrder && (
+        <StandingModal title={`Edit ${editingOrder.name || editingOrder.id}`} onClose={() => setEditingId(null)}>
+          <EditOrderForm
+            order={editingOrder}
+            onSaved={(name) => {
+              setEditingId(null);
+              ui.toast(`Standing order “${name}” updated`, "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </StandingModal>
+      )}
+    </div>
+  );
+}
+
+function StandingModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-2xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Anchor className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close standing modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -583,113 +628,136 @@ export function NewOrderForm({
 
   return (
     <div className="glass rounded-xl border-accent/30 p-3">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Morning briefing"
-            aria-label="Order name"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Autonomy
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-            aria-label="Initiative mode"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          >
-            <option value="">default (inform only)</option>
-            <option value="inform_only">inform only</option>
-            <option value="ask">ask first</option>
-            <option value="act_or_ask">act, or ask if unsure</option>
-          </select>
-          <span className="text-[10px] opacity-70">{initiativeEnforcement(mode)}</span>
-        </label>
-      </div>
-
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-        Run as agent
-        <AgentPicker value={agent} onChange={setAgent} />
-        <span className="opacity-70">firings use its soul, model chain, memory, and budget</span>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-        <span>Mailbox trigger</span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!agent.trim()}
-          title={agent.trim() ? `Use board.dm.${agent.trim()}` : "Select an agent first"}
-          onClick={() => applyMailboxPreset("dm")}
-        >
-          <Anchor className="size-3.5" /> DM
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!agent.trim()}
-          title={agent.trim() ? `Use board.help.${agent.trim()}` : "Select an agent first"}
-          onClick={() => applyMailboxPreset("help")}
-        >
-          <Users className="size-3.5" /> Help
-        </Button>
-      </div>
-
-      <label className="mt-2 flex w-48 flex-col gap-1 text-[11px] text-muted">
-        Event cooldown (sec)
-        <input
-          type="number"
-          min={0}
-          value={cooldownSec}
-          onChange={(e) => setCooldownSec(e.target.value)}
-          aria-label="Event cooldown seconds"
-          title="minimum gap between event-triggered firings; 0 uses the daemon default"
-          className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-        />
-      </label>
-
-      <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Trigger
-        <div className="flex items-center gap-1.5">
-          <div className="inline-flex overflow-hidden rounded-md border border-border">
-            {(["cron", "event"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTriggerType(t)}
-                className={cn(
-                  "px-2 py-1 text-xs transition-colors",
-                  triggerType === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
-                )}
-              >
-                {t === "cron" ? "schedule" : "event"}
-              </button>
-            ))}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            <ClipboardList className="size-4" />
           </div>
-          <input
-            value={triggerValue}
-            onChange={(e) => setTriggerValue(e.target.value)}
-            placeholder={triggerType === "cron" ? "cron, e.g. 0 9 * * *" : "event subject, e.g. run.failed"}
-            aria-label="Trigger value"
-            className="min-w-0 flex-1 rounded-md border border-border bg-panel px-2 py-1 font-mono text-sm text-foreground outline-none focus-visible:border-accent"
-          />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">{name.trim() || "Untitled standing order"}</div>
+            <div className="text-[11px] text-muted">{triggerType === "cron" ? "scheduled wake" : "event wake"}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant={triggerValue.trim() ? "good" : "warn"}>{triggerValue.trim() ? "trigger set" : "needs trigger"}</Badge>
+          <Badge variant={mode === "act_or_ask" ? "accent" : "default"}>{INITIATIVE_MODES.find((m) => m.value === mode)?.label ?? "inform"}</Badge>
+          {agent.trim() ? <Badge variant="accent">agent {agent.trim()}</Badge> : null}
         </div>
       </div>
 
-      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Plan
-        <textarea
-          value={plan}
-          onChange={(e) => setPlan(e.target.value)}
-          placeholder="What the agent should do each time this fires…"
-          aria-label="Order plan"
-          className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
-        />
-      </label>
+      <div className="space-y-2">
+        <StandingFormBlock
+          icon={ClipboardList}
+          title="Identity"
+          meta={name.trim() || "name required"}
+          defaultOpen
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Morning briefing"
+                aria-label="Order name"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </label>
+            <InitiativeModePicker value={mode} onChange={setMode} label="Initiative mode" />
+          </div>
+        </StandingFormBlock>
+
+        <StandingFormBlock
+          icon={Clock}
+          title="Wake rule"
+          meta={triggerValue.trim() || "schedule or event subject"}
+          defaultOpen
+        >
+          <div className="flex flex-col gap-1 text-[11px] text-muted">
+            Trigger
+            <div className="flex items-center gap-1.5">
+              <div className="inline-flex overflow-hidden rounded-md border border-border">
+                {(["cron", "event"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTriggerType(t)}
+                    className={cn(
+                      "px-2 py-1 text-xs transition-colors",
+                      triggerType === t ? "bg-accent/15 text-accent" : "text-muted hover:text-foreground",
+                    )}
+                  >
+                    {t === "cron" ? "schedule" : "event"}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={triggerValue}
+                onChange={(e) => setTriggerValue(e.target.value)}
+                placeholder={triggerType === "cron" ? "cron, e.g. 0 9 * * *" : "event subject, e.g. run.failed"}
+                aria-label="Trigger value"
+                className="min-w-0 flex-1 rounded-md border border-border bg-panel px-2 py-1 font-mono text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </div>
+          </div>
+          <label className="mt-2 flex w-48 flex-col gap-1 text-[11px] text-muted">
+            Event cooldown (sec)
+            <input
+              type="number"
+              min={0}
+              value={cooldownSec}
+              onChange={(e) => setCooldownSec(e.target.value)}
+              aria-label="Event cooldown seconds"
+              title="minimum gap between event-triggered firings; 0 uses the daemon default"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            />
+          </label>
+        </StandingFormBlock>
+
+        <StandingFormBlock
+          icon={Zap}
+          title="Execution"
+          meta={plan.trim() ? `${plan.trim().slice(0, 44)}${plan.trim().length > 44 ? "..." : ""}` : "plan optional"}
+        >
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+            Run as agent
+            <AgentPicker value={agent} onChange={setAgent} />
+            <span className="opacity-70">uses that profile's soul, model chain, memory, and budget</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+            <span>Mailbox trigger</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!agent.trim()}
+              title={agent.trim() ? `Use board.dm.${agent.trim()}` : "Select an agent first"}
+              onClick={() => applyMailboxPreset("dm")}
+            >
+              <Anchor className="size-3.5" /> DM
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!agent.trim()}
+              title={agent.trim() ? `Use board.help.${agent.trim()}` : "Select an agent first"}
+              onClick={() => applyMailboxPreset("help")}
+            >
+              <Users className="size-3.5" /> Help
+            </Button>
+          </div>
+          <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+            Plan
+            <textarea
+              value={plan}
+              onChange={(e) => setPlan(e.target.value)}
+              placeholder="What the agent should do each time this fires..."
+              aria-label="Order plan"
+              className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+            />
+          </label>
+        </StandingFormBlock>
+      </div>
 
       <div className="mt-2 flex items-center justify-end gap-2">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
@@ -750,80 +818,181 @@ export function EditOrderForm({
 
   return (
     <div className="glass rounded-xl border-accent/30 p-3">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-label="Edit order name"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Autonomy
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-            aria-label="Edit initiative mode"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          >
-            <option value="">default (inform only)</option>
-            <option value="inform_only">inform only</option>
-            <option value="ask">ask first</option>
-            <option value="act_or_ask">act, or ask if unsure</option>
-          </select>
-          <span className="text-[10px] opacity-70">{initiativeEnforcement(mode)}</span>
-        </label>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            <Pencil className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">{name.trim() || order.id}</div>
+            <div className="text-[11px] text-muted">mutable standing order fields</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant={valid ? "good" : "warn"}>{valid ? "ready" : "name required"}</Badge>
+          <Badge variant={Number(assure) > 0 ? "accent" : "default"}>{Math.max(0, Math.floor(Number(assure) || 0))} retries</Badge>
+          {agent.trim() ? <Badge variant="accent">agent {agent.trim()}</Badge> : null}
+        </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-        Run as agent
-        <AgentPicker value={agent} onChange={setAgent} />
+      <div className="space-y-2">
+        <StandingFormBlock
+          icon={ClipboardList}
+          title="Identity"
+          meta={name.trim() || "name required"}
+          defaultOpen
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                aria-label="Edit order name"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </label>
+            <InitiativeModePicker value={mode} onChange={setMode} label="Edit initiative mode" />
+          </div>
+        </StandingFormBlock>
+
+        <StandingFormBlock
+          icon={Zap}
+          title="Execution"
+          meta={plan.trim() ? `${plan.trim().slice(0, 44)}${plan.trim().length > 44 ? "..." : ""}` : "no plan"}
+          defaultOpen
+        >
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+            Run as agent
+            <AgentPicker value={agent} onChange={setAgent} />
+          </div>
+
+          <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+            Plan
+            <textarea
+              value={plan}
+              onChange={(e) => setPlan(e.target.value)}
+              placeholder="What the agent should do each time this fires..."
+              aria-label="Edit order plan"
+              className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+            />
+          </label>
+        </StandingFormBlock>
+
+        <StandingFormBlock
+          icon={TimerReset}
+          title="Reliability"
+          meta={`${Math.max(0, Math.floor(Number(assure) || 0))} retries / ${Math.max(0, Math.floor(Number(cooldownSec) || 0))}s cooldown`}
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex w-40 flex-col gap-1 text-[11px] text-muted">
+              Assure (retries)
+              <input
+                type="number"
+                min={0}
+                value={assure}
+                onChange={(e) => setAssure(e.target.value)}
+                aria-label="Edit assure retries"
+                title="do-it-for-sure: each firing verifies completion and retries the gap up to this many times (0 = single pass)"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </label>
+
+            <label className="flex w-48 flex-col gap-1 text-[11px] text-muted">
+              Event cooldown (sec)
+              <input
+                type="number"
+                min={0}
+                value={cooldownSec}
+                onChange={(e) => setCooldownSec(e.target.value)}
+                aria-label="Edit event cooldown seconds"
+                title="minimum gap between event-triggered firings; 0 uses the daemon default"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </label>
+          </div>
+        </StandingFormBlock>
       </div>
-
-      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Plan
-        <textarea
-          value={plan}
-          onChange={(e) => setPlan(e.target.value)}
-          placeholder="What the agent should do each time this fires…"
-          aria-label="Edit order plan"
-          className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
-        />
-      </label>
-
-      <label className="mt-2 flex w-40 flex-col gap-1 text-[11px] text-muted">
-        Assure (retries)
-        <input
-          type="number"
-          min={0}
-          value={assure}
-          onChange={(e) => setAssure(e.target.value)}
-          aria-label="Edit assure retries"
-          title="do-it-for-sure: each firing verifies completion and retries the gap up to this many times (0 = single pass)"
-          className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-        />
-      </label>
-
-      <label className="mt-2 flex w-48 flex-col gap-1 text-[11px] text-muted">
-        Event cooldown (sec)
-        <input
-          type="number"
-          min={0}
-          value={cooldownSec}
-          onChange={(e) => setCooldownSec(e.target.value)}
-          aria-label="Edit event cooldown seconds"
-          title="minimum gap between event-triggered firings; 0 uses the daemon default"
-          className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-        />
-      </label>
 
       <div className="mt-2 flex items-center justify-end gap-2">
         <Button size="sm" onClick={save} disabled={!valid || submitting}>
           {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save changes
         </Button>
       </div>
+    </div>
+  );
+}
+
+function StandingFormBlock({
+  icon: Icon,
+  title,
+  meta,
+  children,
+  defaultOpen = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <Disclosure
+      defaultOpen={defaultOpen}
+      className="rounded-lg border border-border/80 bg-panel/45"
+      summaryClassName="px-2.5 py-2"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
+            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
+          </span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
+  );
+}
+
+function InitiativeModePicker({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  const normalized = value === "inform_only" ? "" : value;
+  return (
+    <div className="flex flex-col gap-1 text-[11px] text-muted">
+      Autonomy
+      <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-panel p-1" aria-label={label}>
+        {INITIATIVE_MODES.map((mode) => {
+          const active = normalized === mode.value;
+          return (
+            <button
+              key={mode.value || "inform_only"}
+              type="button"
+              onClick={() => onChange(mode.value)}
+              className={cn(
+                "h-7 rounded-md px-2 text-xs font-medium transition-colors",
+                active ? "bg-accent text-accent-foreground" : "text-muted hover:bg-card hover:text-foreground",
+              )}
+              aria-pressed={active}
+              title={mode.title}
+            >
+              {mode.label}
+            </button>
+          );
+        })}
+      </div>
+      <span className="text-[10px] opacity-70">{initiativeEnforcement(normalized)}</span>
     </div>
   );
 }
@@ -978,7 +1147,7 @@ function StandingAgentBadge({
 function StandingWakeLedger({ items, id }: { items: StandingWakeLedgerEntry[]; id: string }) {
   return (
     <div className="mt-1.5 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${id} wake rule ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted/80">Wake rule ledger</div>
+      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Wake rule ledger</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-5">
         {items.map((item) => (
           <div
@@ -992,7 +1161,7 @@ function StandingWakeLedger({ items, id }: { items: StandingWakeLedgerEntry[]; i
               item.tone === "accent" && "border-accent/30 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{item.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{item.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -1015,7 +1184,7 @@ function StandingWakeLedger({ items, id }: { items: StandingWakeLedgerEntry[]; i
 function StandingStat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-panel/60 px-3 py-2">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent ? "text-accent" : "text-foreground")}>{value}</div>
     </div>
   );

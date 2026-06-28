@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
@@ -57,6 +57,22 @@ import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
+
+function chooseScheduleOption(group: string, name: RegExp | string) {
+  fireEvent.click(within(screen.getByRole("group", { name: group })).getByRole("button", { name }));
+}
+
+function expectScheduleOptionSelected(group: string, name: RegExp | string) {
+  expect(
+    within(screen.getByRole("group", { name: group }))
+      .getByRole("button", { name })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+}
+
+function chooseScheduleUnit(group: string, unit: "minutes" | "hours") {
+  fireEvent.click(within(screen.getByRole("group", { name: group })).getByRole("button", { name: unit }));
+}
 
 describe("untilLabel (M917)", () => {
   const now = 1_000_000_000_000;
@@ -626,7 +642,7 @@ describe("NewScheduleForm", () => {
     render(<NewScheduleForm editId="sch-cycle" initialIntent="watch" initialMode="interval" initialIntervalSec={900} onCreated={() => {}} onError={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /cycle/ }));
     fireEvent.change(screen.getByLabelText("Cycle cooldown amount"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Cycle cooldown unit"), { target: { value: "hours" } });
+    chooseScheduleUnit("Cycle cooldown unit", "hours");
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/schedule/edit", {
@@ -648,7 +664,7 @@ describe("NewScheduleForm", () => {
       />,
     );
     fireEvent.change(screen.getByLabelText("Agent task"), { target: { value: "brief" } });
-    fireEvent.change(screen.getByLabelText("Roster agent"), { target: { value: "researcher" } });
+    chooseScheduleOption("Roster agent", /Researcher/);
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/schedule/add", {
@@ -671,12 +687,10 @@ describe("NewScheduleForm", () => {
         onError={() => {}}
       />,
     );
-    const select = screen.getByLabelText("Roster agent") as HTMLSelectElement;
-    await waitFor(() => expect(select.value).toBe("lead"));
-    const worker = screen.getByRole("option", { name: "Worker (worker) (managed)" }) as HTMLOptionElement;
-    expect(worker.disabled).toBe(true);
-    const plannerChild = screen.getByRole("option", { name: "Planner Child (planner-child) (managed)" }) as HTMLOptionElement;
-    expect(plannerChild.disabled).toBe(true);
+    await waitFor(() => expectScheduleOptionSelected("Roster agent", /Lead/));
+    const rosterGroup = within(screen.getByRole("group", { name: "Roster agent" }));
+    expect((rosterGroup.getByRole("button", { name: /Worker/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((rosterGroup.getByRole("button", { name: /Planner Child/ }) as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.change(screen.getByLabelText("Agent task"), { target: { value: "brief" } });
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
@@ -691,7 +705,7 @@ describe("NewScheduleForm", () => {
 
   it("posts a system task schedule without requiring task instructions", async () => {
     render(<NewScheduleForm onCreated={() => {}} onError={() => {}} />);
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "system_task" } });
+    chooseScheduleOption("Schedule target", /System task/);
     expect(screen.getByLabelText("Schedule label")).toBeTruthy();
     expect(screen.getByText("Optional label only; the daemon runs the selected system task as a typed cron call.")).toBeTruthy();
     expect(screen.getByText("Cron contract")).toBeTruthy();
@@ -706,7 +720,7 @@ describe("NewScheduleForm", () => {
     expect(screen.getAllByText("no agent identity").length).toBeGreaterThan(0);
     expect(screen.getByText(/schedule runs a typed daemon system task/)).toBeTruthy();
     expect(screen.getByText(/cron every 24 hours .* typed system call .* payload not accepted/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Interval unit"), { target: { value: "minutes" } });
+    chooseScheduleUnit("Interval unit", "minutes");
     fireEvent.change(screen.getByLabelText("Interval amount"), { target: { value: "60" } });
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() =>
@@ -720,10 +734,10 @@ describe("NewScheduleForm", () => {
 
   it("uses quiet recommended cadence for system task schedules until timing is edited", async () => {
     render(<NewScheduleForm onCreated={() => {}} onError={() => {}} />);
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "system_task" } });
+    chooseScheduleOption("Schedule target", /System task/);
 
     await waitFor(() => expect((screen.getByLabelText("Interval amount") as HTMLInputElement).value).toBe("24"));
-    expect((screen.getByLabelText("Interval unit") as HTMLSelectElement).value).toBe("hours");
+    expectScheduleOptionSelected("Interval unit", "hours");
     expect(screen.getByText("Recommended cadence: every 24 hours")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
@@ -741,11 +755,11 @@ describe("NewScheduleForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Artifact collect · every 6 hours" }));
 
-    expect((screen.getByLabelText("Schedule target") as HTMLSelectElement).value).toBe("system_task");
-    expect((screen.getByLabelText("System task") as HTMLSelectElement).value).toBe("artifact_collect");
+    expectScheduleOptionSelected("Schedule target", /System task/);
+    expectScheduleOptionSelected("System task", /Artifact collect/);
     expect((screen.getByLabelText("Schedule label") as HTMLTextAreaElement).value).toBe("Collect run artifacts");
     expect((screen.getByLabelText("Interval amount") as HTMLInputElement).value).toBe("6");
-    expect((screen.getByLabelText("Interval unit") as HTMLSelectElement).value).toBe("hours");
+    expectScheduleOptionSelected("Interval unit", "hours");
 
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() =>
@@ -770,10 +784,10 @@ describe("NewScheduleForm", () => {
         onError={() => {}}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "system_task" } });
+    chooseScheduleOption("Schedule target", /System task/);
     expect(screen.getByText("Clear stale memory records.")).toBeTruthy();
     expect(screen.getByText("daemon · memory · memory_maintenance · no LLM - Runs without waking an LLM agent.")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("System task"), { target: { value: "memory_tidy" } });
+    chooseScheduleOption("System task", /Memory tidy/);
     expect(screen.getByText("Run lightweight memory hygiene.")).toBeTruthy();
     expect(screen.getByText("daemon · memory · memory_maintenance · no LLM - Tidy private memory in-process.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
@@ -788,7 +802,7 @@ describe("NewScheduleForm", () => {
 
   it("posts a workflow schedule with structured payload JSON", async () => {
     render(<NewScheduleForm workflows={[{ name: "nightly-sync", enabled: true }]} onCreated={() => {}} onError={() => {}} />);
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "workflow" } });
+    chooseScheduleOption("Schedule target", /Workflow/);
     fireEvent.change(screen.getByLabelText("Workflow payload JSON"), { target: { value: '{"force":true}' } });
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() =>
@@ -810,8 +824,8 @@ describe("NewScheduleForm", () => {
         onError={() => {}}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "workflow" } });
-    fireEvent.change(screen.getByLabelText("Run as agent"), { target: { value: "ops" } });
+    chooseScheduleOption("Schedule target", /Workflow/);
+    chooseScheduleOption("Run as agent", /Ops/);
     fireEvent.change(screen.getByLabelText("Model override"), { target: { value: "gpt-5" } });
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() =>
@@ -840,7 +854,7 @@ describe("NewScheduleForm", () => {
       />,
     );
 
-    expect((screen.getByLabelText("Run as agent") as HTMLSelectElement).value).toBe("worker");
+    expectScheduleOptionSelected("Run as agent", /Worker/);
     expect(screen.getByText("agent worker is a managed sub-agent")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
 
@@ -850,7 +864,7 @@ describe("NewScheduleForm", () => {
 
   it("posts a tool schedule with structured payload JSON", async () => {
     render(<NewScheduleForm tools={[{ name: "shell", description: "Run a command" }]} onCreated={() => {}} onError={() => {}} />);
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "tool" } });
+    chooseScheduleOption("Schedule target", /Tool/);
     expect(screen.getByText("cron invokes tool shell under system identity")).toBeTruthy();
     expect(screen.getByText("daemon tool contract")).toBeTruthy();
     expect(screen.getByText("tool uses system policy")).toBeTruthy();
@@ -881,8 +895,8 @@ describe("NewScheduleForm", () => {
         onError={onError}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "tool" } });
-    fireEvent.change(screen.getByLabelText("Run as agent"), { target: { value: "ops" } });
+    chooseScheduleOption("Schedule target", /Tool/);
+    chooseScheduleOption("Run as agent", /Ops/);
     expect(screen.getByText("tool uses agent policy")).toBeTruthy();
     expect(screen.getByText(/payload defines the call and the agent policy gates access/)).toBeTruthy();
     expect(screen.getByText("agent ops cannot schedule tool shell: agent tool denylist")).toBeTruthy();
@@ -894,7 +908,7 @@ describe("NewScheduleForm", () => {
   it("rejects invalid tool payload JSON before posting", async () => {
     const onError = vi.fn();
     render(<NewScheduleForm tools={[{ name: "shell" }]} onCreated={() => {}} onError={onError} />);
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "tool" } });
+    chooseScheduleOption("Schedule target", /Tool/);
     fireEvent.change(screen.getByLabelText("Tool payload JSON"), { target: { value: "{" } });
     expect(screen.getAllByText("invalid tool payload JSON").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("Schedule target manifest")).toBeTruthy();
@@ -906,7 +920,7 @@ describe("NewScheduleForm", () => {
   it("rejects invalid workflow payload JSON before posting", async () => {
     const onError = vi.fn();
     render(<NewScheduleForm workflows={[{ name: "nightly-sync", enabled: true }]} onCreated={() => {}} onError={onError} />);
-    fireEvent.change(screen.getByLabelText("Schedule target"), { target: { value: "workflow" } });
+    chooseScheduleOption("Schedule target", /Workflow/);
     fireEvent.change(screen.getByLabelText("Workflow payload JSON"), { target: { value: "{" } });
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringContaining("Invalid workflow payload JSON")));

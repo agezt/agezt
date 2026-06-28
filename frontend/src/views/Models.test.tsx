@@ -157,11 +157,13 @@ describe("Models key management", () => {
     render(withUI(<Models />));
     await waitFor(() => expect(screen.getByText("OpenAI")).toBeTruthy());
     fireEvent.click(screen.getByText("OpenAI"));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Add key/ })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /Add key/ }));
     await waitFor(() => expect(screen.getByLabelText("New key label")).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText("New key label"), { target: { value: "personal" } });
     fireEvent.change(screen.getByLabelText("New key value"), { target: { value: "sk-secret-xyz" } });
-    fireEvent.click(screen.getByRole("button", { name: /Add/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save new key" }));
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/provider/keys/add", {

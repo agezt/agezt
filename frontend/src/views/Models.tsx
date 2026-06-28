@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, Trash2, Check } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, Trash2, Check, X, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
 // Models is the LLM model catalog — the providers and models the daemon knows
@@ -51,6 +50,33 @@ interface KeyInfo {
   label: string;
   active: boolean;
   last4: string;
+}
+
+function ModelsModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 // providerKeyEnv picks the provider's API-key env var (the keyring target) from
@@ -422,6 +448,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
   const [value, setValue] = useState("");
   const [makeActive, setMakeActive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -445,6 +472,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
       setLabel("");
       setValue("");
       setMakeActive(false);
+      setAdding(false);
       await load();
       onChanged();
     } catch (e) {
@@ -490,65 +518,90 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
       {keys === null ? (
         <p className="text-[11px] text-muted">Loading…</p>
       ) : keys.length === 0 ? (
-        <p className="text-[11px] text-muted">No keys yet — add one below.</p>
+        <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1.5">
+          <p className="text-[11px] text-muted">No keys saved in the local keyring.</p>
+          <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+            <Plus className="size-3.5" /> Add key
+          </Button>
+        </div>
       ) : (
-        <ul className="space-y-1">
-          {keys.map((k) => (
-            <li key={k.label} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
-              {k.active ? (
-                <Badge variant="good">
-                  <Check className="size-2.5 mr-1" /> active
-                </Badge>
-              ) : (
+        <div className="space-y-1">
+          <ul className="space-y-1">
+            {keys.map((k) => (
+              <li key={k.label} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
+                {k.active ? (
+                  <Badge variant="good">
+                    <Check className="size-2.5 mr-1" /> active
+                  </Badge>
+                ) : (
+                  <button
+                    onClick={() => activate(k.label)}
+                    disabled={busy}
+                    className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
+                    title="Make this the active key"
+                  >
+                    activate
+                  </button>
+                )}
+                <span className="font-medium text-foreground">{k.label}</span>
+                <span className="font-mono text-xs text-muted">{k.last4}</span>
                 <button
-                  onClick={() => activate(k.label)}
+                  onClick={() => remove(k.label)}
                   disabled={busy}
-                  className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
-                  title="Make this the active key"
+                  className="ml-auto text-muted transition-colors hover:text-bad disabled:opacity-50"
+                  title="Remove this key"
                 >
-                  activate
+                  <Trash2 className="size-3.5" />
                 </button>
-              )}
-              <span className="font-medium text-foreground">{k.label}</span>
-              <span className="font-mono text-xs text-muted">{k.last4}</span>
-              <button
-                onClick={() => remove(k.label)}
-                disabled={busy}
-                className="ml-auto text-muted transition-colors hover:text-bad disabled:opacity-50"
-                title="Remove this key"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+          <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+            <Plus className="size-3.5" /> Add key
+          </Button>
+        </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5 pt-1">
-        <Input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="label (e.g. work)"
-          className="h-7 w-28 text-xs"
-          aria-label="New key label"
-        />
-        <Input
-          type="password"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="key value"
-          autoComplete="new-password"
-          className="h-7 w-44 font-mono text-xs"
-          aria-label="New key value"
-        />
-        <label className="flex items-center gap-1 text-xs text-muted">
-          <input type="checkbox" checked={makeActive} onChange={(e) => setMakeActive(e.target.checked)} className="size-3 accent-accent" />
-          make active
-        </label>
-        <Button size="sm" onClick={add} disabled={busy || !label.trim() || !value.trim()} title="Add key">
-          <Plus className="size-3.5" /> Add
-        </Button>
-      </div>
+      {adding && (
+        <ModelsModal title={`Add ${env} key`} icon={KeyRound} onClose={() => setAdding(false)}>
+          <div className="space-y-3">
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="label (e.g. work)"
+              className="h-8 text-xs"
+              aria-label="New key label"
+            />
+            <Input
+              type="password"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="key value"
+              autoComplete="new-password"
+              className="h-8 font-mono text-xs"
+              aria-label="New key value"
+            />
+            <label className="flex items-center gap-1 text-xs text-muted">
+              <input type="checkbox" checked={makeActive} onChange={(e) => setMakeActive(e.target.checked)} className="size-3 accent-accent" />
+              make active
+            </label>
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={add}
+                disabled={busy || !label.trim() || !value.trim()}
+                title="Add key"
+                aria-label="Save new key"
+              >
+                <Plus className="size-3.5" /> Add
+              </Button>
+            </div>
+          </div>
+        </ModelsModal>
+      )}
     </div>
   );
 }

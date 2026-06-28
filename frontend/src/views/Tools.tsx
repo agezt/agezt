@@ -256,7 +256,7 @@ export function Tools() {
                         <div className="flex items-center gap-1.5">
                           <span className="truncate font-mono text-xs font-medium">{t.name}</span>
                           {t.source !== "builtin" && (
-                            <span className="shrink-0 rounded bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-wider text-accent">
+                            <span className="shrink-0 rounded bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-normal text-accent">
                               {SOURCE_LABEL[t.source]}
                             </span>
                           )}
@@ -414,7 +414,7 @@ function FilterChip({ label, n, active, onClick }: { label: string; n: number; a
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Wrench; children: React.ReactNode }) {
   return (
     <div className="glass rounded-xl p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Icon className="size-3.5" /> {title}
       </div>
       {children}

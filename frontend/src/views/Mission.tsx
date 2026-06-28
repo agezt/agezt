@@ -60,7 +60,7 @@ export function Mission() {
       {/* Activity hero waveform */}
       <div className="glass rounded-xl p-3">
         <div className="mb-1 flex items-center justify-between text-xs">
-          <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted">
+          <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-normal text-muted">
             <Activity className="size-3.5" /> activity
           </span>
           <span className="tabular-nums text-muted">

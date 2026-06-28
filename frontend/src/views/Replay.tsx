@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Clapperboard, RefreshCw } from "lucide-react";
+import { Clapperboard, RefreshCw, Radio } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { mergeEvents } from "@/lib/rundetail";
@@ -81,25 +81,39 @@ export function Replay() {
         title="Flight recorder"
         description="Pick any run and scrub through exactly what the agent did, step by step."
         actions={
-          <>
-            <select
-              value={sel}
-              onChange={(e) => setSel(e.target.value)}
-              className="h-8 max-w-[60%] flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus:border-accent"
-            >
-              {runs.length === 0 && <option value="">no runs yet</option>}
-              {runs.map((r) => (
-                <option key={r.correlation_id} value={r.correlation_id}>
-                  {(r.status === "running" ? "● " : "") + (r.intent ? r.intent.slice(0, 70) : r.correlation_id)}
-                </option>
-              ))}
-            </select>
-            <Button variant="ghost" size="sm" onClick={loadRuns} title="Reload run list">
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            </Button>
-          </>
+          <Button variant="ghost" size="sm" onClick={loadRuns} title="Reload run list">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
         }
       />
+
+      {runs.length > 0 ? (
+        <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Replay run">
+          {runs.map((r) => {
+            const id = r.correlation_id || "";
+            const selected = sel === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setSel(id)}
+                className={cn(
+                  "inline-flex h-9 max-w-[18rem] shrink-0 items-center gap-1.5 rounded-md border px-2 text-left text-xs transition-colors",
+                  selected
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+                )}
+              >
+                {r.status === "running" ? <Radio className="size-3.5 animate-pulse" /> : <Clapperboard className="size-3.5" />}
+                <span className="truncate">{r.intent || id || "run"}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-panel/60 px-3 py-2 text-xs text-muted">no runs yet</div>
+      )}
 
       {err ? (
         <ErrorText>{err}</ErrorText>

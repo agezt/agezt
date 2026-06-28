@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, X, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network, Cpu, CheckCheck, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtDateTime, fmtDue } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Advanced } from "@/components/ui/disclosure";
+import { Advanced, Disclosure } from "@/components/ui/disclosure";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabNav } from "@/components/ui/tab-nav";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ErrorText } from "@/components/JsonView";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -2088,6 +2087,33 @@ function nonNegativeInt(s: string, label: string): number | string {
 const inputCls =
   "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent";
 
+function RosterModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-3xl rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // profileFields collects the shared New/Edit form fields into the wire shape.
 // Exported for unit tests (the model/fallbacks mapping, incl. the @chain
 // self-contained rule, is the meaningful logic).
@@ -2268,6 +2294,78 @@ function tasksText(tasks: AgentTask[] | undefined, scope: "cycle" | "total"): st
     .join("\n");
 }
 
+function AgentOptionPicker({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string; detail?: string; icon?: ReactNode }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-[11px] text-muted">
+      <span>{label}</span>
+      <div className="grid gap-1.5 sm:grid-cols-2" role="group" aria-label={label}>
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex min-h-10 items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
+                selected
+                  ? "border-accent bg-accent/10 text-foreground"
+                  : "border-border bg-panel/45 text-muted hover:border-accent/50 hover:text-foreground",
+              )}
+            >
+              {option.icon && <span className="mt-0.5 shrink-0 text-accent">{option.icon}</span>}
+              <span className="min-w-0">
+                <span className="block truncate font-semibold">{option.label}</span>
+                {option.detail && <span className="mt-0.5 block truncate text-[11px] text-muted">{option.detail}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AgentFormBlock({
+  title,
+  icon: Icon,
+  summary,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  summary: string;
+  children: ReactNode;
+}) {
+  return (
+    <Disclosure
+      className="rounded-lg border border-border bg-panel/40"
+      summaryClassName="px-2.5 py-2 hover:bg-card/60"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <Icon className="size-3.5 shrink-0 text-accent" />
+          <span className="truncate text-xs font-semibold text-foreground">{title}</span>
+          <span className="ml-auto truncate text-[11px] text-muted">{summary}</span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
+  );
+}
+
 // AgentFormFields renders the shared editable fields for New/Edit.
 function AgentFormFields(props: {
   state: Record<string, string>;
@@ -2301,6 +2399,12 @@ function AgentFormFields(props: {
       ...taskLines(state.totalTasks || "", "total"),
     ],
   });
+  const instructionCount = lines(state.instructions || "").length;
+  const allowCount = csvList(state.toolAllow || "").length;
+  const denyCount = csvList(state.toolDeny || "").length;
+  const overrideCount = Object.keys(configMap(state.configOverrides || "")).length;
+  const cycleTaskCount = lines(state.cycleTasks || "").length;
+  const totalTaskCount = lines(state.totalTasks || "").length;
   return (
     <>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -2322,172 +2426,179 @@ function AgentFormFields(props: {
         {field("Workdir (workspace-relative)", "workdir", "e.g. research", "Workdir")}
         {field("Owner agent", "ownerAgent", "supervisor slug", "Owner agent")}
         {field("Parent agent", "parentAgent", "leader slug for managed workers", "Parent agent")}
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Direct call
-          <select
-            value={state.directCallable || "true"}
-            onChange={(e) => set("directCallable", e.target.value)}
-            aria-label="Direct call policy"
-            className={inputCls}
-          >
-            <option value="true">Directly callable</option>
-            <option value="false">Managed sub-agent only</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Lifecycle
-          <select
-            value={state.lifecycleMode || "persistent"}
-            onChange={(e) => set("lifecycleMode", e.target.value)}
-            aria-label="Agent lifecycle"
-            className={inputCls}
-          >
-            <option value="persistent">persistent</option>
-            <option value="cycle">cycle agent</option>
-            <option value="retire_on_complete">retire on completion</option>
-          </select>
-        </label>
+        <AgentOptionPicker
+          label="Direct call policy"
+          value={state.directCallable || "true"}
+          onChange={(value) => set("directCallable", value)}
+          options={[
+            { value: "true", label: "Direct", detail: "Can be called from chat/API", icon: <Zap className="size-3.5" /> },
+            { value: "false", label: "Managed only", detail: "Owner or parent wakes it", icon: <GitBranch className="size-3.5" /> },
+          ]}
+        />
+        <AgentOptionPicker
+          label="Agent lifecycle"
+          value={state.lifecycleMode || "persistent"}
+          onChange={(value) => set("lifecycleMode", value)}
+          options={[
+            { value: "persistent", label: "Persistent", detail: "Stays alive after runs", icon: <Activity className="size-3.5" /> },
+            { value: "cycle", label: "Cycle", detail: "Repeats on wake", icon: <RefreshCw className="size-3.5" /> },
+            { value: "retire_on_complete", label: "One-shot", detail: "Retires on completion", icon: <Archive className="size-3.5" /> },
+          ]}
+        />
         {field("Max cycles", "lifecycleMaxCycles", "0 = unlimited", "Max cycles")}
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Trust ceiling
-          <select
-            value={state.trustCeiling || "L4"}
-            onChange={(e) => set("trustCeiling", e.target.value)}
-            aria-label="Trust ceiling"
-            className={inputCls}
-          >
-            <option value="L4">L4 allow</option>
-            <option value="L3">L3 ask scoped</option>
-            <option value="L2">L2 ask first</option>
-            <option value="L1">L1 ask always</option>
-            <option value="L0">L0 deny</option>
-          </select>
-        </label>
+        <AgentOptionPicker
+          label="Trust ceiling"
+          value={state.trustCeiling || "L4"}
+          onChange={(value) => set("trustCeiling", value)}
+          options={[
+            { value: "L4", label: "L4 allow", detail: "Autonomous inside policy", icon: <ShieldCheck className="size-3.5" /> },
+            { value: "L3", label: "L3 scoped", detail: "Ask on scoped risk", icon: <ShieldCheck className="size-3.5" /> },
+            { value: "L2", label: "L2 ask", detail: "Ask before risky work", icon: <AlertTriangle className="size-3.5" /> },
+            { value: "L1", label: "L1 gated", detail: "Ask almost always", icon: <AlertTriangle className="size-3.5" /> },
+            { value: "L0", label: "L0 deny", detail: "No autonomous action", icon: <Pause className="size-3.5" /> },
+          ]}
+        />
         {field("Description", "description", "what this agent is for", "Description")}
       </div>
       <Advanced label="Resilience & repair" className="mt-2">
       <div className="grid gap-2 sm:grid-cols-3">
         {field("Retry attempts", "retryAttempts", "0 = no run retry", "Retry attempts")}
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Retry backoff
-          <select
-            value={state.retryBackoff || "exponential"}
-            onChange={(e) => set("retryBackoff", e.target.value)}
-            aria-label="Retry backoff"
-            className={inputCls}
-          >
-            <option value="exponential">exponential</option>
-            <option value="fixed">fixed</option>
-          </select>
-        </label>
+        <AgentOptionPicker
+          label="Retry backoff"
+          value={state.retryBackoff || "exponential"}
+          onChange={(value) => set("retryBackoff", value)}
+          options={[
+            { value: "exponential", label: "Exponential", detail: "Back off harder each retry", icon: <Activity className="size-3.5" /> },
+            { value: "fixed", label: "Fixed", detail: "Same delay every retry", icon: <CalendarClock className="size-3.5" /> },
+          ]}
+        />
         {field("Retry base delay (sec)", "retryBaseDelay", "e.g. 30", "Retry base delay")}
         {field("Retry max delay (sec)", "retryMaxDelay", "e.g. 1800", "Retry max delay")}
         {field("Retry on", "retryOn", "error, timeout", "Retry on")}
         {field("Doctor agent", "healthDoctor", "guardian-doctor", "Doctor agent")}
         {field("Failure threshold", "healthFailureThreshold", "e.g. 5", "Failure threshold")}
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Self repair
-          <select
-            value={state.selfRepairEnabled || "false"}
-            onChange={(e) => set("selfRepairEnabled", e.target.value)}
-            aria-label="Self repair"
-            className={inputCls}
-          >
-            <option value="false">off</option>
-            <option value="true">enabled</option>
-          </select>
-        </label>
+        <AgentOptionPicker
+          label="Self repair"
+          value={state.selfRepairEnabled || "false"}
+          onChange={(value) => set("selfRepairEnabled", value)}
+          options={[
+            { value: "false", label: "Off", detail: "Escalate manually", icon: <Pause className="size-3.5" /> },
+            { value: "true", label: "Enabled", detail: "Doctor can repair", icon: <Wrench className="size-3.5" /> },
+          ]}
+        />
         {field("Self-repair attempts", "selfRepairAttempts", "e.g. 2", "Self-repair attempts")}
         {field("Escalate to", "selfRepairEscalate", "owner/agent slug", "Escalate to")}
       </div>
       </Advanced>
-      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Soul — who this agent is (identity core)
-        <textarea
-          value={state.soul || ""}
-          onChange={(e) => set("soul", e.target.value)}
-          placeholder="You are Researcher. You dig deep and cite sources."
-          aria-label="Agent soul"
-          rows={3}
-          className={cn(inputCls, "resize-y")}
-        />
-      </label>
-      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Standing instructions — durable operating rules
-        <textarea
-          value={state.instructions || ""}
-          onChange={(e) => set("instructions", e.target.value)}
-          placeholder="One instruction per line"
-          aria-label="Agent instructions"
-          rows={3}
-          className={cn(inputCls, "resize-y")}
-        />
-      </label>
-      <Advanced label="Tools, tasks & overrides" className="mt-2">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Tool allowlist
-          <textarea
-            value={state.toolAllow || ""}
-            onChange={(e) => set("toolAllow", e.target.value)}
-            placeholder="shell, memory, mcp_fake_greet"
-            aria-label="Tool allowlist"
-            rows={2}
-            className={cn(inputCls, "resize-y")}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Tool denylist
-          <textarea
-            value={state.toolDeny || ""}
-            onChange={(e) => set("toolDeny", e.target.value)}
-            placeholder="notify, shell"
-            aria-label="Tool denylist"
-            rows={2}
-            className={cn(inputCls, "resize-y")}
-          />
-        </label>
+      <div className="mt-2 grid gap-2 lg:grid-cols-2">
+        <AgentFormBlock
+          title="Identity core"
+          icon={IdCard}
+          summary={(state.soul || "").trim() ? "soul set" : "no soul yet"}
+        >
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Soul — who this agent is
+            <textarea
+              value={state.soul || ""}
+              onChange={(e) => set("soul", e.target.value)}
+              placeholder="You are Researcher. You dig deep and cite sources."
+              aria-label="Agent soul"
+              rows={3}
+              className={cn(inputCls, "resize-y")}
+            />
+          </label>
+        </AgentFormBlock>
+        <AgentFormBlock
+          title="Standing rules"
+          icon={ListTree}
+          summary={`${instructionCount} rule${instructionCount === 1 ? "" : "s"}`}
+        >
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Standing instructions — durable operating rules
+            <textarea
+              value={state.instructions || ""}
+              onChange={(e) => set("instructions", e.target.value)}
+              placeholder="One instruction per line"
+              aria-label="Agent instructions"
+              rows={3}
+              className={cn(inputCls, "resize-y")}
+            />
+          </label>
+        </AgentFormBlock>
       </div>
-      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Agent config overrides
-        <textarea
-          value={state.configOverrides || ""}
-          onChange={(e) => set("configOverrides", e.target.value)}
-          placeholder={"AGEZT_X_MODE=agent-only\nAGEZT_X_BATCH=8"}
-          aria-label="Agent config overrides"
-          rows={3}
-          className={cn(inputCls, "resize-y font-mono text-xs")}
-        />
-      </label>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Every-cycle tasks
-          <textarea
-            value={state.cycleTasks || ""}
-            onChange={(e) => set("cycleTasks", e.target.value)}
-            placeholder="One task per line"
-            aria-label="Every-cycle tasks"
-            rows={3}
-            className={cn(inputCls, "resize-y")}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Total tasklist
-          <textarea
-            value={state.totalTasks || ""}
-            onChange={(e) => set("totalTasks", e.target.value)}
-            placeholder="One task per line"
-            aria-label="Total tasklist"
-            rows={3}
-            className={cn(inputCls, "resize-y")}
-          />
-        </label>
+      <Advanced label="Tools, tasks & overrides" className="mt-2">
+      <div className="grid gap-2">
+        <AgentFormBlock title="Tool policy" icon={ShieldCheck} summary={`${allowCount} allow · ${denyCount} deny`}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Tool allowlist
+              <textarea
+                value={state.toolAllow || ""}
+                onChange={(e) => set("toolAllow", e.target.value)}
+                placeholder="shell, memory, mcp_fake_greet"
+                aria-label="Tool allowlist"
+                rows={2}
+                className={cn(inputCls, "resize-y")}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Tool denylist
+              <textarea
+                value={state.toolDeny || ""}
+                onChange={(e) => set("toolDeny", e.target.value)}
+                placeholder="notify, shell"
+                aria-label="Tool denylist"
+                rows={2}
+                className={cn(inputCls, "resize-y")}
+              />
+            </label>
+          </div>
+        </AgentFormBlock>
+        <AgentFormBlock title="Runtime overrides" icon={Cpu} summary={`${overrideCount} override${overrideCount === 1 ? "" : "s"}`}>
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Agent config overrides
+            <textarea
+              value={state.configOverrides || ""}
+              onChange={(e) => set("configOverrides", e.target.value)}
+              placeholder={"AGEZT_X_MODE=agent-only\nAGEZT_X_BATCH=8"}
+              aria-label="Agent config overrides"
+              rows={3}
+              className={cn(inputCls, "resize-y font-mono text-xs")}
+            />
+          </label>
+        </AgentFormBlock>
+        <AgentFormBlock title="Durable tasks" icon={CheckCheck} summary={`${cycleTaskCount} cycle · ${totalTaskCount} total`}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Every-cycle tasks
+              <textarea
+                value={state.cycleTasks || ""}
+                onChange={(e) => set("cycleTasks", e.target.value)}
+                placeholder="One task per line"
+                aria-label="Every-cycle tasks"
+                rows={3}
+                className={cn(inputCls, "resize-y")}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Total tasklist
+              <textarea
+                value={state.totalTasks || ""}
+                onChange={(e) => set("totalTasks", e.target.value)}
+                placeholder="One task per line"
+                aria-label="Total tasklist"
+                rows={3}
+                className={cn(inputCls, "resize-y")}
+              />
+            </label>
+          </div>
+        </AgentFormBlock>
       </div>
       <div
         className="mt-2 rounded-md border border-border bg-panel/60 px-2.5 py-2 text-xs text-muted"
         aria-label="Task contract preview"
       >
-        <div className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-0.5 text-xs font-semibold uppercase tracking-normal text-muted">
           Task contract
         </div>
         <div className="text-foreground/85">{taskContractPreview}</div>
@@ -3203,23 +3314,25 @@ export function Roster() {
                 Quiet guardians
               </Button>
             )}
-            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-              {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-              {showForm ? "Close" : "New agent"}
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              New agent
             </Button>
           </>
         }
       />
 
       {showForm && (
-        <NewAgentForm
-          onCreated={(slug) => {
-            setShowForm(false);
-            ui.toast(`agent ${slug} created`, "success");
-            reload();
-          }}
-          onError={(msg) => ui.toast(msg, "error")}
-        />
+        <RosterModal title="New agent" icon={Plus} onClose={() => setShowForm(false)}>
+          <NewAgentForm
+            onCreated={(slug) => {
+              setShowForm(false);
+              ui.toast(`agent ${slug} created`, "success");
+              reload();
+            }}
+            onError={(msg) => ui.toast(msg, "error")}
+          />
+        </RosterModal>
       )}
 
       {profiles && profiles.length > 0 && (
@@ -3236,12 +3349,11 @@ export function Roster() {
       )}
 
       {guardianRisk && (
-        <CollapsibleSection
+        <RosterSignalPanel
           icon={ShieldCheck}
           title="Guardian noise"
-          count={noisyGuardians.length > 0 ? noisyGuardians.length : undefined}
+          status={noisyGuardians.length > 0 ? `${noisyGuardians.length} noisy` : guardianQuieting.label}
           tone={guardianQuieting.tone === "warn" ? "warn" : guardianQuieting.tone === "good" ? "good" : "muted"}
-          defaultOpen={guardianQuieting.tone === "warn"}
         >
           <p className="text-xs text-muted">{guardianQuieting.detail}</p>
           {guardianQuieting.tone === "warn" && (
@@ -3256,7 +3368,7 @@ export function Roster() {
               {noisyGuardians.length > 4 && <Badge variant="default">+{noisyGuardians.length - 4}</Badge>}
             </div>
           )}
-        </CollapsibleSection>
+        </RosterSignalPanel>
       )}
 
       {profiles && profiles.length > 0 && (
@@ -3281,7 +3393,7 @@ export function Roster() {
         <section className="rounded-xl border border-border bg-card/45 p-3" aria-label="Agent graveyard">
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
                 <Skull className="h-3 w-3" /> Agent graveyard
               </div>
               <div className="mt-1 text-sm font-medium text-foreground">
@@ -3309,7 +3421,7 @@ export function Roster() {
               )}
               title={graveyardCleanup.detail}
             >
-              <div className={cn("text-xs font-semibold uppercase tracking-wider", graveyardCleanup.tone === "warn" ? "text-warn" : graveyardCleanup.tone === "good" ? "text-good" : "text-muted")}>
+              <div className={cn("text-xs font-semibold uppercase tracking-normal", graveyardCleanup.tone === "warn" ? "text-warn" : graveyardCleanup.tone === "good" ? "text-good" : "text-muted")}>
                 Cleanup
               </div>
               <div className="mt-0.5 font-medium text-foreground/85">{graveyardCleanup.label}</div>
@@ -3568,7 +3680,7 @@ export function Roster() {
                   )}
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-muted">Death certificate</div>
+                    <div className="text-xs font-semibold uppercase tracking-normal text-muted">Death certificate</div>
                     <div
                       className={cn(
                         "font-medium",
@@ -3588,7 +3700,7 @@ export function Roster() {
                   <div className="mt-2 grid gap-1.5 md:grid-cols-3">
                     {Object.entries(removalDeathCertificate.fields).map(([label, value]) => (
                       <div key={label} className="min-w-0 rounded-md border border-border bg-panel/35 px-2 py-1">
-                        <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+                        <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">{label}</div>
                         <div className="mt-0.5 truncate text-[11px] text-foreground" title={value}>
                           {value}
                         </div>
@@ -3598,7 +3710,7 @@ export function Roster() {
                 </div>
               )}
               <div className="mt-3 rounded-lg border border-border bg-card/45 p-2">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Removal ledger</div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted">Removal ledger</div>
                 <div className="grid gap-1.5 md:grid-cols-3">
                   {removalLedger.map((entry) => (
                     <div
@@ -3614,7 +3726,7 @@ export function Roster() {
                               : "border-border bg-panel/35",
                       )}
                     >
-                      <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted">{entry.label}</div>
+                      <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">{entry.label}</div>
                       <div
                         className={cn(
                           "mt-0.5 truncate font-medium",
@@ -3922,7 +4034,7 @@ export function Roster() {
                       entry.tone === "accent" && "border-accent/30 bg-accent/10",
                     )}
                   >
-                    <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">
+                    <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">
                       {entry.label}
                     </div>
                     <div
@@ -3961,7 +4073,7 @@ export function Roster() {
                       entry.tone === "muted" && "border-border bg-card/45",
                     )}
                   >
-                    <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted">
+                    <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">
                       {entry.label}
                     </div>
                     <div
@@ -4367,7 +4479,7 @@ export function Roster() {
                   size="sm"
                   variant="ghost"
                   aria-label={`Edit ${p.slug}`}
-                  onClick={() => setEditing(editing === p.slug ? null : p.slug)}
+                  onClick={() => setEditing(p.slug)}
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
@@ -4419,7 +4531,7 @@ export function Roster() {
               </span>
             </div>
             {editing === p.slug && (
-              <div className="border-t border-border/70 p-3">
+              <RosterModal title={`Edit ${p.slug}`} icon={Pencil} onClose={() => setEditing(null)}>
                 <EditAgentForm
                   profile={p}
                   onSaved={(slug) => {
@@ -4429,7 +4541,7 @@ export function Roster() {
                   }}
                   onError={(msg) => ui.toast(msg, "error")}
                 />
-              </div>
+              </RosterModal>
             )}
             {activityFor === p.slug && (
               <div className="border-t border-border/70 p-3">
@@ -4444,11 +4556,45 @@ export function Roster() {
   );
 }
 
+function RosterSignalPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  status: string;
+  tone: "warn" | "good" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls = {
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    good: "border-good/35 bg-good/5 text-good",
+    muted: "border-border bg-panel text-muted",
+  }[tone];
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls)}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function RosterStat({ label, value, accent, tone }: { label: string; value: ReactNode; accent?: boolean; tone?: "accent" | "warn" }) {
   const activeTone = tone || (accent ? "accent" : undefined);
   return (
     <div className={cn("rounded-lg border bg-card p-2.5 shadow-e1", activeTone === "accent" ? "border-accent/50" : activeTone === "warn" ? "border-warn/50" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", activeTone === "accent" && "text-accent", activeTone === "warn" && "text-warn")}>{value}</div>
     </div>
   );
@@ -4589,7 +4735,7 @@ function RosterCommandStrip({ items, slug }: { items: AgentCommandStripItem[]; s
                 item.tone === "accent" && "bg-accent",
               )}
             />
-            <span className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{item.label}</span>
+            <span className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{item.label}</span>
           </div>
           <div
             className={cn(
@@ -4612,7 +4758,7 @@ function RosterCommandStrip({ items, slug }: { items: AgentCommandStripItem[]; s
 function RosterIdentityLedger({ entries, slug }: { entries: AgentIdentityLedgerEntry[]; slug: string }) {
   return (
     <div className="mt-2 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${slug} identity ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted/80">Identity ledger</div>
+      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Identity ledger</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
         {entries.map((entry) => (
           <div
@@ -4626,7 +4772,7 @@ function RosterIdentityLedger({ entries, slug }: { entries: AgentIdentityLedgerE
               entry.tone === "accent" && "border-accent/30 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -4649,7 +4795,7 @@ function RosterIdentityLedger({ entries, slug }: { entries: AgentIdentityLedgerE
 function RosterControlCenter({ entries, slug }: { entries: AgentControlCenterEntry[]; slug: string }) {
   return (
     <div className="mt-2 rounded-md border border-border/60 bg-card/35 p-1.5" aria-label={`${slug} control center`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted/80">Control center</div>
+      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Control center</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
         {entries.map((entry) => (
           <div
@@ -4663,7 +4809,7 @@ function RosterControlCenter({ entries, slug }: { entries: AgentControlCenterEnt
               entry.tone === "accent" && "border-accent/30 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -4686,7 +4832,7 @@ function RosterControlCenter({ entries, slug }: { entries: AgentControlCenterEnt
 function RosterPassportSection({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="min-w-0 rounded-lg border border-border/60 bg-card/35 p-2">
-      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted/75">{label}</div>
+      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-normal text-muted/75">{label}</div>
       <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{children}</div>
     </section>
   );
@@ -4714,7 +4860,7 @@ function RosterPassportCell({
         tone === "accent" && "border-accent/30 bg-accent/10",
       )}
     >
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted/80">{label}</div>
+      <div className="text-[9px] font-semibold uppercase tracking-normal text-muted/80">{label}</div>
       <div
         className={cn(
           "mt-0.5 truncate text-[11px] text-foreground/90",
@@ -4755,7 +4901,7 @@ function RosterLifecycleRail({ steps }: { steps: AgentLifecycleRailStep[] }) {
                 step.tone === "accent" && "bg-accent",
               )}
             />
-            <span className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{step.label}</span>
+            <span className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{step.label}</span>
           </div>
           <div
             className={cn(
@@ -4799,7 +4945,7 @@ function RosterNowBand({
       </div>
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-accent">Now</span>
+          <span className="text-[9px] font-semibold uppercase tracking-normal text-accent">Now</span>
           <span className="truncate text-[11px] font-medium text-foreground">{phase}</span>
         </div>
         <div className="mt-0.5 truncate text-[11px] text-muted">{detail}</div>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
@@ -73,6 +73,24 @@ describe("NewToolForm", () => {
       ),
     );
     expect(onCreated).toHaveBeenCalledWith("fetch_weather");
+  });
+
+  it("selects the runtime from language chips", async () => {
+    render(<NewToolForm onCreated={() => {}} onError={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Tool name"), { target: { value: "fetch_weather" } });
+    fireEvent.change(screen.getByLabelText("Tool description"), { target: { value: "weather" } });
+    fireEvent.change(screen.getByLabelText("Tool code"), { target: { value: "console.log(1)" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Tool language" })).getByRole("button", { name: /node/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Draft tool/ }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith(
+        "/api/toolforge/draft",
+        expect.objectContaining({
+          tool: expect.objectContaining({ language: "node" }),
+        }),
+      ),
+    );
   });
 });
 

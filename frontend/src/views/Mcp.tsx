@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff, Boxes, KeyRound } from "lucide-react";
+import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff, Boxes, KeyRound, ListChecks } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
+import { Disclosure } from "@/components/ui/disclosure";
 
 export interface MCPServer {
   id: string;
@@ -230,6 +231,9 @@ export function NewServerForm({
   const valid =
     serverNameOk(name) &&
     (remote ? urlOk(state.url || "") : (state.command || "").trim() !== "");
+  const advancedConfigured = Boolean(state.env || state.headers || state.tool_allow || state.lazy);
+  const secretLineCount = remote ? Object.keys(parseHeaders(state.headers || "")).length : Object.keys(parseEnv(state.env || "")).length;
+  const toolAllowCount = splitTools(state.tool_allow || "").length;
 
   async function create() {
     if (!valid) return;
@@ -340,62 +344,74 @@ export function NewServerForm({
             className={inputCls}
           />
         </label>
-        {remote ? (
-          <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
-            Headers (optional) — one <span className="font-mono">Name: value</span> per line, sent on every request to
-            this server (e.g. <span className="font-mono">Authorization: Bearer …</span>). Values are stored in the
-            registry and never shown again, so use a dedicated low-scope token.
-            <textarea
-              value={state.headers || ""}
-              onChange={(e) => set("headers", e.target.value)}
-              placeholder={"Authorization: Bearer ..."}
-              aria-label="Server headers"
-              rows={2}
-              className={cn(inputCls, "font-mono text-xs")}
-            />
-          </label>
-        ) : (
-          <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
-            Environment (optional) — one <span className="font-mono">KEY=value</span> per line, injected only into this
-            server (e.g. an API token). The base environment stays scrubbed; values are stored in the registry and never
-            shown again, so use a dedicated low-scope token.
-            <textarea
-              value={state.env || ""}
-              onChange={(e) => set("env", e.target.value)}
-              placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
-              aria-label="Server environment"
-              rows={2}
-              className={cn(inputCls, "font-mono text-xs")}
-            />
-          </label>
-        )}
-        <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
-          Tools allowlist (optional) — only expose these tool names to runs (space/comma-separated); leave blank for
-          all. Trims a chatty server so its schemas don’t bloat every run’s context. Attach first to discover the tool
-          names, then set this.
-          <input
-            value={state.tool_allow || ""}
-            onChange={(e) => set("tool_allow", e.target.value)}
-            placeholder="create_issue search_code"
-            aria-label="Server tool allowlist"
-            className={cn(inputCls, "font-mono text-xs")}
-          />
-        </label>
-        <label className="flex items-start gap-2 text-[11px] text-muted sm:col-span-2">
-          <input
-            type="checkbox"
-            checked={state.lazy === "true"}
-            onChange={(e) => set("lazy", e.target.checked ? "true" : "")}
-            aria-label="Lazy load tools"
-            className="mt-0.5"
-          />
-          <span>
-            Lazy load — collapse this server’s tools into a single{" "}
-            <span className="font-mono">mcp_&lt;name&gt;</span> dispatcher instead of injecting every tool’s schema into
-            each run. Best for chatty servers (e.g. github’s ~30 tools); the model picks a tool and the server validates
-            the arguments.
-          </span>
-        </label>
+        <div className="sm:col-span-2">
+          <Disclosure
+            defaultOpen={advancedConfigured}
+            className="rounded-lg border border-border bg-panel/45"
+            summaryClassName="px-2.5 py-2 hover:bg-card/60"
+            contentClassName="px-2.5 pb-2"
+            summary={
+              <span className="flex min-w-0 items-center gap-2">
+                <KeyRound className="size-3.5 shrink-0 text-accent" />
+                <span className="truncate text-xs font-semibold text-foreground">Advanced guardrails</span>
+                <span className="ml-auto text-[11px] text-muted">
+                  {secretLineCount} secret · {toolAllowCount} tools · lazy {state.lazy === "true" ? "on" : "off"}
+                </span>
+              </span>
+            }
+          >
+          <div className="grid gap-2">
+            {remote ? (
+              <label className="flex flex-col gap-1 rounded-lg border border-border/70 bg-card/50 p-2 text-[11px] text-muted">
+                <span className="flex items-center gap-1.5 font-semibold text-foreground"><KeyRound className="size-3.5 text-accent" /> Headers</span>
+                <textarea
+                  value={state.headers || ""}
+                  onChange={(e) => set("headers", e.target.value)}
+                  placeholder={"Authorization: Bearer ..."}
+                  aria-label="Server headers"
+                  rows={2}
+                  className={cn(inputCls, "font-mono text-xs")}
+                />
+              </label>
+            ) : (
+              <label className="flex flex-col gap-1 rounded-lg border border-border/70 bg-card/50 p-2 text-[11px] text-muted">
+                <span className="flex items-center gap-1.5 font-semibold text-foreground"><KeyRound className="size-3.5 text-accent" /> Environment</span>
+                <textarea
+                  value={state.env || ""}
+                  onChange={(e) => set("env", e.target.value)}
+                  placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
+                  aria-label="Server environment"
+                  rows={2}
+                  className={cn(inputCls, "font-mono text-xs")}
+                />
+              </label>
+            )}
+            <label className="flex flex-col gap-1 rounded-lg border border-border/70 bg-card/50 p-2 text-[11px] text-muted">
+              <span className="flex items-center gap-1.5 font-semibold text-foreground"><ListChecks className="size-3.5 text-accent" /> Tool allowlist</span>
+              <input
+                value={state.tool_allow || ""}
+                onChange={(e) => set("tool_allow", e.target.value)}
+                placeholder="create_issue search_code"
+                aria-label="Server tool allowlist"
+                className={cn(inputCls, "font-mono text-xs")}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => set("lazy", state.lazy === "true" ? "" : "true")}
+              className={cn(
+                "flex items-center justify-between rounded-lg border px-2.5 py-2 text-left text-xs transition-colors",
+                state.lazy === "true" ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted hover:text-foreground",
+              )}
+              aria-pressed={state.lazy === "true"}
+              aria-label="Lazy load tools"
+            >
+              <span>Lazy dispatcher</span>
+              <Badge variant={state.lazy === "true" ? "default" : "bad"}>{state.lazy === "true" ? "on" : "off"}</Badge>
+            </button>
+          </div>
+          </Disclosure>
+        </div>
       </div>
       <div className="mt-3 flex justify-end">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
@@ -516,13 +532,12 @@ export function Mcp() {
             <Button
               size="sm"
               onClick={() => {
-                setShowForm((v) => !v);
-                if (showForm) setPrefill(undefined);
+                setShowForm(true);
                 setShowCatalog(false);
               }}
             >
-              {showForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-              {showForm ? "Close" : "Register server"}
+              <Plus className="h-3.5 w-3.5" />
+              Register server
             </Button>
           </>
         }
@@ -616,17 +631,22 @@ export function Mcp() {
       )}
 
       {showForm && (
-        <NewServerForm
-          key={prefill?.name || "blank"}
-          initial={prefill}
-          onCreated={(name) => {
-            setShowForm(false);
-            setPrefill(undefined);
-            ui.toast(`server ${name} registered — attach it to make its tools callable`, "success");
-            reload();
-          }}
-          onError={(msg) => ui.toast(msg, "error")}
-        />
+        <McpModal title={prefill?.name ? `Register ${prefill.name}` : "Register MCP server"} onClose={() => {
+          setShowForm(false);
+          setPrefill(undefined);
+        }}>
+          <NewServerForm
+            key={prefill?.name || "blank"}
+            initial={prefill}
+            onCreated={(name) => {
+              setShowForm(false);
+              setPrefill(undefined);
+              ui.toast(`server ${name} registered — attach it to make its tools callable`, "success");
+              reload();
+            }}
+            onError={(msg) => ui.toast(msg, "error")}
+          />
+        </McpModal>
       )}
 
       {err && <ErrorText>{err}</ErrorText>}
@@ -766,6 +786,38 @@ export function Mcp() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function McpModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-3xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Plug className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close MCP modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Wrench, RefreshCw, Search, Download, PackageCheck, PackageX, ArrowUpCircle,
   TerminalSquare, CheckCircle2, XCircle, MinusCircle, Boxes, Cpu, Loader2, X,
@@ -221,48 +221,21 @@ export function Toolbox() {
         </div>
       )}
 
-      {/* Live install log */}
       {showLog && (
-        <div className="glass rounded-xl">
-          <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+        <ToolboxModal title="Install output" onClose={!running ? () => setShowLog(false) : undefined}>
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
             <TerminalSquare className="size-3.5 text-accent" />
-            <span className="text-[11px] font-semibold">Install output</span>
             {running ? (
               <span className="inline-flex items-center gap-1 text-xs text-accent"><Loader2 className="size-3 animate-spin" /> running…</span>
             ) : (
               <span className="text-xs text-muted">done</span>
             )}
-            <span className="ml-auto flex items-center gap-1">
-              {running && abort.current && (
-                <Button size="sm" variant="ghost" onClick={() => abort.current?.abort()}>cancel</Button>
-              )}
-              {!running && (
-                <button onClick={() => setShowLog(false)} className="rounded border border-border p-1 text-muted hover:text-foreground" title="Close">
-                  <X className="size-3" />
-                </button>
-              )}
-            </span>
+            {running && abort.current && (
+              <Button className="ml-auto" size="sm" variant="ghost" onClick={() => abort.current?.abort()}>cancel</Button>
+            )}
           </div>
-          {log.length === 0 ? (
-            <div className="px-3 py-2 text-[11px] text-muted">starting…</div>
-          ) : (
-            <ul className="max-h-72 space-y-1 overflow-auto p-2">
-              {log.map((p, i) => (
-                <li key={`${p.tool}-${i}`} className="text-[11px]">
-                  <div className="flex items-center gap-2">
-                    {p.ok ? <CheckCircle2 className="size-3.5 text-good" /> : p.skipped ? <MinusCircle className="size-3.5 text-muted" /> : <XCircle className="size-3.5 text-bad" />}
-                    <span className="font-mono font-medium">{p.tool}</span>
-                    {p.version && <span className="text-muted">{p.version}</span>}
-                    {p.manager && <span className="ml-auto font-mono text-xs text-muted">{p.manager}</span>}
-                  </div>
-                  {(p.error || p.command) && (
-                    <div className="ml-5 font-mono text-xs text-muted">{p.error ? `✗ ${p.error}` : p.command}</div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          <InstallLog log={log} />
+        </ToolboxModal>
       )}
     </div>
   );
@@ -314,10 +287,57 @@ function FilterChip({ active, onClick, label, count }: { active: boolean; onClic
 function BigStat({ icon: Icon, label, value, accent }: { icon: typeof Boxes; label: string; value: number | string; accent?: boolean }) {
   return (
     <div className={cn("rounded-xl p-2.5", accent ? "border border-accent/50 bg-card" : "glass")}>
-      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
     </div>
+  );
+}
+
+function ToolboxModal({ title, onClose, children }: { title: string; onClose?: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="presentation">
+      <div
+        className="glass w-full max-w-2xl overflow-hidden rounded-xl shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <TerminalSquare className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {onClose && (
+            <button onClick={onClose} className="ml-auto rounded border border-border p-1 text-muted hover:text-foreground" title="Close">
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function InstallLog({ log }: { log: InstallProgress[] }) {
+  if (log.length === 0) {
+    return <div className="px-3 py-3 text-[11px] text-muted">starting…</div>;
+  }
+  return (
+    <ul className="max-h-[60vh] space-y-1 overflow-auto p-2">
+      {log.map((p, i) => (
+        <li key={`${p.tool}-${i}`} className="rounded-lg border border-border/70 bg-card/60 p-2 text-[11px]">
+          <div className="flex items-center gap-2">
+            {p.ok ? <CheckCircle2 className="size-3.5 text-good" /> : p.skipped ? <MinusCircle className="size-3.5 text-muted" /> : <XCircle className="size-3.5 text-bad" />}
+            <span className="font-mono font-medium">{p.tool}</span>
+            {p.version && <span className="text-muted">{p.version}</span>}
+            {p.manager && <span className="ml-auto font-mono text-xs text-muted">{p.manager}</span>}
+          </div>
+          {(p.error || p.command) && (
+            <div className="ml-5 mt-1 break-words font-mono text-xs text-muted">{p.error ? `x ${p.error}` : p.command}</div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

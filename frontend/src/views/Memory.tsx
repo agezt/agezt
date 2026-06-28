@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle, UserRound } from "lucide-react";
+import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle, UserRound, Tags, FileText, History, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn, fmtTime } from "@/lib/utils";
@@ -11,7 +11,8 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { Badge } from "@/components/ui/badge";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface MemRecord {
   id?: string;
@@ -306,6 +307,10 @@ export function Memory() {
     () => (records || []).filter((r) => (r.subject || "").startsWith(PROFILE_PREFIX)),
     [records],
   );
+  const editingRecord = useMemo(
+    () => (editingId ? (records || []).find((r) => r.id === editingId) || null : null),
+    [editingId, records],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -320,12 +325,12 @@ export function Memory() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="search memories…"
+                placeholder="search memories..."
                 className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
               />
             </div>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)} title="Teach the agent a fact">
-              {showForm ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Teach
+            <Button size="sm" onClick={() => setShowForm(true)} title="Teach the agent a fact">
+              <Plus className="size-3.5" /> Teach
             </Button>
             <input
               ref={fileRef}
@@ -361,11 +366,11 @@ export function Memory() {
         }
       />
 
-      <CollapsibleSection
+      <MemoryPanel
         icon={UserRound}
         title="Operator Profile"
+        status={`${profile.length} facet${profile.length === 1 ? "" : "s"}`}
         tone="accent"
-        defaultOpen={true}
       >
         <div className="flex items-center justify-between gap-2 pb-2">
           <p className="text-xs text-muted">
@@ -387,14 +392,14 @@ export function Memory() {
             ))}
           </ul>
         )}
-      </CollapsibleSection>
+      </MemoryPanel>
 
       {audit && (
-        <CollapsibleSection
+        <MemoryPanel
           icon={ShieldCheck}
           title="Hygiene"
+          status={`${audit.usable ?? 0} usable`}
           tone="good"
-          defaultOpen={true}
         >
           <MetricGrid>
             <MetricWidget
@@ -422,7 +427,7 @@ export function Memory() {
               tone={(audit.contradiction_load ?? 0) > 0 ? "warn" : "muted"}
             />
           </MetricGrid>
-        </CollapsibleSection>
+        </MemoryPanel>
       )}
 
       {scopes.scoped.length > 0 && (
@@ -446,17 +451,6 @@ export function Memory() {
             />
           ))}
         </div>
-      )}
-
-      {showForm && (
-        <TeachFactForm
-          onAdded={(subject) => {
-            setShowForm(false);
-            ui.toast(subject ? `Learned: “${subject}”` : "Memory added", "success");
-            void reload();
-          }}
-          onError={(m) => ui.toast(m, "error")}
-        />
       )}
 
       {err ? (
@@ -483,7 +477,7 @@ export function Memory() {
               <li key={r.id || i} className="glass rounded-xl p-3">
                 <div className="mb-1 flex items-center gap-2">
                   {r.type && (
-                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-accent">
+                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-normal text-accent">
                       {r.type}
                     </span>
                   )}
@@ -512,8 +506,8 @@ export function Memory() {
                     )}
                     {r.id && (
                       <button
-                        onClick={() => setEditingId((cur) => (cur === r.id ? null : r.id!))}
-                        title={editingId === r.id ? "Close editor" : "Revise this memory"}
+                        onClick={() => setEditingId(r.id!)}
+                        title="Revise this memory"
                         className={cn(
                           "transition-colors",
                           editingId === r.id ? "text-accent" : "text-muted hover:text-accent",
@@ -554,25 +548,106 @@ export function Memory() {
                         </span>
                       ))}
                 </div>
-                {editingId === r.id && r.id && (
-                  <div className="mt-2">
-                    <ReviseFactForm
-                      record={r}
-                      onRevised={() => {
-                        setEditingId(null);
-                        ui.toast("Memory revised", "success");
-                        void reload();
-                      }}
-                      onError={(m) => ui.toast(m, "error")}
-                    />
-                  </div>
-                )}
               </li>
               );
             })}
           </ul>
         </div>
       )}
+
+      {showForm && (
+        <MemoryModal title="Teach memory" onClose={() => setShowForm(false)}>
+          <TeachFactForm
+            onAdded={(subject) => {
+              setShowForm(false);
+              ui.toast(subject ? `Learned: “${subject}”` : "Memory added", "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </MemoryModal>
+      )}
+
+      {editingRecord && (
+        <MemoryModal title={`Revise ${editingRecord.subject || "memory"}`} onClose={() => setEditingId(null)}>
+          <ReviseFactForm
+            record={editingRecord}
+            onRevised={() => {
+              setEditingId(null);
+              ui.toast("Memory revised", "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </MemoryModal>
+      )}
+    </div>
+  );
+}
+
+function MemoryPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: typeof Brain;
+  title: string;
+  status: string;
+  tone: "accent" | "good" | "warn" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    good: "border-good/35 bg-good/5 text-good",
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MemoryModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Brain className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close memory modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -614,6 +689,74 @@ function ScopeChip({
 // writes SUMMARY/RELATION on its own; those aren't useful to hand-author.
 const MEM_TYPES = ["FACT", "PREFERENCE", "OBSERVATION"];
 
+function MemoryFormBlock({
+  icon: Icon,
+  title,
+  meta,
+  children,
+  defaultOpen = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <Disclosure
+      defaultOpen={defaultOpen}
+      className="rounded-lg border border-border bg-panel/45"
+      summaryClassName="px-2.5 py-2"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
+            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
+          </span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
+  );
+}
+
+function MemoryTypePicker({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      {MEM_TYPES.map((t) => (
+        <button
+          key={t}
+          type="button"
+          aria-pressed={value === t}
+          onClick={() => onChange(t)}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors",
+            value === t
+              ? "border-accent bg-accent/15 text-accent"
+              : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+          )}
+        >
+          {t === "FACT" ? <Brain className="size-3.5" /> : t === "PREFERENCE" ? <UserRound className="size-3.5" /> : <Sparkles className="size-3.5" />}
+          {t.toLowerCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // TeachFactForm lets the owner teach the agent a durable fact or preference from
 // the UI (M718) — the write side of the knowledge browser. It posts to memory_add
 // (tagged source=operator) so the fact is recalled into future runs like any other.
@@ -646,34 +789,56 @@ export function TeachFactForm({
 
   return (
     <div className="rounded-lg border border-accent/30 bg-card p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Subject (optional, e.g. Owner's timezone)"
-          aria-label="Memory subject"
-          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
-        />
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          aria-label="Memory type"
-          className="h-8 rounded-md border border-border bg-panel px-1.5 text-sm outline-none focus-visible:border-accent"
-        >
-          {MEM_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t.toLowerCase()}
-            </option>
-          ))}
-        </select>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            <Brain className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">{subject.trim() || "New memory"}</div>
+            <div className="text-[11px] text-muted">{type.toLowerCase()} record</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant={valid ? "good" : "warn"}>{valid ? "content ready" : "needs content"}</Badge>
+          <Badge variant={type === "PREFERENCE" ? "accent" : "default"}>{type.toLowerCase()}</Badge>
+        </div>
       </div>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="The fact to remember (e.g. The owner is in Istanbul, UTC+3, and prefers terse replies)…"
-        aria-label="Memory content"
-        className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
-      />
+
+      <div className="space-y-2">
+        <MemoryFormBlock
+          icon={FileText}
+          title="Fact"
+          meta={content.trim() ? `${content.trim().slice(0, 48)}${content.trim().length > 48 ? "..." : ""}` : "what should be recalled"}
+          defaultOpen
+        >
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="The fact to remember"
+            aria-label="Memory content"
+            className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
+          />
+        </MemoryFormBlock>
+
+        <MemoryFormBlock
+          icon={Tags}
+          title="Classification"
+          meta={subject.trim() || "shared memory"}
+          defaultOpen
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject (optional, e.g. Owner's timezone)"
+              aria-label="Memory subject"
+              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+            />
+            <MemoryTypePicker value={type} onChange={setType} label="Memory type" />
+          </div>
+        </MemoryFormBlock>
+      </div>
       <div className="mt-2 flex items-center justify-end">
         <Button size="sm" onClick={add} disabled={!valid || submitting}>
           {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Remember it
@@ -726,36 +891,59 @@ export function ReviseFactForm({
 
   return (
     <div className="rounded-lg border border-accent/30 bg-card p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Subject (optional)"
-          aria-label="Revise memory subject"
-          className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
-        />
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          aria-label="Revise memory type"
-          className="h-8 rounded-md border border-border bg-panel px-1.5 text-sm outline-none focus-visible:border-accent"
-        >
-          {MEM_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t.toLowerCase()}
-            </option>
-          ))}
-        </select>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            <Pencil className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">{subject.trim() || record.id || "Memory revision"}</div>
+            <div className="text-[11px] text-muted">supersedes current record</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant={valid ? "good" : "warn"}>{valid ? "revision ready" : "needs content"}</Badge>
+          {record.confidence != null ? <Badge variant="accent">{Math.round(record.confidence * 100)}%</Badge> : null}
+        </div>
       </div>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        aria-label="Revise memory content"
-        className="mt-2 h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
-      />
-      <p className="mt-1 text-xs text-muted">
-        Revising keeps history: a new record supersedes the old one, which is retained for audit.
-      </p>
+
+      <div className="space-y-2">
+        <MemoryFormBlock
+          icon={FileText}
+          title="Replacement"
+          meta={content.trim() ? `${content.trim().slice(0, 48)}${content.trim().length > 48 ? "..." : ""}` : "new content required"}
+          defaultOpen
+        >
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            aria-label="Revise memory content"
+            className="h-20 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm outline-none placeholder:text-muted/60 focus-visible:border-accent"
+          />
+        </MemoryFormBlock>
+
+        <MemoryFormBlock
+          icon={Tags}
+          title="Classification"
+          meta={subject.trim() || "shared memory"}
+          defaultOpen
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject (optional)"
+              aria-label="Revise memory subject"
+              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+            />
+            <MemoryTypePicker value={type} onChange={setType} label="Revise memory type" />
+          </div>
+        </MemoryFormBlock>
+
+        <MemoryFormBlock icon={History} title="History" meta="old record remains auditable">
+          <div className="text-xs text-muted">A revision writes a replacement record and keeps the previous version for audit.</div>
+        </MemoryFormBlock>
+      </div>
       <div className="mt-2 flex items-center justify-end">
         <Button size="sm" onClick={save} disabled={!valid || submitting}>
           {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save revision

@@ -19,6 +19,7 @@ import {
   Mail,
   Phone,
   ExternalLink,
+  Save,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -263,20 +264,27 @@ export function Data() {
                 />
               </div>
               {agentOptions.length > 0 && (
-                <select
-                  value={agentFilter}
-                  onChange={(e) => setAgentFilter(e.target.value)}
-                  aria-label="Filter records by agent"
-                  className="max-w-44 rounded-md border border-border bg-panel px-2 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
-                  title="Filter by the agent/user that created or last updated a record"
-                >
-                  <option value="">All writers</option>
-                  {agentOptions.map((agent) => (
-                    <option key={agent} value={agent}>
-                      {agent}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex max-w-[22rem] flex-wrap gap-1.5" role="group" aria-label="Filter records by agent" title="Filter by the agent/user that created or last updated a record">
+                  {["", ...agentOptions].map((agent) => {
+                    const selected = agentFilter === agent;
+                    return (
+                      <button
+                        key={agent || "all"}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setAgentFilter(agent)}
+                        className={cn(
+                          "inline-flex h-7 items-center rounded-md border px-2 text-xs font-medium transition-colors",
+                          selected
+                            ? "border-accent bg-accent/15 text-accent"
+                            : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+                        )}
+                      >
+                        {agent || "All writers"}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
               <Button size="sm" onClick={() => setEditing("new")}>
                 <Plus className="size-3.5" /> Add
@@ -314,7 +322,7 @@ export function Data() {
             ) : (
               <div className="min-h-0 flex-1 overflow-auto glass rounded-xl">
                 <table className="w-full border-collapse text-sm">
-                  <thead className="sticky top-0 bg-panel text-left text-[11px] uppercase tracking-wide text-muted">
+                  <thead className="sticky top-0 bg-panel text-left text-[11px] uppercase tracking-normal text-muted">
                     <tr>
                       {fieldDefs.map((f) => (
                         <th key={f.name} className="border-b border-border px-3 py-2 font-semibold">
@@ -497,12 +505,12 @@ function TasksView({ records, onEdit, onDelete, onToggle }: BespokeProps & { onT
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-auto">
       <div>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">To do · {pending.length}</div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">To do · {pending.length}</div>
         <ul className="space-y-1">{pending.map(Row)}</ul>
       </div>
       {done.length > 0 && (
         <div>
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Done · {done.length}</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">Done · {done.length}</div>
           <ul className="space-y-1 opacity-80">{done.map(Row)}</ul>
         </div>
       )}
@@ -543,12 +551,12 @@ function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-auto">
       <div>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Upcoming · {upcoming.length}</div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">Upcoming · {upcoming.length}</div>
         <ul className="space-y-1">{upcoming.map(Item)}</ul>
       </div>
       {past.length > 0 && (
         <div>
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Past · {past.length}</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">Past · {past.length}</div>
           <ul className="space-y-1 opacity-70">{past.map(Item)}</ul>
         </div>
       )}
@@ -682,7 +690,7 @@ function ContactsView({ records, onEdit, onDelete }: BespokeProps) {
 function SummaryCard({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
     <div className="glass rounded-xl p-3">
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-normal text-muted">
         {icon}
         {label}
       </div>
@@ -745,50 +753,72 @@ function RecordEditor({
     onSave(fields, record?.id);
   }
 
+  const titleId = `data-record-editor-title-${collection.name}`;
+  const mode = record ? "Edit" : "Add";
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <span className="flex-1 text-sm font-semibold">
-            {record ? "Edit" : "Add"} {collection.title || collection.name} record
+        <div className="flex items-start gap-3 border-b border-border px-4 py-3">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Database className="size-4" />
           </span>
+          <div className="min-w-0 flex-1">
+            <div id={titleId} className="truncate text-sm font-semibold">
+              {mode} {collection.title || collection.name} record
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+              <Badge variant="default">{collection.view || "table"}</Badge>
+              <span>{defs.length} fields</span>
+              {record?.id && <span className="font-mono">id {record.id}</span>}
+            </div>
+          </div>
           <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close">
             <X className="size-4" />
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-2 overflow-auto p-4">
-          {defs.map((f) => (
-            <label key={f.name} className="block">
-              <span className="mb-0.5 block text-[11px] font-medium text-muted">
-                {f.label || f.name}
-                {f.type && <span className="ml-1 opacity-60">({f.type})</span>}
+          {defs.map((f) => {
+            const inputId = `data-field-${collection.name}-${f.name}`;
+            return (
+            <label key={f.name} htmlFor={inputId} className="grid gap-1 rounded-lg border border-border/70 bg-panel/50 p-2.5">
+              <span className="flex items-center gap-2 text-xs font-medium text-foreground/90">
+                <span className="min-w-0 flex-1 truncate">{f.label || f.name}</span>
+                {f.type && <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-muted">{f.type}</span>}
               </span>
               {f.type === "note" ? (
                 <textarea
+                  id={inputId}
                   rows={3}
                   value={vals[f.name] ?? ""}
                   onChange={(e) => setVals((v) => ({ ...v, [f.name]: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
+                  className="w-full resize-y rounded-md border border-border bg-card px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
                 />
               ) : (
                 <input
+                  id={inputId}
                   value={vals[f.name] ?? ""}
                   onChange={(e) => setVals((v) => ({ ...v, [f.name]: e.target.value }))}
                   placeholder={f.type === "bool" ? "true / false" : f.type === "tags" ? "comma,separated" : ""}
-                  className="w-full rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
+                  className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
                 />
               )}
             </label>
-          ))}
+          );
+          })}
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
           <Button size="sm" onClick={submit}>
+            <Save className="size-3.5" />
             {record ? "Save" : "Add"}
           </Button>
         </div>

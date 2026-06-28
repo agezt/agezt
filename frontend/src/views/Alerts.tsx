@@ -10,8 +10,8 @@ import { cn, fmtTime } from "@/lib/utils";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { TabNav } from "@/components/ui/tab-nav";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
 const MAX_ALERTS = 100;
 
@@ -121,7 +121,7 @@ export function Alerts() {
             <Bell className="size-5" />
           </span>
           <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Alerts</h2>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Alerts</h2>
             <Badge variant={connected ? "good" : "bad"} className="mt-0.5">
               {connected ? "live" : "offline"}
             </Badge>
@@ -163,6 +163,13 @@ export function Alerts() {
         value={filter}
         onValueChange={(v) => setFilter(v as AlertLevel | "all")}
       />
+
+      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
+        <MetricWidget icon={Bell} label="Total" value={rows.length} tone={rows.length > 0 ? "accent" : "muted"} />
+        <MetricWidget icon={ShieldAlert} label="Critical" value={counts.critical || 0} tone={(counts.critical || 0) > 0 ? "bad" : "muted"} />
+        <MetricWidget icon={AlertTriangle} label="Warning" value={counts.warning || 0} tone={(counts.warning || 0) > 0 ? "warn" : "muted"} />
+        <MetricWidget icon={Info} label="Info" value={counts.info || 0} tone={(counts.info || 0) > 0 ? "accent" : "muted"} />
+      </MetricGrid>
 
       {shown.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
@@ -227,5 +234,4 @@ export function Alerts() {
     </div>
   );
 }
-
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // Mock the api layer so the view's fetches are deterministic.
@@ -75,28 +75,17 @@ function mockFetch(values = valuesPayload()) {
   });
 }
 
-// Section names appear in BOTH the sticky nav (buttons) and the section cards.
-// Section cards now render their title via CollapsibleSection — a <span> inside
-// the header <button aria-expanded>, NOT a heading role. Category titles
-// (Core / Channels / Skills & Plugins) and "Agent Runtime Config" are still
-// real <h3> headings, so they keep using getByRole("heading").
-//
-// querySectionCard finds the CollapsibleSection header for a given section name
-// (the collapse button whose label is exactly that name), or null if absent.
+// Section names appear in BOTH the sticky nav (buttons) and the config panels.
+// querySectionCard targets the actual config panel by aria-label, not the nav.
 function querySectionCard(name: string): HTMLElement | null {
-  for (const el of screen.queryAllByText(name)) {
-    const header = el.closest("button[aria-expanded]") as HTMLElement | null;
-    if (header) return header;
-  }
-  return null;
+  return screen.queryByLabelText(`Config section: ${name}`);
 }
 function sectionCard(name: string): HTMLElement {
   const found = querySectionCard(name);
   if (!found) throw new Error(`section card not found: ${name}`);
   return found;
 }
-// sectionHeading targets a real heading-role title (categories + Agent Runtime
-// Config); section-card titles use sectionCard().
+// sectionHeading targets category titles + Agent Runtime Config.
 const sectionHeading = (name: string) => screen.getByRole("heading", { name });
 
 afterEach(cleanup);
@@ -137,8 +126,8 @@ describe("ConfigCenter view", () => {
     // Category headings exist.
     expect(sectionHeading("Core")).toBeTruthy();
     expect(sectionHeading("Channels")).toBeTruthy();
-    // Non-secret value is pre-filled.
-    expect((screen.getByDisplayValue("deepseek-chat") as HTMLInputElement).value).toBe("deepseek-chat");
+    // Non-secret value is visible as compact state without exposing every input.
+    expect(screen.getByText("deepseek-chat")).toBeTruthy();
   });
 
   it("groups a registered section under Skills & Plugins with a provenance badge", async () => {
@@ -146,8 +135,7 @@ describe("ConfigCenter view", () => {
     render(withUI(<ConfigCenter />));
     await waitFor(() => expect(sectionCard("Weather Skill")).toBeTruthy());
     expect(sectionHeading("Skills & Plugins")).toBeTruthy();
-    // Provenance now lives in the section's description, revealed when opened.
-    fireEvent.click(sectionCard("Weather Skill"));
+    // Provenance lives in the section metadata.
     await waitFor(() => expect(screen.getByText("Registered by weather-skill")).toBeTruthy());
   });
 
@@ -200,11 +188,10 @@ describe("ConfigCenter view", () => {
     });
     render(withUI(<ConfigCenter />));
     await waitFor(() => expect(sectionCard("System Managed")).toBeTruthy());
-    // CollapsibleSection keeps its fields mounted even when collapsed, so the
-    // read-only/locked rows are queryable without opening the section.
+    // Config panels keep rows mounted while editing still happens through modals.
 
     // Read-only: value displayed, "read-only" chip, but NOT an editable input.
-    expect(screen.getByText("read-only")).toBeTruthy();
+    expect(screen.getAllByText("read-only").length).toBeGreaterThan(0);
     expect(screen.getByText("system-value")).toBeTruthy();
     expect(screen.queryByDisplayValue("system-value")).toBeNull();
 
@@ -218,8 +205,12 @@ describe("ConfigCenter view", () => {
     const { container } = render(withUI(<ConfigCenter />));
     await waitFor(() => expect(sectionCard("Telegram")).toBeTruthy());
     const pw = container.querySelector('input[type="password"]') as HTMLInputElement;
-    expect(pw).toBeTruthy();
-    expect(pw.value).toBe("");
+    expect(pw).toBeNull();
+    fireEvent.click(sectionCard("Telegram"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Bot token" }));
+    const modalPw = container.querySelector('input[type="password"]') as HTMLInputElement;
+    expect(modalPw).toBeTruthy();
+    expect(modalPw.value).toBe("");
     expect(screen.getByText(/set — type a new value to replace/)).toBeTruthy();
   });
 
@@ -227,11 +218,13 @@ describe("ConfigCenter view", () => {
     mockFetch();
     postJSON.mockResolvedValueOnce({ env: "AGEZT_MODEL", saved: true, applied: "live" });
     render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(screen.getByDisplayValue("deepseek-chat")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("deepseek-chat")).toBeTruthy());
 
+    fireEvent.click(sectionCard("Provider & Model"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Model" }));
     const input = screen.getByDisplayValue("deepseek-chat") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "deepseek-reasoner" } });
-    const save = input.parentElement?.querySelector('button[title="Save"]') as HTMLButtonElement;
+    const save = screen.getByTitle("Save") as HTMLButtonElement;
     await waitFor(() => expect(save.disabled).toBe(false));
     fireEvent.click(save);
 
@@ -261,9 +254,10 @@ describe("ConfigCenter view", () => {
     expect(screen.getByText("allow: ops")).toBeTruthy();
     expect(screen.getByText("deny: blocked")).toBeTruthy();
 
+    fireEvent.click(screen.getByRole("button", { name: /Add runtime key/i }));
     fireEvent.change(screen.getByLabelText("Agent config key"), { target: { value: "agent/planner/runtime" } });
     fireEvent.change(screen.getByLabelText("Agent config value"), { target: { value: "mode=plan" } });
-    fireEvent.change(screen.getByLabelText("Agent config rating"), { target: { value: "restricted" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Agent config rating" })).getByRole("button", { name: "restricted" }));
     fireEvent.change(screen.getByLabelText("Allowed agents"), { target: { value: "planner,ops" } });
     fireEvent.change(screen.getByLabelText("Denied agents"), { target: { value: "blocked" } });
     fireEvent.click(screen.getByRole("button", { name: "Save agent config" }));
@@ -283,7 +277,7 @@ describe("ConfigCenter view", () => {
   it("renders an env-pinned field read-only (no input, no save)", async () => {
     mockFetch(valuesPayload({ AGEZT_MODEL: { env_pinned: true, value: "gpt-4o", set: true } }));
     const { container } = render(withUI(<ConfigCenter />));
-    await waitFor(() => expect(screen.getByText("env")).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText("external").length).toBeGreaterThan(0));
     expect(screen.queryByDisplayValue("gpt-4o")).toBeNull();
     expect(container.textContent).toContain("gpt-4o");
   });

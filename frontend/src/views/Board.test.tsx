@@ -243,7 +243,7 @@ describe("Board", () => {
     const list = () => within(screen.getByTestId("board-message-list"));
     await waitFor(() => expect(list().getByText("deploy target?")).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText("Filter by agent"), { target: { value: "researcher" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Filter by agent" })).getByRole("button", { name: /researcher/i }));
     expect(location.hash).toBe("#board?agent=researcher");
     expect(screen.getByText("researcher mailbox: 1 waiting")).toBeTruthy();
     expect(screen.getByText("2 received · 0 sent · 0 acked · wake recipient -> researcher")).toBeTruthy();
@@ -274,7 +274,11 @@ describe("Board", () => {
     render(<Board />);
     await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
 
-    expect((screen.getByLabelText("Filter by agent") as HTMLSelectElement).value).toBe("researcher");
+    expect(
+      within(screen.getByRole("group", { name: "Filter by agent" }))
+        .getByRole("button", { name: /researcher/i })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(screen.queryByText("not yours")).toBeNull();
   });
 
@@ -293,7 +297,7 @@ describe("Board", () => {
     render(<Board />);
     await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText("Filter by agent"), { target: { value: "researcher" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Filter by agent" })).getByRole("button", { name: /researcher/i }));
     fireEvent.click(screen.getByRole("button", { name: "Ack as researcher" }));
 
     await waitFor(() =>
@@ -320,7 +324,7 @@ describe("Board", () => {
     render(<Board />);
     await waitFor(() => expect(within(screen.getByTestId("board-message-list")).getByText("deploy target?")).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText("Filter by agent"), { target: { value: "researcher" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Filter by agent" })).getByRole("button", { name: /researcher/i }));
     fireEvent.click(screen.getByRole("button", { name: "Reply as researcher" }));
     fireEvent.change(screen.getByLabelText("Reply to q1"), { target: { value: "ship us-east" } });
     fireEvent.click(screen.getByRole("button", { name: "Send reply" }));
@@ -344,6 +348,7 @@ describe("Board", () => {
     await waitFor(() => expect(screen.getByText("New message")).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: "New message" }));
+    expect(screen.getByRole("dialog", { name: "New board message" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "researcher" } });
     fireEvent.change(screen.getByLabelText("Topic"), { target: { value: "dm" } });
     fireEvent.change(screen.getByLabelText("Message text"), { target: { value: "check the inbox" } });
@@ -357,6 +362,7 @@ describe("Board", () => {
         text: "check the inbox",
       }),
     );
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "New board message" })).toBeNull());
   });
 
   it("uses roster agents as mailbox recipients when available", async () => {
@@ -369,9 +375,9 @@ describe("Board", () => {
     await waitFor(() => expect(getJSON).toHaveBeenCalledWith("/api/agents"));
 
     fireEvent.click(screen.getByRole("button", { name: "New message" }));
-    const to = (await screen.findByLabelText("To")) as HTMLSelectElement;
-    expect(to.value).toBe("researcher");
-    fireEvent.change(to, { target: { value: "ops" } });
+    const to = within(await screen.findByRole("group", { name: "To" }));
+    expect(to.getByRole("button", { name: /Researcher/i }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(to.getByRole("button", { name: /ops/i }));
     fireEvent.change(screen.getByLabelText("Message text"), { target: { value: "wake when ready" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 

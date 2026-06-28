@@ -97,7 +97,7 @@ export function Cache() {
                 tone="good"
               />
               <div className="min-w-0 flex-1">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Cache token split</div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted">Cache token split</div>
                 <div className="flex h-2.5 overflow-hidden rounded-full bg-panel">
                   <div className="h-full bg-good" style={{ width: `${(reads / total) * 100}%` }} title={`reads: ${reads}`} />
                   <div className="h-full bg-accent" style={{ width: `${(writes / total) * 100}%` }} title={`writes: ${writes}`} />

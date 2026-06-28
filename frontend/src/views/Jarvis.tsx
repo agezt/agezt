@@ -248,7 +248,7 @@ export function Jarvis() {
       />
 
       {/* Presence hero — an aurora band with the live pillar count. */}
-      <div className="glass glow-accent relative overflow-hidden rounded-2xl p-5">
+      <div className="glass glow-accent relative overflow-hidden rounded-lg p-5">
         <div
           aria-hidden
           className="pointer-events-none absolute -inset-x-10 -top-24 h-48 opacity-60 blur-3xl"
@@ -259,7 +259,7 @@ export function Jarvis() {
         />
         <div className="relative flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Presence</div>
+            <div className="text-xs uppercase tracking-normal text-muted-foreground">Presence</div>
             <div className="mt-1 text-2xl font-semibold sm:text-3xl">
               <span className="text-gradient">{liveCount} of 3</span>{" "}
               <span className="text-foreground/80">pillars live</span>
@@ -379,7 +379,7 @@ export function Jarvis() {
           {/* Pending asks (M1001): the operator's verdict on what it wants to act on. */}
           {asks.length > 0 && (
             <div className="space-y-1.5 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-2">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--accent)]">
+              <div className="text-[11px] font-medium uppercase tracking-normal text-[var(--accent)]">
                 {asks.length} waiting on you
               </div>
               {asks.slice(0, 3).map((a) => (
@@ -464,8 +464,8 @@ export function Jarvis() {
       {/* Recent initiative — what Jarvis flagged/acted on lately (M1003), so armed
           autonomy isn't a black box. Hidden until there's something to show. */}
       {recent.length > 0 && (
-        <div className="glass rounded-2xl p-4">
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="glass rounded-lg p-4">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-normal text-muted-foreground">
             <Zap className="size-3.5" /> Recent initiative
           </div>
           <ul className="divide-y divide-border/60">
@@ -517,7 +517,7 @@ function Pillar({
   return (
     <div
       className={cn(
-        "glass flex flex-col gap-3 rounded-2xl p-4 transition-shadow",
+        "glass flex flex-col gap-3 rounded-lg p-4 transition-shadow",
         live && "glow-accent",
       )}
     >
@@ -532,7 +532,7 @@ function Pillar({
           <Icon className="size-5" style={{ color: `oklch(0.72 0.16 ${hue})` }} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-normal text-muted-foreground">
             {eyebrow}
             <span
               className={cn(

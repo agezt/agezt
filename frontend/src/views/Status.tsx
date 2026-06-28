@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   RefreshCw,
   Activity,
@@ -19,11 +19,10 @@ import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Advanced, Calm } from "@/components/ui/advanced";
 import { TabNav } from "@/components/ui/tab-nav";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 
@@ -219,7 +218,12 @@ export function Status() {
             <SkeletonList count={3} lines={2} />
           ) : (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              <CollapsibleSection icon={Network} title="Delegation" tone="muted">
+              <StatusPanel
+                icon={Network}
+                title="Delegation"
+                status={data.delegation?.enabled ? "enabled" : "off"}
+                tone={data.delegation?.enabled ? "accent" : "muted"}
+              >
                 {data.delegation ? (
                   <ul className="space-y-1 text-xs">
                     <Row k="enabled" v={data.delegation.enabled ? "yes" : "no"} />
@@ -231,11 +235,16 @@ export function Status() {
                     />
                   </ul>
                 ) : (
-                  <Muted>—</Muted>
+                  <EmptyDash />
                 )}
-              </CollapsibleSection>
+              </StatusPanel>
 
-              <CollapsibleSection icon={Server} title="HTTP surface" tone="muted">
+              <StatusPanel
+                icon={Server}
+                title="HTTP surface"
+                status={`${data.http_servers?.length ?? 0} server${(data.http_servers?.length ?? 0) === 1 ? "" : "s"}`}
+                tone={(data.http_servers?.length ?? 0) > 0 ? "accent" : "muted"}
+              >
                 {data.http_servers?.length ? (
                   <ul className="space-y-1 text-xs">
                     {data.http_servers.map((s, i) => (
@@ -249,15 +258,25 @@ export function Status() {
                     ))}
                   </ul>
                 ) : (
-                  <Muted>none</Muted>
+                  <EmptyDash label="none" />
                 )}
-              </CollapsibleSection>
+              </StatusPanel>
 
-              <CollapsibleSection icon={KeyRound} title="Credentials" tone="muted">
+              <StatusPanel
+                icon={KeyRound}
+                title="Credentials"
+                status={data.cred_chain ? "chain loaded" : "not reported"}
+                tone={data.cred_chain ? "good" : "muted"}
+              >
                 <div className="break-words font-mono text-xs text-muted">{data.cred_chain || "—"}</div>
-              </CollapsibleSection>
+              </StatusPanel>
 
-              <CollapsibleSection icon={ShieldAlert} title="Provider routing" tone="muted">
+              <StatusPanel
+                icon={ShieldAlert}
+                title="Provider routing"
+                status={`${data.provider_fallbacks?.count ?? 0} fallback${(data.provider_fallbacks?.count ?? 0) === 1 ? "" : "s"}`}
+                tone={(data.provider_fallbacks?.count ?? 0) > 0 ? "warn" : "good"}
+              >
                 <div className="text-xs">
                   <Row k="fallbacks" v={data.provider_fallbacks?.count ?? 0} />
                   {data.provider_fallbacks?.last_reason && (
@@ -267,7 +286,7 @@ export function Status() {
                     </div>
                   )}
                 </div>
-              </CollapsibleSection>
+              </StatusPanel>
             </div>
           )}
         </Advanced>
@@ -283,7 +302,7 @@ export function Status() {
             <Activity className="size-5" />
           </span>
           <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">System health</h2>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">System health</h2>
             <span className={cn(
               "inline-flex items-center gap-1 text-xs font-medium",
               connected ? "text-good" : "text-bad",
@@ -302,7 +321,47 @@ export function Status() {
   );
 }
 
-function Row({ k, v }: { k: string; v: React.ReactNode }) {
+function StatusPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: typeof Activity;
+  title: string;
+  status: string;
+  tone: "accent" | "good" | "warn" | "bad" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    good: "border-good/35 bg-good/5 text-good",
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function EmptyDash({ label = "—" }: { label?: string }) {
+  return <div className="text-xs text-muted">{label}</div>;
+}
+
+function Row({ k, v }: { k: string; v: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border/40 py-0.5 last:border-0">
       <span className="text-muted">{k}</span>

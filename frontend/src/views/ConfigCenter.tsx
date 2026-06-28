@@ -17,6 +17,11 @@ import {
   Network,
   Gauge,
   Shield,
+  X,
+  KeyRound,
+  Route,
+  Bot,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
@@ -28,7 +33,6 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 
 // The Config Center is the editable companion to the read-only Config view:
@@ -37,8 +41,8 @@ import { Badge } from "@/components/ui/badge";
 // skill/plugin has registered (M695) — so this view groups sections into Core /
 // Channels / Skills & Plugins, offers a sticky section nav and a search filter,
 // and badges registered sections by their provenance. Secrets stay write-only
-// (presence only, never the value); env-pinned fields are read-only because the
-// real .env wins. Each save reports live (provider/model) vs restart.
+// (presence only, never the value); externally-pinned fields are read-only because
+// the real process environment wins. Each save reports live (provider/model) vs restart.
 
 type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
 type ApplyMode = "live" | "restart";
@@ -238,6 +242,8 @@ export function ConfigCenter() {
     return g;
   }, [filtered]);
 
+  const quickActions = useMemo(() => buildQuickConfigActions(sections || [], values), [sections, values]);
+
   const jumpTo = (id: string) => {
     const el = typeof document !== "undefined" ? document.getElementById(sectionDomID(id)) : null;
     el?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -269,6 +275,8 @@ export function ConfigCenter() {
 
       {sections && <ReloadBoundarySummary boundaries={boundarySummary} setCount={setCount} />}
 
+      {sections && <QuickConfigDeck actions={quickActions} values={values} onSaved={loadValues} toast={toast} />}
+
       <AgentRuntimeConfigPanel toast={toast} />
 
       {err ? (
@@ -284,7 +292,7 @@ export function ConfigCenter() {
             <div className="space-y-3">
               {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
                 <div key={cat}>
-                  <div className="mb-1 px-2 text-xs font-semibold uppercase tracking-wider text-muted">{cat}</div>
+                  <div className="mb-1 px-2 text-xs font-semibold uppercase text-muted">{cat}</div>
                   <div className="space-y-0.5">
                     {grouped[cat].map((sec) => {
                       const Icon = iconFor(sec);
@@ -309,7 +317,7 @@ export function ConfigCenter() {
           <div className="min-w-0 space-y-5">
             {CATEGORY_ORDER.filter((c) => grouped[c]?.length).map((cat) => (
               <section key={cat} className="space-y-3">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">{cat}</h3>
+                <h3 className="text-[11px] font-semibold uppercase text-muted">{cat}</h3>
                 {grouped[cat].map((sec) => (
                   <SectionCard
                     key={sec.id + (query.trim() ? "·q" : "")}
@@ -317,7 +325,6 @@ export function ConfigCenter() {
                     values={values}
                     onSaved={loadValues}
                     toast={toast}
-                    defaultOpen={!!query.trim()}
                   />
                 ))}
               </section>
@@ -329,8 +336,144 @@ export function ConfigCenter() {
   );
 }
 
+interface QuickConfigAction {
+  id: string;
+  title: string;
+  detail: string;
+  icon: LucideIcon;
+  fields: Field[];
+  configured: number;
+  total: number;
+  tone: "accent" | "good" | "warn" | "bad" | "muted";
+}
+
+function buildQuickConfigActions(sections: Section[], values: Record<string, ValueEntry>): QuickConfigAction[] {
+  const byEnv = new Map<string, Field>();
+  const bySection = new Map<string, Section>();
+  for (const sec of sections) {
+    bySection.set(sec.id, sec);
+    for (const field of sec.fields) byEnv.set(field.env, field);
+  }
+  const fields = (...envs: string[]) => envs.map((env) => byEnv.get(env)).filter(Boolean) as Field[];
+  const sectionFields = (...ids: string[]) => ids.flatMap((id) => bySection.get(id)?.fields || []);
+  const count = (items: Field[]) => items.filter((field) => values[field.env]?.set).length;
+  const make = (action: Omit<QuickConfigAction, "configured" | "total" | "tone">): QuickConfigAction => {
+    const configured = count(action.fields);
+    const total = action.fields.length;
+    return {
+      ...action,
+      configured,
+      total,
+      tone: total === 0 ? "muted" : configured === total ? "good" : configured > 0 ? "accent" : "warn",
+    };
+  };
+  return [
+    make({
+      id: "provider",
+      title: "Brain route",
+      detail: "Provider, default model, fallback chain",
+      icon: Cpu,
+      fields: fields("AGEZT_PROVIDER", "AGEZT_MODEL", "AGEZT_MODEL_CHAIN", "AGEZT_ROUTING_TASKS", "AGEZT_PROVIDER_OAUTH"),
+    }),
+    make({
+      id: "console",
+      title: "Console access",
+      detail: "Web UI password, bind address, browser open",
+      icon: KeyRound,
+      fields: fields("AGEZT_WEB_ADDR", "AGEZT_WEB_PASSWORD", "AGEZT_WEB_PASSWORD_DEFAULT", "AGEZT_WEB_OPEN"),
+    }),
+    make({
+      id: "telegram",
+      title: "Telegram ops",
+      detail: "Bot token and allowed operator chat",
+      icon: Send,
+      fields: sectionFields("telegram"),
+    }),
+    make({
+      id: "routing",
+      title: "Fallbacks",
+      detail: "Routing, retry, and live reload boundaries",
+      icon: Route,
+      fields: fields("AGEZT_MODEL_CHAIN", "AGEZT_ROUTER", "AGEZT_RETRY_MAX", "AGEZT_REPAIR_MAX", "AGEZT_REPAIR_ENABLED"),
+    }),
+    make({
+      id: "agents",
+      title: "Agent safety",
+      detail: "Autonomy, guardrails, spend and tool policy",
+      icon: Bot,
+      fields: sectionFields("limits", "security", "autonomy"),
+    }),
+    make({
+      id: "plugins",
+      title: "Extensions",
+      detail: "Plugin and skill-provided settings",
+      icon: Puzzle,
+      fields: sections.filter(isRegistered).flatMap((sec) => sec.fields),
+    }),
+  ].filter((action) => action.total > 0);
+}
+
+function QuickConfigDeck({
+  actions,
+  values,
+  onSaved,
+  toast,
+}: {
+  actions: QuickConfigAction[];
+  values: Record<string, ValueEntry>;
+  onSaved: () => Promise<void>;
+  toast: (text: string, kind?: "success" | "error" | "info") => void;
+}) {
+  const [active, setActive] = useState<QuickConfigAction | null>(null);
+  if (!actions.length) return null;
+  return (
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {actions.map((action) => {
+        const Icon = action.icon;
+        return (
+          <button
+            key={action.id}
+            onClick={() => setActive(action)}
+            className={cn(
+              "group flex min-h-28 flex-col rounded-lg border border-border bg-card p-3 text-left shadow-e1 transition-all hover:-translate-y-0.5 hover:border-accent/70 hover:shadow-lg",
+              action.tone === "good" && "border-good/30",
+              action.tone === "warn" && "border-warn/30",
+            )}
+          >
+            <span className="flex items-start gap-2">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+                <Icon className="size-4.5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-foreground">{action.title}</span>
+                <span className="mt-0.5 block text-xs text-muted">{action.detail}</span>
+              </span>
+              <Badge variant={action.tone === "good" ? "good" : action.tone === "warn" ? "warn" : "accent"}>
+                {action.configured}/{action.total}
+              </Badge>
+            </span>
+            <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-medium text-accent opacity-80 transition-opacity group-hover:opacity-100">
+              Configure <ArrowRight className="size-3" />
+            </span>
+          </button>
+        );
+      })}
+      {active && (
+        <ConfigModal title={active.title} icon={active.icon} onClose={() => setActive(null)}>
+          <div className="space-y-2">
+            {active.fields.map((field) => (
+              <FieldRow key={field.env} field={field} entry={values[field.env]} onSaved={onSaved} toast={toast} />
+            ))}
+          </div>
+        </ConfigModal>
+      )}
+    </section>
+  );
+}
+
 function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "success" | "error" | "info") => void }) {
   const [entries, setEntries] = useState<AgentConfigEntry[] | null>(null);
+  const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
   const [rating, setRating] = useState<NonNullable<AgentConfigEntry["rating"]>>("internal");
@@ -369,6 +512,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
       setDescription("");
       setAllow("");
       setDeny("");
+      setOpen(false);
       await load();
       toast("Agent config saved", "success");
     } catch (e) {
@@ -393,7 +537,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
 
   return (
     <section className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-3 flex flex-wrap items-start gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <div className="flex items-center gap-2">
           <Shield className="size-4 text-accent" />
           <h3 className="text-xs font-semibold text-foreground">Agent Runtime Config</h3>
@@ -410,29 +554,10 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
         <Button size="sm" variant="ghost" onClick={() => load()} disabled={busy}>
           <RefreshCw className={cn("size-3.5", busy && "animate-spin")} /> Refresh
         </Button>
-      </div>
-
-      <div className="grid gap-2 lg:grid-cols-[1.2fr_1.2fr_9rem_1fr_1fr_auto]">
-        <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="agent/ops/runtime" aria-label="Agent config key" />
-        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="value" aria-label="Agent config value" />
-        <select
-          value={rating}
-          onChange={(e) => setRating(e.target.value as NonNullable<AgentConfigEntry["rating"]>)}
-          aria-label="Agent config rating"
-          className="h-8 rounded-md border border-border bg-panel px-2 text-xs text-foreground outline-none focus-visible:border-accent"
-        >
-          <option value="public">public</option>
-          <option value="internal">internal</option>
-          <option value="restricted">restricted</option>
-          <option value="secret">secret</option>
-        </select>
-        <Input value={allow} onChange={(e) => setAllow(e.target.value)} placeholder="allow: ops,planner" aria-label="Allowed agents" />
-        <Input value={deny} onChange={(e) => setDeny(e.target.value)} placeholder="deny: blocked" aria-label="Denied agents" />
-        <Button size="sm" onClick={save} disabled={busy || !key.trim() || !value.trim()} aria-label="Save agent config">
-          <Save className="size-3.5" /> Save
+        <Button size="sm" onClick={() => setOpen(true)} disabled={busy}>
+          <Save className="size-3.5" /> Add runtime key
         </Button>
       </div>
-      <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" aria-label="Agent config description" className="mt-2" />
 
       <div className="mt-3 overflow-hidden rounded-lg border border-border">
         {!entries ? (
@@ -467,6 +592,24 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
           </div>
         )}
       </div>
+      {open && (
+        <ConfigModal title="Agent runtime key" icon={Shield} onClose={() => setOpen(false)}>
+          <div className="grid gap-2">
+            <Input value={key} onChange={(e) => setKey(e.target.value)} placeholder="agent/ops/runtime" aria-label="Agent config key" />
+            <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="value" aria-label="Agent config value" />
+            <AgentConfigRatingPicker value={rating} onChange={setRating} />
+            <Input value={allow} onChange={(e) => setAllow(e.target.value)} placeholder="allow: ops,planner" aria-label="Allowed agents" />
+            <Input value={deny} onChange={(e) => setDeny(e.target.value)} placeholder="deny: blocked" aria-label="Denied agents" />
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional description" aria-label="Agent config description" />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button size="sm" onClick={save} disabled={busy || !key.trim() || !value.trim()} aria-label="Save agent config">
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+              </Button>
+            </div>
+          </div>
+        </ConfigModal>
+      )}
     </section>
   );
 }
@@ -517,28 +660,22 @@ function SectionCard({
   values,
   onSaved,
   toast,
-  defaultOpen = false,
 }: {
   section: Section;
   values: Record<string, ValueEntry>;
   onSaved: () => Promise<void>;
   toast: (text: string, kind?: "success" | "error" | "info") => void;
-  defaultOpen?: boolean;
 }) {
   const Icon = iconFor(section);
   const registered = isRegistered(section);
-  // Collapsed by default — show the section + how many of its fields are set, and
-  // reveal the inputs only when the operator opens it ("gözüme sokmamalısın").
   const setCount = section.fields.filter((f) => values[f.env]?.set).length;
   return (
     <div id={sectionDomID(section.id)} className="scroll-mt-2">
-      <CollapsibleSection
+      <ConfigSectionPanel
         icon={Icon}
         title={section.name}
         description={registered ? `Registered by ${section.source}` : undefined}
-        count={`${setCount}/${section.fields.length}`}
-        defaultOpen={defaultOpen}
-        tone="accent"
+        status={`${setCount}/${section.fields.length} set`}
       >
         {section.help && <p className="text-[11px] text-muted mb-2">{section.help}</p>}
         <div className="space-y-3">
@@ -546,8 +683,40 @@ function SectionCard({
             <FieldRow key={f.env} field={f} entry={values[f.env]} onSaved={onSaved} toast={toast} />
           ))}
         </div>
-      </CollapsibleSection>
+      </ConfigSectionPanel>
     </div>
+  );
+}
+
+function ConfigSectionPanel({
+  icon: Icon,
+  title,
+  description,
+  status,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+  status: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section aria-label={`Config section: ${title}`} className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-sm font-semibold">{title}</h4>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span>{status}</span>
+            {description && <span className="truncate">{description}</span>}
+          </div>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -570,6 +739,7 @@ export function FieldRow({
   const original = field.secret ? "" : entry?.value ?? "";
   const [draft, setDraft] = useState(original);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   // Re-sync the draft when the upstream value changes (after a save/refresh),
   // but only for non-secret fields (secrets always start blank).
@@ -581,7 +751,7 @@ export function FieldRow({
   // (a blank secret save would CLEAR it — that path is the explicit Clear button).
   const dirty = field.secret ? draft.trim() !== "" : draft !== original;
 
-  async function save(value: string, opts?: { cleared?: boolean }) {
+  async function save(value: string, opts?: { cleared?: boolean }): Promise<boolean> {
     setBusy(true);
     try {
       const r = await postJSON<SetResult>("/api/config/set", { name: field.env, value });
@@ -589,7 +759,7 @@ export function FieldRow({
       if (opts?.cleared) {
         toast(`${field.label} cleared`, "success");
       } else if (r.env_pinned) {
-        toast(`${field.label} saved, but ${field.env} is set in the environment — restart with it unset to apply`, "info");
+        toast(`${field.label} saved, but an external startup value overrides it — restart without that override to apply`, "info");
       } else if (r.reload_error) {
         toast(`${field.label} saved; live reload failed: ${r.reload_error}`, "error");
       } else if (r.applied === "live") {
@@ -598,81 +768,98 @@ export function FieldRow({
         toast(`${field.label} saved — restart to apply`, "success");
       }
       if (field.secret) setDraft("");
+      return true;
     } catch (e) {
       toast((e as Error).message, "error");
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
+  const statusText = managed
+    ? pinned
+      ? "external"
+      : "read-only"
+    : field.secret
+      ? isSet
+        ? "set"
+        : "not set"
+      : entry?.value || "not set";
+
   return (
-    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[minmax(10rem,14rem)_1fr] sm:items-start sm:gap-3">
-      <div className="flex flex-col gap-0.5 pt-1.5">
-        <div className="flex items-center gap-1.5">
-          <label className="text-xs font-medium text-foreground" title={field.env}>
-            {field.label}
-          </label>
-          {field.apply === "live" ? (
-            <Badge variant="accent" title="Applies immediately">
-              <Zap className="size-2.5" /> live
-            </Badge>
-          ) : (
-            <Badge variant="default" title="Needs a restart">
-              <RotateCw className="size-2.5" /> restart
-            </Badge>
-          )}
-          {locked && !managed && (
-            <Badge variant="warn" title="Can be changed but not cleared">
-              <Lock className="size-2.5" /> locked
-            </Badge>
-          )}
+    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-panel/35 px-2.5 py-2">
+      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-card text-muted ring-1 ring-inset ring-border">
+        {field.secret ? <Lock className="size-3.5" /> : field.apply === "live" ? <Zap className="size-3.5" /> : <RotateCw className="size-3.5" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-xs font-medium text-foreground" title={field.env}>{field.label}</span>
+          {field.apply === "live" ? <Badge variant="accent">live</Badge> : <Badge variant="default">restart</Badge>}
+          {locked && !managed && <Badge variant="warn">locked</Badge>}
+          {managed && <Badge variant="default">{pinned ? "external" : "read-only"}</Badge>}
         </div>
-        <code className="text-xs text-muted">{field.env.replace(/^AGEZT_/, "")}</code>
-        {field.help && <p className="text-xs leading-snug text-muted">{field.help}</p>}
+        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] text-muted">
+          <code className="truncate">{field.env.replace(/^AGEZT_/, "")}</code>
+          <span className={cn("truncate", isSet && !managed && "text-good")}>{statusText}</span>
+        </div>
       </div>
-
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5">
-          {managed ? (
-            <ManagedValue field={field} entry={entry} chip={pinned ? "env" : "read-only"} />
-          ) : (
-            <FieldInput field={field} value={draft} setValue={setDraft} isSet={isSet} disabled={busy} onEnter={() => dirty && save(draft)} />
-          )}
-
-          {!managed && (
-            <Button size="sm" variant={dirty ? "default" : "ghost"} disabled={!dirty || busy} onClick={() => save(draft)} title="Save">
-              {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-            </Button>
-          )}
-          {!managed && !locked && field.secret && isSet && (
+      {managed ? (
+        <ManagedValue field={field} entry={entry} chip={pinned ? "external" : "read-only"} compact />
+      ) : (
+        <>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(true)} disabled={busy} aria-label={`Edit ${field.label}`}>
+            <SlidersHorizontal className="size-3.5" /> Edit
+          </Button>
+          {!locked && field.secret && isSet && (
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => save("", { cleared: true })} title="Clear (remove from vault)">
               <Trash2 className="size-3.5 text-bad" />
             </Button>
           )}
-        </div>
-
-        {field.secret && !managed && (
-          <span className={cn("inline-flex items-center gap-1 text-xs", isSet ? "text-good" : "text-muted")}>
-            {isSet ? (
-              <>
-                <Check className="size-2.5" /> set — type a new value to replace
-              </>
-            ) : (
-              "not set"
-            )}
-          </span>
-        )}
-      </div>
+        </>
+      )}
+      {open && (
+        <ConfigModal title={field.label} icon={field.secret ? Lock : SlidersHorizontal} onClose={() => setOpen(false)}>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-panel/40 p-2 text-xs text-muted">
+              <div className="font-mono text-foreground">{field.env}</div>
+              {field.help && <div className="mt-1 leading-relaxed">{field.help}</div>}
+              {field.secret && isSet && (
+                <div className="mt-2 inline-flex items-center gap-1 text-good">
+                  <Check className="size-3" /> set — type a new value to replace
+                </div>
+              )}
+            </div>
+            <FieldInput field={field} value={draft} setValue={setDraft} isSet={isSet} disabled={busy} onEnter={async () => {
+              if (dirty && await save(draft)) setOpen(false);
+            }} />
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                variant={dirty ? "default" : "ghost"}
+                disabled={!dirty || busy}
+                onClick={async () => {
+                  if (await save(draft)) setOpen(false);
+                }}
+                title="Save"
+              >
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+              </Button>
+            </div>
+          </div>
+        </ConfigModal>
+      )}
     </div>
   );
 }
 
-// ManagedValue renders a non-editable field read-only — either env-pinned (the
-// real environment owns it, chip "env") or schema read-only (system-managed, chip
+// ManagedValue renders a non-editable field read-only — either externally pinned
+// (the real process environment owns it) or schema read-only (system-managed, chip
 // "read-only"). Secrets show presence text instead of the value.
-function ManagedValue({ field, entry, chip }: { field: Field; entry?: ValueEntry; chip: string }) {
+function ManagedValue({ field, entry, chip, compact = false }: { field: Field; entry?: ValueEntry; chip: string; compact?: boolean }) {
   return (
-    <div className="flex h-8 w-full items-center gap-1.5 rounded-md border border-dashed border-border bg-panel/50 px-2.5 text-xs text-muted">
+    <div className={cn("flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border bg-panel/50 px-2.5 text-xs text-muted", compact ? "hidden max-w-52 md:flex" : "w-full")}>
       <Lock className="size-3 shrink-0" />
       {field.secret ? (
         <span>{entry?.set ? "set (managed)" : "not set"}</span>
@@ -681,7 +868,49 @@ function ManagedValue({ field, entry, chip }: { field: Field; entry?: ValueEntry
           {entry?.value || "—"}
         </span>
       )}
-      <span className="ml-auto rounded bg-card px-1 text-[9px] uppercase tracking-wide">{chip}</span>
+      <span className="ml-auto rounded bg-card px-1 text-[9px] uppercase">{chip}</span>
+    </div>
+  );
+}
+
+function ConfigModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Icon className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -749,17 +978,57 @@ function NativeSelect({
   disabled: boolean;
 }) {
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-8 w-full rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
-    >
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Config option">
       {options.map(([v, label]) => (
-        <option key={v} value={v}>
+        <button
+          key={v}
+          type="button"
+          disabled={disabled}
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          className={cn(
+            "inline-flex min-h-8 items-center rounded-md border px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            value === v
+              ? "border-accent bg-accent/15 text-accent"
+              : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+          )}
+        >
           {label}
-        </option>
+        </button>
       ))}
-    </select>
+    </div>
+  );
+}
+
+function AgentConfigRatingPicker({
+  value,
+  onChange,
+}: {
+  value: NonNullable<AgentConfigEntry["rating"]>;
+  onChange: (value: NonNullable<AgentConfigEntry["rating"]>) => void;
+}) {
+  const ratings: NonNullable<AgentConfigEntry["rating"]>[] = ["public", "internal", "restricted", "secret"];
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Agent config rating">
+      {ratings.map((rating) => {
+        const selected = value === rating;
+        return (
+          <button
+            key={rating}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(rating)}
+            className={cn(
+              "inline-flex h-8 items-center rounded-md border px-2 text-xs font-medium transition-colors",
+              selected
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+            )}
+          >
+            {rating}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -330,7 +330,7 @@ export function CausationTrace({ eventId }: { eventId: string }) {
                     <span className="min-w-0 flex-1 truncate text-foreground/70">
                       {incidentEventSummary(c) || c.subject}
                     </span>
-                    {isLast && <span className="shrink-0 text-[9px] uppercase tracking-wider text-accent">this</span>}
+                    {isLast && <span className="shrink-0 text-[9px] uppercase tracking-normal text-accent">this</span>}
                     <span className="shrink-0 tabular-nums text-muted">{fmtTime(c.ts_unix_ms)}</span>
                   </li>
                 );
@@ -367,7 +367,7 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs uppercase tracking-wider text-muted">{label}</span>
+      <span className="text-xs uppercase tracking-normal text-muted">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}

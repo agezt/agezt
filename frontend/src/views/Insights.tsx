@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BarChart3, RefreshCw, Wallet, ListTree, Activity, Timer, Repeat } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -9,7 +9,6 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
 import { computeInsights, type RunRow as InsightsRunRow } from "@/lib/insights";
 
@@ -87,20 +86,35 @@ export function Insights() {
           </MetricGrid>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <CollapsibleSection icon={Wallet} title="Cumulative spend" tone="muted">
+            <InsightPanel
+              icon={Wallet}
+              title="Cumulative spend"
+              status={`${ins.spend.length} runs · peak ${money(ins.totalSpentMc)}`}
+              tone={ins.totalSpentMc > 0 ? "warn" : "muted"}
+            >
               <SpendArea values={ins.spend.map((p) => p.cum)} />
               <div className="mt-1 flex justify-between text-xs text-muted">
                 <span>{ins.spend.length} runs</span>
                 <span className="tabular-nums">peak {money(ins.totalSpentMc)}</span>
               </div>
-            </CollapsibleSection>
+            </InsightPanel>
 
-            <CollapsibleSection icon={Activity} title="Run outcomes" tone="muted">
+            <InsightPanel
+              icon={Activity}
+              title="Run outcomes"
+              status={`${ins.completed} ok · ${ins.failed} failed · ${ins.running} running`}
+              tone={ins.failed > 0 ? "warn" : ins.running > 0 ? "accent" : "good"}
+            >
               <OutcomeBar completed={ins.completed} failed={ins.failed} running={ins.running} />
-            </CollapsibleSection>
+            </InsightPanel>
           </div>
 
-          <CollapsibleSection icon={BarChart3} title="Spend by model" tone="muted">
+          <InsightPanel
+            icon={BarChart3}
+            title="Spend by model"
+            status={ins.byModel.length ? `${ins.byModel.length} models` : "no model spend"}
+            tone={ins.byModel.length ? "accent" : "muted"}
+          >
             <BarList
               rows={ins.byModel.map((m) => ({
                 label: m.model,
@@ -119,9 +133,14 @@ export function Insights() {
                 ))}
               </div>
             )}
-          </CollapsibleSection>
+          </InsightPanel>
 
-          <CollapsibleSection icon={ListTree} title="Recent runs" tone="muted">
+          <InsightPanel
+            icon={ListTree}
+            title="Recent runs"
+            status={`${Math.min((runs || []).length, 8)} shown`}
+            tone={(runs || []).some((r) => r.status === "running") ? "accent" : "muted"}
+          >
             <ul className="divide-y divide-border/60">
               {(runs || []).slice(0, 8).map((r) => (
                 <li key={r.correlation_id} className="flex items-center gap-2 py-1.5 text-xs">
@@ -134,9 +153,45 @@ export function Insights() {
                 </li>
               ))}
             </ul>
-          </CollapsibleSection>
+          </InsightPanel>
         </>
       )}
     </div>
+  );
+}
+
+function InsightPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: typeof BarChart3;
+  title: string;
+  status: string;
+  tone: "accent" | "warn" | "bad" | "good" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    good: "border-good/35 bg-good/5 text-good",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Boxes, RefreshCw } from "lucide-react";
+import { Boxes, RefreshCw, ShieldCheck } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty";
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
+import { Badge } from "@/components/ui/badge";
 import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
 
 // The edict trust ladder (L0 deny … L4 allow). Mirrors the Policy view so a
@@ -24,6 +25,7 @@ export function Catalog() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [levelMenu, setLevelMenu] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -89,23 +91,21 @@ export function Catalog() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm font-semibold">{r.name}</span>
                   {r.capability && (
-                    <select
-                      value={r.level || ""}
+                    <button
+                      type="button"
                       disabled={busy === r.capability}
-                      onChange={(e) => setLevel(r.capability, e.target.value)}
+                      onClick={() => setLevelMenu((cur) => (cur === r.capability ? null : r.capability))}
+                      aria-expanded={levelMenu === r.capability}
+                      aria-label={`Trust level for ${r.capability}`}
                       title="trust level — grant (L4) or restrict (L0) this capability"
                       className={cn(
-                        "rounded border bg-panel px-1 py-0.5 text-xs font-semibold tabular-nums outline-none focus:border-accent disabled:opacity-50",
+                        "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-semibold tabular-nums transition-colors disabled:opacity-50",
                         levelTone(r.level),
                       )}
                     >
-                      {!r.level && <option value="">—</option>}
-                      {LEVELS.map((l) => (
-                        <option key={l} value={l}>
-                          {l}
-                        </option>
-                      ))}
-                    </select>
+                      <ShieldCheck className="size-3" />
+                      {r.level || "set"}
+                    </button>
                   )}
                   <span className="ml-auto text-xs tabular-nums text-muted">
                     {r.calls > 0 ? (
@@ -121,6 +121,31 @@ export function Catalog() {
                 {r.capability && (
                   <div className="mt-1 text-xs text-muted">
                     capability <span className="font-mono text-foreground/80">{r.capability}</span>
+                  </div>
+                )}
+                {r.capability && levelMenu === r.capability && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label={`Set trust level for ${r.capability}`}>
+                    {LEVELS.map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        aria-pressed={r.level === level}
+                        disabled={busy === r.capability}
+                        onClick={() => {
+                          setLevelMenu(null);
+                          void setLevel(r.capability, level);
+                        }}
+                        className={cn(
+                          "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-semibold transition-colors",
+                          r.level === level
+                            ? "border-accent bg-accent/15 text-accent"
+                            : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+                        )}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                    <Badge variant="default">policy</Badge>
                   </div>
                 )}
                 <p className="mt-1.5 text-xs leading-snug text-foreground/85">{r.description || "—"}</p>

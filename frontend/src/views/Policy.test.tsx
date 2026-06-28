@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
@@ -75,6 +75,7 @@ describe("PolicyTestForm (M753)", () => {
   it("probes the chosen capability + input and shows an ALLOW verdict with level", async () => {
     getJSON.mockResolvedValue({ decision: "allow", capability: "shell.exec", level: "L4", reason: "trusted" });
     render(<PolicyTestForm capabilities={["shell.exec", "code_exec"]} />);
+    expect(within(screen.getByLabelText("Test capability")).getByRole("button", { name: "shell.exec" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.change(screen.getByLabelText("Test input"), { target: { value: "echo hi" } });
     fireEvent.click(screen.getByRole("button", { name: /Test/ }));
     await waitFor(() =>
@@ -134,7 +135,7 @@ describe("DenyAddForm", () => {
   it("scopes the rule to a capability (cap:substring)", async () => {
     render(<DenyAddForm capabilities={["shell.exec", "http.fetch"]} onAdded={() => {}} onError={() => {}} />);
     fireEvent.change(screen.getByLabelText("Deny rule substring"), { target: { value: "curl" } });
-    fireEvent.change(screen.getByLabelText("Deny rule capability scope"), { target: { value: "shell.exec" } });
+    fireEvent.click(within(screen.getByLabelText("Deny rule capability scope")).getByRole("button", { name: "shell.exec" }));
     fireEvent.click(screen.getByRole("button", { name: /Add/ }));
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/edict/deny_add", { rule: "shell.exec:curl" }));
   });

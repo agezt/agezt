@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Download, Upload, Palette, Server, Info, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/lib/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
@@ -169,8 +168,17 @@ export function Backup() {
         }}
       />
 
-      <CollapsibleSection icon={Palette} title="Appearance" tone="accent" defaultOpen={true}
-        actions={
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="glass rounded-xl p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-lg bg-accent/12 text-accent">
+              <Palette className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold">Appearance</h2>
+              <p className="text-xs text-muted">Theme and console polish</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={exportAppearanceFile}>
               <Download className="size-3.5" /> Export
@@ -179,13 +187,18 @@ export function Backup() {
               <Upload className="size-3.5" /> Import
             </Button>
           </div>
-        }
-      >
-        {null}
-      </CollapsibleSection>
+        </div>
 
-      <CollapsibleSection icon={Server} title="Daemon configuration" tone="accent" defaultOpen={true}
-        actions={
+        <div className="glass rounded-xl p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-lg bg-accent/12 text-accent">
+              <Server className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold">Daemon config</h2>
+              <p className="text-xs text-muted">Identity, prompts, routing</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={exportConfigFile} disabled={busy === "config-export"}>
               <Download className="size-3.5" /> Export
@@ -194,17 +207,23 @@ export function Backup() {
               <Upload className="size-3.5" /> Import
             </Button>
           </div>
-        }
-      >
-        {summary && (
-          <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-panel px-2 py-1 text-[11px] text-foreground/80">
+          {summary && (
+            <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-md bg-panel px-2 py-1 text-[11px] text-foreground/80">
             <Info className="size-3 text-accent" /> {summary}
           </p>
-        )}
-      </CollapsibleSection>
+          )}
+        </div>
 
-      <CollapsibleSection icon={Camera} title="Full snapshot" tone="muted" defaultOpen={false}
-        actions={
+        <div className="glass rounded-xl p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-lg bg-panel text-muted">
+              <Camera className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold">Full snapshot</h2>
+              <p className="text-xs text-muted">Seed or restore a daemon</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={exportSnapshot} disabled={busy === "snapshot"}>
               <Download className="size-3.5" /> Export
@@ -213,10 +232,8 @@ export function Backup() {
               <Upload className="size-3.5" /> Restore
             </Button>
           </div>
-        }
-      >
-        {null}
-      </CollapsibleSection>
+        </div>
+      </div>
 
     </div>
   );

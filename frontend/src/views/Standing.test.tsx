@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
@@ -138,7 +138,7 @@ describe("NewOrderForm", () => {
     fireEvent.change(screen.getByLabelText("Order name"), { target: { value: "  Morning briefing  " } });
     fireEvent.change(screen.getByLabelText("Trigger value"), { target: { value: "0 9 * * *" } });
     fireEvent.change(screen.getByLabelText("Order plan"), { target: { value: "Summarize overnight activity." } });
-    fireEvent.change(screen.getByLabelText("Initiative mode"), { target: { value: "act_or_ask" } });
+    fireEvent.click(within(screen.getByLabelText("Initiative mode")).getByRole("button", { name: "act/ask" }));
     fireEvent.click(screen.getByRole("button", { name: /Create order/ }));
 
     await waitFor(() =>
@@ -219,7 +219,7 @@ describe("EditOrderForm (M729)", () => {
     render(<EditOrderForm order={order} onSaved={() => {}} onError={() => {}} />);
     expect((screen.getByLabelText("Edit order name") as HTMLInputElement).value).toBe("watch");
     expect((screen.getByLabelText("Edit order plan") as HTMLTextAreaElement).value).toBe("old plan");
-    expect((screen.getByLabelText("Edit initiative mode") as HTMLSelectElement).value).toBe("act_or_ask");
+    expect(within(screen.getByLabelText("Edit initiative mode")).getByRole("button", { name: "act/ask" }).getAttribute("aria-pressed")).toBe("true");
     expect((screen.getByLabelText("Edit assure retries") as HTMLInputElement).value).toBe("1");
     expect((screen.getByLabelText("Edit event cooldown seconds") as HTMLInputElement).value).toBe("900");
   });
@@ -229,7 +229,7 @@ describe("EditOrderForm (M729)", () => {
     render(<EditOrderForm order={order} onSaved={onSaved} onError={() => {}} />);
     fireEvent.change(screen.getByLabelText("Edit order name"), { target: { value: "  renamed  " } });
     fireEvent.change(screen.getByLabelText("Edit order plan"), { target: { value: "new plan" } });
-    fireEvent.change(screen.getByLabelText("Edit initiative mode"), { target: { value: "ask" } });
+    fireEvent.click(within(screen.getByLabelText("Edit initiative mode")).getByRole("button", { name: "ask" }));
     fireEvent.change(screen.getByLabelText("Edit assure retries"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("Edit event cooldown seconds"), { target: { value: "1800" } });
     fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));

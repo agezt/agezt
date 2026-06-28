@@ -33,11 +33,15 @@ describe("Prompts view", () => {
     await waitFor(() => expect(screen.getByText(/No prompts yet/)).toBeTruthy());
   });
 
-  it("loads existing prompts into editable rows", async () => {
+  it("loads existing prompts as compact cards and edits through a modal", async () => {
     getJSON.mockResolvedValue({ prompts: [{ title: "Standup", text: "Draft my standup." }] });
     render(withUI(<Prompts />));
-    await waitFor(() => expect((screen.getByLabelText("Prompt 1 title") as HTMLInputElement).value).toBe("Standup"));
-    expect((screen.getByLabelText("Prompt 1 text") as HTMLTextAreaElement).value).toBe("Draft my standup.");
+    await waitFor(() => expect(screen.getByText("Standup")).toBeTruthy());
+    expect(screen.getByText("Draft my standup.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit prompt Standup" }));
+    expect(screen.getByRole("dialog", { name: "Edit Standup" })).toBeTruthy();
+    expect((screen.getByLabelText("Prompt title") as HTMLInputElement).value).toBe("Standup");
+    expect((screen.getByLabelText("Prompt text") as HTMLTextAreaElement).value).toBe("Draft my standup.");
   });
 
   it("adds a prompt and saves the list (blank rows dropped, fields trimmed)", async () => {
@@ -46,8 +50,10 @@ describe("Prompts view", () => {
     await waitFor(() => expect(screen.getByText(/No prompts yet/)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /Add prompt/ }));
-    fireEvent.change(screen.getByLabelText("Prompt 1 title"), { target: { value: "  Review  " } });
-    fireEvent.change(screen.getByLabelText("Prompt 1 text"), { target: { value: "  Review the diff.  " } });
+    expect(screen.getByRole("dialog", { name: "Add prompt" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Prompt title"), { target: { value: "  Review  " } });
+    fireEvent.change(screen.getByLabelText("Prompt text"), { target: { value: "  Review the diff.  " } });
+    fireEvent.click(screen.getByRole("button", { name: /Apply/ }));
 
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
     await waitFor(() =>
@@ -58,11 +64,11 @@ describe("Prompts view", () => {
   it("deletes a prompt row", async () => {
     getJSON.mockResolvedValue({ prompts: [{ title: "A", text: "a" }, { title: "B", text: "b" }] });
     render(withUI(<Prompts />));
-    await waitFor(() => expect(screen.getByLabelText("Prompt 2 title")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("B")).toBeTruthy());
     fireEvent.click(screen.getAllByTitle("Delete prompt")[0]);
-    await waitFor(() => expect(screen.queryByLabelText("Prompt 2 title")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("A")).toBeNull());
     // The remaining row is the former B.
-    expect((screen.getByLabelText("Prompt 1 title") as HTMLInputElement).value).toBe("B");
+    expect(screen.getByText("B")).toBeTruthy();
   });
 });
 

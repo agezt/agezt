@@ -125,7 +125,7 @@ export function Reflect() {
 
           {/* Advisory proposals */}
           <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
               <Lightbulb className="size-3.5" /> proposals ({props.length})
             </div>
             {props.length === 0 ? (
@@ -134,7 +134,7 @@ export function Reflect() {
               <ul className="space-y-2">
                 {props.map((p, i) => (
                   <li key={i} className="glass rounded-xl p-3">
-                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-accent">
+                    <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-normal text-accent">
                       {p.area || "general"}
                     </span>
                     {p.observation && <p className="mt-1.5 text-xs text-foreground/85">{p.observation}</p>}
@@ -157,7 +157,7 @@ export function Reflect() {
 function Tile({ label, value, tone }: { label: string; value?: number; tone?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2">
-      <div className="text-xs uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("mt-0.5 text-xl font-semibold tabular-nums", tone)}>{value ?? 0}</div>
     </div>
   );

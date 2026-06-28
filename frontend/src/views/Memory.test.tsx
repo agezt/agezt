@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
@@ -155,7 +155,7 @@ describe("Memory hygiene", () => {
     render(<Memory />);
     await screen.findByText("project");
     // Audit summary moved into metric widgets (labels lost their trailing colon).
-    expect(screen.getByText(/usable/i)).toBeTruthy();
+    expect(screen.getAllByText(/usable/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/expired/i)).toBeTruthy();
     expect(screen.getByText(/conflict load/i)).toBeTruthy();
   });
@@ -221,7 +221,7 @@ describe("TeachFactForm", () => {
   it("honours a chosen type (preference)", async () => {
     render(<TeachFactForm onAdded={() => {}} onError={() => {}} />);
     fireEvent.change(screen.getByLabelText("Memory content"), { target: { value: "terse replies" } });
-    fireEvent.change(screen.getByLabelText("Memory type"), { target: { value: "PREFERENCE" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Memory type" })).getByRole("button", { name: /preference/i }));
     fireEvent.click(screen.getByRole("button", { name: /Remember it/ }));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/memory/add", { content: "terse replies", subject: "", type: "PREFERENCE" }),
@@ -251,7 +251,11 @@ describe("ReviseFactForm (M731)", () => {
     render(<ReviseFactForm record={record} onRevised={() => {}} onError={() => {}} />);
     expect((screen.getByLabelText("Revise memory subject") as HTMLInputElement).value).toBe("Owner tz");
     expect((screen.getByLabelText("Revise memory content") as HTMLTextAreaElement).value).toBe("Owner is in UTC");
-    expect((screen.getByLabelText("Revise memory type") as HTMLSelectElement).value).toBe("PREFERENCE");
+    expect(
+      within(screen.getByRole("group", { name: "Revise memory type" }))
+        .getByRole("button", { name: /preference/i })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   it("posts memory/supersede with old_id, trimmed content, and the carried confidence", async () => {

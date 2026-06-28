@@ -158,7 +158,7 @@ export function ConnectivityStrip() {
       title="Open the Connections cockpit"
     >
       <Network className="size-3.5 text-accent" />
-      <span className="font-semibold uppercase tracking-wider text-accent">Connections</span>
+      <span className="font-semibold uppercase tracking-normal text-accent">Connections</span>
       <span className="text-muted">
         <AnimatedNumber value={s.providers} className="font-semibold text-fg" /> provider{s.providers === 1 ? "" : "s"} keyed ·{" "}
         <AnimatedNumber value={s.channels} className="font-semibold text-fg" /> channel{s.channels === 1 ? "" : "s"} live ·{" "}

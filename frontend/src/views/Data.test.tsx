@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -70,9 +70,27 @@ describe("Data view writer filter", () => {
     expect(screen.getByText("Research note")).toBeTruthy();
     expect(screen.getByText("Planner note")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Filter records by agent"), { target: { value: "ops" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Filter records by agent" })).getByRole("button", { name: "ops" }));
     expect(screen.getByText("Ops note")).toBeTruthy();
     expect(screen.getByText("Research note")).toBeTruthy();
     expect(screen.queryByText("Planner note")).toBeNull();
+  });
+
+  it("adds a record through the modal editor", async () => {
+    render(withUI(<Data />));
+    await waitFor(() => expect(screen.getByText("Ops note")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /add/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add notes record/i });
+    fireEvent.change(within(dialog).getByLabelText("title"), { target: { value: "New note" } });
+    fireEvent.change(within(dialog).getByLabelText("body"), { target: { value: "ship it" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /add/i }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/data/insert", {
+        collection: "notes",
+        record: { title: "New note", body: "ship it" },
+      }),
+    );
   });
 });

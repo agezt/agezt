@@ -170,7 +170,7 @@ function AgentCard({ a, onCopy }: { a: ACPAgentStatus; onCopy: (text: string, wh
 function BigStat({ icon: Icon, label, value, accent }: { icon: typeof Boxes; label: string; value: number | string; accent?: boolean }) {
   return (
     <div className={cn("rounded-xl p-2.5", accent ? "border border-accent/50 bg-card" : "glass")}>
-      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Icon className={cn("size-3", accent && "text-accent")} /> {label}
       </div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>

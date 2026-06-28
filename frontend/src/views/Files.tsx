@@ -300,7 +300,7 @@ export function Files() {
       <div className="min-h-0 flex-1 space-y-4 overflow-auto">
         {images.length > 0 && (
           <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
               <ImageIcon className="size-3" /> Images ({images.length})
             </div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
@@ -323,7 +323,7 @@ export function Files() {
 
         {files.length > 0 && (
           <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
               <FileText className="size-3" /> Files ({files.length})
             </div>
             <ul className="space-y-1">

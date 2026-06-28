@@ -69,7 +69,7 @@ export function ChannelSessions() {
     <div className="mt-2 shrink-0 border-t border-border pt-2">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted hover:text-foreground"
+        className="flex w-full items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-normal text-muted hover:text-foreground"
       >
         {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         <Radio className="size-3" /> Channels
@@ -165,7 +165,7 @@ function SessionPane({
               <div key={i} className={cn("flex", out ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-2xl px-3 py-1.5 text-sm",
+                    "max-w-[80%] rounded-xl px-3 py-1.5 text-sm",
                     out ? "bg-accent/15 text-foreground" : "bg-card border border-border",
                   )}
                 >

@@ -29,12 +29,27 @@ const ROUTING = {
   },
 };
 
+const CATALOG = {
+  providers: [
+    {
+      id: "openai",
+      name: "OpenAI",
+      credentialed: true,
+      models: [{ id: "gpt-4o", context: 128000 }],
+    },
+  ],
+};
+
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postJSON.mockReset();
   postAction.mockReset();
-  getJSON.mockResolvedValue(ROUTING);
+  getJSON.mockImplementation((path: string) => {
+    if (path === "/api/catalog") return Promise.resolve(CATALOG);
+    if (path === "/api/chains") return Promise.resolve({ chains: {} });
+    return Promise.resolve(ROUTING);
+  });
 });
 
 describe("Routing view", () => {
@@ -115,6 +130,25 @@ describe("Routing view", () => {
 
     fireEvent.click(screen.getAllByTitle("Remove")[0]);
     await waitFor(() => expect((screen.getByRole("button", { name: /Save/ }) as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it("adds a model through the task modal instead of an inline picker", async () => {
+    render(withUI(<Routing />));
+    await waitFor(() => expect(screen.getByText("plan")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Add model to plan" }));
+    await waitFor(() => expect(screen.getByText(/Set primary · plan/)).toBeTruthy());
+    fireEvent.click(screen.getByText("choose primary model"));
+    await waitFor(() => expect(screen.getAllByText("gpt-4o").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByText("gpt-4o")[0]);
+
+    await waitFor(() => expect(screen.getByText("gpt-4o")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/routing/set", {
+        chains: { chat: ["claude-opus", "gpt-5", "deepseek-chat"], plan: ["gpt-4o"] },
+      }),
+    );
   });
 });
 

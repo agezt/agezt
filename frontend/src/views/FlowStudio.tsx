@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Play, Sparkles, Wand2, RefreshCw, Workflow } from "lucide-react";
+import { Play, Sparkles, Wand2, RefreshCw, Workflow, X, FileJson2 } from "lucide-react";
 import { postJSON, getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
@@ -34,6 +34,8 @@ export function FlowStudio() {
   const [running, setRunning] = useState(false);
   const [nodeStatus, setNodeStatus] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<PlanRow[]>([]);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [refineOpen, setRefineOpen] = useState(false);
 
   const plan = useMemo<Plan>(() => {
     try {
@@ -147,49 +149,54 @@ export function FlowStudio() {
         icon={Workflow}
         title="Flow Studio"
         description="Describe a task; the planner drafts an editable flow you can refine and run."
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={loadHistory} title="Refresh history">
+              <RefreshCw className="size-3.5" /> Refresh
+            </Button>
+            <Button size="sm" onClick={() => setComposeOpen(true)}>
+              <Sparkles className="size-3.5" /> Compose
+            </Button>
+          </>
+        }
       />
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Authoring column */}
         <Card className="min-h-0">
           <CardHeader>
-            <CardTitle>Author a plan</CardTitle>
+            <CardTitle>Plan editor</CardTitle>
             {msg ? (
               msgErr ? <ErrorText>{msg}</ErrorText> : <Muted>{msg}</Muted>
             ) : null}
           </CardHeader>
           <CardBody className="flex min-h-0 flex-col gap-2">
-            <div className="flex gap-2">
-              <Input
-                value={intent}
-                onChange={(e) => setIntent(e.target.value)}
-                placeholder="describe a task to plan… e.g. audit my repo for secrets and propose fixes"
+            {planText.trim() ? (
+              <Textarea
+                value={planText}
+                onChange={(e) => setPlanText(e.target.value)}
+                placeholder="generated plan appears here — editable, then Refine or Run"
+                className="min-h-[260px] flex-1 font-mono text-xs"
               />
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="model (optional)"
-                className="w-32 shrink-0"
-              />
-              <Button variant="accent" onClick={generate} disabled={busy} className="shrink-0">
-                <Sparkles /> Generate
+            ) : (
+              <button
+                className="flex min-h-[260px] flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-panel/35 p-6 text-center transition-colors hover:border-accent hover:bg-panel/55"
+                onClick={() => setComposeOpen(true)}
+              >
+                <span className="grid size-12 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+                  <FileJson2 className="size-6" />
+                </span>
+                <span className="text-sm font-semibold text-foreground">No flow drafted</span>
+                <span className="max-w-sm text-xs text-muted">Compose from an intent, then inspect the JSON and DAG before running it.</span>
+              </button>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="accent" onClick={() => setComposeOpen(true)} disabled={busy} className="shrink-0">
+                <Sparkles /> {planText.trim() ? "Regenerate" : "Compose"}
               </Button>
-            </div>
-            <Textarea
-              value={planText}
-              onChange={(e) => setPlanText(e.target.value)}
-              placeholder="generated plan appears here — editable, then Refine or Run"
-              className="min-h-[200px] flex-1"
-            />
-            <div className="flex gap-2">
-              <Input
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="refine: describe a change… e.g. add an approval gate before deploy"
-              />
-              <Button onClick={refine} disabled={busy} className="shrink-0">
+              <Button onClick={() => setRefineOpen(true)} disabled={busy || !planText.trim()} className="shrink-0">
                 <Wand2 /> Refine
               </Button>
-              <Button variant="good" onClick={run} disabled={running} className="shrink-0">
+              <Button variant="good" onClick={run} disabled={running || !planText.trim()} className="shrink-0">
                 <Play /> {running ? "running…" : "Run"}
               </Button>
             </div>
@@ -237,6 +244,113 @@ export function FlowStudio() {
           )}
         </CardBody>
       </Card>
+
+      {composeOpen && (
+        <FlowModal title="Compose flow" icon={Sparkles} onClose={() => setComposeOpen(false)}>
+          <div className="space-y-3">
+            <label className="block text-[11px] text-muted">
+              Intent
+              <Textarea
+                autoFocus
+                value={intent}
+                onChange={(e) => setIntent(e.target.value)}
+                placeholder="audit my repo for secrets and propose fixes"
+                className="mt-1 min-h-28"
+              />
+            </label>
+            <label className="block text-[11px] text-muted">
+              Model override
+              <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="optional" className="mt-1" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setComposeOpen(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                variant="accent"
+                onClick={async () => {
+                  await generate();
+                  if (intent.trim()) setComposeOpen(false);
+                }}
+                disabled={busy || !intent.trim()}
+              >
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />} Generate
+              </Button>
+            </div>
+          </div>
+        </FlowModal>
+      )}
+
+      {refineOpen && (
+        <FlowModal title="Refine flow" icon={Wand2} onClose={() => setRefineOpen(false)}>
+          <div className="space-y-3">
+            <label className="block text-[11px] text-muted">
+              Change request
+              <Textarea
+                autoFocus
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="add an approval gate before deploy"
+                className="mt-1 min-h-28"
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setRefineOpen(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  await refine();
+                  if (feedback.trim()) setRefineOpen(false);
+                }}
+                disabled={busy || !feedback.trim() || !planText.trim()}
+              >
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />} Refine
+              </Button>
+            </div>
+          </div>
+        </FlowModal>
+      )}
+    </div>
+  );
+}
+
+function FlowModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: typeof Sparkles;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Icon className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close flow modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

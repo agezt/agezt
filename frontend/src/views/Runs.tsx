@@ -25,7 +25,6 @@ import { cn, fmtTime } from "@/lib/utils";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
 interface Run {
@@ -336,7 +335,7 @@ function RunList({
 
   if (runs.length === 0) {
     // Distinguish an empty bucket from a query that filtered everything out, so the filter
-    // box isn't lost (it lives in the CollapsibleSection actions, gated on bucketTotal).
+    // box isn't lost (it lives in the panel header, gated on bucketTotal).
     if (query && bucketTotal > 4) {
       return (
         <EmptyState icon={Search} title="No runs match" hint={`Nothing matches “${query}”. Clear the filter to see all ${bucketTotal} runs.`} />
@@ -352,14 +351,16 @@ function RunList({
   }
 
   return (
-    <CollapsibleSection
-      icon={Clock}
-      title="Run history"
-      count={runs.length}
-      tone="muted"
-      defaultOpen={true}
-      actions={
-        bucketTotal > 4 ? (
+    <section className="overflow-hidden rounded-xl border border-border bg-card/70 shadow-e1">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
+          <Clock className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">Run history</h3>
+          <div className="text-xs text-muted">{runs.length} visible</div>
+        </div>
+        {bucketTotal > 4 && (
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
             <input
@@ -375,12 +376,11 @@ function RunList({
               </span>
             )}
           </div>
-        ) : undefined
-      }
-    >
+        )}
+      </div>
       {runs.map((r, i) => (
         <RunRow key={r.correlation_id || i} run={r} focus={focus} ctx={liveCtx[r.correlation_id || ""]} />
       ))}
-    </CollapsibleSection>
+    </section>
   );
 }

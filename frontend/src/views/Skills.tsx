@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, X, Pencil, Search, Bot, Share2, AlertTriangle } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, Pencil, Search, Bot, Share2, AlertTriangle, X, FileText, Tags, History, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime, fmtAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface Skill {
   id?: string;
@@ -69,8 +69,7 @@ export function Skills() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editSkill, setEditSkill] = useState<Skill | null>(null);
+  const [authoring, setAuthoring] = useState<Skill | "new" | null>(null);
   const [q, setQ] = useState("");
   const [idle, setIdle] = useState<Skill[]>([]);
 
@@ -119,12 +118,11 @@ export function Skills() {
             <Button
               size="sm"
               onClick={() => {
-                setEditSkill(null);
-                setShowForm((v) => !(v && !editSkill));
+                setAuthoring("new");
               }}
               title="Author a skill"
             >
-              {showForm && !editSkill ? <X className="size-3.5" /> : <Plus className="size-3.5" />} Author skill
+              <Plus className="size-3.5" /> Author skill
             </Button>
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -134,12 +132,11 @@ export function Skills() {
       />
 
       {idle.length > 0 && (
-        <CollapsibleSection
+        <SkillOpsPanel
           icon={AlertTriangle}
           title="Idle skills"
-          count={idle.length}
+          status={`${idle.length} stale`}
           tone="warn"
-          defaultOpen={false}
         >
           <ul className="space-y-1">
             {idle.map((s) => (
@@ -166,21 +163,27 @@ export function Skills() {
               </li>
             ))}
           </ul>
-        </CollapsibleSection>
+        </SkillOpsPanel>
       )}
 
-      {showForm && (
-        <AuthorSkillForm
-          key={editSkill?.id || "new"}
-          initial={editSkill ?? undefined}
-          onCreated={(name, status) => {
-            setShowForm(false);
-            setEditSkill(null);
-            ui.toast(editSkill ? `Saved new version of "${name}" (${status})` : `Skill "${name}" created (${status})`, "success");
-            void reload();
-          }}
-          onError={(m) => ui.toast(m, "error")}
-        />
+      {authoring && (
+        <SkillModal
+          title={authoring === "new" ? "Author skill" : `Revise ${authoring.name || "skill"}`}
+          icon={authoring === "new" ? Plus : Pencil}
+          onClose={() => setAuthoring(null)}
+        >
+          <AuthorSkillForm
+            key={authoring === "new" ? "new" : authoring.id || authoring.name || "edit"}
+            initial={authoring === "new" ? undefined : authoring}
+            onCreated={(name, status) => {
+              const editing = authoring !== "new";
+              setAuthoring(null);
+              ui.toast(editing ? `Saved new version of "${name}" (${status})` : `Skill "${name}" created (${status})`, "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </SkillModal>
       )}
 
       {err ? (
@@ -208,7 +211,7 @@ export function Skills() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="filter skills…"
+          placeholder="filter skills..."
                 aria-label="Filter skills"
                 className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-12 text-xs text-foreground outline-none focus-visible:border-accent"
               />
@@ -248,10 +251,7 @@ export function Skills() {
                         label="revise"
                         tone="muted"
                         icon={Pencil}
-                        onClick={() => {
-                          setEditSkill(s);
-                          setShowForm(true);
-                        }}
+                        onClick={() => setAuthoring(s)}
                       />
                     )}
                     {s.agent && s.id && (
@@ -373,6 +373,38 @@ export function Skills() {
   );
 }
 
+function SkillModal({
+  title,
+  icon: Icon,
+  children,
+  onClose,
+}: {
+  title: string;
+  icon: LucideIcon;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Icon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Draft now, promote after it proves itself.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close skill modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 // STATUS_ORDER + STATUS_BAR drive the lifecycle breakdown: the order skills flow
 // through (draft → shadow → active, with quarantined/archived off to the side) and
 // the bar/text colour for each.
@@ -384,6 +416,41 @@ const STATUS_BAR: Record<string, { bar: string; text: string }> = {
   quarantined: { bar: "bg-bad", text: "text-bad" },
   archived: { bar: "bg-panel", text: "text-muted" },
 };
+
+function SkillOpsPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  status: string;
+  tone: "warn" | "accent" | "bad" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls = {
+    warn: "border-warn/35 bg-warn/5 text-warn",
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    muted: "border-border bg-panel text-muted",
+  }[tone];
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls)}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 // StatusSummary shows the skill library's lifecycle health at a glance: a stacked
 // proportion bar of the statuses plus a count chip per status, so you can see how
@@ -445,6 +512,42 @@ function IconBtn({
   );
 }
 
+function SkillFormBlock({
+  icon: Icon,
+  title,
+  meta,
+  children,
+  defaultOpen = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <Disclosure
+      defaultOpen={defaultOpen}
+      className="rounded-lg border border-border bg-panel/45"
+      summaryClassName="px-2.5 py-2"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
+            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
+          </span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
+  );
+}
+
 // AuthorSkillForm lets the owner hand-author a skill from the UI (M736) — define a
 // reusable procedure for the agent instead of waiting for it to distill one. Name +
 // body are required; triggers (the phrases that surface it in recall) and tools are
@@ -471,6 +574,7 @@ export function AuthorSkillForm({
   const [agent, setAgent] = useState(initial?.agent ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const matchingConfigured = Boolean(triggers.trim() || tools.trim() || agent.trim());
 
   const valid = name.trim() !== "" && body.trim() !== "";
   const splitList = (s: string) =>
@@ -500,87 +604,111 @@ export function AuthorSkillForm({
   }
 
   return (
-    <div className="glass rounded-xl border-accent/30 p-3">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. deploy-release"
-            aria-label="Skill name"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Description
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="one line, used for recall"
-            aria-label="Skill description"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
+    <div className="rounded-xl border border-border/70 bg-panel/70 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            {editing ? <Pencil className="size-4" /> : <Sparkles className="size-4" />}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">{name.trim() || (editing ? "Skill revision" : "New skill")}</div>
+            <div className="text-[11px] text-muted">{editing ? "drafts a replacement version" : "lands as draft or shadow"}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant={valid ? "good" : "warn"}>{valid ? "ready" : "needs name/body"}</Badge>
+          {matchingConfigured ? <Badge variant="accent">matched</Badge> : <Badge variant="default">manual</Badge>}
+          {agent.trim() ? <Badge variant="accent">agent {agent.trim()}</Badge> : null}
+        </div>
       </div>
 
-      <label className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Body (the procedure)
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Concrete, reusable steps the agent should follow when this skill applies…"
-          aria-label="Skill body"
-          className="h-28 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
-        />
-      </label>
+      <div className="space-y-2">
+        <SkillFormBlock icon={Bot} title="Identity" meta={description.trim() || name.trim() || "name and recall line"} defaultOpen>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. deploy-release"
+                aria-label="Skill name"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted">
+              Description
+              <input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="one line, used for recall"
+                aria-label="Skill description"
+                className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+              />
+            </label>
+          </div>
+        </SkillFormBlock>
 
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Triggers (comma-separated)
-          <input
-            value={triggers}
-            onChange={(e) => setTriggers(e.target.value)}
-            placeholder="deploy, ship, release"
-            aria-label="Skill triggers"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Tools required (comma-separated)
-          <input
-            value={tools}
-            onChange={(e) => setTools(e.target.value)}
-            placeholder="shell, file"
-            aria-label="Skill tools required"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Private to agent (optional)
-          <input
-            value={agent}
-            onChange={(e) => setAgent(e.target.value)}
-            placeholder="roster slug — empty = shared with every agent"
-            aria-label="Skill owning agent"
-            className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          />
-        </label>
+        <SkillFormBlock icon={FileText} title="Procedure" meta={body.trim() ? `${body.trim().slice(0, 54)}${body.trim().length > 54 ? "..." : ""}` : "reusable steps required"} defaultOpen>
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Body (the procedure)
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Concrete, reusable steps the agent should follow when this skill applies..."
+              aria-label="Skill body"
+              className="h-28 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+            />
+          </label>
+        </SkillFormBlock>
+
+        <SkillFormBlock
+          icon={Tags}
+          title="Matching and ownership"
+          meta={matchingConfigured ? "configured" : "shared manual skill"}
+          defaultOpen={matchingConfigured}
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Triggers
+            <input
+              value={triggers}
+              onChange={(e) => setTriggers(e.target.value)}
+              placeholder="deploy, ship, release"
+              aria-label="Skill triggers"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Tools required
+            <input
+              value={tools}
+              onChange={(e) => setTools(e.target.value)}
+              placeholder="shell, file"
+              aria-label="Skill tools required"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-muted sm:col-span-2">
+            Private to agent
+            <input
+              value={agent}
+              onChange={(e) => setAgent(e.target.value)}
+              placeholder="roster slug — empty = shared with every agent"
+              aria-label="Skill owning agent"
+              className="rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
+            />
+          </label>
+          </div>
+        </SkillFormBlock>
+
+        <SkillFormBlock icon={History} title="Lifecycle" meta={editing ? "new version, old one untouched" : "draft first, promote later"}>
+          <div className="text-xs text-muted">
+            {editing
+              ? "Changed procedures create a new version and leave the current active skill untouched until promotion."
+              : "New skills enter the library as draft or shadow, then move to active only after promotion."}
+          </div>
+        </SkillFormBlock>
       </div>
-
-      <p className="mt-2 text-xs text-muted">
-        {editing ? (
-          <>
-            Saving with a changed body creates a new <span className="text-foreground/80">version</span> of this skill — it
-            lands as a draft and goes through promotion again; the current version is untouched until you promote.
-          </>
-        ) : (
-          <>
-            New skills land as a <span className="text-foreground/80">draft</span> (auto-staged to shadow if well-formed) —
-            promote it to active from its card once you trust it.
-          </>
-        )}
-      </p>
       <div className="mt-2 flex items-center justify-end">
         <Button size="sm" onClick={create} disabled={!valid || submitting}>
           {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}{" "}

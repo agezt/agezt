@@ -58,6 +58,19 @@ describe("SendMessageForm (M747)", () => {
     await waitFor(() => expect(onSent).toHaveBeenCalledWith("webhook", "ops"));
   });
 
+  it("lets common channels be selected as chips", async () => {
+    const onSent = vi.fn();
+    render(<SendMessageForm onSent={onSent} onError={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /slack/i }));
+    fireEvent.change(screen.getByLabelText("Send recipient"), { target: { value: "C123" } });
+    fireEvent.change(screen.getByLabelText("Send message text"), { target: { value: "status?" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Send$/ }));
+
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/send", { channel: "slack", to: "C123", text: "status?" }),
+    );
+  });
+
   it("prefills from a thread (reply)", () => {
     render(<SendMessageForm initial={{ channel: "slack", to: "C123" }} onSent={() => {}} onError={() => {}} />);
     expect((screen.getByLabelText("Send channel") as HTMLInputElement).value).toBe("slack");
@@ -75,6 +88,23 @@ describe("SendMessageForm (M747)", () => {
 });
 
 describe("Inbox conversation search (M776)", () => {
+  it("opens outbound sending in a modal instead of an inline panel", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/inbox") return Promise.resolve({ threads: [] });
+      return Promise.resolve({ entries: [] });
+    });
+    render(
+      <UIProvider>
+        <Inbox />
+      </UIProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Send message/ }));
+    expect(screen.getByRole("dialog", { name: "Send message" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close inbox modal" }));
+    expect(screen.queryByRole("dialog", { name: "Send message" })).toBeNull();
+  });
+
   it("threadMatches matches channel kind/id and message sender/text (case-insensitive)", () => {
     const th = {
       correlation_id: "c1",

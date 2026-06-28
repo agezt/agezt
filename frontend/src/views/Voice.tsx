@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Mic, Square, Radio, Loader2, Volume2, Ear, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Mic, Square, Radio, Loader2, Volume2, Ear, Sparkles, Settings2, X, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { getJSON } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/lib/voiceSession";
 import { VoiceSetup } from "@/views/VoiceSetup";
 
@@ -13,6 +14,33 @@ const AGENT_KEY = "agezt.voice.agent";
 const WAKE_WORDS = ["agezt", "jarvis"];
 
 type Line = { role: "you" | "agezt"; text: string };
+
+function VoiceModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-5xl rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 // stateLabel + stateHue describe the orb for each phase of the loop.
 const STATE_META: Record<VoiceState, { label: string; hue: string; pulse: boolean }> = {
@@ -38,6 +66,7 @@ export function Voice() {
   const [wake, setWake] = useState<boolean>(() => localStorage.getItem(WAKE_KEY) === "1");
   const [agents, setAgents] = useState<{ slug: string; name?: string }[]>([]);
   const [agent, setAgent] = useState<string>(() => localStorage.getItem(AGENT_KEY) || "");
+  const [setupOpen, setSetupOpen] = useState(false);
   const sessionRef = useRef<VoiceSession | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,15 +147,20 @@ export function Voice() {
         title="Voice"
         description="Hands-free conversation — speak, and AGEZT listens, thinks, and talks back. Interrupt any time."
         actions={
-          on ? (
-            <Button variant="danger" onClick={stopSession}>
-              <Square className="size-4" /> Stop
+          <>
+            <Button variant="ghost" onClick={() => setSetupOpen(true)}>
+              <Settings2 className="size-4" /> Setup
             </Button>
-          ) : (
-            <Button variant="accent" onClick={startSession}>
-              <Mic className="size-4" /> Start talking
-            </Button>
-          )
+            {on ? (
+              <Button variant="danger" onClick={stopSession}>
+                <Square className="size-4" /> Stop
+              </Button>
+            ) : (
+              <Button variant="accent" onClick={startSession}>
+                <Mic className="size-4" /> Start talking
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -178,29 +212,37 @@ export function Voice() {
                 <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${wake ? "left-[18px]" : "left-0.5"}`} />
               </button>
             </label>
-            <label className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1.5">
               <span className="text-muted">Agent</span>
-              <select
-                value={agent}
-                onChange={(e) => setAgent(e.target.value)}
-                disabled={on}
-                className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2 py-1 text-right text-sm disabled:opacity-50"
-                style={{ maxWidth: "60%" }}
-              >
-                <option value="">Default routing</option>
-                {agents.map((a) => (
-                  <option key={a.slug} value={a.slug}>
-                    {a.name || a.slug}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Voice agent">
+                {[{ slug: "", name: "Default routing" }, ...agents].map((a) => {
+                  const selected = agent === a.slug;
+                  return (
+                    <button
+                      key={a.slug || "default"}
+                      type="button"
+                      aria-pressed={selected}
+                      disabled={on}
+                      onClick={() => setAgent(a.slug)}
+                      className={cn(
+                        "inline-flex h-7 items-center rounded-md border px-2 text-xs font-medium transition-colors disabled:opacity-50",
+                        selected
+                          ? "border-accent bg-accent/15 text-accent"
+                          : "border-border bg-surface text-muted hover:border-accent/60 hover:text-foreground",
+                      )}
+                    >
+                      {a.name || a.slug}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </Card>
 
         {/* Transcript */}
         <Card glass className="flex max-h-[28rem] min-h-[16rem] flex-col overflow-hidden">
-          <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted">Conversation</div>
+          <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-normal text-muted">Conversation</div>
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {lines.length === 0 ? (
               <div className="grid h-full place-items-center text-center text-sm text-muted">
@@ -213,11 +255,11 @@ export function Voice() {
               lines.map((l, i) => (
                 <div key={i} className={l.role === "you" ? "text-right" : "text-left"}>
                   <div
-                    className={`inline-block max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                    className={`inline-block max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                       l.role === "you" ? "bg-accent/15 text-fg" : "bg-surface ring-1 ring-inset ring-border"
                     }`}
                   >
-                    <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted">{l.role === "you" ? "You" : "AGEZT"}</div>
+                    <div className="mb-0.5 text-[10px] uppercase tracking-normal text-muted">{l.role === "you" ? "You" : "AGEZT"}</div>
                     {l.text}
                   </div>
                 </div>
@@ -227,8 +269,11 @@ export function Voice() {
         </Card>
       </div>
 
-      {/* Inline setup — wire up speech servers here without leaving the cockpit. */}
-      <VoiceSetup />
+      {setupOpen && (
+        <VoiceModal title="Voice setup" icon={Settings2} onClose={() => setSetupOpen(false)}>
+          <VoiceSetup />
+        </VoiceModal>
+      )}
     </div>
   );
 }

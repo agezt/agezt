@@ -13,7 +13,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -137,30 +136,40 @@ export function VoiceSetup() {
   }, [fields]);
 
   return (
-    <CollapsibleSection
-      icon={Settings2}
-      title="Voice setup"
-      tone={ready ? "good" : "warn"}
-      defaultOpen={!ready}
-      count={`${setCount}/7`}
-      actions={
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2">
+          <span
+            className={cn(
+              "grid size-9 shrink-0 place-items-center rounded-lg border",
+              ready ? "border-good/35 bg-good/5 text-good" : "border-warn/35 bg-warn/5 text-warn",
+            )}
+          >
+            <Settings2 className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold">Voice setup</h3>
+              <Badge variant={ready ? "good" : "default"}>{setCount}/7</Badge>
+            </div>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
+              {ready
+                ? "AGEZT can hear you and talk back. Pick a different provider any time; restart applies the change."
+                : "Choose who listens and who talks. Hosted options need a key; local ones run on this machine."}
+            </p>
+          </div>
+        </div>
         <Button size="sm" variant="ghost" onClick={refresh} disabled={busy} aria-label="Refresh voice setup">
           <RefreshCw className={busy ? "size-3.5 animate-spin" : "size-3.5"} /> Refresh
         </Button>
-      }
-    >
-      <p className="mb-4 text-xs leading-relaxed text-muted">
-        {ready
-          ? "AGEZT can hear you and talk back. Pick a different provider any time — changes need a daemon restart to take effect."
-          : "Choose who does the listening and who does the talking. Hosted options need an API key; local ones run on your machine, free. Changes apply after a restart."}
-      </p>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <SpeechHalf
           half="stt"
           icon={Ear}
           title="Hearing"
-          subtitle="Speech → text, so AGEZT understands you"
+          subtitle="Speech -> text, so AGEZT understands you"
           providers={STT_PROVIDERS}
           values={values}
           fieldsByEnv={fieldsByEnv}
@@ -174,7 +183,7 @@ export function VoiceSetup() {
           half="tts"
           icon={Volume2}
           title="Voice"
-          subtitle="Text → speech, so AGEZT talks back"
+          subtitle="Text -> speech, so AGEZT talks back"
           providers={TTS_PROVIDERS}
           values={values}
           fieldsByEnv={fieldsByEnv}
@@ -185,7 +194,7 @@ export function VoiceSetup() {
           toast={toast}
         />
       </div>
-    </CollapsibleSection>
+    </section>
   );
 }
 
@@ -387,10 +396,10 @@ function SpeechHalf({
 
 function PickRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="grid grid-cols-[4rem_1fr] items-center gap-2">
+    <div className="grid grid-cols-[4rem_1fr] items-center gap-2">
       <span className="text-xs font-medium text-muted">{label}</span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -406,19 +415,27 @@ function StyledSelect({
   disabled: boolean;
 }) {
   return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-8 w-full rounded-md border border-border bg-surface px-2 text-sm outline-none focus-visible:border-accent disabled:opacity-50"
-    >
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Voice option">
       {options.map(([v, label, note]) => (
-        <option key={v} value={v}>
-          {label}
-          {note ? ` · ${note}` : ""}
-        </option>
+        <button
+          key={v}
+          type="button"
+          disabled={disabled}
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          title={note ? `${label} - ${note}` : label}
+          className={cn(
+            "inline-flex min-h-8 max-w-full items-center gap-1 rounded-md border px-2 text-left text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+            value === v
+              ? "border-accent bg-accent/15 text-accent"
+              : "border-border bg-surface text-muted hover:border-accent/60 hover:text-foreground",
+          )}
+        >
+          <span className="truncate">{label}</span>
+          {note && <span className="truncate text-[10px] text-muted">{note}</span>}
+        </button>
       ))}
-    </select>
+    </div>
   );
 }
 

@@ -8,7 +8,6 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Badge } from "@/components/ui/badge";
 
 // downloadText saves text content to a file via a transient object URL — lets the
@@ -81,7 +80,7 @@ export function Sandbox() {
             <FlaskConical className="size-5" />
           </span>
           <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Sandbox</h2>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Sandbox</h2>
             {projects && (
               <Badge variant="default" className="mt-0.5">
                 {projects.length} project{projects.length === 1 ? "" : "s"}
@@ -140,11 +139,15 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
   }
 
   return (
-    <CollapsibleSection
-      icon={FlaskConical}
-      title={p.name}
-      tone="accent"
-      actions={
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-3 flex items-start gap-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
+          <FlaskConical className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold" title={p.name}>{p.name}</h3>
+          <div className="text-xs text-muted">{fmtDateTime(p.modified_unix)}</div>
+        </div>
         <button
           onClick={remove}
           disabled={busy}
@@ -153,8 +156,7 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
         >
           <Trash2 className="size-3.5" />
         </button>
-      }
-    >
+      </div>
       <div className="mb-2 flex flex-wrap gap-3">
         <MetricWidget icon={FileCode} label="Files" value={p.file_count} tone="muted" />
         <MetricWidget icon={FlaskConical} label="Size" value={fmtBytes(p.total_bytes)} tone="muted" />
@@ -168,7 +170,7 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
           ))}
         </ul>
       )}
-    </CollapsibleSection>
+    </section>
   );
 }
 

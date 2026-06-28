@@ -432,7 +432,7 @@ function Stat({
       </span>
       <div className="min-w-0">
         <div className="text-lg font-semibold leading-none">{value}</div>
-        <div className="mt-1 truncate text-xs uppercase tracking-wide text-muted">{label}</div>
+        <div className="mt-1 truncate text-xs uppercase tracking-normal text-muted">{label}</div>
       </div>
     </div>
   );

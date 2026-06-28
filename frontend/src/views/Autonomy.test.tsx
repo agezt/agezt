@@ -6,6 +6,7 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 
@@ -153,10 +154,8 @@ describe("PulseControl", () => {
     render(withUI(<PulseControl />));
     await waitFor(() => expect(screen.getByText("running")).toBeTruthy());
     expect(screen.getByText(/12 beats · 3 observers/)).toBeTruthy();
-    // Cadence moved into a live selector (M757); 30s is a preset → selected.
-    expect(
-      (screen.getByLabelText("Heartbeat cadence") as HTMLSelectElement).value,
-    ).toBe("30");
+    // Cadence is a segmented live control (M757); 30s is the pressed preset.
+    expect(within(screen.getByLabelText("Heartbeat cadence")).getByRole("button", { name: "30s" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: /Pause/ })).toBeTruthy();
   });
 
@@ -244,10 +243,10 @@ describe("PulseControl", () => {
       cadence_ms: 60000,
     });
     render(withUI(<PulseControl />));
-    const sel = await screen.findByLabelText("Heartbeat cadence");
+    const group = await screen.findByLabelText("Heartbeat cadence");
     // Current 60s maps to the "1m" preset being selected.
-    expect((sel as HTMLSelectElement).value).toBe("60");
-    fireEvent.change(sel, { target: { value: "300" } });
+    expect(within(group).getByRole("button", { name: "1m" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(group).getByRole("button", { name: "5m" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/pulse/cadence", {
         seconds: "300",
@@ -263,11 +262,9 @@ describe("PulseControl", () => {
       cadence_ms: 45000,
     }); // 45s, not a preset
     render(withUI(<PulseControl />));
-    const sel = (await screen.findByLabelText(
-      "Heartbeat cadence",
-    )) as HTMLSelectElement;
-    expect(sel.value).toBe(""); // the synthetic "current" option
-    expect(screen.getByText(/45s \(current\)/)).toBeTruthy();
+    const group = await screen.findByLabelText("Heartbeat cadence");
+    expect(within(group).getByText("45s")).toBeTruthy();
+    expect(within(group).getAllByRole("button").every((btn) => btn.getAttribute("aria-pressed") === "false")).toBe(true);
   });
 
   it("changes the proactivity dial live via /api/pulse/dial (M758)", async () => {
@@ -279,11 +276,9 @@ describe("PulseControl", () => {
       dial: "balanced",
     });
     render(withUI(<PulseControl />));
-    const sel = (await screen.findByLabelText(
-      "Proactivity dial",
-    )) as HTMLSelectElement;
-    expect(sel.value).toBe("balanced");
-    fireEvent.change(sel, { target: { value: "chatty" } });
+    const group = await screen.findByLabelText("Proactivity dial");
+    expect(within(group).getByRole("button", { name: /balanced/ }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(group).getByRole("button", { name: /chatty/ }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/pulse/dial", {
         dial: "chatty",
@@ -299,10 +294,8 @@ describe("PulseControl", () => {
       cadence_ms: 60000,
     });
     render(withUI(<PulseControl />));
-    const sel = (await screen.findByLabelText(
-      "Proactivity dial",
-    )) as HTMLSelectElement;
-    expect(sel.value).toBe("balanced");
+    const group = await screen.findByLabelText("Proactivity dial");
+    expect(within(group).getByRole("button", { name: /balanced/ }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("adds a disk watch via /api/pulse/watch (M767)", async () => {
@@ -314,9 +307,10 @@ describe("PulseControl", () => {
       cadence_ms: 60000,
     });
     render(withUI(<PulseControl />));
-    // The form is collapsed until the "a disk" toggle is clicked.
+    // The form stays off the main card until the disk modal is opened.
     expect(screen.queryByLabelText("Watch disk path")).toBeNull();
     fireEvent.click(await screen.findByRole("button", { name: /a disk/ }));
+    expect(screen.getByRole("dialog", { name: "Watch disk" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Watch disk path"), {
       target: { value: "/data" },
     });
@@ -342,6 +336,7 @@ describe("PulseControl", () => {
     });
     render(withUI(<PulseControl />));
     fireEvent.click(await screen.findByRole("button", { name: /a command/ }));
+    expect(screen.getByRole("dialog", { name: "Watch command" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Probe name"), {
       target: { value: "ci" },
     });
@@ -392,9 +387,12 @@ describe("PulseControl", () => {
       quiet: { enabled: false },
     });
     render(withUI(<PulseControl />));
-    const input = await screen.findByLabelText("Quiet hours window");
+    fireEvent.click(await screen.findByRole("button", { name: "Set" }));
+    const dialog = screen.getByRole("dialog", { name: "Quiet hours" });
+    expect(dialog).toBeTruthy();
+    const input = within(dialog).getByLabelText("Quiet hours window");
     fireEvent.change(input, { target: { value: "22-7" } });
-    fireEvent.click(screen.getByRole("button", { name: "Set" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Set" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/pulse/quiet", {
         hours: "22-7",

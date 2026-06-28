@@ -38,6 +38,12 @@ beforeEach(() => {
   postAction.mockResolvedValue({});
 });
 
+async function keepDefaultPassword() {
+  await waitFor(() => expect(screen.getByText("Console access")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "Keep default password" }));
+  await waitFor(() => expect(screen.getByText("Choose a provider")).toBeTruthy());
+}
+
 describe("pure helpers", () => {
   it("providerKeyEnv prefers a *_API_KEY / *_KEY / *_TOKEN name, null when keyless", () => {
     expect(providerKeyEnv({ id: "x", env: ["X_BASE", "X_API_KEY"] })).toBe("X_API_KEY");
@@ -107,8 +113,8 @@ describe("Setup wizard", () => {
     const onDone = vi.fn();
     render(withUI(<Setup onDone={onDone} />));
 
-    // Catalog non-empty → jumps to the provider step.
-    await waitFor(() => expect(screen.getByText("Choose a provider and add its key")).toBeTruthy());
+    // Catalog non-empty → jumps to access, then the operator can keep the built-in loopback password.
+    await keepDefaultPassword();
 
     fireEvent.click(screen.getByRole("button", { name: "Pick minimax" }));
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk-secret-123" } });
@@ -154,14 +160,9 @@ describe("Setup wizard", () => {
       }),
     );
 
-    // Console password step (M933): set one → saved as the vault secret.
-    await waitFor(() => expect(screen.getByText("Console password (optional)")).toBeTruthy());
-    fireEvent.change(screen.getByLabelText("Console password"), { target: { value: "hunter2" } });
-    fireEvent.change(screen.getByLabelText("Repeat console password"), { target: { value: "hunter2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Set console password" }));
-    await waitFor(() =>
-      expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_WEB_PASSWORD", value: "hunter2" }),
-    );
+    // Telegram is optional at the end.
+    await waitFor(() => expect(screen.getByText("Telegram operator channel")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Skip Telegram" }));
 
     await waitFor(() => expect(screen.getByText("You're ready")).toBeTruthy());
     expect(screen.getByText(/Provider API key saved/)).toBeTruthy();
@@ -169,10 +170,17 @@ describe("Setup wizard", () => {
     expect(onDone).toHaveBeenCalled();
   });
 
-  it("password step is skippable", async () => {
+  it("can set a custom console password before provider setup", async () => {
     getJSON.mockResolvedValue(catalog);
     render(withUI(<Setup />));
-    await waitFor(() => expect(screen.getByText("Choose a provider and add its key")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Console access")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Console password"), { target: { value: "hunter2" } });
+    fireEvent.change(screen.getByLabelText("Repeat console password"), { target: { value: "hunter2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set console password" }));
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_WEB_PASSWORD", value: "hunter2" }),
+    );
+    await waitFor(() => expect(screen.getByText("Choose a provider")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Pick minimax" }));
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk-x" } });
     fireEvent.click(screen.getByRole("button", { name: "Use minimax" }));
@@ -181,11 +189,9 @@ describe("Setup wizard", () => {
     await waitFor(() => expect(screen.getByText("Fallbacks and routing")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Simple/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue without routing" }));
-    await waitFor(() => expect(screen.getByText("Console password (optional)")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Skip password" }));
+    await waitFor(() => expect(screen.getByText("Telegram operator channel")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Skip Telegram" }));
     await waitFor(() => expect(screen.getByText("You're ready")).toBeTruthy());
-    // Skipping never writes the password secret.
-    expect(postJSON).not.toHaveBeenCalledWith("/api/config/set", expect.objectContaining({ name: "AGEZT_WEB_PASSWORD" }));
   });
 
   it("uses an already credentialed provider without asking for the key again", async () => {
@@ -202,7 +208,7 @@ describe("Setup wizard", () => {
     });
     render(withUI(<Setup />));
 
-    await waitFor(() => expect(screen.getByText("Choose a provider and add its key")).toBeTruthy());
+    await keepDefaultPassword();
     fireEvent.click(screen.getByRole("button", { name: "Pick minimax" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Use minimax" })).toBeTruthy());
     expect(screen.queryByLabelText("API key")).toBeNull();
@@ -229,7 +235,7 @@ describe("Setup wizard", () => {
     });
     render(withUI(<Setup />));
 
-    await waitFor(() => expect(screen.getByText("Choose a provider and add its key")).toBeTruthy());
+    await keepDefaultPassword();
     fireEvent.click(screen.getByRole("button", { name: "Pick ollama-local" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Use ollama-local" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Use ollama-local" }));
@@ -238,12 +244,34 @@ describe("Setup wizard", () => {
     await waitFor(() => expect(screen.getByText("Fallbacks and routing")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Simple/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue without routing" }));
-    await waitFor(() => expect(screen.getByText("Console password (optional)")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Skip password" }));
+    await waitFor(() => expect(screen.getByText("Telegram operator channel")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Skip Telegram" }));
 
     await waitFor(() => expect(screen.getByText("You're ready")).toBeTruthy());
     expect(screen.getByText(/Local\/keyless provider selected/)).toBeTruthy();
     expect(screen.queryByText(/Provider API key saved/)).toBeNull();
+  });
+
+  it("uses routing task chips instead of checkbox controls", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/routing") return Promise.resolve({ task_types: ["chat", "code"] });
+      if (path === "/api/chains") return Promise.resolve({ chains: {}, default: "" });
+      return Promise.resolve(catalog);
+    });
+    render(withUI(<Setup />));
+    await keepDefaultPassword();
+    fireEvent.click(screen.getByRole("button", { name: "Pick minimax" }));
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk-x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use minimax" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use model MiniMax-M2" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Use model MiniMax-M2" }));
+    await waitFor(() => expect(screen.getByText("Fallbacks and routing")).toBeTruthy());
+
+    const chat = await screen.findByRole("button", { name: "Route chat through setup chain" });
+    expect(chat.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(chat);
+    expect(chat.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("checkbox", { name: "Route chat through setup chain" })).toBeNull();
   });
 
   it("offers Sync when the catalog is empty", async () => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
@@ -68,6 +68,7 @@ function withUI(node: ReactNode) {
 
 afterEach(cleanup);
 beforeEach(() => {
+  getJSON.mockReset();
   postJSON.mockReset();
   postJSON.mockResolvedValue({ id: "ent-1" });
   postAction.mockReset();
@@ -171,7 +172,7 @@ describe("WorldAddForm", () => {
   it("honours a chosen kind", async () => {
     render(withUI(<WorldAddForm onAdded={() => {}} />));
     fireEvent.change(screen.getByLabelText("Entity name"), { target: { value: "agezt" } });
-    fireEvent.change(screen.getByLabelText("Entity kind"), { target: { value: "repo" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Entity kind" })).getByRole("button", { name: "repo" }));
     fireEvent.click(screen.getByRole("button", { name: /Add entity/ }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/world/add", { name: "agezt", kind: "repo" }));
   });
@@ -190,9 +191,9 @@ describe("WorldRelateForm", () => {
 
   it("honours chosen from/verb/to", async () => {
     render(withUI(<WorldRelateForm names={["Ada", "agezt", "Acme"]} onRelated={() => {}} />));
-    fireEvent.change(screen.getByLabelText("Relation from"), { target: { value: "Ada" } });
-    fireEvent.change(screen.getByLabelText("Relation verb"), { target: { value: "owns" } });
-    fireEvent.change(screen.getByLabelText("Relation to"), { target: { value: "agezt" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Relation from" })).getByRole("button", { name: "Ada" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Relation verb" })).getByRole("button", { name: "owns" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Relation to" })).getByRole("button", { name: "agezt" }));
     fireEvent.click(screen.getByRole("button", { name: /Relate/ }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/world/relate", { from: "Ada", verb: "owns", to: "agezt" }),
@@ -252,6 +253,51 @@ describe("WorldEditForm (M730)", () => {
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/world/edit", { id: "e1", aliases: [], attrs: { role: "owner" } }),
     );
+  });
+});
+
+describe("World entity editing surface", () => {
+  it("keeps add and relate forms behind action modals on the page", async () => {
+    getJSON.mockResolvedValue({
+      entities: [
+        { id: "e1", name: "Ada", kind: "person" },
+        { id: "e2", name: "AGEZT", kind: "project" },
+      ],
+      edges: [],
+      relation_count: 0,
+    });
+    render(withUI(<World />));
+
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    expect(screen.queryByLabelText("Entity name")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Add entity$/ }));
+    expect(screen.getByRole("dialog", { name: "Add entity" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close world modal" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Relate$/ }));
+    expect(screen.getByRole("dialog", { name: "Relate entities" })).toBeTruthy();
+    expect(
+      within(screen.getByRole("group", { name: "Relation from" }))
+        .getByRole("button", { name: "Ada" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("opens aliases and attributes in a modal instead of expanding the row inline", async () => {
+    getJSON.mockResolvedValue({
+      entities: [
+        { id: "e1", name: "Ada", kind: "person", aliases: ["the boss"], attrs: { role: "owner" } },
+      ],
+      edges: [],
+      relation_count: 0,
+    });
+    render(withUI(<World />));
+
+    await waitFor(() => expect(screen.getByText("Ada")).toBeTruthy());
+    expect(screen.queryByLabelText("Edit entity aliases")).toBeNull();
+    fireEvent.click(screen.getByTitle("Edit aliases & attributes"));
+    expect(screen.getByRole("dialog", { name: "Edit Ada" })).toBeTruthy();
+    expect((screen.getByLabelText("Edit entity aliases") as HTMLInputElement).value).toBe("the boss");
   });
 });
 

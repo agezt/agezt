@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, RefreshCw, Save, Sparkles, Eraser } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bot, RefreshCw, Save, Sparkles, Eraser, Pencil, X } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
@@ -48,6 +48,7 @@ export function Persona() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const reload = useCallback(async () => {
@@ -77,6 +78,7 @@ export function Persona() {
       await postJSON("/api/persona/set", { system: next });
       setSaved(next);
       setDraft(next);
+      setEditorOpen(false);
       toast(next.trim() ? "Default identity saved — applies to the next default run" : "Default identity cleared", "success");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -87,7 +89,8 @@ export function Persona() {
 
   function insertPreset(text: string) {
     setDraft(text);
-    taRef.current?.focus();
+    setEditorOpen(true);
+    setTimeout(() => taRef.current?.focus(), 0);
   }
 
   const status = useMemo(() => {
@@ -117,28 +120,22 @@ export function Persona() {
         <Skeleton className="h-64 w-full" />
       ) : (
         <>
-          <div className="glass rounded-xl">
-            <textarea
-              ref={taRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              spellCheck={false}
-              aria-label="Default identity instructions"
-              placeholder="e.g. You are Jarvis. Be terse and proactive; take initiative on obvious next steps and state assumptions briefly…"
-              className="h-64 w-full resize-y rounded-lg bg-transparent p-3 font-mono text-sm leading-relaxed text-foreground outline-none placeholder:text-muted/60"
-            />
-            <div className="flex items-center justify-between border-t border-border px-3 py-1.5 text-[11px] text-muted">
-              <span className="tabular-nums">{chars.toLocaleString()} chars</span>
-              {dirty && <span className="text-warn">unsaved changes</span>}
+          <div className="glass flex flex-wrap items-center gap-3 rounded-xl p-3">
+            <span className="grid size-10 place-items-center rounded-lg bg-accent/12 text-accent">
+              <Bot className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold">Default identity</span>
+                <span className={`text-xs ${status.tone}`}>● {status.label}</span>
+              </div>
+              <p className="mt-0.5 text-xs text-muted">
+                {saved.trim() ? `${saved.length.toLocaleString()} chars saved` : "Built-in identity is active"}
+                {dirty ? " · unsaved draft" : ""}
+              </p>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => save(draft)} disabled={!dirty || saving} title="Save default identity">
-              {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
-            </Button>
-            <Button variant="ghost" onClick={() => setDraft(saved)} disabled={!dirty || saving} title="Discard edits">
-              Discard
+            <Button onClick={() => setEditorOpen(true)} title="Edit default identity">
+              <Pencil className="size-3.5" /> Edit
             </Button>
             <Button
               variant="ghost"
@@ -150,8 +147,34 @@ export function Persona() {
             </Button>
           </div>
 
+          {editorOpen && (
+            <PersonaModal title="Edit default identity" onClose={() => setEditorOpen(false)}>
+              <textarea
+                ref={taRef}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                spellCheck={false}
+                aria-label="Default identity instructions"
+                placeholder="e.g. You are Jarvis. Be terse and proactive; take initiative on obvious next steps and state assumptions briefly…"
+                className="h-64 w-full resize-y rounded-lg border border-border bg-panel p-3 font-mono text-sm leading-relaxed text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
+              />
+              <div className="flex items-center justify-between px-1 text-[11px] text-muted">
+                <span className="tabular-nums">{chars.toLocaleString()} chars</span>
+                {dirty && <span className="text-warn">unsaved changes</span>}
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button variant="ghost" onClick={() => setDraft(saved)} disabled={!dirty || saving} title="Discard edits">
+                  Discard
+                </Button>
+                <Button onClick={() => save(draft)} disabled={!dirty || saving} title="Save default identity">
+                  {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+                </Button>
+              </div>
+            </PersonaModal>
+          )}
+
           <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
               <Sparkles className="size-3.5" /> Starting points
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -169,6 +192,28 @@ export function Persona() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function PersonaModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Bot className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Only default runs use this; roster agents keep their own soul.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close persona modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4">{children}</div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { HardDrive, RefreshCw, Trash2, Brain, Combine, Skull, Loader2, FolderTree } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { HardDrive, RefreshCw, Trash2, Brain, Combine, Skull, Loader2, FolderTree, X, type LucideIcon } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,6 @@ import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 // Storage view (M927): what under ~/.agezt is taking the space, and the
 // collectors that reclaim it. The breakdown comes from /api/storage
@@ -107,10 +106,11 @@ export function Storage() {
           </MetricGrid>
 
           {/* Per-directory breakdown */}
-          <CollapsibleSection
+          <StoragePanel
             icon={FolderTree}
             title="Breakdown"
-            tone="muted"
+            status={`${dirs.length} subsystem${dirs.length === 1 ? "" : "s"}`}
+            tone="accent"
           >
             <ul className="space-y-1">
               {dirs.map((d) => {
@@ -138,12 +138,13 @@ export function Storage() {
               })}
               {dirs.length === 0 && <li className="py-8 text-center text-sm text-muted">Home directory is empty.</li>}
             </ul>
-          </CollapsibleSection>
+          </StoragePanel>
 
           {/* Collectors */}
-          <CollapsibleSection
+          <StoragePanel
             icon={Trash2}
             title="Collectors"
+            status="dry-run first"
             tone="bad"
           >
             <div className="grid gap-2 md:grid-cols-2">
@@ -152,17 +153,51 @@ export function Storage() {
               <BrainConsolidator onDone={reload} />
               <ReaperCard />
             </div>
-          </CollapsibleSection>
+          </StoragePanel>
         </div>
       )}
     </div>
   );
 }
 
+function StoragePanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  status: string;
+  tone: "accent" | "bad" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function SummaryCard({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
     <div className={cn("glass rounded-xl px-3 py-2", warn && "border-bad/50")}>
-      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
+      <div className="text-[11px] uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("truncate text-lg font-semibold", warn && "text-bad")}>{value}</div>
       {sub && <div className="truncate text-[11px] text-muted">{sub}</div>}
     </div>
@@ -193,17 +228,39 @@ function CollectorCard({
 
 function DaysInput({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
-    <label className="flex items-center gap-1 text-xs text-muted">
-      older than
+    <label className="flex flex-col gap-1 text-xs text-muted">
+      Older than
       <input
         type="number"
         min={1}
         value={value}
         onChange={(e) => onChange(Math.max(1, Number(e.target.value) || 1))}
-        className="w-14 rounded border border-border bg-panel px-1.5 py-0.5 text-xs text-foreground"
+        aria-label="Collector older than days"
+        className="h-9 rounded-md border border-border bg-panel px-2 text-sm text-foreground outline-none focus-visible:border-accent"
       />
-      days
     </label>
+  );
+}
+
+function CollectorModal({ title, icon: Icon, children, onClose }: { title: string; icon: LucideIcon; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Icon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Dry-run first, then confirm before deleting anything.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close storage modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="flex min-h-0 flex-col gap-3 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -213,6 +270,7 @@ function ArtifactCollector({ onDone }: { onDone: () => void }) {
   const ui = useUI();
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   async function run() {
     setBusy(true);
@@ -237,6 +295,7 @@ function ArtifactCollector({ onDone }: { onDone: () => void }) {
         dry_run: "false",
       });
       ui.toast(`Collected ${res.count} artifact${res.count === 1 ? "" : "s"} (~${fmtBytes(res.bytes)}).`, "success");
+      setOpen(false);
       onDone();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -247,10 +306,17 @@ function ArtifactCollector({ onDone }: { onDone: () => void }) {
 
   return (
     <CollectorCard icon={Trash2} title="Artifact collect" desc="Reap stale stored files (inbound images, tool outputs). Dry-run shows the candidates before anything is deleted; blobs are kept while any entry still references them.">
-      <DaysInput value={days} onChange={setDays} />
-      <Button variant="default" size="sm" onClick={run} disabled={busy}>
-        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />} Collect
+      <Button variant="default" size="sm" onClick={() => setOpen(true)} disabled={busy}>
+        <Trash2 className="size-3.5" /> Collect
       </Button>
+      {open && (
+        <CollectorModal title="Artifact collect" icon={Trash2} onClose={() => setOpen(false)}>
+          <DaysInput value={days} onChange={setDays} />
+          <Button variant="default" size="sm" onClick={run} disabled={busy}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />} Dry-run collect
+          </Button>
+        </CollectorModal>
+      )}
     </CollectorCard>
   );
 }
@@ -261,6 +327,7 @@ function MemoryPruner({ onDone }: { onDone: () => void }) {
   const ui = useUI();
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   async function run() {
     setBusy(true);
@@ -285,6 +352,7 @@ function MemoryPruner({ onDone }: { onDone: () => void }) {
         dry_run: "false",
       });
       ui.toast(`Pruned ${res.pruned} record${res.pruned === 1 ? "" : "s"}.`, "success");
+      setOpen(false);
       onDone();
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -295,10 +363,17 @@ function MemoryPruner({ onDone }: { onDone: () => void }) {
 
   return (
     <CollectorCard icon={Brain} title="Memory prune" desc="Reclaim the dead weight forgetting and consolidation leave behind: soft-deleted memory records past their recovery window. Active memories are never touched.">
-      <DaysInput value={days} onChange={setDays} />
-      <Button variant="default" size="sm" onClick={run} disabled={busy}>
-        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Brain className="size-3.5" />} Prune
+      <Button variant="default" size="sm" onClick={() => setOpen(true)} disabled={busy}>
+        <Brain className="size-3.5" /> Prune
       </Button>
+      {open && (
+        <CollectorModal title="Memory prune" icon={Brain} onClose={() => setOpen(false)}>
+          <DaysInput value={days} onChange={setDays} />
+          <Button variant="default" size="sm" onClick={run} disabled={busy}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Brain className="size-3.5" />} Dry-run prune
+          </Button>
+        </CollectorModal>
+      )}
     </CollectorCard>
   );
 }

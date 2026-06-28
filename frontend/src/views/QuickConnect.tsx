@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plug, ExternalLink, Check, RefreshCw, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Plug, ExternalLink, Check, RefreshCw, Sparkles, X, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,61 @@ import {
 interface ProviderRow {
   id: string;
   credentialed?: boolean;
+}
+
+function CompatibilityPicker({ value, onChange }: { value: PresetFamily; onChange: (value: PresetFamily) => void }) {
+  const options: PresetFamily[] = ["openai-compatible", "anthropic"];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Compatibility">
+      {options.map((option) => {
+        const selected = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors",
+              selected
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border bg-card text-muted hover:border-accent/60 hover:text-foreground",
+            )}
+          >
+            <Plug className="size-3.5" />
+            {familyLabel(option)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ConnectModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="w-full max-w-xl rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 // The catalog list (/api/catalog) reports every known provider + a credentialed
@@ -56,7 +111,7 @@ export function QuickConnect() {
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
           <Plug className="size-5" />
         </span>
-        <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">Quick Connect</h2>
+        <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Quick Connect</h2>
       </div>
 
       <Section title="Coding & token plans">
@@ -178,6 +233,7 @@ function PresetCard({
   const [key, setKey] = useState("");
   const [makeDefault, setMakeDefault] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const [probe, setProbe] = useState<{ reachable?: boolean; authorized?: boolean; models?: number; error?: string } | null>(null);
   const [probing, setProbing] = useState(false);
   const keyScope = providerScopedKeyLabel(preset.id, preset.keyEnv);
@@ -197,6 +253,7 @@ function PresetCard({
       if (makeDefault) await setDefaultProvider(preset.id, model);
       ui.toast(makeDefault ? `Connected ${preset.name} — now the default brain` : `Connected ${preset.name}`, "success");
       setKey("");
+      setOpen(false);
       onConnected();
     } catch (e) {
       ui.toast(`${preset.name}: ${(e as Error).message}`, "error");
@@ -251,48 +308,17 @@ function PresetCard({
       {preset.keyless ? (
         <span className="text-[11px] text-muted">No API key — just Connect. Make sure the local server is running.</span>
       ) : (
-        <label className="flex flex-col gap-1">
-          <span className="flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-muted">
-            <span>API key</span>
-            <span className="max-w-[65%] truncate rounded bg-panel px-1.5 py-0.5 font-mono text-[9px] normal-case tracking-normal text-accent">
-              {keyScope}
-            </span>
-          </span>
-          <Input
-            type="password"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder={`Paste key for ${preset.name}`}
-            aria-label={`${preset.name} ${preset.tagline} key`}
-            className="h-8 text-xs"
-          />
-        </label>
+        <div className="rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-[11px] text-muted">
+          <span className="font-mono text-accent">{keyScope}</span>
+        </div>
       )}
 
-      <details className="group">
-        <summary className="cursor-pointer text-xs text-muted hover:text-fg">Endpoint, model & key scope</summary>
-        <div className="mt-2 flex flex-col gap-2">
-          <Input value={api} onChange={(e) => setApi(e.target.value)} aria-label="Base URL" className="h-7 font-mono text-[11px]" />
-          <Input value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model" className="h-7 font-mono text-[11px]" />
-          {!preset.keyless && (
-            <div className="rounded border border-border bg-panel/60 px-2 py-1 font-mono text-[10px] text-muted">
-              {keyScope}
-            </div>
-          )}
-        </div>
-      </details>
-
-      <label className="flex items-center gap-1.5 text-[11px] text-muted">
-        <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} className="size-3.5 accent-accent" />
-        Set as default brain
-      </label>
-
       <div className="mt-auto flex items-center gap-2">
-        <Button size="sm" disabled={busy} onClick={connect}>
+        <Button size="sm" disabled={busy} onClick={preset.keyless ? connect : () => setOpen(true)}>
           {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
           {connected ? "Reconnect" : "Connect"}
         </Button>
-        <Button variant="ghost" size="sm" disabled={probing} onClick={check} title="Check the endpoint is reachable">
+        <Button variant="ghost" size="sm" disabled={probing} onClick={preset.keyless ? check : () => setOpen(true)} title="Check the endpoint is reachable">
           {probing ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
           Check
         </Button>
@@ -313,6 +339,64 @@ function PresetCard({
                 : "unreachable"}
         </span>
       )}
+      {open && (
+        <ConnectModal title={`${connected ? "Reconnect" : "Connect"} ${preset.name}`} icon={Plug} onClose={() => setOpen(false)}>
+          <div className="space-y-3">
+            {!preset.keyless && (
+              <label className="flex flex-col gap-1">
+                <span className="flex items-center justify-between gap-2 text-xs uppercase tracking-normal text-muted">
+                  <span>API key</span>
+                  <span className="max-w-[65%] truncate rounded bg-card px-1.5 py-0.5 font-mono text-[9px] normal-case tracking-normal text-accent">
+                    {keyScope}
+                  </span>
+                </span>
+                <Input
+                  type="password"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  placeholder={`Paste key for ${preset.name}`}
+                  aria-label={`${preset.name} ${preset.tagline} key`}
+                  className="h-8 text-xs"
+                />
+              </label>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input value={api} onChange={(e) => setApi(e.target.value)} aria-label="Base URL" className="h-8 font-mono text-[11px]" />
+              <Input value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model" className="h-8 font-mono text-[11px]" />
+            </div>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted">
+              <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} className="size-3.5 accent-accent" />
+              Set as default brain
+            </label>
+            {probe && (
+              <div
+                className={cn(
+                  "rounded-md border px-2 py-1 text-[11px]",
+                  probe.error ? "border-bad/30 text-bad" : probe.authorized ? "border-good/30 text-good" : "border-warn/30 text-warn",
+                )}
+              >
+                {probe.error
+                  ? `unreachable: ${probe.error}`
+                  : probe.authorized
+                    ? `reachable (${probe.models ?? 0} models)`
+                    : probe.reachable
+                      ? "reachable — needs a valid key"
+                      : "unreachable"}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <Button variant="ghost" size="sm" disabled={probing} onClick={check} title="Check the endpoint is reachable">
+                {probing ? <RefreshCw className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                Check
+              </Button>
+              <Button size="sm" disabled={busy} onClick={connect} aria-label={`Connect ${preset.name}`}>
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
+                {connected ? "Reconnect" : "Connect"}
+              </Button>
+            </div>
+          </div>
+        </ConnectModal>
+      )}
     </Card>
   );
 }
@@ -326,6 +410,7 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
   const [key, setKey] = useState("");
   const [makeDefault, setMakeDefault] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   function slug(s: string) {
     return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "custom-provider";
@@ -351,6 +436,7 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
       if (makeDefault) await setDefaultProvider(providerId, model);
       ui.toast(makeDefault ? `Connected ${name} — now the default brain` : `Connected ${name}`, "success");
       setKey("");
+      setOpen(false);
       onConnected();
     } catch (e) {
       ui.toast(`${name}: ${(e as Error).message}`, "error");
@@ -361,60 +447,64 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
 
   return (
     <Card glass className="flex flex-col gap-2 p-4 sm:col-span-2 lg:col-span-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Sparkles className="size-4 text-accent" />
         <span className="text-sm font-semibold">Custom provider</span>
         <span className="text-xs text-muted">Any OpenAI- or Anthropic-compatible API</span>
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Provider name" className="h-8 text-xs" />
-        <Input value={api} onChange={(e) => setApi(e.target.value)} placeholder="https://api…/v1" aria-label="Base URL" className="h-8 font-mono text-[11px]" />
-        <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model-id" aria-label="Model" className="h-8 font-mono text-[11px]" />
-        <select
-          value={family}
-          onChange={(e) => setFamily(e.target.value as PresetFamily)}
-          aria-label="Compatibility"
-          className={cn("h-8 rounded-md border border-border bg-card px-2 text-xs")}
-        >
-          <option value="openai-compatible">OpenAI-compatible</option>
-          <option value="anthropic">Anthropic-compatible</option>
-        </select>
-      </div>
-      <details className="group">
-        <summary className="cursor-pointer text-xs text-muted hover:text-fg">Provider id & vault scope</summary>
-        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,15rem)]">
-          <div className="rounded border border-border bg-panel/60 px-2 py-1.5 font-mono text-[10px] text-muted">
-            provider id: <span className="text-foreground">{providerId}</span>
-            <br />
-            vault target: <span className="text-accent">{keyScope}</span>
-          </div>
-          <Input
-            value={keyEnv}
-            onChange={(e) => setKeyEnv(e.target.value)}
-            placeholder={`auto: ${derivedKeyEnv}`}
-            aria-label="Key env var override"
-            className="h-8 font-mono text-[11px]"
-          />
-        </div>
-      </details>
-      <div className="flex items-center gap-2">
-        <Input
-          type="password"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder="API key"
-          aria-label="Custom provider API key"
-          className="h-8 flex-1 text-xs"
-        />
-        <label className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted">
-          <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} className="size-3.5 accent-accent" />
-          Set as default
-        </label>
-        <Button size="sm" disabled={busy} onClick={connect}>
-          {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
-          Connect
+        <Button className="ml-auto" size="sm" onClick={() => setOpen(true)}>
+          <Plug className="size-3.5" /> Configure
         </Button>
       </div>
+      <div className="rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-[11px] text-muted">
+        Add a provider once; AGEZT stores the key in the local keyring and reloads routing live.
+      </div>
+      {open && (
+        <ConnectModal title="Custom provider" icon={Sparkles} onClose={() => setOpen(false)}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" aria-label="Provider name" className="h-8 text-xs" />
+              <CompatibilityPicker value={family} onChange={setFamily} />
+              <Input value={api} onChange={(e) => setApi(e.target.value)} placeholder="https://api.../v1" aria-label="Base URL" className="h-8 font-mono text-[11px]" />
+              <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model-id" aria-label="Model" className="h-8 font-mono text-[11px]" />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,15rem)]">
+              <div className="rounded border border-border bg-card px-2 py-1.5 font-mono text-[10px] text-muted">
+                provider id: <span className="text-foreground">{providerId}</span>
+                <br />
+                vault target: <span className="text-accent">{keyScope}</span>
+              </div>
+              <Input
+                value={keyEnv}
+                onChange={(e) => setKeyEnv(e.target.value)}
+                placeholder={`auto: ${derivedKeyEnv}`}
+                aria-label="Key env var override"
+                className="h-8 font-mono text-[11px]"
+              />
+            </div>
+            <Input
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="API key"
+              aria-label="Custom provider API key"
+              className="h-8 text-xs"
+            />
+            <label className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted">
+              <input type="checkbox" checked={makeDefault} onChange={(e) => setMakeDefault(e.target.checked)} className="size-3.5 accent-accent" />
+              Set as default
+            </label>
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={busy} onClick={connect}>
+                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Plug className="size-3.5" />}
+                Connect
+              </Button>
+            </div>
+          </div>
+        </ConnectModal>
+      )}
     </Card>
   );
 }

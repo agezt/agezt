@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight, Download, Upload, Wand2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Route, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, CornerDownRight, Download, Upload, Wand2, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,33 @@ interface RoutingResp {
   task_types?: string[];
   chains?: Record<string, string[]>;
   activity?: Record<string, TaskActivity>;
+}
+
+function RoutingModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 export function Routing() {
@@ -297,12 +324,13 @@ function ChainRow({
   onMove: (i: number, dir: -1 | 1) => void;
 }) {
   const fb = activity?.fallbacks ?? 0;
+  const [addOpen, setAddOpen] = useState(false);
   return (
     <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-baseline gap-2">
         <h3 className="font-mono text-sm font-semibold text-foreground">{task}</h3>
         <span className="text-[11px] text-muted">{TASK_HELP[task] || "Custom task type."}</span>
-        {models.length === 0 && <span className="ml-auto text-xs uppercase tracking-wide text-muted">daemon default</span>}
+        {models.length === 0 && <span className="ml-auto text-xs uppercase tracking-normal text-muted">daemon default</span>}
       </div>
 
       {models.length > 0 && (
@@ -348,10 +376,36 @@ function ChainRow({
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 text-[11px] text-muted">
-        <Plus className="size-3" />
-        <ModelPicker value="" activeModel={models.length ? "add a fallback model" : "add the primary model"} onChange={onAdd} />
+      <div className="flex items-center justify-between gap-2 text-[11px] text-muted">
+        <span>
+          {models.length > 0 ? `${models.length} model chain` : "Uses daemon default"}
+        </span>
+        <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)} aria-label={`Add model to ${task}`}>
+          <Plus className="size-3.5" />
+          {models.length ? "Add fallback" : "Set primary"}
+        </Button>
       </div>
+      {addOpen && (
+        <RoutingModal title={`${models.length ? "Add fallback" : "Set primary"} · ${task}`} icon={Route} onClose={() => setAddOpen(false)}>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-card p-3 text-xs text-muted">
+              {models.length
+                ? "Pick one more model for this task. It is appended after the current fallbacks; Save persists it."
+                : "Pick the primary model for this task. Empty tasks continue to use daemon default until you choose one."}
+            </div>
+            <ModelPicker
+              value=""
+              activeModel={models.length ? "choose fallback model" : "choose primary model"}
+              allowChains={false}
+              triggerClassName="h-9 w-full max-w-none justify-between"
+              onChange={(id) => {
+                onAdd(id);
+                if (id) setAddOpen(false);
+              }}
+            />
+          </div>
+        </RoutingModal>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search, Tags, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { Panel, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { postJSON, postAction } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { cn } from "@/lib/utils";
 import { useUI } from "@/components/ui/feedback";
+import { Disclosure } from "@/components/ui/disclosure";
 
 // The entity kinds the world model recognises — offered when teaching it one.
 const WORLD_KINDS = ["person", "project", "repo", "org", "account", "device", "channel", "topic", "task"];
@@ -127,6 +128,8 @@ export function World() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const [kindFilter, setKindFilter] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [relateOpen, setRelateOpen] = useState(false);
   return (
     <Panel<Record<string, any>> title="World" icon={Globe} description="The agents' shared model of entities and how they relate" path="/api/world">
       {(d, reload) => {
@@ -208,8 +211,35 @@ export function World() {
                 <Download className="size-3.5" /> Export
               </Button>
             </div>
-            <WorldAddForm onAdded={reload} />
-            {ents.length >= 2 && <WorldRelateForm names={ents.map((e: any) => e.name).filter(Boolean)} onRelated={reload} />}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => setAddOpen(true)} title="Teach the world model a new entity">
+                <Plus className="size-3.5" /> Add entity
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setRelateOpen(true)} disabled={ents.length < 2} title="Connect two known entities">
+                <Globe className="size-3.5" /> Relate
+              </Button>
+            </div>
+            {addOpen && (
+              <WorldModal title="Add entity" onClose={() => setAddOpen(false)}>
+                <WorldAddForm
+                  onAdded={() => {
+                    setAddOpen(false);
+                    reload();
+                  }}
+                />
+              </WorldModal>
+            )}
+            {relateOpen && (
+              <WorldModal title="Relate entities" onClose={() => setRelateOpen(false)}>
+                <WorldRelateForm
+                  names={ents.map((e: any) => e.name).filter(Boolean)}
+                  onRelated={() => {
+                    setRelateOpen(false);
+                    reload();
+                  }}
+                />
+              </WorldModal>
+            )}
 
             {ents.length > 0 && <BreakdownBar segments={breakdown} />}
             {/* Kind filter chips (M918): click a kind to narrow the entity list —
@@ -235,7 +265,7 @@ export function World() {
             )}
             {edges.length > 0 && (
               <div className="space-y-1">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">Relations ({edges.length})</div>
+                <div className="text-[11px] font-semibold uppercase tracking-normal text-muted">Relations ({edges.length})</div>
                 {edges.map((r: any, i: number) => {
                   const from = nameById[r.from] || r.from;
                   const to = nameById[r.to] || r.to;
@@ -272,7 +302,7 @@ export function World() {
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="filter entities…"
+                  placeholder="filter entities..."
                   aria-label="Filter entities"
                   className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-2 text-xs text-foreground outline-none focus-visible:border-accent"
                 />
@@ -359,15 +389,75 @@ function EntityRow({ entity, onChanged }: { entity: any; onChanged: () => void }
         ) : null}
       </Row>
       {editing && entity.id && (
-        <WorldEditForm
-          entity={entity}
-          onSaved={() => {
-            setEditing(false);
-            onChanged();
-          }}
-        />
+        <WorldModal title={`Edit ${entity.name || "entity"}`} onClose={() => setEditing(false)}>
+          <WorldEditForm
+            entity={entity}
+            onSaved={() => {
+              setEditing(false);
+              onChanged();
+            }}
+          />
+        </WorldModal>
       )}
     </>
+  );
+}
+
+function WorldModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Pencil className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Tune aliases and attributes without cluttering the entity list.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close world modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function WorldFormBlock({
+  icon: Icon,
+  title,
+  meta,
+  children,
+  defaultOpen = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <Disclosure
+      defaultOpen={defaultOpen}
+      className="rounded-lg border border-border bg-panel/45"
+      summaryClassName="px-2.5 py-2"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
+            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
+          </span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
   );
 }
 
@@ -413,52 +503,70 @@ export function WorldEditForm({ entity, onSaved }: { entity: any; onSaved: () =>
   }
 
   return (
-    <div className="mb-2 ml-2 rounded-md border border-accent/30 bg-card p-2.5">
-      <label className="flex flex-col gap-1 text-[11px] text-muted">
-        Aliases (comma-separated)
-        <input
-          value={aliases}
-          onChange={(e) => setAliases(e.target.value)}
-          placeholder="e.g. the portfolio, the repos"
-          aria-label="Edit entity aliases"
-          className="h-8 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
-        />
-      </label>
+    <div className="rounded-md border border-border/70 bg-panel/70 p-2.5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            <Globe className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">{entity.name || entity.id || "Entity"}</div>
+            <div className="text-[11px] text-muted">{pairs.length} attribute{pairs.length === 1 ? "" : "s"} · {aliases.trim() ? "aliases set" : "no aliases"}</div>
+          </div>
+        </div>
+        <Badge variant={pairs.length > 0 || aliases.trim() ? "accent" : "default"}>{pairs.length + aliases.split(",").filter((x) => x.trim()).length} facts</Badge>
+      </div>
 
-      <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
-        Attributes
-        {pairs.length === 0 && <span className="italic opacity-70">none — add a preference or constraint</span>}
-        {pairs.map((p, i) => (
-          <div key={i} className="flex items-center gap-1.5">
+      <div className="space-y-2">
+        <WorldFormBlock icon={Tags} title="Aliases" meta={aliases.trim() || "no aliases"} defaultOpen>
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Aliases (comma-separated)
             <input
-              value={p.k}
-              onChange={(e) => setPair(i, "k", e.target.value)}
-              placeholder="key"
-              aria-label={`Attribute key ${i + 1}`}
-              className="h-8 w-32 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+              value={aliases}
+              onChange={(e) => setAliases(e.target.value)}
+              placeholder="e.g. the portfolio, the repos"
+              aria-label="Edit entity aliases"
+              className="h-8 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
             />
-            <input
-              value={p.v}
-              onChange={(e) => setPair(i, "v", e.target.value)}
-              placeholder="value"
-              aria-label={`Attribute value ${i + 1}`}
-              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
-            />
+          </label>
+        </WorldFormBlock>
+
+        <WorldFormBlock icon={SlidersHorizontal} title="Attributes" meta={pairs.length ? `${pairs.length} configured` : "none"} defaultOpen={pairs.length > 0}>
+          <div className="flex flex-col gap-1 text-[11px] text-muted">
+            {pairs.length === 0 && <span className="italic opacity-70">none - add a preference or constraint</span>}
+            {pairs.map((p, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input
+                  value={p.k}
+                  onChange={(e) => setPair(i, "k", e.target.value)}
+                  placeholder="key"
+                  aria-label={`Attribute key ${i + 1}`}
+                  className="h-8 w-32 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+                />
+                <input
+                  value={p.v}
+                  onChange={(e) => setPair(i, "v", e.target.value)}
+                  placeholder="value"
+                  aria-label={`Attribute value ${i + 1}`}
+                  className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+                />
+                <button
+                  onClick={() => removePair(i)}
+                  title="Remove attribute"
+                  className="text-muted transition-colors hover:text-bad"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ))}
             <button
-              onClick={() => removePair(i)}
-              title="Remove attribute"
-              className="text-muted transition-colors hover:text-bad"
+              onClick={addPair}
+              className="mt-0.5 inline-flex w-fit items-center gap-1 text-[11px] text-accent transition-opacity hover:opacity-80"
             >
-              <X className="size-3.5" />
+              <Plus className="size-3" /> add attribute
             </button>
           </div>
-        ))}
-        <button
-          onClick={addPair}
-          className="mt-0.5 inline-flex w-fit items-center gap-1 text-[11px] text-accent transition-opacity hover:opacity-80"
-        >
-          <Plus className="size-3" /> add attribute
-        </button>
+        </WorldFormBlock>
       </div>
 
       <div className="mt-2 flex items-center justify-end">
@@ -496,19 +604,8 @@ export function WorldAddForm({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5">
-      <select
-        value={kind}
-        onChange={(e) => setKind(e.target.value)}
-        aria-label="Entity kind"
-        className="h-8 rounded-md border border-border bg-panel px-1.5 text-sm outline-none focus-visible:border-accent"
-      >
-        {WORLD_KINDS.map((k) => (
-          <option key={k} value={k}>
-            {k}
-          </option>
-        ))}
-      </select>
+    <div className="rounded-md border border-border/70 bg-panel/70 p-2.5">
+      <WorldChipPicker value={kind} onChange={setKind} options={WORLD_KINDS} label="Entity kind" />
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -517,11 +614,13 @@ export function WorldAddForm({ onAdded }: { onAdded: () => void }) {
         }}
         placeholder="Name (e.g. Acme Corp, my-repo, Ada)"
         aria-label="Entity name"
-        className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
+        className="mt-2 h-8 w-full min-w-0 rounded-md border border-border bg-panel px-2 text-sm outline-none focus-visible:border-accent"
       />
-      <Button size="sm" onClick={add} disabled={!valid || submitting} title="Add entity">
-        {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Add entity
-      </Button>
+      <div className="mt-2 flex justify-end">
+        <Button size="sm" onClick={add} disabled={!valid || submitting} title="Add entity">
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Add entity
+        </Button>
+      </div>
     </div>
   );
 }
@@ -551,26 +650,53 @@ export function WorldRelateForm({ names, onRelated }: { names: string[]; onRelat
   }
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-      <span className="text-muted">relate</span>
-      <select value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Relation from" className="h-8 min-w-0 max-w-[10rem] rounded-md border border-border bg-panel px-1.5 outline-none focus-visible:border-accent">
-        {names.map((n) => (
-          <option key={n} value={n}>{n}</option>
-        ))}
-      </select>
-      <select value={verb} onChange={(e) => setVerb(e.target.value)} aria-label="Relation verb" className="h-8 rounded-md border border-border bg-panel px-1.5 outline-none focus-visible:border-accent">
-        {WORLD_VERBS.map((v) => (
-          <option key={v} value={v}>{v.replace(/_/g, " ")}</option>
-        ))}
-      </select>
-      <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Relation to" className="h-8 min-w-0 max-w-[10rem] rounded-md border border-border bg-panel px-1.5 outline-none focus-visible:border-accent">
-        {names.map((n) => (
-          <option key={n} value={n}>{n}</option>
-        ))}
-      </select>
-      <Button size="sm" variant="ghost" onClick={relate} disabled={!valid || submitting} title="Relate entities">
-        {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Relate
-      </Button>
+    <div className="space-y-2 rounded-md border border-border/70 bg-panel/70 p-2.5 text-xs">
+      <WorldChipPicker value={from} onChange={setFrom} options={names} label="Relation from" />
+      <WorldChipPicker value={verb} onChange={setVerb} options={WORLD_VERBS} label="Relation verb" format={(v) => v.replace(/_/g, " ")} />
+      <WorldChipPicker value={to} onChange={setTo} options={names} label="Relation to" />
+      <div className="flex justify-end">
+        <Button size="sm" variant="ghost" onClick={relate} disabled={!valid || submitting} title="Relate entities">
+          {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Relate
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function WorldChipPicker({
+  value,
+  onChange,
+  options,
+  label,
+  format = (v) => v,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  label: string;
+  format?: (value: string) => string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      {options.map((option) => {
+        const selected = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option)}
+            className={cn(
+              "inline-flex h-7 max-w-full items-center rounded-md border px-2 text-xs font-medium transition-colors",
+              selected
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+            )}
+          >
+            <span className="truncate">{format(option)}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

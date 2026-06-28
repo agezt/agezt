@@ -201,7 +201,7 @@ export function Artifacts() {
           const Icon = meta.icon;
           return (
             <section key={g.key}>
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
                 <Icon className="size-3" /> {meta.label} ({g.entries.length})
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">

@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { fmtBytes, pctOf, Storage } from "./Storage";
 import { UIProvider } from "@/components/ui/feedback";
+
+const postAction = vi.fn();
+vi.mock("@/lib/api", () => ({
+  getJSON: vi.fn(),
+  postAction: (...a: unknown[]) => postAction(...a),
+}));
 
 vi.mock("@/lib/usePanel", () => ({
   usePanel: () => ({
@@ -60,6 +66,10 @@ describe("Storage view", () => {
     expect(screen.getByText("Memory prune")).toBeTruthy();
     expect(screen.getByText("Memory consolidate")).toBeTruthy();
     expect(screen.getByText("Reaper scan")).toBeTruthy();
+    expect(screen.queryByLabelText("Collector older than days")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Collect" }));
+    expect(screen.getByRole("dialog", { name: "Artifact collect" })).toBeTruthy();
+    expect((screen.getByLabelText("Collector older than days") as HTMLInputElement).value).toBe("30");
     // Disk free summary.
     expect(screen.getByText("25%")).toBeTruthy();
   });

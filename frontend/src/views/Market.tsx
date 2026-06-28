@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Store, RefreshCw, Search, Download, Trash2, ShieldCheck, ShieldAlert, Check, Globe, Plus, RotateCw, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Store, RefreshCw, Search, Download, Trash2, ShieldCheck, ShieldAlert, Check, Globe, Plus, RotateCw, ChevronDown, X, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { streamMarket, stepFromFrame, fetchPackDetails, type MarketStep, type PackDetails } from "@/lib/market";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,33 @@ interface MarketSource {
   name: string;
   url: string;
   pubkey?: string;
+}
+
+function MarketModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-xl border border-border bg-panel shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Icon className="size-4 text-accent" />
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Button className="ml-auto" size="icon" variant="ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
 }
 
 // Marketplace — browse + install capability packs (skills + MCP servers + CLI
@@ -246,7 +273,7 @@ export function Market() {
                 aria-label="Search packs"
               />
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowSources((v) => !v)}>
+            <Button variant="ghost" size="sm" onClick={() => setShowSources(true)}>
               <Globe className="size-3.5" /> Sources{sources.length > 0 ? ` (${sources.length})` : ""}
             </Button>
             <Button variant="ghost" size="sm" onClick={load} disabled={packs === null}>
@@ -257,55 +284,56 @@ export function Market() {
       />
 
       {showSources && (
-        <Card glass className="space-y-2 p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Remote marketplaces</span>
-            <Button variant="ghost" size="sm" disabled={syncing || sources.length === 0} onClick={() => sync()}>
-              <RotateCw className={cn("size-3.5", syncing && "animate-spin")} /> Sync all
-            </Button>
+        <MarketModal title="Remote marketplaces" icon={Globe} onClose={() => setShowSources(false)}>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted">{sources.length} configured source{sources.length === 1 ? "" : "s"}</span>
+              <Button variant="ghost" size="sm" disabled={syncing || sources.length === 0} onClick={() => sync()}>
+                <RotateCw className={cn("size-3.5", syncing && "animate-spin")} /> Sync all
+              </Button>
+            </div>
+            {sources.length === 0 ? (
+              <div className="rounded-lg border border-border bg-card p-3 text-[11px] text-muted">
+                No remote sources yet. Add a marketplace.json URL below; its packs appear in the gallery after sync.
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {sources.map((s) => (
+                  <li key={s.name} className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1 text-xs">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{s.url}</span>
+                    {s.pubkey && <ShieldCheck className="size-3 text-good" aria-label="signer key pinned" />}
+                    <Button variant="ghost" size="sm" disabled={syncing} onClick={() => sync(s.name)} title="Sync">
+                      <RotateCw className="size-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => removeSource(s.name)} title="Remove">
+                      <Trash2 className="size-3 text-bad" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_160px_auto]">
+              <Input
+                value={newURL}
+                onChange={(e) => setNewURL(e.target.value)}
+                placeholder="https://.../marketplace.json"
+                className="h-8 min-w-0"
+                aria-label="Marketplace URL"
+              />
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="name"
+                className="h-8"
+                aria-label="Source name"
+              />
+              <Button variant="default" size="sm" disabled={!newURL.trim()} onClick={addSource}>
+                <Plus className="size-3.5" /> Add
+              </Button>
+            </div>
           </div>
-          {sources.length === 0 ? (
-            <p className="text-[11px] text-muted">
-              No remote sources yet. Add a marketplace.json URL below — its packs appear in the gallery after a sync. The
-              built-in Official catalogue is always available offline.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {sources.map((s) => (
-                <li key={s.name} className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1 text-xs">
-                  <span className="font-medium">{s.name}</span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted">{s.url}</span>
-                  {s.pubkey && <ShieldCheck className="size-3 text-good" aria-label="signer key pinned" />}
-                  <Button variant="ghost" size="sm" disabled={syncing} onClick={() => sync(s.name)} title="Sync">
-                    <RotateCw className="size-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => removeSource(s.name)} title="Remove">
-                    <Trash2 className="size-3 text-bad" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Input
-              value={newURL}
-              onChange={(e) => setNewURL(e.target.value)}
-              placeholder="https://…/marketplace.json"
-              className="h-8 min-w-0 flex-1"
-              aria-label="Marketplace URL"
-            />
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="name (optional)"
-              className="h-8 w-32"
-              aria-label="Source name"
-            />
-            <Button variant="default" size="sm" disabled={!newURL.trim()} onClick={addSource}>
-              <Plus className="size-3.5" /> Add
-            </Button>
-          </div>
-        </Card>
+        </MarketModal>
       )}
 
       {(categories.length > 2 || installedCount > 0) && (

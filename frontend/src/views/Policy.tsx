@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff, ShieldAlert, X, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { Panel, Stats, Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { byDescValue, pct } from "@/lib/format";
@@ -89,6 +88,11 @@ export function Policy() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
+  const [editingCap, setEditingCap] = useState<{ capability: string; level: string } | null>(null);
+  const [denyOpen, setDenyOpen] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
+  const [redactOpen, setRedactOpen] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -139,20 +143,11 @@ export function Policy() {
           actions={
             <>
               <label className="flex items-center gap-1.5 text-xs text-muted">
-                ask mode
-                <select
-                  value={show?.ask_policy || "allow"}
-                  disabled={busy === "mode"}
-                  onChange={(e) => act("mode", "/api/edict/set_mode", { mode: e.target.value }, { success: `Ask mode → ${e.target.value}` })}
-                  className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent disabled:opacity-50"
-                >
-                  {MODES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                ask mode <Badge variant={show?.ask_policy === "deny" ? "bad" : show?.ask_policy === "prompt" ? "warn" : "good"}>{show?.ask_policy || "allow"}</Badge>
               </label>
+              <Button variant="ghost" size="sm" onClick={() => setModeOpen(true)} disabled={!show || busy === "mode"}>
+                <SlidersHorizontal className="size-3.5" /> Policy mode
+              </Button>
               <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
                 <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
               </Button>
@@ -165,7 +160,7 @@ export function Policy() {
         {levels.length === 0 ? (
           <div className="text-xs text-muted">{loading ? "loading…" : "no governed capabilities"}</div>
         ) : (
-          <CollapsibleSection icon={ShieldCheck} title="Capabilities" count={levels.length} tone="accent">
+          <PolicyPanel icon={ShieldCheck} title="Capabilities" status={`${levels.length} governed`} tone="accent">
             <LevelSummary levels={levels} />
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {levels.map(([cap, lvl]) => (
@@ -174,29 +169,22 @@ export function Policy() {
                   className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
                 >
                   <span className="truncate font-mono text-xs">{cap}</span>
-                  <select
-                    value={lvl}
+                  <button
+                    className={cn("ml-auto rounded-md border bg-card px-2 py-1 text-xs tabular-nums transition-colors hover:border-accent disabled:opacity-50", levelTone(lvl))}
                     disabled={busy === cap}
-                    onChange={(e) => act(cap, "/api/edict/set_level", { capability: cap, level: e.target.value }, { success: `${cap} → ${e.target.value}` })}
-                    className={cn(
-                      "ml-auto h-7 rounded-md border bg-card px-1.5 text-xs tabular-nums outline-none focus:border-accent disabled:opacity-50",
-                      levelTone(lvl),
-                    )}
+                    onClick={() => setEditingCap({ capability: cap, level: lvl })}
+                    title={`Edit ${cap} trust level`}
                   >
-                    {LEVELS.map((l) => (
-                      <option key={l.value} value={l.value}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
+                    {lvl}
+                  </button>
                 </div>
               ))}
             </div>
-          </CollapsibleSection>
+          </PolicyPanel>
         )}
 
         {/* Hard-deny rules */}
-        <CollapsibleSection icon={ShieldAlert} title="Hard-deny rules" count={denies.length} tone="bad">
+        <PolicyPanel icon={ShieldAlert} title="Hard-deny rules" status={`${denies.length} active`} tone="bad">
           {denies.length === 0 ? (
             <div className="text-xs text-muted">none</div>
           ) : (
@@ -234,22 +222,40 @@ export function Policy() {
               ))}
             </ul>
           )}
-          <DenyAddForm
-            capabilities={levels.map(([cap]) => cap)}
-            onAdded={(rule) => {
-              ui.toast(`Deny rule added — “${rule}” is now blocked`, "success");
-              void reload();
-            }}
-            onError={(m) => ui.toast(m, "error")}
-          />
-        </CollapsibleSection>
+          <div className="mt-2 border-t border-border pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setDenyOpen(true)}>
+              <Plus className="size-3.5" /> Add deny rule
+            </Button>
+          </div>
+        </PolicyPanel>
 
         {/* Dry-run a decision (M753) */}
-        {levels.length > 0 && <PolicyTestForm capabilities={levels.map(([cap]) => cap)} />}
+        {levels.length > 0 && (
+          <div className="mt-3 border-t border-border pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setTestOpen(true)}>
+              <FlaskConical className="size-3.5" /> Test decision
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Secret redaction check (M754) */}
-      <RedactionCheckForm />
+      <div className="glass rounded-xl p-3">
+        <PageHeader
+          className="mb-2"
+          icon={EyeOff}
+          title="Secret redaction"
+          description="check what the scrubber catches before it leaves the daemon"
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => setRedactOpen(true)}>
+              <EyeOff className="size-3.5" /> Probe
+            </Button>
+          }
+        />
+        <div className="text-xs text-muted">
+          Paste-and-probe runs in a focused modal; this surface only shows the redaction control.
+        </div>
+      </div>
 
       {/* Decision stats + log (existing read-only view) */}
       <Panel<Record<string, any>> title="Decisions" path="/api/policy">
@@ -296,6 +302,156 @@ export function Policy() {
           );
         }}
       </Panel>
+
+      {modeOpen && (
+        <PolicyModal title="Ask mode" icon={ShieldCheck} onClose={() => setModeOpen(false)}>
+          <div className="grid gap-2">
+            {MODES.map((mode) => (
+              <button
+                key={mode}
+                className={cn(
+                  "flex items-center justify-between rounded-lg border border-border bg-panel/45 px-3 py-2 text-left transition-colors hover:border-accent",
+                  show?.ask_policy === mode && "border-accent bg-accent/10",
+                )}
+                onClick={async () => {
+                  await act("mode", "/api/edict/set_mode", { mode }, { success: `Ask mode → ${mode}` });
+                  setModeOpen(false);
+                }}
+                disabled={busy === "mode"}
+              >
+                <span className="text-sm font-medium text-foreground">{mode}</span>
+                <Badge variant={mode === "deny" ? "bad" : mode === "prompt" ? "warn" : "good"}>{mode === "allow" ? "autonomous" : mode}</Badge>
+              </button>
+            ))}
+          </div>
+        </PolicyModal>
+      )}
+
+      {editingCap && (
+        <PolicyModal title={editingCap.capability} icon={ShieldCheck} onClose={() => setEditingCap(null)}>
+          <div className="grid gap-2">
+            {LEVELS.map((level) => (
+              <button
+                key={level.value}
+                className={cn(
+                  "flex items-center justify-between rounded-lg border border-border bg-panel/45 px-3 py-2 text-left transition-colors hover:border-accent",
+                  editingCap.level === level.value && "border-accent bg-accent/10",
+                )}
+                onClick={async () => {
+                  await act(editingCap.capability, "/api/edict/set_level", { capability: editingCap.capability, level: level.value }, { success: `${editingCap.capability} → ${level.value}` });
+                  setEditingCap(null);
+                }}
+                disabled={busy === editingCap.capability}
+              >
+                <span className={cn("rounded border px-2 py-1 text-xs font-semibold tabular-nums", levelTone(level.value))}>{level.value}</span>
+                <span className="text-xs text-muted">{level.label.replace(/^L\d · /, "")}</span>
+              </button>
+            ))}
+          </div>
+        </PolicyModal>
+      )}
+
+      {denyOpen && (
+        <PolicyModal title="Add hard-deny rule" icon={ShieldAlert} onClose={() => setDenyOpen(false)}>
+          <DenyAddForm
+            capabilities={levels.map(([cap]) => cap)}
+            onAdded={(rule) => {
+              setDenyOpen(false);
+              ui.toast(`Deny rule added — “${rule}” is now blocked`, "success");
+              void reload();
+            }}
+            onError={(m) => ui.toast(m, "error")}
+          />
+        </PolicyModal>
+      )}
+
+      {testOpen && (
+        <PolicyModal title="Test policy decision" icon={FlaskConical} onClose={() => setTestOpen(false)}>
+          <PolicyTestForm capabilities={levels.map(([cap]) => cap)} />
+        </PolicyModal>
+      )}
+
+      {redactOpen && (
+        <PolicyModal title="Secret redaction probe" icon={EyeOff} onClose={() => setRedactOpen(false)}>
+          <RedactionCheckForm compact />
+        </PolicyModal>
+      )}
+    </div>
+  );
+}
+
+function PolicyPanel({
+  icon: Icon,
+  title,
+  status,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  status: string;
+  tone: "accent" | "bad" | "muted";
+  children: ReactNode;
+}) {
+  const toneCls: Record<typeof tone, string> = {
+    accent: "border-accent/35 bg-accent/5 text-accent",
+    bad: "border-bad/35 bg-bad/5 text-bad",
+    muted: "border-border bg-panel text-muted",
+  };
+  return (
+    <section className="mb-3 rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PolicyModal({
+  title,
+  icon: Icon,
+  onClose,
+  children,
+}: {
+  title: string;
+  icon: LucideIcon;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+            <Icon className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close policy modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -337,21 +493,39 @@ export function DenyAddForm({
   }
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
-      <span className="text-[11px] text-muted">add deny rule</span>
-      <select
-        value={scope}
-        onChange={(e) => setScope(e.target.value)}
-        aria-label="Deny rule capability scope"
-        className="h-7 rounded-md border border-border bg-panel px-1.5 text-xs outline-none focus:border-accent"
-      >
-        <option value="">all capabilities</option>
-        {capabilities.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
+    <div className="space-y-3">
+      <div>
+        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">Scope</div>
+        <div className="flex max-h-28 flex-wrap gap-1.5 overflow-auto rounded-lg border border-border/70 bg-panel/50 p-2" aria-label="Deny rule capability scope">
+          <button
+            type="button"
+            onClick={() => setScope("")}
+            className={cn(
+              "rounded-md border px-2 py-1 text-xs transition-colors",
+              scope === "" ? "border-accent bg-accent/15 text-accent" : "border-border bg-card text-muted hover:text-foreground",
+            )}
+            aria-pressed={scope === ""}
+          >
+            all capabilities
+          </button>
+          {capabilities.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setScope(c)}
+              className={cn(
+                "rounded-md border px-2 py-1 font-mono text-xs transition-colors",
+                scope === c ? "border-accent bg-accent/15 text-accent" : "border-border bg-card text-muted hover:text-foreground",
+              )}
+              aria-pressed={scope === c}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="grid gap-1 text-[11px] text-muted">
+        Blocked substring
       <input
         value={substring}
         onChange={(e) => setSubstring(e.target.value)}
@@ -360,11 +534,15 @@ export function DenyAddForm({
         }}
         placeholder="substring to block (e.g. rm -rf)"
         aria-label="Deny rule substring"
-        className="h-7 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 font-mono text-xs outline-none focus:border-accent"
+        className="h-9 min-w-0 rounded-md border border-border bg-panel px-2 font-mono text-xs outline-none focus:border-accent"
       />
+      </label>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs text-muted">{scope || "all"} blocks “{substring.trim() || "substring"}”</span>
       <Button size="sm" onClick={add} disabled={!valid || submitting} title="Add deny rule">
         {submitting ? <RefreshCw className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />} Add
       </Button>
+      </div>
     </div>
   );
 }
@@ -434,23 +612,30 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
   const outcome = result ? effectiveOutcome(result) : null;
 
   return (
-    <div className="mt-3 border-t border-border pt-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-          <FlaskConical className="size-3 text-accent" /> test a decision
-        </span>
-        <select
-          value={capability}
-          onChange={(e) => setCapability(e.target.value)}
-          aria-label="Test capability"
-          className="h-7 rounded-md border border-border bg-panel px-1.5 font-mono text-xs outline-none focus:border-accent"
-        >
+    <div className="space-y-3">
+      <div>
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
+          <FlaskConical className="size-3 text-accent" /> Capability
+        </div>
+        <div className="flex max-h-32 flex-wrap gap-1.5 overflow-auto rounded-lg border border-border/70 bg-panel/50 p-2" aria-label="Test capability">
           {capabilities.map((c) => (
-            <option key={c} value={c}>
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCapability(c)}
+              className={cn(
+                "rounded-md border px-2 py-1 font-mono text-xs transition-colors",
+                capability === c ? "border-accent bg-accent/15 text-accent" : "border-border bg-card text-muted hover:text-foreground",
+              )}
+              aria-pressed={capability === c}
+            >
               {c}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
+      </div>
+      <div className="grid gap-1 text-[11px] text-muted">
+        Probe input
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -459,16 +644,19 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
           }}
           placeholder="input to probe (e.g. rm -rf /)"
           aria-label="Test input"
-          className="h-7 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 font-mono text-xs outline-none focus:border-accent"
+          className="h-9 min-w-0 rounded-md border border-border bg-panel px-2 font-mono text-xs outline-none focus:border-accent"
         />
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs text-muted">{capability || "capability"} · dry-run only</span>
         <Button size="sm" variant="ghost" onClick={run} disabled={!capability || running} title="Dry-run this decision">
           {running ? <RefreshCw className="size-3.5 animate-spin" /> : <FlaskConical className="size-3.5" />} Test
         </Button>
       </div>
 
-      {err && <div className="mt-1.5 text-xs text-bad">{err}</div>}
+      {err && <div className="text-xs text-bad">{err}</div>}
       {outcome && result && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5 text-xs">
           <Badge variant={outcome.tone === "bad" ? "bad" : outcome.tone === "good" ? "good" : "default"}>
             {outcome.label}
           </Badge>
@@ -499,7 +687,7 @@ interface RedactResult {
 // secret literal. Read-only, and the probe text rides the POST body (not a URL) so the
 // secret never lands in an access log; the response returns only the REDACTED form and
 // category names, never the matched secret. Lets an operator confirm "my key won't leak."
-export function RedactionCheckForm() {
+export function RedactionCheckForm({ compact = false }: { compact?: boolean } = {}) {
   const [text, setText] = useState("");
   const [result, setResult] = useState<RedactResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -520,13 +708,15 @@ export function RedactionCheckForm() {
   }
 
   return (
-    <div className="glass rounded-xl p-3">
-      <PageHeader
-        className="mb-2"
-        icon={EyeOff}
-        title="Secret redaction"
-        description="check what the scrubber catches before it leaves the daemon"
-      />
+    <div className={compact ? "space-y-2" : "glass rounded-xl p-3"}>
+      {!compact && (
+        <PageHeader
+          className="mb-2"
+          icon={EyeOff}
+          title="Secret redaction"
+          description="check what the scrubber catches before it leaves the daemon"
+        />
+      )}
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

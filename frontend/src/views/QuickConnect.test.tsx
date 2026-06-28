@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
@@ -36,11 +36,13 @@ describe("QuickConnect", () => {
     render(withUI(<QuickConnect />));
     await screen.findByText("Quick Connect");
 
-    // DeepSeek's (OpenAI-compat) key field, then its Connect button.
+    // DeepSeek's card opens a modal; the key is entered there.
+    const deepseek = screen.getAllByText("DeepSeek")[0];
+    const deepseekCard = deepseek.closest("div.glass")!;
+    const openBtn = Array.from(deepseekCard.querySelectorAll("button")).find((b) => /^connect$/i.test(b.textContent || ""))!;
+    fireEvent.click(openBtn);
     fireEvent.change(screen.getByLabelText("DeepSeek API key"), { target: { value: "sk-test" } });
-    const keyInput = screen.getByLabelText("DeepSeek API key");
-    const card = keyInput.closest("div.glass") ?? keyInput.parentElement!.parentElement!;
-    const connectBtn = Array.from(card.querySelectorAll("button")).find((b) => /connect/i.test(b.textContent || ""))!;
+    const connectBtn = screen.getByRole("button", { name: "Connect DeepSeek" });
     fireEvent.click(connectBtn);
 
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/provider/connect", expect.objectContaining({
@@ -62,13 +64,15 @@ describe("QuickConnect", () => {
     render(withUI(<QuickConnect />));
     await screen.findByText("Quick Connect");
 
+    const deepseek = screen.getAllByText("DeepSeek")[0];
+    const deepseekCard = deepseek.closest("div.glass")!;
+    const openBtn = Array.from(deepseekCard.querySelectorAll("button")).find((b) => /^connect$/i.test(b.textContent || ""))!;
+    fireEvent.click(openBtn);
     fireEvent.change(screen.getByLabelText("DeepSeek API key"), { target: { value: "sk-test" } });
-    const keyInput = screen.getByLabelText("DeepSeek API key");
-    const card = keyInput.closest("div.glass") ?? keyInput.parentElement!.parentElement!;
     // Tick "Set as default brain" within the DeepSeek card.
-    const checkbox = card.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const checkbox = screen.getByLabelText("Set as default brain") as HTMLInputElement;
     fireEvent.click(checkbox);
-    const connectBtn = Array.from(card.querySelectorAll("button")).find((b) => /connect/i.test(b.textContent || ""))!;
+    const connectBtn = screen.getByRole("button", { name: "Connect DeepSeek" });
     fireEvent.click(connectBtn);
 
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_PROVIDER", value: "deepseek" }));
@@ -109,11 +113,41 @@ describe("QuickConnect", () => {
   it("refuses to connect without a key", async () => {
     render(withUI(<QuickConnect />));
     await screen.findByText("Quick Connect");
-    const keyInput = screen.getByLabelText("Groq Fast inference key");
-    const card = keyInput.closest("div.glass") ?? keyInput.parentElement!.parentElement!;
-    const connectBtn = Array.from(card.querySelectorAll("button")).find((b) => /connect/i.test(b.textContent || ""))!;
+    const groq = screen.getByText("Groq");
+    const card = groq.closest("div.glass")!;
+    const openBtn = Array.from(card.querySelectorAll("button")).find((b) => /^connect$/i.test(b.textContent || ""))!;
+    fireEvent.click(openBtn);
+    const connectBtn = screen.getByRole("button", { name: "Connect Groq" });
     fireEvent.click(connectBtn);
     // No connect call fired (key empty → toast, early return).
     await waitFor(() => expect(postJSON).not.toHaveBeenCalledWith("/api/provider/connect", expect.anything()));
+  });
+
+  it("connects a custom Anthropic-compatible provider from compatibility chips", async () => {
+    render(withUI(<QuickConnect />));
+    await screen.findByText("Quick Connect");
+
+    const custom = screen.getByText("Custom provider");
+    const card = custom.closest("div.glass")!;
+    fireEvent.click(within(card as HTMLElement).getByRole("button", { name: /Configure/i }));
+    fireEvent.change(screen.getByLabelText("Provider name"), { target: { value: "Claude Proxy" } });
+    fireEvent.click(within(screen.getByRole("group", { name: "Compatibility" })).getByRole("button", { name: /Anthropic-compatible/i }));
+    fireEvent.change(screen.getByLabelText("Base URL"), { target: { value: "https://claude-proxy.test" } });
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "claude-test" } });
+    fireEvent.change(screen.getByLabelText("Custom provider API key"), { target: { value: "sk-custom" } });
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Custom provider" })).getByRole("button", { name: "Connect" }));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith(
+        "/api/provider/connect",
+        expect.objectContaining({
+          id: "claude-proxy",
+          name: "Claude Proxy",
+          npm: "@ai-sdk/anthropic",
+          api: "https://claude-proxy.test",
+          model: "claude-test",
+        }),
+      ),
+    );
   });
 });

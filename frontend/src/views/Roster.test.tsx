@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
@@ -19,6 +19,10 @@ import { Roster, NewAgentForm, profileFields, slugOk, usdToMc, agentHue, initial
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
+
+function chooseAgentOption(group: string, name: RegExp | string) {
+  fireEvent.click(within(screen.getByRole("group", { name: group })).getByRole("button", { name }));
+}
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -1556,7 +1560,7 @@ describe("NewAgentForm", () => {
       "persistent agent · stays alive after runs · no durable tasks",
     );
 
-    fireEvent.change(screen.getByLabelText("Agent lifecycle"), { target: { value: "retire_on_complete" } });
+    chooseAgentOption("Agent lifecycle", /One-shot/);
     fireEvent.change(screen.getByLabelText("Every-cycle tasks"), { target: { value: "check inbox" } });
     fireEvent.change(screen.getByLabelText("Total tasklist"), { target: { value: "ship migration\nwrite report" } });
 
@@ -1568,7 +1572,7 @@ describe("NewAgentForm", () => {
   it("treats max cycles as a cycle contract in the create form payload", () => {
     render(<NewAgentForm onCreated={() => {}} onError={() => {}} />);
 
-    fireEvent.change(screen.getByLabelText("Agent lifecycle"), { target: { value: "persistent" } });
+    chooseAgentOption("Agent lifecycle", /Persistent/);
     fireEvent.change(screen.getByLabelText("Max cycles"), { target: { value: "3" } });
 
     expect(screen.getByLabelText("Task contract preview").textContent).toContain(

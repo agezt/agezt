@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
-import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, LifeBuoy, Megaphone, Send, X, CheckCheck, Zap, Inbox, MessageSquare, Terminal } from "lucide-react";
+import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, LifeBuoy, Megaphone, Send, X, CheckCheck, Zap, Inbox, MessageSquare, Terminal, AtSign, BellRing, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabNav } from "@/components/ui/tab-nav";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { Badge } from "@/components/ui/badge";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface Msg {
   topic: string;
@@ -306,6 +306,7 @@ export function Board() {
         await postAction("/api/agents/wake", { ref: wakePlan.ref, reason: "mailbox message" });
       }
       setSendText("");
+      setShowCompose(false);
       setErr(null);
       await reload();
     } catch (e) {
@@ -415,9 +416,9 @@ export function Board() {
         description="Per-skill signal bus."
         actions={
           <>
-            <Button size="sm" onClick={() => setShowCompose((v) => !v)} title="New message">
-              {showCompose ? <X className="size-3.5" /> : <Send className="size-3.5" />}
-              {showCompose ? "Close" : "New message"}
+            <Button size="sm" onClick={() => setShowCompose(true)} title="New message">
+              <Send className="size-3.5" />
+              New message
             </Button>
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -427,80 +428,87 @@ export function Board() {
       />
 
       {showCompose && (
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="grid gap-2 md:grid-cols-[120px_1fr_1fr]">
-            <select
-              value={sendMode}
-              onChange={(e) => setSendMode(e.target.value as "dm" | "help" | "broadcast" | "topic")}
-              aria-label="Message mode"
-              className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
-            >
-              <option value="dm">DM</option>
-              <option value="help">Help</option>
-              <option value="broadcast">Broadcast</option>
-              <option value="topic">Topic</option>
-            </select>
-            <input
-              value={sendFrom}
-              onChange={(e) => setSendFrom(e.target.value)}
-              aria-label="From"
-              placeholder="from"
-              className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
-            />
-            {(sendMode === "dm" || sendMode === "help") ? (
-              agents.length > 0 ? (
-                <select
-                  value={sendTo}
-                  onChange={(e) => setSendTo(e.target.value)}
-                  aria-label="To"
-                  className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
-                >
-                  {agents.map((a) => (
-                    <option key={a.slug} value={a.slug}>
-                      {agentLabel(a)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
+        <BoardModal title="New board message" onClose={() => setShowCompose(false)}>
+          <div className="space-y-2">
+            <div className="rounded-lg border border-accent/25 bg-accent/10 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-background/70 text-accent">
+                    {sendMode === "help" ? <LifeBuoy className="size-4" /> : sendMode === "broadcast" ? <Megaphone className="size-4" /> : sendMode === "topic" ? <Hash className="size-4" /> : <Send className="size-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-foreground">
+                      {sendMode === "dm" ? "Direct mailbox" : sendMode === "help" ? "Help request" : sendMode === "broadcast" ? "Broadcast" : "Topic note"}
+                    </div>
+                    <div className="truncate text-[11px] text-muted">
+                      {sendMode === "broadcast" ? "to everyone" : sendMode === "topic" ? (sendTopic.trim() || "topic required") : (sendTo.trim() || "recipient required")}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant={sendText.trim() ? "good" : "warn"}>{sendText.trim() ? "message ready" : "needs text"}</Badge>
+                  {(sendMode === "dm" || sendMode === "help") && wakePlan.ref ? <Badge variant="accent">wake armed</Badge> : null}
+                </div>
+              </div>
+            </div>
+
+            <ComposeSection icon={MessageSquare} title="Message" meta={sendText.trim() ? `${sendText.trim().slice(0, 46)}${sendText.trim().length > 46 ? "..." : ""}` : "empty"} defaultOpen>
+              <textarea
+                value={sendText}
+                onChange={(e) => setSendText(e.target.value)}
+                aria-label="Message text"
+                placeholder="message"
+                rows={3}
+                className="w-full resize-none rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
+              />
+            </ComposeSection>
+
+            <ComposeSection icon={AtSign} title="Route" meta={sendMode === "broadcast" ? "all agents" : sendMode === "topic" ? (sendTopic.trim() || "topic") : (sendTo.trim() || "recipient")} defaultOpen>
+              <div className="grid gap-2 md:grid-cols-[1fr_1fr]">
+                <MessageModePicker value={sendMode} onChange={setSendMode} />
                 <input
-                  value={sendTo}
-                  onChange={(e) => setSendTo(e.target.value)}
-                  aria-label="To"
-                  placeholder={sendMode === "help" ? "to (optional)" : "to"}
+                  value={sendFrom}
+                  onChange={(e) => setSendFrom(e.target.value)}
+                  aria-label="From"
+                  placeholder="from"
                   className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
                 />
-              )
-            ) : (
-              <input
-                value={sendTopic}
-                onChange={(e) => setSendTopic(e.target.value)}
-                aria-label="Topic"
-                placeholder="topic"
-                disabled={sendMode === "broadcast"}
-                className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent disabled:opacity-60"
-              />
-            )}
-          </div>
-          {sendMode === "dm" && (
-            <input
-              value={sendTopic}
-              onChange={(e) => setSendTopic(e.target.value)}
-              aria-label="Topic"
-              placeholder="topic"
-              className="mt-2 w-full rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
-            />
-          )}
-          <textarea
-            value={sendText}
-            onChange={(e) => setSendText(e.target.value)}
-            aria-label="Message text"
-            placeholder="message"
-            rows={3}
-            className="mt-2 w-full resize-none rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
+                {(sendMode === "dm" || sendMode === "help") ? (
+                  agents.length > 0 ? (
+                    <AgentChipPicker value={sendTo} onChange={setSendTo} agents={agents} label="To" />
+                  ) : (
+                    <input
+                      value={sendTo}
+                      onChange={(e) => setSendTo(e.target.value)}
+                      aria-label="To"
+                      placeholder={sendMode === "help" ? "to (optional)" : "to"}
+                      className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
+                    />
+                  )
+                ) : (
+                  <input
+                    value={sendTopic}
+                    onChange={(e) => setSendTopic(e.target.value)}
+                    aria-label="Topic"
+                    placeholder="topic"
+                    disabled={sendMode === "broadcast"}
+                    className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent disabled:opacity-60"
+                  />
+                )}
+              </div>
+              {sendMode === "dm" && (
+                <input
+                  value={sendTopic}
+                  onChange={(e) => setSendTopic(e.target.value)}
+                  aria-label="Topic"
+                  placeholder="topic"
+                  className="mt-2 w-full rounded-md border border-border bg-panel px-2 py-1.5 text-xs outline-none focus-visible:border-accent"
+                />
+              )}
+            </ComposeSection>
+
             {(sendMode === "dm" || sendMode === "help") && (
-              <div className="flex min-w-0 flex-col gap-0.5">
+              <ComposeSection icon={BellRing} title="Delivery" meta={wakePlan.issue ? "wake blocked" : wakePlan.ref ? "wake available" : "message only"}>
                 <label className="inline-flex items-center gap-2 text-xs text-muted">
                   <input
                     type="checkbox"
@@ -512,15 +520,18 @@ export function Board() {
                   />
                   {wakePlan.label}
                 </label>
-                {wakePlan.issue && <span className="text-xs text-warn">{wakePlan.issue}</span>}
-              </div>
+                {wakePlan.issue && <div className="mt-1 text-xs text-warn">{wakePlan.issue}</div>}
+              </ComposeSection>
             )}
-            <Button size="sm" onClick={sendBoardMessage} disabled={sending || !sendText.trim() || (sendMode === "dm" && !sendTo.trim())}>
-              <Send className="size-3.5" />
-              Send
-            </Button>
+
+            <div className="flex justify-end">
+              <Button size="sm" onClick={sendBoardMessage} disabled={sending || !sendText.trim() || (sendMode === "dm" && !sendTo.trim())}>
+                <Send className="size-3.5" />
+                Send
+              </Button>
+            </div>
           </div>
-        </div>
+        </BoardModal>
       )}
 
       {help.length > 0 && (
@@ -580,22 +591,17 @@ export function Board() {
 
       {data && agents.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+          <div className="inline-flex items-center gap-1.5 text-xs text-muted">
             <User className="size-3.5" />
-            <select
+            <AgentChipPicker
               value={agentFilter}
-              onChange={(e) => changeAgentFilter(e.target.value)}
-              aria-label="Filter by agent"
-              className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
-            >
-              <option value="">All agents</option>
-              {agents.map((a) => (
-                <option key={a.slug} value={a.slug}>
-                  {agentLabel(a)}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={changeAgentFilter}
+              agents={agents}
+              label="Filter by agent"
+              includeAll
+              compact
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {([
               ["all", "All"],
@@ -769,6 +775,147 @@ export function Board() {
   );
 }
 
+function BoardModal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+        <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+            <Send className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted">Drop a DM, help request, topic note, or broadcast into the agent mailbox.</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto" aria-label="Close board modal">
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="min-h-0 overflow-auto p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+type BoardSendMode = "dm" | "help" | "broadcast" | "topic";
+
+function ComposeSection({
+  icon: Icon,
+  title,
+  meta,
+  children,
+  defaultOpen = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <Disclosure
+      defaultOpen={defaultOpen}
+      className="rounded-lg border border-border bg-panel/45"
+      summaryClassName="px-2.5 py-2"
+      contentClassName="px-2.5 pb-2"
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
+            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
+          </span>
+        </span>
+      }
+    >
+      {children}
+    </Disclosure>
+  );
+}
+
+function MessageModePicker({ value, onChange }: { value: BoardSendMode; onChange: (value: BoardSendMode) => void }) {
+  const modes: Array<{ id: BoardSendMode; label: string; icon: ComponentType<{ className?: string }> }> = [
+    { id: "dm", label: "DM", icon: Send },
+    { id: "help", label: "Help", icon: LifeBuoy },
+    { id: "broadcast", label: "Broadcast", icon: Megaphone },
+    { id: "topic", label: "Topic", icon: Hash },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Message mode">
+      {modes.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          aria-pressed={value === id}
+          onClick={() => onChange(id)}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition-colors",
+            value === id
+              ? "border-accent bg-accent/15 text-accent"
+              : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+          )}
+        >
+          <Icon className="size-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AgentChipPicker({
+  value,
+  onChange,
+  agents,
+  label,
+  includeAll = false,
+  compact = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  agents: BoardAgent[];
+  label: string;
+  includeAll?: boolean;
+  compact?: boolean;
+}) {
+  const items = includeAll ? [{ slug: "", name: "All agents" } as BoardAgent, ...agents] : agents;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={label}>
+      {items.map((agent) => {
+        const selected = value === agent.slug;
+        return (
+          <button
+            key={agent.slug || "all"}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(agent.slug)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border font-medium transition-colors",
+              compact ? "h-7 px-2 text-[11px]" : "h-8 px-2 text-xs",
+              selected
+                ? "border-accent bg-accent/15 text-accent"
+                : "border-border bg-panel text-muted hover:border-accent/60 hover:text-foreground",
+            )}
+          >
+            <User className="size-3.5" />
+            {agentLabel(agent)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
   messages: Msg[];
   agentFilter: string;
@@ -800,17 +947,43 @@ function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
   return (
     <div className="space-y-2">
       {groups.map(([topic, msgs]) => (
-        <CollapsibleSection
+        <BoardTopicPanel
           key={topic}
           title={topic}
           icon={Hash}
-          count={msgs.length}
-          defaultOpen={groups.length <= 3}
+          status={`${msgs.length} message${msgs.length === 1 ? "" : "s"}`}
         >
           {renderMessageList(msgs, agentFilter, waiting, replyTo)}
-        </CollapsibleSection>
+        </BoardTopicPanel>
       ))}
     </div>
+  );
+}
+
+function BoardTopicPanel({
+  icon: Icon,
+  title,
+  status,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  status: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold">{title}</h3>
+          <div className="truncate text-xs text-muted">{status}</div>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -897,7 +1070,7 @@ function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string
 function BoardStat({ label, value, accent, warn }: { label: string; value: number | string; accent?: boolean; warn?: boolean }) {
   return (
     <div className={cn("rounded-lg border bg-card p-2.5", warn ? "border-warn/50" : accent ? "border-accent/50" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", warn ? "text-warn" : accent && "text-accent")}>{value}</div>
     </div>
   );

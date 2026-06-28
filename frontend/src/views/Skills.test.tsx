@@ -18,6 +18,7 @@ afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postJSON.mockReset();
+  postAction.mockReset();
   postJSON.mockResolvedValue({ name: "deploy-release", status: "shadow" });
 });
 
@@ -38,6 +39,7 @@ describe("AuthorSkillForm", () => {
     fireEvent.change(screen.getByLabelText("Skill name"), { target: { value: "  deploy-release  " } });
     fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "  ship it  " } });
     fireEvent.change(screen.getByLabelText("Skill description"), { target: { value: "release flow" } });
+    fireEvent.click(screen.getByRole("button", { name: /Matching and ownership/ }));
     fireEvent.change(screen.getByLabelText("Skill triggers"), { target: { value: " deploy , ship ,, release " } });
     fireEvent.change(screen.getByLabelText("Skill tools required"), { target: { value: "shell," } });
     fireEvent.click(screen.getByRole("button", { name: /Create skill/ }));
@@ -108,6 +110,27 @@ describe("AuthorSkillForm (revise mode, M737)", () => {
 });
 
 describe("Skills filter (M778)", () => {
+  it("authors a skill through a modal instead of an inline settings panel", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/skills/hygiene") return Promise.resolve({ idle: [] });
+      return Promise.resolve({ skills: [], active: 0 });
+    });
+    render(
+      <UIProvider>
+        <Skills />
+      </UIProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Author skill/ }));
+    expect(screen.getByRole("dialog", { name: "Author skill" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Skill name"), { target: { value: "deploy-release" } });
+    fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "ship it" } });
+    fireEvent.click(screen.getByRole("button", { name: /Create skill/ }));
+
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/skill/import", { name: "deploy-release", body: "ship it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Author skill" })).toBeNull());
+  });
+
   it("skillMatches matches on name, description, status, triggers, or tools", () => {
     const s = {
       name: "deploy-release",
