@@ -54,7 +54,8 @@ export function Vitals({ onNavigate }: { onNavigate: (id: string) => void }) {
   const schedEnabled = st?.schedules?.enabled ?? 0;
 
   return (
-    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background px-3 py-1.5 text-xs">
+    <div>
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto bg-background px-3 py-1.5 text-xs">
       {st?.halted && (
         <span className="mr-1 inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 font-semibold text-bad">
           <Pause className="size-3" /> HALTED
@@ -78,6 +79,8 @@ export function Vitals({ onNavigate }: { onNavigate: (id: string) => void }) {
           onClick={() => onNavigate("approvals")}
         />
       )}
+      </div>
+      <div className="gradient-rule" />
     </div>
   );
 }
@@ -102,8 +105,8 @@ function Vital({
       onClick={onClick}
       title={`Go to ${label}`}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-panel",
-        attention ? "text-amber-500" : "text-muted hover:text-foreground",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors focus-glow",
+        attention ? "bg-amber-500/10 text-amber-500" : "text-muted hover:bg-panel hover:text-foreground",
       )}
     >
       <Icon className={cn("size-3.5", live && "animate-pulse text-good", attention && "text-amber-500")} />

@@ -357,7 +357,8 @@ export function Chat() {
           )}
         </div>
 
-        <div className="border-t border-border pt-3">
+        <div className="gradient-rule" />
+        <div className="pt-3">
         {/* Suggested next prompts (memory-derived + tool-context): shown once a
             turn has completed. Clicking a chip drops its prompt into the input. */}
         {messages.length > 0 && (
@@ -385,7 +386,7 @@ export function Chat() {
         {/* Attachment feature preserved in state for future use */}
         {/* Composer surface (M995): input + controls in one elevated card that
             lights an accent ring on focus, like a modern chat composer. */}
-        <div className="rounded-xl bg-panel/40 px-2 py-1.5 shadow-e1 transition-[box-shadow] focus-within:shadow-e2 focus-within:ring-2 focus-within:ring-accent/20">
+        <div className="rounded-xl bg-panel/40 px-2 py-1.5 shadow-e1 transition-all focus-within:shadow-e2 focus-within:ring-2 focus-within:ring-accent/25">
         <div className="flex items-end gap-2">
           <Button
             variant="ghost"

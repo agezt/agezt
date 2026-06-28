@@ -138,11 +138,19 @@ body {
 }
 .dark .glass {
   background: color-mix(in oklch, var(--card) 86%, transparent);
-  backdrop-filter: blur(8px);
-  border-color: color-mix(in oklch, var(--border) 80%, transparent);
+  backdrop-filter: blur(12px);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
   box-shadow:
     var(--elev-2),
-    inset 0 1px 0 oklch(1 0 0 / 0.04);
+    inset 0 1px 0 oklch(1 0 0 / 0.06);
+  /* A soft gradient edge for depth — the top-left edge catches a hint of accent,
+     the bottom-right recedes into shadow. Only in dark mode where glass is
+     translucent and the edge is visible. */
+  border-image: linear-gradient(135deg,
+    color-mix(in oklch, var(--accent) 20%, transparent) 0%,
+    color-mix(in oklch, var(--border) 70%, transparent) 50%,
+    color-mix(in oklch, var(--accent-2) 10%, transparent) 100%
+  ) 1;
 }
 
 /* Accent gradient text — for the brand wordmark and big hero numbers. */
