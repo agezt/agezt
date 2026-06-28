@@ -31,7 +31,7 @@ export function DoctorIncidentTrees({
             className="rounded-lg border border-border bg-panel/40 px-2.5 py-2"
           >
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-warn">
+              <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs text-warn">
                 root
               </span>
               <span className="font-medium">{tree.rootAgent}</span>
@@ -39,13 +39,13 @@ export function DoctorIncidentTrees({
                 {ops.label}
               </span>
               <span className="text-muted">{ops.detail}</span>
-              <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+              <span className="ml-auto font-mono text-xs text-muted opacity-70">
                 {fmtTime(tree.latestTs)}
               </span>
               {onOpenIncident && (
                 <button
                   onClick={() => onOpenIncident(tree.id)}
-                  className="text-[10px] font-medium text-accent/80 transition-colors hover:text-accent"
+                  className="text-xs font-medium text-accent/80 transition-colors hover:text-accent"
                   title="Open this incident tree"
                 >
                   open -&gt;
@@ -79,7 +79,7 @@ function DoctorIncidentNodeView({
   return (
     <div className={node.depth > 0 ? "ml-3 border-l border-border/70 pl-3" : ""}>
       <div className="flex items-center gap-2 text-xs">
-        <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-warn">
+        <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs text-warn">
           {node.depth > 0 ? `hop ${node.depth}` : "incident"}
         </span>
         <IncidentBadges item={latest} mono />
@@ -87,7 +87,7 @@ function DoctorIncidentNodeView({
         <span className="text-muted">
           {node.items.length} event{node.items.length === 1 ? "" : "s"}
         </span>
-        <span className="ml-auto font-mono text-[10px] text-muted opacity-70">
+        <span className="ml-auto font-mono text-xs text-muted opacity-70">
           {fmtTime(node.latestTs)}
         </span>
       </div>

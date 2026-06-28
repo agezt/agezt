@@ -259,7 +259,7 @@ export function Voice() {
                       l.role === "you" ? "bg-accent/15 text-fg" : "bg-surface ring-1 ring-inset ring-border"
                     }`}
                   >
-                    <div className="mb-0.5 text-[10px] uppercase tracking-normal text-muted">{l.role === "you" ? "You" : "AGEZT"}</div>
+                    <div className="mb-0.5 text-xs uppercase tracking-normal text-muted">{l.role === "you" ? "You" : "AGEZT"}</div>
                     {l.text}
                   </div>
                 </div>

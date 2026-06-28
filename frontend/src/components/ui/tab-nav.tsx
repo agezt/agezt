@@ -76,7 +76,7 @@ function TabTrigger({
       {tab.count !== undefined && (
         <span
           className={cn(
-            "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] tabular-nums",
+            "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-xs tabular-nums",
             isActive
               ? "bg-accent/20 text-accent"
               : "bg-panel text-muted",

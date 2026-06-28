@@ -268,7 +268,7 @@ export function AgentRepair({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-panel/30 p-2.5">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
             <AlertTriangle className="size-3" /> governed doctor run
           </div>
           <div className="mt-0.5 text-[11px] text-muted">
@@ -300,7 +300,7 @@ export function AgentRepair({
 
       {/* What's wrong — the case for repair. */}
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <Wrench className="size-3" /> self-repair evidence
         </div>
         {evidence === 0 ? (
@@ -327,7 +327,7 @@ export function AgentRepair({
             </Button>
             <div className="flex items-center gap-1 rounded-md border border-border bg-panel/40 px-1.5 py-0.5">
               <Repeat className="size-3 text-muted" />
-              <span className="text-[10px] text-muted">Iterate</span>
+              <span className="text-xs text-muted">Iterate</span>
               <input
                 type="number"
                 min={2}
@@ -353,7 +353,7 @@ export function AgentRepair({
         )}
       </div>
 
-      <p className="text-[10px] text-muted">
+      <p className="text-xs text-muted">
         Runs as <span className="font-mono text-foreground/80">{slug}</span> through the governed loop (policy/HITL apply). It
         edits its own files; durable changes it proposes (soul/model/fallbacks/task routing/config overrides) are applied automatically
         — Undo reverts the profile fields.
@@ -369,7 +369,7 @@ export function AgentRepair({
             <div className="text-[11px] font-medium text-good">Applied to its identity</div>
             <div className="text-[11px] text-muted">{proposalSummary(applied.prop)}</div>
             {applied.prop.soul !== undefined && (
-              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-panel p-1.5 font-mono text-[10px] text-foreground/80">
+              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-panel p-1.5 font-mono text-xs text-foreground/80">
                 {clip(applied.prop.soul, 600)}
               </pre>
             )}
@@ -426,7 +426,7 @@ function RepairTranscript({ turn, running }: { turn: ChatTurn; running: boolean 
   const text = turnText(turn);
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel/20 p-2.5">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-normal text-muted">
         {running && <span className="size-1.5 animate-pulse rounded-full bg-accent" />}
         repair run {turn.status === "error" ? "— error" : running ? "— working…" : "— done"}
       </div>
@@ -438,7 +438,7 @@ function RepairTranscript({ turn, running }: { turn: ChatTurn; running: boolean 
             <li key={c.callId} className="flex items-start gap-2 text-[11px]">
               <span
                 className={cn(
-                  "rounded px-1.5 py-0.5 font-mono text-[10px]",
+                  "rounded px-1.5 py-0.5 font-mono text-xs",
                   c.error ? "bg-bad/15 text-bad" : c.allow === false ? "bg-bad/10 text-bad" : "bg-card text-foreground/80",
                 )}
               >
@@ -458,7 +458,7 @@ function RepairTranscript({ turn, running }: { turn: ChatTurn; running: boolean 
       )}
 
       {turn.status === "done" && (
-        <div className="text-[10px] text-muted">
+        <div className="text-xs text-muted">
           {turn.iters ? `${turn.iters} iteration(s)` : ""}
           {turn.model ? ` · ${turn.model}` : ""}
           {turn.ts ? ` · ${fmtTime(turn.ts)}` : ""}

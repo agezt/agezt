@@ -57,7 +57,7 @@ export function ActivityChip({ count, onClick }: { count: number; onClick?: () =
       <Loader2 className="size-3 animate-spin" aria-hidden="true" />
       <span>working</span>
       {n > 0 && (
-        <span className="rounded-full bg-accent/20 px-1 text-[10px] font-semibold tabular-nums">{countLabel}</span>
+        <span className="rounded-full bg-accent/20 px-1 text-xs font-semibold tabular-nums">{countLabel}</span>
       )}
       <span className="work-pulse size-1.5 rounded-full bg-accent" aria-hidden="true" />
     </button>

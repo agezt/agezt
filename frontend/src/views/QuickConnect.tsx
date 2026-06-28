@@ -468,7 +468,7 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
               <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model-id" aria-label="Model" className="h-8 font-mono text-[11px]" />
             </div>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,15rem)]">
-              <div className="rounded border border-border bg-card px-2 py-1.5 font-mono text-[10px] text-muted">
+              <div className="rounded border border-border bg-card px-2 py-1.5 font-mono text-xs text-muted">
                 provider id: <span className="text-foreground">{providerId}</span>
                 <br />
                 vault target: <span className="text-accent">{keyScope}</span>

@@ -172,7 +172,7 @@ export function FlightRecorder({ steps, live }: { steps: ReplayStep[]; live?: bo
                 )}
               >
                 <div className="flex w-12 shrink-0 flex-col items-end pt-0.5">
-                  <span className="text-[10px] tabular-nums text-muted">{fmtTime(s.ts)}</span>
+                  <span className="text-xs tabular-nums text-muted">{fmtTime(s.ts)}</span>
                 </div>
                 <div className="relative flex flex-col items-center self-stretch">
                   <span className={cn("mt-1 inline-flex size-4 items-center justify-center rounded-full", active ? t.ring : "bg-border")}>
@@ -210,7 +210,7 @@ export function FlightRecorder({ steps, live }: { steps: ReplayStep[]; live?: bo
 function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5">
-      <div className="text-[10px] uppercase tracking-normal text-muted">{label}</div>
+      <div className="text-xs uppercase tracking-normal text-muted">{label}</div>
       <div className="mt-0.5 text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );

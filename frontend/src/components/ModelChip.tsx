@@ -26,7 +26,7 @@ export function ModelChip({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px]",
+          "inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs",
           known ? "bg-accent/15 text-accent" : "bg-bad/15 text-bad",
           className,
         )}
@@ -39,7 +39,7 @@ export function ModelChip({
     );
   }
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded bg-card px-1.5 py-0.5 font-mono text-[10px]", className)}>
+    <span className={cn("inline-flex items-center gap-1 rounded bg-card px-1.5 py-0.5 font-mono text-xs", className)}>
       {cat && <HealthDot status={modelHealth(cat, id)} />}
       {id}
     </span>

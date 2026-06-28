@@ -98,7 +98,7 @@ export function ApprovalsBell() {
       >
         {has ? <ShieldAlert className="size-4 animate-pulse text-warn" /> : <ShieldCheck className="size-4" />}
         {has && (
-          <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warn px-1 text-[10px] font-semibold text-white tabular-nums">
+          <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-warn px-1 text-xs font-semibold text-white tabular-nums">
             {n > 99 ? "99+" : n}
           </span>
         )}

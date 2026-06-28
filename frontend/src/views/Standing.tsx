@@ -992,7 +992,7 @@ function InitiativeModePicker({
           );
         })}
       </div>
-      <span className="text-[10px] opacity-70">{initiativeEnforcement(normalized)}</span>
+      <span className="text-xs opacity-70">{initiativeEnforcement(normalized)}</span>
     </div>
   );
 }

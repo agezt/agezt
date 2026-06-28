@@ -60,11 +60,11 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
           <div className="relative p-5 pr-12">
             <div className="flex items-center gap-2">
               {group && (
-                <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
+                <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-normal text-accent">
                   {group}
                 </span>
               )}
-              <span className="text-[10px] font-semibold uppercase tracking-normal text-muted/70">
+              <span className="text-xs font-semibold uppercase tracking-normal text-muted/70">
                 Page guide
               </span>
             </div>
@@ -137,7 +137,7 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
 
             {topic.related && topic.related.length > 0 && (
               <section>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-normal text-muted/70">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted/70">
                   Keep exploring
                 </div>
                 <div className="flex flex-wrap gap-1.5">

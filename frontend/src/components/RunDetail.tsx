@@ -224,7 +224,7 @@ function RunPhaseTimeline({ arc }: { arc: AgentEvent[] }) {
       <ol className="space-y-1">
         {steps.slice(-8).map((s) => (
           <li key={s.key} className="flex items-start gap-2 text-xs">
-            <span className="w-16 shrink-0 font-mono text-[10px] text-muted">{fmtTime(s.ts)}</span>
+            <span className="w-16 shrink-0 font-mono text-xs text-muted">{fmtTime(s.ts)}</span>
             <span className="w-24 shrink-0 text-foreground/85">{s.phase}</span>
             <span className="min-w-0 flex-1 truncate text-muted">{s.detail || s.kind}</span>
           </li>
@@ -276,7 +276,7 @@ export function ToolCallRow({ c }: { c: ToolCall }) {
         <div className="mt-1 ml-5 rounded-md border border-border bg-panel/60">
           {c.input && (
             <div>
-              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
                 Arguments
               </div>
               <ToolOutput text={c.input} />
@@ -284,7 +284,7 @@ export function ToolCallRow({ c }: { c: ToolCall }) {
           )}
           {c.output && (
             <div>
-              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+              <div className="px-2.5 pt-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
                 {c.error ? "Error" : "Result"}
               </div>
               <ToolOutput text={c.output} />
@@ -441,7 +441,7 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-accent">
         <Navigation className="size-3.5" /> Steer this run
         {paused && (
-          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 text-[10px] font-medium text-bad">
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 text-xs font-medium text-bad">
             <Pause className="size-3" /> paused
           </span>
         )}

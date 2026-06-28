@@ -980,7 +980,7 @@ function TemplatePicker({
             <span className="min-w-0">
               <span className="flex flex-wrap items-center gap-2 font-semibold">
                 <span>{t.title}</span>
-                <span className="rounded-md border border-border/70 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                <span className="rounded-md border border-border/70 px-1.5 py-0.5 font-mono text-xs text-muted">
                   {nodeCount} nodes
                 </span>
               </span>

@@ -177,7 +177,7 @@ export function AgentActivity({
 
       {focusedRun && (
         <div className="mb-2 rounded-md border border-border bg-card/40 p-2">
-          <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-normal text-muted">
+          <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-normal text-muted">
             <span>focused run</span>
             <span className="font-mono normal-case text-foreground/80">{focusedRun}</span>
             <button
@@ -215,10 +215,10 @@ export function AgentActivity({
                       setInlineRun(open ? null : a.correlation_id);
                     }}
                   >
-                    <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{a.kind}</span>
+                    <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">{a.kind}</span>
                     <span className="text-foreground/85">{a.summary}</span>
-                    {focused && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">focused</span>}
-                    <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(a.ts_unix_ms)}</span>
+                    {focused && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent">focused</span>}
+                    <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">{fmtTime(a.ts_unix_ms)}</span>
                   </div>
                   {open && (
                     <div className="mt-1 pl-2">
@@ -257,8 +257,8 @@ export function AgentActivity({
                   >
                     <Badge variant={statusVariant(r.status)}>{r.status || "?"}</Badge>
                     <span className="truncate text-foreground/85">{r.intent || r.correlation_id || "run"}</span>
-                    {focused && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">focused</span>}
-                    <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
+                    {focused && <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent">focused</span>}
+                    <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">
                       {r.spent_mc ? money(r.spent_mc) + " · " : ""}{fmtTime(r.started_unix_ms)}
                     </span>
                   </div>
@@ -281,12 +281,12 @@ export function AgentActivity({
           <ul className="space-y-1">
             {logs.map((e, i) => (
               <li key={e.id || e.seq || i} className="flex items-start gap-2 text-xs">
-                <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">{e.kind}</span>
+                <span className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">{e.kind}</span>
                 {isIncidentFamilyEvent(e) && <IncidentBadges item={incidentBadgeItem(e)} mono />}
                 <span className="truncate text-foreground/85">
                   {incidentEventSummary(e) || e.subject || ""}
                 </span>
-                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">{fmtTime(e.ts_unix_ms)}</span>
+                <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">{fmtTime(e.ts_unix_ms)}</span>
               </li>
             ))}
           </ul>

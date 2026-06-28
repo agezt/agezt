@@ -87,7 +87,7 @@ export function Sparkline({
   width?: number;
 }) {
   if (data.length < 2) {
-    return <div className="flex items-center justify-center text-[10px] text-muted" style={{ height }}>collecting…</div>;
+    return <div className="flex items-center justify-center text-xs text-muted" style={{ height }}>collecting…</div>;
   }
   const max = Math.max(...data, 1);
   const min = Math.min(...data, 0);

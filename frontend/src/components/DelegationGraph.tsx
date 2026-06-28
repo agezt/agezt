@@ -51,7 +51,7 @@ function AgentNodeView({ data }: NodeProps<DelegationRFNode>) {
       <Handle type="target" position={Position.Top} className="!bg-muted" />
       <div className="flex items-center gap-1.5">
         <span className={["size-2 shrink-0 rounded-full", statusDot[data.status] || "bg-muted"].join(" ")} />
-        <span className="text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <span className="text-xs font-semibold uppercase tracking-normal text-muted">
           {data.root ? "lead" : "sub-agent"}
         </span>
         {/* Depth badge: at depth>1 a sub-agent is itself a delegator, so the
@@ -61,10 +61,10 @@ function AgentNodeView({ data }: NodeProps<DelegationRFNode>) {
             L{data.depth}
           </span>
         )}
-        <span className="ml-auto text-[10px] tabular-nums text-muted">{data.status || "—"}</span>
+        <span className="ml-auto text-xs tabular-nums text-muted">{data.status || "—"}</span>
       </div>
       <div className="mt-1 line-clamp-2 text-xs font-medium leading-snug">{clip(data.title, 80)}</div>
-      <div className="mt-1.5 flex items-center justify-between text-[10px] tabular-nums text-muted">
+      <div className="mt-1.5 flex items-center justify-between text-xs tabular-nums text-muted">
         <span className="truncate">{data.model || "—"}</span>
         <span className="shrink-0">
           {data.iters ? `${data.iters} it` : ""} · {money(data.spentMc)}

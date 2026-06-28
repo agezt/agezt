@@ -349,7 +349,7 @@ function NowMiniLedger({ summary }: { summary: FleetNowSummary }) {
       aria-label="Now ledger"
       title={summary.detail}
       className={cn(
-        "hidden items-center gap-1 border-l border-border/70 pl-2 text-[10px] sm:flex",
+        "hidden items-center gap-1 border-l border-border/70 pl-2 text-xs sm:flex",
         summary.tone === "warn" ? "text-warn" : summary.tone === "accent" ? "text-accent" : "text-muted",
       )}
     >
@@ -422,7 +422,7 @@ function NowSlider({
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-foreground">{r.agent || "run"}</div>
-                <div className="flex items-center gap-1 text-[10px] text-good">
+                <div className="flex items-center gap-1 text-xs text-good">
                   <span className="work-pulse size-1.5 rounded-full bg-good" /> running
                   {r.ts ? <span className="text-muted">· {fmtAgo(r.ts)}</span> : null}
                 </div>
@@ -431,26 +431,26 @@ function NowSlider({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {r.phase && (
-                <span className="rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                <span className="rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
                   {r.phase}
                 </span>
               )}
               {r.tool && (
-                <span className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                <span className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5 font-mono text-xs text-muted">
                   {r.tool}
                 </span>
               )}
               {r.model && (
-                <span className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                <span className="rounded-md border border-border bg-panel/50 px-1.5 py-0.5 font-mono text-xs text-muted">
                   {r.model}
                 </span>
               )}
               {r.lastTs && r.lastTs !== r.ts ? (
-                <span className="text-[10px] text-muted">last event {fmtAgo(r.lastTs)}</span>
+                <span className="text-xs text-muted">last event {fmtAgo(r.lastTs)}</span>
               ) : null}
             </div>
             {r.detail && r.detail !== r.intent && (
-              <div className="truncate font-mono text-[10px] text-muted" title={r.detail}>
+              <div className="truncate font-mono text-xs text-muted" title={r.detail}>
                 {r.detail}
               </div>
             )}

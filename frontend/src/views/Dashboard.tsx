@@ -246,7 +246,7 @@ export function Dashboard() {
             <Activity className="size-5" />
           </span>
           <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Cockpit</h2>
+            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Dashboard</h2>
             <span className={cn(
               "inline-flex items-center gap-1 text-xs font-medium",
               connected ? "text-good" : "text-bad",
@@ -387,8 +387,8 @@ function OverviewTab({
       {fleetOps && fleetOps.total > 0 && (
         <DashboardPanel
           icon={Bot}
-          title="Agent operations"
-          status={`${fleetOps.running} awake`}
+          title="Agents overview"
+          status={`${fleetOps.running} active`}
           tone="accent"
           actions={
             <button
@@ -405,7 +405,7 @@ function OverviewTab({
             <MiniMetric icon={Wrench} label="repair" value={fleetOps.repair} tone={fleetOps.repair > 0 ? "bad" : "muted"} />
             <MiniMetric icon={Mail} label="mailbox" value={fleetOps.mailboxBacklog} tone={fleetOps.mailboxBacklog > 0 ? "warn" : "muted"} />
             <MiniMetric icon={Pause} label="paused" value={fleetOps.paused} tone={fleetOps.paused > 0 ? "warn" : "muted"} />
-            <MiniMetric icon={Skull} label="graveyard" value={fleetOps.graveyard} />
+            <MiniMetric icon={Skull} label="inactive" value={fleetOps.graveyard} />
             <MiniMetric icon={ShieldAlert} label="system" value={fleetOps.system} />
             <MiniMetric icon={GitBranch} label="subagents" value={fleetOps.subagents} tone={fleetOps.subagents > 0 ? "accent" : "muted"} />
           </div>
@@ -638,7 +638,7 @@ function MiniMetric({
   const colorCls = { accent: "text-accent", warn: "text-warn", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
     <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-panel/60 px-2 py-1.5">
-      <div className="inline-flex items-center gap-1 text-[10px] text-muted">
+      <div className="inline-flex items-center gap-1 text-xs text-muted">
         <Icon className={cn("size-2.5", pulse && "animate-pulse")} />
         {label}
       </div>

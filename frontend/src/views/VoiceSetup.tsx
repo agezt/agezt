@@ -432,7 +432,7 @@ function StyledSelect({
           )}
         >
           <span className="truncate">{label}</span>
-          {note && <span className="truncate text-[10px] text-muted">{note}</span>}
+          {note && <span className="truncate text-xs text-muted">{note}</span>}
         </button>
       ))}
     </div>

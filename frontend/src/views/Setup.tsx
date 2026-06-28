@@ -712,7 +712,7 @@ export function Setup({
                       <Check className={cn("h-3.5 w-3.5 shrink-0", on ? "text-accent" : "text-transparent")} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-mono">{c.id}</span>
-                        <span className="block truncate text-[10px] text-muted">{c.provider_name || c.provider_id}</span>
+                        <span className="block truncate text-xs text-muted">{c.provider_name || c.provider_id}</span>
                       </span>
                     </button>
                   );
@@ -891,9 +891,9 @@ function Stepper({ step }: { step: Step }) {
             </span>
             <span className="min-w-0">
               <span className="block truncate font-medium">{s.label}</span>
-              <span className="block truncate text-[10px] opacity-75">{s.detail}</span>
+              <span className="block truncate text-xs opacity-75">{s.detail}</span>
             </span>
-            <span className="ml-auto hidden text-[10px] opacity-60 sm:inline lg:hidden">{i + 1}</span>
+            <span className="ml-auto hidden text-xs opacity-60 sm:inline lg:hidden">{i + 1}</span>
           </li>
         );
       })}
@@ -927,7 +927,7 @@ function ModeButton({
       <Icon className="h-4 w-4 shrink-0" />
       <span className="min-w-0">
         <span className="block truncate text-sm font-medium">{title}</span>
-        <span className="block truncate text-[10px]">{detail}</span>
+        <span className="block truncate text-xs">{detail}</span>
       </span>
     </button>
   );

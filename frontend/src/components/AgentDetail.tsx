@@ -339,7 +339,7 @@ function DetailOptionPicker<T extends string>({
               {option.icon && <span className="mt-0.5 shrink-0 text-accent">{option.icon}</span>}
               <span className="min-w-0">
                 <span className="block truncate font-semibold">{option.label}</span>
-                {option.detail && <span className="mt-0.5 block truncate text-[10px] text-muted">{option.detail}</span>}
+                {option.detail && <span className="mt-0.5 block truncate text-xs text-muted">{option.detail}</span>}
               </span>
             </button>
           );
@@ -945,7 +945,7 @@ export function AgentDetail({
                 <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border/60 bg-panel/25 p-2 sm:col-span-1">
                   <Cpu className="size-4 shrink-0 text-muted" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-medium uppercase tracking-normal text-muted">Model &amp; Fallback</div>
+                    <div className="text-xs font-medium uppercase tracking-normal text-muted">Model &amp; Fallback</div>
                     <div className={cn(
                       "truncate text-xs font-medium",
                       modelRoute.tone === "good" && "text-good",
@@ -955,7 +955,7 @@ export function AgentDetail({
                       {modelRoute.value}
                     </div>
                     {modelRoute.detail && (
-                      <div className="truncate text-[10px] text-muted">{modelRoute.detail}</div>
+                      <div className="truncate text-xs text-muted">{modelRoute.detail}</div>
                     )}
                   </div>
                   <Button
@@ -1124,129 +1124,33 @@ export function AgentDetail({
         />
       )}
 
-      {/* Power-user operations + the full identity passport fold away by default —
-          the humane summary above is what you see first. */}
+      {/* Quick-detail strip — the first thing you see when you need more than the hero. */}
       <Disclosure
         className="rounded-lg border border-border/40 bg-panel/20 px-1.5 py-0.5"
-        summary={<span className="text-[10px] font-medium text-muted/70 uppercase tracking-normal">Details — operation &amp; identity passport</span>}
+        summary={<span className="text-xs font-medium text-muted/70 uppercase tracking-normal">All details</span>}
       >
-        <div className="flex flex-col gap-3 p-1.5">
-          <AgentDetailCommandStrip items={commandStrip} slug={slug} />
-          <AgentDetailControlCenter entries={controlCenterLedger} slug={slug} />
-          <AgentControlInterventionCard summary={controlIntervention} onEdit={() => setTab("diag")} />
-
-          <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-normal text-muted/60">
-              <ShieldCheck className="size-2.5" /> Identity passport
-            </div>
-        <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-          <PassportCell
-            label="identity"
-            value={[profile.system ? "system" : profile.kind || "custom", agentLifecycleSummary(profile)].filter(Boolean).join(" · ")}
-            onClick={() => setTab("soul")}
-          />
-          <PassportCell
-            label="lifecycle"
-            value={lifecycleDisposition.value}
-            tone={lifecycleDisposition.tone}
-            onClick={() => setTab("overview")}
-          />
-          <PassportCell
-            label="presence"
-            value={livePresence.value}
-            tone={livePresence.tone}
-            onClick={() => setTab("overview")}
-          />
-          <PassportCell
-            label="call policy"
-            value={wakePolicy.passport}
-            tone={wakePolicy.tone}
-            onClick={() => setTab("soul")}
-          />
-          <PassportCell
-            label="delegation"
-            value={delegationPassport.value}
-            tone={delegationPassport.tone}
-            onClick={() => setTab("diag")}
-          />
-          <PassportCell
-            label="mailbox"
-            value={mailboxPassport.value}
-            tone={mailboxPassport.tone}
-            onClick={() => setTab("comms")}
-          />
-          <PassportCell
-            label="task contract"
-            value={taskContract}
-            onClick={() => setTab("soul")}
-          />
-          <PassportCell
-            label="model"
-            value={modelPassport}
-            tone={profile.model ? "good" : "muted"}
-            onClick={() => setTab("soul")}
-          />
-          <PassportCell
-            label="skills"
-            value={skillPassport.value}
-            tone={skillPassport.tone}
-            onClick={() => setTab("skills")}
-          />
-          <PassportCell
-            label="capability"
-            value={headerPermissionPassport.detail}
-            tone={headerPermissionPassport.level === "open" ? "warn" : headerPermissionPassport.level === "tight" ? "good" : "muted"}
-            onClick={() => setTab("diag")}
-          />
-          {policyDenials.count > 0 && (
-            <PassportCell
-              label="tool denials"
-              value={policyDenials.text}
-              title={policyDenials.detail}
-              tone={policyDenials.tone === "bad" ? "bad" : "warn"}
-              onClick={() => setTab("diag")}
-            />
-          )}
-          <PassportCell
-            label="governance"
-            value={governancePassport.detail}
-            tone={governancePassport.tone}
-            onClick={() => setTab("diag")}
-          />
-          <PassportCell
-            label="config access"
-            value={configAccess}
-            onClick={() => setTab("diag")}
-          />
-          <PassportCell
-            label="noise"
-            value={noiseBudgetPassport.detail}
-            tone={noiseBudgetPassport.tone}
-            onClick={() => setTab("diag")}
-          />
-          <PassportCell
-            label="schedule"
-            value={schedulePassport.detail}
-            tone={schedulePassport.tone}
-            onClick={() => setTab("triggers")}
-          />
-          <PassportCell
-            label="resilience"
-            value={repairReadiness.value}
-            title={[repairReadiness.detail, agentResilienceLabel(profile)].filter(Boolean).join(" · ")}
-            tone={repairReadiness.tone}
-            onClick={() => setTab("repair")}
-          />
-          <PassportCell
-            label="wake / health"
-            value={[
-              runtimeStatus.nextWakeMs ? fmtDue(runtimeStatus.nextWakeMs) : runtimeStatus.wakeText || "manual",
-              health.label,
-            ].filter(Boolean).join(" · ")}
-            tone={health.state === "healthy" ? "good" : health.state === "retired" ? "muted" : "bad"}
-            onClick={() => setTab(health.state === "healthy" ? "triggers" : "diag")}
-          />
-            </div>
+        <div className="flex flex-col gap-2 p-1.5">
+          {/* One-line metric chips */}
+          <div className="flex flex-wrap gap-1.5">
+            <CompactChip label="Type" value={profile.system ? "system" : profile.kind || "custom"} />
+            <CompactChip label="Lifecycle" value={lifecycleDisposition.value} tone={lifecycleDisposition.tone} />
+            <CompactChip label="Presence" value={livePresence.value} tone={livePresence.tone} />
+            <CompactChip label="Model" value={modelPassport} tone={profile.model ? "good" : "muted"} />
+            <CompactChip label="Skills" value={skillPassport.value} tone={skillPassport.tone} />
+            <CompactChip label="Schedule" value={schedulePassport.detail} tone={schedulePassport.tone} />
+            <CompactChip label="Mailbox" value={mailboxPassport.value} tone={mailboxPassport.tone} />
+            <CompactChip label="Call policy" value={wakePolicy.passport} tone={wakePolicy.tone} />
+            <CompactChip label="Delegation" value={delegationPassport.value} tone={delegationPassport.tone} />
+            <CompactChip label="Task contract" value={taskContract} />
+            {policyDenials.count > 0 && (
+              <CompactChip label="Denials" value={policyDenials.text} tone={policyDenials.tone === "bad" ? "bad" : "warn"} />
+            )}
+            <CompactChip label="Governance" value={governancePassport.detail} tone={governancePassport.tone} />
+            <CompactChip label="Config access" value={configAccess} />
+            <CompactChip label="Noise" value={noiseBudgetPassport.detail} tone={noiseBudgetPassport.tone} />
+            <CompactChip label="Resilience" value={repairReadiness.value} tone={repairReadiness.tone} />
+            <CompactChip label="Capability" value={headerPermissionPassport.detail} tone={headerPermissionPassport.level === "open" ? "warn" : headerPermissionPassport.level === "tight" ? "good" : "muted"} />
+            <CompactChip label="Health" value={health.label} tone={health.state === "healthy" ? "good" : health.state === "retired" ? "muted" : "bad"} />
           </div>
         </div>
       </Disclosure>
@@ -1374,7 +1278,7 @@ export function AgentDetail({
             {/* Identity essentials lead; the operational/policy/runtime knobs fold
                 so the Soul tab reads as "who is this agent", not a config ledger. */}
             <Disclosure
-              summary={<span className="text-[10px] uppercase tracking-normal text-muted">Operational config, policy &amp; runtime</span>}
+              summary={<span className="text-xs uppercase tracking-normal text-muted">Operational config, policy &amp; runtime</span>}
             >
               <div className="space-y-2 pt-1">
                 <Row label="noise budget" value={noiseBudgetPassport.detail} />
@@ -1456,7 +1360,7 @@ export function AgentDetail({
               </div>
             </Disclosure>
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+              <div className="mb-1 text-xs uppercase tracking-normal text-muted">
                 soul — identity core
               </div>
               {profile.soul ? (
@@ -1471,7 +1375,7 @@ export function AgentDetail({
             </div>
             {(profile.instructions || []).length > 0 && (
               <div>
-                <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+                <div className="mb-1 text-xs uppercase tracking-normal text-muted">
                   standing instructions
                 </div>
                 <ul className="space-y-1 rounded-md bg-panel p-2.5 text-xs text-foreground/85">
@@ -1667,7 +1571,7 @@ function StatePill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-[10px] uppercase tracking-normal",
+        "inline-flex items-center gap-1 text-xs uppercase tracking-normal",
         cls,
       )}
     >
@@ -1718,7 +1622,7 @@ function AgentDetailTabButton({
       {count !== undefined && count > 0 && (
         <span className={cn(
           "ml-0.5 rounded bg-panel px-1 font-mono",
-          secondary ? "text-[10px] text-muted/60" : "text-[11px] text-muted",
+          secondary ? "text-xs text-muted/60" : "text-[11px] text-muted",
         )}>
           {count}
         </span>
@@ -1778,130 +1682,6 @@ function AgentDetailHeroFact({
   );
 }
 
-function AgentDetailCommandStrip({ items, slug }: { items: AgentCommandStripItem[]; slug: string }) {
-  return (
-    <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3" aria-label={`${slug} command strip`}>
-      {items.map((item) => (
-        <div
-          key={item.label}
-          title={item.detail || item.value}
-          className={cn(
-            "min-w-0 rounded-lg border border-border/70 bg-panel/35 px-2.5 py-2",
-            item.tone === "good" && "border-good/30 bg-good/5",
-            item.tone === "bad" && "border-bad/35 bg-bad/5",
-            item.tone === "warn" && "border-warn/40 bg-warn/10",
-            item.tone === "accent" && "border-accent/35 bg-accent/10",
-          )}
-        >
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full bg-muted/60",
-                item.tone === "good" && "bg-good",
-                item.tone === "bad" && "bg-bad",
-                item.tone === "warn" && "bg-warn",
-                item.tone === "accent" && "bg-accent",
-              )}
-            />
-            <span className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">{item.label}</span>
-          </div>
-          <div
-            className={cn(
-              "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-              item.tone === "good" && "text-good",
-              item.tone === "bad" && "text-bad",
-              item.tone === "warn" && "text-warn",
-              item.tone === "accent" && "text-accent",
-              item.tone === "muted" && "text-muted",
-            )}
-          >
-            {item.value}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AgentDetailControlCenter({ entries, slug }: { entries: AgentControlCenterEntry[]; slug: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-panel/30 p-2" aria-label={`${slug} control center`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
-        <ShieldCheck className="size-3" /> Control center
-      </div>
-      <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.label}
-            title={entry.detail}
-            className={cn(
-              "min-w-0 rounded-md border border-border/70 bg-card/35 px-2 py-1.5",
-              entry.tone === "good" && "border-good/30 bg-good/5",
-              entry.tone === "bad" && "border-bad/35 bg-bad/5",
-              entry.tone === "warn" && "border-warn/40 bg-warn/10",
-              entry.tone === "accent" && "border-accent/35 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                entry.tone === "good" && "text-good",
-                entry.tone === "bad" && "text-bad",
-                entry.tone === "warn" && "text-warn",
-                entry.tone === "accent" && "text-accent",
-                entry.tone === "muted" && "text-muted",
-              )}
-            >
-              {entry.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AgentControlInterventionCard({ summary, onEdit }: { summary: AgentControlInterventionSummary; onEdit: () => void }) {
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-[11px]",
-        summary.tone === "good" && "border-good/30 bg-good/5",
-        summary.tone === "bad" && "border-bad/35 bg-bad/5",
-        summary.tone === "warn" && "border-warn/40 bg-warn/10",
-        summary.tone === "muted" && "border-border bg-panel/35",
-      )}
-      title={summary.detail}
-    >
-      <ShieldCheck
-        className={cn(
-          "size-4 shrink-0 text-muted",
-          summary.tone === "good" && "text-good",
-          summary.tone === "bad" && "text-bad",
-          summary.tone === "warn" && "text-warn",
-        )}
-      />
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "font-semibold",
-            summary.tone === "good" && "text-good",
-            summary.tone === "bad" && "text-bad",
-            summary.tone === "warn" && "text-warn",
-          )}
-        >
-          {summary.label}
-        </div>
-        <div className="mt-0.5 truncate text-muted">{summary.detail}</div>
-      </div>
-      <Button size="sm" variant="ghost" onClick={onEdit} title="Open capability control editor">
-        <Wrench className="size-3.5" /> Edit controls
-      </Button>
-    </div>
-  );
-}
-
 function AgentNowPanel({
   phase,
   detail,
@@ -1931,15 +1711,15 @@ function AgentNowPanel({
       </div>
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-[10px] font-semibold uppercase tracking-normal text-accent">Now</span>
+          <span className="text-xs font-semibold uppercase tracking-normal text-accent">Now</span>
           <span className="truncate text-sm font-semibold text-foreground">{phase}</span>
           {correlationId && (
-            <span className="font-mono text-[10px] text-muted">{correlationId}</span>
+            <span className="font-mono text-xs text-muted">{correlationId}</span>
           )}
         </div>
         <div className="mt-0.5 truncate text-xs text-muted">{detail}</div>
         {(tool || model) && (
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-muted">
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted">
             {tool && (
               <span className="rounded-md border border-border bg-card px-1.5 py-0.5">
                 tool <span className="font-mono text-foreground/80">{tool}</span>
@@ -1953,7 +1733,7 @@ function AgentNowPanel({
           </div>
         )}
         {(since || last) && (
-          <div className="mt-0.5 truncate text-[11px] text-muted/85">
+          <div className="mt-0.5 truncate text-xs text-muted/85">
             {since ? `since ${fmtAgo(since)}` : ""}
             {since && last ? " · " : ""}
             {last ? `last event ${fmtAgo(last)}` : ""}
@@ -1975,50 +1755,38 @@ function AgentNowPanel({
   );
 }
 
-function PassportCell({
+/* CompactChip — a single inline metric for the "All details" strip.
+   Replaces the old passport-grid + command-strip + control-center trio
+   with one compact, scannable row of chips. */
+function CompactChip({
   label,
   value,
-  title,
   tone = "muted",
-  onClick,
 }: {
   label: string;
   value: string;
-  title?: string;
-  tone?: "good" | "bad" | "warn" | "muted";
-  onClick: () => void;
+  tone?: "good" | "bad" | "warn" | "accent" | "muted";
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title || value}
+    <span
       className={cn(
-        "min-w-0 rounded-md border border-border/70 bg-card/45 px-2 py-1.5 text-left transition-colors hover:border-accent/60 hover:bg-card",
-        tone === "good" && "border-good/30 bg-good/5",
-        tone === "bad" && "border-bad/35 bg-bad/5",
-        tone === "warn" && "border-warn/40 bg-warn/10",
+        "inline-flex items-baseline gap-1 rounded-md border border-border/60 bg-card/50 px-2 py-1 text-xs",
+        tone === "good" && "border-good/30 bg-good/5 text-good",
+        tone === "bad" && "border-bad/30 bg-bad/5 text-bad",
+        tone === "warn" && "border-warn/30 bg-warn/8 text-warn",
+        tone === "accent" && "border-accent/25 bg-accent/8 text-accent",
       )}
     >
-      <div className="text-[9px] font-semibold uppercase tracking-normal text-muted">{label}</div>
-      <div
-        className={cn(
-          "mt-0.5 truncate text-[11px] text-foreground/90",
-          tone === "good" && "text-good",
-          tone === "bad" && "text-bad",
-          tone === "warn" && "text-warn",
-        )}
-      >
-        {value}
-      </div>
-    </button>
+      <span className="font-medium text-muted">{label}</span>
+      <span>{value}</span>
+    </span>
   );
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === "") return null;
   return (
-    <div className="flex gap-2 text-[11px]">
+    <div className="flex gap-2 text-xs">
       <span className="w-28 shrink-0 text-muted">{label}</span>
       <span className="min-w-0 flex-1 break-words">{value}</span>
     </div>
@@ -2098,7 +1866,7 @@ function LifecycleConfigEditor({
 
   return (
     <div className="rounded-md border border-border bg-panel/40 p-2">
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Skull className="size-3" /> lifecycle contract
       </div>
       <div className="flex flex-wrap items-end gap-2">
@@ -2138,8 +1906,8 @@ function LifecycleConfigEditor({
         >
           {saving ? <Wrench className="size-3.5 animate-spin" /> : <Skull className="size-3.5" />} Save lifecycle
         </Button>
-        {!validMax && <span className="text-[10px] text-bad">invalid max cycles</span>}
-        {dirty && validMax && <span className="text-[10px] text-warn">unsaved</span>}
+        {!validMax && <span className="text-xs text-bad">invalid max cycles</span>}
+        {dirty && validMax && <span className="text-xs text-warn">unsaved</span>}
       </div>
     </div>
   );
@@ -2150,9 +1918,9 @@ function MiniPolicy({ label, allowed, note }: { label: string; allowed: boolean;
     <div className="rounded-md border border-border bg-card/55 px-2 py-1.5">
       <div className="flex items-center gap-1.5">
         <Badge variant={allowed ? "good" : "bad"}>{allowed ? "allowed" : "blocked"}</Badge>
-        <span className="text-[10px] font-semibold uppercase tracking-normal text-muted">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</span>
       </div>
-      {note && <div className="mt-1 truncate text-[10px] text-muted" title={note}>{note}</div>}
+      {note && <div className="mt-1 truncate text-xs text-muted" title={note}>{note}</div>}
     </div>
   );
 }
@@ -2177,7 +1945,7 @@ function RepairCommandCell({
         tone === "accent" && "border-accent/35 bg-accent/5",
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-normal text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div
         className={cn(
           "mt-0.5 truncate text-[11px] text-foreground/85",
@@ -2200,12 +1968,12 @@ function ConfigOverrideBox({
 }) {
   return (
     <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-      <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+      <div className="mb-1 text-xs uppercase tracking-normal text-muted">
         agent config overrides
       </div>
       {summary.runtime.length > 0 && (
         <div className="space-y-1">
-          <div className="text-[10px] uppercase tracking-normal text-muted">
+          <div className="text-xs uppercase tracking-normal text-muted">
             runtime behavior
           </div>
           <ul className="space-y-1 text-[11px]">
@@ -2234,7 +2002,7 @@ function ConfigOverrideBox({
       )}
       {summary.generic.length > 0 && (
         <div className={cn("space-y-1", summary.runtime.length > 0 && "mt-2")}>
-          <div className="text-[10px] uppercase tracking-normal text-muted">
+          <div className="text-xs uppercase tracking-normal text-muted">
             generic overlay
           </div>
           <ul className="space-y-1 font-mono text-[11px] text-foreground/85">
@@ -2287,7 +2055,7 @@ function Stat({
         )}>
           <Icon className={cn("size-5", iconColor)} />
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-normal text-muted">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</span>
       </div>
       <div className={cn("mt-2 text-xl font-bold tabular-nums tracking-normal", valueColor)}>
         {value}
@@ -2317,7 +2085,7 @@ function BudgetBar({
   return (
     <div className="rounded-xl border border-border/50 bg-panel/30 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <Coins className="size-3.5" /> {label}
         </span>
         <span className={cn(
@@ -2549,7 +2317,7 @@ function Overview({
     <div className="space-y-3">
       {profile.retired && (
         <div className="rounded-lg border border-border bg-panel/40 p-2.5">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
             <Skull className="size-3" /> lifecycle
           </div>
           <div className="space-y-1 text-xs text-muted">
@@ -2592,7 +2360,7 @@ function Overview({
           )}
           {lastWakeLineage.parentCorrelationId && (
             <span
-              className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px]"
+              className="rounded bg-card px-1.5 py-0.5 font-mono text-xs"
               title="The lead/parent run that delegated this wake"
             >
               parent run {clip(lastWakeLineage.parentCorrelationId, 24)}
@@ -2621,7 +2389,7 @@ function Overview({
         )}
         title={operationsPassport.detail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <IdCard className="size-3" /> Operations passport
         </div>
         <div
@@ -2648,7 +2416,7 @@ function Overview({
           )}
           title={systemGuardianContract.detail}
         >
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
             <Megaphone className="size-3" /> System guardian contract
             {systemGuardianContract.tone !== "good" && (
               <Button
@@ -2714,7 +2482,7 @@ function Overview({
             )}>
               {runtimeStatus.operationalText || "sleeping"}
             </span>
-            <span className="text-[10px] text-muted/70">State</span>
+            <span className="text-xs text-muted/70">State</span>
           </div>
 
           {/* Live Presence */}
@@ -2743,7 +2511,7 @@ function Overview({
             )}>
               {livePresence.value}
             </span>
-            <span className="text-[10px] text-muted/70">Live presence</span>
+            <span className="text-xs text-muted/70">Live presence</span>
           </div>
 
           {/* Last Activity */}
@@ -2754,7 +2522,7 @@ function Overview({
             <span className="text-sm font-bold text-foreground/90">
               {runtimeStatus.lastActivityMs ? fmtAgo(runtimeStatus.lastActivityMs) : "—"}
             </span>
-            <span className="text-[10px] text-muted/70">Last active</span>
+            <span className="text-xs text-muted/70">Last active</span>
           </div>
 
           {/* Wake Source */}
@@ -2765,7 +2533,7 @@ function Overview({
             <span className="text-sm font-bold text-foreground/90">
               {runtimeStatus.wakeText || "wake: none"}
             </span>
-            <span className="text-[10px] text-muted/70">Wake source</span>
+            <span className="text-xs text-muted/70">Wake source</span>
           </div>
 
           {/* Next Wake */}
@@ -2776,7 +2544,7 @@ function Overview({
             <span className="text-sm font-bold text-foreground/90">
               {runtimeStatus.nextWakeMs ? fmtDue(runtimeStatus.nextWakeMs) : "—"}
             </span>
-            <span className="text-[10px] text-muted/70">Next wake</span>
+            <span className="text-xs text-muted/70">Next wake</span>
           </div>
 
           {/* Task Progress */}
@@ -2787,7 +2555,7 @@ function Overview({
             <span className="text-sm font-bold text-foreground/90">
               {taskProgress || "—"}
             </span>
-            <span className="text-[10px] text-muted/70">Tasks</span>
+            <span className="text-xs text-muted/70">Tasks</span>
           </div>
         </div>
 
@@ -2837,7 +2605,7 @@ function Overview({
         )}
         title={mailboxWakeContract.detail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <Mail className="size-3" /> Mailbox wake contract
         </div>
         <div
@@ -2858,7 +2626,7 @@ function Overview({
 
       {/* How it runs */}
       <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <ActivityIcon className="size-3" /> How does this run?
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2914,7 +2682,7 @@ function Overview({
           </div>
           <div className="text-[11px] text-muted">{permissionPassport.detail}</div>
           {permissionPassport.policy && (
-            <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-normal text-muted">
+            <div className="mt-1 flex flex-wrap gap-1.5 text-xs uppercase tracking-normal text-muted">
               {permissionPassport.policy.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -2966,7 +2734,7 @@ function Overview({
             Config authority
           </div>
           <div className="text-[11px] text-muted">{configContract.value}</div>
-          <div className="mt-0.5 text-[10px] text-muted">{configContract.detail}</div>
+          <div className="mt-0.5 text-xs text-muted">{configContract.detail}</div>
         </div>
         <ChevronRight className="ml-auto size-3.5 shrink-0 text-muted" />
       </button>
@@ -3164,7 +2932,7 @@ function Overview({
           <div
             title={repairReadiness.detail}
             className={cn(
-              "mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px]",
+              "mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-1.5 py-0.5 text-xs",
               repairReadiness.tone === "good" && "border-good/30 bg-good/10 text-good",
               repairReadiness.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
               repairReadiness.tone === "bad" && "border-bad/35 bg-bad/10 text-bad",
@@ -3174,7 +2942,7 @@ function Overview({
             <span className="truncate text-muted">{repairReadiness.detail}</span>
           </div>
           {repair.mode && (
-            <div className="mt-1 text-[10px] uppercase tracking-normal text-muted">
+            <div className="mt-1 text-xs uppercase tracking-normal text-muted">
               {repair.mode === "degraded"
                 ? "degraded doctor flow"
                 : "config repair flow"}
@@ -3189,14 +2957,14 @@ function Overview({
                     ? openIncident(repairStatus.latest.incident_id)
                     : undefined
               }
-              className="mt-1 text-[10px] uppercase tracking-normal text-muted transition-colors hover:text-accent"
+              className="mt-1 text-xs uppercase tracking-normal text-muted transition-colors hover:text-accent"
               title="Open this repair incident"
             >
               {incidentLineageLabel(repairStatus.latest)}
             </button>
           )}
           {repair.nextEligibleMs && repair.nextEligibleMs > Date.now() && (
-            <div className="mt-1 font-mono text-[10px] text-muted">
+            <div className="mt-1 font-mono text-xs text-muted">
               cooldown until {fmtDateTime(repair.nextEligibleMs)}
             </div>
           )}
@@ -3245,7 +3013,7 @@ function Overview({
             </div>
             {(escalation.doctorOpenCount > 0 ||
               escalation.delegatedOpenCount > 0) && (
-              <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-normal text-muted">
+              <div className="mt-1 flex flex-wrap gap-1.5 text-xs uppercase tracking-normal text-muted">
                 {escalation.doctorOpenCount > 0 && (
                   <span>doctor {escalation.doctorOpenCount}</span>
                 )}
@@ -3263,7 +3031,7 @@ function Overview({
                       ? openIncident(escalation.latest.incident_id)
                       : undefined
                 }
-                className="mt-1 text-[10px] uppercase tracking-normal text-muted transition-colors hover:text-accent"
+                className="mt-1 text-xs uppercase tracking-normal text-muted transition-colors hover:text-accent"
                 title="Open this escalation incident"
               >
                 latest for {escalation.latest.source_agent}
@@ -3362,7 +3130,7 @@ function Overview({
 
       {escalationTasks.length > 0 && (
         <div className="rounded-lg border border-warn/30 bg-warn/5 p-2.5">
-          <div className="mb-1 text-[10px] uppercase tracking-normal text-warn">
+          <div className="mb-1 text-xs uppercase tracking-normal text-warn">
             active responsibilities
           </div>
           <OperationalTaskList tasks={escalationTasks} compact />
@@ -3896,7 +3664,7 @@ function LifecycleInterventionPanel({
     <div className="rounded-lg border border-border bg-panel/35 p-2.5">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
             <Skull className="size-3" /> Lifecycle intervention
           </div>
           <div className="text-xs text-muted">
@@ -4155,7 +3923,7 @@ function RuntimeDoctorLedger({ entries, slug }: { entries: AgentRuntimeDoctorLed
 function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry[]; slug: string }) {
   return (
     <div className="rounded-lg border border-border bg-panel/40 p-2.5" aria-label={`${slug} autonomy runbook`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Repeat className="size-3" /> Autonomy runbook
       </div>
       <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -4184,7 +3952,7 @@ function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry
             >
               {entry.value}
             </div>
-            <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted">{entry.detail}</div>
+            <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted">{entry.detail}</div>
           </div>
         ))}
       </div>
@@ -4195,7 +3963,7 @@ function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry
 function AgentEntityContract({ entries, slug }: { entries: AgentEntityContractEntry[]; slug: string }) {
   return (
     <div className="rounded-lg border border-border bg-panel/40 p-2.5" aria-label={`${slug} entity contract`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Waypoints className="size-3" /> Agent entity contract
       </div>
       <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -4224,7 +3992,7 @@ function AgentEntityContract({ entries, slug }: { entries: AgentEntityContractEn
             >
               {entry.value}
             </div>
-            <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted">{entry.detail}</div>
+            <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted">{entry.detail}</div>
           </div>
         ))}
       </div>
@@ -4237,7 +4005,7 @@ function ImpactPreview({ label, items, note }: { label: string; items: string[];
     <div className="min-w-0 rounded-lg border border-border bg-card/70 p-2 text-xs">
       <div className="flex items-center gap-2">
         <span className="font-medium text-foreground">{label}</span>
-        <span className="ml-auto rounded-md bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted">{items.length}</span>
+        <span className="ml-auto rounded-md bg-panel px-1.5 py-0.5 font-mono text-xs text-muted">{items.length}</span>
       </div>
       {note && <div className="mt-1 text-[11px] text-muted">{note}</div>}
       {items.length > 0 && (
@@ -4258,7 +4026,7 @@ function PlanStat({ label, value, tone }: { label: string; value: number; tone?:
   return (
     <span className={cn("inline-flex items-center justify-between gap-2 rounded border border-border bg-panel px-2 py-1", tone === "bad" && "border-bad/30 bg-bad/10 text-bad")}>
       <span>{label}</span>
-      <span className="font-mono text-[10px] tabular-nums">{value}</span>
+      <span className="font-mono text-xs tabular-nums">{value}</span>
     </span>
   );
 }
@@ -4284,7 +4052,7 @@ function CleanupToggle({
         className="size-3.5"
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-[10px] text-muted">{count}</span>
+      <span className="rounded bg-panel px-1.5 py-0.5 font-mono text-xs text-muted">{count}</span>
     </label>
   );
 }
@@ -5020,7 +4788,7 @@ function TaskComposer({
   const adding = busy === `add:${scope}`;
   return (
     <div className="rounded-md border border-border bg-panel/45 p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+      <div className="mb-1 text-xs uppercase tracking-normal text-muted">
         add durable task
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -5094,11 +4862,11 @@ function TaskGroup({
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-normal text-muted">
+        <span className="text-xs uppercase tracking-normal text-muted">
           {title}
         </span>
         {summary && (
-          <span className="ml-auto truncate text-[10px] text-muted" title={summary}>
+          <span className="ml-auto truncate text-xs text-muted" title={summary}>
             {summary}
           </span>
         )}
@@ -5117,7 +4885,7 @@ function TaskGroup({
                 !compact && t.description && "items-start",
               )}
             >
-              <span className={cn("shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase", taskStatusTone(t.status))}>
+              <span className={cn("shrink-0 rounded px-1.5 py-0.5 font-mono text-xs uppercase", taskStatusTone(t.status))}>
                 {t.status || "todo"}
               </span>
               <span className="min-w-0">
@@ -5242,7 +5010,7 @@ function ToolPolicyBox({
 }) {
   return (
     <div>
-      <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+      <div className="mb-1 text-xs uppercase tracking-normal text-muted">
         {title}
       </div>
       {items.length === 0 ? (
@@ -5296,7 +5064,7 @@ function TriggersTab({
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-1.5 text-[10px] uppercase tracking-normal text-muted">
+        <div className="mb-1.5 text-xs uppercase tracking-normal text-muted">
           how this agent is triggered
         </div>
         <div className="flex flex-wrap gap-2">
@@ -5324,7 +5092,7 @@ function TriggersTab({
       {/* Upcoming fires — what this agent WILL do next, from each binding schedule. */}
       {schedules.length > 0 && (
         <div>
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-normal text-muted">
             <CalendarClock className="size-3" /> upcoming runs
           </div>
           <ul className="space-y-2">
@@ -5340,7 +5108,7 @@ function TriggersTab({
                   <span className="text-xs font-medium">
                     {s.cadence || s.mode || s.id}
                   </span>
-                  <span className="inline-flex min-w-0 items-center gap-1 rounded-md bg-card px-1.5 py-0.5 text-[10px] text-muted" title={agentScheduleBindingTitle(s, slug)}>
+                  <span className="inline-flex min-w-0 items-center gap-1 rounded-md bg-card px-1.5 py-0.5 text-xs text-muted" title={agentScheduleBindingTitle(s, slug)}>
                     <span className="truncate">{agentScheduleBindingTitle(s, slug)}</span>
                   </span>
                   <Button
@@ -5408,7 +5176,7 @@ function TriggersTab({
         </div>
       )}
 
-      <div className="text-[10px] uppercase tracking-normal text-muted">
+      <div className="text-xs uppercase tracking-normal text-muted">
         standing orders firing this agent
       </div>
       {orders.length === 0 ? (
@@ -5430,7 +5198,7 @@ function TriggersTab({
                 </Badge>
                 <span className="text-xs font-medium">{o.name || o.id}</span>
                 {o.initiative?.mode && (
-                  <span className="text-[10px] text-muted">
+                  <span className="text-xs text-muted">
                     · {o.initiative.mode}
                   </span>
                 )}
@@ -5499,7 +5267,7 @@ function TriggersTab({
                 {(o.triggers || []).map((t, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-foreground/80"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-xs text-foreground/80"
                   >
                     {t.type === "event" ? (
                       <Zap className="size-2.5 text-muted" />
@@ -5519,7 +5287,7 @@ function TriggersTab({
               )}
               <button
                 onClick={() => setWhy(why === o.id ? null : o.id)}
-                className="mt-1.5 text-[10px] text-accent hover:underline"
+                className="mt-1.5 text-xs text-accent hover:underline"
               >
                 {why === o.id ? "hide history" : "firing history"}
               </button>
@@ -5656,7 +5424,7 @@ function MailboxWakeSubjects({
   const icon = { dm: Mail, help: LifeBuoy, broadcast: Megaphone };
   return (
     <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-normal text-muted">
         <Mail className="size-3" /> mailbox wake subjects
       </div>
       <div className="grid gap-1.5 md:grid-cols-3">
@@ -5675,11 +5443,11 @@ function MailboxWakeSubjects({
                   {bound?.enabled ? "armed" : "idle"}
                 </Badge>
               </div>
-              <div className="mt-1 truncate font-mono text-[10px] text-muted">
+              <div className="mt-1 truncate font-mono text-xs text-muted">
                 {row.subject}
               </div>
               {bound?.name && (
-                <div className="mt-1 truncate text-[10px] text-foreground/75">
+                <div className="mt-1 truncate text-xs text-foreground/75">
                   {bound.name}
                 </div>
               )}
@@ -5689,7 +5457,7 @@ function MailboxWakeSubjects({
                     size="sm"
                     variant="ghost"
                     disabled={busy || !!armIssue}
-                    className="h-6 px-1.5 text-[10px]"
+                    className="h-6 px-1.5 text-xs"
                     aria-label={`Arm ${row.label} mailbox wake for ${slug}`}
                     title={armIssue || `Create a standing order that wakes ${slug} on ${row.subject}`}
                     onClick={() => onCreate(row.kind, row.subject)}
@@ -5697,7 +5465,7 @@ function MailboxWakeSubjects({
                     <Zap className="size-3" /> Arm wake
                   </Button>
                   {armIssue && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted">
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted">
                       <span>{armIssue}</span>
                       {armOwner && (
                         <button
@@ -5746,10 +5514,10 @@ function WhyHistory({ id }: { id: string }) {
     <ul className="mt-1 space-y-1">
       {events.map((e, i) => (
         <li key={e.seq ?? i} className="flex items-center gap-2 text-[11px]">
-          <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">
+          <span className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">
             {(e.kind || "").replace(/^standing\./, "")}
           </span>
-          <span className="ml-auto font-mono text-[10px] text-muted">
+          <span className="ml-auto font-mono text-xs text-muted">
             {fmtTime(e.ts_unix_ms)}
           </span>
         </li>
@@ -5787,17 +5555,17 @@ function ScheduleForecast({
   const list =
     fires && fires.length ? fires : fallbackNext ? [fallbackNext] : [];
   if (fires === null)
-    return <div className="mt-1.5 text-[10px] text-muted">forecasting…</div>;
+    return <div className="mt-1.5 text-xs text-muted">forecasting…</div>;
   if (list.length === 0)
     return (
-      <div className="mt-1.5 text-[10px] text-muted">no upcoming runs</div>
+      <div className="mt-1.5 text-xs text-muted">no upcoming runs</div>
     );
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
       {list.map((u, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-foreground/80"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-xs text-foreground/80"
         >
           <Clock className="size-2.5 text-muted" />
           {fmtDateTime(u * 1000)}
@@ -5894,7 +5662,7 @@ function ModelTab({
   return (
     <div className="space-y-3">
       <div className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-2.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <Cpu className="size-3" /> Change model / fallback chain
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -5906,9 +5674,9 @@ function ModelTab({
           <Button size="sm" onClick={saveModel} disabled={!dirty || saving}>
             {saving ? "Saving…" : "Save"}
           </Button>
-          {dirty && <span className="text-[10px] text-warn">unsaved</span>}
+          {dirty && <span className="text-xs text-warn">unsaved</span>}
         </div>
-        <p className="text-[10px] text-muted">
+        <p className="text-xs text-muted">
           Pick a single model, or a{" "}
           <span className="text-accent">⛓ fallback chain</span> (defined under{" "}
           <button
@@ -5976,7 +5744,7 @@ function ModelTab({
                   {(profile.fallbacks || []).map((m, i) => (
                     <span key={i} className="inline-flex items-center gap-1">
                       {i > 0 && <ArrowRight className="size-3 text-muted" />}
-                      <span className="rounded bg-card px-1.5 py-0.5 text-[10px]">
+                      <span className="rounded bg-card px-1.5 py-0.5 text-xs">
                         {m}
                       </span>
                     </span>
@@ -5998,7 +5766,7 @@ function ModelTab({
       </div>
 
       <div>
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs uppercase tracking-normal text-muted">
           <Cpu className="size-3" /> routing &amp; fallbacks
         </div>
         <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
@@ -6034,7 +5802,7 @@ function ModelTab({
                     <>
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 font-mono text-[10px]",
+                          "rounded px-1.5 py-0.5 font-mono text-xs",
                           summary.kindTone === "bad"
                             ? "bg-bad/15 text-bad"
                             : "bg-card text-foreground/80",
@@ -6097,7 +5865,7 @@ function ModelTab({
                           </span>
                         )}
                       </span>
-                      <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
+                      <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">
                         {fmtTime(r.ts_unix_ms)}
                       </span>
                     </>
@@ -6108,7 +5876,7 @@ function ModelTab({
           </ul>
           )}
         {fallbacks && fallbacks.length > 0 && (
-          <div className="mt-1.5 text-[10px] text-bad">
+          <div className="mt-1.5 text-xs text-bad">
             a model in this route/chain has been failing over recently; check
             the hop reasons above before trusting the primary path
           </div>
@@ -6307,7 +6075,7 @@ function CommsCausalityLineage({
   if (!lineage.origin) return null;
   const tone = lineage.origin === "delegated" ? "text-accent" : "text-muted";
   return (
-    <span className="inline-flex flex-wrap items-center gap-1 rounded bg-card px-1.5 py-0.5 text-[10px]">
+    <span className="inline-flex flex-wrap items-center gap-1 rounded bg-card px-1.5 py-0.5 text-xs">
       <span
         className={cn("inline-flex items-center gap-1", tone)}
         title={`This escalation message woke ${slug}`}
@@ -6501,7 +6269,7 @@ function CommsTab({
       </div>
 
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <Send className="size-3" /> message this agent
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -6529,7 +6297,7 @@ function CommsTab({
       </div>
 
       <div className="rounded-lg border border-accent/30 bg-accent/5 p-2.5">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <Share2 className="size-3" /> send as this agent
         </div>
         <div className="grid gap-2 sm:grid-cols-[9rem_9rem_1fr_auto]">
@@ -6564,7 +6332,7 @@ function CommsTab({
       </div>
 
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <Mail className="size-3" /> inbox priority summary
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -6609,12 +6377,12 @@ function CommsTab({
                         : "received"}
                   </Badge>
                   {m.from && (
-                    <span className="font-mono text-[10px] text-muted">
+                    <span className="font-mono text-xs text-muted">
                       from {m.from}
                     </span>
                   )}
                   {m.to && (
-                    <span className="inline-flex items-center gap-1 font-mono text-[10px] text-muted">
+                    <span className="inline-flex items-center gap-1 font-mono text-xs text-muted">
                       {m.to === "*" ? (
                         <Megaphone className="size-3" />
                       ) : (
@@ -6624,31 +6392,31 @@ function CommsTab({
                     </span>
                   )}
                   {m.topic && (
-                    <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">
+                    <span className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">
                       {m.topic}
                     </span>
                   )}
                   {m.reply_to && (
-                    <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                    <span className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-muted">
                       reply
                     </span>
                   )}
                   {seenBy && (
                     <span
-                      className="inline-flex items-center gap-1 rounded bg-good/10 px-1.5 py-0.5 text-[10px] text-good"
+                      className="inline-flex items-center gap-1 rounded bg-good/10 px-1.5 py-0.5 text-xs text-good"
                       title={`acknowledged by ${seenBy}`}
                     >
                       <CheckCheck className="size-3" /> seen by {seenBy}
                     </span>
                   )}
                   {m.help && (
-                    <span className="inline-flex items-center gap-1 rounded bg-bad/15 px-1.5 py-0.5 text-[10px] text-bad">
+                    <span className="inline-flex items-center gap-1 rounded bg-bad/15 px-1.5 py-0.5 text-xs text-bad">
                       <LifeBuoy className="size-3" /> help
                     </span>
                   )}
                   {woke && (
                     <span
-                      className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent"
+                      className="inline-flex items-center gap-1 rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent"
                       title={`This message woke ${slug}${woke.correlation_id ? ` · run ${woke.correlation_id}` : ""}`}
                     >
                       <Zap className="size-3" /> woke {slug}
@@ -6695,7 +6463,7 @@ function CommsTab({
                   )}
                   <span
                     className={cn(
-                      "font-mono text-[10px] text-muted",
+                      "font-mono text-xs text-muted",
                       !waitingHere && "ml-auto",
                     )}
                   >
@@ -6770,7 +6538,7 @@ function MemoryTab({
     );
   return (
     <div className="space-y-2">
-      <div className="text-[10px] uppercase tracking-normal text-muted">
+      <div className="text-xs uppercase tracking-normal text-muted">
         private to scope{" "}
         <span className="font-mono text-foreground/80">{scope}</span> ·{" "}
         {records.length} record(s)
@@ -6783,7 +6551,7 @@ function MemoryTab({
           >
             <div className="flex flex-wrap items-center gap-2">
               {r.type && (
-                <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-accent">
+                <span className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">
                   {r.type}
                 </span>
               )}
@@ -6791,12 +6559,12 @@ function MemoryTab({
                 <span className="text-xs font-medium">{r.subject}</span>
               )}
               {typeof r.confidence === "number" && (
-                <span className="text-[10px] text-muted">
+                <span className="text-xs text-muted">
                   conf {r.confidence.toFixed(2)}
                 </span>
               )}
               <span className="ml-auto flex items-center gap-2">
-                <span className="font-mono text-[10px] text-muted">
+                <span className="font-mono text-xs text-muted">
                   {fmtAgo(r.last_seen_ms || r.created_ms)}
                 </span>
                 <Button
@@ -6893,7 +6661,7 @@ function SkillsTab({
                 {(s.triggers || []).map((t, i) => (
                   <span
                     key={i}
-                    className="rounded bg-card px-1.5 py-0.5 font-mono text-[10px] text-muted"
+                    className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-muted"
                   >
                     {t}
                   </span>
@@ -7162,7 +6930,7 @@ function CapabilityControlPanel({
     <div className="rounded-lg border border-accent/30 bg-accent/5 p-2.5">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
             <ShieldCheck className="size-3" /> Capability control
           </div>
           <div className="mt-1 text-[11px] text-muted">
@@ -7211,7 +6979,7 @@ function CapabilityControlPanel({
                 : "border-border bg-card/55",
         )}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <IdCard className="size-3" /> Authority manifest
         </div>
         <div
@@ -7233,7 +7001,7 @@ function CapabilityControlPanel({
               <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted" title={key}>
                 {key}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-foreground/80" title={value}>
+              <div className="mt-0.5 truncate text-xs text-foreground/80" title={value}>
                 {value}
               </div>
             </div>
@@ -7265,7 +7033,7 @@ function CapabilityControlPanel({
           >
             {riskPassport.label}
           </div>
-          <div className="mt-0.5 truncate text-[10px] text-muted" title={riskPassport.detail}>
+          <div className="mt-0.5 truncate text-xs text-muted" title={riskPassport.detail}>
             {riskPassport.detail}
           </div>
         </div>
@@ -7293,7 +7061,7 @@ function CapabilityControlPanel({
           >
             {authoritySnapshot.headline}
           </div>
-          <div className="mt-0.5 truncate text-[10px] text-muted" title={authoritySnapshot.detail}>
+          <div className="mt-0.5 truncate text-xs text-muted" title={authoritySnapshot.detail}>
             {authoritySnapshot.detail}
           </div>
         </div>
@@ -7302,7 +7070,7 @@ function CapabilityControlPanel({
           <div className="mt-0.5 truncate text-[11px] font-medium text-foreground/85" title={configSnapshot}>
             {configSnapshot}
           </div>
-          <div className="mt-0.5 truncate text-[10px] text-muted">
+          <div className="mt-0.5 truncate text-xs text-muted">
             {draftConfigCount} runtime override{draftConfigCount === 1 ? "" : "s"}
           </div>
         </div>
@@ -7322,13 +7090,13 @@ function CapabilityControlPanel({
           <div className="mt-0.5 truncate text-[11px] font-medium text-foreground/85" title={governanceSnapshot.detail}>
             {governanceSnapshot.detail}
           </div>
-          <div className="mt-0.5 truncate text-[10px] text-muted">
+          <div className="mt-0.5 truncate text-xs text-muted">
             trust {draftProfile.trust_ceiling || "L4"}
           </div>
         </div>
       </div>
       <div className="mb-2 rounded-md border border-border bg-card/55 p-2">
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <IdCard className="size-3" /> Authority ledger
         </div>
         <div className="grid gap-1.5 md:grid-cols-4">
@@ -7360,7 +7128,7 @@ function CapabilityControlPanel({
               >
                 {entry.value}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-muted" title={entry.detail}>
+              <div className="mt-0.5 truncate text-xs text-muted" title={entry.detail}>
                 {entry.detail}
               </div>
             </div>
@@ -7403,7 +7171,7 @@ function CapabilityControlPanel({
         </label>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-card/55 px-2 py-1.5">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-normal text-muted">Policy presets</span>
+        <span className="mr-1 text-xs font-semibold uppercase tracking-normal text-muted">Policy presets</span>
         <Button type="button" variant="ghost" size="sm" onClick={applyQuietSystemPreset} title="Apply quiet guardian defaults">
           <Megaphone className="size-3.5" /> Quiet system preset
         </Button>
@@ -7438,7 +7206,7 @@ function CapabilityControlPanel({
             <span className={cn("text-xs font-medium", silentOnSuccess ? "text-foreground" : "text-muted")}>
               Silent on success
             </span>
-            <span className="text-[10px] text-muted">suppress OK logs</span>
+            <span className="text-xs text-muted">suppress OK logs</span>
           </div>
           <div className={cn(
             "ml-auto flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors",
@@ -7470,7 +7238,7 @@ function CapabilityControlPanel({
             <span className={cn("text-xs font-medium", disableMemoryWrites ? "text-foreground" : "text-muted")}>
               Memory writes
             </span>
-            <span className="text-[10px] text-muted">
+            <span className="text-xs text-muted">
               {disableMemoryWrites ? "blocked" : "allowed"}
             </span>
           </div>
@@ -7559,7 +7327,7 @@ function CapabilityControlPanel({
         />
       </label>
       <div className="mt-3">
-        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
           Config center access
           <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[9px]">
             {configEntries.filter((row) => row.visible).length}/{configEntries.length}
@@ -7572,7 +7340,7 @@ function CapabilityControlPanel({
         ) : (
           <div className="max-h-44 overflow-auto rounded-lg border border-border bg-card/55">
             <table className="w-full text-left text-[11px]">
-              <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-normal text-muted">
+              <thead className="sticky top-0 bg-card text-xs uppercase tracking-normal text-muted">
                 <tr>
                   <th className="px-2 py-1.5 font-medium">Key</th>
                   <th className="px-2 py-1.5 font-medium">Rating</th>
@@ -7644,7 +7412,7 @@ function CapabilityControlPanel({
         )}
       </div>
       <div className="mt-3">
-        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-normal text-muted">
+        <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
           Effective tool access
           <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[9px]">
             {effective.filter((row) => row.allowed).length}/{effective.length}
@@ -7658,7 +7426,7 @@ function CapabilityControlPanel({
         ) : (
           <div className="max-h-56 overflow-auto rounded-lg border border-border bg-card/55">
             <table className="w-full text-left text-[11px]">
-              <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-normal text-muted">
+              <thead className="sticky top-0 bg-card text-xs uppercase tracking-normal text-muted">
                 <tr>
                   <th className="px-2 py-1.5 font-medium">Tool</th>
                   <th className="px-2 py-1.5 font-medium">Capability</th>
@@ -8820,7 +8588,7 @@ function DiagTab({
       </div>
 
       <Disclosure
-        summary={<span className="text-[10px] uppercase tracking-normal text-muted">Health, policy &amp; repair detail</span>}
+        summary={<span className="text-xs uppercase tracking-normal text-muted">Health, policy &amp; repair detail</span>}
       >
       <div className="space-y-3 pt-1">
 
@@ -8881,12 +8649,12 @@ function DiagTab({
             </span>
           )}
           {health.lastFailureMs && (
-            <span className="ml-auto font-mono text-[10px] text-muted">
+            <span className="ml-auto font-mono text-xs text-muted">
               last fail {fmtAgo(health.lastFailureMs)}
             </span>
           )}
           {!health.lastFailureMs && health.lastActiveMs && (
-            <span className="ml-auto font-mono text-[10px] text-muted">
+            <span className="ml-auto font-mono text-xs text-muted">
               last active {fmtAgo(health.lastActiveMs)}
             </span>
           )}
@@ -8947,7 +8715,7 @@ function DiagTab({
             </span>
           ) : null}
           {repair.nextEligibleMs && (
-            <span className="ml-auto font-mono text-[10px] text-muted">
+            <span className="ml-auto font-mono text-xs text-muted">
               next eligible {fmtDateTime(repair.nextEligibleMs)}
             </span>
           )}
@@ -8966,7 +8734,7 @@ function DiagTab({
         >
           <div
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-normal",
+              "text-xs font-semibold uppercase tracking-normal",
               repairOperations.tone === "good"
                 ? "text-good"
                 : repairOperations.tone === "warn"
@@ -9017,11 +8785,11 @@ function DiagTab({
                     </Badge>
                   ) : null}
                   {row.correlation_id ? (
-                    <span className="font-mono text-[10px] text-muted">
+                    <span className="font-mono text-xs text-muted">
                       {clip(row.correlation_id, 24)}
                     </span>
                   ) : null}
-                  <span className="ml-auto font-mono text-[10px] text-muted">
+                  <span className="ml-auto font-mono text-xs text-muted">
                     {fmtTime(row.ts_unix_ms)}
                   </span>
                 </div>
@@ -9037,7 +8805,7 @@ function DiagTab({
                           ? openIncident(row.incident_id)
                           : undefined
                     }
-                    className="mt-1 text-[10px] uppercase tracking-normal text-muted transition-colors hover:text-accent"
+                    className="mt-1 text-xs uppercase tracking-normal text-muted transition-colors hover:text-accent"
                     title="Open this repair incident"
                   >
                     {incidentLineageLabel(row)}
@@ -9083,7 +8851,7 @@ function DiagTab({
           value={posture?.hard_denied ?? "—"}
         />
       </div>
-      <p className="text-[10px] text-muted">
+      <p className="text-xs text-muted">
         Capabilities default to <span className="text-good">allow</span> — only
         the denials below were ever blocked. This agent can use any tool that
         isn't explicitly restricted.
@@ -9091,7 +8859,7 @@ function DiagTab({
 
       {(overrides.runtime.length > 0 || overrides.generic.length > 0) && (
         <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-          <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+          <div className="mb-1 text-xs uppercase tracking-normal text-muted">
             runtime policy overlay
           </div>
           {overrides.runtime.length === 0 ? (
@@ -9151,7 +8919,7 @@ function DiagTab({
       <div>
         {!denials ? (
           <>
-            <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">capability denials</div>
+            <div className="mb-1 text-xs uppercase tracking-normal text-muted">capability denials</div>
             <SkeletonList count={2} lines={1} />
           </>
         ) : denials.length === 0 ? (
@@ -9161,7 +8929,7 @@ function DiagTab({
         ) : (
           <Disclosure
             summary={
-              <span className="text-[10px] uppercase tracking-normal text-muted">
+              <span className="text-xs uppercase tracking-normal text-muted">
                 {denials.length} capability denial{denials.length === 1 ? "" : "s"}
               </span>
             }
@@ -9171,7 +8939,7 @@ function DiagTab({
               <li key={i} className="flex items-start gap-2 text-[11px]">
                 <span
                   className={cn(
-                    "rounded px-1.5 py-0.5 font-mono text-[10px]",
+                    "rounded px-1.5 py-0.5 font-mono text-xs",
                     d.hard_denied
                       ? "bg-bad/15 text-bad"
                       : "bg-card text-foreground/80",
@@ -9186,7 +8954,7 @@ function DiagTab({
                   {d.tool ? `${d.tool} — ` : ""}
                   {d.reason || (d.hard_denied ? "hard-denied" : "denied")}
                 </span>
-                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
+                <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">
                   {fmtTime(d.ts_unix_ms)}
                 </span>
               </li>
@@ -9200,7 +8968,7 @@ function DiagTab({
       <div>
         {!approvals ? (
           <>
-            <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">human approvals</div>
+            <div className="mb-1 text-xs uppercase tracking-normal text-muted">human approvals</div>
             <SkeletonList count={2} lines={1} />
           </>
         ) : approvals.length === 0 ? (
@@ -9210,7 +8978,7 @@ function DiagTab({
         ) : (
           <Disclosure
             summary={
-              <span className="text-[10px] uppercase tracking-normal text-muted">
+              <span className="text-xs uppercase tracking-normal text-muted">
                 {approvals.length} human approval{approvals.length === 1 ? "" : "s"}
               </span>
             }
@@ -9220,7 +8988,7 @@ function DiagTab({
               <li key={a.approval_id || i} className="flex items-start gap-2 text-[11px]">
                 <span
                   className={cn(
-                    "rounded px-1.5 py-0.5 font-mono text-[10px]",
+                    "rounded px-1.5 py-0.5 font-mono text-xs",
                     a.status === "granted"
                       ? "bg-good/15 text-good"
                       : a.status === "denied" || a.status === "timeout"
@@ -9236,7 +9004,7 @@ function DiagTab({
                   {a.reason ? ` — ${a.reason}` : ""}
                   {a.resolved_by ? ` (${a.resolved_by})` : ""}
                 </span>
-                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
+                <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">
                   {fmtTime(a.ts_unix_ms)}
                 </span>
               </li>
@@ -9250,7 +9018,7 @@ function DiagTab({
       <div>
         {!toolErrors ? (
           <>
-            <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">tool errors</div>
+            <div className="mb-1 text-xs uppercase tracking-normal text-muted">tool errors</div>
             <SkeletonList count={2} lines={1} />
           </>
         ) : toolErrors.length === 0 ? (
@@ -9260,7 +9028,7 @@ function DiagTab({
         ) : (
           <Disclosure
             summary={
-              <span className="text-[10px] uppercase tracking-normal text-muted">
+              <span className="text-xs uppercase tracking-normal text-muted">
                 {toolErrors.length} tool error{toolErrors.length === 1 ? "" : "s"}
               </span>
             }
@@ -9268,7 +9036,7 @@ function DiagTab({
           <ul className="space-y-1">
             {toolErrors.slice(0, 40).map((t, i) => (
               <li key={i} className="flex items-start gap-2 text-[11px]">
-                <span className="rounded bg-bad/15 px-1.5 py-0.5 font-mono text-[10px] text-bad">
+                <span className="rounded bg-bad/15 px-1.5 py-0.5 font-mono text-xs text-bad">
                   {t.tool || "?"}
                 </span>
                 <span
@@ -9277,7 +9045,7 @@ function DiagTab({
                 >
                   {clip(t.output || "error", 120)}
                 </span>
-                <span className="ml-auto shrink-0 font-mono text-[10px] text-muted opacity-70">
+                <span className="ml-auto shrink-0 font-mono text-xs text-muted opacity-70">
                   {fmtTime(t.ts_unix_ms)}
                 </span>
               </li>
@@ -9315,7 +9083,7 @@ function FilesTab({
         }
       />
       <div>
-        <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
+        <div className="mb-1 text-xs uppercase tracking-normal text-muted">
           skill bundle files
         </div>
         {!skills ? (
@@ -9379,7 +9147,7 @@ function SkillFiles({ id }: { id: string }) {
       {files.map((f, i) => (
         <li
           key={i}
-          className="flex items-center gap-2 font-mono text-[10px] text-muted"
+          className="flex items-center gap-2 font-mono text-xs text-muted"
         >
           <span className="truncate">{f.path}</span>
           {typeof f.size === "number" && (

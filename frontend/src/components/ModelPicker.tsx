@@ -201,7 +201,7 @@ function ModelModal({
 
           {allowChains && chainEntries.length > 0 && (
             <div className="mt-1">
-              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-normal text-accent">
+              <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-accent">
                 <Waypoints className="size-3" />
                 Fallback chains
                 <span className="text-muted/60">· {chainEntries.length}</span>
@@ -221,7 +221,7 @@ function ModelModal({
 
           {pinnedOpts.length > 0 && (
             <div className="mt-1">
-              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-normal text-accent">
+              <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-accent">
                 <Route className="size-3" />
                 {pinned!.label}
                 <span className="text-muted/60">· {pinnedOpts.length}</span>
@@ -253,7 +253,7 @@ function ModelModal({
           ) : (
             groups.map((g) => (
               <div key={g.providerId} className="mt-1">
-                <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-normal text-muted">
+                <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-muted">
                   {g.providerName}
                   {g.credentialed && <KeyRound className="size-3 text-good" />}
                   <span className="text-muted/60">· {g.options.length}</span>
@@ -269,7 +269,7 @@ function ModelModal({
         {/* Footer: keyed-only toggle. Only providers with a key can actually run,
             so the picker defaults to those; reveal the rest on demand. */}
         {cat && (keyedOnly ? hiddenCount > 0 : true) && (
-          <div className="flex items-center justify-between border-t border-border px-3 py-1.5 text-[10px] text-muted">
+          <div className="flex items-center justify-between border-t border-border px-3 py-1.5 text-xs text-muted">
             <span className="inline-flex items-center gap-1">
               <KeyRound className="size-3 text-good" />
               {keyedOnly ? "Keyed providers only" : "All providers"}
@@ -343,9 +343,9 @@ function ChainRowOption({
           <span className="truncate text-sm font-medium">{name}</span>
           {isDefault && <span className="rounded bg-accent/15 px-1 text-[9px] font-medium uppercase text-accent">default</span>}
         </div>
-        <div className="truncate font-mono text-[10px] text-muted">{models.join(" → ") || "empty"}</div>
+        <div className="truncate font-mono text-xs text-muted">{models.join(" → ") || "empty"}</div>
       </div>
-      <span className="shrink-0 text-[10px] text-muted">
+      <span className="shrink-0 text-xs text-muted">
         {models.length} model{models.length === 1 ? "" : "s"}
       </span>
     </button>
@@ -364,9 +364,9 @@ function ModelRow({ m, selected, onClick }: { m: ModelOption; selected: boolean;
       <Check className={cn("size-4 shrink-0", selected ? "text-accent" : "text-transparent")} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{m.name}</div>
-        <div className="truncate font-mono text-[10px] text-muted">{m.id}</div>
+        <div className="truncate font-mono text-xs text-muted">{m.id}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted">
+      <div className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
         {m.toolCall && (
           <span title="supports tool calls" className="inline-flex items-center gap-0.5 text-accent">
             <Wrench className="size-3" />

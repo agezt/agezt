@@ -85,7 +85,7 @@ export function CommandPalette({ open, onClose, items }: { open: boolean; onClos
             placeholder="Jump to a view, run an action, open a run…"
             className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
           />
-          <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted">esc</kbd>
+          <kbd className="rounded border border-border px-1.5 py-0.5 text-xs text-muted">esc</kbd>
         </div>
         <ul ref={listRef} className="max-h-[55vh] overflow-auto py-1">
           {results.length === 0 ? (
@@ -93,7 +93,7 @@ export function CommandPalette({ open, onClose, items }: { open: boolean; onClos
           ) : (
             [...groups.entries()].map(([group, rows]) => (
               <li key={group}>
-                <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-normal text-muted">
+                <div className="px-3 pb-0.5 pt-2 text-xs font-semibold uppercase tracking-normal text-muted">
                   {group}
                 </div>
                 <ul>

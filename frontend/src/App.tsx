@@ -795,7 +795,7 @@ export default function App() {
                 <span>{n.label}</span>
                 {n.id === "alerts" && unseenAlerts > 0 && (
                   <span
-                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-semibold leading-4 text-white"
+                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-xs font-semibold leading-4 text-white"
                     title={`${unseenAlerts} new alert${unseenAlerts === 1 ? "" : "s"} — the agent flagged something`}
                     aria-label={`${unseenAlerts} unseen alerts`}
                   >
@@ -804,7 +804,7 @@ export default function App() {
                 )}
                 {n.id === "overseer" && activeRunCount > 0 && (
                   <span
-                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-[10px] font-semibold leading-4 text-accent"
+                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-semibold leading-4 text-accent"
                     title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
                     aria-label={`${activeRunCount} active runs`}
                   >
@@ -816,7 +816,7 @@ export default function App() {
             })}
             {build && (
               <div
-                className="mt-auto hidden px-3 pt-3 text-[10px] leading-tight text-muted/60 lg:block"
+                className="mt-auto hidden px-3 pt-3 text-xs leading-tight text-muted/60 lg:block"
                 title={
                   build.revision
                     ? `Daemon build ${build.revision}${build.build_modified ? " (modified working tree)" : ""}${build.built ? ` · built ${build.built}` : ""}`
@@ -943,7 +943,7 @@ function Header({
           title="Command palette"
         >
           <Search className="size-3.5" />
-          <kbd className="rounded border border-border px-1 text-[10px]">⌘K</kbd>
+          <kbd className="rounded border border-border px-1 text-xs">⌘K</kbd>
         </button>
         <button
           onClick={onOpenHelp}

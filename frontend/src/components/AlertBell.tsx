@@ -47,7 +47,7 @@ export function AlertBell() {
       {has && (
         <span
           className={cn(
-            "absolute -right-1.5 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white tabular-nums",
+            "absolute -right-1.5 -top-1.5 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold text-white tabular-nums",
             crit > 0 ? "bg-bad" : "bg-warn",
           )}
         >

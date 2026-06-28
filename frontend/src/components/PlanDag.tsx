@@ -61,7 +61,7 @@ function PlanNodeView({ data }: NodeProps<PlanRFNode>) {
     >
       <Handle type="target" position={Position.Top} className="!bg-muted" />
       <div className="truncate text-xs font-semibold">{clip(data.label, 22)}</div>
-      <div className="truncate text-[10px] text-muted">{clip(data.body, 28)}</div>
+      <div className="truncate text-xs text-muted">{clip(data.body, 28)}</div>
       <Handle type="source" position={Position.Bottom} className="!bg-muted" />
     </div>
   );

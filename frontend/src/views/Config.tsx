@@ -128,7 +128,7 @@ export function Config() {
                 <div className="grid gap-1 sm:grid-cols-2">
                   {Object.entries(d.paths as Record<string, unknown>).slice(0, 6).map(([k, v]) => (
                     <div key={k} className="min-w-0 rounded-md border border-border/70 bg-card/50 px-2 py-1">
-                      <div className="truncate text-[10px] uppercase tracking-normal text-muted">{k}</div>
+                      <div className="truncate text-xs uppercase tracking-normal text-muted">{k}</div>
                       <div className="truncate font-mono text-xs text-foreground" title={String(v)}>{String(v)}</div>
                     </div>
                   ))}

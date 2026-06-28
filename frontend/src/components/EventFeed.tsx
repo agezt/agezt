@@ -158,7 +158,7 @@ export function EventFeed() {
                           ev.stopPropagation();
                           setCorr(e.correlation_id || null);
                         }}
-                        className="shrink-0 truncate text-[10px] text-muted hover:text-accent"
+                        className="shrink-0 truncate text-xs text-muted hover:text-accent"
                         title="filter to this run"
                       >
                         {e.correlation_id.slice(-6)}
@@ -167,7 +167,7 @@ export function EventFeed() {
                   </div>
                   {isOpen && (
                     <div className="border-t border-border/40 bg-panel/40 px-3 py-2">
-                      <div className="mb-1 flex gap-3 text-[10px] text-muted">
+                      <div className="mb-1 flex gap-3 text-xs text-muted">
                         <span>seq {e.seq ?? "—"}</span>
                         <span>actor {e.actor || "—"}</span>
                         <span>{cat.label}</span>

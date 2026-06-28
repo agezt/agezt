@@ -620,7 +620,7 @@ export function Board() {
                 )}
               >
                 {label}
-                <span className="rounded-full bg-panel px-1 text-[10px] tabular-nums">{filterCounts[id]}</span>
+                <span className="rounded-full bg-panel px-1 text-xs tabular-nums">{filterCounts[id]}</span>
               </button>
             ))}
           </div>

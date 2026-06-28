@@ -187,7 +187,7 @@ const FLEET_FILTERS: { id: FleetFilter; label: string; icon: typeof Bot }[] = [
   { id: "direct", label: "Direct", icon: UserCheck },
   { id: "subagents", label: "Sub-agents", icon: GitBranch },
   { id: "repair", label: "Repair", icon: Wrench },
-  { id: "graveyard", label: "Graveyard", icon: Skull },
+  { id: "graveyard", label: "Inactive", icon: Skull },
   { id: "roster", label: "Roster", icon: Users },
   { id: "standing", label: "Standing", icon: Anchor },
   { id: "schedule", label: "Schedules", icon: CalendarClock },
@@ -548,7 +548,7 @@ export function Agents() {
         <MetricWidget icon={GitFork} label="Workflows" value={census.workflow} tone="muted" />
         <MetricWidget icon={Cpu} label="System" value={census.system} tone="muted" />
         <MetricWidget icon={Radio} label="Running" value={census.running} tone={census.running > 0 ? "accent" : "muted"} pulse={census.running > 0} />
-        <MetricWidget icon={Skull} label="Graveyard" value={census.graveyard} tone={census.graveyard > 0 ? "bad" : "muted"} />
+        <MetricWidget icon={Skull} label="Inactive" value={census.graveyard} tone={census.graveyard > 0 ? "bad" : "muted"} />
       </MetricGrid>
 
       {/* Status filters + search. */}
@@ -578,7 +578,7 @@ export function Agents() {
             },
             {
               id: "graveyard",
-              label: "Graveyard",
+              label: "Inactive",
               icon: Skull,
               count: census.graveyard,
               content: null,
@@ -671,7 +671,7 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
         <span
           className={cn("size-2 shrink-0 rounded-full", KIND_DOT[r.kind], r.kind === "running" && "animate-pulse")}
         />
-        <Badge variant={statusVariant(r.status)} className="text-[10px]">
+        <Badge variant={statusVariant(r.status)} className="text-xs">
           {r.status || "run"}
         </Badge>
         {r.agentName && (
