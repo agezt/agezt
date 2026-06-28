@@ -2274,7 +2274,7 @@ function Overview({
   return (
     <div className="space-y-3">
       {profile.retired && (
-        <div className="rounded-lg border border-border bg-panel/40 p-2.5">
+        <div className="rounded-lg bg-panel/40 p-2.5">
           <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
             <Skull className="size-3" /> lifecycle
           </div>
@@ -2305,7 +2305,7 @@ function Overview({
       <AutonomyRunbook entries={autonomyRunbook} slug={slug} />
 
       {lastWakeLineage.label && (lastWakeLineage.incidentId || lastWakeLineage.parentCorrelationId) && (
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
           <span>last wake {lastWakeLineage.label}</span>
           {lastWakeLineage.incidentId && (
             <button
@@ -3880,7 +3880,7 @@ function RuntimeDoctorLedger({ entries, slug }: { entries: AgentRuntimeDoctorLed
 
 function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry[]; slug: string }) {
   return (
-    <div className="rounded-lg border border-border bg-panel/40 p-2.5" aria-label={`${slug} autonomy runbook`}>
+    <div className="rounded-lg bg-panel/40 p-2.5" aria-label={`${slug} autonomy runbook`}>
       <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Repeat className="size-3" /> Autonomy runbook
       </div>
@@ -3920,7 +3920,7 @@ function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry
 
 function AgentEntityContract({ entries, slug }: { entries: AgentEntityContractEntry[]; slug: string }) {
   return (
-    <div className="rounded-lg border border-border bg-panel/40 p-2.5" aria-label={`${slug} entity contract`}>
+    <div className="rounded-lg bg-panel/40 p-2.5" aria-label={`${slug} entity contract`}>
       <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <Waypoints className="size-3" /> Agent entity contract
       </div>
