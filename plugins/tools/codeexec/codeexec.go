@@ -79,17 +79,6 @@ type Tool struct {
 	bus *bus.Bus
 }
 
-// New returns a Tool with a no-bus warden — suitable for unit tests.
-func New(sandboxRoot string, runtimes map[string]string) *Tool {
-	return &Tool{
-		Warden:      warden.New(nil),
-		SandboxRoot: sandboxRoot,
-		Runtimes:    runtimes,
-		NetEnabled:  true,
-		Profile:     warden.ProfileNamespace,
-	}
-}
-
 // NewWithWarden returns a Tool routed through the supplied warden engine — the
 // path the daemon uses so audit events land on the kernel bus.
 func NewWithWarden(w warden.Engine, sandboxRoot string, runtimes map[string]string, netEnabled bool) *Tool {

@@ -67,16 +67,6 @@ type Tool struct {
 	WorkDir string
 }
 
-// New returns a Tool with platform defaults and a no-bus Warden engine.
-// Production callers should set Warden explicitly so audit events land
-// on the kernel bus.
-func New() *Tool {
-	return &Tool{
-		Warden:  warden.New(nil),
-		Profile: warden.ProfileNamespace,
-	}
-}
-
 // NewWithWarden returns a Tool that routes through the supplied Warden
 // engine — the path the daemon uses.
 func NewWithWarden(w warden.Engine) *Tool {

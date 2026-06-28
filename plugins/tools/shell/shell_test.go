@@ -107,7 +107,7 @@ func TestShell_NonzeroExitAppendsCode(t *testing.T) {
 }
 
 func TestShell_RunsCommand(t *testing.T) {
-	sh := New()
+	sh := NewWithWarden(warden.New(nil))
 	cmd := "echo hello"
 	if runtime.GOOS == "windows" {
 		cmd = "echo hello"
@@ -129,7 +129,7 @@ func TestShell_RunsCommand(t *testing.T) {
 // can be made to agree on "here" (M609). Uses the platform's print-CWD command.
 func TestShell_WorkDir(t *testing.T) {
 	dir := t.TempDir()
-	sh := New()
+	sh := NewWithWarden(warden.New(nil))
 	sh.WorkDir = dir
 	cmd := "pwd"
 	if runtime.GOOS == "windows" {
@@ -154,7 +154,7 @@ func TestShell_WorkDir(t *testing.T) {
 }
 
 func TestShell_MissingCommand_IsErrorNotFatal(t *testing.T) {
-	r, err := New().Invoke(context.Background(), json.RawMessage(`{}`))
+	r, err := NewWithWarden(warden.New(nil)).Invoke(context.Background(), json.RawMessage(`{}`))
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestShell_NonzeroExit_FlaggedNotPanicked(t *testing.T) {
 		cmd = "exit 7"
 	}
 	in, _ := json.Marshal(shellInput{Command: cmd})
-	r, err := New().Invoke(context.Background(), in)
+	r, err := NewWithWarden(warden.New(nil)).Invoke(context.Background(), in)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestShell_Timeout(t *testing.T) {
 	}
 	in, _ := json.Marshal(shellInput{Command: cmd, TimeoutMS: 150})
 	start := time.Now()
-	r, err := New().Invoke(context.Background(), in)
+	r, err := NewWithWarden(warden.New(nil)).Invoke(context.Background(), in)
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
@@ -211,14 +211,14 @@ func TestShell_Timeout(t *testing.T) {
 }
 
 func TestShell_BadJSONInput(t *testing.T) {
-	_, err := New().Invoke(context.Background(), json.RawMessage(`{bogus`))
+	_, err := NewWithWarden(warden.New(nil)).Invoke(context.Background(), json.RawMessage(`{bogus`))
 	if err == nil {
 		t.Errorf("expected error for malformed input JSON")
 	}
 }
 
 func TestShell_Definition(t *testing.T) {
-	def := New().Definition()
+	def := NewWithWarden(warden.New(nil)).Definition()
 	if def.Name != "shell" {
 		t.Errorf("Name=%q want shell", def.Name)
 	}

@@ -498,28 +498,3 @@ func parseMessage(plain []byte) (inbound, bool) {
 	}
 	return in, true
 }
-
-// encrypt builds a WXBizMsgCrypt payload (used by tests to exercise decrypt).
-func (c *Channel) encrypt(msg string, randPrefix []byte, receiveID string) (string, error) {
-	if len(c.aesKey) != 32 {
-		return "", fmt.Errorf("wecom: AES key not configured")
-	}
-	var buf bytes.Buffer
-	buf.Write(randPrefix[:16])
-	_ = binary.Write(&buf, binary.BigEndian, uint32(len(msg)))
-	buf.WriteString(msg)
-	buf.WriteString(receiveID)
-	padded := pkcs7Pad(buf.Bytes(), aes.BlockSize)
-	block, err := aes.NewCipher(c.aesKey)
-	if err != nil {
-		return "", err
-	}
-	out := make([]byte, len(padded))
-	cipher.NewCBCEncrypter(block, c.aesKey[:aes.BlockSize]).CryptBlocks(out, padded)
-	return base64.StdEncoding.EncodeToString(out), nil
-}
-
-func pkcs7Pad(b []byte, blockSize int) []byte {
-	pad := blockSize - len(b)%blockSize
-	return append(b, bytes.Repeat([]byte{byte(pad)}, pad)...)
-}

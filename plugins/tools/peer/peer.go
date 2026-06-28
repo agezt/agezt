@@ -86,12 +86,6 @@ type Tool struct {
 	cache map[string]modelCacheEntry
 }
 
-// New builds a peer Tool from the global peer set. Returns nil when none are
-// configured (tool disabled).
-func New(peers map[string]Peer) *Tool {
-	return NewWithTenants(peers, nil)
-}
-
 // NewWithTenants builds a peer Tool with a global peer set plus optional per-tenant
 // overrides (M219). Returns nil only when BOTH are empty (tool disabled), so a
 // deployment that configures peers only per-tenant still gets the tool.

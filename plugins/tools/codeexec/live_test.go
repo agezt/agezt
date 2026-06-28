@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // invokeLive runs one program through the real warden (actually executes the
@@ -67,7 +69,7 @@ func TestCodeExec_LiveRuntimeParity(t *testing.T) {
 		}
 
 		t.Run(lang+"/clean-output", func(t *testing.T) {
-			tool := New(t.TempDir(), rt)
+			tool := NewWithWarden(warden.New(nil), t.TempDir(), rt, true)
 			out, isErr := invokeLive(t, tool, lang, p.marker)
 			if isErr {
 				t.Fatalf("%s errored:\n%s", lang, out)
@@ -79,7 +81,7 @@ func TestCodeExec_LiveRuntimeParity(t *testing.T) {
 		})
 
 		t.Run(lang+"/secret-scrub", func(t *testing.T) {
-			tool := New(t.TempDir(), rt)
+			tool := NewWithWarden(warden.New(nil), t.TempDir(), rt, true)
 			out, isErr := invokeLive(t, tool, lang, p.probe)
 			if isErr {
 				t.Fatalf("%s errored:\n%s", lang, out)

@@ -10,6 +10,8 @@ package bedrock
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,11 +20,44 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // Test helpers — keep below so they live near where they're used.
 
 func testCtx() context.Context { return context.Background() }
+
+func canonicalQuery(q map[string][]string) string { return sigv4.CanonicalQuery(q) }
+
+func awsURIEncode(s string, encodeSlash bool) string {
+	return sigv4.AWSURIEncode(s, encodeSlash)
+}
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func collapseSpaces(s string) string {
+	if !strings.Contains(s, "  ") {
+		return s
+	}
+	var sb strings.Builder
+	sb.Grow(len(s))
+	prevSpace := false
+	for _, r := range s {
+		if r == ' ' {
+			if !prevSpace {
+				sb.WriteRune(r)
+			}
+			prevSpace = true
+		} else {
+			sb.WriteRune(r)
+			prevSpace = false
+		}
+	}
+	return sb.String()
+}
 
 func agentReq(model string) agent.CompletionRequest {
 	return agent.CompletionRequest{

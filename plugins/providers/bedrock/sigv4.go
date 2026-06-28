@@ -2,25 +2,12 @@
 
 package bedrock
 
-// SigV4 shim — the algorithm itself lives in kernel/creds/sigv4
-// after the M1.SigV4 extraction. This file preserves the in-package
-// names (SigV4Creds, signRequest, the helpers) that the existing
-// tests and Provider wiring use, and forwards to the kernel
-// implementation with service="bedrock".
-//
-// Keeping this shim (rather than rewriting callers) means:
-//   - The bedrock-side tests in sigv4_test.go that reach into
-//     package internals (canonicalQuery, awsURIEncode, sha256Hex,
-//     collapseSpaces) keep working untouched.
-//   - Provider.SetSigV4Creds(*SigV4Creds) is unchanged, so the
-//     operator-facing API for Bedrock didn't shift sideways during
-//     the extraction.
+// SigV4 shim — the algorithm itself lives in kernel/creds/sigv4 after the
+// M1.SigV4 extraction. This file preserves the in-package names used by
+// Provider wiring and forwards to the kernel implementation with service="bedrock".
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/creds/sigv4"
@@ -40,45 +27,4 @@ const sigV4Service = "bedrock"
 
 func signRequest(req *http.Request, region string, body []byte, creds SigV4Creds, now time.Time) error {
 	return sigv4.SignRequest(req, sigV4Service, region, body, creds, now)
-}
-
-// The helpers below are kept as thin forwards so the existing
-// internal tests (canonical-query ordering, URI encoding,
-// whitespace collapsing, SHA-256-hex helper) keep working without
-// being rewritten to import the kernel package.
-
-func canonicalQuery(q map[string][]string) string { return sigv4.CanonicalQuery(q) }
-func awsURIEncode(s string, encodeSlash bool) string {
-	return sigv4.AWSURIEncode(s, encodeSlash)
-}
-
-// sha256Hex and collapseSpaces are kept here (not forwarded to the
-// kernel package) because the existing internal tests in
-// sigv4_test.go reach them by unqualified name. Re-implementing
-// the two trivial helpers in the shim is cheaper than restructuring
-// the tests just to move two lines.
-func sha256Hex(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
-}
-
-func collapseSpaces(s string) string {
-	if !strings.Contains(s, "  ") {
-		return s
-	}
-	var sb strings.Builder
-	sb.Grow(len(s))
-	prevSpace := false
-	for _, r := range s {
-		if r == ' ' {
-			if !prevSpace {
-				sb.WriteRune(r)
-			}
-			prevSpace = true
-		} else {
-			sb.WriteRune(r)
-			prevSpace = false
-		}
-	}
-	return sb.String()
 }

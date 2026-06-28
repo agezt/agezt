@@ -3,9 +3,14 @@
 package wecom
 
 import (
+	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +22,30 @@ import (
 // a valid 43-char EncodingAESKey (base64 of 32 bytes, sans padding).
 func testAESKey() string {
 	return base64.StdEncoding.EncodeToString(make([]byte, 32))[:43]
+}
+
+func encryptTestPayload(c *Channel, msg string, randPrefix []byte, receiveID string) (string, error) {
+	if len(c.aesKey) != 32 {
+		return "", fmt.Errorf("wecom: AES key not configured")
+	}
+	var buf bytes.Buffer
+	buf.Write(randPrefix[:16])
+	_ = binary.Write(&buf, binary.BigEndian, uint32(len(msg)))
+	buf.WriteString(msg)
+	buf.WriteString(receiveID)
+	padded := pkcs7PadTest(buf.Bytes(), aes.BlockSize)
+	block, err := aes.NewCipher(c.aesKey)
+	if err != nil {
+		return "", err
+	}
+	out := make([]byte, len(padded))
+	cipher.NewCBCEncrypter(block, c.aesKey[:aes.BlockSize]).CryptBlocks(out, padded)
+	return base64.StdEncoding.EncodeToString(out), nil
+}
+
+func pkcs7PadTest(b []byte, blockSize int) []byte {
+	pad := blockSize - len(b)%blockSize
+	return append(b, bytes.Repeat([]byte{byte(pad)}, pad)...)
 }
 
 func TestParseMessageMedia(t *testing.T) {
@@ -36,7 +65,7 @@ func TestParseMessageMedia(t *testing.T) {
 func TestEncryptDecryptRoundTrip(t *testing.T) {
 	c := New(Config{AESKey: testAESKey()})
 	inner := `<xml><FromUserName><![CDATA[user1]]></FromUserName><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[hello]]></Content><MsgId>99</MsgId></xml>`
-	enc, err := c.encrypt(inner, make([]byte, 16), "corpid")
+	enc, err := encryptTestPayload(c, inner, make([]byte, 16), "corpid")
 	if err != nil {
 		t.Fatal(err)
 	}

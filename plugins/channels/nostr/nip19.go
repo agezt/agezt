@@ -14,20 +14,6 @@ import (
 
 const bech32Charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
-// EncodeNpub encodes a 32-byte hex x-only pubkey as a bech32 npub.
-func EncodeNpub(hexKey string) (string, error) { return encodeKey("npub", hexKey) }
-
-// EncodeNsec encodes a 32-byte hex secret key as a bech32 nsec.
-func EncodeNsec(hexKey string) (string, error) { return encodeKey("nsec", hexKey) }
-
-func encodeKey(hrp, hexKey string) (string, error) {
-	raw, err := hex.DecodeString(strings.TrimSpace(hexKey))
-	if err != nil || len(raw) != 32 {
-		return "", fmt.Errorf("nostr: %s payload must be 32-byte hex", hrp)
-	}
-	return bech32Encode(hrp, raw)
-}
-
 // DecodePubkey accepts a hex pubkey or an npub and returns the 32-byte x-only
 // pubkey as hex. Exported so the daemon can normalize an author allowlist that
 // may mix hex and npub forms.
@@ -83,27 +69,6 @@ func bech32Decode(s string) (string, []byte, error) {
 		return "", nil, err
 	}
 	return hrp, data, nil
-}
-
-// bech32Encode encodes 8-bit data under hrp into a bech32 string.
-func bech32Encode(hrp string, data8 []byte) (string, error) {
-	conv, err := convertBits(data8, 8, 5, true)
-	if err != nil {
-		return "", err
-	}
-	values := append(bech32HRPExpand(hrp), conv...)
-	values = append(values, 0, 0, 0, 0, 0, 0)
-	pm := bech32Polymod(values) ^ 1
-	var sb strings.Builder
-	sb.WriteString(hrp)
-	sb.WriteByte('1')
-	for _, b := range conv {
-		sb.WriteByte(bech32Charset[b])
-	}
-	for i := 0; i < 6; i++ {
-		sb.WriteByte(bech32Charset[(pm>>uint(5*(5-i)))&31])
-	}
-	return sb.String(), nil
 }
 
 func bech32Polymod(values []byte) uint32 {

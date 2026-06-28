@@ -6,6 +6,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // TestRunScript_LiveStdinContract proves the script-tool forge's execution
@@ -17,7 +19,7 @@ func TestRunScript_LiveStdinContract(t *testing.T) {
 	if _, ok := rt[LangPython]; !ok {
 		t.Skip("python not installed")
 	}
-	tool := New(t.TempDir(), rt)
+	tool := NewWithWarden(warden.New(nil), t.TempDir(), rt, true)
 
 	out, isErr, err := tool.RunScript(context.Background(), LangPython,
 		`import json; d=json.load(open("stdin.txt")); print("city=" + d["city"])`,

@@ -5,6 +5,7 @@ package shell
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/warden"
 	"runtime"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestShell_ResolvesExternalProgram(t *testing.T) {
 		cmd = "where where" // where.exe lives in System32, found via PATH
 	}
 
-	tool := New()
+	tool := NewWithWarden(warden.New(nil))
 	in, _ := json.Marshal(shellInput{Command: cmd})
 	res, err := tool.Invoke(context.Background(), in)
 	if err != nil {

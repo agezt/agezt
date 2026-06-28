@@ -7,6 +7,7 @@ package shell
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/warden"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +20,7 @@ import (
 // incorrect". Before the fix, os/exec's MSVC-style escaping of `cmd /C
 // <command>` mangled any quoted command. Runs on the real host.
 func TestShell_QuotedCommandRunsVerbatim(t *testing.T) {
-	tool := New()
+	tool := NewWithWarden(warden.New(nil))
 	for _, cmd := range []string{
 		`dir "."`,            // quoted path argument
 		`echo "hello world"`, // quoted literal with a space
@@ -53,7 +54,7 @@ func TestShell_QuotedPathWithTrailingFlag(t *testing.T) {
 	if err := os.Mkdir(sub, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	tool := New()
+	tool := NewWithWarden(warden.New(nil))
 	for _, cmd := range []string{
 		`dir "` + sub + `" /b`,        // quoted path + trailing flag (the fleet pattern)
 		`cmd /C dir "` + sub + `" /b`, // explicit nested cmd /C, as agents often write

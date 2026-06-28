@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	btcec "github.com/btcsuite/btcd/btcec/v2"
@@ -13,6 +15,38 @@ import (
 
 	"github.com/agezt/agezt/kernel/channel"
 )
+
+func encodeNpub(hexKey string) (string, error) { return encodeKey("npub", hexKey) }
+
+func encodeNsec(hexKey string) (string, error) { return encodeKey("nsec", hexKey) }
+
+func encodeKey(hrp, hexKey string) (string, error) {
+	raw, err := hex.DecodeString(strings.TrimSpace(hexKey))
+	if err != nil || len(raw) != 32 {
+		return "", fmt.Errorf("nostr: %s payload must be 32-byte hex", hrp)
+	}
+	return bech32Encode(hrp, raw)
+}
+
+func bech32Encode(hrp string, data8 []byte) (string, error) {
+	conv, err := convertBits(data8, 8, 5, true)
+	if err != nil {
+		return "", err
+	}
+	values := append(bech32HRPExpand(hrp), conv...)
+	values = append(values, 0, 0, 0, 0, 0, 0)
+	pm := bech32Polymod(values) ^ 1
+	var sb strings.Builder
+	sb.WriteString(hrp)
+	sb.WriteByte('1')
+	for _, b := range conv {
+		sb.WriteByte(bech32Charset[b])
+	}
+	for i := 0; i < 6; i++ {
+		sb.WriteByte(bech32Charset[(pm>>uint(5*(5-i)))&31])
+	}
+	return sb.String(), nil
+}
 
 func TestBech32NpubRoundsToHex(t *testing.T) {
 	// Known NIP-19 test vector (from the NIP-19 spec).
@@ -34,7 +68,7 @@ func TestBech32NpubRoundsToHex(t *testing.T) {
 func TestNewAcceptsNsec(t *testing.T) {
 	priv, _ := btcec.NewPrivateKey()
 	hexKey := hex.EncodeToString(priv.Serialize())
-	nsec, err := EncodeNsec(hexKey)
+	nsec, err := encodeNsec(hexKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +85,7 @@ func TestNewAcceptsNsec(t *testing.T) {
 		t.Fatalf("nsec pubkey %s != hex pubkey %s", cNsec.PubHex(), cHex.PubHex())
 	}
 	// npub of that pubkey round-trips back to the hex pubkey.
-	npub, _ := EncodeNpub(cHex.PubHex())
+	npub, _ := encodeNpub(cHex.PubHex())
 	if got, _ := DecodePubkey(npub); got != cHex.PubHex() {
 		t.Fatalf("npub round-trip = %s", got)
 	}

@@ -123,15 +123,15 @@ func TestRemoteRun_EmptyTask(t *testing.T) {
 	}
 }
 
-func TestNew_DisabledWhenNoPeers(t *testing.T) {
-	if New(nil) != nil {
-		t.Error("New(nil) should return nil (disabled)")
+func TestNewWithTenants_DisabledWhenNoPeers(t *testing.T) {
+	if NewWithTenants(nil, nil) != nil {
+		t.Error("NewWithTenants(nil, nil) should return nil (disabled)")
 	}
-	if New(map[string]Peer{}) != nil {
-		t.Error("New(empty) should return nil")
+	if NewWithTenants(map[string]Peer{}, nil) != nil {
+		t.Error("NewWithTenants(empty, nil) should return nil")
 	}
-	if New(map[string]Peer{"a": {Name: "a", URL: "http://h:1"}}) == nil {
-		t.Error("New with a peer should return a tool")
+	if NewWithTenants(map[string]Peer{"a": {Name: "a", URL: "http://h:1"}}, nil) == nil {
+		t.Error("NewWithTenants with a peer should return a tool")
 	}
 }
 

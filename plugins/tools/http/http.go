@@ -62,7 +62,7 @@ type Tool struct {
 	AllowLoopback bool
 	// AllowPrivate permits the default client to reach RFC1918 + IPv6 ULA (the
 	// local network). Default false. Neither flag unblocks the cloud metadata
-	// endpoint (169.254.169.254) — that needs an explicit netguard.AllowLinkLocal.
+	// endpoint (169.254.169.254).
 	AllowPrivate bool
 	// UserAgent is sent on every request. Default: "agezt-http/0.1".
 	UserAgent string
