@@ -50,11 +50,16 @@ export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () =
     return (
       <button
         onClick={() => setOpen(true)}
-        title="Ask the agent"
-        className="fixed bottom-5 right-5 z-[90] flex size-12 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-black/30 transition-transform hover:scale-105"
+        title={busy ? "Agent is working — click to see progress" : "Ask the agent"}
+        className={cn(
+          "fixed bottom-5 right-5 z-[90] flex size-12 items-center justify-center rounded-full shadow-lg shadow-black/30 transition-all duration-300 hover:scale-110 hover:shadow-xl",
+          busy
+            ? "bg-gradient-to-br from-accent to-accent2 text-white animate-pulse"
+            : "bg-accent text-white",
+        )}
       >
         <MessageSquare className="size-5" />
-        {busy && <span className="work-pulse absolute -right-0.5 -top-0.5 size-3 rounded-full bg-good ring-2 ring-background" />}
+        {busy && <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-good ring-2 ring-background" />}
       </button>
     );
   }
