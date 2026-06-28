@@ -131,7 +131,7 @@ function renderInline(tokens: Inline[]) {
     switch (tok.t) {
       case "code":
         return (
-          <code key={i} className="rounded bg-panel/70 px-1 py-0.5 font-mono text-[0.85em]">
+          <code key={i} className="rounded bg-panel/70 px-1 py-0.5 font-mono text-xs">
             {tok.v}
           </code>
         );

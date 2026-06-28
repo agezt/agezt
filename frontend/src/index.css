@@ -73,7 +73,7 @@
   --color-bad: var(--bad);
   /* Mono stays for code, model IDs, numbers and timestamps. Sans (self-hosted
      Inter Variable, loaded in main.tsx) drives all UI chrome and body (M951). */
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   /* Elevation utilities (shadow-e1/e2/e3) resolve the per-theme --elev-* vars. */
   --shadow-e1: var(--elev-1);
@@ -109,9 +109,38 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
-  letter-spacing: 0;
+  letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-weight: 450;
+}
+
+/* Typographic scale — headings, body, and supporting text sizes with consistent
+   rhythm. All sizes use the same line-height ratio (~1.6 for text, tight for
+   headings) so the page has a clear hierarchy without hardcoding sizes everywhere. */
+
+/* Card/panel headings: small, bold, uppercase — keep it tight. */
+h2, h3, h4, h5, h6 {
+  letter-spacing: 0.02em;
+}
+h2 { font-weight: 650; }
+h3 { font-weight: 600; }
+h4 { font-weight: 550; }
+
+/* Labels, metadata, secondary text — slightly lighter weight for visual
+   hierarchy. The --muted color already handles the colour part; the weight
+   difference adds another dimension. */
+.text-label {
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+/* Numeric/stat values — use semi-condensed tracking so numbers sit tighter. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Command-center depth (M977): a soft indigo/violet aurora bled into the top of
