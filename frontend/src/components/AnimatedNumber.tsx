@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 // AnimatedNumber count-ups (or down) to its target whenever the value changes
 // (M975), so the cockpit's counters feel alive instead of snapping. Eases out
 // over ~600ms, formats with thousands separators, and respects
 // prefers-reduced-motion (renders the exact target with no animation). The
 // initial render shows the target immediately, so it's test- and SSR-safe.
+// A subtle "pulse" glow is added on change so the number feels alive.
 export function AnimatedNumber({
   value,
   durationMs = 600,
@@ -15,8 +17,10 @@ export function AnimatedNumber({
   className?: string;
 }) {
   const [display, setDisplay] = useState(value);
+  const [pulse, setPulse] = useState(false);
   const fromRef = useRef(value);
   const rafRef = useRef<number | null>(null);
+  const prevRef = useRef(value);
 
   useEffect(() => {
     if (!Number.isFinite(value)) {
@@ -31,6 +35,12 @@ export function AnimatedNumber({
       setDisplay(value);
       fromRef.current = value;
       return;
+    }
+    // Pulse on change
+    if (value !== prevRef.current) {
+      setPulse(true);
+      setTimeout(() => setPulse(false), 400);
+      prevRef.current = value;
     }
     const start = performance.now();
     const tick = (t: number) => {
@@ -50,5 +60,15 @@ export function AnimatedNumber({
   }, [value, durationMs]);
 
   if (!Number.isFinite(value)) return <span className={className}>{String(value)}</span>;
-  return <span className={className}>{Math.round(display).toLocaleString()}</span>;
+  return (
+    <span
+      className={cn(
+        "transition-shadow duration-300",
+        pulse && "shadow-[0_0_8px_-2px_var(--accent)] rounded-sm",
+        className,
+      )}
+    >
+      {Math.round(display).toLocaleString()}
+    </span>
+  );
 }
