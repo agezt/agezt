@@ -26,7 +26,9 @@ package webui
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,7 +82,8 @@ type Synthesizer interface {
 type Server struct {
 	bus         *bus.Bus
 	client      Caller
-	token       string
+	token       string // main console / API bearer token
+	sseToken    string // ephemeral SSE-only token for /events EventSource URL
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
 	synthesizer Synthesizer // optional TTS backend for /api/tts (nil = not configured)
@@ -122,6 +125,12 @@ func (s *Server) SetSynthesizer(t Synthesizer) { s.synthesizer = t }
 // SetAllowedHosts permits additional non-IP Host header values for deployments
 // behind a domain or tunnel. Loopback names and IP literals are accepted by
 // default; explicit hosts are for DNS names such as a reverse-proxy hostname.
+//
+// When ANY non-loopback host is registered (i.e. the console is reachable
+// beyond localhost), password-strict mode auto-activates so that a guessed
+// password alone is insufficient — the bearer token is also required (token
+// AND session). The operator can override via SetPasswordStrict(false) if
+// two-factor is not desired (VULN token-or-password-mode).
 func (s *Server) SetAllowedHosts(hosts ...string) {
 	if len(hosts) == 0 {
 		return
@@ -132,6 +141,16 @@ func (s *Server) SetAllowedHosts(hosts ...string) {
 	for _, h := range hosts {
 		if host := hostName(h); host != "" {
 			s.allowedHosts[strings.ToLower(host)] = true
+			// Any single explicit (non-loopback) host trips strict mode:
+			// the console is reachable beyond localhost, so a guessed
+			// password alone must not open data routes (VULN token-or-
+			// password-mode). The operator can override via
+			// SetPasswordStrict(false).
+			if !strings.EqualFold(host, "localhost") {
+				if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+					s.passwordStrict = true
+				}
+			}
 		}
 	}
 }
@@ -146,7 +165,10 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 		// a runtime condition. Fall back to the raw FS so the server still starts.
 		sub = distFS
 	}
-	return &Server{bus: b, client: client, token: token, dist: sub, sessions: newSessionStore()}
+	buf := make([]byte, 32)
+	_, _ = rand.Read(buf)
+	sseToken := hex.EncodeToString(buf)
+	return &Server{bus: b, client: client, token: token, sseToken: sseToken, dist: sub, sessions: newSessionStore()}
 }
 
 // apiRoutes maps each GET /api path to the read-only control-plane command it
@@ -424,6 +446,8 @@ var writeRoutes = map[string]writeRoute{
 	// Agent graveyard (M846): retire to / revive from the graveyard. POST-only.
 	"/api/agents/retire": {controlplane.CmdAgentRetire, []string{"ref", "reason"}},
 	"/api/agents/revive": {controlplane.CmdAgentRevive, []string{"ref"}},
+	// Agent wake: manual trigger for a roster agent. POST-only.
+	"/api/agents/wake": {controlplane.CmdAgentWake, []string{"ref", "intent", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
 	// Script-tool forge lifecycle (M794): test runs the code in the sandbox and
 	// records the verdict; promote/quarantine move a TESTED tool in/out of
 	// production; remove deletes it. ref = id or name.
@@ -543,7 +567,6 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/agents/remove":       {controlplane.CmdAgentRemove, []string{"ref", "cascade"}},
 	"/api/agents/task":         {controlplane.CmdAgentTaskUpdate, []string{"ref", "op", "id", "task", "title", "description", "scope", "status"}},
 	"/api/agents/repair":       {controlplane.CmdAgentRepair, []string{"ref", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
-	"/api/agents/wake":         {controlplane.CmdAgentWake, []string{"ref", "intent", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
 	"/api/agents/resolve":      {controlplane.CmdAgentResolve, []string{"ref", "resolution", "summary", "delegate_to", "task_type", "task_model_chain", "incident_id", "root_incident_id", "parent_incident_id"}},
 	// Inter-agent mailbox writes (M937): message text and optional payload-shaped
 	// fields ride in the body; this is the operator/app path into the same board
@@ -659,6 +682,10 @@ func (s *Server) Handler() http.Handler {
 	// Marketplace install/uninstall stream per-item progress (skill/mcp/tool) as SSE.
 	mux.HandleFunc("/api/market/install", s.auth(s.marketStreamProxy(controlplane.CmdMarketInstall, []string{"name", "marketplace", "version"})))
 	mux.HandleFunc("/api/market/uninstall", s.auth(s.marketStreamProxy(controlplane.CmdMarketUninstall, []string{"name"})))
+	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
+	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
+	// reusing the main console token. Requires a valid Bearer token in headers.
+	mux.HandleFunc("/api/sse-token", s.auth(s.handleSSEToken))
 	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
 	// Text-to-speech for the console Voice Mode (M998): POST {"text":…} and the
 	// server streams synthesized audio from the configured TTS backend.
@@ -1248,7 +1275,21 @@ func (s *Server) tokenPresented(r *http.Request) bool {
 }
 
 func (s *Server) dataTokenPresented(r *http.Request) bool {
-	allowQuery := r.URL.Path == "/events" || s.allowQueryTokensForData
+	// /events uses the ephemeral SSE token (minted once at startup) in the
+	// query string instead of the main console token, because the browser's
+	// EventSource API cannot set custom headers (VULN query-string-token).
+	// Other data routes default to Bearer header / session cookie; the
+	// allowQueryTokensForData legacy flag preserves ?token= for test support.
+	if r.URL.Path == "/events" {
+		if s.tokenMatch(r.URL.Query().Get("st")) || s.tokenPresentedFrom(r, false) {
+			return true
+		}
+		// Fallback for programmatic / non-browser SSE clients that pass the
+		// main token in query (before the SPA was updated). Accept the main
+		// token in query ONLY for /events and ONLY as a transition aid.
+		return s.tokenMatch(r.URL.Query().Get("token"))
+	}
+	allowQuery := s.allowQueryTokensForData
 	return s.tokenPresentedFrom(r, allowQuery)
 }
 
