@@ -63,6 +63,7 @@ func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 	t.Cleanup(func() { b.Close(); j.Close() })
 	s := New(b, client, token)
 	s.SetAllowedHosts("example.com")
+	s.SetPasswordStrict(false) // test default: token OR session
 	s.allowQueryTokensForData = true
 	return s, b
 }
@@ -1264,17 +1265,12 @@ func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
 	}
 }
 
-func TestAgentWakeAndRepairJSONRoutesForwardIncidentBody(t *testing.T) {
+func TestAgentRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 	for _, tc := range []struct {
 		path string
 		cmd  string
 		body string
 	}{
-		{
-			path: "/api/agents/wake",
-			cmd:  controlplane.CmdAgentWake,
-			body: `{"ref":"lead","intent":"wake now","reason":"incident ownership","incident_id":"inc-child","root_incident_id":"inc-root","parent_incident_id":"inc-parent","evil":"x"}`,
-		},
 		{
 			path: "/api/agents/repair",
 			cmd:  controlplane.CmdAgentRepair,
@@ -1299,6 +1295,27 @@ func TestAgentWakeAndRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 		if fc.lastArgs["root_incident_id"] != "inc-root" || fc.lastArgs["incident_id"] != "inc-child" {
 			t.Fatalf("%s incident args not forwarded: %v", tc.path, fc.lastArgs)
 		}
+	}
+}
+
+func TestAgentWakeWriteRouteForwardsQueryArgs(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"accepted": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/agents/wake?token=secret&ref=lead&reason=manual+operator+wake", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdAgentWake {
+		t.Fatalf("expected one agent_wake call, got %v", fc.calls)
+	}
+	if fc.lastArgs["ref"] != "lead" {
+		t.Fatalf("ref not forwarded: got %v", fc.lastArgs)
+	}
+	if fc.lastArgs["reason"] != "manual operator wake" {
+		t.Fatalf("reason not forwarded: got %v", fc.lastArgs)
 	}
 }
 
