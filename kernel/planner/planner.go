@@ -278,22 +278,6 @@ func extractJSONBlock(body string) (string, error) {
 // plan submitted via `agt plan <file>`.
 func ValidateJSON(raw []byte) (Plan, error) { return parseAndValidate(string(raw)) }
 
-// Validate runs the structural checks on an already-parsed Plan
-// (e.g. one constructed programmatically by a higher-level
-// caller). Returns the first error encountered or nil when the
-// plan is well-formed.
-func Validate(p Plan) error {
-	// Re-marshal + parseAndValidate to keep one source of truth
-	// for the rules. The cost is negligible — plans are tiny
-	// (a few hundred bytes) and validation is millisecond-scale.
-	raw, err := json.Marshal(p)
-	if err != nil {
-		return fmt.Errorf("plan marshal: %w", err)
-	}
-	_, err = parseAndValidate(string(raw))
-	return err
-}
-
 // parseAndValidate decodes the JSON, runs the structural checks
 // described in the package doc, and returns the typed Plan.
 func parseAndValidate(raw string) (Plan, error) {

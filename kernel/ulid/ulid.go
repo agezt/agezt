@@ -13,7 +13,6 @@ package ulid
 
 import (
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -30,8 +29,7 @@ const EncodedSize = 26
 const crockfordAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 // Generator produces ULIDs. It is safe for concurrent use. A zero-value
-// Generator uses crypto/rand and time.Now; supply a custom one via NewWith
-// for deterministic tests.
+// Generator uses crypto/rand and time.Now.
 type Generator struct {
 	mu      sync.Mutex
 	nowFunc func() time.Time
@@ -47,12 +45,6 @@ var Default = &Generator{
 // New returns a freshly minted ULID using the default generator.
 func New() string {
 	return Default.New()
-}
-
-// NewWith returns a generator with the given clock and random source. Useful
-// for deterministic tests.
-func NewWith(now func() time.Time, r io.Reader) *Generator {
-	return &Generator{nowFunc: now, randSrc: r}
 }
 
 // New returns a freshly minted ULID.
@@ -124,63 +116,4 @@ func encode(b [Size]byte) string {
 	out[25] = crockfordAlphabet[b[15]&31]
 
 	return string(out[:])
-}
-
-// decodeChar reverses crockfordAlphabet for a single character. Returns
-// (-1, false) for invalid characters.
-func decodeChar(c byte) (int, bool) {
-	switch {
-	case c >= '0' && c <= '9':
-		return int(c - '0'), true
-	case c >= 'A' && c <= 'H':
-		return int(c-'A') + 10, true
-	case c == 'J':
-		return 18, true
-	case c == 'K':
-		return 19, true
-	case c == 'M':
-		return 20, true
-	case c == 'N':
-		return 21, true
-	case c >= 'P' && c <= 'T':
-		return int(c-'P') + 22, true
-	case c == 'V':
-		return 27, true
-	case c >= 'W' && c <= 'Z':
-		return int(c-'W') + 28, true
-	}
-	return -1, false
-}
-
-// ErrInvalid is returned when a string is not a syntactically valid ULID.
-var ErrInvalid = errors.New("ulid: invalid encoding")
-
-// Validate returns nil iff s is a syntactically valid ULID. It does not
-// verify that the timestamp is recent or that the randomness is well-formed.
-func Validate(s string) error {
-	if len(s) != EncodedSize {
-		return fmt.Errorf("%w: length %d, want %d", ErrInvalid, len(s), EncodedSize)
-	}
-	for i := range EncodedSize {
-		if _, ok := decodeChar(s[i]); !ok {
-			return fmt.Errorf("%w: char %q at index %d", ErrInvalid, s[i], i)
-		}
-	}
-	return nil
-}
-
-// Timestamp extracts the 48-bit millisecond timestamp from an encoded ULID.
-// It returns an error if s is not a syntactically valid ULID.
-func Timestamp(s string) (time.Time, error) {
-	if err := Validate(s); err != nil {
-		return time.Time{}, err
-	}
-	// The first 10 chars carry the 48-bit timestamp left-padded with two
-	// zero bits (50 bits total). Decode and right-shift conceptually.
-	var ms uint64
-	for i := range 10 {
-		v, _ := decodeChar(s[i])
-		ms = (ms << 5) | uint64(v)
-	}
-	return time.UnixMilli(int64(ms)), nil
 }

@@ -5,7 +5,6 @@ package agent
 import (
 	"context"
 	"strings"
-	"time"
 )
 
 // CompleteFunc is the non-streaming provider call as a plain function, so
@@ -153,29 +152,6 @@ func synthesizeStream(complete CompleteFunc) StreamFunc {
 }
 
 // ----- built-in middlewares -----
-
-// LoggingMiddleware logs the provider name, latency and token usage of each
-// non-streaming call via logf. logf nil → no-op.
-func LoggingMiddleware(name string, logf func(format string, args ...any)) Middleware {
-	return Middleware{
-		Name: "logging",
-		WrapComplete: func(next CompleteFunc) CompleteFunc {
-			return func(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
-				start := time.Now()
-				resp, err := next(ctx, req)
-				if logf != nil {
-					if err != nil {
-						logf("provider %s model=%s failed in %s: %v", name, req.Model, time.Since(start), err)
-					} else {
-						logf("provider %s model=%s ok in %s (in=%d out=%d)", name, req.Model,
-							time.Since(start), resp.Usage.InputTokens, resp.Usage.OutputTokens)
-					}
-				}
-				return resp, err
-			}
-		},
-	}
-}
 
 // ExtractReasoningMiddleware moves inline reasoning wrapped in openTag..closeTag
 // (e.g. "<think>"/"</think>") out of the answer text into

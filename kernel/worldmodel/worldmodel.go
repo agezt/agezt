@@ -64,14 +64,6 @@ const (
 // DefaultKind is used when an entity is written with no kind.
 const DefaultKind = KindTopic
 
-var knownKinds = map[Kind]struct{}{
-	KindProject: {}, KindRepo: {}, KindPerson: {}, KindOrg: {}, KindAccount: {},
-	KindDevice: {}, KindChannel: {}, KindTopic: {}, KindTask: {},
-}
-
-// ValidKind reports whether k is one of the well-known kinds.
-func ValidKind(k Kind) bool { _, ok := knownKinds[k]; return ok }
-
 // NormalizeKind lowercases/trims a kind and falls back to DefaultKind when the
 // input is empty. Unknown-but-non-empty kinds are kept verbatim (permissive):
 // the graph records the operator's vocabulary rather than rejecting it.
@@ -99,14 +91,6 @@ const (
 
 // DefaultVerb is used when a relation is written with no verb.
 const DefaultVerb = VerbRelatesTo
-
-var knownVerbs = map[Verb]struct{}{
-	VerbOwns: {}, VerbDependsOn: {}, VerbMemberOf: {}, VerbPrefers: {},
-	VerbRelatesTo: {}, VerbAssignedTo: {}, VerbDerivedFrom: {},
-}
-
-// ValidVerb reports whether v is one of the well-known verbs.
-func ValidVerb(v Verb) bool { _, ok := knownVerbs[v]; return ok }
 
 // NormalizeVerb lowercases/trims a verb and falls back to DefaultVerb when
 // empty. Unknown-but-non-empty verbs are kept verbatim.

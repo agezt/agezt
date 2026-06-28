@@ -14,33 +14,6 @@ import (
 	"time"
 )
 
-func TestParseVersion(t *testing.T) {
-	tests := []struct {
-		a, b  string
-		want  int
-		label string
-	}{
-		{"1.0.0", "1.0.0", 0, "equal"},
-		{"1.0.0", "1.0.1", -1, "patch behind"},
-		{"1.0.1", "1.0.0", 1, "patch ahead"},
-		{"1.0.0", "1.1.0", -1, "minor behind"},
-		{"1.1.0", "1.0.0", 1, "minor ahead"},
-		{"1.0.0", "2.0.0", -1, "major behind"},
-		{"2.0.0", "1.0.0", 1, "major ahead"},
-		{"v1.0.0", "1.0.0", 0, "v prefix equal"},
-		{"v1.2.3", "v2.0.0", -1, "v prefix comparison"},
-		{"latest", "1.0.0", -1, "latest sorts before semver"},
-		{"dev", "1.0.0", -1, "dev sorts before semver"},
-		{"", "1.0.0", -1, "empty sorts before semver"},
-	}
-	for _, tt := range tests {
-		got := ParseVersion(tt.a, tt.b)
-		if got != tt.want {
-			t.Errorf("ParseVersion(%q, %q) = %d; want %d (%s)", tt.a, tt.b, got, tt.want, tt.label)
-		}
-	}
-}
-
 func TestService_checkEndpoint(t *testing.T) {
 	// Set CurrentVersion so the test is deterministic.
 	orig := CurrentVersion

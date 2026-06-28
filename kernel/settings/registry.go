@@ -43,9 +43,6 @@ func NewRegistry(baseDir string) *Registry {
 	return &Registry{dir: filepath.Join(baseDir, SchemaDir)}
 }
 
-// Dir is the schemas directory (it may not exist yet).
-func (r *Registry) Dir() string { return r.dir }
-
 // builtinEnvSet returns the set of env-var names owned by the built-in schema.
 // Registered fields may not shadow these.
 func builtinEnvSet() map[string]bool {

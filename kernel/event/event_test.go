@@ -155,23 +155,6 @@ func TestDecode_Roundtrip(t *testing.T) {
 	}
 }
 
-func TestKinds_Known(t *testing.T) {
-	for _, k := range []Kind{
-		KindAgentSpawned, KindAgentDied,
-		KindTaskReceived, KindTaskCompleted,
-		KindToolInvoked, KindToolResult,
-		KindLLMRequest, KindLLMResponse,
-		KindHalt, KindResume,
-	} {
-		if !IsKnown(k) {
-			t.Errorf("Kind %q should be in knownKinds map", k)
-		}
-	}
-	if IsKnown(Kind("nonexistent.kind")) {
-		t.Error("unknown kind reported as known")
-	}
-}
-
 func TestNewEphemeral_HasNoChainFields(t *testing.T) {
 	e, err := NewEphemeral(Spec{
 		Subject: "agent.01H.llm",

@@ -222,14 +222,6 @@ func (r *Registry) Authorize(id, presented string) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
 }
 
-// Get returns the tenant with id if its kernel is currently loaded.
-func (r *Registry) Get(id string) (*Tenant, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	t, ok := r.live[id]
-	return t, ok
-}
-
 // Exists reports whether a tenant directory exists on disk (whether or not its
 // kernel is loaded).
 func (r *Registry) Exists(id string) bool {
@@ -322,6 +314,3 @@ func (r *Registry) Count() int {
 	defer r.mu.Unlock()
 	return len(r.live)
 }
-
-// Root returns the registry's root directory.
-func (r *Registry) Root() string { return r.root }

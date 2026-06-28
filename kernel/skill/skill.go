@@ -63,14 +63,6 @@ const (
 // DefaultVersion is the semver a freshly proposed skill starts at.
 const DefaultVersion = "0.1.0"
 
-var validStatuses = map[Status]struct{}{
-	StatusDraft: {}, StatusShadow: {}, StatusActive: {},
-	StatusQuarantined: {}, StatusArchived: {},
-}
-
-// ValidStatus reports whether s is one of the known lifecycle states.
-func ValidStatus(s Status) bool { _, ok := validStatuses[s]; return ok }
-
 // legalTransitions encodes the state machine (SPEC-05 §5.2). promote walks
 // draft→shadow→active; quarantine pulls an active/shadow skill; archive retires
 // a draft/shadow/quarantined skill; revert is handled specially by Forge

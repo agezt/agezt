@@ -844,14 +844,6 @@ func WithCorrelation(ctx context.Context, corr string) context.Context {
 	return context.WithValue(ctx, ctxKeyCorrelation, corr)
 }
 
-// CorrelationFrom extracts the correlation id set by WithCorrelation.
-func CorrelationFrom(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
-		return v
-	}
-	return ""
-}
-
 // --- Forge proposal (the self-improvement trigger) ------------------------
 
 // proposeSystem instructs the provider to extract a reusable skill from a

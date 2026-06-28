@@ -356,8 +356,3 @@ func Outdated(ctx context.Context) map[string]bool {
 	}
 	return flagged
 }
-
-// Categories returns the catalog's category keys in a stable, display order.
-func Categories() []string {
-	return []string{"runtime", "pkgmgr", "vcs", "search", "data", "media", "build", "net", "archive", "cloud", "shell", "ai"}
-}

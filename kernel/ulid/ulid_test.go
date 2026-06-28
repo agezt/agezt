@@ -15,13 +15,10 @@ func TestNew_Format(t *testing.T) {
 	if len(id) != EncodedSize {
 		t.Fatalf("len=%d want %d (%q)", len(id), EncodedSize, id)
 	}
-	if err := Validate(id); err != nil {
-		t.Fatalf("Validate: %v", err)
-	}
 	// Must be all-uppercase Crockford base32 (no I/L/O/U).
 	for i, c := range []byte(id) {
-		if strings.ContainsRune("ILOU", rune(c)) {
-			t.Errorf("forbidden Crockford char %q at %d", c, i)
+		if !strings.ContainsRune(crockfordAlphabet, rune(c)) {
+			t.Errorf("non-Crockford char %q at %d", c, i)
 		}
 	}
 }
@@ -48,68 +45,11 @@ func TestNew_Sortable(t *testing.T) {
 		now = now.Add(time.Millisecond)
 		return t
 	}
-	g := NewWith(clock, &fixedReader{0xAB})
+	g := &Generator{nowFunc: clock, randSrc: &fixedReader{0xAB}}
 	a := g.New()
 	b := g.New()
 	if a >= b {
 		t.Errorf("expected a<b (timestamp prefix sorts), got a=%q b=%q", a, b)
-	}
-}
-
-func TestTimestamp_Roundtrip(t *testing.T) {
-	ts := time.UnixMilli(1_700_123_456_789)
-	g := NewWith(func() time.Time { return ts }, &fixedReader{0})
-	id := g.New()
-	got, err := Timestamp(id)
-	if err != nil {
-		t.Fatalf("Timestamp: %v", err)
-	}
-	if !got.Equal(ts) {
-		t.Errorf("Timestamp: got %v, want %v", got, ts)
-	}
-}
-
-func TestValidate(t *testing.T) {
-	if err := Validate(New()); err != nil {
-		t.Errorf("fresh ULID failed validation: %v", err)
-	}
-	bad := []string{
-		"",                            // too short
-		strings.Repeat("0", 25),       // too short
-		strings.Repeat("0", 27),       // too long
-		strings.Repeat("L", 26),       // forbidden char
-		strings.Repeat("i", 26),       // lowercase forbidden char + lowercase ban
-		strings.Repeat("0", 25) + "@", // invalid symbol
-	}
-	for _, s := range bad {
-		if err := Validate(s); err == nil {
-			t.Errorf("expected error for %q, got nil", s)
-		}
-	}
-}
-
-// TestDecodeChar_InverseOfAlphabet pins that decodeChar is the exact inverse of
-// crockfordAlphabet: every alphabet character decodes back to its own index. The
-// existing tests only decode the handful of characters that appear in their fixed
-// timestamp vectors, so most of decodeChar's return values were unpinned — mutation
-// testing (M518) showed the P–T (+22) and W–Z (+28) offsets and the individual
-// J/K/M/N/V mappings could each be off by one undetected, which would silently
-// corrupt Timestamp() for any ULID whose 48-bit timestamp encodes those characters.
-func TestDecodeChar_InverseOfAlphabet(t *testing.T) {
-	for i := range len(crockfordAlphabet) {
-		c := crockfordAlphabet[i]
-		v, ok := decodeChar(c)
-		if !ok || v != i {
-			t.Errorf("decodeChar(%q) = (%d, %v), want (%d, true)", c, v, ok, i)
-		}
-	}
-	// Crockford's excluded letters (I, L, O, U) and other symbols must be rejected,
-	// never silently aliased to a digit — a ULID using them is invalid input, not a
-	// typo to coerce. (Index/value here is irrelevant; only the rejection matters.)
-	for _, c := range []byte("ILOUilou-@/. ") {
-		if v, ok := decodeChar(c); ok {
-			t.Errorf("decodeChar(%q) accepted as %d, want rejected", c, v)
-		}
 	}
 }
 

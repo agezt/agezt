@@ -64,14 +64,3 @@ func (l *Limiter) Acquire(key string) (release func(), ok bool) {
 		})
 	}, true
 }
-
-// Active reports the current number of held slots for key (0 when none). Mainly
-// for tests and diagnostics.
-func (l *Limiter) Active(key string) int {
-	if l == nil {
-		return 0
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.active[key]
-}

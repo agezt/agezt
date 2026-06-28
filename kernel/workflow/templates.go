@@ -149,13 +149,3 @@ func Templates() []Template {
 		},
 	}
 }
-
-// TemplateByName returns the gallery entry with the given slug.
-func TemplateByName(name string) (Template, bool) {
-	for _, t := range Templates() {
-		if t.Name == name {
-			return t, true
-		}
-	}
-	return Template{}, false
-}

@@ -333,33 +333,11 @@ func (e *ErrSignatureInvalid) Error() string {
 // (UPD-001). Embed a key the moment releases are signed.
 var DefaultPublicKeyHex = ""
 
-// Trusted release-signing key, overridable at runtime via SetPublicKey (e.g.
-// from an env var). Protected by pubKeyMu.
+// Trusted release-signing key. Protected by pubKeyMu.
 var (
 	pubKeyMu     sync.RWMutex
 	updatePubKey ed25519.PublicKey
 )
-
-// SetPublicKey configures the trusted release-signing key at runtime. Pass an
-// empty string to clear it. Returns an error if the hex does not decode to a
-// 32-byte Ed25519 public key.
-func SetPublicKey(hexKey string) error {
-	pubKeyMu.Lock()
-	defer pubKeyMu.Unlock()
-	if strings.TrimSpace(hexKey) == "" {
-		updatePubKey = nil
-		return nil
-	}
-	raw, err := hex.DecodeString(strings.TrimSpace(hexKey))
-	if err != nil {
-		return fmt.Errorf("update: bad public key hex: %w", err)
-	}
-	if len(raw) != ed25519.PublicKeySize {
-		return fmt.Errorf("update: public key is %d bytes, want %d", len(raw), ed25519.PublicKeySize)
-	}
-	updatePubKey = ed25519.PublicKey(raw)
-	return nil
-}
 
 // resolvePublicKey returns the trusted key: the runtime-configured key if set,
 // otherwise the build-time DefaultPublicKeyHex, otherwise nil (SHA-only mode).
@@ -661,71 +639,4 @@ func (s *Service) acquireLock(path string) (bool, error) {
 	fmt.Fprintf(f, "%d", os.Getpid())
 	f.Close()
 	return true, nil
-}
-
-// SpawnRestart spawns a new daemon process and returns. The current
-// process should exit after SpawnRestart returns successfully.
-// Uses the same executable and inherits the process environment.
-func SpawnRestart() error {
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("update: find own executable: %w", err)
-	}
-
-	// Re-use the same "daemon" subcommand path the watchdog uses.
-	cmd, _ := os.FindProcess(os.Getpid())
-	if cmd == nil {
-		// Fallback: re-exec with "daemon" argument.
-		cmd = nil // unused
-	}
-	_ = cmd
-
-	// exec the same binary, passing "daemon" so it goes directly into runDaemon.
-	// We use StartProcess directly (instead of exec.Command) so the new process
-	// inherits the current process's environment and file descriptors.
-	attr := &os.ProcAttr{
-		Dir:   "", // inherit working directory
-		Env:   os.Environ(),
-		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
-	}
-	process, err := os.StartProcess(exe, []string{exe, "daemon"}, attr)
-	if err != nil {
-		return fmt.Errorf("update: spawn new daemon: %w", err)
-	}
-
-	// Detach: the child is now independent. We don't wait for it.
-	process.Release()
-	return nil
-}
-
-// ParseVersion compares two semver strings. It returns -1 if a < b,
-// +1 if a > b, and 0 if equal. A non-semver string sorts before any
-// valid semver (so "latest" or "dev" builds don't block real releases).
-func ParseVersion(a, b string) int {
-	va := parseSemver(a)
-	vb := parseSemver(b)
-	for i := 0; i < 3; i++ {
-		if va[i] < vb[i] {
-			return -1
-		}
-		if va[i] > vb[i] {
-			return 1
-		}
-	}
-	return 0
-}
-
-func parseSemver(v string) [3]int {
-	var out [3]int
-	// Strip leading 'v'.
-	v = strings.TrimPrefix(v, "v")
-	parts := strings.Split(v, ".")
-	for i := 0; i < len(parts) && i < 3; i++ {
-		var n int
-		if _, err := fmt.Sscanf(parts[i], "%d", &n); err != nil {
-			continue // non-numeric component ("latest", "dev", "") stays 0 — sorts before any release
-		}
-		out[i] = n
-	}
-	return out
 }

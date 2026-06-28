@@ -75,21 +75,6 @@ func New(cfg Config) (*Tunnel, error) {
 	return &Tunnel{cmd: cmd, run: execRun, onURL: cfg.OnURL}, nil
 }
 
-// Name reports the tunnel binary (the command's first token), for status/logging.
-func (t *Tunnel) Name() string {
-	if len(t.cmd) == 0 {
-		return "tunnel"
-	}
-	return t.cmd[0]
-}
-
-// Command returns a copy of the resolved command, for status/logging.
-func (t *Tunnel) Command() []string {
-	out := make([]string, len(t.cmd))
-	copy(out, t.cmd)
-	return out
-}
-
 // URL returns the public URL the tunnel currently advertises, or "" before one is
 // discovered (or while the process is down).
 func (t *Tunnel) URL() string {
