@@ -65,9 +65,9 @@ func injectionKernel(t *testing.T, prov agent.Provider, invoked *int32, mode run
 func TestPromptInjectionGuard_DecaysAfterWindow(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("read-1", "browser.read", map[string]any{}),
-		mock.ToolUse("benign-1", "benign.read", map[string]any{}),
-		mock.ToolUse("probe-1", "approvalprobe", map[string]any{}),
+		testToolUse("read-1", "browser.read", map[string]any{}),
+		testToolUse("benign-1", "benign.read", map[string]any{}),
+		testToolUse("probe-1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)
@@ -86,8 +86,8 @@ func TestPromptInjectionGuard_DecaysAfterWindow(t *testing.T) {
 func TestPromptInjectionGuard_GatedWithinWindow(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("read-1", "browser.read", map[string]any{}),
-		mock.ToolUse("probe-1", "approvalprobe", map[string]any{}),
+		testToolUse("read-1", "browser.read", map[string]any{}),
+		testToolUse("probe-1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)
@@ -102,8 +102,8 @@ func TestPromptInjectionGuard_GatedWithinWindow(t *testing.T) {
 func TestPromptInjectionGuard_WarnModeDoesNotBlock(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("read-1", "browser.read", map[string]any{}),
-		mock.ToolUse("probe-1", "approvalprobe", map[string]any{}),
+		testToolUse("read-1", "browser.read", map[string]any{}),
+		testToolUse("probe-1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionWarn)
@@ -121,8 +121,8 @@ func TestPromptInjectionGuard_WarnModeDoesNotBlock(t *testing.T) {
 func TestPromptInjectionGuard_TrustedRunDoesNotBlock(t *testing.T) {
 	var invoked int32
 	prov := mock.New(
-		mock.ToolUse("read-1", "browser.read", map[string]any{}),
-		mock.ToolUse("probe-1", "approvalprobe", map[string]any{}),
+		testToolUse("read-1", "browser.read", map[string]any{}),
+		testToolUse("probe-1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)

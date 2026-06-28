@@ -46,8 +46,8 @@ func TestRunWith_PromptInjectionGuardRoutesEffectfulFollowupToApproval(t *testin
 	var invoked int32
 	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
 	prov := mock.New(
-		mock.ToolUse("read-1", "browser.read", map[string]any{}),
-		mock.ToolUse("probe-1", "approvalprobe", map[string]any{}),
+		testToolUse("read-1", "browser.read", map[string]any{}),
+		testToolUse("probe-1", "approvalprobe", map[string]any{}),
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{

@@ -13,10 +13,9 @@
 // + in-process plugins) and the control plane (TCP localhost + token).
 // `agt` is a thin client over the control plane.
 //
-// Provider selection: if $ANTHROPIC_API_KEY is set, the Anthropic provider
-// is registered. Otherwise the daemon refuses to start; M0.5 needs a real
-// LLM to satisfy the demo gate. Add --offline support later (would require
-// a scripted-intent runner).
+// Provider selection is configured through the Web UI / Config Center and
+// encrypted credential vault. A fresh daemon starts unconfigured, serves the
+// Setup screen, and only needs a provider key/model before LLM runs can execute.
 package main
 
 import (
@@ -31,9 +30,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	stdruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -678,10 +679,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	intentRegretGating := strings.EqualFold(intentRegretGatingRaw, "on") || intentRegretGatingRaw == "1"
 	// AGEZT_PROMPT_INJECTION_GUARD selects the guard posture for effectful actions
 	// proposed within the causal window of directive-like untrusted web/file/API
-	// content: unset/anything → on (HITL approval), "warn" → allow + journal a
-	// banner, "off"/"0" → no active intervention. The observation boundary and
+	// content: unset/anything → warn (allow + journal), "on"/"block" → HITL
+	// approval, "off"/"0" → no active intervention. The observation boundary and
 	// audit metadata remain enabled in all modes.
 	promptInjectionMode := kernelruntime.ParsePromptInjectionMode(os.Getenv(brand.EnvPrefix + "PROMPT_INJECTION_GUARD"))
+	autoApproveCaps, autoApproveDesc := selectAutoApproveCapabilities()
+	autoPromoteScriptTools := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"TOOLFORGE_AUTO_PROMOTE"), "off")
 	disableHeuristicBypassRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISABLE_HEURISTIC_BYPASS"))
 	disableHeuristicBypass := strings.EqualFold(disableHeuristicBypassRaw, "on") || disableHeuristicBypassRaw == "1"
 
@@ -785,6 +788,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		System:                     os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
 		Warden:                     ward,
 		Edict:                      edictEng,
+		AutoApproveCapabilities:    autoApproveCaps,
+		AutoPromoteScriptTools:     autoPromoteScriptTools,
 		Catalog:                    cat,
 		MemoryInject:               memOn,
 		MemoryTool:                 memOn,
@@ -1487,6 +1492,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  redaction        : %s\n", redactDesc)
 	fmt.Fprintf(stdout, "  tools            : %s\n", toolsDesc)
 	fmt.Fprintf(stdout, "  policy engine    : edict (allow-by-default — every capability on unless you opt out; %s)\n", askPolicyDesc)
+	fmt.Fprintf(stdout, "  auto-approvals   : %s\n", autoApproveDesc)
 	fmt.Fprintf(stdout, "  delegation       : %s\n", delegationBanner(k))
 	fmt.Fprintf(stdout, "  run timeout      : %s\n", runTimeoutDesc)
 	fmt.Fprintf(stdout, "  max iterations   : %s\n", maxIterDesc)
@@ -1722,11 +1728,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  user profile     : off\n")
 	}
 
-	// Web UI (SPEC-07) — the SSE Live Monitor + read panels over the same
-	// bus/control plane the CLI uses. Off unless AGEZT_WEB_ADDR is set;
-	// runs on the daemon ctx (halt/shutdown stop it), localhost + token.
+	// Web UI (SPEC-07) — the primary product surface. Default-on, loopback-bound,
+	// and auto-opened in the desktop browser unless AGEZT_WEB_OPEN=off.
 	if webDesc := buildWebUI(ctx, k, baseDir, stdout); webDesc != "" {
-		fmt.Fprintf(stdout, "  web ui           : %s\n", webDesc)
+		fmt.Fprintf(stdout, "  %s           : %s\n", bannerColor("web ui", "1;35"), webDesc)
 	} else {
 		fmt.Fprintf(stdout, "  web ui           : disabled (AGEZT_WEB_ADDR=off; unset it to serve on 127.0.0.1:8787)\n")
 	}
@@ -2025,9 +2030,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Bind the tool-forge tool to the live kernel (M794), so the agent can draft
 	// and test its own script tools through the journaled scripttool.* lifecycle.
-	// Going live still takes an operator promote (`agt toolforge promote`).
 	forgeToolInst.Bind(k)
-	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; operator promotes)\n")
+	promoteMode := "auto-promotes tested tools"
+	if !autoPromoteScriptTools {
+		promoteMode = "operator promotes"
+	}
+	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; %s)\n", promoteMode)
 
 	// Bind the workflow tool (M802): agents author/run workflows themselves;
 	// everything lands in the journaled workflow.* lifecycle the operator sees.
@@ -4357,19 +4365,17 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	}
 	wsrv := webui.New(k.Bus(), client, token)
 	wsrv.SetAllowedHosts(webAllowedHosts(ln.Addr().String())...)
-	// Optional console password (M817 → M933): when AGEZT_WEB_PASSWORD is set, a
-	// token-less visit shows the login screen and the password opens the console
-	// (alternative door); the tokened banner URL keeps working alone. Wired as a
-	// LIVE source — re-read from the env per gate decision — so setting the
-	// password from the Setup wizard / Config Center (whose live-apply path
-	// updates the env) takes effect without a restart. It's a SECRET in the
-	// schema: the value lives in the vault; injectConfig bridged it into the env
-	// at boot. AGEZT_WEB_PASSWORD_STRICT=on restores M817 compose semantics
-	// (token AND password on every data route) for consoles exposed beyond
-	// loopback (e.g. a tunnel).
-	wsrv.SetPasswordFn(func() string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")) })
+	// Console password (M817 → M933): when AGEZT_WEB_PASSWORD is set, a token-less
+	// visit shows the login screen and the password opens the console (alternative
+	// door); the tokened banner URL keeps working alone. Wired as a LIVE source —
+	// re-read from the env per gate decision — so setting the password from Setup /
+	// Config Center applies without a restart. For the default loopback console, a
+	// bare Windows agezt.exe also gets a built-in first password ("agezt") so the
+	// operator can browse to localhost and change it in Setup without env files.
+	webPassword := func() string { return effectiveWebPassword(ln.Addr().String()) }
+	wsrv.SetPasswordFn(webPassword)
 	wsrv.SetPasswordStrict(strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on"))
-	passwordOn := strings.TrimSpace(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD")) != ""
+	passwordOn := webPassword() != ""
 	// Wire speech-to-text for the chat mic button (M689) and the console Voice
 	// mode. Prefer the runtime voice adapter so native providers (ElevenLabs /
 	// Deepgram), not just OpenAI-compatible endpoints, drive browser transcription;
@@ -4405,14 +4411,78 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		_ = srv.Shutdown(shutCtx)
 	}()
 
-	desc := "http://" + ln.Addr().String() + "/?token=" + token
+	consoleURL := "http://" + ln.Addr().String() + "/?token=" + token
+	plainURL := "http://" + ln.Addr().String() + "/"
+	desc := bannerColor(consoleURL, "1;36")
 	if passwordOn {
-		desc += "  (password login enabled at http://" + ln.Addr().String() + "/)"
+		desc += "  " + bannerColor("(password login enabled at "+plainURL+")", "1;32")
 	}
 	if !isLoopback(addr) {
-		desc += "  [WARNING: not loopback — reachable beyond localhost]"
+		desc += "  " + bannerColor("[WARNING: not loopback — reachable beyond localhost]", "1;33")
+	}
+	if shouldOpenWebUI() {
+		if err := openBrowser(consoleURL); err != nil {
+			desc += "  " + bannerColor("(browser auto-open failed: "+err.Error()+")", "1;33")
+		} else {
+			desc += "  " + bannerColor("(opened in browser)", "1;32")
+		}
 	}
 	return desc
+}
+
+func bannerColor(s, code string) string {
+	if !bannerColorEnabled() {
+		return s
+	}
+	return "\x1b[" + code + "m" + s + "\x1b[0m"
+}
+
+func bannerColorEnabled() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	if strings.HasSuffix(os.Args[0], ".test") {
+		return false
+	}
+	return true
+}
+
+const defaultLoopbackWebPassword = "agezt"
+
+func effectiveWebPassword(addr string) string {
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")); v != "" {
+		return v
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD_DEFAULT"))) {
+	case "off", "disabled", "none", "no", "0", "false":
+		return ""
+	}
+	if isLoopback(addr) {
+		return defaultLoopbackWebPassword
+	}
+	return ""
+}
+
+func shouldOpenWebUI() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_OPEN"))) {
+	case "off", "disabled", "none", "no", "0", "false":
+		return false
+	}
+	// `go test` must not launch a desktop browser.
+	return !strings.HasSuffix(os.Args[0], ".test")
+}
+
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch stdruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
 }
 
 func webAllowedHosts(bindAddr string) []string {
@@ -7462,7 +7532,7 @@ func councilSeatName(i int) string {
 //	allow  (default) — Ask-class levels fold to Allow + WouldAsk=true;
 //	                   journal stays honest, no operator interaction.
 //	deny             — Ask-class levels fold to Deny; strict mode.
-//	prompt           — Ask-class levels block the agent until an operator
+//	prompt/ask       — Ask-class levels block the agent until an operator
 //	                   runs `agt approve <id>` or `agt deny <id>`.
 //
 // Returns the policy and a banner-friendly description.
@@ -7470,7 +7540,7 @@ func selectAskPolicy() (edict.AskPolicy, string) {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "APPROVAL_MODE"))) {
 	case "deny":
 		return edict.AskDeny, "AskDeny (strict; only L4 calls run)"
-	case "prompt":
+	case "prompt", "ask":
 		return edict.AskPrompt, "AskPrompt (live HITL via `agt approve|deny`)"
 	case "", "allow":
 		return edict.AskAllow, "AskAllow (Ask-class folded to Allow + WouldAsk)"
@@ -7482,17 +7552,36 @@ func selectAskPolicy() (edict.AskPolicy, string) {
 	}
 }
 
-// alwaysFailProvider is a test shim (used by reconcile_providers_test.go) that
-// errors on every call with a non-cancel/non-budget error so shouldFallback
-// returns true. It forces the Governor's fallback chain to engage.
-type alwaysFailProvider struct{ name string }
-
-func (p *alwaysFailProvider) Name() string { return p.name }
-func (p *alwaysFailProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+func selectAutoApproveCapabilities() (map[string]bool, string) {
+	raw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "AUTO_APPROVE_CAPS"))
+	switch strings.ToLower(raw) {
+	case "off", "0", "false", "no", "none":
+		return nil, "off (set " + brand.EnvPrefix + "AUTO_APPROVE_CAPS=all or a comma list)"
+	case "", "all", "1", "true", "yes", "on":
+		caps := map[string]bool{}
+		for _, c := range edict.AllCapabilities() {
+			caps[string(c)] = true
+		}
+		return caps, fmt.Sprintf("on (%d known capabilities; hard-deny/SSRF/budget guards still apply)", len(caps))
+	default:
+		caps := map[string]bool{}
+		var unknown []string
+		for _, item := range splitNonEmpty(raw) {
+			if edict.KnownCapability(item) {
+				caps[item] = true
+			} else {
+				unknown = append(unknown, item)
+			}
+		}
+		if len(caps) == 0 {
+			return nil, fmt.Sprintf("off (no known capabilities in %sAUTO_APPROVE_CAPS=%q)", brand.EnvPrefix, raw)
+		}
+		desc := fmt.Sprintf("on (%d selected capabilities)", len(caps))
+		if len(unknown) > 0 {
+			desc += fmt.Sprintf("; ignored unknown: %s", strings.Join(unknown, ", "))
+		}
+		return caps, desc
 	}
-	return nil, fmt.Errorf("demo-shim: simulated primary failure")
 }
 
 // unconfiguredProviderName is the Name() of the sentinel primary registered when

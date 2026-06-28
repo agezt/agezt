@@ -234,6 +234,18 @@ type Config struct {
 	// supplied registry carries its own timeout.
 	ApprovalTimeout time.Duration
 
+	// AutoApproveCapabilities is a daemon-wide operator grant for capabilities
+	// that should not block in live HITL mode. It is applied to every run and
+	// inherited by sub-agents. It only satisfies approvals the policy already
+	// routed to HITL; it never overrides hard-deny, explicit tool-deny, SSRF,
+	// budgets, or other fail-closed guards.
+	AutoApproveCapabilities map[string]bool
+
+	// AutoPromoteScriptTools lets a tested tool_forge draft go live immediately
+	// when an agent requests promotion. The passing-test invariant remains: an
+	// untested or failed draft is refused before promotion.
+	AutoPromoteScriptTools bool
+
 	// CatalogDir is where catalog/{api,local,custom}.json live. Empty
 	// means <BaseDir>/catalog. The kernel loads whatever is on disk on
 	// Open (empty catalog if nothing) and installs it into the Governor
@@ -394,9 +406,9 @@ type Config struct {
 	// PromptInjectionGuard selects how the daemon handles an otherwise-allowed
 	// effectful tool call that is downstream (within the causal window) of
 	// untrusted external content containing directive-like text:
-	//   PromptInjectionOn   (default) — route it to HITL approval.
-	//   PromptInjectionWarn — allow it, but journal a prompt_injection.warned
+	//   PromptInjectionWarn (default) — allow it, but journal a prompt_injection.warned
 	//                         event so the chat can surface a passive banner.
+	//   PromptInjectionOn   — route it to HITL approval.
 	//   PromptInjectionOff  — no active intervention.
 	// The observation boundary, untrusted rendering, and audit metadata are
 	// always on regardless. A chat run can downgrade On→warn for itself via the
@@ -2151,6 +2163,29 @@ func WithAutoApproveCapabilities(ctx context.Context, caps map[string]bool) cont
 	return context.WithValue(ctx, ctxKeyAutoApproveCaps, caps)
 }
 
+func mergeAutoApproveCapabilities(ctx context.Context, caps map[string]bool) map[string]bool {
+	if len(caps) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(caps))
+	if existing, ok := ctx.Value(ctxKeyAutoApproveCaps).(map[string]bool); ok {
+		for c, on := range existing {
+			if on {
+				out[c] = true
+			}
+		}
+	}
+	for c, on := range caps {
+		if on {
+			out[c] = true
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // autoApproveCap reports whether capability c is in this run's auto-approve set.
 func autoApproveCap(ctx context.Context, c string) bool {
 	if v, ok := ctx.Value(ctxKeyAutoApproveCaps).(map[string]bool); ok {
@@ -2164,9 +2199,9 @@ func autoApproveCap(ctx context.Context, c string) bool {
 type PromptInjectionMode int
 
 const (
-	// PromptInjectionOn routes the action to HITL approval (default).
+	// PromptInjectionOn routes the action to HITL approval.
 	PromptInjectionOn PromptInjectionMode = iota
-	// PromptInjectionWarn allows the action but journals a warning.
+	// PromptInjectionWarn allows the action but journals a warning (default).
 	PromptInjectionWarn
 	// PromptInjectionOff disables the active intervention entirely.
 	PromptInjectionOff
@@ -2174,15 +2209,18 @@ const (
 
 // ParsePromptInjectionMode maps an operator string (AGEZT_PROMPT_INJECTION_GUARD)
 // to a mode. "off"/"0"/"false" → Off, "warn"/"warning"/"audit" → Warn, anything
-// else (including empty) → On, preserving the historical on-by-default posture.
+// else (including empty) → Warn. Operators who want a live approval stop on
+// directive-like untrusted content set "on"/"block"/"prompt".
 func ParsePromptInjectionMode(s string) PromptInjectionMode {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "off", "0", "false", "no":
 		return PromptInjectionOff
-	case "warn", "warning", "audit":
+	case "on", "1", "true", "yes", "block", "prompt":
+		return PromptInjectionOn
+	case "", "warn", "warning", "audit":
 		return PromptInjectionWarn
 	default:
-		return PromptInjectionOn
+		return PromptInjectionWarn
 	}
 }
 
@@ -3037,6 +3075,9 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// (M219). No-op for the primary kernel (empty TenantID). Done before deriving runCtx
 	// so the value propagates through the timeout/cancel context to every tool call.
 	ctx = tenantctx.WithTenant(ctx, k.cfg.TenantID)
+	if len(k.cfg.AutoApproveCapabilities) > 0 {
+		ctx = WithAutoApproveCapabilities(ctx, mergeAutoApproveCapabilities(ctx, k.cfg.AutoApproveCapabilities))
+	}
 
 	maxDur := k.cfg.MaxDuration
 	if d := runTimeoutFromCtx(ctx); d > 0 {
