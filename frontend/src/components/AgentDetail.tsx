@@ -296,11 +296,7 @@ const TABS: { id: DetailTab; label: string; icon: typeof Bot }[] = [
   { id: "files", label: "Files", icon: FileCode },
 ];
 
-const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "triggers", "comms"];
-const SECONDARY_TAB_GROUPS: { label: string; tabs: DetailTab[] }[] = [
-  { label: "Identity", tabs: ["soul", "model", "memory", "skills"] },
-  { label: "Maintenance", tabs: ["repair", "diag", "files"] },
-];
+const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "triggers", "comms", "soul", "model", "memory", "skills", "repair", "diag", "files"];
 
 const TAB_BY_ID = new Map(TABS.map((tab) => [tab.id, tab]));
 
@@ -1155,16 +1151,13 @@ export function AgentDetail({
         </div>
       </Disclosure>
 
-      {/* Tabs */}
+      {/* Tabs — all sections in one clean row */}
       <div
-        className="rounded-xl border border-border bg-panel/20 p-3"
+        className="rounded-xl border border-border bg-panel/20 px-3 py-2.5"
         role="tablist"
         aria-label={`${slug} detail sections`}
       >
-        <div className="mb-3 px-1 text-xs font-semibold uppercase tracking-normal text-muted">
-          Daily
-        </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {PRIMARY_TABS.map((id) => (
             <AgentDetailTabButton
               key={id}
@@ -1180,32 +1173,6 @@ export function AgentDetail({
                 toolErrors: myToolErrors,
               }}
               onSelect={setTab}
-            />
-          ))}
-        </div>
-        <div className="mt-4 mb-3 px-1 text-xs font-semibold uppercase tracking-normal text-muted">
-          Identity &amp; Maintenance
-        </div>
-        <div className="mb-2 px-1 text-[11px] text-muted/80">
-          More sections: identity, model, repair, diagnostics, files
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {SECONDARY_TAB_GROUPS.flatMap((g) => g.tabs).map((id) => (
-            <AgentDetailTabButton
-              key={id}
-              id={id}
-              active={tab === id}
-              counts={{
-                memory: myMemory,
-                skills: mySkills,
-                orders: myOrders,
-                schedules: mySchedules,
-                comms: myComms,
-                denials: myDenials,
-                toolErrors: myToolErrors,
-              }}
-              onSelect={setTab}
-              secondary
             />
           ))}
         </div>
@@ -1605,24 +1572,15 @@ function AgentDetailTabButton({
       aria-current={active ? "page" : undefined}
       onClick={() => onSelect(t.id)}
       className={cn(
-        "flex items-center gap-1.5 rounded-lg transition-colors",
-        secondary
-          ? cn(
-              "px-2.5 py-1.5 text-xs",
-              active ? "bg-card/70 text-foreground/90 shadow-sm" : "text-muted/80 hover:bg-card/50 hover:text-foreground/80",
-            )
-          : cn(
-              "px-3 py-2 text-sm font-medium",
-              active ? "bg-card text-foreground shadow-e1" : "text-muted hover:bg-card/60 hover:text-foreground",
-            ),
+        "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        active ? "bg-card text-foreground shadow-e1" : "text-muted hover:bg-card/60 hover:text-foreground",
       )}
     >
-      <t.icon className={secondary ? "size-4" : "size-5"} />
+      <t.icon className="size-4" />
       {t.label}
       {count !== undefined && count > 0 && (
         <span className={cn(
-          "ml-0.5 rounded bg-panel px-1 font-mono",
-          secondary ? "text-xs text-muted/60" : "text-[11px] text-muted",
+          "ml-0.5 rounded bg-panel px-1 font-mono text-xs text-muted",
         )}>
           {count}
         </span>

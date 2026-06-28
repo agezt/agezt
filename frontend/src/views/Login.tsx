@@ -76,43 +76,28 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[300] overflow-y-auto bg-background/95 p-4 backdrop-blur-sm">
-      <div className="mx-auto grid min-h-full w-full max-w-5xl items-center gap-4 py-8 lg:grid-cols-[18rem_minmax(0,24rem)] lg:justify-center">
-        <section className="rounded-lg border border-border bg-card p-4 shadow-e1">
-          <div className="flex size-10 items-center justify-center rounded-md bg-accent/10 text-accent">
-            <ShieldCheck className="size-5" />
+    <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto bg-background/95 p-4 backdrop-blur-sm">
+      <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-6 py-8">
+        {/* Brand — the aurora + gradient wordmark matches the command-center aesthetic. */}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="inline-flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
+            <ShieldCheck className="size-6" />
           </div>
-          <h1 className="mt-3 text-xl font-semibold leading-tight">AGEZT console</h1>
-          <p className="mt-2 text-sm text-muted">
-            Password access is enabled for this browser session.
-          </p>
-          <div className="mt-4 grid gap-2 text-xs">
-            <div className="flex items-center gap-2 rounded-md border border-border bg-panel px-2 py-2 text-muted">
-              <Lock className="size-3.5 text-accent" />
-              Session cookie required
-            </div>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-panel px-2 py-2 text-muted">
-              <KeyRound className="size-3.5 text-accent" />
-              Token rules still apply
-            </div>
-          </div>
-        </section>
+          <h1 className="text-gradient text-2xl font-bold leading-tight tracking-normal">AGEZT</h1>
+          <p className="max-w-xs text-sm text-muted">Multi-agent orchestration console</p>
+        </div>
 
         <form
           onSubmit={submit}
-          className="w-full rounded-lg border border-border bg-card p-5 shadow-e2"
+          className="w-full rounded-xl border border-border bg-card p-6 shadow-e2"
           aria-label="Console login"
         >
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-md bg-accent/10 text-accent">
-              <Lock className="h-5 w-5" />
-            </div>
-            <h2 className="text-lg font-semibold">Console locked</h2>
-          </div>
-          <p className="mb-3 text-sm text-muted">
-            This console is password-protected. Enter the password to continue.
+          <h2 className="mb-1 text-base font-semibold">Console locked</h2>
+          <p className="mb-4 text-sm text-muted">
+            Enter the password to unlock this session.
           </p>
-          <div className="flex items-center rounded-md border border-border bg-panel focus-within:border-accent">
+          <div className="flex items-center rounded-lg border border-border bg-panel transition-colors focus-within:border-accent">
+            <Lock className="ml-3 size-4 shrink-0 text-muted" />
             <input
               type={showPw ? "text" : "password"}
               value={pw}
@@ -122,14 +107,14 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
                 setPw(e.target.value);
                 if (err) setErr("");
               }}
-              placeholder="password"
+              placeholder="Password"
               aria-label="Console password"
-              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none"
+              className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm outline-none placeholder:text-muted"
             />
             <button
               type="button"
               onClick={() => setShowPw((v) => !v)}
-              className="mr-1 inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-card hover:text-foreground"
+              className="mr-1.5 inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-card hover:text-foreground"
               title={showPw ? "Hide password" : "Show password"}
               aria-label={showPw ? "Hide password" : "Show password"}
             >
@@ -137,15 +122,19 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
             </button>
           </div>
           {err && (
-            <div className="mt-3 flex items-start gap-2 rounded-md border border-bad/30 bg-bad/10 px-2 py-2 text-xs text-bad" role="alert">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-sm text-bad" role="alert">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <span>{err}</span>
             </div>
           )}
-          <Button type="submit" variant="accent" className="mt-4 w-full" disabled={busy || !pw} aria-label="Unlock console">
+          <Button type="submit" variant="accent" className="mt-5 w-full" disabled={busy || !pw} aria-label="Unlock console">
             {busy ? "Checking…" : "Unlock"}
           </Button>
         </form>
+
+        <p className="text-xs text-muted/60">
+          Password access is enabled for this browser session.
+        </p>
       </div>
     </div>
   );
