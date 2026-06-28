@@ -2340,10 +2340,10 @@ function Overview({
 
       <div
         className={cn(
-          "rounded-lg border border-border bg-panel/40 p-2.5",
-          operationsPassport.tone === "good" && "border-good/30 bg-good/5",
-          operationsPassport.tone === "warn" && "border-warn/40 bg-warn/10",
-          operationsPassport.tone === "bad" && "border-bad/35 bg-bad/5",
+          "rounded-lg bg-panel/40 p-2.5",
+          operationsPassport.tone === "good" && "bg-good/8",
+          operationsPassport.tone === "warn" && "bg-warn/10",
+          operationsPassport.tone === "bad" && "bg-bad/8",
         )}
         title={operationsPassport.detail}
       >
@@ -2548,7 +2548,7 @@ function Overview({
           </div>
         )}
         {showActiveRun && runtimeStatus.activeCorrelationId && (
-          <div className="mt-2 rounded-md border border-border bg-card/40 p-2">
+          <div className="mt-2 rounded-md bg-card/40 p-2">
             <RunDetailLoader correlationId={runtimeStatus.activeCorrelationId} status="running" />
           </div>
         )}
@@ -2556,10 +2556,10 @@ function Overview({
 
       <div
         className={cn(
-          "rounded-lg border border-border bg-panel/40 p-2.5",
-          mailboxWakeContract.tone === "good" && "border-good/25 bg-good/5",
-          mailboxWakeContract.tone === "warn" && "border-warn/35 bg-warn/10",
-          mailboxWakeContract.tone === "bad" && "border-bad/30 bg-bad/5",
+          "rounded-lg bg-panel/40 p-2.5",
+          mailboxWakeContract.tone === "good" && "bg-good/8",
+          mailboxWakeContract.tone === "warn" && "bg-warn/10",
+          mailboxWakeContract.tone === "bad" && "bg-bad/8",
         )}
         title={mailboxWakeContract.detail}
       >
@@ -2576,14 +2576,14 @@ function Overview({
         >
           {mailboxWakeContract.value}
         </div>
-        <div className="mt-1 text-[11px] text-muted">{mailboxWakeContract.detail}</div>
+        <div className="mt-1 text-xs text-muted">{mailboxWakeContract.detail}</div>
       </div>
 
         </div>
       </Disclosure>
 
       {/* How it runs */}
-      <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
+      <div className="rounded-lg bg-accent/8 p-2.5">
         <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <ActivityIcon className="size-3" /> How does this run?
         </div>
