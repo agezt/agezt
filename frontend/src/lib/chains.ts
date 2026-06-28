@@ -7,7 +7,7 @@
 // This module is pure (no fetch/DOM) so the reducer logic is unit-testable; the
 // Chains view and ModelPicker fetch /api/chains and call these helpers.
 
-export const CHAIN_PREFIX = "@";
+const CHAIN_PREFIX = "@";
 
 export interface ChainsState {
   chains: Record<string, string[]>;

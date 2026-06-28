@@ -210,7 +210,7 @@ export function FlightRecorder({ steps, live }: { steps: ReplayStep[]; live?: bo
 function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5">
-      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-[10px] uppercase tracking-normal text-muted">{label}</div>
       <div className="mt-0.5 text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );

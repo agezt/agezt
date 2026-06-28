@@ -119,7 +119,7 @@ export interface IncidentForcePreset {
   generation?: number;
 }
 
-export function incidentMetaFromPayload(payload: any): IncidentMeta {
+function incidentMetaFromPayload(payload: any): IncidentMeta {
   return {
     incidentId: str(payload?.incident_id),
     rootIncidentId: str(payload?.root_incident_id),

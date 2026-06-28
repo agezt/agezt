@@ -29,18 +29,18 @@ export interface RepairProfile {
     min_notify_interval_sec?: number;
   };
 }
-export interface RepairFailure {
+interface RepairFailure {
   correlation_id?: string;
   status?: string;
   started_unix_ms?: number;
 }
-export interface RepairDenial {
+interface RepairDenial {
   capability?: string;
   tool?: string;
   reason?: string;
   hard_denied?: boolean;
 }
-export interface RepairToolError {
+interface RepairToolError {
   tool?: string;
   output?: string;
 }

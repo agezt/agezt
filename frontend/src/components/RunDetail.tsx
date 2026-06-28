@@ -208,14 +208,14 @@ export function runPhaseSteps(arc: AgentEvent[]): RunPhaseStep[] {
     .filter((s): s is RunPhaseStep => !!s);
 }
 
-export function RunPhaseTimeline({ arc }: { arc: AgentEvent[] }) {
+function RunPhaseTimeline({ arc }: { arc: AgentEvent[] }) {
   const steps = runPhaseSteps(arc);
   if (!steps.length) return null;
   const latest = steps[steps.length - 1];
   return (
     <div className="rounded-lg border border-border bg-panel/50 p-2.5">
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-semibold uppercase tracking-wider text-muted">phase timeline</span>
+        <span className="font-semibold uppercase tracking-normal text-muted">phase timeline</span>
         <Badge variant={latest.phase === "failed" ? "bad" : latest.phase === "completed" ? "good" : "accent"}>
           {latest.phase}
         </Badge>
@@ -276,7 +276,7 @@ export function ToolCallRow({ c }: { c: ToolCall }) {
         <div className="mt-1 ml-5 rounded-md border border-border bg-panel/60">
           {c.input && (
             <div>
-              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
                 Arguments
               </div>
               <ToolOutput text={c.input} />
@@ -284,7 +284,7 @@ export function ToolCallRow({ c }: { c: ToolCall }) {
           )}
           {c.output && (
             <div>
-              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              <div className="px-2.5 pt-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
                 {c.error ? "Error" : "Result"}
               </div>
               <ToolOutput text={c.output} />
@@ -346,7 +346,7 @@ export function RunDetailCards({
       />
 
       <div>
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted">
           Tool calls ({d.toolCalls.length})
         </div>
         {d.toolCalls.length ? (
@@ -362,7 +362,7 @@ export function RunDetailCards({
 
       {d.answer && (
         <div>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted">
             {status === "failed" ? "Error" : "Final answer"}
           </div>
           <p className="whitespace-pre-wrap break-words rounded-md border border-border bg-panel p-2 text-xs">
@@ -438,7 +438,7 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
 
   return (
     <div className="rounded-lg border border-accent/30 bg-accent/5 p-2.5">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-accent">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-accent">
         <Navigation className="size-3.5" /> Steer this run
         {paused && (
           <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-bad/15 px-2 py-0.5 text-[10px] font-medium text-bad">

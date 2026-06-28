@@ -110,7 +110,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
         <code>{code}</code>
       </pre>
       {lang && (
-        <span className="pointer-events-none absolute left-2 top-1 select-none text-[10px] uppercase tracking-wide text-muted/60">
+        <span className="pointer-events-none absolute left-2 top-1 select-none text-[10px] uppercase tracking-normal text-muted/60">
           {lang}
         </span>
       )}

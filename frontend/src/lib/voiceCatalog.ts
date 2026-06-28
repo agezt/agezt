@@ -9,9 +9,9 @@
 // (they'd need a LiteLLM-style proxy): Deepgram, ElevenLabs, DeepInfra. A
 // "Custom endpoint" escape hatch in the UI covers anything not listed.
 
-export type SpeechKind = "stt" | "tts";
+type SpeechKind = "stt" | "tts";
 
-export interface SpeechModel {
+interface SpeechModel {
   id: string;
   label?: string; // friendly name shown in the dropdown (falls back to id)
   note?: string; // tiny hint, e.g. "fastest", "best quality"
@@ -22,7 +22,7 @@ export interface SpeechVoice {
   label?: string;
 }
 
-export type SpeechDialect = "openai" | "elevenlabs" | "deepgram" | "cartesia";
+type SpeechDialect = "openai" | "elevenlabs" | "deepgram" | "cartesia";
 
 export interface SpeechProvider {
   id: string;
@@ -276,14 +276,14 @@ export const TTS_PROVIDERS: SpeechProvider[] = [
 
 // normBase makes two API roots comparable regardless of a trailing slash or an
 // optional /v1 suffix, so a stored AGEZT_*_URL matches its catalog provider.
-export function normBase(url?: string): string {
+function normBase(url?: string): string {
   let s = (url || "").trim().toLowerCase().replace(/\/+$/, "");
   s = s.replace(/\/v1$/, "");
   return s;
 }
 
 // providerFor finds the catalog entry whose base URL matches a stored value.
-export function providerFor(list: SpeechProvider[], url?: string): SpeechProvider | undefined {
+function providerFor(list: SpeechProvider[], url?: string): SpeechProvider | undefined {
   if (!url || !url.trim()) return undefined;
   const target = normBase(url);
   return list.find((p) => normBase(p.baseURL) === target);

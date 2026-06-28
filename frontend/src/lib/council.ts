@@ -20,7 +20,7 @@ export interface CouncilOpinion {
   error?: string;
 }
 
-export type CouncilPhase = "convening" | "deliberating" | "done";
+type CouncilPhase = "convening" | "deliberating" | "done";
 
 export interface CouncilRun {
   corr: string;

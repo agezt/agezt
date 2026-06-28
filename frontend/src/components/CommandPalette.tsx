@@ -93,7 +93,7 @@ export function CommandPalette({ open, onClose, items }: { open: boolean; onClos
           ) : (
             [...groups.entries()].map(([group, rows]) => (
               <li key={group}>
-                <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                <div className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-normal text-muted">
                   {group}
                 </div>
                 <ul>

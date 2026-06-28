@@ -7,7 +7,7 @@ import {
 
 type IncidentBadgeItem = Pick<AutonomyItem, "subject" | "phase" | "mode">;
 
-export function incidentSourceBadgeClass(
+function incidentSourceBadgeClass(
   source: string,
   mono = false,
 ): string {

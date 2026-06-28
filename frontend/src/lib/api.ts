@@ -4,7 +4,7 @@
 // Guard `location` so importing this module never throws under a node test
 // environment (pure-logic specs that transitively import it); in the browser
 // this is always defined.
-export const TOKEN =
+const TOKEN =
   typeof location !== "undefined" ? new URLSearchParams(location.search).get("token") || "" : "";
 
 export function withToken(path: string, extra?: Record<string, string>): string {

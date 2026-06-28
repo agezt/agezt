@@ -177,7 +177,7 @@ export function AgentActivity({
 
       {focusedRun && (
         <div className="mb-2 rounded-md border border-border bg-card/40 p-2">
-          <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-normal text-muted">
             <span>focused run</span>
             <span className="font-mono normal-case text-foreground/80">{focusedRun}</span>
             <button

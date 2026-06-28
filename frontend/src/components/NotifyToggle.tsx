@@ -15,7 +15,7 @@ import {
 // (approval/failure/halt/budget) while the operator has opted in AND granted
 // permission. Subscribes to the LIVE stream only (no journal backfill), so it
 // never replays old events on load. Mounted once near the app root.
-export function useDesktopNotifications(enabled: boolean) {
+function useDesktopNotifications(enabled: boolean) {
   const { subscribe } = useEvents();
   useEffect(() => {
     if (!enabled) return;

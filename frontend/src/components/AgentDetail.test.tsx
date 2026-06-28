@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -58,6 +58,10 @@ import {
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
+
+function chooseDetailOption(group: string, name: RegExp | string) {
+  fireEvent.click(within(screen.getByRole("group", { name: group })).getByRole("button", { name }));
+}
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -1676,7 +1680,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
-    fireEvent.change(screen.getByLabelText("Agent lifecycle mode"), { target: { value: "cycle" } });
+    chooseDetailOption("Agent lifecycle mode", /Cycle/);
     fireEvent.change(screen.getByLabelText("Agent max cycles"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: /Save lifecycle/ }));
 
@@ -2767,7 +2771,7 @@ describe("AgentDetail capability control", () => {
         excluded_agents: [],
       }),
     );
-    fireEvent.change(screen.getByLabelText("Trust ceiling"), { target: { value: "L3" } });
+    chooseDetailOption("Trust ceiling", /L3/);
     fireEvent.change(screen.getByLabelText("Tool allow"), { target: { value: "memory, shell" } });
     fireEvent.change(screen.getByLabelText("Tool deny"), { target: { value: "notify, browser" } });
     fireEvent.change(screen.getByLabelText("Memory scope"), { target: { value: "team/ops" } });
@@ -3254,7 +3258,7 @@ describe("AgentDetail tasklist controls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
     fireEvent.change(screen.getByLabelText("New agent task"), { target: { value: "check queue" } });
-    fireEvent.change(screen.getByLabelText("New task scope"), { target: { value: "cycle" } });
+    chooseDetailOption("New task scope", /Every cycle/);
     fireEvent.click(screen.getByRole("button", { name: /Add task/ }));
 
     await waitFor(() =>

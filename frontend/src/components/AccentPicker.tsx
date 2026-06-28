@@ -38,7 +38,7 @@ export function AccentPicker() {
           role="dialog"
           aria-label="Accent colour"
         >
-          <div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Accent</div>
+          <div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-normal text-muted">Accent</div>
           <div className="grid grid-cols-5 gap-1.5">
             {ACCENTS.map((a) => {
               const active = a.hue === hue;

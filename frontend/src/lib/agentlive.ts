@@ -1,7 +1,7 @@
 import type { AgentEvent } from "@/lib/events";
 import type { AgentRuntimeStatus } from "@/lib/agentdetail";
 
-export interface AgentLivePatch {
+interface AgentLivePatch {
   enabled?: boolean;
   retired?: boolean;
   removed?: boolean;

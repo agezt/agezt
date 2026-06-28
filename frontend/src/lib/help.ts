@@ -3,14 +3,14 @@
 // the drawer owns all presentation. When a new view is added to NAV, add a topic
 // here — help.test.ts guards that every id is covered.
 
-export interface HelpItem {
+interface HelpItem {
   /** Short bold lead-in — a control, concept, or column on the page. */
   term: string;
   /** What it does / how to use it. */
   desc: string;
 }
 
-export interface HelpSection {
+interface HelpSection {
   heading: string;
   paragraphs?: string[];
   items?: HelpItem[];

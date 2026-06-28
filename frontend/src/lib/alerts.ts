@@ -178,7 +178,7 @@ export interface RankedAlert extends Alert {
 // attention" forever — the operator asked why these never clear. A day is long
 // enough to not miss something actionable, short enough that stale signals age
 // out on their own.
-export const DEFAULT_ATTENTION_WINDOW_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_ATTENTION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // daemonHalted reports whether the kernel is CURRENTLY halted, by the most
 // recent halt/resume transition in the stream — so a "daemon halted" alert that

@@ -43,13 +43,13 @@ export interface RunLite {
   started_unix_ms?: number;
 }
 
-export interface ReaperDeadAgent {
+interface ReaperDeadAgent {
   slug: string;
   name?: string;
   last_active_ms?: number;
 }
 
-export interface ReaperDegradedAgent {
+interface ReaperDegradedAgent {
   slug: string;
   name?: string;
   failures?: number;
@@ -62,7 +62,7 @@ export interface ReaperDegradedAgent {
   last_reason?: string;
 }
 
-export interface ReaperMisconfiguredAgent {
+interface ReaperMisconfiguredAgent {
   slug: string;
   name?: string;
   issues?: string[];
@@ -71,7 +71,7 @@ export interface ReaperMisconfiguredAgent {
   escalate_to?: string;
 }
 
-export interface ReaperRoutingPressureAgent {
+interface ReaperRoutingPressureAgent {
   slug: string;
   name?: string;
   count?: number;
@@ -87,7 +87,7 @@ export interface ReaperRoutingPressureAgent {
   task_type?: string;
 }
 
-export interface ReaperRoutingForcedProbationAgent {
+interface ReaperRoutingForcedProbationAgent {
   slug: string;
   name?: string;
   count?: number;
@@ -104,7 +104,7 @@ export interface ReaperRoutingForcedProbationAgent {
   routing_force_generation?: number;
 }
 
-export interface ReaperRoutingForcedFailedAgent {
+interface ReaperRoutingForcedFailedAgent {
   slug: string;
   name?: string;
   count?: number;
@@ -121,7 +121,7 @@ export interface ReaperRoutingForcedFailedAgent {
   routing_force_generation?: number;
 }
 
-export interface ReaperRoutingForcedExhaustedAgent {
+interface ReaperRoutingForcedExhaustedAgent {
   slug: string;
   count?: number;
   threshold?: number;
@@ -137,7 +137,7 @@ export interface ReaperRoutingForcedExhaustedAgent {
   routing_force_generation?: number;
 }
 
-export interface ReaperRoutingUnstableAgent {
+interface ReaperRoutingUnstableAgent {
   slug: string;
   name?: string;
   count?: number;
@@ -176,7 +176,7 @@ export interface AgentHealthSnapshot {
   configIssues?: string[];
 }
 
-export interface AgentRuntimeOverride {
+interface AgentRuntimeOverride {
   key: string;
   value: string;
   label: string;
@@ -474,7 +474,7 @@ export interface AgentRepairEvent {
   previous_routing_force_generation?: number;
 }
 
-export interface AgentRepairContract {
+interface AgentRepairContract {
   retry_attempts?: number;
   retry_backoff?: string;
   retry_on?: string[];
@@ -487,7 +487,7 @@ export interface AgentRepairContract {
   authority_boundary?: string;
 }
 
-export interface AgentRepairNextAction {
+interface AgentRepairNextAction {
   action?: string;
   label?: string;
   detail?: string;

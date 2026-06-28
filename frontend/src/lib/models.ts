@@ -2,7 +2,7 @@
 // provider→model inventory (with capabilities + pricing + whether the provider is
 // credentialed). These pure helpers flatten and filter it for the picker UI.
 
-export interface CatalogModel {
+interface CatalogModel {
   id: string;
   name?: string;
   family?: string;
@@ -14,7 +14,7 @@ export interface CatalogModel {
   cost_output_usd_per_mtok?: number;
 }
 
-export interface CatalogProvider {
+interface CatalogProvider {
   id: string;
   name?: string;
   family?: string;

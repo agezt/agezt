@@ -2,11 +2,11 @@ import type { ChatTurn } from "@/lib/chat";
 import type { QueuedMsg } from "@/lib/queue";
 
 // A chat message: a user prompt, or an assistant turn (the folded ChatTurn).
-export interface UserMsg {
+interface UserMsg {
   role: "user";
   text: string;
 }
-export interface BotMsg {
+interface BotMsg {
   role: "assistant";
   turn: ChatTurn;
 }

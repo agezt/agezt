@@ -106,7 +106,7 @@ export function ApprovalsBell() {
 
       {open && has && (
         <div className="absolute right-0 z-50 mt-2 w-80 rounded-lg border border-border bg-card p-2 shadow-lg">
-          <div className="mb-1.5 flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-1.5 flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-normal text-muted">
             <span>{n} awaiting approval</span>
             <button
               onClick={() => {

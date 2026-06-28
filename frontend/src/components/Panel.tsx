@@ -92,7 +92,7 @@ export function Stats({ pairs }: { pairs: [string, ReactNode][] }) {
     <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
       {pairs.map(([k, v], i) => (
         <div key={i} className="flex flex-col">
-          <span className="text-xs uppercase tracking-wider text-muted">{k}</span>
+          <span className="text-xs uppercase tracking-normal text-muted">{k}</span>
           <span className="tabular-nums">{v}</span>
         </div>
       ))}

@@ -51,7 +51,7 @@ function AgentNodeView({ data }: NodeProps<DelegationRFNode>) {
       <Handle type="target" position={Position.Top} className="!bg-muted" />
       <div className="flex items-center gap-1.5">
         <span className={["size-2 shrink-0 rounded-full", statusDot[data.status] || "bg-muted"].join(" ")} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <span className="text-[10px] font-semibold uppercase tracking-normal text-muted">
           {data.root ? "lead" : "sub-agent"}
         </span>
         {/* Depth badge: at depth>1 a sub-agent is itself a delegator, so the

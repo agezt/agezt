@@ -12,7 +12,7 @@ import {
 } from "@xyflow/react";
 import { clip } from "@/lib/utils";
 
-export interface PlanNode {
+interface PlanNode {
   id: string;
   kind?: string;
   deps?: string[];

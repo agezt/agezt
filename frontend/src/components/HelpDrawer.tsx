@@ -60,11 +60,11 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
           <div className="relative p-5 pr-12">
             <div className="flex items-center gap-2">
               {group && (
-                <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
                   {group}
                 </span>
               )}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+              <span className="text-[10px] font-semibold uppercase tracking-normal text-muted/70">
                 Page guide
               </span>
             </div>
@@ -74,7 +74,7 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
                   <Icon className="size-5" />
                 </span>
               )}
-              <h2 className="text-xl font-semibold tracking-tight text-foreground">{topic.title}</h2>
+              <h2 className="text-xl font-semibold tracking-normal text-foreground">{topic.title}</h2>
             </div>
             <p className="mt-2.5 max-w-prose text-sm leading-relaxed text-muted">{topic.intro}</p>
           </div>
@@ -98,7 +98,7 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
                   <span className="font-mono text-xs font-semibold text-accent">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
+                  <h3 className="text-sm font-semibold uppercase tracking-normal text-foreground">
                     {s.heading}
                   </h3>
                   <span className="h-px flex-1 self-center bg-border" />
@@ -137,7 +137,7 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
 
             {topic.related && topic.related.length > 0 && (
               <section>
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-normal text-muted/70">
                   Keep exploring
                 </div>
                 <div className="flex flex-wrap gap-1.5">

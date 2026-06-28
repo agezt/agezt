@@ -304,6 +304,51 @@ const SECONDARY_TAB_GROUPS: { label: string; tabs: DetailTab[] }[] = [
 
 const TAB_BY_ID = new Map(TABS.map((tab) => [tab.id, tab]));
 
+function DetailOptionPicker<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  columns = "sm:grid-cols-2",
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string; detail?: string; icon?: ReactNode }[];
+  onChange: (value: T) => void;
+  columns?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-[11px] text-muted">
+      <span>{label}</span>
+      <div className={cn("grid gap-1.5", columns)} role="group" aria-label={label}>
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex min-h-9 items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
+                selected
+                  ? "border-accent bg-accent/10 text-foreground"
+                  : "border-border bg-card/45 text-muted hover:border-accent/50 hover:text-foreground",
+              )}
+            >
+              {option.icon && <span className="mt-0.5 shrink-0 text-accent">{option.icon}</span>}
+              <span className="min-w-0">
+                <span className="block truncate font-semibold">{option.label}</span>
+                {option.detail && <span className="mt-0.5 block truncate text-[10px] text-muted">{option.detail}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // AgentDetail (M953) — the per-agent Command Center: one screen that answers
 // "what is this agent, how is it triggered, what has it done, what does it know,
 // what is it allowed to do, and what went wrong". Reuses the M941 activity
@@ -900,7 +945,7 @@ export function AgentDetail({
                 <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border/60 bg-panel/25 p-2 sm:col-span-1">
                   <Cpu className="size-4 shrink-0 text-muted" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-muted">Model &amp; Fallback</div>
+                    <div className="text-[10px] font-medium uppercase tracking-normal text-muted">Model &amp; Fallback</div>
                     <div className={cn(
                       "truncate text-xs font-medium",
                       modelRoute.tone === "good" && "text-good",
@@ -1083,7 +1128,7 @@ export function AgentDetail({
           the humane summary above is what you see first. */}
       <Disclosure
         className="rounded-lg border border-border/40 bg-panel/20 px-1.5 py-0.5"
-        summary={<span className="text-[10px] font-medium text-muted/70 uppercase tracking-wider">Details — operation &amp; identity passport</span>}
+        summary={<span className="text-[10px] font-medium text-muted/70 uppercase tracking-normal">Details — operation &amp; identity passport</span>}
       >
         <div className="flex flex-col gap-3 p-1.5">
           <AgentDetailCommandStrip items={commandStrip} slug={slug} />
@@ -1091,7 +1136,7 @@ export function AgentDetail({
           <AgentControlInterventionCard summary={controlIntervention} onEdit={() => setTab("diag")} />
 
           <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted/60">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-normal text-muted/60">
               <ShieldCheck className="size-2.5" /> Identity passport
             </div>
         <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
@@ -1212,7 +1257,7 @@ export function AgentDetail({
         role="tablist"
         aria-label={`${slug} detail sections`}
       >
-        <div className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-3 px-1 text-xs font-semibold uppercase tracking-normal text-muted">
           Daily
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1234,7 +1279,7 @@ export function AgentDetail({
             />
           ))}
         </div>
-        <div className="mt-4 mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-muted">
+        <div className="mt-4 mb-3 px-1 text-xs font-semibold uppercase tracking-normal text-muted">
           Identity &amp; Maintenance
         </div>
         <div className="mb-2 px-1 text-[11px] text-muted/80">
@@ -1329,7 +1374,7 @@ export function AgentDetail({
             {/* Identity essentials lead; the operational/policy/runtime knobs fold
                 so the Soul tab reads as "who is this agent", not a config ledger. */}
             <Disclosure
-              summary={<span className="text-[10px] uppercase tracking-wider text-muted">Operational config, policy &amp; runtime</span>}
+              summary={<span className="text-[10px] uppercase tracking-normal text-muted">Operational config, policy &amp; runtime</span>}
             >
               <div className="space-y-2 pt-1">
                 <Row label="noise budget" value={noiseBudgetPassport.detail} />
@@ -1411,7 +1456,7 @@ export function AgentDetail({
               </div>
             </Disclosure>
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+              <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
                 soul — identity core
               </div>
               {profile.soul ? (
@@ -1426,7 +1471,7 @@ export function AgentDetail({
             </div>
             {(profile.instructions || []).length > 0 && (
               <div>
-                <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+                <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
                   standing instructions
                 </div>
                 <ul className="space-y-1 rounded-md bg-panel p-2.5 text-xs text-foreground/85">
@@ -1622,7 +1667,7 @@ function StatePill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-[10px] uppercase tracking-wider",
+        "inline-flex items-center gap-1 text-[10px] uppercase tracking-normal",
         cls,
       )}
     >
@@ -1716,10 +1761,10 @@ function AgentDetailHeroFact({
           tone === "accent" && "text-accent",
           tone === "muted" && "text-muted/70",
         )} />
-        <span className="truncate text-xs font-medium uppercase tracking-wider text-muted">{label}</span>
+        <span className="truncate text-xs font-medium uppercase tracking-normal text-muted">{label}</span>
       </div>
       <div className={cn(
-        "mt-2 truncate text-lg font-bold tracking-tight",
+        "mt-2 truncate text-lg font-bold tracking-normal",
         tone === "good" && "text-good",
         tone === "warn" && "text-warn",
         tone === "bad" && "text-bad",
@@ -1758,7 +1803,7 @@ function AgentDetailCommandStrip({ items, slug }: { items: AgentCommandStripItem
                 item.tone === "accent" && "bg-accent",
               )}
             />
-            <span className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted">{item.label}</span>
+            <span className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">{item.label}</span>
           </div>
           <div
             className={cn(
@@ -1781,7 +1826,7 @@ function AgentDetailCommandStrip({ items, slug }: { items: AgentCommandStripItem
 function AgentDetailControlCenter({ entries, slug }: { entries: AgentControlCenterEntry[]; slug: string }) {
   return (
     <div className="rounded-lg border border-border bg-panel/30 p-2" aria-label={`${slug} control center`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
         <ShieldCheck className="size-3" /> Control center
       </div>
       <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -1797,7 +1842,7 @@ function AgentDetailControlCenter({ entries, slug }: { entries: AgentControlCent
               entry.tone === "accent" && "border-accent/35 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -1886,7 +1931,7 @@ function AgentNowPanel({
       </div>
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Now</span>
+          <span className="text-[10px] font-semibold uppercase tracking-normal text-accent">Now</span>
           <span className="truncate text-sm font-semibold text-foreground">{phase}</span>
           {correlationId && (
             <span className="font-mono text-[10px] text-muted">{correlationId}</span>
@@ -1955,7 +2000,7 @@ function PassportCell({
         tone === "warn" && "border-warn/40 bg-warn/10",
       )}
     >
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-[9px] font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div
         className={cn(
           "mt-0.5 truncate text-[11px] text-foreground/90",
@@ -2053,27 +2098,26 @@ function LifecycleConfigEditor({
 
   return (
     <div className="rounded-md border border-border bg-panel/40 p-2">
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
         <Skull className="size-3" /> lifecycle contract
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Mode
-          <select
+        <div className="min-w-[18rem] flex-1">
+          <DetailOptionPicker
+            label="Agent lifecycle mode"
             value={mode}
-            onChange={(e) => {
-              const next = e.target.value as NonNullable<NonNullable<AgentProfile["lifecycle"]>["mode"]>;
+            onChange={(next) => {
               setMode(next);
               if (next === "retire_on_complete") setMaxCycles("");
             }}
-            aria-label="Agent lifecycle mode"
-            className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
-          >
-            <option value="persistent">persistent</option>
-            <option value="cycle">cycle</option>
-            <option value="retire_on_complete">one-shot</option>
-          </select>
-        </label>
+            columns="sm:grid-cols-3"
+            options={[
+              { value: "persistent", label: "Persistent", detail: "stays alive", icon: <ActivityIcon className="size-3.5" /> },
+              { value: "cycle", label: "Cycle", detail: "repeat wakes", icon: <Repeat className="size-3.5" /> },
+              { value: "retire_on_complete", label: "One-shot", detail: "retire on done", icon: <Archive className="size-3.5" /> },
+            ]}
+          />
+        </div>
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Max cycles
           <input
@@ -2106,7 +2150,7 @@ function MiniPolicy({ label, allowed, note }: { label: string; allowed: boolean;
     <div className="rounded-md border border-border bg-card/55 px-2 py-1.5">
       <div className="flex items-center gap-1.5">
         <Badge variant={allowed ? "good" : "bad"}>{allowed ? "allowed" : "blocked"}</Badge>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-normal text-muted">{label}</span>
       </div>
       {note && <div className="mt-1 truncate text-[10px] text-muted" title={note}>{note}</div>}
     </div>
@@ -2133,7 +2177,7 @@ function RepairCommandCell({
         tone === "accent" && "border-accent/35 bg-accent/5",
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div
         className={cn(
           "mt-0.5 truncate text-[11px] text-foreground/85",
@@ -2156,12 +2200,12 @@ function ConfigOverrideBox({
 }) {
   return (
     <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-      <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+      <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
         agent config overrides
       </div>
       {summary.runtime.length > 0 && (
         <div className="space-y-1">
-          <div className="text-[10px] uppercase tracking-wider text-muted">
+          <div className="text-[10px] uppercase tracking-normal text-muted">
             runtime behavior
           </div>
           <ul className="space-y-1 text-[11px]">
@@ -2190,7 +2234,7 @@ function ConfigOverrideBox({
       )}
       {summary.generic.length > 0 && (
         <div className={cn("space-y-1", summary.runtime.length > 0 && "mt-2")}>
-          <div className="text-[10px] uppercase tracking-wider text-muted">
+          <div className="text-[10px] uppercase tracking-normal text-muted">
             generic overlay
           </div>
           <ul className="space-y-1 font-mono text-[11px] text-foreground/85">
@@ -2243,9 +2287,9 @@ function Stat({
         )}>
           <Icon className={cn("size-5", iconColor)} />
         </div>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-normal text-muted">{label}</span>
       </div>
-      <div className={cn("mt-2 text-xl font-bold tabular-nums tracking-tight", valueColor)}>
+      <div className={cn("mt-2 text-xl font-bold tabular-nums tracking-normal", valueColor)}>
         {value}
       </div>
       {detail ? (
@@ -2273,7 +2317,7 @@ function BudgetBar({
   return (
     <div className="rounded-xl border border-border/50 bg-panel/30 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <Coins className="size-3.5" /> {label}
         </span>
         <span className={cn(
@@ -2505,7 +2549,7 @@ function Overview({
     <div className="space-y-3">
       {profile.retired && (
         <div className="rounded-lg border border-border bg-panel/40 p-2.5">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
             <Skull className="size-3" /> lifecycle
           </div>
           <div className="space-y-1 text-xs text-muted">
@@ -2577,7 +2621,7 @@ function Overview({
         )}
         title={operationsPassport.detail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <IdCard className="size-3" /> Operations passport
         </div>
         <div
@@ -2604,7 +2648,7 @@ function Overview({
           )}
           title={systemGuardianContract.detail}
         >
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
             <Megaphone className="size-3" /> System guardian contract
             {systemGuardianContract.tone !== "good" && (
               <Button
@@ -2635,7 +2679,7 @@ function Overview({
 
       {/* Operational state - visual dashboard */}
       <div className="rounded-xl border border-border/60 bg-panel/30 p-3">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted">
           <Zap className="size-4 text-accent" /> Status Dashboard
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
@@ -2793,7 +2837,7 @@ function Overview({
         )}
         title={mailboxWakeContract.detail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <Mail className="size-3" /> Mailbox wake contract
         </div>
         <div
@@ -2814,7 +2858,7 @@ function Overview({
 
       {/* How it runs */}
       <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
           <ActivityIcon className="size-3" /> How does this run?
         </div>
         <div className="flex flex-wrap gap-2">
@@ -2870,7 +2914,7 @@ function Overview({
           </div>
           <div className="text-[11px] text-muted">{permissionPassport.detail}</div>
           {permissionPassport.policy && (
-            <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+            <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-normal text-muted">
               {permissionPassport.policy.map((item) => (
                 <span key={item}>{item}</span>
               ))}
@@ -3130,7 +3174,7 @@ function Overview({
             <span className="truncate text-muted">{repairReadiness.detail}</span>
           </div>
           {repair.mode && (
-            <div className="mt-1 text-[10px] uppercase tracking-wider text-muted">
+            <div className="mt-1 text-[10px] uppercase tracking-normal text-muted">
               {repair.mode === "degraded"
                 ? "degraded doctor flow"
                 : "config repair flow"}
@@ -3145,7 +3189,7 @@ function Overview({
                     ? openIncident(repairStatus.latest.incident_id)
                     : undefined
               }
-              className="mt-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-accent"
+              className="mt-1 text-[10px] uppercase tracking-normal text-muted transition-colors hover:text-accent"
               title="Open this repair incident"
             >
               {incidentLineageLabel(repairStatus.latest)}
@@ -3201,7 +3245,7 @@ function Overview({
             </div>
             {(escalation.doctorOpenCount > 0 ||
               escalation.delegatedOpenCount > 0) && (
-              <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+              <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-normal text-muted">
                 {escalation.doctorOpenCount > 0 && (
                   <span>doctor {escalation.doctorOpenCount}</span>
                 )}
@@ -3219,7 +3263,7 @@ function Overview({
                       ? openIncident(escalation.latest.incident_id)
                       : undefined
                 }
-                className="mt-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-accent"
+                className="mt-1 text-[10px] uppercase tracking-normal text-muted transition-colors hover:text-accent"
                 title="Open this escalation incident"
               >
                 latest for {escalation.latest.source_agent}
@@ -3318,7 +3362,7 @@ function Overview({
 
       {escalationTasks.length > 0 && (
         <div className="rounded-lg border border-warn/30 bg-warn/5 p-2.5">
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-warn">
+          <div className="mb-1 text-[10px] uppercase tracking-normal text-warn">
             active responsibilities
           </div>
           <OperationalTaskList tasks={escalationTasks} compact />
@@ -3852,7 +3896,7 @@ function LifecycleInterventionPanel({
     <div className="rounded-lg border border-border bg-panel/35 p-2.5">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
             <Skull className="size-3" /> Lifecycle intervention
           </div>
           <div className="text-xs text-muted">
@@ -4039,7 +4083,7 @@ function LifecycleInterventionPanel({
 function LifecycleDecisionLedger({ entries, slug }: { entries: AgentLifecycleLedgerEntry[]; slug: string }) {
   return (
     <div className="mt-2 rounded-md border border-border/70 bg-card/45 p-1.5" aria-label={`${slug} lifecycle ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted/80">Lifecycle ledger</div>
+      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Lifecycle ledger</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-4">
         {entries.map((entry) => (
           <div
@@ -4052,7 +4096,7 @@ function LifecycleDecisionLedger({ entries, slug }: { entries: AgentLifecycleLed
               entry.tone === "warn" && "border-warn/35 bg-warn/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -4074,7 +4118,7 @@ function LifecycleDecisionLedger({ entries, slug }: { entries: AgentLifecycleLed
 function RuntimeDoctorLedger({ entries, slug }: { entries: AgentRuntimeDoctorLedgerEntry[]; slug: string }) {
   return (
     <div className="mt-2 rounded-md border border-border/70 bg-card/45 p-1.5" aria-label={`${slug} runtime doctor ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted/80">Runtime doctor ledger</div>
+      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Runtime doctor ledger</div>
       <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-4">
         {entries.map((entry) => (
           <div
@@ -4088,7 +4132,7 @@ function RuntimeDoctorLedger({ entries, slug }: { entries: AgentRuntimeDoctorLed
               entry.tone === "accent" && "border-accent/30 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -4111,7 +4155,7 @@ function RuntimeDoctorLedger({ entries, slug }: { entries: AgentRuntimeDoctorLed
 function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry[]; slug: string }) {
   return (
     <div className="rounded-lg border border-border bg-panel/40 p-2.5" aria-label={`${slug} autonomy runbook`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
         <Repeat className="size-3" /> Autonomy runbook
       </div>
       <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -4127,7 +4171,7 @@ function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry
               entry.tone === "accent" && "border-accent/30 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -4151,7 +4195,7 @@ function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry
 function AgentEntityContract({ entries, slug }: { entries: AgentEntityContractEntry[]; slug: string }) {
   return (
     <div className="rounded-lg border border-border bg-panel/40 p-2.5" aria-label={`${slug} entity contract`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
         <Waypoints className="size-3" /> Agent entity contract
       </div>
       <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -4167,7 +4211,7 @@ function AgentEntityContract({ entries, slug }: { entries: AgentEntityContractEn
               entry.tone === "accent" && "border-accent/30 bg-accent/10",
             )}
           >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted/80">{entry.label}</div>
+            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
             <div
               className={cn(
                 "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
@@ -4976,7 +5020,7 @@ function TaskComposer({
   const adding = busy === `add:${scope}`;
   return (
     <div className="rounded-md border border-border bg-panel/45 p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+      <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
         add durable task
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -4987,15 +5031,18 @@ function TaskComposer({
           placeholder="Task title..."
           className="min-w-[14rem] flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted/60 focus-visible:border-accent"
         />
-        <select
-          value={scope}
-          onChange={(e) => setScope(e.target.value as "cycle" | "total")}
-          aria-label="New task scope"
-          className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground outline-none focus-visible:border-accent"
-        >
-          <option value="cycle">every cycle</option>
-          <option value="total">total tasklist</option>
-        </select>
+        <div className="min-w-[14rem]">
+          <DetailOptionPicker
+            label="New task scope"
+            value={scope}
+            onChange={setScope}
+            columns="grid-cols-2"
+            options={[
+              { value: "cycle", label: "Every cycle", detail: "repeat task", icon: <Repeat className="size-3.5" /> },
+              { value: "total", label: "Total", detail: "finish once", icon: <CheckCheck className="size-3.5" /> },
+            ]}
+          />
+        </div>
         <Button
           type="button"
           size="sm"
@@ -5047,7 +5094,7 @@ function TaskGroup({
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-muted">
+        <span className="text-[10px] uppercase tracking-normal text-muted">
           {title}
         </span>
         {summary && (
@@ -5195,7 +5242,7 @@ function ToolPolicyBox({
 }) {
   return (
     <div>
-      <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+      <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
         {title}
       </div>
       {items.length === 0 ? (
@@ -5249,7 +5296,7 @@ function TriggersTab({
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">
+        <div className="mb-1.5 text-[10px] uppercase tracking-normal text-muted">
           how this agent is triggered
         </div>
         <div className="flex flex-wrap gap-2">
@@ -5277,7 +5324,7 @@ function TriggersTab({
       {/* Upcoming fires — what this agent WILL do next, from each binding schedule. */}
       {schedules.length > 0 && (
         <div>
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
             <CalendarClock className="size-3" /> upcoming runs
           </div>
           <ul className="space-y-2">
@@ -5361,7 +5408,7 @@ function TriggersTab({
         </div>
       )}
 
-      <div className="text-[10px] uppercase tracking-wider text-muted">
+      <div className="text-[10px] uppercase tracking-normal text-muted">
         standing orders firing this agent
       </div>
       {orders.length === 0 ? (
@@ -5609,7 +5656,7 @@ function MailboxWakeSubjects({
   const icon = { dm: Mail, help: LifeBuoy, broadcast: Megaphone };
   return (
     <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
         <Mail className="size-3" /> mailbox wake subjects
       </div>
       <div className="grid gap-1.5 md:grid-cols-3">
@@ -5847,7 +5894,7 @@ function ModelTab({
   return (
     <div className="space-y-3">
       <div className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-2.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
           <Cpu className="size-3" /> Change model / fallback chain
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -5951,7 +5998,7 @@ function ModelTab({
       </div>
 
       <div>
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
           <Cpu className="size-3" /> routing &amp; fallbacks
         </div>
         <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
@@ -6454,7 +6501,7 @@ function CommsTab({
       </div>
 
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <Send className="size-3" /> message this agent
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -6482,7 +6529,7 @@ function CommsTab({
       </div>
 
       <div className="rounded-lg border border-accent/30 bg-accent/5 p-2.5">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
           <Share2 className="size-3" /> send as this agent
         </div>
         <div className="grid gap-2 sm:grid-cols-[9rem_9rem_1fr_auto]">
@@ -6517,7 +6564,7 @@ function CommsTab({
       </div>
 
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <Mail className="size-3" /> inbox priority summary
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -6723,7 +6770,7 @@ function MemoryTab({
     );
   return (
     <div className="space-y-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted">
+      <div className="text-[10px] uppercase tracking-normal text-muted">
         private to scope{" "}
         <span className="font-mono text-foreground/80">{scope}</span> ·{" "}
         {records.length} record(s)
@@ -7115,7 +7162,7 @@ function CapabilityControlPanel({
     <div className="rounded-lg border border-accent/30 bg-accent/5 p-2.5">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-accent">
             <ShieldCheck className="size-3" /> Capability control
           </div>
           <div className="mt-1 text-[11px] text-muted">
@@ -7164,7 +7211,7 @@ function CapabilityControlPanel({
                 : "border-border bg-card/55",
         )}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <IdCard className="size-3" /> Authority manifest
         </div>
         <div
@@ -7183,7 +7230,7 @@ function CapabilityControlPanel({
         <div className="mt-2 grid gap-1.5 md:grid-cols-4">
           {Object.entries(authorityManifest.fields).map(([key, value]) => (
             <div key={key} className="min-w-0 rounded border border-border bg-panel/40 px-2 py-1">
-              <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted" title={key}>
+              <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted" title={key}>
                 {key}
               </div>
               <div className="mt-0.5 truncate text-[10px] text-foreground/80" title={value}>
@@ -7206,7 +7253,7 @@ function CapabilityControlPanel({
                   : "border-border bg-card/55",
           )}
         >
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Risk passport</div>
+          <div className="text-[9px] font-semibold uppercase tracking-normal text-muted">Risk passport</div>
           <div
             className={cn(
               "mt-0.5 truncate text-[11px] font-medium",
@@ -7234,7 +7281,7 @@ function CapabilityControlPanel({
                   : "border-border bg-card/55",
           )}
         >
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Authority snapshot</div>
+          <div className="text-[9px] font-semibold uppercase tracking-normal text-muted">Authority snapshot</div>
           <div
             className={cn(
               "mt-0.5 truncate text-[11px] font-medium",
@@ -7251,7 +7298,7 @@ function CapabilityControlPanel({
           </div>
         </div>
         <div className="rounded-md border border-border bg-card/55 px-2 py-1.5">
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Config center</div>
+          <div className="text-[9px] font-semibold uppercase tracking-normal text-muted">Config center</div>
           <div className="mt-0.5 truncate text-[11px] font-medium text-foreground/85" title={configSnapshot}>
             {configSnapshot}
           </div>
@@ -7271,7 +7318,7 @@ function CapabilityControlPanel({
                   : "border-border bg-card/55",
           )}
         >
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-muted">Governance</div>
+          <div className="text-[9px] font-semibold uppercase tracking-normal text-muted">Governance</div>
           <div className="mt-0.5 truncate text-[11px] font-medium text-foreground/85" title={governanceSnapshot.detail}>
             {governanceSnapshot.detail}
           </div>
@@ -7281,7 +7328,7 @@ function CapabilityControlPanel({
         </div>
       </div>
       <div className="mb-2 rounded-md border border-border bg-card/55 p-2">
-        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <IdCard className="size-3" /> Authority ledger
         </div>
         <div className="grid gap-1.5 md:grid-cols-4">
@@ -7299,7 +7346,7 @@ function CapabilityControlPanel({
                       : "border-border bg-panel/40",
               )}
             >
-              <div className="truncate text-[9px] font-semibold uppercase tracking-wider text-muted" title={entry.label}>
+              <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted" title={entry.label}>
                 {entry.label}
               </div>
               <div
@@ -7321,20 +7368,21 @@ function CapabilityControlPanel({
         </div>
       </div>
       <div className="grid gap-2 md:grid-cols-3">
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          Trust ceiling
-          <select
-            value={trust}
-            onChange={(e) => setTrust(e.target.value as AgentProfile["trust_ceiling"])}
-            className="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent"
-          >
-            {["L0", "L1", "L2", "L3", "L4"].map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="md:col-span-1">
+          <DetailOptionPicker
+            label="Trust ceiling"
+            value={trust || "L4"}
+            onChange={(level) => setTrust(level as AgentProfile["trust_ceiling"])}
+            columns="grid-cols-2"
+            options={[
+              { value: "L4", label: "L4", detail: "allow", icon: <ShieldCheck className="size-3.5" /> },
+              { value: "L3", label: "L3", detail: "ask scoped", icon: <ShieldCheck className="size-3.5" /> },
+              { value: "L2", label: "L2", detail: "ask first", icon: <AlertTriangle className="size-3.5" /> },
+              { value: "L1", label: "L1", detail: "ask always", icon: <AlertCircle className="size-3.5" /> },
+              { value: "L0", label: "L0", detail: "deny", icon: <XCircle className="size-3.5" /> },
+            ]}
+          />
+        </div>
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           Tool allow
           <input
@@ -7355,7 +7403,7 @@ function CapabilityControlPanel({
         </label>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-card/55 px-2 py-1.5">
-        <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Policy presets</span>
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-normal text-muted">Policy presets</span>
         <Button type="button" variant="ghost" size="sm" onClick={applyQuietSystemPreset} title="Apply quiet guardian defaults">
           <Megaphone className="size-3.5" /> Quiet system preset
         </Button>
@@ -7436,18 +7484,17 @@ function CapabilityControlPanel({
             )} />
           </div>
         </button>
-        <label className="flex flex-col gap-1 text-[11px] text-muted">
-          <span className="flex items-center gap-1"><AlertTriangle className="size-3" /> Level</span>
-          <select
-            value={notifySeverity}
-            onChange={(e) => setNotifySeverity(e.target.value as typeof notifySeverity)}
-            className="rounded-md border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus-visible:border-accent"
-          >
-            <option value="info">info</option>
-            <option value="warning">warning</option>
-            <option value="critical">critical</option>
-          </select>
-        </label>
+        <DetailOptionPicker
+          label="Notify level"
+          value={notifySeverity}
+          onChange={setNotifySeverity}
+          columns="grid-cols-1"
+          options={[
+            { value: "info", label: "Info", detail: "all notifications", icon: <Megaphone className="size-3.5" /> },
+            { value: "warning", label: "Warning", detail: "warn and critical", icon: <AlertTriangle className="size-3.5" /> },
+            { value: "critical", label: "Critical", detail: "critical only", icon: <Flame className="size-3.5" /> },
+          ]}
+        />
         <label className="flex flex-col gap-1 text-[11px] text-muted">
           <span className="flex items-center gap-1"><Clock className="size-3" /> Cooldown (sec)</span>
           <input
@@ -7512,7 +7559,7 @@ function CapabilityControlPanel({
         />
       </label>
       <div className="mt-3">
-        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-normal text-muted">
           Config center access
           <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[9px]">
             {configEntries.filter((row) => row.visible).length}/{configEntries.length}
@@ -7525,7 +7572,7 @@ function CapabilityControlPanel({
         ) : (
           <div className="max-h-44 overflow-auto rounded-lg border border-border bg-card/55">
             <table className="w-full text-left text-[11px]">
-              <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-wider text-muted">
+              <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-normal text-muted">
                 <tr>
                   <th className="px-2 py-1.5 font-medium">Key</th>
                   <th className="px-2 py-1.5 font-medium">Rating</th>
@@ -7597,7 +7644,7 @@ function CapabilityControlPanel({
         )}
       </div>
       <div className="mt-3">
-        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-normal text-muted">
           Effective tool access
           <span className="rounded bg-card px-1.5 py-0.5 font-mono text-[9px]">
             {effective.filter((row) => row.allowed).length}/{effective.length}
@@ -7611,7 +7658,7 @@ function CapabilityControlPanel({
         ) : (
           <div className="max-h-56 overflow-auto rounded-lg border border-border bg-card/55">
             <table className="w-full text-left text-[11px]">
-              <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-wider text-muted">
+              <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-normal text-muted">
                 <tr>
                   <th className="px-2 py-1.5 font-medium">Tool</th>
                   <th className="px-2 py-1.5 font-medium">Capability</th>
@@ -8773,7 +8820,7 @@ function DiagTab({
       </div>
 
       <Disclosure
-        summary={<span className="text-[10px] uppercase tracking-wider text-muted">Health, policy &amp; repair detail</span>}
+        summary={<span className="text-[10px] uppercase tracking-normal text-muted">Health, policy &amp; repair detail</span>}
       >
       <div className="space-y-3 pt-1">
 
@@ -8919,7 +8966,7 @@ function DiagTab({
         >
           <div
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-wider",
+              "text-[10px] font-semibold uppercase tracking-normal",
               repairOperations.tone === "good"
                 ? "text-good"
                 : repairOperations.tone === "warn"
@@ -8990,7 +9037,7 @@ function DiagTab({
                           ? openIncident(row.incident_id)
                           : undefined
                     }
-                    className="mt-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-accent"
+                    className="mt-1 text-[10px] uppercase tracking-normal text-muted transition-colors hover:text-accent"
                     title="Open this repair incident"
                   >
                     {incidentLineageLabel(row)}
@@ -9044,7 +9091,7 @@ function DiagTab({
 
       {(overrides.runtime.length > 0 || overrides.generic.length > 0) && (
         <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+          <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
             runtime policy overlay
           </div>
           {overrides.runtime.length === 0 ? (
@@ -9104,7 +9151,7 @@ function DiagTab({
       <div>
         {!denials ? (
           <>
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">capability denials</div>
+            <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">capability denials</div>
             <SkeletonList count={2} lines={1} />
           </>
         ) : denials.length === 0 ? (
@@ -9114,7 +9161,7 @@ function DiagTab({
         ) : (
           <Disclosure
             summary={
-              <span className="text-[10px] uppercase tracking-wider text-muted">
+              <span className="text-[10px] uppercase tracking-normal text-muted">
                 {denials.length} capability denial{denials.length === 1 ? "" : "s"}
               </span>
             }
@@ -9153,7 +9200,7 @@ function DiagTab({
       <div>
         {!approvals ? (
           <>
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">human approvals</div>
+            <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">human approvals</div>
             <SkeletonList count={2} lines={1} />
           </>
         ) : approvals.length === 0 ? (
@@ -9163,7 +9210,7 @@ function DiagTab({
         ) : (
           <Disclosure
             summary={
-              <span className="text-[10px] uppercase tracking-wider text-muted">
+              <span className="text-[10px] uppercase tracking-normal text-muted">
                 {approvals.length} human approval{approvals.length === 1 ? "" : "s"}
               </span>
             }
@@ -9203,7 +9250,7 @@ function DiagTab({
       <div>
         {!toolErrors ? (
           <>
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">tool errors</div>
+            <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">tool errors</div>
             <SkeletonList count={2} lines={1} />
           </>
         ) : toolErrors.length === 0 ? (
@@ -9213,7 +9260,7 @@ function DiagTab({
         ) : (
           <Disclosure
             summary={
-              <span className="text-[10px] uppercase tracking-wider text-muted">
+              <span className="text-[10px] uppercase tracking-normal text-muted">
                 {toolErrors.length} tool error{toolErrors.length === 1 ? "" : "s"}
               </span>
             }
@@ -9268,7 +9315,7 @@ function FilesTab({
         }
       />
       <div>
-        <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
+        <div className="mb-1 text-[10px] uppercase tracking-normal text-muted">
           skill bundle files
         </div>
         {!skills ? (

@@ -358,7 +358,7 @@ export function buildHistory(msgs: import("@/lib/conversations").Msg[]): ChatHis
 // the last HISTORY_SUMMARY_KEEP into one LLM-written briefing and rides it as
 // a leading system turn. Trigger > keep by a healthy margin so folding is rare
 // (one summarize call per ~18 messages, not per send).
-export const HISTORY_SUMMARY_TRIGGER = 30;
+const HISTORY_SUMMARY_TRIGGER = 30;
 export const HISTORY_SUMMARY_KEEP = 12;
 
 // summaryFoldRange decides whether a send needs to (re)fold history: given the

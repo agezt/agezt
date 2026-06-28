@@ -17,7 +17,7 @@ export interface ConductorRoles {
   verifier: string;
 }
 
-export interface ConductorExec {
+interface ConductorExec {
   ran: boolean;
   ok: boolean;
   language?: string;
@@ -35,7 +35,7 @@ export interface ConductorStep {
   error?: string;
 }
 
-export type ConductorPhase = "running" | "done";
+type ConductorPhase = "running" | "done";
 
 export interface ConductorRun {
   corr: string;

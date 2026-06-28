@@ -19,7 +19,7 @@ export const SUGGEST_CHAIN_MAX = 5;
 // image generation…). Matched against the model id + name.
 const NON_CHAT = /embed|tts|image|audio|whisper|transcribe|moderation|rerank|dall-e/i;
 
-export interface TaskProfile {
+interface TaskProfile {
   kind: "heavy" | "light";
   // heavy only: prefer reasoning-capable models (plan).
   preferReasoning?: boolean;
@@ -30,7 +30,7 @@ export interface TaskProfile {
 
 // One profile per known task type; unknown/custom task types fall back to a
 // plain heavy profile.
-export const TASK_PROFILES: Record<string, TaskProfile> = {
+const TASK_PROFILES: Record<string, TaskProfile> = {
   chat: { kind: "heavy", requireTools: true },
   code: { kind: "heavy", requireTools: true },
   delegate: { kind: "heavy", requireTools: true },

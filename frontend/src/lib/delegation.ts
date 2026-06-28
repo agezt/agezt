@@ -12,7 +12,7 @@ export interface RunNode {
   intent?: string;
 }
 
-export interface LaidNode extends RunNode {
+interface LaidNode extends RunNode {
   depth: number;
   x: number;
   y: number;

@@ -150,7 +150,7 @@ function MiniRow({ msg, live }: { msg: Msg; live: boolean }) {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end gap-1.5">
-        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-accent/15 px-2.5 py-1.5 text-xs text-foreground">
+        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-xl rounded-br-sm bg-accent/15 px-2.5 py-1.5 text-xs text-foreground">
           {msg.text}
         </div>
         <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-panel text-muted">

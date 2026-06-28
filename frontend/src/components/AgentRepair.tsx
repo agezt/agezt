@@ -268,7 +268,7 @@ export function AgentRepair({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-panel/30 p-2.5">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
             <AlertTriangle className="size-3" /> governed doctor run
           </div>
           <div className="mt-0.5 text-[11px] text-muted">
@@ -300,7 +300,7 @@ export function AgentRepair({
 
       {/* What's wrong — the case for repair. */}
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-normal text-muted">
           <Wrench className="size-3" /> self-repair evidence
         </div>
         {evidence === 0 ? (
@@ -426,7 +426,7 @@ function RepairTranscript({ turn, running }: { turn: ChatTurn; running: boolean 
   const text = turnText(turn);
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel/20 p-2.5">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-normal text-muted">
         {running && <span className="size-1.5 animate-pulse rounded-full bg-accent" />}
         repair run {turn.status === "error" ? "— error" : running ? "— working…" : "— done"}
       </div>

@@ -276,7 +276,7 @@ export class VoiceSession {
 
 // defaultRun adapts streamRun to the VoiceIO.run shape: it forwards each streamed
 // answer-text delta (llm.token frames) to onDelta and ignores tool/meta frames.
-export function defaultRun(opts: { agent?: string; model?: string }) {
+function defaultRun(opts: { agent?: string; model?: string }) {
   return (intent: string, onDelta: (text: string) => void, signal: AbortSignal) =>
     streamRun(
       { intent, agent: opts.agent, model: opts.model },

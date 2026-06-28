@@ -13,7 +13,7 @@ export interface RunRow {
   parent_correlation?: string;
 }
 
-export interface ModelStat {
+interface ModelStat {
   model: string;
   runs: number;
   spentMc: number;
@@ -28,7 +28,7 @@ interface ModelAcc {
   spentMc: number;
   iters: number;
 }
-export interface SpendPoint {
+interface SpendPoint {
   t: number; // started_unix_ms
   spentMc: number; // this run's spend
   cum: number; // cumulative spend through this run

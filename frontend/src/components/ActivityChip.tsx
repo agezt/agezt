@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 // useActiveAfterglow returns true while count > 0, and stays true for `holdMs`
 // after it drops back to 0, so a very short operation still flashes the chip for
 // a beat instead of flickering past below the eye's notice.
-export function useActiveAfterglow(count: number, holdMs = 1500): boolean {
+function useActiveAfterglow(count: number, holdMs = 1500): boolean {
   const [on, setOn] = useState(count > 0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {

@@ -201,7 +201,7 @@ function ModelModal({
 
           {allowChains && chainEntries.length > 0 && (
             <div className="mt-1">
-              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-normal text-accent">
                 <Waypoints className="size-3" />
                 Fallback chains
                 <span className="text-muted/60">· {chainEntries.length}</span>
@@ -221,7 +221,7 @@ function ModelModal({
 
           {pinnedOpts.length > 0 && (
             <div className="mt-1">
-              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+              <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-normal text-accent">
                 <Route className="size-3" />
                 {pinned!.label}
                 <span className="text-muted/60">· {pinnedOpts.length}</span>
@@ -253,7 +253,7 @@ function ModelModal({
           ) : (
             groups.map((g) => (
               <div key={g.providerId} className="mt-1">
-                <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-normal text-muted">
                   {g.providerName}
                   {g.credentialed && <KeyRound className="size-3 text-good" />}
                   <span className="text-muted/60">· {g.options.length}</span>

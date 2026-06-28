@@ -149,7 +149,7 @@ export interface ApiProfile {
   };
 }
 
-export interface ApiTrigger {
+interface ApiTrigger {
   type?: string;
   schedule?: string;
   subject?: string;

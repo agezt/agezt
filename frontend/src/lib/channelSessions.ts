@@ -6,7 +6,7 @@
 // by (channel_kind, channel_id, sender) into a session whose messages are the
 // union, time-ordered. Pure + unit-tested.
 
-export interface ChannelMessage {
+interface ChannelMessage {
   direction?: string; // "in" | "out"
   sender?: string;
   text?: string;

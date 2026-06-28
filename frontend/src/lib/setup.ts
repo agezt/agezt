@@ -23,7 +23,7 @@ export interface SetupFallbackCandidate extends SetupModel {
   credentialed?: boolean;
 }
 
-export const SETUP_CORE_TASKS = ["chat", "plan", "code", "delegate", "verify"];
+const SETUP_CORE_TASKS = ["chat", "plan", "code", "delegate", "verify"];
 
 // providerKeyEnv picks a provider's API-key env var (the keyring target),
 // preferring a *_API_KEY / *_KEY / *_TOKEN name. null = keyless (local).

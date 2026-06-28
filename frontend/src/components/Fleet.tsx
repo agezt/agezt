@@ -147,7 +147,7 @@ export function fleetAgentLiveOpsSummary(
 
 // Per-archetype identity: a label, an icon, and a hue so each kind has its own
 // colour (the owner wants the console colourful, not a grid of grey).
-export const KIND_META: Record<FleetKind, { label: string; icon: LucideIcon; hue: number | null }> = {
+const KIND_META: Record<FleetKind, { label: string; icon: LucideIcon; hue: number | null }> = {
   roster: { label: "Roster agent", icon: Users, hue: 210 },
   standing: { label: "Standing order", icon: Anchor, hue: 150 },
   schedule: { label: "Schedule", icon: CalendarClock, hue: 35 },
@@ -188,7 +188,7 @@ function StatePill({ state }: { state: FleetState }) {
           ? "text-muted"
           : "text-foreground/70";
   return (
-    <span className={cn("inline-flex items-center gap-1 text-xs uppercase tracking-wider", cls)}>
+    <span className={cn("inline-flex items-center gap-1 text-xs uppercase tracking-normal", cls)}>
       {state === "running" && <span className="size-1.5 animate-pulse rounded-full bg-accent" />}
       {STATE_LABEL[state]}
     </span>
@@ -246,12 +246,12 @@ function WakeStateBand({ e, trigger }: { e: FleetEntity; trigger?: { mode: Trigg
     >
       <Icon className={cn("size-4 shrink-0", state.mode === "running" && "work-pulse")} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold uppercase tracking-wider">{state.label}</div>
+        <div className="truncate text-sm font-semibold uppercase tracking-normal">{state.label}</div>
         <div className="truncate font-mono text-xs opacity-80" title={state.detail}>
           {state.detail}
         </div>
       </div>
-      <span className="shrink-0 rounded-md bg-card/60 px-1.5 py-0.5 text-xs uppercase tracking-wider opacity-80">
+      <span className="shrink-0 rounded-md bg-card/60 px-1.5 py-0.5 text-xs uppercase tracking-normal opacity-80">
         {STATE_LABEL[e.state]}
       </span>
     </div>
@@ -471,7 +471,7 @@ export function FleetCard({
 function FleetInfo({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
     <div className="min-w-0 rounded-lg border border-border bg-panel/35 px-2 py-1.5">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("truncate text-sm text-foreground/85", mono && "font-mono")} title={value || ""}>
         {value || "-"}
       </div>
@@ -542,7 +542,7 @@ export function FleetDetail({
 
       {/* The hero: how this comes alive. */}
       <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent">
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <Activity className="size-3" /> How does this run?
         </div>
         <div className="space-y-2">
@@ -668,7 +668,7 @@ export function FleetDetail({
             <Row label="last run" value={e.lastRunMs ? fmtAgo(e.lastRunMs) : "never"} />
             {str("soul") && (
               <div>
-                <div className="mb-1 text-xs uppercase tracking-wider text-muted">soul</div>
+                <div className="mb-1 text-xs uppercase tracking-normal text-muted">soul</div>
                 <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-card p-2 font-mono text-xs text-foreground/80">
                   {str("soul")}
                 </pre>
