@@ -860,7 +860,7 @@ export default function App() {
 function RouteLoading({ label }: { label: string }) {
   return (
     <div className="flex h-full min-h-[240px] items-center justify-center">
-      <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted shadow-e1">
+      <div className="inline-flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-sm text-muted shadow-e1">
         <RefreshCw className="size-4 animate-spin" />
         Loading {label}...
       </div>

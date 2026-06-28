@@ -630,12 +630,12 @@ export function NewOrderForm({
     <div className="glass rounded-xl border-accent/30 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+          <div className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <ClipboardList className="size-4" />
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-foreground">{name.trim() || "Untitled standing order"}</div>
-            <div className="text-[11px] text-muted">{triggerType === "cron" ? "scheduled wake" : "event wake"}</div>
+            <div className="truncate text-xs text-muted">{triggerType === "cron" ? "scheduled wake" : "event wake"}</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -653,7 +653,7 @@ export function NewOrderForm({
           defaultOpen
         >
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-[11px] text-muted">
+            <label className="flex flex-col gap-1 text-xs text-muted">
               Name
               <input
                 value={name}
@@ -820,7 +820,7 @@ export function EditOrderForm({
     <div className="glass rounded-xl border-accent/30 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+          <div className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Pencil className="size-4" />
           </div>
           <div className="min-w-0">
@@ -843,7 +843,7 @@ export function EditOrderForm({
           defaultOpen
         >
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-[11px] text-muted">
+            <label className="flex flex-col gap-1 text-xs text-muted">
               Name
               <input
                 value={name}

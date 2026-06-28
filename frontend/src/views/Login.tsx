@@ -143,7 +143,7 @@ export function Login({ onAuthed }: { onAuthed: () => void }) {
 function AuthProbeScreen() {
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-background/95 p-4">
-      <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted shadow-e1">
+      <div className="inline-flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-sm text-muted shadow-e1">
         <RefreshCw className="size-4 animate-spin text-accent" />
         Checking console session
       </div>
