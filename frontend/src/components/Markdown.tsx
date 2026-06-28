@@ -117,7 +117,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
       <button
         onClick={copy}
         title={copied ? "Copied" : "Copy"}
-        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
       >
         {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
         {copied ? "Copied" : "Copy"}

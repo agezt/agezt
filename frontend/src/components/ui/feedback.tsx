@@ -136,7 +136,7 @@ function ConfirmModal({ opts, onResult }: { opts: ConfirmOptions; onResult: (v: 
       onClick={() => onResult(false)}
     >
       <div
-        className="modal-in w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-xl shadow-black/30"
+        className="modal-in w-full max-w-sm rounded-xl bg-card p-4 shadow-xl shadow-black/30"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

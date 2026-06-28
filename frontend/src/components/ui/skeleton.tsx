@@ -12,7 +12,7 @@ export function Skeleton({ className }: { className?: string }) {
 // couple of text lines. Used to fill list views while they load.
 export function SkeletonCard({ lines = 2 }: { lines?: number }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="rounded-lg bg-card p-3">
       <div className="flex items-center gap-2">
         <Skeleton className="h-4 w-12" />
         <Skeleton className="h-4 w-32" />
