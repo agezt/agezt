@@ -49,6 +49,7 @@ import {
   Route as RouteIcon,
   Link2,
   Bot,
+  Bug,
   MessageSquarePlus,
   Wand2,
   HelpCircle,
@@ -66,6 +67,7 @@ import { attentionAlertCount } from "@/lib/alerts";
 import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
 import { CommandPalette } from "@/components/CommandPalette";
 import { HelpDrawer } from "@/components/HelpDrawer";
+import { Inspector } from "@/components/Inspector";
 import { MiniChat } from "@/components/MiniChat";
 import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";
@@ -349,6 +351,8 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   // Page-aware help drawer (M920): one global toggle, content follows `active`.
   const [helpOpen, setHelpOpen] = useState(false);
+  // Collapsible debug inspector (Ctrl+Shift+I) — LLM calls, tool traces, live events.
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   // Recent runs offered as ⌘K "Open run" commands (fulfils the palette's promise).
   // Refreshed whenever the palette opens so the list is current without polling.
   const [recentRuns, setRecentRuns] = useState<{ correlation_id?: string; intent?: string; status?: string }[]>([]);
@@ -366,11 +370,33 @@ export default function App() {
   const { connected, events, subscribe } = useEvents();
   const ui = useUI();
 
+  // Live LLM call counter for the inspector badge.
+  const [activeLlmCount, setActiveLlmCount] = useState(0);
+  useEffect(() => {
+    return subscribe((ev) => {
+      const k = ev.kind;
+      if (k === "llm.request") setActiveLlmCount((c) => c + 1);
+      else if (k === "llm.response") setActiveLlmCount((c) => Math.max(0, c - 1));
+    });
+  }, [subscribe]);
+
   // Feed council.* events into the module-level council store (M987) from the app
   // level, so a deliberation keeps assembling even when the Council view isn't
   // mounted — letting the operator navigate away and return mid-run.
   useEffect(() => subscribe(ingestCouncilEvent), [subscribe]);
   useEffect(() => subscribe(ingestConductorEvent), [subscribe]);
+
+  // Keyboard shortcut: Ctrl+Shift+I toggles the debug inspector.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "I" && e.ctrlKey && e.shiftKey) {
+        e.preventDefault();
+        setInspectorOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Fetch the daemon's build provenance once for the sidebar footer (M971).
   useEffect(() => {
@@ -701,10 +727,13 @@ export default function App() {
         connected={connected}
         chatActive={active === "chat" && !agentSlug}
         activeRunCount={activeRunCount}
+        inspectorOpen={inspectorOpen}
+        activeLlmCount={activeLlmCount}
         onNavigate={setActive}
         onOpenChat={() => setActive("chat")}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
+        onToggleInspector={() => setInspectorOpen((v) => !v)}
       />
       <Vitals onNavigate={setActive} />
       <FleetNowBar onNavigate={setActive} />
@@ -851,6 +880,7 @@ export default function App() {
         </main>
       </div>
     </div>
+    <Inspector open={inspectorOpen} onClose={() => setInspectorOpen(false)} />
     </TooltipProvider>
   );
 }
@@ -870,18 +900,24 @@ function Header({
   connected,
   chatActive,
   activeRunCount,
+  inspectorOpen,
+  activeLlmCount,
   onNavigate,
   onOpenChat,
   onOpenPalette,
   onOpenHelp,
+  onToggleInspector,
 }: {
   connected: boolean;
   chatActive: boolean;
   activeRunCount: number;
+  inspectorOpen: boolean;
+  activeLlmCount: number;
   onNavigate: (id: string) => void;
   onOpenChat: () => void;
   onOpenPalette: () => void;
   onOpenHelp: () => void;
+  onToggleInspector: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const ui = useUI();
@@ -977,6 +1013,23 @@ function Header({
           aria-label="Resume all runs"
         >
           <Play className="size-4" /> <span className="hidden sm:inline">Resume</span>
+        </button>
+        <button
+          onClick={onToggleInspector}
+          title={`Debug inspector (Ctrl+Shift+I) — ${inspectorOpen ? "close" : "open"}`}
+          className={cn(
+            "relative inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors",
+            inspectorOpen
+              ? "bg-accent/15 text-accent"
+              : "text-muted hover:bg-panel hover:text-foreground",
+          )}
+        >
+          <Bug className="size-4" />
+          {activeLlmCount > 0 && (
+            <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-accent/20 px-0.5 text-[9px] font-bold leading-3.5 text-accent">
+              {activeLlmCount > 9 ? "9+" : activeLlmCount}
+            </span>
+          )}
         </button>
         <AccentPicker />
         <AdvancedToggle />
