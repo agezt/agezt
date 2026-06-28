@@ -6,7 +6,7 @@
 # Requires: Go 1.26.4+ (see go.mod), Make
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install gen deps-check sdk-parity frontend-build frontend-test e2e check webui-e2e webui-e2e-ps
+.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -56,6 +56,10 @@ sdk-parity:
 	@echo "Checking SDK parity report..."
 	go run ./tools/sdkparity -check docs/SDK-PARITY.md
 
+deadcode-check:
+	@echo "Checking for unexpected dead code..."
+	go run ./tools/deadcodecheck
+
 frontend-build:
 	@echo "Building frontend..."
 	cd frontend && npm run build
@@ -64,10 +68,14 @@ frontend-test:
 	@echo "Testing frontend..."
 	cd frontend && npm test
 
+frontend-deadcode:
+	@echo "Checking frontend for unused exports and dependencies..."
+	cd frontend && npm run deadcode
+
 e2e:
 	bash scripts/e2e-smoke.sh
 
-check: gen vet test deps-check sdk-parity frontend-test
+check: gen vet test deps-check sdk-parity deadcode-check frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT..."

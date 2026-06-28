@@ -150,6 +150,7 @@ jobs:
         run: |
           cd frontend
           npm ci
+          npm run deadcode
           npm test
 
   webui-e2e:
@@ -280,7 +281,7 @@ jobs:
         run: bash scripts/ci-go-retry.sh go build -trimpath -ldflags='-s -w' -o /tmp/out/ ./cmd/...
 
   deps-check:
-    name: deps-check (allowlist, POLICY §1)
+    name: deps-check (allowlist, SDK parity, deadcode)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     steps:
@@ -292,6 +293,8 @@ jobs:
         run: bash scripts/ci-go-retry.sh go run ./tools/depscheck
       - name: Verify SDK parity report is up to date
         run: bash scripts/ci-go-retry.sh go run ./tools/sdkparity -check docs/SDK-PARITY.md
+      - name: Verify no unexpected Go dead code
+        run: bash scripts/ci-go-retry.sh go run ./tools/deadcodecheck
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
