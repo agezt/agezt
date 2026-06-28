@@ -444,7 +444,7 @@ function OverviewTab({
                   focusRun(r.id);
                   location.hash = "runs";
                 }}
-                className="flex flex-col gap-2 rounded-lg border border-border bg-panel/60 p-3 text-left transition-colors hover:border-accent hover:bg-panel"
+                className="flex flex-col gap-2 rounded-lg bg-panel/40 p-3 text-left transition-colors hover:bg-panel/70 hover:shadow-e1"
               >
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-accent animate-pulse" />
@@ -512,8 +512,8 @@ function ActivityTab({
       </div>
 
       <Advanced>
-        <div className="rounded-xl border border-border bg-card shadow-e1">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <div className="rounded-xl bg-card shadow-e1">
+          <div className="flex items-center justify-between px-3 py-2">
             <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted">
               <Radio className="size-3.5" /> Live stream
             </div>
@@ -521,11 +521,11 @@ function ActivityTab({
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
             </Button>
           </div>
-          <div className="max-h-80 overflow-auto">
+          <div className="max-h-80 overflow-auto border-t border-border/50">
             {events.length === 0 ? (
               <div className="px-3 py-4 text-xs text-muted">waiting for activity…</div>
             ) : (
-              <ul className="divide-y divide-border/60 text-xs">
+              <ul className="divide-y divide-border/40 text-xs">
                 {events.slice(0, 40).map((e, i) => (
                   <li key={e.id || i} className="flex items-center gap-2 px-3 py-1.5">
                     <span className="w-16 shrink-0 tabular-nums text-muted">{fmtTime(e.ts_unix_ms)}</span>
@@ -637,7 +637,7 @@ function MiniMetric({
 }) {
   const colorCls = { accent: "text-accent", warn: "text-warn", bad: "text-bad", muted: "text-foreground" }[tone];
   return (
-    <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-panel/60 px-2 py-1.5">
+    <div className="flex flex-col gap-0.5 rounded-lg bg-panel/50 px-2 py-1.5">
       <div className="inline-flex items-center gap-1 text-xs text-muted">
         <Icon className={cn("size-2.5", pulse && "animate-pulse")} />
         {label}
@@ -665,16 +665,16 @@ function DashboardPanel({
   children: ReactNode;
 }) {
   const toneCls: Record<DashboardPanelTone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    good: "border-good/35 bg-good/5 text-good",
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    muted: "border-border bg-panel text-muted",
+    accent: "bg-accent/8 text-accent",
+    good: "bg-good/8 text-good",
+    warn: "bg-warn/8 text-warn",
+    bad: "bg-bad/8 text-bad",
+    muted: "bg-panel text-muted",
   };
   return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+    <section className="rounded-xl border border-border/70 bg-card p-3 shadow-e1">
       <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", toneCls[tone])}>
           <Icon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">

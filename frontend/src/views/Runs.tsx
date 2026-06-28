@@ -85,7 +85,7 @@ function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: Li
   }, [isFocus]);
 
   return (
-    <div ref={ref} className={cn("border-b border-border/60", isFocus && "bg-accent/5")}>
+    <div ref={ref} className={cn("border-b border-border/40", isFocus && "bg-accent/5")}>
       <div className="flex items-center">
       <button
         onClick={() => setOpen((v) => !v)}
@@ -351,9 +351,9 @@ function RunList({
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card/70 shadow-e1">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
+    <section className="overflow-hidden rounded-xl bg-card shadow-e1">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/8 text-accent">
           <Clock className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
