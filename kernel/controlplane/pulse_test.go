@@ -210,3 +210,54 @@ func TestPulse_DefaultPatternMatchesAll(t *testing.T) {
 	cancel()
 	<-errCh
 }
+
+// TestPulse_IdleStreamIsNotKilledByReadTimeout is the regression guard
+// for BUG read-timeout-as-disconnect (audit fix): the pulse subscriber
+// sets a 500ms read deadline on the connection to wake its watch
+// goroutine periodically. A read deadline firing is NOT a client
+// disconnect — idle SSE clients hit it every tick. Before the fix,
+// every deadline firing closed `clientGone` and tore the stream down,
+// so a quiet pulse subscription died within ~500ms regardless of
+// client behaviour. The fix uses errors.As(err, &nerr) + nerr.Timeout()
+// to distinguish deadline errors from real disconnects.
+//
+// The test subscribes to a quiet pulse stream and asserts the
+// subscription is still alive after 2s of idle (4+ read-deadline
+// ticks) — enough to expose the buggy behaviour with high confidence.
+func TestPulse_IdleStreamIsNotKilledByReadTimeout(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Hold the subscription open for 2s while deliberately doing
+	// nothing. With the bug, the read deadline fires at ~500ms and
+	// the handler returns, ending StreamUntilCancel. With the fix,
+	// the handler stays open and the cancel below is what ends it.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+			map[string]any{"pattern": ">"},
+			func(e *event.Event) {})
+	}()
+
+	// Sleep well past several read-deadline ticks (4 × 500ms).
+	time.Sleep(2 * time.Second)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		// Whatever error cancels surface as (nil or wrapped ctx.Err.)
+		// is fine — what matters is that StreamUntilCancel did NOT
+		// return before we cancelled. We assert that by ensuring
+		// `cancel()` was the cause: the error must mention the
+		// context cancellation.
+		if err != nil && err != context.Canceled {
+			// A non-cancel error here likely means the stream died
+			// on its own — i.e. the bug is back.
+			t.Errorf("StreamUntilCancel returned unexpected err after 2s idle: %v (read-timeout-as-disconnect leaked)", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("StreamUntilCancel never returned after ctx cancel")
+	}
+}

@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"strings"
 	"time"
@@ -160,7 +161,7 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	var lastReplayed int64 = -1
 	if since >= 0 || sinceTSMs >= 0 || replayOnly {
 		var err error
-		lastReplayed, err = s.replayHistorical(conn, req.ID, pattern, kindFilter, correlationFilter, since, sinceTSMs, until, untilTSMs, replayRate)
+		lastReplayed, err = s.replayHistorical(ctx, conn, req.ID, pattern, kindFilter, correlationFilter, since, sinceTSMs, until, untilTSMs, replayRate)
 		if err != nil {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse replay: " + err.Error()})
 			return
@@ -182,24 +183,48 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// blocked on <-sub.C until the server itself shuts down. Spawn a
 	// read goroutine that signals via clientGone when the conn drops.
 	// Pulse never reads anything after the initial request, so any
-	// Read returning err (typically EOF or "use of closed network
-	// connection") means the client went away.
+	// Read returning a non-timeout err (typically EOF or "use of closed
+	// network connection") means the client went away.
+	//
+	// The 500ms deadline creates a periodic "tick" so the goroutine
+	// can also notice ctx.Done() without waiting on a read that never
+	// arrives — but a Read deadline firing is NOT a disconnect (an
+	// idle SSE/streaming client hits it every tick). Only treat
+	// non-timeout errors as disconnect (BUG: read-timeout-as-disconnect).
 	clientGone := make(chan struct{})
 	stopCh := ctx.Done()
 	go func() {
 		var buf [1]byte
 		for {
 			conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-			if _, err := conn.Read(buf[:]); err != nil {
-				close(clientGone)
-				return
+			_, err := conn.Read(buf[:])
+			if err == nil {
+				// Should not happen — Pulse never sends client-side
+				// data — but a stray byte is not a disconnect either;
+				// just loop and keep watching.
+				select {
+				case <-stopCh:
+					close(clientGone)
+					return
+				default:
+				}
+				continue
 			}
-			select {
-			case <-stopCh:
-				close(clientGone)
-				return
-			default:
+			// Read-timeout: idle client, not a disconnect.
+			var nerr net.Error
+			if errors.As(err, &nerr) && nerr.Timeout() {
+				select {
+				case <-stopCh:
+					close(clientGone)
+					return
+				default:
+					continue
+				}
 			}
+			// Any other error (EOF, ErrClosed, network reset) means the
+			// client actually went away.
+			close(clientGone)
+			return
 		}
 	}()
 
@@ -297,7 +322,7 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 // and returns the last successfully-written seq + a wrapped error
 // — the caller treats this as a fatal pulse exit, same as any
 // other write failure.
-func (s *Server) replayHistorical(conn net.Conn, reqID, pattern string, kindFilter map[event.Kind]struct{}, correlationFilter string, since, sinceTSMs, until, untilTSMs int64, replayRateEPS float64) (int64, error) {
+func (s *Server) replayHistorical(ctx context.Context, conn net.Conn, reqID, pattern string, kindFilter map[event.Kind]struct{}, correlationFilter string, since, sinceTSMs, until, untilTSMs int64, replayRateEPS float64) (int64, error) {
 	// Rate-limit step: when positive, sleep `1/rate` seconds between
 	// each successfully-written event. We use a simple time-anchored
 	// gate rather than a token bucket because the workload is
@@ -341,7 +366,19 @@ func (s *Server) replayHistorical(conn net.Conn, reqID, pattern string, kindFilt
 		if minInterval > 0 && !lastWrite.IsZero() {
 			elapsed := time.Since(lastWrite)
 			if elapsed < minInterval {
-				time.Sleep(minInterval - elapsed)
+				// Ctx-aware sleep: a `time.Sleep` here would block
+				// the replay until minInterval elapses even if the
+				// request context was cancelled (client disconnect /
+				// daemon shutdown). For a low replayRateEPS that's
+				// a multi-second stop-the-world delay (BUG:
+				// ctx-unaware-sleep).
+				wait := time.NewTimer(minInterval - elapsed)
+				select {
+				case <-ctx.Done():
+					wait.Stop()
+					return ctx.Err()
+				case <-wait.C:
+				}
 			}
 		}
 		if err := writeResp(conn, Response{ID: reqID, Type: RespEvent, Event: ev}); err != nil {

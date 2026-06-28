@@ -176,7 +176,15 @@ func (s *Server) handleChannelOAuthStart(conn net.Conn, req Request) {
 // handleChannelOAuthCallback completes a flow: it exchanges the code for an
 // access token and writes it into the account's "#label" vault slot. Invoked by
 // the daemon's public /oauth/callback HTTP handler. args: code, state.
-func (s *Server) handleChannelOAuthCallback(conn net.Conn, req Request) {
+//
+// The ctx parameter is the connection-level context (cancelled when the
+// control-plane connection closes, the client disconnects, or the daemon
+// shuts down). We wrap it with a 20s upper bound so a stuck provider
+// exchange cannot pin a worker indefinitely; the request-scoped context
+// still propagates so a client disconnect or shutdown aborts the HTTP
+// call promptly (BUG: dropped-r.Context, fixed by passing the bound ctx
+// into exchangeOAuthCode instead of context.Background()).
+func (s *Server) handleChannelOAuthCallback(ctx context.Context, conn net.Conn, req Request) {
 	code := strings.TrimSpace(stringArg(req.Args, "code"))
 	state := strings.TrimSpace(stringArg(req.Args, "state"))
 	if code == "" || state == "" {
@@ -191,7 +199,12 @@ func (s *Server) handleChannelOAuthCallback(conn net.Conn, req Request) {
 		return
 	}
 
-	token, err := s.exchangeOAuthCode(context.Background(), flow, code)
+	// Bound the exchange by the connection context + an upper bound so a
+	// hung provider cannot pin the handler past the 20s mark AND client
+	// cancellation / shutdown still aborts the call promptly.
+	callCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	token, err := s.exchangeOAuthCode(callCtx, flow, code)
 	if err != nil {
 		s.setOAuthStatus(state, "error", err.Error())
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "token exchange failed: " + err.Error()})

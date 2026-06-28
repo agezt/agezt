@@ -242,18 +242,16 @@ func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(co
 		return fmt.Errorf("update: validation failed: %w", err)
 	}
 
-	// 2b. Verify the release signature (UPD-001) — but only for the custom
-	// endpoint source, which is the surface the audit flagged: an endpoint
-	// must not be trusted to supply its own checksum, or a MITM / compromised
-	// endpoint serves a malicious binary with a matching self-supplied hash.
-	// GitHub-source updates rely on GitHub Releases' own TLS + asset integrity
-	// (and are not signed in this scheme), so they are exempt. No-op (SHA-only
-	// mode) until a key is configured via SetPublicKey / DefaultPublicKeyHex.
-	if s.cfg.Source == SourceEndpoint {
-		if err := s.verifySignature(info); err != nil {
-			os.Remove(stagingPath)
-			return fmt.Errorf("update: signature verification failed: %w", err)
-		}
+	// 2b. Verify the release signature (UPD-001 fix) — for the custom
+	// endpoint source, signature verification is MANDATORY (a self-supplied
+	// checksum is not a trust anchor). verifySignature refuses the update
+	// when no key is configured; a configured key then refuses unsigned
+	// or invalid signatures. GitHub-source updates rely on GitHub
+	// Releases' own TLS + asset integrity, so the verifier still runs
+	// for them but tolerates a missing key + signature.
+	if err := s.verifySignature(info, s.cfg.Source); err != nil {
+		os.Remove(stagingPath)
+		return fmt.Errorf("update: signature verification failed: %w", err)
 	}
 
 	// 3. Drain (if configured).
@@ -314,6 +312,15 @@ func (e *ErrChecksumMismatch) Error() string {
 // manifest carries no signature.
 var ErrSignatureMissing = errors.New("update: release is not signed but a public key is configured")
 
+// ErrSignatureKeyNotConfigured is returned when Apply is invoked with a
+// SourceEndpoint update but no release-signing public key has been embedded
+// at build time or set at runtime. Endpoint-sourced updates MUST be
+// signature-verified — a checksum supplied by the same endpoint that
+// supplied the binary is not a trust anchor (UPD-001). GitHub-sourced
+// updates are exempt because their trust anchor is GitHub Releases' TLS
+// + asset integrity, not the supplied SHA256 alone.
+var ErrSignatureKeyNotConfigured = errors.New("update: no release-signing public key configured; endpoint-sourced updates require one — embed DefaultPublicKeyHex at build time (e.g. `go build -ldflags '-X github.com/agezt/agezt/kernel/update.DefaultPublicKeyHex=<hex>'`)")
+
 // ErrSignatureInvalid is returned when the manifest's signature does not verify
 // under the configured public key (wrong key, tampered version/hash, or a
 // malformed signature).
@@ -328,9 +335,13 @@ func (e *ErrSignatureInvalid) Error() string {
 //
 //	go build -ldflags '-X github.com/agezt/agezt/kernel/update.DefaultPublicKeyHex=<hex>'
 //
-// Empty (the default) leaves updates in SHA256-only mode — backward compatible,
-// but a configured endpoint can still supply a matching {binary, hash} pair
-// (UPD-001). Embed a key the moment releases are signed.
+// Embedded empty (the default) MEANS endpoint-sourced updates will be
+// refused with ErrSignatureKeyNotConfigured (a checksum supplied by the
+// same endpoint that supplied the binary is not a trust anchor). Set the
+// key — at build time via -ldflags or at runtime via SetPublicKey — before
+// deploying a daemon that uses SourceEndpoint. GitHub-sourced updates are
+// exempt because GitHub Releases' TLS + asset integrity is the trust
+// anchor (UPD-001 fix).
 var DefaultPublicKeyHex = ""
 
 // Trusted release-signing key. Protected by pubKeyMu.
@@ -364,13 +375,33 @@ func signedMessage(version, sumHex string) []byte {
 }
 
 // verifySignature enforces the release signature when a public key is
-// configured. With no key configured it returns nil (SHA256-only mode) so the
-// mechanism is opt-in and never breaks an unsigned deployment.
-func (s *Service) verifySignature(info *UpdateInfo) error {
+// configured. The source parameter determines the trust-anchor policy
+// (UPD-001 fix):
+//
+//   - SourceEndpoint: a self-supplied checksum is not a trust anchor, so
+//     signature verification is MANDATORY. Refuses the update with
+//     ErrSignatureKeyNotConfigured when no key is configured; refuses
+//     with ErrSignatureMissing when the manifest is unsigned; refuses
+//     with *ErrSignatureInvalid when verification fails.
+//   - SourceGitHub: the trust anchor is GitHub Releases' TLS + asset
+//     integrity, so signature verification is best-effort. With no key
+//     configured it returns nil (signed manifests are still verified
+//     when a key is embedded; unsigned GitHub releases continue to
+//     apply).
+func (s *Service) verifySignature(info *UpdateInfo, source Source) error {
 	pub := resolvePublicKey()
 	if pub == nil {
-		// No trusted key: SHA256-only mode. This is backward compatible but is
-		// NOT full integrity — UPD-001 stays open until a key is embedded.
+		// No trusted key. Behaviour depends on the source:
+		//   - Endpoint: refuse. A self-supplied checksum with no
+		//     signature is exactly the vulnerability UPD-001 names —
+		//     a compromised endpoint serves {malicious binary,
+		//     matching sha256} and nothing checks it.
+		//   - GitHub: accept. Releases are signed by GitHub's TLS
+		//     pipeline; the SHA256 in the manifest is informational
+		//     (we still validate it against the downloaded bytes).
+		if source == SourceEndpoint {
+			return ErrSignatureKeyNotConfigured
+		}
 		return nil
 	}
 	sig := strings.TrimSpace(info.Signature)

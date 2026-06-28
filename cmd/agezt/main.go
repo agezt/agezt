@@ -1476,7 +1476,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
-	fmt.Fprintf(stdout, "%s %s — daemon ready (protocol v%d)\n", brand.Name, brand.Version, brand.ProtocolVersion)
+	// Daemon-ready banner: surfaces the stamped build identity so an
+	// operator can confirm exactly which commit + build time the
+	// running binary was compiled from. brand.BuildStamp() also
+	// keeps BuildCommit / BuildTime reachable for the linker — without
+	// the reference here, the dead-code eliminator strips them and
+	// the `-X` ldflag stamp in the Makefile / scripts/build.sh
+	// silently no-ops.
+	ver, commit, btime := brand.BuildStamp()
+	if commit == "" {
+		commit = "unstamped"
+	}
+	if btime == "" {
+		btime = "unstamped"
+	}
+	fmt.Fprintf(stdout, "%s %s (commit=%s, built=%s) — daemon ready (protocol v%d)\n",
+		brand.Name, ver, commit, btime, brand.ProtocolVersion)
 	fmt.Fprintf(stdout, "  base dir         : %s\n", baseDir)
 	fmt.Fprintf(stdout, "  governor         : %s\n", govDesc)
 	// First-run nudge (M816): when the governor degraded to the offline mock
@@ -1750,7 +1765,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// POST /v1/responses, and GET /v1/models so any OpenAI client drives Agezt
 	// through the same tool-loop + Edict + journal. Off unless AGEZT_API_ADDR is
 	// set; loopback + token.
-	if apiDesc := buildOpenAIAPI(ctx, k, tenantReg, stdout); apiDesc != "" {
+	if apiDesc := buildOpenAIAPI(ctx, k, tenantReg, baseDir, stdout); apiDesc != "" {
 		fmt.Fprintf(stdout, "  openai api       : %s\n", apiDesc)
 	} else {
 		fmt.Fprintf(stdout, "  openai api       : disabled (set AGEZT_API_ADDR, e.g. 127.0.0.1:8799)\n")
@@ -1790,7 +1805,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if boardErr == nil {
 		restBoard = boardStore
 	}
-	if restDesc := buildRESTAPI(ctx, k, tenantReg, &draining, restBoard, boardNotify, updateSvc, stdout); restDesc != "" {
+	if restDesc := buildRESTAPI(ctx, k, tenantReg, baseDir, &draining, restBoard, boardNotify, updateSvc, stdout); restDesc != "" {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
 	} else {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
@@ -4881,10 +4896,53 @@ func extraRedactLiterals() []string {
 	return out
 }
 
+// writeAPIListenToken persists the freshly-minted HTTP listen token to a 0600
+// file under the daemon's base directory and returns a short prefix suitable
+// for surfacing in the boot banner without leaking the full secret. Banner
+// leak audit (VULN banner-token-leak): the FULL token must NEVER appear on
+// stdout/stderr or anywhere a log-shipper / `journalctl` / `agt status` will
+// scrape it. Callers are expected to embed `prefix` in the banner and point
+// operators at the file path for the live secret. On a write failure we
+// return the empty prefix AND the error so the caller can fail closed rather
+// than print nothing and silently leave the operator without the secret.
+func writeAPIListenToken(baseDir, filename, token string) (prefix string, err error) {
+	if token == "" {
+		return "", fmt.Errorf("writeAPIListenToken: empty token")
+	}
+	if baseDir == "" {
+		return "", fmt.Errorf("writeAPIListenToken: empty baseDir")
+	}
+	if err := os.MkdirAll(baseDir, 0o700); err != nil {
+		return "", fmt.Errorf("writeAPIListenToken: mkdir %s: %w", baseDir, err)
+	}
+	path := filepath.Join(baseDir, filename)
+	// 0600 — owner read/write only. On Windows the perms are best-effort but
+	// the file is still placed under the per-user base dir and the kernel's
+	// own DACL is the real boundary; the mode bits are a defense-in-depth
+	// signal for unix hosts and portable tooling.
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+		return "", fmt.Errorf("writeAPIListenToken: write %s: %w", path, err)
+	}
+	// Prefix: first 4 + "…" + last 4 hex chars (the token is 64 hex chars of
+	// `rand.Read(32 bytes)`). Enough to distinguish two banners on the same
+	// host, not enough to brute-force or impersonate.
+	if len(token) <= 8 {
+		prefix = token
+	} else {
+		prefix = token[:4] + "…" + token[len(token)-4:]
+	}
+	return prefix, nil
+}
+
 // buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR
 // is set, mirroring buildWebUI's lifecycle (daemon ctx, graceful shutdown,
 // minted token, loopback warning). Returns the banner description or "".
-func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, stdout io.Writer) string {
+//
+// The minted bearer token is written to <baseDir>/openai.token with 0600 perms
+// and only a short prefix is shown in the banner — the FULL token must NEVER
+// appear on stdout/stderr where a log-shipper or `journalctl` would scrape it
+// (VULN banner-token-leak fix).
+func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "API_ADDR")
 	if addr == "" {
 		return ""
@@ -4895,6 +4953,11 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 		return ""
 	}
 	token := hex.EncodeToString(tokBytes)
+	prefix, tokErr := writeAPIListenToken(baseDir, "openai.token", token)
+	if tokErr != nil {
+		fmt.Fprintf(stdout, "  openai api       : disabled (token persist failed: %v)\n", tokErr)
+		return ""
+	}
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -4937,7 +5000,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 		_ = srv.Shutdown(shutCtx)
 	}()
 
-	desc := "http://" + ln.Addr().String() + "/v1  (Authorization: Bearer " + token + ")"
+	desc := "http://" + ln.Addr().String() + "/v1  (Authorization: Bearer " + prefix + "  — full token in " + filepath.Join(baseDir, "openai.token") + ")"
 	if !isLoopback(addr) {
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}
@@ -4947,7 +5010,12 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 // buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
 // mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
 // token, loopback warning). Returns the banner description or "".
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, draining *atomic.Bool, boardStore *board.Store, boardNotify func(board.Message, string), updateSvc *update.Service, stdout io.Writer) string {
+//
+// The minted bearer token is written to <baseDir>/rest.token with 0600 perms
+// and only a short prefix is shown in the banner — the FULL token must NEVER
+// appear on stdout/stderr where a log-shipper or `journalctl` would scrape it
+// (VULN banner-token-leak fix).
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, draining *atomic.Bool, boardStore *board.Store, boardNotify func(board.Message, string), updateSvc *update.Service, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""
@@ -4958,6 +5026,11 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		return ""
 	}
 	token := hex.EncodeToString(tokBytes)
+	prefix, tokErr := writeAPIListenToken(baseDir, "rest.token", token)
+	if tokErr != nil {
+		fmt.Fprintf(stdout, "  rest api         : disabled (token persist failed: %v)\n", tokErr)
+		return ""
+	}
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -5085,7 +5158,7 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		_ = srv.Shutdown(shutCtx)
 	}()
 
-	desc := "http://" + ln.Addr().String() + "/api/v1  (Authorization: Bearer " + token + ")"
+	desc := "http://" + ln.Addr().String() + "/api/v1  (Authorization: Bearer " + prefix + "  — full token in " + filepath.Join(baseDir, "rest.token") + ")"
 	if !isLoopback(addr) {
 		desc += "  [WARNING: not loopback — reachable beyond localhost]"
 	}

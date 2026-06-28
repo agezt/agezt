@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { eventsURL } from "@/lib/api";
+import { eventsURLAsync } from "@/lib/api";
 
 export interface AgentEvent {
   id?: string;
@@ -41,23 +41,34 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   const listeners = useRef<Set<(e: AgentEvent) => void>>(new Set());
 
   useEffect(() => {
-    const src = new EventSource(eventsURL);
-    src.onopen = () => setConnected(true);
-    src.onerror = () => setConnected(false);
-    src.onmessage = (m) => {
-      let ev: AgentEvent;
-      try {
-        ev = JSON.parse(m.data) as AgentEvent;
-      } catch {
-        return;
-      }
-      setEvents((prev) => {
-        const next = [ev, ...prev];
-        return next.length > MAX_FEED ? next.slice(0, MAX_FEED) : next;
-      });
-      listeners.current.forEach((fn) => fn(ev));
+    let src: EventSource | null = null;
+    let cancelled = false;
+
+    (async () => {
+      const url = await eventsURLAsync();
+      if (cancelled) return;
+      src = new EventSource(url);
+      src.onopen = () => setConnected(true);
+      src.onerror = () => setConnected(false);
+      src.onmessage = (m) => {
+        let ev: AgentEvent;
+        try {
+          ev = JSON.parse(m.data) as AgentEvent;
+        } catch {
+          return;
+        }
+        setEvents((prev) => {
+          const next = [ev, ...prev];
+          return next.length > MAX_FEED ? next.slice(0, MAX_FEED) : next;
+        });
+        listeners.current.forEach((fn) => fn(ev));
+      };
+    })();
+
+    return () => {
+      cancelled = true;
+      if (src) src.close();
     };
-    return () => src.close();
   }, []);
 
   // Stable across renders (the listener set is a ref), so consumers can use it

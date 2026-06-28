@@ -110,7 +110,7 @@ func (s *Server) providerCallback(w http.ResponseWriter, r *http.Request, login 
 		providerLoginPage(w, false, "Invalid or expired sign-in. Start again from the console.")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	if err := s.chatgptMgr().ExchangeCode(ctx, code, login.verifier); err != nil {
 		s.setProviderLoginStatus(login, "error", err.Error())

@@ -158,7 +158,7 @@ export function Inspector({ open, onClose }: { open: boolean; onClose: () => voi
   if (!open) return null;
 
   return (
-    <div className="flex shrink-0 flex-col border-t border-border/60 bg-background/95 backdrop-blur-sm">
+    <div className="flex max-h-[45vh] shrink-0 flex-col overflow-hidden rounded-t-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-2xl">
       {/* Header bar */}
       <div className="flex items-center gap-1.5 border-b border-border/40 px-2 py-1">
         {/* Tabs */}
@@ -386,7 +386,7 @@ export function InspectorClosedBar({
     <button
       onClick={onOpen}
       title="Open debug inspector (Ctrl+Shift+I)"
-      className="flex shrink-0 items-center gap-2 border-t border-border/30 bg-panel/60 px-3 py-0.5 text-[11px] text-muted/70 transition-colors hover:bg-panel hover:text-muted"
+      className="flex shrink-0 items-center gap-2 bg-panel/80 px-3 py-0.5 text-[11px] text-muted/70 backdrop-blur-sm transition-colors hover:bg-panel hover:text-muted"
     >
       <Bug className="size-3" />
       <span>LLM calls</span>

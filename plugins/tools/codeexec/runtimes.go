@@ -138,10 +138,14 @@ func scrubEnv(dir string) []string {
 			out = append(out, kv)
 		}
 	}
-	// Point HOME / temp at the work dir so scripts that write scratch files keep
-	// them inside the sandbox rather than the daemon user's real home.
+	// Point HOME / USERPROFILE / temp at the work dir so scripts that
+	// write scratch files keep them inside the sandbox rather than the
+	// daemon user's real home — where ~/.ssh, ~/.aws, ~/.gitconfig, and
+	// other host credentials live. `USERPROFILE` is the Windows equivalent
+	// of `HOME` (used by git, ssh, npm, PowerShell); harmless on Linux.
 	out = append(out,
 		"HOME="+dir,
+		"USERPROFILE="+dir,
 		"TMPDIR="+dir,
 		"TEMP="+dir,
 		"TMP="+dir,

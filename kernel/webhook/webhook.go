@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -260,6 +261,24 @@ func verb(kind event.Kind) string {
 // ">"). Whitespace around fields is trimmed. URLs must be http(s) and contain no
 // comma. A malformed entry is a hard error so a misconfigured webhook is caught
 // at startup, not silently dropped.
+
+// loopbackHost reports whether host is a loopback address (localhost name or
+// 127.0.0.0/8 / ::1 IP literal). Used by ParseSinks to permit http:// URLs
+// only for local development (no TLS cert needed on the dev machine).
+func loopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// Hostname — not a loopback literal.
+		// (A hostname that resolves to 127.x.x.x is a separate concern;
+		// the dial-level netguard blocks it unless AllowLoopback is set.)
+		return false
+	}
+	return ip.IsLoopback()
+}
+
 func ParseSinks(spec string) ([]Sink, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
@@ -288,6 +307,13 @@ func ParseSinks(spec string) ([]Sink, error) {
 		u, err := url.Parse(s.URL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return nil, fmt.Errorf("webhook: invalid URL %q (need http(s)://host…)", s.URL)
+		}
+		// Non-loopback sinks MUST use HTTPS so journal payloads are not
+		// exfiltrated in plaintext over the network. Loopback is exempt
+		// so local development (e.g. a local webhook listener) still
+		// works without a TLS cert.
+		if u.Scheme == "http" && !loopbackHost(u.Hostname()) {
+			return nil, fmt.Errorf("webhook: non-loopback sink %q must use https:// (http:// allowed only for loopback)", s.URL)
 		}
 		// A malformed subject filter never matches any event, so the sink would
 		// silently deliver nothing. Reject it at parse time instead (M217).

@@ -959,7 +959,7 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	case CmdChannelOAuthStart:
 		s.handleChannelOAuthStart(conn, req)
 	case CmdChannelOAuthCallback:
-		s.handleChannelOAuthCallback(conn, req)
+		s.handleChannelOAuthCallback(ctx, conn, req)
 	case CmdChannelOAuthStatus:
 		s.handleChannelOAuthStatus(conn, req)
 	case CmdProviderOAuthStart:

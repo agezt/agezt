@@ -30,9 +30,7 @@ func scrubEnv(dir string) []string {
 		"PATH": true, "PATHEXT": true, "COMSPEC": true,
 		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
 		"NUMBER_OF_PROCESSORS": true, "PROCESSOR_ARCHITECTURE": true,
-		// User/identity vars many tools need to locate config (git, ssh, npm…)
-		// — none secret-bearing; secret-shaped names are still dropped below.
-		"USERPROFILE": true, "USERNAME": true, "HOMEDRIVE": true, "HOMEPATH": true,
+		"USERNAME": true, // cosmetic only; operator display name, no path
 		"LANG": true,
 	}
 	var out []string
@@ -49,10 +47,16 @@ func scrubEnv(dir string) []string {
 			out = append(out, kv)
 		}
 	}
-	// Point HOME / temp at the work dir so scratch files land in the workspace
-	// rather than the daemon user's real home.
+	// Point HOME / USERPROFILE / temp at the work dir so scratch files
+	// land in the workspace rather than the daemon user's real home —
+	// where ~/.ssh, ~/.aws, ~/.gitconfig, cloud CLI tokens, and other
+	// host credentials live. On Windows, `USERPROFILE` is the canonical
+	// equivalent of `HOME` — software like git, ssh, npm, and PowerShell
+	// uses it to locate per-user config. On Unix it is harmless (unused
+	// by most tooling but set alongside HOME for consistency).
 	out = append(out,
 		"HOME="+dir,
+		"USERPROFILE="+dir,
 		"TMPDIR="+dir,
 		"TEMP="+dir,
 		"TMP="+dir,

@@ -47,6 +47,12 @@ type sseTransport struct {
 	sseURL     string
 	deliver    transportDeliver
 
+	// policy gates the announced POST URL against cross-origin pivots
+	// and blocked IP ranges (VULN mcp-sse-ssrf-pivot). Built once at
+	// construct time from the operator-supplied sseURL and the
+	// MCPBRIDGE_ALLOW_* env vars.
+	policy sseEndpointPolicy
+
 	mu      sync.Mutex
 	postURL string // set after the endpoint event arrives
 	closed  bool
@@ -67,6 +73,10 @@ func newSSETransport(ctx context.Context, sseURL string, deliver transportDelive
 	if _, err := url.Parse(sseURL); err != nil {
 		return nil, fmt.Errorf("sse mcp: bad URL %q: %w", sseURL, err)
 	}
+	policy, err := buildSSEEndpointPolicy(sseURL)
+	if err != nil {
+		return nil, fmt.Errorf("sse mcp: %w", err)
+	}
 	t := &sseTransport{
 		httpClient: &http.Client{
 			// No client-side timeout: the SSE stream is long-lived
@@ -75,6 +85,7 @@ func newSSETransport(ctx context.Context, sseURL string, deliver transportDelive
 		},
 		sseURL:        sseURL,
 		deliver:       deliver,
+		policy:        policy,
 		endpointReady: make(chan struct{}),
 	}
 
@@ -134,7 +145,10 @@ func (t *sseTransport) send(req jsonrpcReq) error {
 	// Drain body so connection can be reused. Server typically
 	// returns 202 Accepted with empty body; the JSON-RPC reply
 	// arrives on the SSE stream, not in this response.
-	_, _ = io.Copy(io.Discard, resp.Body)
+	// Bound the read to 4 KiB — a hostile MCP endpoint streaming
+	// endless junk ties up the bridge for the full 90s timeout
+	// (VULN mcp-sse-unbounded-io).
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<12))
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("sse mcp: POST returned %s", resp.Status)
 	}
@@ -242,27 +256,26 @@ func (t *sseTransport) readLoop(ctx context.Context) {
 }
 
 // dispatchEvent routes one parsed SSE event. Two event types matter:
-//   - "endpoint": one-shot; the data is the POST URL. We resolve
-//     it against the SSE URL if relative, store it, and wake the
-//     constructor.
+//   - "endpoint": one-shot; the data is the POST URL. We resolve it
+//     against the SSE URL if relative, validate the result against the
+//     SSRF policy (VULN mcp-sse-ssrf-pivot — the remote server tells
+//     us this URL, so it MUST be same-origin with the SSE URL and must
+//     NOT resolve into loopback / RFC1918 / cloud-metadata space unless
+//     the operator opted in), then store it and wake the constructor.
 //   - "message" (default): the data is one JSON-RPC frame.
 func (t *sseTransport) dispatchEvent(eventType, data string) {
 	switch eventType {
 	case "endpoint":
-		postURL := strings.TrimSpace(data)
-		if !strings.HasPrefix(postURL, "http://") && !strings.HasPrefix(postURL, "https://") {
-			// Relative URL — resolve against the SSE URL's origin.
-			base, err := url.Parse(t.sseURL)
-			if err != nil {
-				t.signalEndpoint(fmt.Errorf("sse mcp: bad sseURL for endpoint resolution: %w", err))
-				return
-			}
-			rel, err := url.Parse(postURL)
-			if err != nil {
-				t.signalEndpoint(fmt.Errorf("sse mcp: bad endpoint URL %q: %w", postURL, err))
-				return
-			}
-			postURL = base.ResolveReference(rel).String()
+		postURL, err := resolveEndpoint(t.sseURL, data, t.policy)
+		if err != nil {
+			// Refuse the announced URL and tear the transport down —
+			// a malicious endpoint event is exactly the SSRF pivot
+			// vector this guard exists to stop. onTransportDead
+			// wakes the constructor's deliver with a fatal error.
+			t.signalEndpoint(fmt.Errorf("sse mcp: endpoint rejected: %w", err))
+			t.deliver.onTransportDead(fmt.Errorf("sse mcp: server announced rejected endpoint: %w", err))
+			t.close()
+			return
 		}
 		t.mu.Lock()
 		t.postURL = postURL

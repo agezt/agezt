@@ -285,7 +285,7 @@ func (a *auditSink) has(k event.Kind) bool {
 }
 
 func TestParseSinks(t *testing.T) {
-	sinks, err := ParseSinks("https://h/a|agent.>|sec, http://h2/b , https://h3/c|edict.>")
+	sinks, err := ParseSinks("https://h/a|agent.>|sec, https://h2/b , https://h3/c|edict.>")
 	if err != nil {
 		t.Fatal(err)
 	}

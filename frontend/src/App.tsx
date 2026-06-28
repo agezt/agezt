@@ -673,7 +673,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={200}>
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col relative">
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} items={commands} />
       <HelpDrawer
         open={helpOpen}
@@ -860,7 +860,7 @@ export default function App() {
             )}
           </div>
         </nav>
-        <main className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        <main className="min-h-0 flex-1 overflow-auto p-3 pb-7 sm:p-4 sm:pb-7">
           {/* Keyed remount so each view fades + rises in on navigation. The
               `#agent/<slug>` detail route (M960) takes over the main area. */}
           <div
@@ -881,9 +881,13 @@ export default function App() {
       </div>
     </div>
     {inspectorOpen ? (
-      <Inspector open onClose={() => setInspectorOpen(false)} />
+      <div className="absolute bottom-0 left-0 right-0 z-40 flex flex-col">
+        <Inspector open onClose={() => setInspectorOpen(false)} />
+      </div>
     ) : (
-      <InspectorClosedBar onOpen={() => setInspectorOpen(true)} activeLlmCount={activeLlmCount} />
+      <div className="absolute bottom-0 left-0 right-0 z-40">
+        <InspectorClosedBar onOpen={() => setInspectorOpen(true)} activeLlmCount={activeLlmCount} />
+      </div>
     )}
     </TooltipProvider>
   );

@@ -14,9 +14,13 @@ describe("api helpers", () => {
     vi.restoreAllMocks();
   });
 
-  it("adds token query params for EventSource-style URLs", async () => {
-    const { withToken } = await import("@/lib/api");
-    expect(withToken("/events", { tail: "1" })).toBe("/events?tail=1&token=tok-123");
+  it("eventsURLAsync returns /events URL with ephemeral SSE token", async () => {
+    const { eventsURLAsync } = await import("@/lib/api");
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ token: "sse-secret" }))) as typeof fetch;
+    const url = await eventsURLAsync();
+    expect(url).toContain("/events?st=");
+    expect(url).not.toContain("token="); // main token never in URL
+    expect(url).toContain("sse-secret");
   });
 
   it("adds Authorization headers for fetch calls", async () => {

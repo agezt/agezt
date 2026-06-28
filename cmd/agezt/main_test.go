@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	stdruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -564,5 +566,58 @@ func TestBoardSubjectSlug(t *testing.T) {
 		if got := boardSubjectSlug(in); got != want {
 			t.Errorf("boardSubjectSlug(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestWriteAPIListenToken is the regression guard for VULN banner-token-leak:
+// the helper must write the FULL token to a 0600 file under baseDir and return
+// only a short prefix for surfacing in the boot banner. If this test ever
+// returns the full token in `prefix` or writes world/group-readable perms,
+// the banner leak is back.
+func TestWriteAPIListenToken(t *testing.T) {
+	baseDir := t.TempDir()
+	const full = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" // 64 hex
+	prefix, err := writeAPIListenToken(baseDir, "openai.token", full)
+	if err != nil {
+		t.Fatalf("writeAPIListenToken: %v", err)
+	}
+	// Prefix must be a short slice of the full token, never the full thing.
+	if prefix == full {
+		t.Fatalf("prefix equals full token: %q", prefix)
+	}
+	if strings.Contains(prefix, full[4:len(full)-4]) {
+		t.Fatalf("prefix %q contains interior of token (likely full leak)", prefix)
+	}
+	// Format: first 4 + "…" + last 4.
+	want := full[:4] + "…" + full[len(full)-4:]
+	if prefix != want {
+		t.Errorf("prefix = %q, want %q", prefix, want)
+	}
+	// File must contain the full token (operator reads it from disk).
+	got, rerr := os.ReadFile(filepath.Join(baseDir, "openai.token"))
+	if rerr != nil {
+		t.Fatalf("read token file: %v", rerr)
+	}
+	if strings.TrimSpace(string(got)) != full {
+		t.Errorf("token file content = %q, want %q", string(got), full)
+	}
+	// File perms: 0600 owner-only. Skip the check on Windows where
+	// syscall.Umask is unreliable and the per-user base dir is the real
+	// boundary; unix is where the 0600 actually bites.
+	if stdruntime.GOOS != "windows" {
+		st, serr := os.Stat(filepath.Join(baseDir, "openai.token"))
+		if serr != nil {
+			t.Fatalf("stat token file: %v", serr)
+		}
+		if mode := st.Mode().Perm(); mode != 0o600 {
+			t.Errorf("token file mode = %o, want 0600", mode)
+		}
+	}
+	// Negative: empty inputs must error rather than write a bad file.
+	if _, err := writeAPIListenToken("", "x", full); err == nil {
+		t.Errorf("empty baseDir: expected error, got nil")
+	}
+	if _, err := writeAPIListenToken(baseDir, "x", ""); err == nil {
+		t.Errorf("empty token: expected error, got nil")
 	}
 }

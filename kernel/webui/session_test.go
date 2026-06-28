@@ -86,7 +86,10 @@ func TestPasswordGate_AlternativeDoor(t *testing.T) {
 	s.SetPasswordFn(func() string { return "hunter2" })
 
 	// Token alone still opens data routes (it is a door, not a half-key).
-	req := httptest.NewRequest(http.MethodGet, "/api/status?token=secret", nil)
+	// Uses the Authorization header — query string token is no longer
+	// accepted for non-/events routes (VULN query-string-token fix).
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

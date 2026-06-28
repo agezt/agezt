@@ -13,6 +13,84 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// TestPulse_ReplayRate_AbortsOnContextCancel is the regression guard
+// for BUG ctx-unaware-sleep (audit M1.nn fix): a rate-limited replay
+// MUST abort promptly when its context is cancelled, even if the next
+// rate-limit sleep has not elapsed. Before the fix, the replay used a
+// bare `time.Sleep(minInterval - elapsed)` which ignored ctx.Done();
+// for a low replayRateEPS a daemon shutdown could be delayed by up to
+// `minInterval` per event.
+func TestPulse_ReplayRate_AbortsOnContextCancel(t *testing.T) {
+	// 8 scripted responses — each kernel.Run below will get a
+	// fresh response. We don't care what the responses are; we
+	// only need enough journal events for a 1eps replay to have
+	// at least one rate-limit sleep in flight when we cancel.
+	k, _, c, _ := startPair(t, mock.New(
+		mock.FinalText("a"), mock.FinalText("b"),
+		mock.FinalText("c"), mock.FinalText("d"),
+		mock.FinalText("e"), mock.FinalText("f"),
+		mock.FinalText("g"), mock.FinalText("h"),
+	))
+	// Stuff the journal with enough events that a low replay rate
+	// guarantees a sleep is in flight when we cancel.
+	for i := 0; i < 4; i++ {
+		if _, _, err := k.Run(context.Background(), "warm-up"); err != nil {
+			t.Fatalf("run %d: %v", i, err)
+		}
+	}
+	head, _ := k.Journal().Head()
+	if head < 8 {
+		t.Skipf("not enough events to test pacing (head=%d)", head)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// 1 event/sec → minInterval = 1s. We cancel halfway through the
+	// first inter-event sleep, so a buggy implementation would take
+	// ~1s to return; a correct one returns in well under 200ms.
+	var (
+		mu    sync.Mutex
+		count int
+	)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+			map[string]any{
+				"pattern":     ">",
+				"since":       0,
+				"until":       head,
+				"replay_rate": 1.0, // events/sec → 1s between events
+			},
+			func(e *event.Event) {
+				if e.IsEphemeral() {
+					return
+				}
+				mu.Lock()
+				count++
+				mu.Unlock()
+			})
+	}()
+
+	// Give the subscription a moment to register, then cancel
+	// mid-replay.
+	time.Sleep(100 * time.Millisecond)
+	cancelStart := time.Now()
+	cancel()
+
+	select {
+	case <-errCh:
+		elapsed := time.Since(cancelStart)
+		// We slept ~100ms before cancel; the buggy code would then
+		// sleep another ~900ms before waking. A correct ctx-aware
+		// sleep wakes within ~50ms of cancel.
+		if elapsed > 500*time.Millisecond {
+			t.Errorf("replay honoured %v after ctx cancel — expected <500ms (ctx-unaware sleep leaked)", elapsed)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("rate-limited replay did not abort within 2s of ctx cancel")
+	}
+}
+
 // TestPulse_ReplayRate_PacesEvents verifies that --replay-rate
 // actually slows replay. Setting rate=10eps with several events
 // should take a measurable fraction of a second; without the

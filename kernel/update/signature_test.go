@@ -68,17 +68,28 @@ func signHex(t *testing.T, priv ed25519.PrivateKey, version, sumHex string) stri
 
 const fakeSum = "0000000000000000000000000000000000000000000000000000000000000001"
 
-// TestVerifySignature_NoKeyConfigured — with no trusted key, verification is a
-// no-op (SHA256-only mode). The backward-compatible default must never reject
-// an unsigned release on its own.
+// TestVerifySignature_NoKeyConfigured — the policy depends on the source.
+// SourceGitHub tolerates a missing key (its trust anchor is GitHub
+// Releases' TLS + asset integrity). SourceEndpoint REFUSES a missing key:
+// a self-supplied checksum is not a trust anchor (UPD-001).
 func TestVerifySignature_NoKeyConfigured(t *testing.T) {
 	_ = SetPublicKey("")
 	DefaultPublicKeyHex = ""
 	svc := New(Config{})
-	info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum} // no Signature
-	if err := svc.verifySignature(info); err != nil {
-		t.Errorf("verifySignature with no key: got %v, want nil", err)
-	}
+
+	t.Run("github source accepts no-key unsigned", func(t *testing.T) {
+		info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum} // no Signature
+		if err := svc.verifySignature(info, SourceGitHub); err != nil {
+			t.Errorf("verifySignature(GitHub, no key): got %v, want nil", err)
+		}
+	})
+
+	t.Run("endpoint source refuses no-key unsigned", func(t *testing.T) {
+		info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum} // no Signature
+		if err := svc.verifySignature(info, SourceEndpoint); !errors.Is(err, ErrSignatureKeyNotConfigured) {
+			t.Errorf("verifySignature(Endpoint, no key): got %v, want ErrSignatureKeyNotConfigured", err)
+		}
+	})
 }
 
 // TestVerifySignature_Valid — a correctly signed release verifies.
@@ -90,7 +101,7 @@ func TestVerifySignature_Valid(t *testing.T) {
 		SHA256:    fakeSum,
 		Signature: signHex(t, priv, "1.2.3", fakeSum),
 	}
-	if err := svc.verifySignature(info); err != nil {
+	if err := svc.verifySignature(info, SourceEndpoint); err != nil {
 		t.Errorf("verifySignature(valid): got %v, want nil", err)
 	}
 }
@@ -100,7 +111,7 @@ func TestVerifySignature_Missing(t *testing.T) {
 	withKey(t)
 	svc := New(Config{})
 	info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum}
-	if err := svc.verifySignature(info); !errors.Is(err, ErrSignatureMissing) {
+	if err := svc.verifySignature(info, SourceEndpoint); !errors.Is(err, ErrSignatureMissing) {
 		t.Errorf("verifySignature(missing sig): got %v, want ErrSignatureMissing", err)
 	}
 }
@@ -116,7 +127,7 @@ func TestVerifySignature_TamperedHash(t *testing.T) {
 		SHA256:    other, // differs from what was signed
 		Signature: signHex(t, priv, "1.2.3", fakeSum),
 	}
-	err := svc.verifySignature(info)
+	err := svc.verifySignature(info, SourceEndpoint)
 	var invalid *ErrSignatureInvalid
 	if !errors.As(err, &invalid) {
 		t.Errorf("verifySignature(tampered hash): got %v, want *ErrSignatureInvalid", err)
@@ -136,7 +147,7 @@ func TestVerifySignature_WrongKey(t *testing.T) {
 		SHA256:    fakeSum,
 		Signature: signHex(t, priv, "1.2.3", fakeSum), // signed by the first key
 	}
-	if err := svc.verifySignature(info); err == nil {
+	if err := svc.verifySignature(info, SourceEndpoint); err == nil {
 		t.Error("verifySignature(wrong key): got nil, want *ErrSignatureInvalid")
 	}
 }
@@ -146,7 +157,7 @@ func TestVerifySignature_BadHex(t *testing.T) {
 	withKey(t)
 	svc := New(Config{})
 	info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum, Signature: "not-hex!!"}
-	if err := svc.verifySignature(info); err == nil {
+	if err := svc.verifySignature(info, SourceEndpoint); err == nil {
 		t.Error("verifySignature(bad hex): got nil, want *ErrSignatureInvalid")
 	}
 }
@@ -221,4 +232,80 @@ func TestApply_SignatureGate(t *testing.T) {
 			t.Fatal("Apply(missing sig): got nil, want signature error")
 		}
 	})
+}
+
+// TestApply_EndpointSourceRefusedWithoutKey is the live regression guard
+// for VULN self-update-integrity (UPD-001): an endpoint-sourced update
+// MUST be refused when no release-signing public key is configured. The
+// endpoint supplies its own SHA256, so without a signature there's no
+// trust anchor — a compromised endpoint would serve {malicious binary,
+// matching sha256} and pass SHA validation.
+//
+// The companion test TestApply_GitHubSourceAcceptsNoKey covers the
+// SourceGitHub path (different policy: GitHub Releases' TLS + asset
+// integrity is the trust anchor).
+func TestApply_EndpointSourceRefusedWithoutKey(t *testing.T) {
+	// Ensure no key is configured for the duration of this test.
+	_ = SetPublicKey("")
+	prev := DefaultPublicKeyHex
+	DefaultPublicKeyHex = ""
+	t.Cleanup(func() {
+		_ = SetPublicKey("")
+		DefaultPublicKeyHex = prev
+	})
+
+	bin := []byte("the malicious binary the endpoint would like us to install")
+	sumArr := sha256.Sum256(bin)
+	sum := hex.EncodeToString(sumArr[:])
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(bin)
+	}))
+	defer srv.Close()
+
+	svc := New(Config{Source: SourceEndpoint, BaseDir: t.TempDir()})
+	info := &UpdateInfo{
+		Version: "9.9.9",
+		SHA256:  sum, // self-supplied checksum matches the malicious binary
+		URL:     srv.URL,
+		// Signature deliberately omitted — this is the UPD-001 vector.
+	}
+	err := svc.Apply(context.Background(), info, noDrain)
+	if err == nil {
+		t.Fatal("Apply(Endpoint, no key): got nil, want signature-required error")
+	}
+	if !errors.Is(err, ErrSignatureKeyNotConfigured) {
+		t.Errorf("Apply(Endpoint, no key): got %v, want ErrSignatureKeyNotConfigured", err)
+	}
+}
+
+// TestApply_GitHubSourceAcceptsNoKey — SourceGitHub updates continue to
+// apply when no signing key is embedded, because their trust anchor is
+// GitHub Releases' TLS + asset integrity, not a self-supplied checksum.
+// GitHub Releases don't ship signatures today, so refusing them would
+// break every existing GitHub-sourced deployment (UPD-001 must not
+// regress a working configuration).
+func TestApply_GitHubSourceAcceptsNoKey(t *testing.T) {
+	_ = SetPublicKey("")
+	prev := DefaultPublicKeyHex
+	DefaultPublicKeyHex = ""
+	t.Cleanup(func() {
+		_ = SetPublicKey("")
+		DefaultPublicKeyHex = prev
+	})
+
+	bin := []byte("legitimate agezt binary served by GitHub Releases")
+	sumArr := sha256.Sum256(bin)
+	sum := hex.EncodeToString(sumArr[:])
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(bin)
+	}))
+	defer srv.Close()
+
+	svc := New(Config{Source: SourceGitHub, BaseDir: t.TempDir()})
+	info := &UpdateInfo{Version: "9.9.9", SHA256: sum, URL: srv.URL} // no Signature
+	if err := svc.Apply(context.Background(), info, noDrain); err != nil {
+		t.Fatalf("Apply(GitHub, no key): %v", err)
+	}
 }

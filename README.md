@@ -113,7 +113,7 @@ the catalog, prompts for a provider key, and prints your exact start command.
 The full manual flow:
 
 ```bash
-# 1. Build (puts agt + agezt in ./bin), or `make install` to put them on PATH:
+# 1. Build (produces agt + agezt in the current directory), or `make install` to put them on PATH:
 make build
 
 # 2. Sync the model catalog. Works OFFLINE — no daemon needed:

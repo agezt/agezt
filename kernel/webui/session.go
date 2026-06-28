@@ -154,6 +154,19 @@ func (s *Server) sessionValid(r *http.Request) bool {
 	return s.sessions.valid(c.Value)
 }
 
+// handleSSEToken returns the ephemeral SSE-only token (VULN query-string-
+// token fix): the SPA wraps it as ?st=<token> in the EventSource URL for
+// /events, so the main console bearer token never appears in a URL query
+// string. This handler is itself token-gated (auth), so only an already-
+// authenticated caller learns the SSE token.
+func (s *Server) handleSSEToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": s.sseToken})
+}
+
 // handleAuthMeta tells the SPA whether a password gate exists and whether this
 // request can already reach the data routes — so it knows to render the login
 // screen. Token-FREE (M933): a token-less browser must be able to probe before

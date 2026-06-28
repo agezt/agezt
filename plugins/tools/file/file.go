@@ -312,16 +312,19 @@ func (t *Tool) doWrite(in fileInput, appendMode bool) (agent.Result, error) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return errResult("mkdir parent: " + err.Error()), nil
 	}
-	// oNoFollow closes the narrow TOCTOU between resolve() and this open: a
-	// concurrent process could plant a symlink at p after the in-root check, and a
-	// plain O_CREATE would follow it out of the workspace (M427 follow-up).
-	flag := os.O_WRONLY | os.O_CREATE | oNoFollow
+	// openFileNoFollow closes the narrow TOCTOU between resolve() and the
+	// open: a concurrent process could plant a symlink/reparse-point at p
+	// after the in-root check, and a plain O_CREATE would follow it out of
+	// the workspace (M427 follow-up). On unix this is a kernel-enforced flag
+	// (O_NOFOLLOW); on Windows the opened handle's final path is resolved
+	// via GetFinalPathNameByHandle and verified against t.root.
+	flag := os.O_WRONLY | os.O_CREATE
 	if appendMode {
 		flag |= os.O_APPEND
 	} else {
 		flag |= os.O_TRUNC
 	}
-	f, err := os.OpenFile(p, flag, 0o644)
+	f, err := openFileNoFollow(p, flag, 0o644, t.root)
 	if err != nil {
 		return errResult("open: " + err.Error()), nil
 	}

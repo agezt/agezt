@@ -21,11 +21,25 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+// TestMain sets the SSE guard opt-ins for the test process so the SSE
+// transport accepts the loopback httptest.Server endpoints the existing
+// tests stand up. In production the bridge defaults to DENY loopback /
+// private — only an operator who explicitly runs `MCPBRIDGE_ALLOW_LOOPBACK=1`
+// (or `_ALLOW_PRIVATE=1`) gets through. The tests below are simulating that
+// operator opt-in at process start; per-test isolation is unnecessary because
+// the env var is read once at newSSETransport construction.
+func TestMain(m *testing.M) {
+	os.Setenv("MCPBRIDGE_ALLOW_LOOPBACK", "1")
+	os.Setenv("MCPBRIDGE_ALLOW_PRIVATE", "1")
+	os.Exit(m.Run())
+}
 
 // captureDeliver records every transport callback so the test can
 // assert on them.
@@ -278,5 +292,121 @@ func TestSSETransport_EndpointTimeoutSurfacesError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "endpoint") {
 		t.Errorf("err should mention endpoint: %v", err)
+	}
+}
+
+// TestSSETransport_RejectsPivotEndpoint is the live regression guard for
+// VULN mcp-sse-ssrf-pivot: a malicious MCP server announces an endpoint
+// URL whose origin differs from the SSE URL. The transport MUST refuse the
+// URL and signal death — silently accepting it would let the server pivot
+// the bridge into POSTing to attacker.com instead of the trusted SSE host.
+//
+// Scoped with t.Setenv so it runs against the secure default (the TestMain
+// in this file only enables the opt-ins for the loopback-server tests
+// above — t.Setenv wins for this specific test).
+func TestSSETransport_RejectsPivotEndpoint(t *testing.T) {
+	// A "trusted" SSE server that announces a cross-origin endpoint.
+	// We use loopback for the SSE host (allowed by TestMain) but the
+	// announced endpoint URL uses a different scheme (https) — that is
+	// already a pivot attempt even on the same host.
+	trusted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(200)
+		flusher, _ := w.(http.Flusher)
+		// Cross-scheme pivot: SSE came in over http, announced POST is https.
+		fmt.Fprintf(w, "event: endpoint\ndata: https://%s/messages\n\n", r.Host)
+		if flusher != nil {
+			flusher.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer trusted.Close()
+
+	dc := newCaptureDeliver()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// newSSETransport itself succeeds (the SSE GET opens), but the
+	// endpoint event triggers the guard and the transport tears down.
+	tx, err := newSSETransport(ctx, trusted.URL, dc)
+	if err != nil {
+		// Acceptable: guard could fire so fast that the constructor
+		// observes the failure before returning. Both outcomes prove
+		// the pivot was caught.
+		if !strings.Contains(err.Error(), "rejected") && !strings.Contains(err.Error(), "scheme") {
+			t.Fatalf("expected rejection error, got: %v", err)
+		}
+		return
+	}
+	defer tx.close()
+
+	select {
+	case <-dc.deadCh:
+		dc.mu.Lock()
+		derr := dc.dead
+		dc.mu.Unlock()
+		if derr == nil {
+			t.Fatal("transport died without an error message")
+		}
+		if !strings.Contains(derr.Error(), "scheme") && !strings.Contains(derr.Error(), "rejected") {
+			t.Errorf("death reason should mention scheme/rejected pivot, got: %v", derr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("transport did not die after cross-origin endpoint event")
+	}
+
+	// send after a guarded death must error rather than silently POST to
+	// the pivot URL.
+	id := int64(1)
+	if err := tx.send(jsonrpcReq{JSONRPC: "2.0", ID: &id, Method: "x"}); err == nil {
+		t.Error("send should error after transport died from pivot rejection")
+	}
+}
+
+// TestSSETransport_RejectsPivotEndpointToDifferentHost covers the harder
+// case: the SSE host and the announced endpoint share scheme + port but
+// have a different hostname. (Same-host different-port is covered in the
+// unit tests in sse_guard_test.go; this is the live "attacker hosts the
+// SSE GET on the operator's domain but redirects POSTs to attacker.com"
+// scenario.)
+func TestSSETransport_RejectsPivotEndpointToDifferentHost(t *testing.T) {
+	trusted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(200)
+		flusher, _ := w.(http.Flusher)
+		// Same scheme + same implicit port, different hostname.
+		fmt.Fprintf(w, "event: endpoint\ndata: http://attacker.example.com/messages\n\n")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer trusted.Close()
+
+	dc := newCaptureDeliver()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	tx, err := newSSETransport(ctx, trusted.URL, dc)
+	if err != nil {
+		if !strings.Contains(err.Error(), "rejected") && !strings.Contains(err.Error(), "host") {
+			t.Fatalf("expected host-pivot rejection, got: %v", err)
+		}
+		return
+	}
+	defer tx.close()
+
+	select {
+	case <-dc.deadCh:
+		dc.mu.Lock()
+		derr := dc.dead
+		dc.mu.Unlock()
+		if derr == nil {
+			t.Fatal("transport died without an error message")
+		}
+		if !strings.Contains(derr.Error(), "host") && !strings.Contains(derr.Error(), "rejected") {
+			t.Errorf("death reason should mention host/rejected pivot, got: %v", derr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("transport did not die after cross-host endpoint event")
 	}
 }

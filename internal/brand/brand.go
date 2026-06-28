@@ -38,7 +38,28 @@ const (
 // plus a federated mesh (peer discovery, capability-aware routing, failover,
 // bounded delegation) and multi-tenant isolation, fused so each tenant
 // federates to its own peer set. See CHANGELOG.md.
+//
+// Overridable at build time via:
+//
+//	go build -ldflags '-X github.com/agezt/agezt/internal/brand.Version=1.2.3'
+//
+// The Makefile and scripts/build.sh do this automatically; the default
+// below is used only when a developer runs `go build` without ldflags.
 var Version = "1.0.0"
+
+// BuildCommit is the short git SHA the binary was built from. Empty when
+// not stamped — operators can detect "this build wasn't from CI" via
+// BuildInfo() which surfaces the empty value alongside the runtime VCS
+// info (debug.ReadBuildInfo). Stamped via:
+//
+//	go build -ldflags '-X github.com/agezt/agezt/internal/brand.BuildCommit=$(git rev-parse --short HEAD)'
+var BuildCommit = ""
+
+// BuildTime is the RFC3339 UTC timestamp of the build. Empty when not
+// stamped; callers should fall back to debug.ReadBuildInfo().Stamped via:
+//
+//	go build -ldflags '-X github.com/agezt/agezt/internal/brand.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+var BuildTime = ""
 
 // BuildInfo returns the VCS revision, commit time, and dirty flag that `go
 // build` embeds automatically when building from a git checkout (no ldflags
@@ -46,6 +67,13 @@ var Version = "1.0.0"
 // the semver above is bumped only per release, so it can't distinguish two
 // dev builds. Empty revision means the binary was built without VCS info
 // (e.g. `go build -buildvcs=false` or from a tarball).
+//
+// BuildCommit and BuildTime are referenced here so that an `-X` ldflag
+// stamp of those package-level vars actually reaches the binary: Go's
+// linker applies dead-code elimination and an unreferenced `var` is
+// stripped before the data-section patch has anything to overwrite.
+// Calling these at runtime from any path that lives in `main` is enough
+// to keep them in the data section.
 func BuildInfo() (revision, committed string, modified bool) {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -62,4 +90,14 @@ func BuildInfo() (revision, committed string, modified bool) {
 		}
 	}
 	return revision, committed, modified
+}
+
+// BuildStamp returns the three identity values stamped by the Makefile /
+// scripts/build.sh ldflag injection: the version, the short git commit,
+// and the RFC3339 UTC build timestamp. BuildCommit / BuildTime are
+// empty when the build wasn't stamped (e.g. `go build` without ldflags
+// or a tarball build) — callers should pair this with BuildInfo() to
+// disambiguate "unstamped dev build" from "stamped dev build".
+func BuildStamp() (version, commit, buildTime string) {
+	return Version, BuildCommit, BuildTime
 }
