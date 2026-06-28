@@ -26,9 +26,11 @@ function getSSEToken(): Promise<string> {
         const body = (await res.json()) as { token?: string };
         if (!body.token) throw new Error("empty sse token");
         return body.token;
-      } catch {
-        // Fallback: use the main token in the query (pre-fix behavior).
-        // The server still accepts ?token= for /events as a transition aid.
+      } catch (err) {
+        // Fallback: use main console token. If that's also empty (no ?token=
+        // in URL — e.g. password login), the EventSource URL won't carry a
+        // token and the backend falls back to session-cookie auth.
+        sseTokenPromise = null; // allow retry (e.g. after login)
         return TOKEN;
       }
     })();
