@@ -123,8 +123,7 @@ export function SuggestionsBar({
             title={s.prompt}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1",
-              "text-xs font-medium transition-colors cursor-pointer",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              "text-xs font-medium transition-colors cursor-pointer focus-glow",
               "animate-in fade-in slide-in-from-top-2 duration-300",
               meta.chipClass,
             )}

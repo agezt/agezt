@@ -72,10 +72,10 @@ export function CommandPalette({ open, onClose, items }: { open: boolean; onClos
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]" onClick={onClose}>
       <div
-        className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+        className="w-full max-w-xl overflow-hidden rounded-xl bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-border px-3">
+        <div className="flex items-center gap-2 px-3">
           <Search className="size-4 shrink-0 text-muted" />
           <input
             ref={inputRef}
@@ -83,10 +83,11 @@ export function CommandPalette({ open, onClose, items }: { open: boolean; onClos
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKey}
             placeholder="Jump to a view, run an action, open a run…"
-            className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+            className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted focus-glow"
           />
           <kbd className="rounded border border-border px-1.5 py-0.5 text-xs text-muted">esc</kbd>
         </div>
+        <div className="gradient-rule" />
         <ul ref={listRef} className="max-h-[55vh] overflow-auto py-1">
           {results.length === 0 ? (
             <li className="px-3 py-6 text-center text-sm text-muted">no matches</li>
