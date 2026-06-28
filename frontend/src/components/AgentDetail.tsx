@@ -1572,7 +1572,7 @@ function AgentDetailTabButton({
       aria-current={active ? "page" : undefined}
       onClick={() => onSelect(t.id)}
       className={cn(
-        "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-glow",
         active ? "bg-card text-foreground shadow-e1" : "text-muted hover:bg-card/60 hover:text-foreground",
       )}
     >

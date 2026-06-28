@@ -368,7 +368,7 @@ function RunList({
               onChange={(e) => setQ(e.target.value)}
               placeholder="filter runs…"
               aria-label="Filter runs"
-              className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-8 text-xs text-foreground outline-none focus-visible:border-accent"
+              className="h-7 w-48 rounded-md border border-border bg-panel pl-7 pr-8 text-xs text-foreground outline-none focus-glow"
             />
             {query && (
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">

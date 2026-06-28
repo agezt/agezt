@@ -730,16 +730,14 @@ export default function App() {
                   aria-label={g.label}
                   className={cn(
                     "relative flex size-11 shrink-0 flex-col items-center justify-center gap-0 rounded-xl transition-all duration-150",
-                    on ? "scale-[1.03] shadow-e1 ring-1 ring-inset" : "hover:scale-[1.02] hover:bg-panel",
+                    on ? "scale-[1.04] shadow-e2" : "hover:scale-[1.02] hover:bg-panel",
                   )}
                   style={
                     on
                       ? {
-                          background: `linear-gradient(155deg, oklch(0.62 0.17 ${hue} / 0.3), oklch(0.6 0.16 ${hue} / 0.08))`,
-                          // Mid-lightness so the label reads on BOTH the dark gradient
-                          // tint and a light background (M982 light-mode fix).
-                          color: `oklch(0.58 0.17 ${hue})`,
-                          boxShadow: `inset 0 0 0 1px oklch(0.62 0.16 ${hue} / 0.5), 0 6px 18px -8px oklch(0.6 0.16 ${hue} / 0.5)`,
+                          background: `linear-gradient(155deg, oklch(0.65 0.18 ${hue} / 0.35), oklch(0.6 0.16 ${hue} / 0.08))`,
+                          color: `oklch(0.62 0.18 ${hue})`,
+                          boxShadow: `inset 0 0 0 1px oklch(0.62 0.16 ${hue} / 0.5), 0 0 20px -4px oklch(0.6 0.16 ${hue} / 0.4)`,
                         }
                       : { color: `oklch(0.6 0.14 ${hue})` }
                   }

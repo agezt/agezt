@@ -593,7 +593,7 @@ export function Agents() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search agents…"
-            className="w-44 rounded-full border border-border bg-card py-1 pl-7 pr-2 text-xs outline-none focus:border-accent"
+            className="w-44 rounded-full border border-border bg-card py-1 pl-7 pr-2 text-xs outline-none focus-glow"
           />
         </div>
       </div>

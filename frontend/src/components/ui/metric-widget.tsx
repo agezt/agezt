@@ -48,7 +48,7 @@ export function MetricWidget({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-e1",
+        "flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-e1 transition-shadow hover:shadow-e2",
         className,
       )}
     >
