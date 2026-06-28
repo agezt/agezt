@@ -249,7 +249,7 @@ export function Chat() {
       <aside className="hidden w-52 shrink-0 flex-col border-r border-border/50 pr-3 md:flex">
         <button
           onClick={startNewChat}
-          className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent hover:text-white"
+          className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md bg-accent/10 px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent hover:text-white"
         >
           <Plus className="size-3.5" /> New chat
         </button>
@@ -261,7 +261,7 @@ export function Chat() {
               onChange={(e) => setConvFilter(e.target.value)}
               placeholder="Search chats…"
               aria-label="Search conversations"
-              className="h-7 w-full rounded-md border border-border bg-panel pl-7 pr-6 text-xs outline-none focus:border-accent"
+              className="h-7 w-full rounded-md bg-panel/60 pl-7 pr-6 text-xs outline-none ring-1 ring-border/50 focus:ring-accent/60"
             />
             {convFilter && (
               <button
@@ -309,7 +309,7 @@ export function Chat() {
             </span>
             <button
               onClick={startNewChat}
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+              className="inline-flex items-center gap-1 rounded-md bg-panel/60 px-2 py-1 text-xs text-muted shadow-sm transition-colors hover:bg-panel hover:text-foreground"
             >
               <Plus className="size-3.5" /> New chat
             </button>
@@ -598,7 +598,7 @@ export function ConversationItem({
             }
           }}
           aria-label="Conversation title"
-          className="min-w-0 flex-1 rounded border border-accent/40 bg-panel px-1 text-xs outline-none"
+          className="min-w-0 flex-1 rounded bg-panel px-1 text-xs outline-none ring-1 ring-accent/40"
         />
       ) : (
         <>
