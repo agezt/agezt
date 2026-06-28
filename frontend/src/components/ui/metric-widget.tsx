@@ -74,7 +74,7 @@ export function MetricWidget({
       </div>
 
       {/* Big number */}
-      <div className={cn("text-3xl font-bold tabular-nums tracking-tight", toneCls)}>
+      <div className={cn("text-3xl font-bold tabular-nums tracking-normal", toneCls)}>
         {value}
       </div>
     </div>

@@ -109,7 +109,7 @@ body {
   font-family: var(--font-sans);
   font-size: 13.5px;
   line-height: 1.55;
-  letter-spacing: -0.006em;
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }

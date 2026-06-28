@@ -35,7 +35,7 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={cn("text-xs font-semibold uppercase tracking-wider text-muted", className)}
+      className={cn("text-xs font-semibold uppercase tracking-normal text-muted", className)}
       {...props}
     />
   );

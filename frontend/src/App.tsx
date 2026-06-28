@@ -745,7 +745,7 @@ export default function App() {
                   }
                 >
                   <g.icon className="size-5" />
-                  <span className="text-[8px] font-semibold leading-none tracking-tight">{g.label}</span>
+                  <span className="text-[8px] font-semibold leading-none tracking-normal">{g.label}</span>
                   {isActiveSection && !on && (
                     <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.62 0.16 ${hue})` }} />
                   )}
@@ -762,7 +762,7 @@ export default function App() {
           {/* Secondary item list for the selected section */}
           <div className="flex min-w-0 max-w-full flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
             <div
-              className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest lg:flex"
+              className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-normal lg:flex"
               style={{ color: `oklch(0.6 0.14 ${sectionHue(shownGroup.id)})` }}
             >
               <shownGroup.icon className="size-3.5" />

@@ -28,7 +28,7 @@ export function PageHeader({
         </span>
       )}
       <div className="min-w-0">
-        <h2 className="text-gradient text-base font-bold leading-tight tracking-tight">{title}</h2>
+        <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">{title}</h2>
         {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}

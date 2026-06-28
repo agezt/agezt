@@ -94,7 +94,7 @@ export function Advanced({
     <Disclosure
       defaultOpen={defaultOpen}
       className={className}
-      summary={<span className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</span>}
+      summary={<span className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</span>}
     >
       {children}
     </Disclosure>
