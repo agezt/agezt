@@ -721,14 +721,14 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
             key={`${p.title}-${i}`}
             onClick={() => onPick(p.text)}
             title={hasSaved || fromMemory ? p.text : undefined}
-            className="rounded-full border border-border bg-panel/60 px-3 py-1 text-xs text-muted shadow-e1 transition-all hover:-translate-y-0.5 hover:border-accent hover:bg-accent/10 hover:text-accent"
+            className="rounded-full bg-panel/60 px-3 py-1 text-xs text-muted shadow-e1 transition-all hover:-translate-y-0.5 hover:bg-accent/10 hover:text-accent"
           >
             {p.title}
           </button>
         ))}
       </div>
-      {hasSaved && <p className="text-[11px] text-muted/70">your saved prompts · manage in System → Prompts</p>}
-      {fromMemory && <p className="text-[11px] text-muted/70">drawn from your agent's memory</p>}
+      {hasSaved && <p className="text-xs text-muted/70">your saved prompts · manage in System → Prompts</p>}
+      {fromMemory && <p className="text-xs text-muted/70">drawn from your agent's memory</p>}
     </div>
   );
 }
@@ -754,8 +754,8 @@ function QueuePanel({
   onSendNow: () => void;
 }) {
   return (
-    <div className="mb-2 rounded-lg border border-border bg-panel/40 p-2">
-      <div className="mb-1.5 flex items-center gap-2 px-0.5 text-[11px] text-muted">
+    <div className="mb-2 rounded-lg bg-panel/40 p-2">
+      <div className="mb-1.5 flex items-center gap-2 px-0.5 text-xs text-muted">
         <ListPlus className="size-3.5" />
         <span className="font-medium text-foreground/80">Queue</span>
         <span className="rounded-full bg-card px-1.5 tabular-nums">{queue.length}</span>
@@ -766,7 +766,7 @@ function QueuePanel({
       </div>
       <ol className="space-y-1">
         {queue.map((m, i) => (
-          <li key={m.id} className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs">
+          <li key={m.id} className="flex items-center gap-1.5 rounded-md bg-card px-2 py-1 text-xs">
             <span className="w-4 shrink-0 text-center font-mono text-xs text-muted">{i + 1}</span>
             <span className="min-w-0 flex-1 truncate" title={m.text}>{m.text}</span>
             {!busy && i === 0 && (
@@ -995,7 +995,7 @@ export function AssistantBubble({
 
         {turn.status === "error" && (
           <div className="space-y-2">
-            <div className="flex items-start gap-2 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
+            <div className="flex items-start gap-2 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <span className="break-words">{turn.error || "the run failed"}</span>
             </div>
@@ -1241,7 +1241,7 @@ export function FallbackNote({ hops }: { hops: { from: string; to: string }[] })
   // Collapse consecutive hops into one path: a→b, b→c ⇒ a → b → c.
   const path: string[] = hops.length ? [hops[0].from, ...hops.map((h) => h.to)] : [];
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-warn/30 bg-warn/5 px-2 py-1 text-xs text-warn">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-warn/5 px-2 py-1 text-xs text-warn">
       <CornerDownRight className="size-3.5 shrink-0" />
       <span className="font-medium">{hops.length === 1 ? "fell back" : `fell back ${hops.length}×`}</span>
       <span className="font-mono text-foreground/70">{path.join(" → ")}</span>
@@ -1613,7 +1613,7 @@ export function CompactionNote({ events }: { events: TurnCompaction[] }) {
   const rescuedCount = events.reduce((a, e) => a + (e.skillRescuedCount || 0), 0);
   const rescuedChars = events.reduce((a, e) => a + (e.skillRescuedChars || 0), 0);
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-panel/40 px-2 py-1 text-xs text-muted">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-panel/40 px-2 py-1 text-xs text-muted">
       <Scissors className="size-3.5 shrink-0" />
       <span className="font-medium text-foreground/80">context compacted</span>
       <span>
