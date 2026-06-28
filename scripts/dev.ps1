@@ -1,9 +1,9 @@
 # dev.ps1 - one-shot dev loop: isolated home + seeded vault + build + run.
 #
-#   .\scripts\dev.ps1              build agezt.exe/agt.exe, seed .dev-home, run the daemon
-#   .\scripts\dev.ps1 -Fresh       wipe .dev-home first (clean vault/journal/state)
-#   .\scripts\dev.ps1 -SkipBuild   reuse bin\*.exe from the last build
-#   .\scripts\dev.ps1 -WebAddr 127.0.0.1:9000   serve the console elsewhere
+#   .\dev.ps1                      build .\agezt.exe / .\agt.exe, seed .dev-home, run the daemon
+#   .\dev.ps1 -Fresh               wipe .dev-home first (clean vault/journal/state)
+#   .\dev.ps1 -SkipBuild           reuse .\agezt.exe / .\agt.exe from the last build
+#   .\dev.ps1 -WebAddr 127.0.0.1:9000   serve the console elsewhere
 #
 # Frontend commands must be run from the repo's frontend directory:
 #   cd .\frontend
@@ -31,9 +31,8 @@ $ScriptDir = $PSScriptRoot
 $Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
 $DevHome = Join-Path $Root ".dev-home"
-$Bin = Join-Path $Root "bin"
-$Agezt = Join-Path $Bin "agezt.exe"
-$Agt = Join-Path $Bin "agt.exe"
+$Agezt = Join-Path $Root "agezt.exe"
+$Agt = Join-Path $Root "agt.exe"
 
 function Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 
@@ -67,7 +66,7 @@ if (Test-Path $EnvFile) {
 
 # --- isolated home
 if ($Fresh -and (Test-Path $DevHome)) { Step "wiping $DevHome"; Remove-Item -Recurse -Force $DevHome }
-New-Item -ItemType Directory -Force -Path $DevHome, $Bin | Out-Null
+New-Item -ItemType Directory -Force -Path $DevHome | Out-Null
 $env:AGEZT_HOME = $DevHome
 
 # pass-through env the daemon reads; everything else stays out of the process env
@@ -97,7 +96,7 @@ if (-not $SkipBuild) {
 
 # --- build
 if (-not $SkipBuild) {
-    Step "go build agezt.exe + agt.exe"
+    Step "go build .\agezt.exe + .\agt.exe"
     go build -o $Agezt ./cmd/agezt; if ($LASTEXITCODE -ne 0) { exit 1 }
     go build -o $Agt ./cmd/agt;   if ($LASTEXITCODE -ne 0) { exit 1 }
 }
