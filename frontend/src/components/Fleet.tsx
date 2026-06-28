@@ -470,7 +470,7 @@ export function FleetCard({
 
 function FleetInfo({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
-    <div className="min-w-0 rounded-lg border border-border bg-panel/35 px-2 py-1.5">
+    <div className="min-w-0 rounded-lg bg-panel/35 px-2 py-1.5">
       <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
       <div className={cn("truncate text-sm text-foreground/85", mono && "font-mono")} title={value || ""}>
         {value || "-"}
@@ -517,7 +517,7 @@ export function FleetDetail({
   const num = (k: string) => (raw && typeof raw[k] === "number" ? (raw[k] as number) : undefined);
 
   return (
-    <aside className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border border-border bg-card p-3 lg:w-96 lg:shrink-0">
+    <aside className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg bg-card p-3 shadow-e1 lg:w-96 lg:shrink-0">
       <div className="flex items-start gap-2">
         <AgentAvatar slug={e.slug} name={e.name} size={36} status={e.running ? "running" : e.retired ? "retired" : undefined} />
         <div className="min-w-0 flex-1">
@@ -531,7 +531,7 @@ export function FleetDetail({
         </div>
         <button
           onClick={onClose}
-          className="shrink-0 rounded-md border border-border p-1 text-muted hover:border-accent hover:text-foreground"
+          className="shrink-0 rounded-md p-1 text-muted hover:bg-panel hover:text-foreground"
           title="Close"
         >
           <X className="size-3.5" />
@@ -541,7 +541,7 @@ export function FleetDetail({
       {e.description && <p className="text-sm text-muted">{e.description}</p>}
 
       {/* The hero: how this comes alive. */}
-      <div className="rounded-lg border border-accent/40 bg-accent/5 p-2.5">
+      <div className="rounded-lg bg-accent/8 p-2.5">
         <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <Activity className="size-3" /> How does this run?
         </div>
@@ -577,7 +577,7 @@ export function FleetDetail({
       </div>
 
       {/* Kind-specific config. */}
-      <div className="space-y-1.5 rounded-lg border border-border bg-panel/30 p-2.5">
+      <div className="space-y-1.5 rounded-lg bg-panel/30 p-2.5">
         {e.kind === "roster" && (
           <>
             {profile && (
