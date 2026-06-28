@@ -246,7 +246,7 @@ export function Chat() {
         />
       )}
       {/* Conversation list — past threads, ChatGPT-style (desktop). */}
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-border pr-3 md:flex">
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-border/50 pr-3 md:flex">
         <button
           onClick={startNewChat}
           className="mb-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent hover:text-white"
@@ -302,7 +302,7 @@ export function Chat() {
       <div className="mx-auto flex h-full min-w-0 max-w-3xl flex-1 flex-col">
         {/* Small screens have no sidebar — keep a New chat affordance here. */}
         {messages.length > 0 && (
-          <div className="flex items-center justify-between border-b border-border pb-2 md:hidden">
+          <div className="flex items-center justify-between border-b border-border/50 pb-2 md:hidden">
             <span className="text-xs text-muted">
               {messages.filter((m) => m.role === "user").length} message
               {messages.filter((m) => m.role === "user").length === 1 ? "" : "s"}
@@ -385,7 +385,7 @@ export function Chat() {
         {/* Attachment feature preserved in state for future use */}
         {/* Composer surface (M995): input + controls in one elevated card that
             lights an accent ring on focus, like a modern chat composer. */}
-        <div className="rounded-xl border border-border bg-panel/40 px-2 py-1.5 shadow-e1 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+        <div className="rounded-xl bg-panel/40 px-2 py-1.5 shadow-e1 transition-[box-shadow] focus-within:shadow-e2 focus-within:ring-2 focus-within:ring-accent/20">
         <div className="flex items-end gap-2">
           <Button
             variant="ghost"
