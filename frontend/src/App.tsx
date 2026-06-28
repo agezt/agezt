@@ -715,7 +715,7 @@ export default function App() {
             horizontally. */}
         <nav className="flex min-w-0 shrink-0 overflow-hidden lg:border-r lg:border-border">
           {/* Section rail — colourful, glassy, one accent per section. */}
-          <div className="flex max-w-full shrink-0 gap-1.5 overflow-x-auto p-2 lg:flex-col lg:gap-2 lg:overflow-visible lg:border-r lg:border-border">
+          <div className="flex max-w-full shrink-0 gap-1 overflow-x-auto p-1.5 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:border-r lg:border-border">
             {NAV_GROUPS.map((g) => {
               const on = navSection === g.id;
               const isActiveSection = activeGroupId === g.id;
@@ -729,8 +729,8 @@ export default function App() {
                   title={g.label}
                   aria-label={g.label}
                   className={cn(
-                    "relative flex size-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl transition-all duration-150",
-                    on ? "scale-[1.04] shadow-e2 ring-1 ring-inset" : "hover:scale-[1.03] hover:bg-panel",
+                    "relative flex size-11 shrink-0 flex-col items-center justify-center gap-0 rounded-xl transition-all duration-150",
+                    on ? "scale-[1.03] shadow-e1 ring-1 ring-inset" : "hover:scale-[1.02] hover:bg-panel",
                   )}
                   style={
                     on
@@ -762,7 +762,7 @@ export default function App() {
           {/* Secondary item list for the selected section */}
           <div className="flex min-w-0 max-w-full flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
             <div
-              className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-normal lg:flex"
+              className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-xs font-bold uppercase tracking-normal lg:flex"
               style={{ color: `oklch(0.6 0.14 ${sectionHue(shownGroup.id)})` }}
             >
               <shownGroup.icon className="size-3.5" />
