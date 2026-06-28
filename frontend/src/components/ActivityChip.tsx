@@ -50,7 +50,7 @@ export function ActivityChip({ count, onClick }: { count: number; onClick?: () =
       title={n > 0 ? `${n} run${n === 1 ? "" : "s"} in flight — open the Overseer` : "working in the background — open the Overseer"}
       className={cn(
         "now-in glow-accent ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full",
-        "border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent",
+        "border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent",
         "transition-shadow hover:shadow-e2",
       )}
     >

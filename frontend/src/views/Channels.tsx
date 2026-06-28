@@ -387,9 +387,9 @@ function ConnectForm({
           </Button>
           {(gw.connected !== undefined || gw.status || gw.error) &&
             (gw.error ? (
-              <span className="text-[11px] text-bad">{gw.error}</span>
+              <span className="text-xs text-bad">{gw.error}</span>
             ) : (
-              <span className={cn("text-[11px]", gw.connected ? "text-good" : "text-warn")}>
+              <span className={cn("text-xs", gw.connected ? "text-good" : "text-warn")}>
                 {gw.connected ? "✓ logged in & ready" : `not logged in (${gw.status || "scan the QR"})`}
               </span>
             ))}

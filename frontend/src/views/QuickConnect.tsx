@@ -326,7 +326,7 @@ function PresetCard({
       {probe && (
         <span
           className={cn(
-            "text-[11px]",
+            "text-xs",
             probe.error ? "text-bad" : probe.authorized ? "text-good" : probe.reachable ? "text-warn" : "text-bad",
           )}
         >

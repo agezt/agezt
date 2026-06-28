@@ -777,7 +777,7 @@ export function Mcp() {
                 </span>
               )}
               {(s.tool_allow || []).length > 0 && (
-                <span className="text-[11px]" title="Only these tools are exposed to runs">
+                <span className="text-xs" title="Only these tools are exposed to runs">
                   tools: {(s.tool_allow || []).join(", ")}
                 </span>
               )}
