@@ -12,6 +12,12 @@ import path from "node:path";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+  server: {
+    proxy: {
+      "/api": { target: "http://127.0.0.1:8787", changeOrigin: true },
+      "/events": { target: "http://127.0.0.1:8787", changeOrigin: true, ws: false },
+    },
+  },
   build: {
     outDir: "../kernel/webui/dist",
     emptyOutDir: true,
