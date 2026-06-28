@@ -15,7 +15,7 @@ export function Card({
       className={cn(
         "flex min-h-0 flex-col overflow-hidden transition-[box-shadow,transform,border-color]",
         glass ? "glass rounded-xl" : "rounded-lg border border-border bg-card shadow-e1",
-        interactive && "cursor-pointer hover:-translate-y-0.5 hover:shadow-e3 hover:border-accent/40",
+        interactive && "card-lift cursor-pointer",
         className,
       )}
       {...props}

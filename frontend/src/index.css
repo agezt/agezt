@@ -170,6 +170,63 @@ body {
   letter-spacing: 0;
 }
 
+/* Interactive card lift — any clickable card gets a subtle raise + glow on
+   hover, so the UI feels tactile and alive without being distracting. */
+.card-lift {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.18s ease;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-3);
+}
+.card-lift:active {
+  transform: translateY(0);
+}
+
+/* Soft accent glow for focusable elements (inputs, buttons). */
+.focus-glow {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.focus-glow:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 25%, transparent);
+}
+
+/* A warm gradient hairline for section dividers — replaces plain borders
+   with a living edge that transitions from transparent → accent → transparent. */
+.gradient-rule {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--accent) 30%, transparent) 30%,
+    color-mix(in oklch, var(--accent-2) 25%, transparent) 70%,
+    transparent 100%
+  );
+}
+
+/* Soft pill button for secondary actions — a translucent accent fill that
+   glows on hover, friendlier than a bare outline. */
+.pill-soft {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  color: var(--accent);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.pill-soft:hover {
+  background: color-mix(in oklch, var(--accent) 20%, transparent);
+  box-shadow: 0 0 12px -2px color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
 /* React Flow surface blends with the theme. */
 .react-flow__attribution {
   display: none;

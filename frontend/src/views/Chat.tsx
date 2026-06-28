@@ -905,10 +905,10 @@ export function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: str
           <Pencil className="size-3.5" />
         </button>
       )}
-      <div className="max-w-[85%] rounded-xl rounded-br-sm bg-accent/15 px-3.5 py-2 text-sm text-foreground whitespace-pre-wrap break-words">
+      <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-accent/15 px-4 py-2.5 text-sm text-foreground whitespace-pre-wrap break-words shadow-sm">
         {text}
       </div>
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-muted">
+      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/20 to-accent/5 text-accent shadow-sm">
         <User className="size-4" />
       </div>
     </div>
@@ -957,7 +957,7 @@ export function AssistantBubble({
       {agent ? (
         <AgentAvatar slug={agent} size={28} status={streaming ? "running" : undefined} className="mt-0.5" />
       ) : (
-        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/25 to-accent2/10 text-accent shadow-sm ring-1 ring-inset ring-accent/20">
           <Sparkles className="size-4" />
         </div>
       )}

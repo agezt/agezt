@@ -344,8 +344,8 @@ export function FleetCard({
       onKeyDown={onCardKey}
       title={e.kind === "roster" ? `Open ${e.name}'s identity page` : `Open ${e.name}`}
       className={cn(
-        "group flex min-h-[230px] cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-left shadow-e1 transition-[border-color,box-shadow] hover:border-accent hover:shadow-e2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        e.running ? "border-accent/60" : "border-border",
+        "card-lift group flex min-h-[230px] cursor-pointer flex-col overflow-hidden rounded-xl bg-card text-left shadow-e1",
+        e.running ? "border border-accent/60" : "border border-border",
         (e.state === "paused" || e.state === "retired") && "opacity-60",
       )}
     >

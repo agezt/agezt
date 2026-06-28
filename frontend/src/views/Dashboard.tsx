@@ -444,7 +444,7 @@ function OverviewTab({
                   focusRun(r.id);
                   location.hash = "runs";
                 }}
-                className="flex flex-col gap-2 rounded-lg bg-panel/40 p-3 text-left transition-colors hover:bg-panel/70 hover:shadow-e1"
+                className="card-lift flex flex-col gap-2 rounded-lg bg-panel/40 p-3 text-left hover:bg-panel/70"
               >
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-accent animate-pulse" />
