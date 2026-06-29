@@ -1281,7 +1281,7 @@ func (s *Server) dataTokenPresented(r *http.Request) bool {
 	// Other data routes default to Bearer header / session cookie; the
 	// allowQueryTokensForData legacy flag preserves ?token= for test support.
 	if r.URL.Path == "/events" {
-		if s.tokenMatch(r.URL.Query().Get("st")) || s.tokenPresentedFrom(r, false) {
+		if s.sseTokenMatch(r.URL.Query().Get("st")) || s.tokenPresentedFrom(r, false) {
 			return true
 		}
 		// Fallback for programmatic / non-browser SSE clients that pass the
@@ -1331,6 +1331,17 @@ func (s *Server) authorized(r *http.Request) bool {
 // subtle.ConstantTimeCompare gate (server.go). Caller guarantees s.token != "".
 func (s *Server) tokenMatch(presented string) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1
+}
+
+// sseTokenMatch compares a presented token against the ephemeral SSE token
+// (minted once at startup). Used for the /events ?st= parameter — the browser's
+// EventSource API cannot set custom headers, so the SSE token travels in the
+// query string through a loopback-bound surface with no third party exposure.
+func (s *Server) sseTokenMatch(presented string) bool {
+	if s.sseToken == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(s.sseToken)) == 1
 }
 
 // handleSPA serves the embedded React single-page app. The hashed JS/CSS live
