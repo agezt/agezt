@@ -37,7 +37,14 @@ jobs:
       - name: Build sdist + wheel (dry-run validates packaging)
         run: |
           cd sdk/python
-          python -m pip install --upgrade build twine
+          # Pinned tool versions (VULN unpinned-build-tools). `build` 1.2.2
+          # and `twine` 6.1.0 are stable releases that support Python 3.9+
+          # (matching pyproject.toml's requires-python) and PEP 517/518.
+          # Bump deliberately, not on a floating `--upgrade` — a malicious
+          # or breaking release on PyPI would otherwise flow straight into
+          # the release pipeline and ship a tarball we never reviewed.
+          python -m pip install --upgrade pip
+          python -m pip install 'build==1.2.2' 'twine==6.1.0'
           python -m build
           python -m twine check dist/*
       - name: Publish to PyPI (only if the token is set)
