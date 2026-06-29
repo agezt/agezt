@@ -18,6 +18,8 @@
 /frontend/playwright-report/
 /frontend/blob-report/
 /frontend/.playwright/
+# ad-hoc frontend test output log captured from local Vitest runs
+/frontend/ftest.txt
 
 # python build/test artifacts
 __pycache__/
