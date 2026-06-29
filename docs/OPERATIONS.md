@@ -19,8 +19,10 @@ AGEZT as a resident process (server, VPS, or local workstation).
 | Readiness probe | `GET /readyz` | unauthenticated; can serve work (not halted) |
 | Metrics | `GET /metrics` (token-authed) | Prometheus text format; `agezt_` prefix |
 | Spend tracking | `agt budget [--json]` | global + per-task-type caps, strict-pricing posture |
-| Budget control | `agt budget set <amount\|0\|off>` | adjust daily ceiling at runtime |
+| Budget control | `agt budget set <amount\|0\|off>` | adjust global daily ceiling at runtime |
 | Budget check | `agt budget check [--task-type <t>]` | headroom before a run; exit 3 if exhausted |
+| Agent budget (per-run) | `agt agent add\|set --max-cost <usd>` | per-run spend cap per roster agent (0 = unlimited) |
+| Agent budget (per-day) | `agt agent add\|set --max-daily <usd>` | per-day spend cap per roster agent (0 = unlimited) |
 | Cache savings | `agt cache [--since <dur>] [--json]` | prompt-cache tokens + $ saved |
 | Event audit | `agt why <event_id> [--payload]` | walk the BLAKE3-hash-chain correlation |
 | Journal verify | `agt journal verify` | verify the hash chain integrity |
@@ -167,15 +169,126 @@ agt budget check --task-type coding # will the coding task-type cap allow it?
 Exit code `3` means the budget is exhausted — useful in CI/scripts to fail
 before submitting a run that would exceed the cap.
 
-### Strict pricing
+### Per-agent budget limits (roster profiles)
 
-```bash
-AGEZT_PRICING_STRICT=on ./bin/agezt
+Beyond the global daily ceiling, each roster agent carries its own optional
+per-run and per-day spend cap. These give fine-grained control when different
+agents have different cost tolerances.
+
+#### Default: unlimited
+
+A roster agent is born with **no budget limits** — `max_cost_mc` (per-run)
+and `max_daily_mc` (per-day) both default to `0`, which means **unlimited**:
+
+```
+agt agent add researcher
+agt agent show researcher --json | jq '.max_cost_mc, .max_daily_mc'
+# → 0
+# → 0
 ```
 
-When enabled, models with no known price are **refused** rather than silently
-charged $0. This prevents quiet budget bypass via unpriced models. The posture
-appears in `agt budget` output.
+The governor enforces these caps only when they are non-zero:
+- Per-run: `if maxCost > 0 { ctx = runtime.WithMaxCost(ctx, maxCost) }`
+- Per-day: `if req.AgentDailyCeilingMc > 0 { ... }`
+
+This is verified by `TestAdd_BudgetRemainsUnlimitedByDefault` in
+`kernel/roster/roster_test.go`.
+
+#### Setting agent budget caps
+
+**CLI — agent add:**
+```bash
+agt agent add researcher \
+  --max-cost 0.50         `# $0.50 per run` \
+  --max-daily 5.00        `# $5.00 per day`
+```
+
+**CLI — agent set (update):**
+```bash
+agt agent set researcher \
+  --max-cost 1.00         `# $1.00 per run` \
+  --max-daily 10.00       `# $10.00 per day`
+```
+
+**CLI — remove a cap (back to unlimited):**
+```bash
+agt agent set researcher --max-cost 0     # per-run: unlimited
+agt agent set researcher --max-daily 0    # per-day: unlimited
+```
+
+> `--max-cost` and `--max-daily` accept dollar amounts (`0.50`, `$1.00`).
+> `0` or a negative amount is a usage error — omit the flag entirely to
+> leave the current value unchanged.
+
+**API — capabilities patch (individual fields):**
+```json
+POST /api/agents/capabilities
+{ "ref": "researcher", "max_cost_mc": 500000000, "max_daily_mc": 1000000000 }
+```
+
+Microcent conversion: $1 = 1_000_000_000 µ¢ (stored as `int64` in
+`roster.Profile.MaxCostMc` / `MaxDailyMc`). Both fields are optional; omit
+to leave the existing value untouched.
+
+**API — agent edit (full profile):**
+```json
+POST /api/agents/edit
+{ "ref": "researcher", "profile": { "max_cost_mc": 500000000, "max_daily_mc": 1000000000 } }
+```
+
+> The edit endpoint uses a **PATCH** semantic (since commit `46427ea`):
+> only fields explicitly present in the JSON payload are applied. Omitting
+> `max_cost_mc` or `max_daily_mc` leaves them unchanged.
+
+#### How limits are enforced
+
+| Cap | Where | Effect |
+|---|---|---|
+| `MaxCostMc` (per-run) | `kernel/controlplane/server.go` `handleRun` at line 1686–1691 | `runtime.WithMaxCost` caps cumulative provider spend for that single run |
+| `MaxDailyMc` (per-day) | + `kernel/governor/governor.go` daily-budget pre-check at line 648 | Governor compares today's spend against the agent's daily ceiling before each completion; refuses with `ErrAgentBudgetExceeded` when hit |
+| Governor's `DailyCeilingMicrocents` (system-wide) | `kernel/governor/governor.go` at line 44, default $20 | Independent safety net — applies to ALL runs regardless of per-agent limits |
+
+The daily cap resets at UTC midnight. The per-run cap is reset per invocation
+(a new `agt run` or delegated sub-agent run gets a fresh budget).
+
+#### Agent identity ledger (M793)
+
+When a named roster agent runs, its `MaxDailyMc` is carried as the
+"agent identity" into every completion — including runs, delegated
+sub-agents, and standing firings — so ALL spend under that agent identity
+counts toward the same daily ceiling:
+
+```
+kernel/controlplane/server.go:1558
+  ctx = runtime.WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
+```
+
+This means a $2/day agent that delegates to 10 sub-agents still caps total
+spend at $2 across all of them.
+
+#### System guardians
+
+Shipped system agents (the daemon's own self-healing fleet) have **their own
+defaults** applied at profile creation:
+
+| Cap | Default | Constant |
+|---|---|---|
+| `MaxCostMc` | 50_000_000 µ¢ ($0.05) | `defaultSystemGuardianMaxCostMc` |
+| `MaxDailyMc` | 50_000_000 µ¢ ($0.05) | `defaultSystemGuardianMaxDailyMc` |
+
+These are applied by `applySystemGuardianDefaults()` in
+`kernel/roster/roster.go` and enforced by `TestAdd_SystemGuardianDefaults*`
+tests. They can be overridden via CLI or API like any other agent.
+
+#### Unit tests
+
+| Test | File | What it covers |
+|---|---|---|
+| `TestAdd_BudgetRemainsUnlimitedByDefault` | `kernel/roster/roster_test.go` | Regular agents have `MaxCostMc=0`, `MaxDailyMc=0` (unlimited); explicit caps are honored |
+| `TestAdd_AssignsIdentityAndDefaults` | `kernel/roster/roster_test.go` | Budget defaults (0) are part of the identity defaults check |
+| `TestAdd_SystemGuardianDefaultsQuietCappedAndIsolated` | `kernel/roster/roster_test.go` | System guardians get their own budget defaults |
+| `TestUpdate_SystemGuardianCannotLoosenQuietDefaults` | `kernel/roster/roster_test.go` | System guardian budgets are re-raised on edit |
+| `TestAgentCapabilities_PatchesResourceAuthority` | `kernel/controlplane/roster_test.go` | Budget fields can be patched via capabilities endpoint |
 
 ---
 

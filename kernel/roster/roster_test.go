@@ -112,8 +112,46 @@ func TestAdd_AssignsIdentityAndDefaults(t *testing.T) {
 	if p.Name != "researcher" {
 		t.Fatalf("name should default to slug, got %q", p.Name)
 	}
+	// Budget: MaxCostMc and MaxDailyMc default to 0 (unlimited).
+	if p.MaxCostMc != 0 {
+		t.Fatalf("MaxCostMc should default to 0 (unlimited), got %d", p.MaxCostMc)
+	}
+	if p.MaxDailyMc != 0 {
+		t.Fatalf("MaxDailyMc should default to 0 (unlimited), got %d", p.MaxDailyMc)
+	}
 	if _, err := s.Add(Profile{Slug: "researcher"}); err == nil {
 		t.Fatal("duplicate slug accepted")
+	}
+}
+
+// TestAdd_BudgetRemainsUnlimitedByDefault: a regular (non-system) agent's
+// per-run and per-day budget is 0 (unlimited) unless explicitly set — users
+// should never be forced to enter low numbers to "disable" budget limits.
+func TestAdd_BudgetRemainsUnlimitedByDefault(t *testing.T) {
+	s := openStore(t)
+
+	// Agent without any budget fields: both stay 0 (unlimited).
+	p, err := s.Add(Profile{Slug: "unlimited-agent", Soul: "No budget limits."})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if p.MaxCostMc != 0 {
+		t.Fatalf("MaxCostMc = %d, want 0 (unlimited)", p.MaxCostMc)
+	}
+	if p.MaxDailyMc != 0 {
+		t.Fatalf("MaxDailyMc = %d, want 0 (unlimited)", p.MaxDailyMc)
+	}
+
+	// Agent with explicit budget caps: limits are honored.
+	capped, err := s.Add(Profile{Slug: "capped-agent", MaxCostMc: 500_000_000, MaxDailyMc: 1_000_000_000})
+	if err != nil {
+		t.Fatalf("Add capped: %v", err)
+	}
+	if capped.MaxCostMc != 500_000_000 {
+		t.Fatalf("MaxCostMc = %d, want 500_000_000", capped.MaxCostMc)
+	}
+	if capped.MaxDailyMc != 1_000_000_000 {
+		t.Fatalf("MaxDailyMc = %d, want 1_000_000_000", capped.MaxDailyMc)
 	}
 }
 
