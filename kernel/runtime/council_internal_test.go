@@ -4,8 +4,11 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
@@ -112,6 +115,141 @@ func TestCouncil_UsesDefaultMembershipAndRejectsEmpty(t *testing.T) {
 	// Empty question → error.
 	if _, err := k.Council(context.Background(), "c3", "   ", nil, 1); err == nil {
 		t.Error("empty question should error")
+	}
+}
+
+// councilCapturingProvider records every user prompt it's given (concurrency-safe)
+// so a test can prove the grounding (date + brief) reached each member and the
+// chair. It also answers as the chair when its System mentions "chair".
+type councilCapturingProvider struct {
+	mu      sync.Mutex
+	prompts []string
+}
+
+func (p *councilCapturingProvider) Name() string { return "council-capture" }
+func (p *councilCapturingProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	p.mu.Lock()
+	for _, m := range req.Messages {
+		if m.Role == agent.RoleUser {
+			p.prompts = append(p.prompts, m.Content)
+		}
+	}
+	p.mu.Unlock()
+	text := "noted."
+	if strings.Contains(strings.ToLower(req.System), "chair") {
+		text = "CONSENSUS: ok.\nDISSENT: none"
+	}
+	return &agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, Content: text}, StopReason: agent.StopEndTurn}, nil
+}
+
+// allPromptsContain reports whether every captured user prompt includes sub (and
+// at least one was captured).
+func (p *councilCapturingProvider) allPromptsContain(sub string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, pr := range p.prompts {
+		if !strings.Contains(pr, sub) {
+			return false
+		}
+	}
+	return len(p.prompts) > 0
+}
+
+// fakeSearchTool stands in for the web_search tool, returning a fixed result page
+// in the websearch wire shape and counting its calls.
+type fakeSearchTool struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (f *fakeSearchTool) Definition() agent.ToolDef { return agent.ToolDef{Name: "web_search"} }
+func (f *fakeSearchTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
+	f.mu.Lock()
+	f.calls++
+	f.mu.Unlock()
+	return agent.Result{Output: `{"query":"q","count":1,"results":[{"title":"Mars news","url":"https://example.com/mars","snippet":"A rover landed."}]}`}, nil
+}
+func (f *fakeSearchTool) callCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.calls }
+
+func openGroundedCouncil(t *testing.T, prov agent.Provider, members []CouncilMember, tools map[string]agent.Tool, ws bool) *Kernel {
+	t.Helper()
+	k, err := Open(Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Tools:            tools,
+		CouncilMembers:   func() []CouncilMember { return members },
+		CouncilWebSearch: ws,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	return k
+}
+
+func TestCouncil_GroundsWithDateAndBrief(t *testing.T) {
+	prov := &councilCapturingProvider{}
+	tool := &fakeSearchTool{}
+	members := []CouncilMember{{Seat: "Alpha", Model: "model-a"}, {Seat: "Beta", Model: "model-b"}}
+	k := openGroundedCouncil(t, prov, members, map[string]agent.Tool{"web_search": tool}, true)
+
+	res, err := k.Council(context.Background(), "corr-ground", "is there water on mars?", nil, 1)
+	if err != nil {
+		t.Fatalf("Council: %v", err)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	if res.AsOf != today {
+		t.Errorf("AsOf = %q, want %q", res.AsOf, today)
+	}
+	if !strings.Contains(res.Brief, "Mars news") || !strings.Contains(res.Brief, "rover landed") {
+		t.Errorf("brief missing search hit: %q", res.Brief)
+	}
+	// One shared search for the whole panel, not one per member/round.
+	if c := tool.callCount(); c != 1 {
+		t.Errorf("web_search called %d times, want 1 (shared brief)", c)
+	}
+	// Every member + chair prompt carried the date and the brief.
+	if !prov.allPromptsContain(today) {
+		t.Error("not all prompts carried today's date")
+	}
+	if !prov.allPromptsContain("Mars news") {
+		t.Error("not all prompts carried the research brief")
+	}
+	// council.brief event published exactly once for the live UI.
+	var briefs int
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind == event.KindCouncilBrief {
+			briefs++
+		}
+		return nil
+	})
+	if briefs != 1 {
+		t.Errorf("council.brief events = %d, want 1", briefs)
+	}
+}
+
+func TestCouncil_DateOnlyWhenSearchDisabled(t *testing.T) {
+	prov := &councilCapturingProvider{}
+	tool := &fakeSearchTool{}
+	k := openGroundedCouncil(t, prov, []CouncilMember{{Seat: "Solo", Model: "model-x"}}, map[string]agent.Tool{"web_search": tool}, false)
+
+	res, err := k.Council(context.Background(), "c-off", "q", nil, 0)
+	if err != nil {
+		t.Fatalf("Council: %v", err)
+	}
+	if res.Brief != "" {
+		t.Errorf("brief should be empty when web search off: %q", res.Brief)
+	}
+	if c := tool.callCount(); c != 0 {
+		t.Errorf("web_search must not be called when off, got %d", c)
+	}
+	today := time.Now().Format("2006-01-02")
+	if res.AsOf != today {
+		t.Errorf("date should still be set: %q", res.AsOf)
+	}
+	if !prov.allPromptsContain(today) {
+		t.Error("date should still reach every prompt when search off")
 	}
 }
 

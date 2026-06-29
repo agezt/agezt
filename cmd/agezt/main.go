@@ -1147,6 +1147,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return out
 	}
 
+	// Ground the Council of Elders in current facts: today's date for every seat
+	// plus a shared web research brief (via the always-registered web_search tool).
+	// Default on; AGEZT_COUNCIL_WEBSEARCH=off convenes the panel with the date only.
+	cfg.CouncilWebSearch = !strings.EqualFold(os.Getenv(brand.EnvPrefix+"COUNCIL_WEBSEARCH"), "off")
+
 	var openErr error
 	k, openErr = kernelruntime.Open(cfg)
 	if openErr != nil {

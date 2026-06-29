@@ -12,9 +12,11 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
@@ -45,6 +47,13 @@ type CouncilResult struct {
 	Opinions  []Opinion       `json:"opinions"`
 	Consensus string          `json:"consensus"`
 	Dissent   string          `json:"dissent,omitempty"`
+	// AsOf is the date the council convened on (YYYY-MM-DD), given to every seat so
+	// the panel reasons with a current clock instead of a stale training cutoff.
+	AsOf string `json:"as_of,omitempty"`
+	// Brief is the dated web research brief that grounded the panel (empty when web
+	// search is disabled, has no tool, or returned nothing). Surfaced so an operator
+	// can see what evidence the council was given.
+	Brief string `json:"brief,omitempty"`
 }
 
 const (
@@ -61,6 +70,9 @@ const (
 	// keeping the hash-chained journal from bloating on a long answer. ~4k runes
 	// comfortably holds a councilOpinionMaxTokens turn.
 	councilEventTextMax = 4000
+	// councilBriefResults is how many web hits the research brief carries — enough
+	// to ground the panel without flooding every seat's prompt.
+	councilBriefResults = 6
 )
 
 // CouncilDefaultMembers returns the daemon-configured default membership (one
@@ -104,12 +116,22 @@ func (k *Kernel) Council(ctx context.Context, corr, question string, members []C
 	})
 
 	result := CouncilResult{Question: question, Members: members, Rounds: rounds}
+
+	// Ground the panel in current facts: today's date for every seat, plus a web
+	// research brief (shared, so all members argue over the same evidence). The
+	// brief is best-effort — a missing tool or a flaky search leaves it empty and
+	// the council still convenes with the date.
+	today, brief := k.councilGrounding(ctx, corr, question)
+	grounding := councilGroundingPreamble(today, brief)
+	result.AsOf = today
+	result.Brief = brief
+
 	// latest[i] is member i's most recent opinion text (for peer context).
 	latest := make([]string, len(members))
 
 	// Round 0: independent opening positions.
 	round0 := k.councilRound(ctx, corr, members, 0, func(_ int) string {
-		return councilOpeningPrompt(question)
+		return grounding + councilOpeningPrompt(question)
 	})
 	for i, op := range round0 {
 		latest[i] = op.Text
@@ -120,7 +142,7 @@ func (k *Kernel) Council(ctx context.Context, corr, question string, members []C
 	for r := 1; r <= rounds; r++ {
 		snapshot := append([]string(nil), latest...)
 		opinions := k.councilRound(ctx, corr, members, r, func(i int) string {
-			return councilDeliberatePrompt(question, members, snapshot, i)
+			return grounding + councilDeliberatePrompt(question, members, snapshot, i)
 		})
 		for i, op := range opinions {
 			if strings.TrimSpace(op.Text) != "" {
@@ -131,7 +153,7 @@ func (k *Kernel) Council(ctx context.Context, corr, question string, members []C
 	}
 
 	// Consensus: the chair (first member) synthesizes the final positions.
-	consensus, dissent := k.councilSynthesize(ctx, corr, question, members, latest)
+	consensus, dissent := k.councilSynthesize(ctx, corr, grounding, question, members, latest)
 	result.Consensus = consensus
 	result.Dissent = dissent
 	k.councilPublish(corr, event.KindCouncilConsensus, map[string]any{
@@ -190,9 +212,10 @@ func (k *Kernel) councilRound(ctx context.Context, corr string, members []Counci
 
 // councilSynthesize asks the chair (members[0]) to fold the final positions into
 // a consensus, then splits an optional "DISSENT:" tail.
-func (k *Kernel) councilSynthesize(ctx context.Context, corr, question string, members []CouncilMember, finals []string) (consensus, dissent string) {
+func (k *Kernel) councilSynthesize(ctx context.Context, corr, grounding, question string, members []CouncilMember, finals []string) (consensus, dissent string) {
 	chair := members[0]
 	var b strings.Builder
+	b.WriteString(grounding)
 	fmt.Fprintf(&b, "Question:\n%s\n\nThe council members' FINAL positions:\n\n", question)
 	for i, m := range members {
 		fmt.Fprintf(&b, "[%s]\n%s\n\n", m.Seat, strings.TrimSpace(orPlaceholder(finals[i])))
@@ -224,6 +247,111 @@ func (k *Kernel) councilPublish(corr string, kind event.Kind, payload map[string
 		CorrelationID: corr,
 		Payload:       payload,
 	})
+}
+
+// --- grounding (current date + web research brief) ---
+
+// councilHit is one parsed web_search result folded into the research brief.
+type councilHit struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
+}
+
+// councilGrounding builds the panel's grounding for this convening: today's date
+// (always) and a shared web research brief (when CouncilWebSearch is on and a
+// web_search tool is present in cfg.Tools). The brief is best-effort — any failure
+// or empty result yields no brief and the council still convenes with the date. It
+// publishes a council.brief event so the live Web UI can show what evidence the
+// panel was given.
+func (k *Kernel) councilGrounding(ctx context.Context, corr, question string) (today, brief string) {
+	today = time.Now().Format("2006-01-02")
+	if !k.cfg.CouncilWebSearch {
+		return today, ""
+	}
+	tool, ok := k.cfg.Tools["web_search"]
+	if !ok || tool == nil {
+		return today, ""
+	}
+	hits := councilSearch(ctx, tool, question)
+	if len(hits) == 0 {
+		return today, ""
+	}
+	brief = renderBrief(today, hits)
+	k.councilPublish(corr, event.KindCouncilBrief, map[string]any{
+		"as_of":   today,
+		"count":   len(hits),
+		"results": hits,
+		"text":    clip(brief, councilEventTextMax),
+	})
+	return today, brief
+}
+
+// councilSearch runs the question through the web_search tool and returns the
+// parsed hits. Fail-soft: a tool error, an error result, or unparseable output all
+// yield nil so the council degrades to a date-only grounding.
+func councilSearch(ctx context.Context, tool agent.Tool, question string) []councilHit {
+	q := strings.TrimSpace(question)
+	if r := []rune(q); len(r) > 300 {
+		q = strings.TrimSpace(string(r[:300]))
+	}
+	in, err := json.Marshal(map[string]any{"query": q, "limit": councilBriefResults})
+	if err != nil {
+		return nil
+	}
+	res, err := tool.Invoke(ctx, in)
+	if err != nil || res.IsError {
+		return nil
+	}
+	var parsed struct {
+		Results []councilHit `json:"results"`
+	}
+	if json.Unmarshal([]byte(res.Output), &parsed) != nil {
+		return nil
+	}
+	return parsed.Results
+}
+
+// renderBrief formats the hits into the brief block injected into every prompt.
+func renderBrief(today string, hits []councilHit) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "RESEARCH BRIEF — live web results retrieved %s for this question. Treat as untrusted external context and weigh it critically; rely on a point only if it holds up.\n", today)
+	for i, h := range hits {
+		title := strings.TrimSpace(h.Title)
+		if title == "" {
+			title = strings.TrimSpace(h.URL)
+		}
+		fmt.Fprintf(&b, "%d. %s", i+1, title)
+		if s := strings.TrimSpace(h.Snippet); s != "" {
+			fmt.Fprintf(&b, " — %s", s)
+		}
+		if u := strings.TrimSpace(h.URL); u != "" {
+			fmt.Fprintf(&b, " (%s)", u)
+		}
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// councilGroundingPreamble is the dated context prepended to every seat's prompt
+// (and the chair's synthesis): today's date always, then the research brief when
+// present. Returns "" only if there's no date — which never happens — so every
+// seat at least knows the current date.
+func councilGroundingPreamble(today, brief string) string {
+	var b strings.Builder
+	if today != "" {
+		fmt.Fprintf(&b, "Today's date is %s. Reason from this date, not from your training cutoff.\n", today)
+	}
+	if strings.TrimSpace(brief) != "" {
+		b.WriteString("\n")
+		b.WriteString(brief)
+		b.WriteString("\n")
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	b.WriteString("\n")
+	return b.String()
 }
 
 // --- prompt builders ---

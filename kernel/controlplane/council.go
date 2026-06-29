@@ -96,6 +96,8 @@ func (s *Server) handleCouncilAsk(ctx context.Context, conn net.Conn, req Reques
 		"rounds":         res.Rounds,
 		"members":        members,
 		"opinions":       opinions,
+		"as_of":          res.AsOf,
+		"brief":          res.Brief,
 	}})
 }
 

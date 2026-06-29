@@ -482,6 +482,14 @@ type Config struct {
 	// registered+credentialed set and the AGEZT_COUNCIL_MEMBERS override. Nil or
 	// empty → the council tool reports no members available.
 	CouncilMembers func() []CouncilMember
+
+	// CouncilWebSearch grounds the Council of Elders in current facts: before the
+	// panel deliberates, the question is run through the `web_search` tool (from
+	// cfg.Tools) and the top results are folded into a dated "research brief" every
+	// seat — and the chair — see, alongside today's date. The daemon sets it from
+	// AGEZT_COUNCIL_WEBSEARCH (default on). Off, or no web_search tool present, and
+	// the council convenes with only the date (its prior behaviour, plus the date).
+	CouncilWebSearch bool
 }
 
 // Kernel is the running Agezt instance.

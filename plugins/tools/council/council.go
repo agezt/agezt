@@ -101,6 +101,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		"members":   res.Members,
 		"rounds":    res.Rounds,
 		"opinions":  opinions,
+		"as_of":     res.AsOf,
+		"brief":     res.Brief,
 	}, "", "  ")
 	return agent.Result{Output: string(out)}, nil
 }

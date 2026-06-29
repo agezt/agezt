@@ -137,10 +137,13 @@ const (
 	// operator (and `agt why`) reads to see who said what and how the council
 	// decided, AND the live feed the Web UI follows to watch a deliberation unfold
 	// (M987). KindCouncilConvened opens it {question, seats:[{seat,model}], rounds};
-	// KindCouncilStarted marks a member beginning its turn {seat, model, round};
-	// KindCouncilOpinion records one member's position {seat, model, round, text,
-	// chars, error}; KindCouncilConsensus records the verdict {consensus, dissent}.
+	// KindCouncilBrief carries the dated web research brief grounding the panel
+	// {as_of, count, results:[{title,url,snippet}], text}; KindCouncilStarted marks
+	// a member beginning its turn {seat, model, round}; KindCouncilOpinion records
+	// one member's position {seat, model, round, text, chars, error};
+	// KindCouncilConsensus records the verdict {consensus, dissent}.
 	KindCouncilConvened  Kind = "council.convened"
+	KindCouncilBrief     Kind = "council.brief"
 	KindCouncilStarted   Kind = "council.member.started"
 	KindCouncilOpinion   Kind = "council.opinion"
 	KindCouncilConsensus Kind = "council.consensus"
