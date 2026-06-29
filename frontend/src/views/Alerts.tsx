@@ -8,7 +8,6 @@ import { incidentMetaFromEvent, incidentRootId } from "@/lib/incidents";
 import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtTime } from "@/lib/utils";
 import { IncidentBadges } from "@/components/IncidentBadges";
-import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
@@ -234,4 +233,3 @@ export function Alerts() {
     </div>
   );
 }
-

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Scale, Users, Send, Loader2, Gavel, AlertTriangle, Pencil, Plus, X, Check, type LucideIcon } from "lucide-react";
+import { Scale, Users, Send, Loader2, Gavel, AlertTriangle, Pencil, Plus, X, Check, Globe, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ interface CouncilResult {
   rounds: number;
   members: Member[];
   opinions: Opinion[];
+  as_of?: string;
+  brief?: string;
 }
 
 export function Council() {
@@ -142,7 +144,7 @@ export function Council() {
     startCouncilRun(newCorr, q, members.map((m) => ({ seat: m.seat, model: m.model })), rounds);
     try {
       const res = await postJSON<CouncilResult>("/api/council/ask", { question: q, rounds, corr: newCorr });
-      applyCouncilResult(newCorr, res);
+      applyCouncilResult(newCorr, { ...res, asOf: res.as_of, brief: res.brief });
     } catch (e) {
       // The deliberation streams over events independently of this POST, so if the
       // request times out but the verdict still arrived, the error is moot — only
@@ -358,6 +360,17 @@ function CouncilLive({ run }: { run: CouncilRun }) {
           </Badge>
         )}
       </div>
+
+      {/* Research brief: the dated web evidence every seat was grounded in. */}
+      {run.brief && (
+        <details className="view-enter glass rounded-xl px-3 py-2 text-sm">
+          <summary className="flex cursor-pointer items-center gap-2 font-medium text-foreground/90">
+            <Globe className="size-4 text-accent" /> Research brief
+            {run.asOf && <Badge variant="default" className="text-[10px]">web · {run.asOf}</Badge>}
+          </summary>
+          <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-foreground/80">{run.brief}</pre>
+        </details>
+      )}
 
       {/* Seat nodes — the table. Each lights up as it takes its turn. */}
       {run.seats.length > 0 && (

@@ -88,14 +88,14 @@ describe("Dashboard", () => {
     });
 
     render(<Dashboard />);
-    await waitFor(() => expect(screen.getByText("Agent operations")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Agents overview")).toBeTruthy());
     // Fleet ops now renders as a labelled MiniMetric strip; repair + mailbox
     // backlog are surfaced as dedicated action buttons under the tiles.
-    const opsCard = screen.getByText("Agent operations").closest("section") as HTMLElement;
+    const opsCard = screen.getByText("Agents overview").closest("section") as HTMLElement;
     const ops = within(opsCard);
     // Labelled tiles for the key fleet states are present.
     expect(ops.getByText("paused")).toBeTruthy();
-    expect(ops.getByText("graveyard")).toBeTruthy();
+    expect(ops.getByText("inactive")).toBeTruthy();
     expect(ops.getByText("repair")).toBeTruthy();
     expect(ops.getByText("mailbox")).toBeTruthy();
     // 1 agent needs repair, 1 mailbox message waiting.

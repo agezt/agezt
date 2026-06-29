@@ -648,13 +648,6 @@ export function summarizeAgentConfigEntries(entries: AgentConfigEntry[]): {
   return { total: entries.length, identityBound, shared, restricted, secret };
 }
 
-function ratingClass(rating: string): string {
-  if (rating === "secret") return "bg-bad/15 text-bad";
-  if (rating === "restricted") return "bg-amber-500/15 text-amber-300";
-  if (rating === "public") return "bg-good/15 text-good";
-  return "bg-accent/15 text-accent";
-}
-
 function SectionCard({
   section,
   values,

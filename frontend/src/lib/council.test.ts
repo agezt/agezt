@@ -49,6 +49,21 @@ describe("foldCouncilEvent", () => {
     expect(r.question).toBe("Ship it?");
   });
 
+  it("brief records the dated research brief", () => {
+    let r = seed();
+    r = foldCouncilEvent(
+      r,
+      ev("council.brief", { as_of: "2026-06-29", count: 2, text: "RESEARCH BRIEF — live web results retrieved 2026-06-29..." }),
+      1150,
+    );
+    expect(r.asOf).toBe("2026-06-29");
+    expect(r.brief).toContain("RESEARCH BRIEF");
+    // An unknown/odd brief payload doesn't clobber an existing brief.
+    const r2 = foldCouncilEvent(r, ev("council.brief", {}), 1160);
+    expect(r2.asOf).toBe("2026-06-29");
+    expect(r2.brief).toContain("RESEARCH BRIEF");
+  });
+
   it("member.started marks a seat thinking; opinion clears it and records text", () => {
     let r = seed();
     r = foldCouncilEvent(r, ev("council.member.started", { seat: "Elder 1", model: "deepseek-chat", round: 0 }), 1200);

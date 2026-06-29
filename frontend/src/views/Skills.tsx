@@ -64,7 +64,6 @@ export function skillMatches(s: Skill, q: string): boolean {
 export function Skills() {
   const ui = useUI();
   const [skills, setSkills] = useState<Skill[] | null>(null);
-  const [active, setActive] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -77,11 +76,10 @@ export function Skills() {
     setLoading(true);
     try {
       const [d, h] = await Promise.all([
-        getJSON<{ skills?: Skill[]; active?: number }>("/api/skills"),
+        getJSON<{ skills?: Skill[] }>("/api/skills"),
         getJSON<{ idle?: Skill[] }>("/api/skills/hygiene").catch(() => ({ idle: [] }) as { idle?: Skill[] }),
       ]);
       setSkills(d.skills || []);
-      setActive(d.active ?? null);
       setIdle(h.idle || []);
       setErr(null);
     } catch (e) {

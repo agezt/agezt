@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Database,
   RefreshCw,
@@ -27,7 +27,6 @@ import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
-import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -683,18 +682,6 @@ function ContactsView({ records, onEdit, onDelete }: BespokeProps) {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
-  return (
-    <div className="glass rounded-xl p-3">
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-normal text-muted">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-lg font-semibold">{value}</div>
     </div>
   );
 }

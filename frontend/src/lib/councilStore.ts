@@ -49,7 +49,13 @@ export function ingestCouncilEvent(e: AgentEvent): void {
 // complete answer. Best-effort: a run that already completed from events is fine.
 export function applyCouncilResult(
   corr: string,
-  result: { consensus?: string; dissent?: string; opinions?: { seat: string; model: string; round: number; text: string; error?: string }[] },
+  result: {
+    consensus?: string;
+    dissent?: string;
+    asOf?: string;
+    brief?: string;
+    opinions?: { seat: string; model: string; round: number; text: string; error?: string }[];
+  },
 ): void {
   const prev = state.runs[corr];
   if (!prev) return;
@@ -61,6 +67,8 @@ export function applyCouncilResult(
     opinions,
     consensus: result.consensus ?? prev.consensus,
     dissent: result.dissent || prev.dissent,
+    asOf: result.asOf || prev.asOf,
+    brief: result.brief || prev.brief,
     thinking: {},
     phase: "done",
     done: true,

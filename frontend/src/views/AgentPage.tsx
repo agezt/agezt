@@ -18,7 +18,7 @@ import {
   type FleetState,
   type FleetTrigger,
 } from "@/lib/fleet";
-import { summarizeAgentRuntimeStatus, type RunLite } from "@/lib/agentdetail";
+import type { RunLite } from "@/lib/agentdetail";
 
 // AgentPage is the full-page identity route for one agent (#agent/<slug>).
 // It renders the same AgentDetail Command Center used inside the Fleet tab —

@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import { Sparkles, Send, Loader2, Brain } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { money } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { ErrorText } from "@/components/JsonView";
 import { streamRun, foldChatFrame, newTurn, type ChatTurn } from "@/lib/chat";

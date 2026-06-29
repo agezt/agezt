@@ -382,8 +382,28 @@ export function Chat() {
             onSendNow={sendQueuedNow}
           />
         )}
-        {/* Staged attachments hidden — tags should not remain on the chat display */}
-        {/* Attachment feature preserved in state for future use */}
+        {attached.length > 0 && (
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+            {attached.map((ref) => (
+              <span
+                key={ref.id}
+                title={`${ref.kind}: ${ref.label}`}
+                className="inline-flex min-w-0 max-w-64 items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs text-accent"
+              >
+                <Paperclip className="size-3 shrink-0" />
+                <span className="truncate">{ref.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(ref.id)}
+                  aria-label={`Remove attachment ${ref.label}`}
+                  className="rounded-full p-0.5 text-accent/70 transition-colors hover:bg-accent/15 hover:text-accent"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         {/* Composer surface (M995): input + controls in one elevated card that
             lights an accent ring on focus, like a modern chat composer. */}
         <div className="rounded-xl bg-panel/40 px-2 py-1.5 shadow-e1 transition-all focus-within-glow">

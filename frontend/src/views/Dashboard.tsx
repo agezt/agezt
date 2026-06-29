@@ -18,11 +18,9 @@ import {
   Wrench,
   Skull,
   Pause,
-  XCircle,
   Zap,
   CheckCircle2,
   XOctagon,
-  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";

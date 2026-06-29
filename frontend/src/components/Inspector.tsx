@@ -1,15 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bot,
   Cpu,
   Radio,
   Terminal,
-  X,
   ChevronDown,
   ChevronUp,
-  Clock,
-  Coins,
-  ArrowRight,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -18,7 +13,6 @@ import {
 } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
-import { money } from "@/lib/format";
 
 // ───────────────────────── Inspector types ─────────────────────────
 
@@ -59,17 +53,13 @@ const TAB_META: { id: TabId; label: string; icon: LucideIcon }[] = [
 // ───────────────────────── Component ─────────────────────────
 
 export function Inspector({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { events, subscribe } = useEvents();
+  const { subscribe } = useEvents();
   const [tab, setTab] = useState<TabId>("llm");
   const [llmCalls, setLlmCalls] = useState<LLMCall[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [eventLog, setEventLog] = useState<AgentEvent[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [badge, setBadge] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-
-  // Track last-seen timestamp for new-event badge
-  const lastSeenRef = useRef(Date.now());
 
   // Subscribe to live events
   useEffect(() => {
@@ -90,7 +80,6 @@ export function Inspector({ open, onClose }: { open: boolean; onClose: () => voi
           },
           ...prev.slice(0, 199),
         ]);
-        if (open) setBadge((b) => b + 1);
       }
       if (kind === "llm.response") {
         const p = ev.payload || {};
@@ -137,18 +126,12 @@ export function Inspector({ open, onClose }: { open: boolean; onClose: () => voi
           },
           ...prev.slice(0, 199),
         ]);
-        if (open) setBadge((b) => b + 1);
       }
 
       // Raw event log — keep last 100
       setEventLog((prev) => [ev, ...prev].slice(0, 100));
     });
   }, [subscribe, open]);
-
-  // Reset badge when viewing
-  useEffect(() => {
-    if (open) setBadge(0);
-  }, [open, tab]);
 
   const activeCount = useMemo(
     () => llmCalls.filter((c) => c.status === "pending" || c.status === "streaming").length,

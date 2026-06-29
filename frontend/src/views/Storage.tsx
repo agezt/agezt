@@ -50,7 +50,6 @@ export function pctOf(bytes: number, total: number): number {
 }
 
 export function Storage() {
-  const ui = useUI();
   const { data, error, loading, reload } = usePanel<StorageStats>("/api/storage");
   const dirs = useMemo(() => data?.dirs ?? [], [data]);
   const total = data?.total_bytes ?? 0;
@@ -191,16 +190,6 @@ function StoragePanel({
       </div>
       {children}
     </section>
-  );
-}
-
-function SummaryCard({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
-  return (
-    <div className={cn("glass rounded-xl px-3 py-2", warn && "border-bad/50")}>
-      <div className="text-[11px] uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("truncate text-lg font-semibold", warn && "text-bad")}>{value}</div>
-      {sub && <div className="truncate text-[11px] text-muted">{sub}</div>}
-    </div>
   );
 }
 

@@ -38,7 +38,6 @@ import {
   fleetAgentCapabilityLabel,
   fleetAgentAuthorityLabel,
   fleetAgentHierarchyLabel,
-  fleetAgentIdentityCardSummary,
   fleetAgentResilienceLabel,
   fleetAgentTaskContractLabel,
   type ApiProfile,

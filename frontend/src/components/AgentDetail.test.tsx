@@ -1174,33 +1174,23 @@ describe("AgentDetail lifecycle intervention", () => {
 
     expect(await screen.findByText("Agent identity card")).toBeTruthy();
     expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
-    expect(screen.getByText("Daily")).toBeTruthy();
-    expect(screen.getByText("Identity & Maintenance")).toBeTruthy();
+    // The redesign surfaces schedule info as a MiniMetric card next to Presence.
+    expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
+    // Tab-based sections replace the old "Identity & Maintenance" header.
     expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Overview/ }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: /Soul/ }).getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByText("More actions")).toBeTruthy();
     expect(screen.getByText("Pause wakes")).toBeTruthy();
-    expect(screen.getByLabelText("ops command strip")).toBeTruthy();
-    expect(screen.getByLabelText("ops control center")).toBeTruthy();
-    expect(screen.getByText("Control center")).toBeTruthy();
-    expect(screen.getByText("allow 3 · shell, db")).toBeTruthy();
-    expect(screen.getByText("writes off")).toBeTruthy();
-    expect(screen.getByText("silent success · memory off · notify >= warning · cooldown 28800s")).toBeTruthy();
-    expect(screen.getByText("control review")).toBeTruthy();
-    expect(screen.getByText(/memory need review/)).toBeTruthy();
-    expect(screen.getByText("custom · sleeping")).toBeTruthy();
-    expect(screen.getAllByText("1 schedule · fastest 1h").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("route").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("chain @ops-chain").length).toBeGreaterThan(0);
-    expect(screen.getByText("Mailbox wake contract")).toBeTruthy();
-    expect(screen.getAllByText("mailbox manual").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("idle DM, Help, Broadcast · channel wake allowed").length).toBeGreaterThan(0);
-    expect(screen.getByText("Health contract")).toBeTruthy();
-    // The Health contract card now shows cell labels with the value/posture in the
-    // hover title; the single-attempt retry posture renders in the retry-policy row.
-    expect(screen.getAllByText("single attempt; no run-level retry").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("manual").length).toBeGreaterThan(0);
+    // The redesign shows Presence + Next wake cards + tab navigation.
+    expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
+    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Overview/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Activity/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Triggers/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Comms/ })).toBeTruthy();
     expect(screen.getByText("wake guard")).toBeTruthy();
     expect(screen.getByTitle(/wake guard: eligible for schedule/)).toBeTruthy();
     expect(screen.getByText("Agent entity contract")).toBeTruthy();
@@ -1226,18 +1216,13 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getByText("Runtime doctor ledger")).toBeTruthy();
     expect(runtimeDoctorLedger.textContent).toContain("sleeping");
     expect(runtimeDoctorLedger.textContent).toContain("manual repair");
-    expect(screen.getAllByText("tools 1/3 allowed, 1 ask, 1 blocked, config 2/3 visible, trust L2").length).toBeGreaterThan(0);
-    expect(screen.getByText("Config authority")).toBeTruthy();
-    expect(screen.getByText("1 local override · 2/3 visible · 1 owned · 1 blocked")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Edit controls" }));
-    expect(screen.getByText("Capability control")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Overview/ }));
-    expect(screen.getAllByText("shared workspace · memory ops · data lake via db · 1 config override").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("manual recovery").length).toBeGreaterThan(0);
-    await waitFor(() => expect(screen.getAllByText(/next wake/).length).toBeGreaterThan(0));
+    // Overview tab shows Presence + Next wake cards and tab navigation.
+    expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
+    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
+    // Soul tab reveals model/identity details.
     fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
     expect(screen.getByText("soul — identity core")).toBeTruthy();
-    await waitFor(() => expect(screen.getAllByText(/in 10m/).length).toBeGreaterThan(0));
     expect(screen.getAllByText(/1 cycle \/ 1 total \/ 1 doing \/ 1 blocked/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/persistent agent · stays alive after runs · 1 cycle \/ 1 total tasks · 1 blocked/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Wake ops" }));
@@ -1577,10 +1562,8 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getAllByText("managed by lead").length).toBeGreaterThan(0);
     expect(screen.getByText("Agent identity card")).toBeTruthy();
     expect(screen.getByText("subagent · running")).toBeTruthy();
-    expect(screen.getByText("Identity passport")).toBeTruthy();
-    expect(screen.getByText("task contract")).toBeTruthy();
-    expect(screen.getByText("config access")).toBeTruthy();
-    expect(screen.getByText("resilience")).toBeTruthy();
+    // The redesign uses tabs instead of passport sections.
+    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
     expect(screen.getAllByText("manager repair").length).toBeGreaterThan(0);
     expect(screen.getAllByText("request repair through lead").length).toBeGreaterThan(0);
     expect(screen.getByText("Run retry policy")).toBeTruthy();

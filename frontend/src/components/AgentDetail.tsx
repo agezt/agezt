@@ -39,13 +39,8 @@ import {
   Repeat,
   IdCard,
   Heart,
-  Eye,
-  FileText,
-  Lightbulb,
   Gauge,
   HardDrive,
-  Puzzle,
-  Stethoscope,
   FileCode,
   CheckCircle,
   AlertCircle,
@@ -72,7 +67,7 @@ import { ModelChip } from "@/components/ModelChip";
 import { TriggerChip } from "@/components/Fleet";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
-import { agentCommandStrip, agentControlCenterLedger, agentEnableToast, agentHierarchySummary, agentIdentityCardSummary, agentLifecycleDispositionPassport, agentLifecycleSummary, agentLifeSummary, agentLivePresencePassport, agentModelPassportSummary, agentModelRoutePassport, agentNoiseBudgetPassport, agentRemovalCascadePreset, agentRemoveToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, agentSkillPassportSummary, agentTaskContractSummary, agentTaskProgressSummary, guardianQuietPolicyPayload, systemGuardianSafetySummary, type AgentCommandStripItem, type AgentControlCenterEntry, type AgentEnableResult, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
+import { agentCommandStrip, agentControlCenterLedger, agentEnableToast, agentHierarchySummary, agentIdentityCardSummary, agentLifecycleDispositionPassport, agentLifecycleSummary, agentLivePresencePassport, agentModelPassportSummary, agentModelRoutePassport, agentNoiseBudgetPassport, agentRemovalCascadePreset, agentRemoveToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, agentSkillPassportSummary, agentTaskContractSummary, agentTaskProgressSummary, guardianQuietPolicyPayload, systemGuardianSafetySummary, type AgentCommandStripItem, type AgentControlCenterEntry, type AgentEnableResult, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
 import {
   scheduleAgentSlug,
   highImpactToolNames,
@@ -1142,6 +1137,7 @@ export function AgentDetail({
               <CompactChip label="Denials" value={policyDenials.text} tone={policyDenials.tone === "bad" ? "bad" : "warn"} />
             )}
             <CompactChip label="Governance" value={governancePassport.detail} tone={governancePassport.tone} />
+            <CompactChip label="Control" value={controlIntervention.label} tone={controlIntervention.tone} />
             <CompactChip label="Config access" value={configAccess} />
             <CompactChip label="Noise" value={noiseBudgetPassport.detail} tone={noiseBudgetPassport.tone} />
             <CompactChip label="Resilience" value={repairReadiness.value} tone={repairReadiness.tone} />
@@ -1204,8 +1200,8 @@ export function AgentDetail({
             toolCatalog={toolCatalog}
             edictLevels={edictLevels}
             agentPermissions={agentPermissions}
-            taskContract={taskContract}
             livePresence={livePresence}
+            commandStrip={commandStrip}
             busy={busy}
             onLifecycleChanged={() => {
               setBump((b) => b + 1);
@@ -1555,13 +1551,11 @@ function AgentDetailTabButton({
   active,
   counts,
   onSelect,
-  secondary = false,
 }: {
   id: DetailTab;
   active: boolean;
   counts: Parameters<typeof tabCount>[1];
   onSelect: (tab: DetailTab) => void;
-  secondary?: boolean;
 }) {
   const t = TAB_BY_ID.get(id);
   if (!t) return null;
@@ -2069,42 +2063,48 @@ function BudgetBar({
   );
 }
 
-// VisualToggle - replaces text enable/disable with a visual switch
-function VisualToggle({
-  enabled,
-  label,
-  icon: Icon,
-}: {
-  enabled: boolean;
-  label: string;
-  icon: typeof Bot;
-}) {
+function AgentDetailCommandStrip({ items, slug }: { items: AgentCommandStripItem[]; slug: string }) {
   return (
-    <div className={cn(
-      "flex items-center gap-2 rounded-lg border px-2.5 py-1.5",
-      enabled ? "border-good/40 bg-good/10" : "border-border/40 bg-panel/30"
-    )}>
-      <div className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-md",
-        enabled ? "bg-good/20" : "bg-panel/60"
-      )}>
-        <Icon className={cn("size-4", enabled ? "text-good" : "text-muted/50")} />
-      </div>
-      <span className={cn(
-        "text-xs font-medium",
-        enabled ? "text-foreground" : "text-muted"
-      )}>
-        {label}
-      </span>
-      <div className={cn(
-        "ml-auto flex h-5 w-9 items-center rounded-full border px-0.5 transition-colors",
-        enabled ? "border-good/50 bg-good/30" : "border-border bg-panel"
-      )}>
-        <div className={cn(
-          "h-3.5 w-3.5 rounded-full transition-transform",
-          enabled ? "translate-x-4 bg-good shadow-sm shadow-good/50" : "translate-x-0 bg-muted/40"
-        )} />
-      </div>
+    <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3" aria-label={`${slug} detail command strip`}>
+      {items.map((item) => (
+        <div
+          key={item.label}
+          title={item.detail || item.value}
+          className={cn(
+            "min-w-0 rounded-md border border-border/60 bg-card/55 px-2 py-1.5",
+            item.tone === "good" && "border-good/25 bg-good/5",
+            item.tone === "bad" && "border-bad/30 bg-bad/5",
+            item.tone === "warn" && "border-warn/35 bg-warn/10",
+            item.tone === "accent" && "border-accent/30 bg-accent/10",
+            item.tone === "muted" && "bg-panel/45",
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full bg-muted/60",
+                item.tone === "good" && "bg-good",
+                item.tone === "bad" && "bg-bad",
+                item.tone === "warn" && "bg-warn",
+                item.tone === "accent" && "bg-accent",
+              )}
+            />
+            <span className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{item.label}</span>
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
+              item.tone === "good" && "text-good",
+              item.tone === "bad" && "text-bad",
+              item.tone === "warn" && "text-warn",
+              item.tone === "accent" && "text-accent",
+              item.tone === "muted" && "text-muted",
+            )}
+          >
+            {item.value}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -2133,8 +2133,8 @@ function Overview({
   toolCatalog,
   edictLevels,
   agentPermissions,
-  taskContract,
   livePresence,
+  commandStrip,
   busy,
   onLifecycleChanged,
   onManage,
@@ -2171,8 +2171,8 @@ function Overview({
   toolCatalog: ToolCatalogRow[] | null;
   edictLevels: Record<string, string>;
   agentPermissions: AgentPermissionsSnapshot | null;
-  taskContract: string;
   livePresence: { value: string; detail: string; tone: "good" | "warn" | "bad" | "muted" };
+  commandStrip: AgentCommandStripItem[];
   busy: boolean;
   onLifecycleChanged: () => void;
   onManage: (view: string) => void;
@@ -2300,6 +2300,8 @@ function Overview({
         summary={<span className="text-[11px] font-medium text-foreground/90">Contract &amp; activity records</span>}
       >
         <div className="space-y-3">
+      <AgentDetailCommandStrip items={commandStrip} slug={slug} />
+
       <AgentEntityContract entries={entityContract} slug={slug} />
 
       <AutonomyRunbook entries={autonomyRunbook} slug={slug} />
@@ -4080,23 +4082,6 @@ function notifySeverityRank(severity?: string): number {
     default:
       return 0;
   }
-}
-
-function agentResilienceLabel(profile: AgentProfile): string {
-  const parts: string[] = [];
-  if (profile.retry_policy?.max_attempts) {
-    parts.push(`retry ${profile.retry_policy.max_attempts}x`);
-  }
-  if (profile.health_policy?.doctor_agent) {
-    parts.push(`doctor ${profile.health_policy.doctor_agent}`);
-  }
-  if (profile.self_repair?.enabled) {
-    parts.push(`self-repair${profile.self_repair.max_attempts ? ` ${profile.self_repair.max_attempts}x` : ""}`);
-  }
-  if (profile.self_repair?.escalate_to) {
-    parts.push(`escalate ${profile.self_repair.escalate_to}`);
-  }
-  return parts.join(" · ") || "manual recovery";
 }
 
 export function agentRetryPolicyDetail(profile: Pick<AgentProfile, "retry_policy">): string {
@@ -6292,6 +6277,9 @@ function CommsTab({
       <div className="rounded-lg border border-border bg-panel/30 p-2.5">
         <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
           <Mail className="size-3" /> inbox priority summary
+          <Button className="ml-auto" variant="ghost" size="sm" onClick={() => onManage("board")}>
+            Open board <ArrowUpRight className="size-3.5" />
+          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           <Badge variant={inboxPriority.tone === "good" ? "good" : inboxPriority.tone === "warn" ? "warn" : "default"}>
@@ -8305,35 +8293,6 @@ function effectiveToolRow(
     ask,
     label,
     reason,
-  };
-}
-
-function agentEditPayload(profile: AgentProfile): Record<string, unknown> {
-  return {
-    name: profile.name || "",
-    soul: profile.soul || "",
-    instructions: profile.instructions || [],
-    model: profile.model || "",
-    fallbacks: profile.fallbacks || [],
-    task_type: profile.task_type || "",
-    max_cost_mc: profile.max_cost_mc || 0,
-    max_daily_mc: profile.max_daily_mc || 0,
-    memory_scope: profile.memory_scope || "",
-    workdir: profile.workdir || "",
-    owner_agent: profile.owner_agent || "",
-    parent_agent: profile.parent_agent || "",
-    direct_callable: profile.direct_callable !== false,
-    retry_policy: profile.retry_policy || {},
-    health_policy: profile.health_policy || {},
-    self_repair: profile.self_repair || {},
-    noise_policy: profile.noise_policy || {},
-    tool_allow: profile.tool_allow || [],
-    tool_deny: profile.tool_deny || [],
-    trust_ceiling: profile.trust_ceiling || "L4",
-    config_overrides: profile.config_overrides || {},
-    lifecycle: profile.lifecycle || {},
-    tasklist: profile.tasklist || [],
-    description: profile.description || "",
   };
 }
 

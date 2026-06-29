@@ -246,10 +246,8 @@ export function Board() {
   const [replyText, setReplyText] = useState("");
   const [wakeAfterSend, setWakeAfterSend] = useState(false);
   const [topic, setTopic] = useState<string | null>(null);
-  const [topicQuery, setTopicQuery] = useState("");
   const [messageFilter, setMessageFilter] = useState<BoardMessageFilter>("all");
   const [agentFilter, setAgentFilter] = useState(() => boardAgentFilterFromHash(location.hash));
-  const [showAllTopics, setShowAllTopics] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -368,28 +366,6 @@ export function Board() {
     }
   }, [agents, sendMode, sendTo]);
 
-  const topics = useMemo(
-    () => Object.entries(data?.topics || {}).sort((a, b) => b[1] - a[1]),
-    [data],
-  );
-  // With many agents the board grows a long tail of topics; a search + a visible
-  // cap keep the chip row from swallowing the view (M829). The selected topic is
-  // always kept visible even when filtered/capped out, so the filter never hides
-  // what you're looking at.
-  const filteredTopics = useMemo(() => {
-    const q = topicQuery.trim().toLowerCase();
-    return q ? topics.filter(([name]) => name.toLowerCase().includes(q)) : topics;
-  }, [topics, topicQuery]);
-  const TOPIC_CAP = 24;
-  const visibleTopics = useMemo(() => {
-    const base = showAllTopics ? filteredTopics : filteredTopics.slice(0, TOPIC_CAP);
-    if (topic && !base.some(([n]) => n === topic)) {
-      const sel = filteredTopics.find(([n]) => n === topic) ?? topics.find(([n]) => n === topic);
-      if (sel) return [sel, ...base];
-    }
-    return base;
-  }, [filteredTopics, showAllTopics, topic, topics]);
-  const hiddenCount = filteredTopics.length - Math.min(filteredTopics.length, TOPIC_CAP);
   const topicMessages = useMemo(
     () => (data?.messages || []).filter((m) => !topic || m.topic === topic),
     [data, topic],
@@ -400,7 +376,6 @@ export function Board() {
   const waiting = useMemo(() => awaitingReply(data?.messages || []), [data]);
   const filterCounts = useMemo(() => boardMessageFilterCounts(agentMessages, waiting), [agentMessages, waiting]);
   const messages = useMemo(() => filterBoardMessages(agentMessages, messageFilter, waiting), [agentMessages, messageFilter, waiting]);
-  const counts = useMemo(() => boardCounts(data, help), [data, help]);
   const selectedRecipient = useMemo(() => agents.find((a) => a.slug === sendTo.trim()), [agents, sendTo]);
   const wakePlan = useMemo(() => boardAgentWakePlan(selectedRecipient, agents), [agents, selectedRecipient]);
   const agentMailbox = useMemo(
@@ -569,7 +544,7 @@ export function Board() {
               icon: Inbox,
               count: messages.length,
               content: (
-                <BoardMessageGroups messages={messages} agentFilter={agentFilter} waiting={waiting} replyTo={replyTo} />
+                <BoardMessageGroups messages={messages} agentFilter={agentFilter} waiting={waiting} />
               ),
             },
             ...(["decisions", "briefings", "board", "tool_calls"] as const).map((t) => {
@@ -581,7 +556,7 @@ export function Board() {
                 icon: t === "decisions" ? Zap : t === "briefings" ? MessageSquare : t === "board" ? Inbox : Terminal,
                 count: tabMessages.length,
                 content: (
-                  <BoardMessageGroups messages={tabMessages} agentFilter={agentFilter} waiting={waiting} replyTo={replyTo} />
+                  <BoardMessageGroups messages={tabMessages} agentFilter={agentFilter} waiting={waiting} />
                 ),
               };
             }).filter(Boolean) as { id: string; label: string; icon: ComponentType<{ className?: string }>; count: number; content: React.ReactNode }[],
@@ -916,11 +891,10 @@ function AgentChipPicker({
   );
 }
 
-function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
+function BoardMessageGroups({ messages, agentFilter, waiting }: {
   messages: Msg[];
   agentFilter: string;
   waiting: Set<string>;
-  replyTo: string;
 }) {
   const groups = useMemo(() => {
     const map = new Map<string, Msg[]>();
@@ -939,7 +913,7 @@ function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
   if (groups.length === 1) {
     return (
       <div className="space-y-2">
-        {renderMessageList(groups[0][1], agentFilter, waiting, replyTo)}
+        {renderMessageList(groups[0][1], agentFilter, waiting)}
       </div>
     );
   }
@@ -953,7 +927,7 @@ function BoardMessageGroups({ messages, agentFilter, waiting, replyTo }: {
           icon={Hash}
           status={`${msgs.length} message${msgs.length === 1 ? "" : "s"}`}
         >
-          {renderMessageList(msgs, agentFilter, waiting, replyTo)}
+          {renderMessageList(msgs, agentFilter, waiting)}
         </BoardTopicPanel>
       ))}
     </div>
@@ -987,7 +961,7 @@ function BoardTopicPanel({
   );
 }
 
-function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string>, replyTo: string) {
+function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string>) {
   return (
     <ul className="space-y-2">
       {msgs.map((m, i) => {
@@ -1064,15 +1038,6 @@ function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string
         );
       })}
     </ul>
-  );
-}
-
-function BoardStat({ label, value, accent, warn }: { label: string; value: number | string; accent?: boolean; warn?: boolean }) {
-  return (
-    <div className={cn("rounded-lg border bg-card p-2.5", warn ? "border-warn/50" : accent ? "border-accent/50" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", warn ? "text-warn" : accent && "text-accent")}>{value}</div>
-    </div>
   );
 }
 

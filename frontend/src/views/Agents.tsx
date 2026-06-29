@@ -24,8 +24,6 @@ import {
   Radio,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
-  Pause,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -42,7 +40,6 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
-import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { PageHeader } from "@/components/ui/page-header";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
@@ -294,7 +291,6 @@ export function Agents() {
 
   const nodes = useMemo(() => (runs ? toRunNodes(runs) : []), [runs]);
   const roots = useMemo(() => (runs ? summarizeRoots(runs) : []), [runs]);
-  const shown = useMemo(() => filterRoots(roots, filter), [roots, filter]);
   const tree = useMemo(() => (sel ? buildDelegationTree(nodes, sel) : null), [nodes, sel]);
   const pickedNode = useMemo(() => tree?.nodes.find((n) => n.id === picked) || null, [tree, picked]);
 
@@ -554,37 +550,14 @@ export function Agents() {
       {/* Status filters + search. */}
       <div className="flex flex-wrap items-center gap-2">
         <TabNav
-          tabs={[
-            {
-              id: "all",
-              label: "All",
-              icon: Network,
-              count: fleet.length,
-              content: null,
-            },
-            {
-              id: "running",
-              label: "Awake",
-              icon: Radio,
-              count: census.running,
-              content: null,
-            },
-            {
-              id: "repair",
-              label: "Repair",
-              icon: Wrench,
-              count: census.repair,
-              content: null,
-            },
-            {
-              id: "graveyard",
-              label: "Inactive",
-              icon: Skull,
-              count: census.graveyard,
-              content: null,
-            },
-          ]}
-          value={fleetFilter === "all" || fleetFilter === "running" || fleetFilter === "repair" || fleetFilter === "graveyard" ? fleetFilter : "all"}
+          tabs={FLEET_FILTERS.map((f) => ({
+            id: f.id,
+            label: f.label,
+            icon: f.icon,
+            count: filterFleetEntities(fleet, f.id).length,
+            content: null,
+          }))}
+          value={fleetFilter}
           onValueChange={(v) => setFleetFilter(v as FleetFilter)}
         />
         <div className="relative ml-auto">
@@ -735,29 +708,6 @@ function Chip({ icon: Icon, children, title }: { icon: typeof Bot; children: Rea
     >
       <Icon className="size-3 text-muted" /> {children}
     </span>
-  );
-}
-
-function BigStat({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: typeof Bot;
-  label: string;
-  value: number | string;
-  accent?: boolean;
-}) {
-  return (
-    <div className={cn("glass rounded-xl p-2.5 transition-shadow hover:shadow-e3", accent && "glow-accent")}>
-      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-        <Icon className={cn("size-3", accent && "text-accent")} /> {label}
-      </div>
-      <div className={cn("mt-0.5 text-2xl font-bold tabular-nums", accent ? "text-gradient" : "text-foreground")}>
-        {typeof value === "number" ? <AnimatedNumber value={value} /> : value}
-      </div>
-    </div>
   );
 }
 

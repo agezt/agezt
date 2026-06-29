@@ -8,9 +8,6 @@
 // Deliberately excluded because they are NOT native-OpenAI-compatible for audio
 // (they'd need a LiteLLM-style proxy): Deepgram, ElevenLabs, DeepInfra. A
 // "Custom endpoint" escape hatch in the UI covers anything not listed.
-
-type SpeechKind = "stt" | "tts";
-
 interface SpeechModel {
   id: string;
   label?: string; // friendly name shown in the dropdown (falls back to id)

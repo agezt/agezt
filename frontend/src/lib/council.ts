@@ -33,6 +33,11 @@ export interface CouncilRun {
   thinking: Record<string, { seat: string; round: number }>;
   consensus?: string;
   dissent?: string;
+  // Grounding (current date + shared web research brief) the panel convened with.
+  // asOf is YYYY-MM-DD; brief is the rendered research-brief text (empty when web
+  // search is off or returned nothing).
+  asOf?: string;
+  brief?: string;
   phase: CouncilPhase;
   startedMs: number;
   updatedMs: number;
@@ -72,6 +77,17 @@ export function foldCouncilEvent(run: CouncilRun, e: AgentEvent, nowMs: number):
         seats: seats.length ? seats : run.seats,
         rounds: typeof p.rounds === "number" ? p.rounds : run.rounds,
         phase: "deliberating",
+        updatedMs: nowMs,
+      };
+    }
+    case "council.brief": {
+      // The dated web research brief that grounds the panel, landing just after
+      // convened and before the first turn. Show it so the operator sees what
+      // evidence the council was given.
+      return {
+        ...run,
+        asOf: typeof p.as_of === "string" ? p.as_of : run.asOf,
+        brief: typeof p.text === "string" ? p.text : run.brief,
         updatedMs: nowMs,
       };
     }

@@ -177,11 +177,6 @@ export function Runs() {
   // shared with the Overseer monitor. Keyed by correlation id.
   const liveCtx = useMemo(() => buildLiveRunContexts(events), [events]);
 
-  useEffect(() => {
-    if (!focus) return;
-    const target = runs.find((r) => r.correlation_id === focus);
-  }, [focus, runs]);
-
   // Live: refetch (debounced) when a run's state changes on the event stream, so the
   // list and the metric counters update within ~1s instead of only on manual reload.
   // Open run detail panels keep their state across reloads (RunRow is keyed by id).

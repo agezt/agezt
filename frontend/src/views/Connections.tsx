@@ -24,18 +24,6 @@ function go(id: string) {
   };
 }
 
-function Dot({ tone }: { tone: "good" | "warn" | "muted" }) {
-  // Live/connected dots pulse — a calm sign of life.
-  return (
-    <span
-      className={cn(
-        "inline-block size-2 rounded-full",
-        tone === "good" ? "bg-good animate-pulse" : tone === "warn" ? "bg-warn" : "bg-muted/40",
-      )}
-    />
-  );
-}
-
 export function Connections() {
   const [providers, setProviders] = useState<Provider[] | null>(null);
   const [channels, setChannels] = useState<ChannelRow[] | null>(null);

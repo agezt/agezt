@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Eye, EyeOff, KeyRound, Lock, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Lock, RefreshCw, ShieldCheck } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 

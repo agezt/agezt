@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -124,9 +124,9 @@ describe("AgentPage", () => {
     // The Wake button should be present (it's a direct_callable agent).
     expect(screen.getByRole("button", { name: /Wake researcher/i })).toBeTruthy();
 
-    // The Identity & Maintenance section should reveal the secondary tabs
+    // The overview tab renders the agent command center with secondary tabs
     // (soul, model, memory, skills, repair, diagnostics, files).
-    expect(screen.getByText("Identity & Maintenance")).toBeTruthy();
+    expect(screen.getByRole("tablist", { name: "researcher detail sections" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Repair/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeTruthy();

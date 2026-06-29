@@ -7,7 +7,7 @@ import { cn, fmtDateTime, fmtDue } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Advanced, Disclosure } from "@/components/ui/disclosure";
-import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
@@ -2939,25 +2939,6 @@ export function Roster() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribe]);
 
-  async function act(
-    ref: string,
-    path: string,
-    params?: Record<string, string>,
-    opts?: { confirm?: ConfirmOptions; success?: string },
-  ) {
-    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
-    setBusy(ref);
-    try {
-      await postAction(path, { ref, ...params });
-      if (opts?.success) ui.toast(opts.success, "success");
-      await reload();
-    } catch (e) {
-      ui.toast((e as Error).message, "error");
-    } finally {
-      setBusy(null);
-    }
-  }
-
   // retire moves an agent to the graveyard (M846): fetch the impact first (which
   // standing orders fire it) and show it in the confirm, so the effects are
   // explicit before the agent is retired. Recoverable via Revive.
@@ -4590,16 +4571,6 @@ function RosterSignalPanel({
   );
 }
 
-function RosterStat({ label, value, accent, tone }: { label: string; value: ReactNode; accent?: boolean; tone?: "accent" | "warn" }) {
-  const activeTone = tone || (accent ? "accent" : undefined);
-  return (
-    <div className={cn("rounded-lg border bg-card p-2.5 shadow-e1", activeTone === "accent" ? "border-accent/50" : activeTone === "warn" ? "border-warn/50" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", activeTone === "accent" && "text-accent", activeTone === "warn" && "text-warn")}>{value}</div>
-    </div>
-  );
-}
-
 function ImpactList({
   label,
   count,
@@ -4751,80 +4722,6 @@ function RosterCommandStrip({ items, slug }: { items: AgentCommandStripItem[]; s
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function RosterIdentityLedger({ entries, slug }: { entries: AgentIdentityLedgerEntry[]; slug: string }) {
-  return (
-    <div className="mt-2 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${slug} identity ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Identity ledger</div>
-      <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.label}
-            title={entry.detail}
-            className={cn(
-              "min-h-[46px] min-w-0 rounded-md border border-border/50 bg-card/45 px-2 py-1.5",
-              entry.tone === "good" && "border-good/25 bg-good/5",
-              entry.tone === "bad" && "border-bad/30 bg-bad/5",
-              entry.tone === "warn" && "border-warn/35 bg-warn/10",
-              entry.tone === "accent" && "border-accent/30 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                entry.tone === "good" && "text-good",
-                entry.tone === "bad" && "text-bad",
-                entry.tone === "warn" && "text-warn",
-                entry.tone === "accent" && "text-accent",
-                entry.tone === "muted" && "text-muted",
-              )}
-            >
-              {entry.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RosterControlCenter({ entries, slug }: { entries: AgentControlCenterEntry[]; slug: string }) {
-  return (
-    <div className="mt-2 rounded-md border border-border/60 bg-card/35 p-1.5" aria-label={`${slug} control center`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Control center</div>
-      <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.label}
-            title={entry.detail}
-            className={cn(
-              "min-h-[42px] min-w-0 rounded-md border border-border/50 bg-panel/45 px-2 py-1.5",
-              entry.tone === "good" && "border-good/25 bg-good/5",
-              entry.tone === "bad" && "border-bad/30 bg-bad/5",
-              entry.tone === "warn" && "border-warn/35 bg-warn/10",
-              entry.tone === "accent" && "border-accent/30 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                entry.tone === "good" && "text-good",
-                entry.tone === "bad" && "text-bad",
-                entry.tone === "warn" && "text-warn",
-                entry.tone === "accent" && "text-accent",
-                entry.tone === "muted" && "text-muted",
-              )}
-            >
-              {entry.value}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

@@ -1186,7 +1186,6 @@ export function Schedules() {
     }
   }
 
-  const agentCount = items?.filter((s) => s.source === "agent").length ?? 0;
   const attentionCount = items ? scheduleAttentionCount(items, profiles, workflows, tools, systemTaskInfo) : 0;
   const enabledAttentionCount = items
     ? items.filter((s) => s.enabled !== false && scheduleNeedsAttention(s, profiles, workflows, tools, systemTaskInfo)).length
@@ -1776,15 +1775,6 @@ function ScheduleModal({ title, onClose, children }: { title: string; onClose: (
   );
 }
 
-function SchedStat({ label, value, accent }: { label: string; value: number | string; accent?: boolean }) {
-  return (
-    <div className={cn("rounded-lg border bg-card p-2.5", accent ? "border-accent/50" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
-    </div>
-  );
-}
-
 function ScheduleCommandStrip({ items, id }: { items: ScheduleCommandStripItem[]; id: string }) {
   return (
     <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3" aria-label={`${id} schedule command strip`}>
@@ -1920,11 +1910,6 @@ export function scheduleToolAgentIssue(tool: string, agentSlug: string, agents: 
 function workflowLabel(workflows: ScheduleWorkflow[], name: string): string {
   const w = workflows.find((p) => p.name === name || p.id === name);
   return w?.id && w.id !== w.name ? `${w.name} (${w.id})` : name;
-}
-
-function toolLabel(tools: ScheduleTool[], name: string): string {
-  const t = tools.find((p) => p.name === name);
-  return t?.description ? `${name} · ${t.description}` : name;
 }
 
 function systemTaskLabel(tasks: ScheduleSystemTaskInfo[], name: string): string {
