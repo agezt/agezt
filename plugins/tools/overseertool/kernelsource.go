@@ -4,6 +4,7 @@ package overseertool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -80,10 +81,13 @@ func (s *kernelSource) SetAgentRetired(ref string, retired bool) (roster.Profile
 	return s.k.SetProfileRetired(ref, retired)
 }
 
-// EditAgent applies `in`'s mutable fields wholesale to the agent named by ref,
-// mirroring the control plane's handleAgentEdit (the same whitelist the webui
-// uses). Identity/lifecycle fields (id/slug/enabled/retired) and the System flag
-// are NOT touched — a guardian can retune another agent but can't resurrect,
+// EditAgent applies `in`'s mutable fields to the agent named by ref, using a
+// PATCH semantic: only fields explicitly present in the input JSON payload are
+// applied; all other fields remain unchanged. This prevents a partial profile
+// (e.g. `{"model":"gpt-5"}` from clearing soul, budget, policy fields, etc.
+//
+// Identity/lifecycle fields (id/slug/enabled/retired) and the System flag are
+// NOT touched — a guardian can retune another agent but can't resurrect,
 // rename, or promote it to a protected guardian.
 //
 // A System-protected guardian (the daemon's own self-healing fleet) cannot be
@@ -97,33 +101,78 @@ func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile,
 	if s.fleetLock {
 		return roster.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must make agent edits through the console/CLI")
 	}
-	if cur, ok := s.k.Roster().Get(ref); ok && cur.System {
+	cur, ok := s.k.Roster().Get(ref)
+	if !ok {
+		return roster.Profile{}, fmt.Errorf("unknown agent: %s", ref)
+	}
+	if cur.System {
 		return roster.Profile{}, fmt.Errorf("agent %q is a protected system guardian — it can be retuned only by an operator, not via the overseer tool", cur.Slug)
 	}
+	// Discover which fields the caller explicitly provided. JSON unmarshal into
+	// a flat map tells us the set of top-level keys — nil pointers and zero-value
+	// ints/strings come from omission, not from the user intentionally clearing.
+	provided := map[string]bool{}
+	if raw, err := json.Marshal(in); err == nil {
+		var flat map[string]any
+		if json.Unmarshal(raw, &flat) == nil {
+			for k := range flat {
+				provided[k] = true
+			}
+		}
+	}
 	p, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
-		dst.Name = in.Name
-		dst.Soul = in.Soul
-		dst.Model = in.Model
-		dst.Fallbacks = in.Fallbacks
-		dst.TaskType = in.TaskType
-		dst.MaxCostMc = in.MaxCostMc
-		dst.MaxDailyMc = in.MaxDailyMc
-		dst.MemoryScope = in.MemoryScope
-		dst.Workdir = in.Workdir
-		dst.OwnerAgent = in.OwnerAgent
-		dst.ParentAgent = in.ParentAgent
-		dst.DirectCallable = in.DirectCallable
-		dst.RetryPolicy = in.RetryPolicy
-		dst.HealthPolicy = in.HealthPolicy
-		dst.SelfRepairPolicy = in.SelfRepairPolicy
-		dst.ToolAllow = in.ToolAllow
-		dst.ToolDeny = in.ToolDeny
-		dst.TrustCeiling = in.TrustCeiling
-		dst.ConfigOverrides = in.ConfigOverrides
-		dst.Instructions = in.Instructions
-		dst.Lifecycle = in.Lifecycle
-		dst.TaskList = in.TaskList
-		dst.Description = in.Description
+		applyProfilePatchField(provided, "name", &dst.Name, in.Name)
+		applyProfilePatchField(provided, "soul", &dst.Soul, in.Soul)
+		applyProfilePatchField(provided, "model", &dst.Model, in.Model)
+		applyProfilePatchField(provided, "task_type", &dst.TaskType, in.TaskType)
+		applyProfilePatchField(provided, "memory_scope", &dst.MemoryScope, in.MemoryScope)
+		applyProfilePatchField(provided, "workdir", &dst.Workdir, in.Workdir)
+		applyProfilePatchField(provided, "owner_agent", &dst.OwnerAgent, in.OwnerAgent)
+		applyProfilePatchField(provided, "parent_agent", &dst.ParentAgent, in.ParentAgent)
+		applyProfilePatchField(provided, "trust_ceiling", &dst.TrustCeiling, in.TrustCeiling)
+		applyProfilePatchField(provided, "description", &dst.Description, in.Description)
+		if provided["fallbacks"] {
+			dst.Fallbacks = in.Fallbacks
+		}
+		if provided["max_cost_mc"] {
+			dst.MaxCostMc = in.MaxCostMc
+		}
+		if provided["max_daily_mc"] {
+			dst.MaxDailyMc = in.MaxDailyMc
+		}
+		if provided["direct_callable"] {
+			dst.DirectCallable = in.DirectCallable
+		}
+		if provided["retry_policy"] {
+			dst.RetryPolicy = in.RetryPolicy
+		}
+		if provided["health_policy"] {
+			dst.HealthPolicy = in.HealthPolicy
+		}
+		if provided["self_repair"] {
+			dst.SelfRepairPolicy = in.SelfRepairPolicy
+		}
+		if provided["noise_policy"] {
+			dst.NoisePolicy = in.NoisePolicy
+		}
+		if provided["tool_allow"] {
+			dst.ToolAllow = in.ToolAllow
+		}
+		if provided["tool_deny"] {
+			dst.ToolDeny = in.ToolDeny
+		}
+		if provided["config_overrides"] {
+			dst.ConfigOverrides = in.ConfigOverrides
+		}
+		if provided["instructions"] {
+			dst.Instructions = in.Instructions
+		}
+		if provided["lifecycle"] {
+			dst.Lifecycle = in.Lifecycle
+		}
+		if provided["tasklist"] {
+			dst.TaskList = in.TaskList
+		}
 	})
 	if err != nil {
 		return roster.Profile{}, err
@@ -132,6 +181,13 @@ func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile,
 		return roster.Profile{}, fmt.Errorf("unknown agent: %s", ref)
 	}
 	return p, nil
+}
+
+// applyProfilePatchField sets *dst = val only when key is present in provided.
+func applyProfilePatchField[T comparable](provided map[string]bool, key string, dst *T, val T) {
+	if provided[key] {
+		*dst = val
+	}
 }
 
 // CreateAgent adds a brand-new agent. System is forced off — only boot-time

@@ -1159,9 +1159,12 @@ func (s *Server) handleAgentAdd(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"profile": profileView(saved)}})
 }
 
-// handleAgentEdit applies args.profile's MUTABLE fields wholesale to the
-// profile named by args.ref (identity/lifecycle fields are protected by the
-// store, so a stale client can't rename a slug or resurrect a paused agent).
+// handleAgentEdit applies args.profile's MUTABLE fields to the profile named by
+// args.ref, using a PATCH semantic: only fields explicitly present in the input
+// JSON payload are applied; all other fields remain unchanged. This prevents a
+// partial profile (e.g. only {"model":"gpt-5"}) from clearing soul, budget,
+// policy fields, etc. Identity/lifecycle fields are protected by the store, so
+// a stale client can't rename a slug or resurrect a paused agent.
 func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 	ref, _ := req.Args["ref"].(string)
 	if strings.TrimSpace(ref) == "" {
@@ -1178,25 +1181,39 @@ func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.profile: " + err.Error()})
 		return
 	}
+	// Parse the raw payload into a flat map to detect which top-level keys the
+	// caller explicitly provided (as opposed to zero-value fields from omission).
+	provided := map[string]bool{}
+	if raw, _ := req.Args["profile"].(map[string]any); raw != nil {
+		for k := range raw {
+			provided[k] = true
+		}
+	}
 	var in roster.Profile
 	if err := json.Unmarshal(b, &in); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.profile: " + err.Error()})
 		return
 	}
 	normalizeAgentProfileKind(b, &in)
+	// If the caller provided "kind" (e.g. "subagent"), normalizeAgentProfileKind
+	// may have set DirectCallable = false on `in`. Propagate that into the
+	// provided set so applyAgentMutableProfilePatch applies it.
+	if provided["kind"] && in.DirectCallable != nil && !*in.DirectCallable {
+		provided["direct_callable"] = true
+	}
 	current, ok := s.k.Roster().Get(ref)
 	if !ok {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
 		return
 	}
 	candidate := current
-	applyAgentMutableProfileFields(&candidate, in)
+	applyAgentMutableProfilePatch(&candidate, in, provided)
 	if err := s.validateAgentHierarchyRefs(candidate); err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
 	p, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
-		applyAgentMutableProfileFields(dst, in)
+		applyAgentMutableProfilePatch(dst, in, provided)
 	})
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -1209,31 +1226,83 @@ func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"profile": profileView(p)}})
 }
 
-func applyAgentMutableProfileFields(dst *roster.Profile, in roster.Profile) {
-	dst.Name = in.Name
-	dst.Soul = in.Soul
-	dst.Instructions = in.Instructions
-	dst.Model = in.Model
-	dst.Fallbacks = in.Fallbacks
-	dst.TaskType = in.TaskType
-	dst.MaxCostMc = in.MaxCostMc
-	dst.MaxDailyMc = in.MaxDailyMc
-	dst.MemoryScope = in.MemoryScope
-	dst.Workdir = in.Workdir
-	dst.OwnerAgent = in.OwnerAgent
-	dst.ParentAgent = in.ParentAgent
-	dst.DirectCallable = in.DirectCallable
-	dst.RetryPolicy = in.RetryPolicy
-	dst.HealthPolicy = in.HealthPolicy
-	dst.SelfRepairPolicy = in.SelfRepairPolicy
-	dst.NoisePolicy = in.NoisePolicy
-	dst.ToolAllow = in.ToolAllow
-	dst.ToolDeny = in.ToolDeny
-	dst.TrustCeiling = in.TrustCeiling
-	dst.ConfigOverrides = in.ConfigOverrides
-	dst.Lifecycle = in.Lifecycle
-	dst.TaskList = in.TaskList
-	dst.Description = in.Description
+// applyAgentMutableProfilePatch applies only those fields of `in` whose JSON key
+// is present in `provided` to `dst`. This implements a PATCH merge where
+// omitted fields keep their current value — fixing the classic "partial edit
+// clears omitted fields" bug.
+func applyAgentMutableProfilePatch(dst *roster.Profile, in roster.Profile, provided map[string]bool) {
+	if provided["name"] {
+		dst.Name = in.Name
+	}
+	if provided["soul"] {
+		dst.Soul = in.Soul
+	}
+	if provided["instructions"] {
+		dst.Instructions = in.Instructions
+	}
+	if provided["model"] {
+		dst.Model = in.Model
+	}
+	if provided["fallbacks"] {
+		dst.Fallbacks = in.Fallbacks
+	}
+	if provided["task_type"] {
+		dst.TaskType = in.TaskType
+	}
+	if provided["max_cost_mc"] {
+		dst.MaxCostMc = in.MaxCostMc
+	}
+	if provided["max_daily_mc"] {
+		dst.MaxDailyMc = in.MaxDailyMc
+	}
+	if provided["memory_scope"] {
+		dst.MemoryScope = in.MemoryScope
+	}
+	if provided["workdir"] {
+		dst.Workdir = in.Workdir
+	}
+	if provided["owner_agent"] {
+		dst.OwnerAgent = in.OwnerAgent
+	}
+	if provided["parent_agent"] {
+		dst.ParentAgent = in.ParentAgent
+	}
+	if provided["direct_callable"] {
+		dst.DirectCallable = in.DirectCallable
+	}
+	if provided["retry_policy"] {
+		dst.RetryPolicy = in.RetryPolicy
+	}
+	if provided["health_policy"] {
+		dst.HealthPolicy = in.HealthPolicy
+	}
+	if provided["self_repair"] {
+		dst.SelfRepairPolicy = in.SelfRepairPolicy
+	}
+	if provided["noise_policy"] {
+		dst.NoisePolicy = in.NoisePolicy
+	}
+	if provided["tool_allow"] {
+		dst.ToolAllow = in.ToolAllow
+	}
+	if provided["tool_deny"] {
+		dst.ToolDeny = in.ToolDeny
+	}
+	if provided["trust_ceiling"] {
+		dst.TrustCeiling = in.TrustCeiling
+	}
+	if provided["config_overrides"] {
+		dst.ConfigOverrides = in.ConfigOverrides
+	}
+	if provided["lifecycle"] {
+		dst.Lifecycle = in.Lifecycle
+	}
+	if provided["tasklist"] {
+		dst.TaskList = in.TaskList
+	}
+	if provided["description"] {
+		dst.Description = in.Description
+	}
 }
 
 func normalizeAgentProfileKind(raw []byte, p *roster.Profile) {
