@@ -1,9 +1,15 @@
 import json
+import os
+import sys
+from pathlib import Path
 
-with open(r'C:\Users\ersin\.agezt\catalog\api.json', 'r', encoding='utf-8') as f:
+base_dir = Path(os.environ.get("AGEZT_HOME") or Path.home() / ".agezt")
+catalog_path = base_dir / "catalog" / "api.json"
+model_id = sys.argv[1] if len(sys.argv) > 1 else "claude-3-5-sonnet-20241022"
+
+with catalog_path.open("r", encoding="utf-8") as f:
     catalog = json.load(f)
 
-model_id = 'claude-3-5-sonnet-20241022'
 found = []
 for provider_id, provider_data in catalog.items():
     models = provider_data.get('models', {})
@@ -17,7 +23,7 @@ for provider_id, provider_data in catalog.items():
                 'model': model
             })
 
-print(f"Found {len(found)} providers for {model_id}:")
+print(f"Found {len(found)} providers for {model_id} in {catalog_path}:")
 for f in found:
     print(f"  Provider: {f['provider']} ({f['name']})")
     print(f"  Env vars: {f['env']}")
