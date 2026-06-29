@@ -44,8 +44,20 @@ jobs:
 
   race:
     # Race detector needs cgo, so it can't run in the default CGO_ENABLED=0
-    # build matrix. We run it once on Linux with cgo enabled to surface
-    # concurrent-code regressions in kernel/bus, kernel/journal, etc.
+    # build matrix. We run it on Linux (the self-hosted WSL-Ubuntu runners,
+    # which have native gcc) with cgo enabled to surface concurrent-code
+    # regressions in kernel/bus, kernel/journal, etc.
+    #
+    # Two passes, because the threat is two-fold:
+    #   1. BREADTH — one `-race ./...` run catches any obviously-racy access
+    #      across the whole tree.
+    #   2. DEPTH — a single pass is unreliable for SCHEDULE-DEPENDENT races
+    #      (the data race only manifests on an unlucky goroutine interleaving).
+    #      The concurrency fixes this gate exists to protect are exactly that
+    #      kind: the channel-registry boot-window race (VULN-002) and the
+    #      pulse / OAuth context-cancellation paths. So we additionally
+    #      stress-run just those packages with -count, multiplying the number
+    #      of interleavings sampled per push at negligible extra cost.
     name: race (linux, cgo)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
@@ -56,7 +68,33 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-go-safe
-      - run: bash scripts/ci-go-retry.sh go test -race ./...
+      - name: Race detector — full tree (breadth)
+        run: bash scripts/ci-go-retry.sh go test -race ./...
+      - name: Race detector — concurrency-critical packages (depth, stressed)
+        # Re-run the packages touched by the concurrency/context fixes many
+        # times so a schedule-dependent race has many chances to surface.
+        # -count forces real re-execution (not the test cache); these packages
+        # are small, so 20x is cheap. Keep this list in sync with the fixes:
+        #   kernel/channel        — VULN-002 registry RWMutex (boot-window race)
+        #   kernel/controlplane   — pulse read-timeout + ctx-aware sleep + oauth ctx
+        #   kernel/chatgptauth    — ExchangeCode ctx cancellation
+        #   kernel/runtime        — WithTrustCeiling clamp / delegation ctx
+        #   kernel/pulse          — engine fan-out / subscription lifecycle
+        #   kernel/governor       — soft budget caps (concurrent recordUsage)
+        #   kernel/bus            — historically race-prone event fan-out
+        #   kernel/journal        — historically race-prone append/read
+        env:
+          RACE_STRESS_COUNT: '20'
+        run: |
+          bash scripts/ci-go-retry.sh go test -race -count="${RACE_STRESS_COUNT}" \
+            ./kernel/channel/... \
+            ./kernel/controlplane/... \
+            ./kernel/chatgptauth/... \
+            ./kernel/runtime/... \
+            ./kernel/pulse/... \
+            ./kernel/governor/... \
+            ./kernel/bus/... \
+            ./kernel/journal/...
 
   e2e:
     # Runtime/E2E gate: boot the real daemon and smoke every core product surface
