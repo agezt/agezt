@@ -14,6 +14,7 @@
 package settings
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -21,6 +22,11 @@ import (
 	"sort"
 	"sync"
 )
+
+// utf8BOM is the byte-order mark some Windows editors (and PowerShell's
+// Set-Content/Out-File) prepend to UTF-8 files. Go's JSON parser rejects it
+// ("invalid character 'ï'"), so we strip it on read.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 // FileName is the canonical filename under <baseDir>.
 const FileName = "config.json"
@@ -60,7 +66,8 @@ func (s *Store) Load() error {
 		}
 		return fmt.Errorf("settings: read %s: %w", s.Path, err)
 	}
-	if len(raw) == 0 {
+	raw = bytes.TrimPrefix(raw, utf8BOM)
+	if len(bytes.TrimSpace(raw)) == 0 {
 		s.accounts = map[string]map[string]string{}
 		return nil
 	}
