@@ -69,6 +69,22 @@ isolated tenant (sent as `X-Agezt-Tenant`) on a multi-tenant daemon.
 
 Non-2xx responses throw `APIError` (`.status`, `.type`, `.detail`).
 
+## Agent subprocess SDK
+
+Agent subprocesses can use the gateway-scoped client exported from the same
+package:
+
+```ts
+import { AgentClient } from "@agezt/sdk";
+
+const client = new AgentClient({ token: process.env.AGEZT_AGENT_TOKEN! });
+await client.memory.write({ type: "fact", subject: "finding", content: "..." });
+await client.eventbus.publish("agent.progress", { step: 1 });
+```
+
+See `examples/agent_example.ts`; after `npm run build`, it is emitted at
+`dist/examples/agent_example.js`.
+
 ## Develop / test
 
 The only dev dependency is TypeScript; tests use the Node built-in test runner

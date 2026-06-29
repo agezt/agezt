@@ -34,14 +34,10 @@ The client is thread-safe for basic use. For async usage, use ``AsyncAgentClient
 from __future__ import annotations
 
 import json
-import os
 import socket
 import threading
-import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional
-
-from .errors import APIError
 
 __all__ = ["AgentClient", "AsyncAgentClient", "AgentError", "Capability"]
 

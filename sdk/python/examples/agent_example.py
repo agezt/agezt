@@ -14,7 +14,7 @@ Usage:
 import os
 import sys
 
-from agezt import AgentClient, Capability
+from agezt import AgentClient
 
 def main():
     # Get token from environment (set by parent agent)

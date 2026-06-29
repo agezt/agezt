@@ -11,7 +11,7 @@
  *   # or: npm run build && node dist/examples/agent_example.js
  */
 
-import { AgentClient, Capability } from "../dist/src/index.js";
+import { AgentClient } from "../src/index.js";
 
 async function main() {
   // Get token from environment (set by parent agent)
