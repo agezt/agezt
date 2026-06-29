@@ -2,8 +2,6 @@
 
 package main
 
-import "io"
-
 func AllCommands() []*Command {
 	seen := make(map[string]bool)
 	var cmds []*Command
@@ -14,12 +12,4 @@ func AllCommands() []*Command {
 		}
 	}
 	return cmds
-}
-
-func RunHelp(name string, args []string, stdout, stderr io.Writer) int {
-	cmd := lookup(name)
-	if cmd == nil || cmd.HelpHandler == nil {
-		return 2
-	}
-	return cmd.HelpHandler(args, stdout, stderr)
 }

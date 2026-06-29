@@ -16,15 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 )
 
-func WriteJSONEntry(w io.Writer, entry AuditEntry) error {
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(data)
-	return err
-}
-
 func ReadAuditLog(path string) ([]AuditEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
