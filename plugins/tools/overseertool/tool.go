@@ -180,7 +180,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if ref == "" {
 			return errResult(`op=edit needs "agent" (the target slug) and a "profile" object`), nil
 		}
-		prof, perr := parseProfile(in.Profile)
+		prof, perr := parseProfile(in.Profile, raw)
 		if perr != nil {
 			return errResult(perr.Error()), nil
 		}
@@ -191,7 +191,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		return okJSON(map[string]any{"agent": p.Slug, "action": "edited", "profile": agentView(p)}), nil
 
 	case "create":
-		prof, perr := parseProfile(in.Profile)
+		prof, perr := parseProfile(in.Profile, raw)
 		if perr != nil {
 			return errResult(perr.Error()), nil
 		}
@@ -231,17 +231,57 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 	}
 }
 
-// parseProfile decodes the op=edit/create "profile" object into a roster.Profile.
-// A missing/empty object is an error so a guardian can't silently no-op an edit.
-func parseProfile(raw json.RawMessage) (roster.Profile, error) {
-	if len(raw) == 0 || string(raw) == "null" || string(raw) == "{}" {
-		return roster.Profile{}, fmt.Errorf(`a "profile" object is required`)
+// overseerControlKeys are the top-level input keys that are NOT profile fields,
+// so they're ignored when a model flattens the profile onto the tool input.
+var overseerControlKeys = map[string]bool{
+	"op": true, "agent": true, "run": true, "reason": true, "limit": true, "profile": true,
+}
+
+// parseProfile decodes the op=edit/create profile into a roster.Profile. The
+// canonical shape is a nested "profile" object, but some models flatten the
+// fields straight onto the tool input (e.g. {"op":"create","slug":"x",...})
+// instead of nesting them — so when "profile" is missing/empty we fall back to
+// reading the profile fields off the top-level input. Either shape works; only
+// a genuinely empty payload (no profile object AND no flat fields) is an error,
+// so a guardian still can't silently no-op an edit.
+func parseProfile(profileRaw, fullRaw json.RawMessage) (roster.Profile, error) {
+	if hasProfileObject(profileRaw) {
+		var p roster.Profile
+		if err := json.Unmarshal(profileRaw, &p); err != nil {
+			return roster.Profile{}, fmt.Errorf("profile: %w", err)
+		}
+		return p, nil
 	}
-	var p roster.Profile
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return roster.Profile{}, fmt.Errorf("profile: %w", err)
+	if hasFlatProfileFields(fullRaw) {
+		var p roster.Profile
+		if err := json.Unmarshal(fullRaw, &p); err != nil {
+			return roster.Profile{}, fmt.Errorf("profile: %w", err)
+		}
+		return p, nil
 	}
-	return p, nil
+	return roster.Profile{}, fmt.Errorf(`a "profile" object is required (nest the agent fields under "profile", or pass them as top-level keys like "slug"/"name"/"soul"/"model")`)
+}
+
+// hasProfileObject reports whether raw is a populated "profile" object (not
+// absent, null, or empty).
+func hasProfileObject(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s != "" && s != "null" && s != "{}"
+}
+
+// hasFlatProfileFields reports whether the top-level input carries any key that
+// isn't a control key — i.e. the model flattened profile fields onto the input.
+func hasFlatProfileFields(fullRaw json.RawMessage) bool {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(fullRaw, &m) != nil {
+		return false
+	}
+	for k := range m {
+		if !overseerControlKeys[k] {
+			return true
+		}
+	}
+	return false
 }
 
 func cancelNote(ok bool) string {

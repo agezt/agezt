@@ -304,6 +304,55 @@ func TestCreateNeedsSlug(t *testing.T) {
 	}
 }
 
+// TestCreateFlatProfile asserts the tolerant parser accepts a flattened profile
+// — fields placed at the top level instead of nested under "profile" — which is
+// how some models shape the args. Without this they'd hit "a profile object is
+// required".
+func TestCreateFlatProfile(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "create", "slug": "atlas", "name": "Atlas", "soul": "Be sharp.", "model": "deepseek-chat",
+	})
+	if isErr {
+		t.Fatalf("flat create errored: %v", out)
+	}
+	if f.created.Slug != "atlas" || f.created.Name != "Atlas" || f.created.Model != "deepseek-chat" {
+		t.Errorf("flat create fields not applied: %+v", f.created)
+	}
+	if out["action"] != "created" {
+		t.Errorf("action = %v, want created", out["action"])
+	}
+}
+
+// TestEditFlatProfile is the op=edit twin: "agent" is the control ref, the rest
+// of the top-level keys are read as the profile.
+func TestEditFlatProfile(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "edit", "agent": "scout", "model": "deepseek-chat", "soul": "Be terse.",
+	})
+	if isErr {
+		t.Fatalf("flat edit errored: %v", out)
+	}
+	if f.edited != "scout" {
+		t.Errorf("edited target = %q, want scout", f.edited)
+	}
+	if f.editFields.Model != "deepseek-chat" || f.editFields.Soul != "Be terse." {
+		t.Errorf("flat edit fields not applied: %+v", f.editFields)
+	}
+}
+
+// TestCreateEmptyStillErrors: a payload with neither a profile object nor any
+// flat fields must still be rejected — a guardian can't silently no-op.
+func TestCreateEmptyStillErrors(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "create"}); !isErr {
+		t.Error("op=create with no profile and no flat fields should error")
+	}
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "create", "profile": map[string]any{}}); !isErr {
+		t.Error("op=create with empty profile object should error")
+	}
+}
+
 func TestRepairAgent(t *testing.T) {
 	f := &fakeSource{repairRes: RepairResult{Agent: "builder", Correlation: "corr-1", Applied: []string{"model"}, Answer: "patched"}}
 	out, isErr := invoke(t, newTool(f), map[string]any{"op": "repair", "agent": "builder", "reason": "invalid runtime override"})
