@@ -29,8 +29,8 @@ import (
 
 // Config constructs a Tunnel.
 type Config struct {
-	// Provider is a built-in preset: "cloudflared" or "ngrok". Ignored when
-	// Command is set.
+	// Provider is a built-in preset: "cloudflare"/"cloudflared" or "ngrok".
+	// "custom" requires Command. Ignored when Command is set.
 	Provider string
 	// Command is an explicit command + args to run (overrides Provider), for any
 	// tunnel binary not covered by a preset. The operator embeds the target.
@@ -143,22 +143,29 @@ func buildCommand(cfg Config) ([]string, error) {
 	if len(cfg.Command) > 0 {
 		return cfg.Command, nil
 	}
-	target := strings.TrimSpace(cfg.TargetURL)
-	if target == "" {
-		return nil, fmt.Errorf("tunnel: a target URL is required for the %q preset", cfg.Provider)
-	}
-	switch strings.ToLower(strings.TrimSpace(cfg.Provider)) {
-	case "cloudflared":
+	provider := strings.ToLower(strings.TrimSpace(cfg.Provider))
+	switch provider {
+	case "cloudflare", "cloudflared":
+		target := strings.TrimSpace(cfg.TargetURL)
+		if target == "" {
+			return nil, fmt.Errorf("tunnel: a target URL is required for the %q preset", cfg.Provider)
+		}
 		// Quick Tunnel: no account needed, prints an https://*.trycloudflare.com URL.
 		return []string{"cloudflared", "tunnel", "--url", target}, nil
 	case "ngrok":
+		target := strings.TrimSpace(cfg.TargetURL)
+		if target == "" {
+			return nil, fmt.Errorf("tunnel: a target URL is required for the %q preset", cfg.Provider)
+		}
 		// ngrok wants a host:port (or addr), not a full URL; logfmt to stdout so we
 		// can scan the "url=" field.
 		return []string{"ngrok", "http", stripScheme(target), "--log=stdout", "--log-format=logfmt"}, nil
+	case "custom":
+		return nil, fmt.Errorf("tunnel: AGEZT_TUNNEL=custom requires AGEZT_TUNNEL_CMD")
 	case "":
-		return nil, fmt.Errorf("tunnel: set AGEZT_TUNNEL to a provider (cloudflared|ngrok) or AGEZT_TUNNEL_CMD to a command")
+		return nil, fmt.Errorf("tunnel: set AGEZT_TUNNEL to a provider (cloudflare|cloudflared|ngrok) or AGEZT_TUNNEL_CMD to a command")
 	default:
-		return nil, fmt.Errorf("tunnel: unknown provider %q (use cloudflared, ngrok, or AGEZT_TUNNEL_CMD)", cfg.Provider)
+		return nil, fmt.Errorf("tunnel: unknown provider %q (use cloudflare, cloudflared, ngrok, or AGEZT_TUNNEL_CMD)", cfg.Provider)
 	}
 }
 

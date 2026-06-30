@@ -460,6 +460,16 @@ func builtinSections() []Section {
 			},
 		},
 		{
+			ID: "tunnel", Name: "Tunnel / External Access",
+			Help: "Optional controlled external access. Restart to apply daemon-supervised tunnels; install-script managed services may also read these values.",
+			Fields: []Field{
+				{Env: "AGEZT_TUNNEL", Label: "Tunnel provider", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "cloudflare", "cloudflared", "ngrok", "custom"}, Help: "Blank = disabled. cloudflare/cloudflared creates a trycloudflare.com quick tunnel; ngrok uses ngrok http; custom uses AGEZT_TUNNEL_CMD. Tailscale is managed externally via tailscale serve/funnel."},
+				{Env: "AGEZT_TUNNEL_TARGET", Label: "Tunnel target URL", Type: TypeText, Apply: ApplyRestart, Help: "Local URL to expose. Blank = Web UI addr when configured, else REST API addr. Example: http://127.0.0.1:8787."},
+				{Env: "AGEZT_TUNNEL_CMD", Label: "Custom tunnel command", Type: TypeText, Apply: ApplyRestart, Help: "Advanced: explicit command for custom tunnel providers. Overrides Tunnel provider. Do not put secrets in command arguments."},
+				{Env: "AGEZT_TUNNEL_NOTES", Label: "Operator notes", Type: TypeText, Apply: ApplyRestart, Help: "Optional note for operators, e.g. tailscale serve/ngrok/cloudflare policy details. Not read by the daemon."},
+			},
+		},
+		{
 			ID: "limits", Name: "Budget & Limits",
 			Help: "Rate and context budgets. Restart to apply.",
 			Fields: []Field{

@@ -1763,7 +1763,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if tunDesc := buildTunnel(ctx, stdout); tunDesc != "" {
 		fmt.Fprintf(stdout, "  tunnel           : %s\n", tunDesc)
 	} else {
-		fmt.Fprintf(stdout, "  tunnel           : disabled (set AGEZT_TUNNEL=cloudflared|ngrok or AGEZT_TUNNEL_CMD)\n")
+		fmt.Fprintf(stdout, "  tunnel           : disabled (set AGEZT_TUNNEL=cloudflare|ngrok or AGEZT_TUNNEL_CMD)\n")
 	}
 
 	// OpenAI-compatible API (P7-API-01) — POST /v1/chat/completions,
@@ -4521,12 +4521,12 @@ func webAllowedHosts(bindAddr string) []string {
 }
 
 // buildTunnel starts a public tunnel to a local HTTP service when AGEZT_TUNNEL
-// (cloudflared|ngrok) or AGEZT_TUNNEL_CMD (a custom command) is set. It targets
+// (cloudflare/cloudflared|ngrok) or AGEZT_TUNNEL_CMD (a custom command) is set. It targets
 // AGEZT_TUNNEL_TARGET, else the Web UI addr, else the REST addr. The supervised
 // binary's public URL is printed to the daemon log once it connects. Returns ""
 // (disabled) when no tunnel is configured.
 //
-//	AGEZT_TUNNEL         provider preset: cloudflared | ngrok
+//	AGEZT_TUNNEL         provider preset: cloudflare/cloudflared | ngrok
 //	AGEZT_TUNNEL_CMD     explicit command (whitespace-split), overrides the preset
 //	AGEZT_TUNNEL_TARGET  local URL to expose (default: the Web UI, else REST, addr)
 func buildTunnel(ctx context.Context, stdout io.Writer) string {

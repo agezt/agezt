@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -18,6 +19,29 @@ func sampleSection() Section {
 			{Env: "AGEZT_X_WEATHER_API_KEY", Label: "API key", Type: TypePassword, Secret: true},
 			{Env: "AGEZT_X_WEATHER_UNITS", Label: "Units", Type: TypeSelect, Options: []string{"metric", "imperial"}},
 		},
+	}
+}
+
+func TestBuiltinTunnelSettings(t *testing.T) {
+	r := NewRegistry(t.TempDir())
+	provider, ok := r.FieldByEnv("AGEZT_TUNNEL")
+	if !ok {
+		t.Fatal("AGEZT_TUNNEL missing from built-in schema")
+	}
+	if provider.Type != TypeSelect {
+		t.Fatalf("AGEZT_TUNNEL type=%q, want %q", provider.Type, TypeSelect)
+	}
+	want := []string{"", "cloudflare", "cloudflared", "ngrok", "custom"}
+	if !slices.Equal(provider.Options, want) {
+		t.Fatalf("AGEZT_TUNNEL options=%v, want %v", provider.Options, want)
+	}
+	for _, env := range []string{"AGEZT_TUNNEL_TARGET", "AGEZT_TUNNEL_CMD", "AGEZT_TUNNEL_NOTES"} {
+		if _, ok := r.FieldByEnv(env); !ok {
+			t.Fatalf("%s missing from built-in schema", env)
+		}
+	}
+	if err := Validate(provider, "tailscale"); err == nil {
+		t.Fatal("AGEZT_TUNNEL should reject unsupported daemon-supervised provider tailscale")
 	}
 }
 

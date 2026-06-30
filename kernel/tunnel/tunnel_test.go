@@ -5,6 +5,7 @@ package tunnel
 import (
 	"context"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,20 +14,27 @@ import (
 
 func TestBuildCommand(t *testing.T) {
 	cases := []struct {
-		name string
-		cfg  Config
-		want []string
-		err  bool
+		name    string
+		cfg     Config
+		want    []string
+		err     bool
+		errText string
 	}{
-		{"cloudflared preset", Config{Provider: "cloudflared", TargetURL: "http://127.0.0.1:8787"},
-			[]string{"cloudflared", "tunnel", "--url", "http://127.0.0.1:8787"}, false},
-		{"ngrok preset strips scheme", Config{Provider: "ngrok", TargetURL: "http://127.0.0.1:8800/api"},
-			[]string{"ngrok", "http", "127.0.0.1:8800", "--log=stdout", "--log-format=logfmt"}, false},
-		{"explicit command wins", Config{Command: []string{"mytunnel", "--port", "9000"}, Provider: "cloudflared"},
-			[]string{"mytunnel", "--port", "9000"}, false},
-		{"preset needs target", Config{Provider: "cloudflared"}, nil, true},
-		{"unknown provider", Config{Provider: "frpc", TargetURL: "http://x"}, nil, true},
-		{"empty provider, no command", Config{TargetURL: "http://x"}, nil, true},
+		{name: "cloudflared preset", cfg: Config{Provider: "cloudflared", TargetURL: "http://127.0.0.1:8787"},
+			want: []string{"cloudflared", "tunnel", "--url", "http://127.0.0.1:8787"}},
+		{name: "cloudflare alias", cfg: Config{Provider: "cloudflare", TargetURL: "http://127.0.0.1:8787"},
+			want: []string{"cloudflared", "tunnel", "--url", "http://127.0.0.1:8787"}},
+		{name: "ngrok preset strips scheme", cfg: Config{Provider: "ngrok", TargetURL: "http://127.0.0.1:8800/api"},
+			want: []string{"ngrok", "http", "127.0.0.1:8800", "--log=stdout", "--log-format=logfmt"}},
+		{name: "explicit command wins", cfg: Config{Command: []string{"mytunnel", "--port", "9000"}, Provider: "cloudflared"},
+			want: []string{"mytunnel", "--port", "9000"}},
+		{name: "custom provider requires explicit command", cfg: Config{Provider: "custom", TargetURL: "http://127.0.0.1:8787"}, err: true,
+			errText: "AGEZT_TUNNEL=custom requires AGEZT_TUNNEL_CMD"},
+		{name: "custom provider with explicit command", cfg: Config{Command: []string{"mytunnel", "--port", "9000"}, Provider: "custom"},
+			want: []string{"mytunnel", "--port", "9000"}},
+		{name: "preset needs target", cfg: Config{Provider: "cloudflared"}, err: true},
+		{name: "unknown provider", cfg: Config{Provider: "frpc", TargetURL: "http://x"}, err: true},
+		{name: "empty provider, no command", cfg: Config{TargetURL: "http://x"}, err: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -34,6 +42,9 @@ func TestBuildCommand(t *testing.T) {
 			if c.err {
 				if err == nil {
 					t.Fatalf("want error, got cmd %v", got)
+				}
+				if c.errText != "" && !strings.Contains(err.Error(), c.errText) {
+					t.Fatalf("error %q does not contain %q", err.Error(), c.errText)
 				}
 				return
 			}
