@@ -100,6 +100,14 @@ const (
 	// read with no operator-controlled target host (the engine is fixed), so it
 	// is ask-first by default — symmetric with CapBrowserRead/CapHTTPGet (M627).
 	CapWebSearch Capability = "web.search"
+	// CapResearch gates the `research` tool: the deep-research harness that
+	// composes web_search + browser.read + provider calls into a multi-source,
+	// citation-grounded report. Every underlying network read and model call is
+	// still gated by its own capability inside RunTool, so this axis governs the
+	// orchestration itself (fan-out + model spend). Symmetric with CapWebSearch:
+	// a network read with fixed engine host, ask-first in spirit but LevelAllow
+	// under the max-autonomy default posture (M1001).
+	CapResearch Capability = "research"
 	// CapSchedule gates the `schedule` tool: the agent arranging its OWN future
 	// runs (one-shot / recurring / daily) in the daemon's cadence store. A
 	// genuine autonomy grant — a scheduled intent fires later through the full
@@ -646,7 +654,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
+		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapResearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
 		CapIntrospect, CapOversee, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
 		CapWorkflow,
 	}
