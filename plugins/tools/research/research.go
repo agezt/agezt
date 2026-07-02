@@ -55,7 +55,9 @@ func (t *Tool) Definition() agent.ToolDef {
   "properties": {
     "question":          {"type":"string",  "description":"The question to research."},
     "max_sub_questions": {"type":"integer", "description":"Cap on sub-questions to explore (default 3, max 8)."},
-    "max_sources":       {"type":"integer", "description":"Cap on distinct sources to gather (default 8, max 20)."}
+    "max_sources":       {"type":"integer", "description":"Cap on distinct sources to gather (default 8, max 20)."},
+    "verify":            {"type":"boolean", "description":"Adversarially verify each cited claim against its source (default true)."},
+    "max_verify_claims": {"type":"integer", "description":"Cap on claims to verify (default 6, max 12)."}
   }
 }`),
 		Effect: agent.ToolEffect{
@@ -74,6 +76,8 @@ type input struct {
 	Question        string `json:"question"`
 	MaxSubQuestions int    `json:"max_sub_questions,omitempty"`
 	MaxSources      int    `json:"max_sources,omitempty"`
+	Verify          *bool  `json:"verify,omitempty"` // pointer: unset => default true
+	MaxVerifyClaims int    `json:"max_verify_claims,omitempty"`
 }
 
 // Invoke implements agent.Tool.
@@ -89,9 +93,12 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return errResult("question required"), nil
 	}
 	corr := agent.CorrelationFromContext(ctx)
+	verify := in.Verify == nil || *in.Verify // default on
 	report, err := t.runner.Research(ctx, corr, in.Question, runtime.ResearchOptions{
 		MaxSubQuestions: in.MaxSubQuestions,
 		MaxSources:      in.MaxSources,
+		Verify:          verify,
+		MaxVerifyClaims: in.MaxVerifyClaims,
 	})
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -119,13 +126,15 @@ type researchSourceOut struct {
 }
 
 type researchOut struct {
-	Question     string              `json:"question"`
-	SubQuestions []string            `json:"sub_questions"`
-	Sources      []researchSourceOut `json:"sources"`
-	Markdown     string              `json:"markdown"`
-	Confidence   float64             `json:"confidence"`
-	CitedSources int                 `json:"cited_sources"`
-	Notes        []string            `json:"notes,omitempty"`
+	Question     string                  `json:"question"`
+	SubQuestions []string                `json:"sub_questions"`
+	Sources      []researchSourceOut     `json:"sources"`
+	Markdown     string                  `json:"markdown"`
+	Claims       []runtime.ResearchClaim `json:"claims,omitempty"`
+	Confidence   float64                 `json:"confidence"`
+	CitedSources int                     `json:"cited_sources"`
+	Verified     bool                    `json:"verified"`
+	Notes        []string                `json:"notes,omitempty"`
 }
 
 func researchOutput(r runtime.ResearchReport) researchOut {
@@ -138,8 +147,10 @@ func researchOutput(r runtime.ResearchReport) researchOut {
 		SubQuestions: r.SubQuestions,
 		Sources:      srcs,
 		Markdown:     r.Markdown,
+		Claims:       r.Claims,
 		Confidence:   r.Confidence,
 		CitedSources: r.CitedSources,
+		Verified:     r.Verified,
 		Notes:        r.Notes,
 	}
 }

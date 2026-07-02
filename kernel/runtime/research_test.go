@@ -126,11 +126,60 @@ func TestBuildResearchSynthPrompt_IncludesSourcesAndRules(t *testing.T) {
 
 func TestResearchOptions_Defaults(t *testing.T) {
 	o := ResearchOptions{}.withDefaults()
-	if o.MaxSubQuestions != 3 || o.ResultsPerQuery != 4 || o.MaxSources != 8 {
+	if o.MaxSubQuestions != 3 || o.ResultsPerQuery != 4 || o.MaxSources != 8 || o.MaxVerifyClaims != 6 {
 		t.Fatalf("bad defaults: %#v", o)
 	}
-	capped := ResearchOptions{MaxSubQuestions: 99, MaxSources: 99}.withDefaults()
-	if capped.MaxSubQuestions != 8 || capped.MaxSources != 20 {
+	capped := ResearchOptions{MaxSubQuestions: 99, MaxSources: 99, MaxVerifyClaims: 99}.withDefaults()
+	if capped.MaxSubQuestions != 8 || capped.MaxSources != 20 || capped.MaxVerifyClaims != 12 {
 		t.Fatalf("caps not applied: %#v", capped)
+	}
+}
+
+func TestExtractClaims(t *testing.T) {
+	md := "The sky is blue [S1]. Water is wet [S2]! This has no citation. Confidence: high [S1]."
+	got := extractClaims(md, 2)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 cited claims (skip uncited + Confidence line), got %d: %#v", len(got), got)
+	}
+	if got[0].SourceIDs[0] != "S1" || got[1].SourceIDs[0] != "S2" {
+		t.Fatalf("wrong source ids: %#v", got)
+	}
+	if !strings.HasSuffix(got[0].Text, ".") {
+		t.Fatalf("claim text should end with period: %q", got[0].Text)
+	}
+}
+
+func TestExtractClaims_OutOfRangeCitationDropped(t *testing.T) {
+	// [S9] is out of range for n=1, so the sentence has no valid citation.
+	md := "Bold assertion [S9]. Grounded one [S1]."
+	got := extractClaims(md, 1)
+	if len(got) != 1 || got[0].SourceIDs[0] != "S1" {
+		t.Fatalf("expected only the S1 claim, got %#v", got)
+	}
+}
+
+func TestParseResearchVerdict(t *testing.T) {
+	cases := []struct {
+		reply       string
+		wantVerdict string
+	}{
+		{"SUPPORTED\nThe source states this directly.", "supported"},
+		{"REFUTED - the source says the opposite", "refuted"},
+		{"UNSUPPORTED by the cited text", "refuted"}, // contains SUPPORTED but must be refuted
+		{"NOT SUPPORTED anywhere", "refuted"},
+		{"The source CONTRADICTS the claim", "refuted"},
+		{"UNCERTAIN\nsource is insufficient", "uncertain"},
+		{"I cannot tell from this", "uncertain"},
+	}
+	for _, c := range cases {
+		gotV, _ := parseResearchVerdict(c.reply)
+		if gotV != c.wantVerdict {
+			t.Errorf("parseResearchVerdict(%q) verdict=%q want %q", c.reply, gotV, c.wantVerdict)
+		}
+	}
+	// Reason is the first non-verdict line.
+	_, note := parseResearchVerdict("SUPPORTED\nBecause the abstract says so.")
+	if note != "Because the abstract says so." {
+		t.Fatalf("note = %q", note)
 	}
 }

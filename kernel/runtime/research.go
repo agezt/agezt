@@ -29,6 +29,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
 )
@@ -45,16 +46,29 @@ type ResearchSource struct {
 	Rank  int    `json:"rank"`
 }
 
+// ResearchClaim is one factual claim lifted from the synthesis and put through
+// adversarial verification (Faz 2). Verdict is "supported", "refuted", or
+// "uncertain"; SourceIDs are the [S#] tokens the claim cited.
+type ResearchClaim struct {
+	Text      string   `json:"text"`
+	SourceIDs []string `json:"source_ids"`
+	Verdict   string   `json:"verdict"`
+	Note      string   `json:"note,omitempty"`
+}
+
 // ResearchReport is the outcome of a deep-research run: the sub-questions it
-// explored, the sources it grounded on, the cited synthesis, and a confidence
-// derived from how many distinct sources the answer actually cited.
+// explored, the sources it grounded on, the cited synthesis, the verified
+// claims, and a confidence derived from verification (or citation coverage when
+// verification is off).
 type ResearchReport struct {
 	Question     string           `json:"question"`
 	SubQuestions []string         `json:"sub_questions"`
 	Sources      []ResearchSource `json:"sources"`
 	Markdown     string           `json:"markdown"`
+	Claims       []ResearchClaim  `json:"claims,omitempty"`
 	Confidence   float64          `json:"confidence"`
 	CitedSources int              `json:"cited_sources"`
+	Verified     bool             `json:"verified"`
 	Notes        []string         `json:"notes,omitempty"`
 }
 
@@ -64,6 +78,8 @@ type ResearchOptions struct {
 	MaxSubQuestions int    // default 3, capped at 8
 	ResultsPerQuery int    // default 4
 	MaxSources      int    // default 8, capped at 20
+	Verify          bool   // run the adversarial claim-verification pass (Faz 2)
+	MaxVerifyClaims int    // default 6, capped at 12; only meaningful when Verify
 }
 
 func (o ResearchOptions) withDefaults() ResearchOptions {
@@ -82,13 +98,28 @@ func (o ResearchOptions) withDefaults() ResearchOptions {
 	if o.MaxSources > 20 {
 		o.MaxSources = 20
 	}
+	if o.MaxVerifyClaims <= 0 {
+		o.MaxVerifyClaims = 6
+	}
+	if o.MaxVerifyClaims > 12 {
+		o.MaxVerifyClaims = 12
+	}
 	return o
 }
 
 const (
-	researchPlanMaxTokens  = 512
-	researchSynthMaxTokens = 2048
-	researchSourceTextMax  = 6000 // chars of each source fed to synthesis
+	researchPlanMaxTokens   = 512
+	researchSynthMaxTokens  = 2048
+	researchVerifyMaxTokens = 256
+	researchSourceTextMax   = 6000 // chars of each source fed to synthesis
+	researchVerifyTextMax   = 3000 // chars of a cited source fed to the verifier
+
+	researchVerifySystem = "You are a skeptical, adversarial fact-checker. You are given ONE claim and the " +
+		"exact text of the source(s) it cites. Your job is to REFUTE the claim: assume it is wrong until " +
+		"the source text plainly proves it. Decide whether the cited source actually supports the claim. " +
+		"Reply with EXACTLY one verdict word on the first line — SUPPORTED, REFUTED, or UNCERTAIN — then " +
+		"one short line of reason. REFUTED means the source contradicts it or does not support it; " +
+		"UNCERTAIN means the source is insufficient to tell."
 
 	researchSynthSystem = "You are a research synthesist. Using ONLY the numbered sources provided, " +
 		"write a clear, well-structured answer to the question. Every factual claim MUST cite its " +
@@ -208,7 +239,76 @@ func (k *Kernel) Research(ctx context.Context, corr, question string, opts Resea
 	if len(cited) == 0 {
 		report.Notes = append(report.Notes, "synthesis contained no [S#] citations; treat with low confidence")
 	}
+
+	// 5. ADVERSARIAL VERIFICATION (Faz 2) — put each cited claim through a
+	// skeptical refute-first check against its own source text. This is the
+	// Conductor's Verifier role applied to research: a claim survives only when
+	// the source plainly supports it. When verification runs, confidence is the
+	// supported fraction of verified claims (a stronger signal than mere citation
+	// coverage), and any refuted claim is surfaced as a note.
+	if opts.Verify {
+		claims := extractClaims(report.Markdown, len(report.Sources))
+		if len(claims) > opts.MaxVerifyClaims {
+			claims = claims[:opts.MaxVerifyClaims]
+		}
+		report.Claims = k.verifyResearchClaims(ctx, corr, opts.Model, report.Sources, claims)
+		report.Verified = len(report.Claims) > 0
+		if report.Verified {
+			supported, refuted := 0, 0
+			for _, c := range report.Claims {
+				switch c.Verdict {
+				case "supported":
+					supported++
+				case "refuted":
+					refuted++
+				}
+			}
+			report.Confidence = researchConfidence(supported, len(report.Claims))
+			if refuted > 0 {
+				report.Notes = append(report.Notes, fmt.Sprintf("%d of %d verified claim(s) were REFUTED under adversarial check", refuted, len(report.Claims)))
+			}
+		}
+	}
 	return report, nil
+}
+
+// verifyResearchClaims runs the adversarial verifier over each claim in
+// parallel (like councilRound), returning claims with their verdicts filled.
+func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, sources []ResearchSource, claims []ResearchClaim) []ResearchClaim {
+	if len(claims) == 0 || k.cfg.Provider == nil {
+		return nil
+	}
+	byID := make(map[string]ResearchSource, len(sources))
+	for _, s := range sources {
+		byID[s.ID] = s
+	}
+	out := make([]ResearchClaim, len(claims))
+	var wg sync.WaitGroup
+	for i, c := range claims {
+		wg.Add(1)
+		go func(i int, c ResearchClaim) {
+			defer wg.Done()
+			c.Verdict = "uncertain"
+			resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
+				Model:         model,
+				CorrelationID: corr,
+				TaskType:      "research-verify",
+				MaxTokens:     researchVerifyMaxTokens,
+				System:        researchVerifySystem,
+				Messages:      []agent.Message{{Role: agent.RoleUser, Content: buildResearchVerifyPrompt(c, byID)}},
+			})
+			if err != nil {
+				c.Note = "verifier error: " + err.Error()
+			} else {
+				verdict, note := parseResearchVerdict(resp.Message.Content)
+				c.Verdict = verdict
+				c.Note = note
+			}
+			out[i] = c
+		}(i, c)
+	}
+	wg.Wait()
+	return out
 }
 
 // --- pure helpers (unit-tested without a Kernel) ---
@@ -339,4 +439,96 @@ func researchConfidence(cited, total int) float64 {
 		c = 1
 	}
 	return c
+}
+
+// sentenceSplit breaks synthesis prose into candidate claim sentences. It splits
+// on newlines and sentence terminators while keeping the terminator, and is
+// deliberately simple — the verifier tolerates slightly ragged fragments.
+var sentenceSplitRe = regexp.MustCompile(`(?:[.!?](?:\s|$)|\n)+`)
+
+// extractClaims lifts cited sentences ([S#]) out of the synthesis into claims,
+// each tagged with the in-range source IDs it references. Sentences without a
+// citation, and a trailing "Confidence:" line, are skipped.
+func extractClaims(markdown string, n int) []ResearchClaim {
+	var claims []ResearchClaim
+	for _, raw := range sentenceSplitRe.Split(markdown, -1) {
+		s := strings.TrimSpace(raw)
+		if s == "" {
+			continue
+		}
+		low := strings.ToLower(s)
+		if strings.HasPrefix(low, "confidence:") || strings.HasPrefix(low, "sources:") {
+			continue
+		}
+		idx := extractCitedSources(s, n)
+		if len(idx) == 0 {
+			continue
+		}
+		ids := make([]string, 0, len(idx))
+		for _, i := range idx {
+			ids = append(ids, fmt.Sprintf("S%d", i))
+		}
+		text := s
+		if !strings.HasSuffix(text, ".") {
+			text += "."
+		}
+		claims = append(claims, ResearchClaim{Text: text, SourceIDs: ids})
+	}
+	return claims
+}
+
+// buildResearchVerifyPrompt renders the adversarial check for one claim against
+// the text of the source(s) it cites.
+func buildResearchVerifyPrompt(c ResearchClaim, byID map[string]ResearchSource) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Claim: %s\n\nCited source(s):\n", c.Text)
+	found := false
+	for _, id := range c.SourceIDs {
+		s, ok := byID[id]
+		if !ok {
+			continue
+		}
+		found = true
+		title := s.Title
+		if title == "" {
+			title = s.URL
+		}
+		fmt.Fprintf(&b, "\n[%s] %s (%s)\n%s\n", s.ID, title, s.URL, clip(s.Text, researchVerifyTextMax))
+	}
+	if !found {
+		b.WriteString("\n(no cited source text available)\n")
+	}
+	b.WriteString("\nVerdict (SUPPORTED / REFUTED / UNCERTAIN) then one reason line:")
+	return b.String()
+}
+
+// parseResearchVerdict reads the verifier's reply into a normalized verdict and a short
+// reason. It checks the refuting signals before "supported" because
+// "UNSUPPORTED" contains "SUPPORTED".
+func parseResearchVerdict(reply string) (verdict, note string) {
+	reply = strings.TrimSpace(reply)
+	upper := strings.ToUpper(reply)
+	switch {
+	case strings.Contains(upper, "REFUTED"), strings.Contains(upper, "UNSUPPORTED"),
+		strings.Contains(upper, "NOT SUPPORTED"), strings.Contains(upper, "CONTRADICT"):
+		verdict = "refuted"
+	case strings.Contains(upper, "SUPPORTED"):
+		verdict = "supported"
+	default:
+		verdict = "uncertain"
+	}
+	// Reason = the first non-empty line that is not just the verdict word.
+	for _, line := range strings.Split(reply, "\n") {
+		l := strings.TrimSpace(line)
+		if l == "" {
+			continue
+		}
+		up := strings.ToUpper(l)
+		if up == "SUPPORTED" || up == "REFUTED" || up == "UNCERTAIN" {
+			continue
+		}
+		note = clip(l, 240)
+		break
+	}
+	return verdict, note
 }

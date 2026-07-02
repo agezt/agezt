@@ -67,6 +67,9 @@ func TestResearchTool_HappyPath(t *testing.T) {
 	if fr.gotOpts.MaxSources != 5 {
 		t.Fatalf("max_sources not forwarded: %+v", fr.gotOpts)
 	}
+	if !fr.gotOpts.Verify {
+		t.Fatalf("verify must default on when unset: %+v", fr.gotOpts)
+	}
 	// Output is JSON carrying the markdown + confidence, but NOT the full source text.
 	if !strings.Contains(res.Output, "Rayleigh scattering [S1]") {
 		t.Fatalf("markdown missing from output: %s", res.Output)
@@ -80,6 +83,18 @@ func TestResearchTool_HappyPath(t *testing.T) {
 	}
 	if out["confidence"].(float64) != 1 {
 		t.Fatalf("confidence not surfaced: %v", out["confidence"])
+	}
+}
+
+func TestResearchTool_VerifyCanBeDisabled(t *testing.T) {
+	fr := &fakeRunner{}
+	tool := New()
+	tool.SetRunner(fr)
+	if _, err := tool.Invoke(context.Background(), json.RawMessage(`{"question":"q","verify":false}`)); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if fr.gotOpts.Verify {
+		t.Fatalf("verify:false must be forwarded as off: %+v", fr.gotOpts)
 	}
 }
 
