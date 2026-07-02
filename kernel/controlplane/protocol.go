@@ -570,6 +570,12 @@ const (
 	// or "@chains"), max_rounds, plan (bool), corr. Returns: {answer, passed,
 	// roles, rounds, plan, steps, correlation_id}.
 	CmdConductorAsk = "conductor_ask"
+	// CmdResearchAsk runs the deep-research harness (M1001) and returns a cited
+	// report. Args: question (req), max_sub_questions, max_sources, verify (bool,
+	// default true), max_verify_claims, corr. Returns: {question, sub_questions,
+	// sources, markdown, claims, confidence, cited_sources, verified, notes,
+	// correlation_id}.
+	CmdResearchAsk = "research_ask"
 
 	// CmdJournalGrep is the server-side filter sibling of
 	// CmdJournalTail. Today operators run `agt journal tail 10000
