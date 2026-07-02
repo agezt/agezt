@@ -10,7 +10,7 @@ const NAV_IDS = [
   // Monitor
   "mission", "health", "activity", "autonomy", "alerts", "feed", "insights", "runs", "budget",
   // Agents
-  "agents", "agent", "roster", "overseer", "council", "conductor", "toolforge", "mcp", "acp", "sandbox", "flow", "replay", "analyst", "search",
+  "agents", "agent", "roster", "overseer", "council", "conductor", "research", "toolforge", "mcp", "acp", "sandbox", "flow", "replay", "analyst", "search",
   // Automation
   "wizards", "workflows", "schedules", "standing",
   // Knowledge

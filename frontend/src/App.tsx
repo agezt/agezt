@@ -5,6 +5,7 @@ import {
   Clapperboard,
   Waypoints,
   Scale,
+  Telescope,
   Users,
   Eye,
   Radar,
@@ -149,6 +150,7 @@ const Files = lazyNamed(() => import("@/views/Files"), "Files");
 const Data = lazyNamed(() => import("@/views/Data"), "Data");
 const Council = lazyNamed(() => import("@/views/Council"), "Council");
 const Conductor = lazyNamed(() => import("@/views/Conductor"), "Conductor");
+const Research = lazyNamed(() => import("@/views/Research"), "Research");
 const Persona = lazyNamed(() => import("@/views/Persona"), "Persona");
 const Prompts = lazyNamed(() => import("@/views/Prompts"), "Prompts");
 const Backup = lazyNamed(() => import("@/views/Backup"), "Backup");
@@ -242,6 +244,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "overseer", label: "Overseer", icon: Eye, render: Overseer },
       { id: "council", label: "Council", icon: Scale, render: Council },
       { id: "conductor", label: "Conductor", icon: Network, render: Conductor },
+      { id: "research", label: "Research", icon: Telescope, render: Research },
       { id: "toolforge", label: "Tool Forge", icon: Hammer, render: Toolforge },
       { id: "mcp", label: "MCP Servers", icon: Plug, render: Mcp },
       { id: "acp", label: "ACP Agents", icon: Blocks, render: ACPAgents },
