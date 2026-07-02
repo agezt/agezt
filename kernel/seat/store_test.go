@@ -2,7 +2,59 @@
 
 package seat
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// TestStoreRecoversFromTemp simulates the Windows atomic-write fallback crash:
+// the main seats.json was removed but the retry rename never landed, leaving the
+// only copy in seats.json.tmp. OpenStore must recover it, not start empty.
+func TestStoreRecoversFromTemp(t *testing.T) {
+	dir := t.TempDir()
+	st, _ := OpenStore(dir)
+	if _, err := st.Create(Seat{ID: "gpu-box", Name: "GPU Box", ExecutionProfile: "container"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	main := filepath.Join(dir, "seats.json")
+	b, err := os.ReadFile(main)
+	if err != nil {
+		t.Fatalf("read main: %v", err)
+	}
+	// Recreate the crash: only the temp survives.
+	if err := os.WriteFile(main+".tmp", b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(main); err != nil {
+		t.Fatal(err)
+	}
+
+	re, err := OpenStore(dir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	if _, ok := re.Get("gpu-box"); !ok {
+		t.Fatal("custom seat not recovered from temp file")
+	}
+	// Recovery renames the temp back into place.
+	if _, err := os.Stat(main); err != nil {
+		t.Fatalf("temp not promoted to main: %v", err)
+	}
+
+	// A corrupt temp with no main file starts empty rather than failing boot.
+	dir2 := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir2, "seats.json.tmp"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	empty, err := OpenStore(dir2)
+	if err != nil {
+		t.Fatalf("corrupt temp should not fail boot: %v", err)
+	}
+	if len(empty.List()) != len(Builtins()) {
+		t.Fatal("corrupt temp should yield only built-ins")
+	}
+}
 
 func TestStoreCreateGetListDelete(t *testing.T) {
 	dir := t.TempDir()

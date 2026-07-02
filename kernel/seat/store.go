@@ -51,17 +51,38 @@ func OpenStore(dir string) (*Store, error) {
 	s := &Store{path: filepath.Join(dir, "seats.json")}
 	b, err := os.ReadFile(s.path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("seat: read %s: %w", s.path, err)
+		}
+		// The main file is missing. A crash between Remove(path) and the retry
+		// Rename in saveLocked's Windows atomic-write fallback can leave the only
+		// surviving copy in the temp file — recover it rather than starting
+		// empty. A corrupt temp is ignored (start empty; never fail boot).
+		tb, terr := os.ReadFile(s.path + ".tmp")
+		if terr != nil || len(tb) == 0 {
 			return s, nil
 		}
-		return nil, fmt.Errorf("seat: read %s: %w", s.path, err)
+		if err := s.load(tb); err != nil {
+			s.custom = nil
+			return s, nil
+		}
+		_ = os.Rename(s.path+".tmp", s.path)
+		return s, nil
 	}
 	if len(b) == 0 {
 		return s, nil
 	}
+	if err := s.load(b); err != nil {
+		return nil, fmt.Errorf("seat: parse %s: %w", s.path, err)
+	}
+	return s, nil
+}
+
+// load parses a diskState blob and appends its custom seats to the store.
+func (s *Store) load(b []byte) error {
 	var st diskState
 	if err := json.Unmarshal(b, &st); err != nil {
-		return nil, fmt.Errorf("seat: parse %s: %w", s.path, err)
+		return err
 	}
 	for _, seat := range st.Seats {
 		if seat == nil || IsBuiltin(seat.ID) {
@@ -71,7 +92,7 @@ func OpenStore(dir string) (*Store, error) {
 		cp.Builtin = false
 		s.custom = append(s.custom, &cp)
 	}
-	return s, nil
+	return nil
 }
 
 // List returns the full catalog: built-ins first (in seeded order), then custom
@@ -200,7 +221,10 @@ func (s *Store) saveLocked() error {
 				if retryErr := os.Rename(tmp, s.path); retryErr == nil {
 					return nil
 				} else {
-					err = retryErr
+					// The target is already gone but the retry rename failed, so
+					// tmp now holds the only copy. Preserve it (do NOT remove) so
+					// the next OpenStore can recover the custom seats.
+					return retryErr
 				}
 			}
 		}
