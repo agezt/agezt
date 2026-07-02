@@ -61,20 +61,21 @@ export function OKR() {
   const [busy, setBusy] = useState(false);
   const [newTitle, setNewTitle] = useState("");
 
-  useEffect(() => {
-    getJSON<{ tasks?: OKRLinkableTask[] }>("/api/workboard")
-      .then((d) => setTasks(Array.isArray(d.tasks) ? d.tasks : []))
-      .catch(() => {});
-  }, []);
-
   const avg = useMemo(() => okrAveragePercent(objectives), [objectives]);
   const achieved = useMemo(() => okrAchievedCount(objectives), [objectives]);
 
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<OKRListData>("/api/okr");
+      // Refresh the linkable-task picker alongside objectives so tasks created
+      // after mount (and every post-mutate reload) show up. A workboard fetch
+      // failure must not blank the objectives, so it degrades to no tasks.
+      const [d, wb] = await Promise.all([
+        getJSON<OKRListData>("/api/okr"),
+        getJSON<{ tasks?: OKRLinkableTask[] }>("/api/workboard").catch(() => ({ tasks: [] as OKRLinkableTask[] })),
+      ]);
       setObjectives(Array.isArray(d.objectives) ? d.objectives : []);
+      setTasks(Array.isArray(wb.tasks) ? wb.tasks : []);
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
