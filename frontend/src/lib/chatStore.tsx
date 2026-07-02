@@ -23,6 +23,8 @@ import {
   withActiveConvModel,
   activeConvAgent,
   withActiveConvAgent,
+  activeConvExecutionProfile,
+  withActiveConvExecutionProfile,
   activeSummary,
   withActiveSummary,
   activeQueue,
@@ -96,6 +98,8 @@ export interface ChatEngine {
   setModel: (m: string) => void;
   agent: string; // "" = the daemon's default identity; else a roster slug (M789)
   setAgent: (slug: string) => void;
+  executionProfile: string; // "" = tool defaults; named values request a run profile
+  setExecutionProfile: (profile: string) => void;
   activeModel: string; // the daemon's configured default (a hint)
   /** Send a message. `context`, when given, is prepended to the run intent only —
    *  the conversation still shows the clean `intent` as the user's message. */
@@ -177,6 +181,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // picked roster agent — soul/model chain/memory scope/budget (M783).
   const agent = activeConvAgent(store);
   const setAgent = (a: string) => setStore((s) => withActiveConvAgent(s, a, Date.now()));
+  const executionProfile = activeConvExecutionProfile(store);
+  const setExecutionProfile = (p: string) =>
+    setStore((s) => withActiveConvExecutionProfile(s, p, Date.now()));
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
   // Session-scoped auto-approve for Tool Forge (not persisted): the "build an
@@ -280,6 +287,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           intent,
           model: activeConvModel(store).trim() || undefined, // per-conversation model (M712)
           agent: activeConvAgent(store).trim() || undefined, // per-conversation agent (M789)
+          execution_profile: activeConvExecutionProfile(store).trim() || undefined, // per-run execution profile
           history: history.length ? history : undefined,
           system: persona || undefined, // per-conversation identity override (M711)
           // Session-scoped auto-approve for Tool Forge (op=test also runs code.exec).
@@ -496,6 +504,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setModel,
     agent,
     setAgent,
+    executionProfile,
+    setExecutionProfile,
     activeModel,
     send,
     retry,

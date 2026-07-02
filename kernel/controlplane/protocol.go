@@ -427,6 +427,15 @@ const (
 	// (optional window). Returns: { total, errored, error_rate, by_tool: {tool →
 	// {calls, errors}}, tools, window_ms }
 	CmdToolStats = "tool_stats"
+	// CmdExecutionProfiles returns the named execution-profile inventory:
+	// local, warden, worktree-coding, browser-session, docker, ssh, and
+	// remote-agezt, including requested vs effective isolation and routed tools.
+	CmdExecutionProfiles = "execution_profiles"
+	// CmdExecutionProfileShow returns one execution profile by id. Args: id.
+	CmdExecutionProfileShow = "execution_profile_show"
+	// CmdExecutionProfileCheck returns operator-facing health checks for execution
+	// profiles: routing status, downgrade warnings, and docker/ssh backend probes.
+	CmdExecutionProfileCheck = "execution_profile_check"
 	// CmdCacheStats aggregates prompt-cache usage + savings (M293) by folding
 	// budget.consumed events. Args: since_ms (optional window). Returns:
 	// { cached_input_tokens, cache_write_input_tokens, saved_microcents, calls,
@@ -1097,10 +1106,21 @@ const (
 	// Args: id (required), reason (optional). Returns: { id, status }
 	CmdSkillQuarantine = "skill_quarantine"
 
+	// CmdSkillArchive retires any non-archived skill without restoring a
+	// lineage parent. This is the proposal-reject path.
+	// Args: id (required), reason (optional). Returns: { id, status, reason }
+	CmdSkillArchive = "skill_archive"
+
 	// CmdSkillRevert archives a skill and re-activates its lineage parent
 	// (non-destructive — appends a reversal).
 	// Args: id (required). Returns: { id, restored }
 	CmdSkillRevert = "skill_revert"
+
+	// CmdSkillRestore restores a skill's status from an operator checkpoint.
+	// It is for rollback tooling, not normal promotion flow; the restore is
+	// journaled as skill.restored. Args: id, status (required), reason (optional).
+	// Returns: { id, from, status, reason }
+	CmdSkillRestore = "skill_restore"
 
 	// CmdSkillShare promotes a private (per-agent, M932) skill to the shared
 	// pool every agent retrieves — the ownership analogue of memory_promote
@@ -1117,9 +1137,10 @@ const (
 	// CmdSkillImport installs a skill from a portable bundle as a fresh DRAFT
 	// (via the Forge, so it is content-addressed, deduped, and journaled like
 	// any other authored skill). Args: name, body (required); description,
-	// triggers, tools_required, resources (optional; resources is an object of
-	// {relative-path: text-content} — the agentskills.io bundle of reference
-	// files + scripts, M847). Returns: { id, name, status, created, resources }
+	// triggers, tools_required, agent, resources (optional; resources is an
+	// object of {relative-path: text-content} — the agentskills.io bundle of
+	// reference files + scripts, M847).
+	// Returns: { id, name, status, created, resources }
 	CmdSkillImport = "skill_import"
 
 	// CmdSkillFiles lists a skill's on-disk bundle resources (M847).
@@ -1302,6 +1323,7 @@ const (
 	CmdWorkflowList       = "workflow_list"
 	CmdWorkflowShow       = "workflow_show"
 	CmdWorkflowSave       = "workflow_save"
+	CmdWorkflowRestore    = "workflow_restore"
 	CmdWorkflowRemove     = "workflow_remove"
 	CmdWorkflowSetEnabled = "workflow_set_enabled"
 	CmdWorkflowRun        = "workflow_run"
@@ -1352,6 +1374,9 @@ const (
 	// joined with their Config Center account fields + a configured flag — the
 	// data the Channels wizard renders. Read-only.
 	CmdChannelList = "channel_list"
+	// CmdNodeRegistry returns the local daemon plus configured AGEZT peer nodes
+	// with token-redacted reachability, for companion/node-registry UX.
+	CmdNodeRegistry = "node_registry"
 	// Multi-account channel management: write/remove one channel account instance's
 	// fields (the default or a "#label" account). args — Set: kind,label,name,value;
 	// Remove: kind,label. Listing rides CmdChannelList's per-channel "accounts".
@@ -1523,6 +1548,50 @@ const (
 	// Returns: { message: {id, topic, from?, to?, reply_to?, help?, text,
 	//            ts_unix_ms} }
 	CmdBoardGet = "board_get"
+
+	// Workboard: durable typed multi-agent work queue. Read commands list/show
+	// tasks; write commands mutate task state through runtime helpers so every
+	// transition is journaled as workboard.task.*.
+	CmdWorkboardList      = "workboard_list"
+	CmdWorkboardLanes     = "workboard_lanes"
+	CmdWorkboardShow      = "workboard_show"
+	CmdWorkboardCreate    = "workboard_create"
+	CmdWorkboardClaim     = "workboard_claim"
+	CmdWorkboardHeartbeat = "workboard_heartbeat"
+	CmdWorkboardComment   = "workboard_comment"
+	CmdWorkboardBlock     = "workboard_block"
+	CmdWorkboardFail      = "workboard_fail"
+	CmdWorkboardUnblock   = "workboard_unblock"
+	CmdWorkboardComplete  = "workboard_complete"
+	CmdWorkboardProve     = "workboard_prove"
+	CmdWorkboardSeat      = "workboard_seat"
+	CmdWorkboardArchive   = "workboard_archive"
+	CmdWorkboardLink      = "workboard_link"
+	CmdWorkboardPolicy    = "workboard_policy"
+	CmdWorkboardDepend    = "workboard_depend"
+	CmdWorkboardReclaim   = "workboard_reclaim"
+	CmdWorkboardSweep     = "workboard_sweep"
+	CmdWorkboardDispatch  = "workboard_dispatch"
+	CmdWorkboardWatch     = "workboard_watch"
+
+	// OKR spine (Phase 2): objectives + key results rolling up proven tasks.
+	CmdOKRList      = "okr_list"
+	CmdOKRShow      = "okr_show"
+	CmdOKRCreate    = "okr_create"
+	CmdOKRKeyResult = "okr_keyresult"
+	CmdOKRLink      = "okr_link"
+	CmdOKRUnlink    = "okr_unlink"
+	CmdOKRArchive   = "okr_archive"
+
+	// Taste overlay (Phase 3): curated "what good looks like" exemplars.
+	CmdTasteList   = "taste_list"
+	CmdTasteCreate = "taste_create"
+	CmdTasteDelete = "taste_delete"
+
+	// Execution seats (Phase 4): the seat catalog + custom-seat CRUD.
+	CmdSeatList   = "seat_list"
+	CmdSeatCreate = "seat_create"
+	CmdSeatDelete = "seat_delete"
 
 	// Self-update (M860):
 	//

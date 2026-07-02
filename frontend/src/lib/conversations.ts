@@ -30,6 +30,9 @@ export interface Conversation {
   // AS — its soul, model chain, memory scope, and budget apply (M783). The
   // thread's explicit model/identity overrides still win over the profile's.
   agent?: string;
+  // Optional per-conversation execution profile. ""/undefined uses tool
+  // defaults; named values request the matching run profile when routable.
+  executionProfile?: string;
   // Pinned threads (M726) sort to the top of the sidebar, above by-recency.
   pinned?: boolean;
   // History compaction (M925): when a thread outgrows the history window, the
@@ -171,6 +174,28 @@ export function withActiveConvAgent(store: Store, agent: string, now: number): S
     ...store,
     conversations: store.conversations.map((c) =>
       c.id === store.activeId ? { ...c, agent: a || undefined, updatedAt: now } : c,
+    ),
+  };
+}
+
+// activeConvExecutionProfile returns the active conversation's execution profile
+// override ("" if none / tool defaults).
+export function activeConvExecutionProfile(store: Store): string {
+  return store.conversations.find((c) => c.id === store.activeId)?.executionProfile ?? "";
+}
+
+// withActiveConvExecutionProfile returns a new store with the active
+// conversation's execution profile set. Only routable run profiles are persisted;
+// unknown values clear the override so old/corrupt storage cannot send a hidden
+// backend request.
+export function withActiveConvExecutionProfile(store: Store, profile: string, now: number): Store {
+  const p = profile.trim();
+  const next =
+    p === "local" || p === "warden" || p === "docker" || p === "ssh" || p === "remote-agezt" ? p : "";
+  return {
+    ...store,
+    conversations: store.conversations.map((c) =>
+      c.id === store.activeId ? { ...c, executionProfile: next || undefined, updatedAt: now } : c,
     ),
   };
 }

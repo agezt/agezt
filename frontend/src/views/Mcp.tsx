@@ -604,7 +604,7 @@ export function Mcp() {
                       <Plus className="h-3.5 w-3.5" /> Use
                     </Button>
                   </div>
-                  <p className="mt-1 text-xs text-muted">{e.description}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted" title={e.description}>{e.description}</p>
                   <p
                     className="mt-1 truncate font-mono text-xs text-muted/80"
                     title={e.url || `${e.command} ${e.args}`}
@@ -661,8 +661,11 @@ export function Mcp() {
 
       <ul className="space-y-2">
         {(servers || []).map((s) => (
-          <li key={s.id} className="glass rounded-xl p-3">
+          <li key={s.id} className={cn("glass rounded-xl border-l-2 p-3", s.attached ? "border-good/50" : "border-border")}>
             <div className="flex flex-wrap items-center gap-2">
+              <span className={cn("shrink-0", s.attached ? "text-good" : "text-muted")}>
+                {s.attached ? <PlugZap className="h-4 w-4" /> : <Plug className="h-4 w-4" />}
+              </span>
               <span className="font-mono text-sm text-foreground">{s.name}</span>
               {s.transport === "http" && <Badge variant="default">remote</Badge>}
               {s.attached ? (
@@ -760,29 +763,34 @@ export function Mcp() {
                 </Button>
               </span>
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-              <span className="font-mono">
-                {s.transport === "http"
-                  ? s.url
-                  : `${s.command || ""}${(s.args || []).length > 0 ? " " + (s.args || []).join(" ") : ""}`}
-              </span>
-              {(s.env_keys || []).length > 0 && (
-                <span className="flex items-center gap-1 text-[11px]">
-                  <KeyRound className="h-3 w-3" /> env: {(s.env_keys || []).join(", ")}
+            <Disclosure
+              className="mt-1"
+              summary={<span className="text-[11px] font-medium text-muted">Details</span>}
+            >
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                <span className="font-mono">
+                  {s.transport === "http"
+                    ? s.url
+                    : `${s.command || ""}${(s.args || []).length > 0 ? " " + (s.args || []).join(" ") : ""}`}
                 </span>
-              )}
-              {(s.header_keys || []).length > 0 && (
-                <span className="flex items-center gap-1 text-[11px]">
-                  <KeyRound className="h-3 w-3" /> headers: {(s.header_keys || []).join(", ")}
-                </span>
-              )}
-              {(s.tool_allow || []).length > 0 && (
-                <span className="text-xs" title="Only these tools are exposed to runs">
-                  tools: {(s.tool_allow || []).join(", ")}
-                </span>
-              )}
-            </div>
-            {s.description && <div className="mt-1 text-xs text-muted">{s.description}</div>}
+                {(s.env_keys || []).length > 0 && (
+                  <span className="flex items-center gap-1 text-[11px]">
+                    <KeyRound className="h-3 w-3" /> env: {(s.env_keys || []).join(", ")}
+                  </span>
+                )}
+                {(s.header_keys || []).length > 0 && (
+                  <span className="flex items-center gap-1 text-[11px]">
+                    <KeyRound className="h-3 w-3" /> headers: {(s.header_keys || []).join(", ")}
+                  </span>
+                )}
+                {(s.tool_allow || []).length > 0 && (
+                  <span className="text-xs" title="Only these tools are exposed to runs">
+                    tools: {(s.tool_allow || []).join(", ")}
+                  </span>
+                )}
+              </div>
+              {s.description && <div className="mt-1 text-xs text-muted">{s.description}</div>}
+            </Disclosure>
           </li>
         ))}
       </ul>

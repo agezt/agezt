@@ -65,6 +65,8 @@ func helpGroups() []helpGroup {
 				`run "<intent>" | run - | run --file <path>     intent from arg, stdin, or a file`,
 				"  [--json|-q]                -q/--quiet = only the answer; --json = ndjson event stream",
 				"  [--model <id>] [--system <prompt>] [--timeout <dur>] [--tenant <id>]   per-run overrides",
+				"  [--exec-profile <local|warden|docker|ssh|k8s|modal|daytona|remote-agezt>]   request local/container/remote execution",
+				"  [--peer <name>]              with remote-agezt, pin delegation to a configured peer",
 				"  [--tools <csv>|--no-tools] [--dry-run] [--max-cost <usd>]   restrict tools / preview / cap spend",
 				"  [--assure[=<n>]]           run, verify it's actually done, retry the gap (default 3 attempts)",
 			}},
@@ -123,6 +125,26 @@ func helpGroups() []helpGroup {
 				"workflow <list|show|save|draft|refine|run|enable|disable|remove>",
 				`workflow draft "DESCRIPTION" [--name N] [--save]    LLM-author a workflow`,
 				"workflow save --file GRAPH.json",
+			}},
+			{"workboard", "durable typed task queue for multi-agent work", []string{
+				"workboard <list|lanes|show|create|claim|heartbeat|comment|block|fail|unblock|complete|prove|archive|link|policy|depend|reclaim|sweep|dispatch|watch>",
+				"workboard create --title T [--criterion \"tests pass\"] [--assignee A] [--priority N] [--max-attempts N]",
+				"workboard prove <id>  (judge acceptance criteria → done if satisfied, else review)",
+				"workboard dispatch <id> [--agent A] | workboard sweep [--stale-after 10m]",
+			}},
+			{"okr", "objectives + key results that roll up proven workboard tasks", []string{
+				"okr <list|show|create|kr|link|unlink|archive>",
+				"okr create --title T [--owner O] | okr kr <id> --title T [--target N]",
+				"okr link <id> --kr KR --task TASK  (roll a task's completion into a key result)",
+			}},
+			{"taste", "curated \"what good looks like\" exemplars injected into runs", []string{
+				"taste <list|add|remove>",
+				"taste add --title T --body TEXT [--scope AGENT] [--tag X]  (scope empty = every run)",
+				"taste list [--scope S] | taste remove <id>",
+			}},
+			{"seats", "execution seats a workboard task can be dispatched under", []string{
+				"seats [list] [--json] | seats add <id> [--exec local|warden|container] [--name N] [--tool X] | seats remove <id>",
+				"built-ins: default|reader|builder|isolated; a seat refines model/tool/isolation per task (workboard create --seat / workboard seat)",
 			}},
 			{"agent", "the named-agent roster (souls, models, budgets, workdirs)", []string{
 				"agent <list|add|show|impact|set|task|wake|repair|repair-status|pause|resume|retire|revive|remove>",
@@ -188,7 +210,8 @@ func helpGroups() []helpGroup {
 			}},
 			{"skill", "learned skills + lifecycle (draft → shadow → active)", []string{
 				"skill list | show <id> | history <id>   [--json]",
-				"skill promote <id> | quarantine <id> [--reason R] | revert <id>",
+				"skill promote <id> | quarantine <id> [--reason R] | archive <id> [--reason R] | revert <id>",
+				"skill workshop <list|inspect|scan|diff|curate|apply|reject|quarantine|propose-create|propose-update>",
 				"skill share <id> | reassign <id> [--agent S]   (ownership: per-agent ↔ shared)",
 			}},
 			{"reflect", "reflection passes (decay stale world-model entities)", []string{
@@ -226,8 +249,16 @@ func helpGroups() []helpGroup {
 			{"warden", "shell-isolation profile downgrades and limit breaches", []string{
 				"warden log [N] [--issues] [--since <dur>] [--tenant <id>] [--json]",
 			}},
+			{"exec-profile", "named execution profiles with requested vs effective isolation", []string{
+				"exec-profile list [--tenant <id>] [--json]",
+				"exec-profile show <id> [--tenant <id>] [--json]",
+				"exec-profile check [--tenant <id>] [--json]   routing, policy, downgrade, backend/secret readiness",
+			}},
 			{"redact", "what the secret-scrubber would do to a string", []string{
 				"redact test <string> [--json]",
+			}},
+			{"compare", "local OpenClaw/Hermes parity evidence audit", []string{
+				"compare audit [--target openclaw|hermes|all] [--root <repo>] [--json]",
 			}},
 			{"netguard", "the egress guard: test a host, list blocked dials", []string{
 				"netguard test <host|ip> [--json] | netguard log [N] [--since <dur>] [--json]",
@@ -273,6 +304,11 @@ func helpGroups() []helpGroup {
 			{"restore", "restore a backup bundle into a fresh home", []string{
 				"restore <bundle> --home <fresh-dir>",
 			}},
+			{"rollback", "local mutation checkpoints and operator restore", []string{
+				"rollback list [--run <id>] [--json]",
+				"rollback show|dry-run <checkpoint> [--json]",
+				"rollback apply <checkpoint> [--json]",
+			}},
 			{"disk", "what under the home dir takes the space + free headroom", []string{
 				"disk [--json]",
 			}},
@@ -285,7 +321,7 @@ func helpGroups() []helpGroup {
 				"send --channel KIND --to ID <text>",
 			}},
 			{"channel", "communication channels + their connectivity status", []string{
-				"channel list [--json]    every channel: live / configured / needs-setup",
+				"channel list [--json]    every channel: live / configured / roundtrip readiness",
 			}},
 			{"ha", "operator-facing Home Assistant client", []string{
 				"ha <states|services|call>",
@@ -298,6 +334,11 @@ func helpGroups() []helpGroup {
 			}},
 			{"peers", "configured peer nodes + their REST health", []string{
 				"peers [--json]",
+				"peers models [<name>] [--json]",
+				"peers route <model> [--json]",
+				"peers run <peer> <corr> [--json]",
+				"peers artifacts <peer> <corr> [--json]",
+				"peers artifact-get <peer> <artifact_id> <out_file> [--json]",
 			}},
 			{"acp", "Agent Client Protocol server over stdio (point Zed/an IDE at it)", []string{
 				"acp",

@@ -47,6 +47,8 @@ agt run "<intent>" --tenant <id>  ·  HTTP: X-Agezt-Tenant: <id> — route a run
 agt plugin list                                                — external plugins loaded
 agt plugin registry <url> --install <name>                     — install a plugin from a registry (download + BLAKE3-verify; prints the env to enable)
 agt skill registry <url> --install <name>                      — install a skill from a remote registry (content-address verified)
+agt skill workshop list / inspect <id> / scan <id> / diff <id> / apply <id> / reject <id> — review and gate skill proposals
+agt skill workshop curate [--execute]                          — dry-run or apply deterministic stale-skill cleanup
 agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
 agt state list / state get <ns> <key>                          — read kernel state store
 agt journal tail 50 --json                                     — snapshot of recent events
@@ -63,8 +65,8 @@ direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
 SigV4 + STS-AssumeRole + SSO + IRSA/web-identity, Azure OpenAI) with
 **per-request model routing**
 (a request's `model` selects its provider), **all streaming**, **in-process
-tools** (`shell`, `file`, `http`, `browser.read`, `web_search` to DISCOVER
-pages via a keyless search engine, `schedule` so the agent can arrange its OWN
+tools** (`shell`, `file`, `http`, `browser.read`, opt-in `browser.action`,
+`web_search` to DISCOVER pages via a keyless search engine, `schedule` so the agent can arrange its OWN
 future runs, plus `memory`, `world`, `delegate` for sub-agent fan-out, `notify`
 to message the operator's channels, `coding` for worktree-isolated external
 coding agents, `acp_agent` to drive external ACP agents, `remote_run` to
@@ -96,7 +98,7 @@ IMAP/POP — see [`docs/CONNECT.md`](docs/CONNECT.md). **Official client SDKs** 
 **Python** (sync + asyncio), **TypeScript**,
 and **Rust** wrap the REST API; a **plugin/skill marketplace** (`agt plugin
 registry` / `agt skill registry`) installs from a remote catalog with **BLAKE3
-verification**; a supervised **public tunnel** (cloudflared/ngrok/custom) can
+verification**; a supervised **public tunnel** (cloudflared/ngrok/Tailscale/custom) can
 expose the Web UI or REST API to the internet on demand; and you can **talk to it**
 — `agt transcribe <file>` and `agt listen` turn audio (a file or the microphone)
 into text via any OpenAI-compatible speech-to-text endpoint and feed it to the
@@ -216,10 +218,13 @@ auth, multi-tenant aware — in **Python** (`pip install agezt`; sync `Client` +
 `AsyncClient`), **TypeScript** (`@agezt/sdk`, zero runtime deps over `fetch`), and
 **Rust** (the `agezt` crate, standard-library only). See [`sdk/`](sdk/).
 
-**Expose it to the internet when you need to.** Set `AGEZT_TUNNEL=cloudflared`
-(or `ngrok`, or `AGEZT_TUNNEL_CMD=<command>`) and the daemon supervises the tunnel
-binary, prints the public URL, and tears it down on exit — opt-in, so nothing is
-public unless you ask.
+**Expose it to the internet when you need to.** Set `AGEZT_TUNNEL=cloudflare`
+for an automatic `https://*.trycloudflare.com` Quick Tunnel, or use `ngrok`,
+`tailscale`, `tailscale-funnel`, or `AGEZT_TUNNEL_CMD=<command>`. The daemon
+targets the live Web UI by default, adds the discovered public host to the Web UI
+allowlist, prints the public console URL, and tears the tunnel down on exit.
+Set `AGEZT_WEB_PASSWORD` before public exposure; set `AGEZT_WEB_PASSWORD_STRICT=on`
+when you want token-and-password enforcement on every data request.
 
 **Let schedules wake work without becoming prompts.** The daemon treats schedules
 as typed cron/event triggers: wake an agent, run a workflow, invoke a system task,
@@ -338,6 +343,19 @@ The v1 substrate. Highlights:
 - `file` — scoped to `AGEZT_WORKSPACE`
 - `http` — GET/POST with host allowlist
 - `browser.read` — fetch + HTML→text extraction, opt-in cookie jar
+- `browser.action` — opt-in Playwright page actions (`goto`,
+  `click`, `fill`, `type`, `press`, `select`, `check`, `hover`, `scroll`,
+  `wait`) with host allowlist, egress preflight, compact element snapshots,
+  browser event summaries, Files-view screenshot/download artifacts, and
+  text extraction. Default profile is isolated; `profile=session` carries
+  cookies/storage in an AGEZT-managed session directory, and `tab_id` can persist
+  a session tab's last URL plus snapshot refs (`ref=e1`) for URL-less follow-up
+  actions; `user-attached` and
+  `remote-cdp` require explicit operator env opt-in. Also registers first-class wrappers:
+  `browser.open`, `browser.snapshot`, `browser.click`, `browser.type`,
+  `browser.wait`, `browser.screenshot`, `browser.downloads`, `browser.cookies`,
+  `browser.tabs`, and
+  `browser.close`. Off unless `AGEZT_BROWSER_ACTIONS=1`
 - `web_search` — keyword search against a keyless public engine (DuckDuckGo);
   returns `{title, url, snippet}` so the agent can DISCOVER a URL, then read it
   with `http`/`browser.read`. SSRF-guarded, fail-soft
@@ -407,8 +425,13 @@ dependency, a CGO requirement, or a substantial design phase:
 - **Plugin sandboxing** — out-of-process plugins are isolated only at the
   process boundary today; per-plugin warden profiles (cgroup v2 + seccomp
   BPF + user-namespace) need either non-stdlib bindings or per-OS CGO.
-- **Browser tool — JS rendering, screenshots, search** — would require
-  `chromedp` (a CGO/non-stdlib dependency).
+- **Browser sessions — persistent tabs, downloads, profile attach, DevTools**
+  — `browser.action` plus the browser verb wrappers cover opt-in
+  Playwright actions, snapshots, events, screenshots, cookie inspection, download capture, and
+  operator-gated profile modes through an operator-installed Node driver,
+  including AGEZT-managed `profile=session` state carryover and persistent
+  `tab_id` URL/snapshot refs; live tab lifecycle and DOM-level stale ref
+  invalidation remain a dedicated design phase.
 - **Vault — OS-keychain auto-integration, argon2 KDF** — both need per-OS
   CGO or non-stdlib bindings; PBKDF2-SHA-256 is the stdlib fallback today.
 - **Planner v2 — sub-planners, planner-side tool calls** — operator-driven

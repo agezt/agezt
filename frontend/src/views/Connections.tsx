@@ -17,6 +17,7 @@ import { AnimatedNumber } from "@/components/AnimatedNumber";
 interface Provider { id: string; name?: string; credentialed?: boolean }
 interface ChannelRow { kind: string; display?: string; live?: boolean; configured?: boolean }
 interface MCPServer { name: string; enabled?: boolean; attached?: boolean }
+interface NodeRow { id?: string; name: string; local?: boolean; reachable?: boolean; url?: string; version?: string; status?: string }
 
 function go(id: string) {
   return () => {
@@ -28,6 +29,7 @@ export function Connections() {
   const [providers, setProviders] = useState<Provider[] | null>(null);
   const [channels, setChannels] = useState<ChannelRow[] | null>(null);
   const [servers, setServers] = useState<MCPServer[] | null>(null);
+  const [nodes, setNodes] = useState<NodeRow[] | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -35,14 +37,16 @@ export function Connections() {
     setLoading(true);
     setErr("");
     try {
-      const [cat, ch, mcp] = await Promise.all([
+      const [cat, ch, mcp, nodeRes] = await Promise.all([
         getJSON<{ providers?: Provider[] }>("/api/catalog").catch(() => ({ providers: [] })),
         getJSON<{ channels?: ChannelRow[] }>("/api/channels").catch(() => ({ channels: [] })),
         getJSON<{ servers?: MCPServer[] }>("/api/mcp").catch(() => ({ servers: [] })),
+        getJSON<{ nodes?: NodeRow[] }>("/api/nodes").catch(() => ({ nodes: [] })),
       ]);
       setProviders(cat.providers || []);
       setChannels(ch.channels || []);
       setServers(mcp.servers || []);
+      setNodes(nodeRes.nodes || []);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -58,6 +62,8 @@ export function Connections() {
   const configuredCh = useMemo(() => (channels || []).filter((c) => c.configured && !c.live), [channels]);
   const attached = useMemo(() => (servers || []).filter((s) => s.attached), [servers]);
   const enabledOnly = useMemo(() => (servers || []).filter((s) => s.enabled && !s.attached), [servers]);
+  const reachableNodes = useMemo(() => (nodes || []).filter((n) => n.reachable), [nodes]);
+  const unreachableNodes = useMemo(() => (nodes || []).filter((n) => !n.reachable), [nodes]);
 
   return (
     <div className="space-y-6">
@@ -75,7 +81,7 @@ export function Connections() {
       {loading && !providers ? (
         <SkeletonList count={3} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
           <SectionCard
             icon={Plug}
             title="AI Providers"
@@ -115,6 +121,20 @@ export function Connections() {
             actionLabel="Manage MCP"
             onAction={go("mcp")}
           />
+          <SectionCard
+            icon={Network}
+            title="Nodes"
+            connected={reachableNodes.length}
+            total={(nodes || []).length}
+            connectedLabel="reachable"
+            items={[
+              ...reachableNodes.map((n) => ({ key: n.id || n.name, label: `${n.name}${n.local ? " (local)" : ""}`, tone: "good" as const })),
+              ...unreachableNodes.map((n) => ({ key: n.id || n.name, label: `${n.name} (${n.status || "unreachable"})`, tone: "warn" as const })),
+            ]}
+            emptyHint="No peer nodes configured"
+            actionLabel="Manage nodes"
+            onAction={go("config")}
+          />
         </div>
       )}
     </div>
@@ -124,17 +144,19 @@ export function Connections() {
 // ConnectivityStrip is a compact one-line summary for the Cockpit: keyed
 // providers · live channels · attached MCP, linking to the full Connections view.
 export function ConnectivityStrip() {
-  const [s, setS] = useState<{ providers: number; channels: number; mcp: number } | null>(null);
+  const [s, setS] = useState<{ providers: number; channels: number; mcp: number; nodes: number } | null>(null);
   useEffect(() => {
     Promise.all([
       getJSON<{ providers?: Provider[] }>("/api/catalog").catch(() => ({ providers: [] })),
       getJSON<{ channels?: ChannelRow[] }>("/api/channels").catch(() => ({ channels: [] })),
       getJSON<{ servers?: MCPServer[] }>("/api/mcp").catch(() => ({ servers: [] })),
-    ]).then(([cat, ch, mcp]) =>
+      getJSON<{ nodes?: NodeRow[] }>("/api/nodes").catch(() => ({ nodes: [] })),
+    ]).then(([cat, ch, mcp, nodeRes]) =>
       setS({
         providers: (cat.providers || []).filter((p) => p.credentialed).length,
         channels: (ch.channels || []).filter((c) => c.live).length,
         mcp: (mcp.servers || []).filter((m) => m.attached).length,
+        nodes: (nodeRes.nodes || []).filter((n) => n.reachable).length,
       }),
     );
   }, []);
@@ -150,7 +172,8 @@ export function ConnectivityStrip() {
       <span className="text-muted">
         <AnimatedNumber value={s.providers} className="font-semibold text-fg" /> provider{s.providers === 1 ? "" : "s"} keyed ·{" "}
         <AnimatedNumber value={s.channels} className="font-semibold text-fg" /> channel{s.channels === 1 ? "" : "s"} live ·{" "}
-        <AnimatedNumber value={s.mcp} className="font-semibold text-fg" /> MCP attached
+        <AnimatedNumber value={s.mcp} className="font-semibold text-fg" /> MCP attached ·{" "}
+        <AnimatedNumber value={s.nodes} className="font-semibold text-fg" /> node{s.nodes === 1 ? "" : "s"} reachable
       </span>
       <ArrowRight className="ml-auto size-3.5 text-muted" />
     </button>

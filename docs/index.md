@@ -7,6 +7,8 @@ Start here when evaluating, operating, or integrating AGEZT.
 | Document | Use when you need to... |
 |---|---|
 | [COMPARISON.md](COMPARISON.md) | understand how AGEZT differs from generic agent frameworks without unverifiable competitor claims |
+| [OPENCLAW-HERMES-ROADMAP.md](OPENCLAW-HERMES-ROADMAP.md) | track the competitive roadmap for OpenClaw/Hermes parity and AGEZT advantage |
+| [COMPETITOR-PARITY.md](COMPETITOR-PARITY.md) | inspect the checkable OpenClaw/Hermes parity ledger behind `agt compare audit` |
 | [DEER-FLOW-AGEZT-REPORT.md](DEER-FLOW-AGEZT-REPORT.md) | review what AGEZT can pragmatically borrow from ByteDance DeerFlow |
 | [DEER-FLOW-IMPLEMENTATION-PLAN.md](DEER-FLOW-IMPLEMENTATION-PLAN.md) | track the concrete implementation plan for DeerFlow-inspired AGEZT changes |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | understand the core agent identity, runtime, Web UI, and source-of-truth layout |
@@ -54,3 +56,4 @@ Start here when evaluating, operating, or integrating AGEZT.
 |---|---|
 | [SDK-PARITY.md](SDK-PARITY.md) | `go run ./tools/sdkparity -check docs/SDK-PARITY.md` |
 | [../DEPENDENCIES.md](../DEPENDENCIES.md) + `tools/depscheck/allowlist.txt` | `go run ./tools/depscheck` |
+| [COMPETITOR-PARITY.md](COMPETITOR-PARITY.md) | `agt compare audit --json` |

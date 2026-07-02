@@ -14,6 +14,7 @@ vi.mock("@/lib/events", () => ({
 }));
 
 import { AgentActivity } from "@/components/AgentActivity";
+import { UIProvider } from "@/components/ui/feedback";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -64,7 +65,11 @@ beforeEach(() => {
 
 describe("AgentActivity", () => {
   it("keeps a focused run in one top panel instead of duplicating inline detail", async () => {
-    render(<AgentActivity slug="ops" initialOpenRun="corr-1" />);
+    render(
+      <UIProvider>
+        <AgentActivity slug="ops" initialOpenRun="corr-1" />
+      </UIProvider>,
+    );
 
     await waitFor(() => expect(screen.getByText(/focused run/)).toBeTruthy());
     expect(screen.getByText("awake")).toBeTruthy();

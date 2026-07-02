@@ -72,7 +72,7 @@ func agentUsage(w io.Writer) int {
 	fmt.Fprintf(w, "  add <slug> [--name N] [--soul TEXT] [--model M] [--fallbacks m1,m2]\n")
 	fmt.Fprintf(w, "      [--task TYPE] [--max-cost USD] [--max-daily USD] [--memory-scope S] [--workdir DIR] [--desc TEXT]\n")
 	fmt.Fprintf(w, "      [--owner-agent SLUG] [--parent-agent SLUG] [--direct-callable true|false]\n")
-	fmt.Fprintf(w, "      [--instructions TEXT] [--tool-allow csv] [--tool-deny csv] [--trust-ceiling L0..L4] [--config KEY=VALUE,...]\n")
+	fmt.Fprintf(w, "      [--instructions TEXT] [--tool-allow csv] [--tool-deny csv] [--trust-ceiling L0..L4] [--exec PROFILE] [--config KEY=VALUE,...]\n")
 	fmt.Fprintf(w, "      [--lifecycle persistent|cycle|retire_on_complete] [--max-cycles N] [--cycle-task TEXT] [--total-task TEXT]\n")
 	fmt.Fprintf(w, "      [--retry-attempts N] [--retry-backoff fixed|exponential] [--retry-base-sec N] [--retry-max-sec N] [--retry-on csv]\n")
 	fmt.Fprintf(w, "      [--doctor-agent SLUG] [--health-stale-sec N] [--health-window N] [--health-threshold N]\n")
@@ -112,6 +112,7 @@ type agentFlags struct {
 	retryBackoff, retryOn, doctorAgent, selfRepairEscalate                    string
 	notifyMinSeverity                                                         string
 	instructions, toolAllow, toolDeny, trustCeiling, configOverrides          string
+	executionProfile                                                          string
 	lifecycleMode                                                             string
 	fallbacks                                                                 []string
 	cycleTasks, totalTasks                                                    []string
@@ -262,6 +263,12 @@ func parseAgentFlags(args []string, stderr io.Writer, cmd string) (agentFlags, [
 			}
 			i++
 			f.trustCeiling, f.set["trust_ceiling"] = args[i], true
+		case "--execution-profile", "--exec":
+			if !need(i, a) {
+				return f, nil, false
+			}
+			i++
+			f.executionProfile, f.set["execution_profile"] = args[i], true
 		case "--config":
 			if !need(i, a) {
 				return f, nil, false
@@ -612,6 +619,9 @@ func cmdAgentShow(args []string, stdout, stderr io.Writer) int {
 		if v := str(p["trust_ceiling"]); v != "" {
 			fmt.Fprintf(stdout, "trust ceiling:%s\n", padValue(v))
 		}
+		if v := str(p["execution_profile"]); v != "" {
+			fmt.Fprintf(stdout, "exec profile: %s\n", v)
+		}
 		if tools, _ := p["tool_allow"].([]any); len(tools) > 0 {
 			fmt.Fprintf(stdout, "tool allow:   %s\n", joinAnyStrings(tools, ", "))
 		}
@@ -910,6 +920,7 @@ func cmdAgentSet(args []string, stdout, stderr io.Writer) int {
 	overlay("owner_agent", "owner_agent", f.ownerAgent)
 	overlay("parent_agent", "parent_agent", f.parentAgent)
 	overlay("trust_ceiling", "trust_ceiling", f.trustCeiling)
+	overlay("execution_profile", "execution_profile", f.executionProfile)
 	if f.set["max_cost"] {
 		base["max_cost_mc"] = f.maxCostMc
 	}
@@ -2025,6 +2036,9 @@ func applyAgentAdvancedFlags(profile map[string]any, f agentFlags) error {
 	}
 	if f.set["trust_ceiling"] {
 		profile["trust_ceiling"] = strings.TrimSpace(f.trustCeiling)
+	}
+	if f.set["execution_profile"] {
+		profile["execution_profile"] = strings.TrimSpace(f.executionProfile)
 	}
 	if f.set["config_overrides"] {
 		cfg, err := parseConfigOverrides(f.configOverrides)

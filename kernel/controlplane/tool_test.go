@@ -52,6 +52,12 @@ func TestToolList_ReturnsRegisteredTools(t *testing.T) {
 	if desc, _ := row["description"].(string); desc == "" {
 		t.Error("description is empty; CLI would render a blank column")
 	}
+	if row["effect_class"] != "irreversible" || row["rollback_mode"] != "audit_only" {
+		t.Fatalf("rollback metadata = class %v mode %v, want irreversible/audit_only", row["effect_class"], row["rollback_mode"])
+	}
+	if notes, _ := row["rollback_notes"].(string); !strings.Contains(notes, "No reliable generic rollback") {
+		t.Fatalf("rollback notes = %q", notes)
+	}
 }
 
 // TestToolList_EmptyWhenNoToolsRegistered covers the degenerate

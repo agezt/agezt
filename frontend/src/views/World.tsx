@@ -1,9 +1,13 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search, Tags, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { Panel, Row, Count } from "@/components/Panel";
+import { Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Muted } from "@/components/JsonView";
+import { Card, CardBody } from "@/components/ui/card";
+import { Page } from "@/components/ui/page";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { usePanel } from "@/lib/usePanel";
+import { ErrorText, Muted } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
 import { ActionButton } from "@/components/ActionButton";
 import { WorldGraph } from "@/components/WorldGraph";
@@ -130,9 +134,28 @@ export function World() {
   const [kindFilter, setKindFilter] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [relateOpen, setRelateOpen] = useState(false);
+  const { data, error, loading, reload } = usePanel<Record<string, any>>("/api/world");
   return (
-    <Panel<Record<string, any>> title="World" icon={Globe} description="The agents' shared model of entities and how they relate" path="/api/world">
-      {(d, reload) => {
+    <Page
+      icon={Globe}
+      title="World"
+      description="The agents' shared model of entities and how they relate"
+      width="wide"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Refresh">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
+      <Card glass>
+        <CardBody className="space-y-3">
+          {error ? (
+            <ErrorText>{error}</ErrorText>
+          ) : !data ? (
+            <SkeletonList count={3} lines={2} />
+          ) : (
+            (() => {
+        const d = data;
         const ents = d.entities || [];
         const edges = d.edges || [];
         const query = q.trim().toLowerCase();
@@ -329,8 +352,11 @@ export function World() {
             )}
           </>
         );
-      }}
-    </Panel>
+            })()
+          )}
+        </CardBody>
+      </Card>
+    </Page>
   );
 }
 

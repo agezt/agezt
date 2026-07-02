@@ -31,7 +31,7 @@ func scrubEnv(dir string) []string {
 		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
 		"NUMBER_OF_PROCESSORS": true, "PROCESSOR_ARCHITECTURE": true,
 		"USERNAME": true, // cosmetic only; operator display name, no path
-		"LANG": true,
+		"LANG":     true,
 	}
 	var out []string
 	for _, kv := range os.Environ() {
@@ -61,6 +61,78 @@ func scrubEnv(dir string) []string {
 		"TEMP="+dir,
 		"TMP="+dir,
 	)
+	return out
+}
+
+func sshEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true,
+		"SSH_AUTH_SOCK": true, "LANG": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+func kubectlEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true,
+		"KUBECONFIG": true, "LANG": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+func cloudCLIEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true, "LANG": true,
+		"MODAL_CONFIG_PATH": true, "DAYTONA_CONFIG_PATH": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
 	return out
 }
 

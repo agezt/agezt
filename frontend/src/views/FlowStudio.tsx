@@ -3,7 +3,7 @@ import { Play, Sparkles, Wand2, RefreshCw, Workflow, X, FileJson2 } from "lucide
 import { postJSON, getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Badge, statusVariant } from "@/components/ui/badge";
@@ -144,22 +144,23 @@ export function FlowStudio() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      <PageHeader
-        icon={Workflow}
-        title="Flow Studio"
-        description="Describe a task; the planner drafts an editable flow you can refine and run."
-        actions={
-          <>
-            <Button size="sm" variant="ghost" onClick={loadHistory} title="Refresh history">
-              <RefreshCw className="size-3.5" /> Refresh
-            </Button>
-            <Button size="sm" onClick={() => setComposeOpen(true)}>
-              <Sparkles className="size-3.5" /> Compose
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Workflow}
+      title="Flow Studio"
+      description="Describe a task; the planner drafts an editable flow you can refine and run."
+      mode="fill"
+      width="full"
+      actions={
+        <>
+          <Button size="sm" variant="ghost" onClick={loadHistory} title="Refresh history">
+            <RefreshCw className="size-3.5" /> Refresh
+          </Button>
+          <Button size="sm" onClick={() => setComposeOpen(true)}>
+            <Sparkles className="size-3.5" /> Compose
+          </Button>
+        </>
+      }
+    >
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Authoring column */}
         <Card className="min-h-0">
@@ -309,7 +310,7 @@ export function FlowStudio() {
           </div>
         </FlowModal>
       )}
-    </div>
+    </Page>
   );
 }
 

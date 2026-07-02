@@ -5,6 +5,7 @@ import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SpendArea } from "@/components/Charts";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget } from "@/components/ui/metric-widget";
 import { emptyBucket, addEvent, summarize, type Bucket } from "@/lib/telemetry";
 
 const WINDOW = 60; // seconds of rolling history
@@ -73,72 +74,48 @@ export function Mission() {
 
       {/* Live metric cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Metric
+        <MetricWidget
           icon={Brain}
           label="LLM calls/s"
           value={t.llmPerSec.toFixed(1)}
-          now={now.llm}
-          series={arr.map((b) => b.llm)}
+          subvalue={`now ${now.llm}`}
+          tone="accent"
+          pulse={connected}
+          trend={arr.map((b) => b.llm)}
         />
-        <Metric
+        <MetricWidget
           icon={Zap}
           label="tokens/s"
           value={Math.round(t.tokensPerSec).toLocaleString()}
-          now={now.tokensIn + now.tokensOut}
-          series={arr.map((b) => b.tokensIn + b.tokensOut)}
+          subvalue={`now ${(now.tokensIn + now.tokensOut).toLocaleString()}`}
+          tone="muted"
+          trend={arr.map((b) => b.tokensIn + b.tokensOut)}
         />
-        <Metric
+        <MetricWidget
           icon={Coins}
           label="spend/s"
           value={money(t.costPerSecMc)}
-          now={now.costMc}
-          nowFmt={(v) => money(v)}
-          series={arr.map((b) => b.costMc)}
+          subvalue={`now ${money(now.costMc)}`}
+          tone="warn"
+          trend={arr.map((b) => b.costMc)}
         />
-        <Metric
+        <MetricWidget
           icon={Wrench}
           label="tool calls/s"
           value={t.toolsPerSec.toFixed(2)}
-          now={now.tools}
-          series={arr.map((b) => b.tools)}
+          subvalue={`now ${now.tools}`}
+          tone="accent"
+          trend={arr.map((b) => b.tools)}
         />
-        <Metric
+        <MetricWidget
           icon={Waypoints}
           label={`delegations/${WINDOW}s`}
           value={t.subagentsTotal.toLocaleString()}
-          now={now.subagents}
-          series={arr.map((b) => b.subagents)}
+          subvalue={`now ${now.subagents}`}
+          tone="accent"
+          trend={arr.map((b) => b.subagents)}
         />
       </div>
-    </div>
-  );
-}
-
-function Metric({
-  icon: Icon,
-  label,
-  value,
-  now,
-  nowFmt,
-  series,
-}: {
-  icon: typeof Zap;
-  label: string;
-  value: string;
-  now: number;
-  nowFmt?: (v: number) => string;
-  series: number[];
-}) {
-  return (
-    <div className="glass rounded-xl p-3">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-      </div>
-      <div className="mt-0.5 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">{value}</span>
-        <span className="text-xs text-muted">now {nowFmt ? nowFmt(now) : now}</span>
-      </div>
-      <SpendArea values={series} className="mt-1 h-12" />
     </div>
   );
 }

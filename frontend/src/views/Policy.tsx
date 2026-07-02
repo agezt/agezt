@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff, ShieldAlert, X, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { Panel, Stats, Row, Count } from "@/components/Panel";
+import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff, ShieldAlert, X, SlidersHorizontal, CheckCircle2, XCircle, type LucideIcon } from "lucide-react";
+import { Panel, Row, Count } from "@/components/Panel";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
@@ -264,13 +265,17 @@ export function Policy() {
           const names = byDescValue(byCap);
           return (
             <>
-              <Stats
-                pairs={[
-                  ["allowed", d.allowed || 0],
-                  ["denied", `${d.denied || 0}${d.hard_denied ? ` (${d.hard_denied} hard)` : ""}`],
-                  ["denial rate", pct(d.denial_rate, d.total)],
-                ]}
-              />
+              <MetricGrid cols="repeat(3, minmax(0, 1fr))">
+                <MetricWidget icon={CheckCircle2} label="allowed" tone="good" value={d.allowed || 0} />
+                <MetricWidget
+                  icon={XCircle}
+                  label="denied"
+                  tone="bad"
+                  value={d.denied || 0}
+                  subvalue={d.hard_denied ? `${d.hard_denied} hard` : undefined}
+                />
+                <MetricWidget icon={ShieldAlert} label="denial rate" tone="warn" value={pct(d.denial_rate, d.total)} />
+              </MetricGrid>
               {names.length > 0 && (
                 <div>
                   <Count>denied by capability</Count>
@@ -288,7 +293,12 @@ export function Policy() {
                 params={{ limit: "40" }}
                 extract={(x) => x.decisions || []}
                 render={(ev: PolicyLogEntry, i: number) => (
-                  <div key={i} className="flex gap-2 border-b border-border/40 py-0.5">
+                  <div key={i} className="flex items-center gap-2 border-b border-border/40 py-0.5">
+                    {ev.allow ? (
+                      <CheckCircle2 className="size-3.5 shrink-0 text-good" aria-hidden />
+                    ) : (
+                      <XCircle className="size-3.5 shrink-0 text-bad" aria-hidden />
+                    )}
                     <span className="text-muted">{fmtTime(ev.ts_unix_ms)}</span>
                     <span className={ev.allow ? "text-good" : "text-bad"}>
                       {ev.allow ? "allow" : ev.hard_denied ? "DENY(hard)" : "DENY"} {ev.capability || ""}{" "}

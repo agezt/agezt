@@ -22,6 +22,7 @@ import {
   Route,
   Bot,
   ArrowRight,
+  Globe2,
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
@@ -118,6 +119,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   slack: MessageSquare,
   discord: MessageSquare,
   interfaces: Network,
+  tunnel: Globe2,
   limits: Gauge,
   security: Shield,
 };
@@ -378,9 +380,24 @@ function buildQuickConfigActions(sections: Section[], values: Record<string, Val
     make({
       id: "console",
       title: "Console access",
-      detail: "Web UI password, bind address, browser open",
+      detail: "Password, bind address, allowed hosts",
       icon: KeyRound,
-      fields: fields("AGEZT_WEB_ADDR", "AGEZT_WEB_PASSWORD", "AGEZT_WEB_PASSWORD_DEFAULT", "AGEZT_WEB_OPEN"),
+      fields: fields("AGEZT_WEB_ADDR", "AGEZT_WEB_ALLOWED_HOSTS", "AGEZT_WEB_PASSWORD", "AGEZT_WEB_PASSWORD_DEFAULT", "AGEZT_WEB_PASSWORD_STRICT", "AGEZT_WEB_OPEN"),
+    }),
+    make({
+      id: "external",
+      title: "External access",
+      detail: "Cloudflare, ngrok, Tailscale tunnel",
+      icon: Globe2,
+      fields: fields(
+        "AGEZT_TUNNEL",
+        "AGEZT_TUNNEL_TARGET",
+        "AGEZT_TUNNEL_CMD",
+        "AGEZT_TUNNEL_NOTES",
+        "AGEZT_WEB_ALLOWED_HOSTS",
+        "AGEZT_WEB_PASSWORD",
+        "AGEZT_WEB_PASSWORD_STRICT",
+      ),
     }),
     make({
       id: "telegram",

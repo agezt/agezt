@@ -5,9 +5,8 @@
 // returns the visible text content to the model — turning "raw HTML
 // the model has to parse" into "readable prose the model can quote."
 //
-// **Scope (M1.x).** Stdlib-only. No headless-browser binary, no
-// JavaScript execution. This is a pragmatic "user agent" tool, not
-// a Playwright bridge:
+// **Scope (M1.x).** `browser.read` is stdlib-only. No headless-browser binary,
+// no JavaScript execution. This is a pragmatic "user agent" tool:
 //
 //   - Server-rendered pages (news articles, docs sites, GitHub,
 //     blogs, Wikipedia) read cleanly.
@@ -15,16 +14,14 @@
 //     JavaScript come back as a near-empty shell with a `<noscript>`
 //     hint. The agent sees that and knows to fall back.
 //
-// A real headless-Chromium integration would unlock JS-rendered
-// content but would require either (a) a multi-MB binary
-// dependency, or (b) shelling out to operator-installed Chrome with
-// platform-specific paths. Both violate the lean-deps policy. v2
-// could add an opt-in `--render` mode that spawns chrome --headless
-// when the operator has it; out of scope for v1.
+// The sibling `browser.action` tool is the opt-in Playwright bridge for
+// JS-rendered pages and user-like actions. Keeping it separate preserves
+// `browser.read` as the cheap, SSRF-guarded default fetch path while letting
+// operators explicitly enable browser automation when they have Node/Playwright
+// installed.
 //
 // **Tool name.** Exposed as `browser.read` (not just `browser`) so
-// the namespace stays open for future verbs like `browser.search`
-// (search-engine query) or `browser.screenshot` (requires chrome).
+// the namespace stays open for verbs like `browser.action`.
 package browser
 
 import (

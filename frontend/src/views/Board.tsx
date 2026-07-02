@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
-import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, LifeBuoy, Megaphone, Send, X, CheckCheck, Zap, Inbox, MessageSquare, Terminal, AtSign, BellRing, type LucideIcon } from "lucide-react";
+import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, LifeBuoy, Megaphone, Send, X, CheckCheck, Zap, Inbox, MessageSquare, Terminal, AtSign, BellRing, Columns3, CircleDot, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -43,6 +43,53 @@ interface BoardAgent {
   parent_agent?: string;
   owner_agent?: string;
   kind?: string;
+}
+
+interface WorkboardClaim {
+  agent?: string;
+  run_id?: string;
+  heartbeat_ms?: number;
+}
+
+interface WorkboardRetryPolicy {
+  max_attempts?: number;
+  escalate_to?: string;
+}
+
+interface WorkboardTask {
+  id: string;
+  title: string;
+  status: string;
+  priority?: number;
+  tenant?: string;
+  assignee?: string;
+  owner?: string;
+  tags?: string[];
+  claim?: WorkboardClaim;
+  retry_policy?: WorkboardRetryPolicy;
+  block_reason?: string;
+  dependency_count?: number;
+  attempt_count?: number;
+  failed_attempt_count?: number;
+  comment_count?: number;
+  link_count?: number;
+  max_attempts?: number;
+  next_attempt?: number;
+  updated_ms?: number;
+}
+
+interface WorkboardLane {
+  assignee?: string;
+  label?: string;
+  counts?: Record<string, number>;
+  tasks?: WorkboardTask[];
+  count?: number;
+}
+
+interface WorkboardLanesData {
+  lanes?: WorkboardLane[];
+  count?: number;
+  task_count?: number;
 }
 
 // awaitingReply reports which ADDRESSED messages have no reply on the board
@@ -133,6 +180,52 @@ export function boardCounts(data: BoardData | null | undefined, help: Msg[] = []
     awaiting: awaitingReply(messages).size,
     help: help.length,
   };
+}
+
+export function normalizeWorkboardLanes(data: WorkboardLanesData | null | undefined): WorkboardLanesData {
+  const lanes = Array.isArray(data?.lanes)
+    ? data!.lanes.map((lane) => {
+        const counts = lane.counts || {};
+        const counted = Object.values(counts).reduce((sum, count) => sum + count, 0);
+        const tasks = Array.isArray(lane.tasks) ? lane.tasks : [];
+        return {
+          ...lane,
+          label: lane.label || lane.assignee || "unassigned",
+          counts,
+          tasks,
+          count: typeof lane.count === "number" ? lane.count : counted || tasks.length,
+        };
+      })
+    : [];
+  return {
+    lanes,
+    count: typeof data?.count === "number" ? data.count : lanes.length,
+    task_count: typeof data?.task_count === "number" ? data.task_count : lanes.reduce((sum, lane) => sum + (lane.count || 0), 0),
+  };
+}
+
+export function workboardStatusCounts(lanes: WorkboardLane[] = []): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const lane of lanes) {
+    const entries = Object.entries(lane.counts || {});
+    if (entries.length > 0) {
+      for (const [status, count] of entries) {
+        out[status] = (out[status] || 0) + count;
+      }
+      continue;
+    }
+    for (const task of lane.tasks || []) {
+      if (task.status) out[task.status] = (out[task.status] || 0) + 1;
+    }
+  }
+  return out;
+}
+
+export function workboardOpenTaskCount(data: WorkboardLanesData | null | undefined): number {
+  const counts = workboardStatusCounts(data?.lanes || []);
+  return Object.entries(counts).reduce((sum, [status, count]) => (
+    status === "done" || status === "archived" ? sum : sum + count
+  ), 0);
 }
 
 export function boardAgentWakeIssue(agent?: BoardAgent): string {
@@ -233,6 +326,7 @@ export function Board() {
   const [data, setData] = useState<BoardData | null>(null);
   const [help, setHelp] = useState<Msg[]>([]);
   const [agents, setAgents] = useState<BoardAgent[]>([]);
+  const [workboard, setWorkboard] = useState<WorkboardLanesData | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -252,14 +346,16 @@ export function Board() {
   async function reload() {
     setLoading(true);
     try {
-      const [d, h, a] = await Promise.all([
+      const [d, h, a, wb] = await Promise.all([
         getJSON<BoardData>("/api/board", { limit: "200" }),
         getJSON<HelpData>("/api/board/help").catch(() => ({ open_help: [] }) as HelpData),
         getJSON<{ profiles?: BoardAgent[] }>("/api/agents").catch(() => ({ profiles: [] })),
+        getJSON<WorkboardLanesData>("/api/workboard/lanes", { limit: "200" }).catch(() => ({ lanes: [], count: 0, task_count: 0 }) as WorkboardLanesData),
       ]);
       setData(d);
       setHelp(h.open_help || []);
       setAgents(a.profiles || []);
+      setWorkboard(normalizeWorkboardLanes(wb));
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -384,24 +480,24 @@ export function Board() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={MessagesSquare}
-        title="Agent board"
-        description="Per-skill signal bus."
-        actions={
-          <>
-            <Button size="sm" onClick={() => setShowCompose(true)} title="New message">
-              <Send className="size-3.5" />
-              New message
-            </Button>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            </Button>
-          </>
-        }
-      />
-
+    <Page
+      icon={MessagesSquare}
+      title="Agent board"
+      description="Per-skill signal bus."
+      mode="fill"
+      width="wide"
+      actions={
+        <>
+          <Button size="sm" onClick={() => setShowCompose(true)} title="New message">
+            <Send className="size-3.5" />
+            New message
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    >
       {showCompose && (
         <BoardModal title="New board message" onClose={() => setShowCompose(false)}>
           <div className="space-y-2">
@@ -531,6 +627,10 @@ export function Board() {
             ))}
           </ul>
         </div>
+      )}
+
+      {workboard && workboardOpenTaskCount(workboard) > 0 && (
+        <WorkboardLaneStrip data={workboard} />
       )}
 
       {data && messages.length > 0 && (
@@ -746,7 +846,7 @@ export function Board() {
           </ul>
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -778,6 +878,126 @@ function BoardModal({
       </div>
     </div>
   );
+}
+
+const WORKBOARD_STATUS_ORDER = ["triage", "todo", "ready", "running", "blocked", "review", "done", "archived"];
+
+function WorkboardLaneStrip({ data }: { data: WorkboardLanesData }) {
+  const lanes = (data.lanes || []).filter((lane) => (lane.count || lane.tasks?.length || 0) > 0);
+  const counts = workboardStatusCounts(lanes);
+  const visibleStatuses = WORKBOARD_STATUS_ORDER.filter((status) => (counts[status] || 0) > 0);
+  const openCount = workboardOpenTaskCount(data);
+  if (lanes.length === 0 || openCount === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-border bg-card/80 p-2.5" data-testid="workboard-lanes">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
+            <Columns3 className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-foreground">Workboard lanes</h2>
+            <p className="truncate text-[11px] text-muted">
+              {openCount} open task{openCount === 1 ? "" : "s"} across {lanes.length} lane{lanes.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {visibleStatuses.slice(0, 6).map((status) => (
+            <Badge key={status} variant={workboardStatusVariant(status)} className="gap-1">
+              <CircleDot className={cn("size-3", workboardStatusDotClass(status))} />
+              {workboardStatusLabel(status)}
+              <span className="font-mono tabular-nums">{counts[status]}</span>
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
+        {lanes.slice(0, 6).map((lane) => {
+          const laneTasks = (lane.tasks || []).filter((task) => task.status !== "archived");
+          const shownTasks = laneTasks.slice(0, 3);
+          const hiddenTasks = Math.max(0, laneTasks.length - shownTasks.length);
+          return (
+            <div key={lane.assignee || lane.label || "unassigned"} className="min-w-0 rounded-md border border-border bg-panel/55 p-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <User className="size-3.5 shrink-0 text-muted" />
+                <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{lane.label || "unassigned"}</span>
+                <Badge>{lane.count || laneTasks.length}</Badge>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {WORKBOARD_STATUS_ORDER.filter((status) => (lane.counts?.[status] || 0) > 0).slice(0, 5).map((status) => (
+                  <span key={status} className="inline-flex items-center gap-1 rounded-full border border-border bg-background/60 px-1.5 py-0.5 text-[10px] text-muted">
+                    <span className={cn("size-1.5 rounded-full", workboardMiniDotClass(status))} />
+                    {workboardStatusLabel(status)} {lane.counts?.[status]}
+                  </span>
+                ))}
+              </div>
+              <ul className="mt-2 space-y-1">
+                {shownTasks.map((task) => (
+                  <li key={task.id} className="min-w-0 rounded-md border border-border/70 bg-background/50 px-2 py-1.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className={cn("size-2 shrink-0 rounded-full", workboardMiniDotClass(task.status))} title={workboardStatusLabel(task.status)} />
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{task.title || task.id}</span>
+                      {task.priority ? <span className="shrink-0 font-mono text-[10px] text-muted">P{task.priority}</span> : null}
+                    </div>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-muted">
+                      <span className="shrink-0 font-mono">{task.id}</span>
+                      {task.claim?.agent ? <span className="min-w-0 truncate">claimed by {task.claim.agent}</span> : null}
+                      {!task.claim?.agent && task.block_reason ? <span className="min-w-0 truncate">{task.block_reason}</span> : null}
+                      {!task.claim?.agent && !task.block_reason && workboardRetryLabel(task) ? <span className="min-w-0 truncate">{workboardRetryLabel(task)}</span> : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {hiddenTasks > 0 && (
+                <div className="mt-1 text-[10px] text-muted">+{hiddenTasks} more in this lane</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {lanes.length > 6 && <div className="mt-1.5 text-[10px] text-muted">+{lanes.length - 6} more lane{lanes.length - 6 === 1 ? "" : "s"}</div>}
+    </section>
+  );
+}
+
+function workboardStatusLabel(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+function workboardRetryLabel(task: WorkboardTask): string {
+  const max = task.max_attempts || task.retry_policy?.max_attempts || 0;
+  const failed = task.failed_attempt_count || 0;
+  if (max <= 0 && failed <= 0) return "";
+  const parts = [`attempts ${failed}/${max || "?"}`];
+  if (task.next_attempt) parts.push(`next ${task.next_attempt}`);
+  const escalate = task.retry_policy?.escalate_to;
+  if (escalate) parts.push(`escalate ${escalate}`);
+  return parts.join(" · ");
+}
+
+function workboardStatusVariant(status: string): "default" | "good" | "bad" | "warn" | "accent" {
+  if (status === "done") return "good";
+  if (status === "blocked") return "warn";
+  if (status === "running" || status === "review") return "accent";
+  if (status === "ready") return "good";
+  return "default";
+}
+
+function workboardStatusDotClass(status: string): string {
+  if (status === "done" || status === "ready") return "text-good";
+  if (status === "blocked") return "text-warn";
+  if (status === "running" || status === "review") return "text-accent";
+  return "text-muted";
+}
+
+function workboardMiniDotClass(status: string): string {
+  if (status === "done" || status === "ready") return "bg-good";
+  if (status === "blocked") return "bg-warn";
+  if (status === "running" || status === "review") return "bg-accent";
+  return "bg-border";
 }
 
 type BoardSendMode = "dm" | "help" | "broadcast" | "topic";

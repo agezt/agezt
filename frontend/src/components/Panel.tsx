@@ -5,21 +5,23 @@ import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page, type PageWidth } from "@/components/ui/page";
 
 // Panel is the shared read-view shell: it fetches a /api route, shows a refresh
 // button + loading/error states, and hands the data (plus a reload fn, for
 // action buttons) to a render prop. Keeps every bespoke view boilerplate-free.
 //
-// Two header modes (M989): pass `icon` to render the standard gradient PageHeader
-// — this is for Panel-backed TOP-LEVEL views (Approvals, Config, World) so they
-// match every other screen. Without `icon` it keeps the compact card header, the
-// right shape for a Panel used as a sub-section inside a larger view (e.g. the
-// "Decisions" panel on Policy, which has its own page header already).
+// Two header modes (M989): pass `icon` to render the standard scroll-safe `Page`
+// scaffold (gradient header + glass card) — this is for Panel-backed TOP-LEVEL
+// views so they match every other screen and scroll on short viewports. Without
+// `icon` it keeps the compact card header, the right shape for a Panel used as a
+// sub-section inside a larger view (e.g. the "Decisions" panel on Policy, which
+// has its own page header already).
 export function Panel<T = any>({
   title,
   icon,
   description,
+  width,
   path,
   params,
   headerExtra,
@@ -28,6 +30,8 @@ export function Panel<T = any>({
   title: string;
   icon?: LucideIcon;
   description?: ReactNode;
+  /** Content width when in page mode (icon set). Defaults to readable. */
+  width?: PageWidth;
   path: string;
   params?: Record<string, string>;
   headerExtra?: ReactNode;
@@ -51,25 +55,25 @@ export function Panel<T = any>({
     </Button>
   );
 
-  // Page mode: gradient PageHeader above a glass card body.
+  // Page mode: gradient PageHeader above a glass card body. Uses the scroll-safe
+  // Page scaffold so Panel-backed top-level views scroll on short screens instead
+  // of clipping (the fixed-shell root here used to collapse the card to 0 height).
   if (icon) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <PageHeader
-          icon={icon}
-          title={title}
-          description={description}
-          actions={
-            <>
-              {headerExtra}
-              {refresh}
-            </>
-          }
-        />
-        <Card glass className="min-h-0 flex-1">
-          {body}
-        </Card>
-      </div>
+      <Page
+        icon={icon}
+        title={title}
+        description={description}
+        width={width}
+        actions={
+          <>
+            {headerExtra}
+            {refresh}
+          </>
+        }
+      >
+        <Card glass>{body}</Card>
+      </Page>
     );
   }
 

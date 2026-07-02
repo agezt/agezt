@@ -86,6 +86,16 @@ func CanTransition(from, to Status) bool {
 	return ok
 }
 
+// ValidStatus reports whether st is one of the persisted lifecycle states.
+func ValidStatus(st Status) bool {
+	switch st {
+	case StatusDraft, StatusShadow, StatusActive, StatusQuarantined, StatusArchived:
+		return true
+	default:
+		return false
+	}
+}
+
 // PromoteTarget returns the next status `promote` advances to from the given
 // state (draft→shadow→active), and whether a promotion is defined there.
 func PromoteTarget(from Status) (Status, bool) {

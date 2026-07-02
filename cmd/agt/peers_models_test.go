@@ -105,7 +105,7 @@ func TestPeers_NameOnlyValidWithModels(t *testing.T) {
 	if code := cmdPeers([]string{"someNode"}, &out, &errb); code != 2 {
 		t.Fatalf("bare name should exit 2, got %d", code)
 	}
-	if !strings.Contains(errb.String(), "only valid with") {
+	if !strings.Contains(errb.String(), "unexpected argument") {
 		t.Errorf("stderr = %q", errb.String())
 	}
 }

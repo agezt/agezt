@@ -70,6 +70,7 @@ func tenantTokenAllows(cmd string) bool {
 	case CmdRun, CmdCancelRun,
 		CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, CmdRunIntervene, // live steering of own runs (M608)
 		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog, CmdToolStats, CmdCacheStats,
+		CmdExecutionProfiles, CmdExecutionProfileShow, CmdExecutionProfileCheck,
 		CmdRateLimitLog, CmdRateLimitStats, CmdNetguardLog,
 		CmdWebhookLog, CmdWebhookStats,
 		CmdEdictLog, CmdEdictStats, CmdEdictShow, CmdEdictOverlay, CmdEdictTest, CmdEdictDenyList, CmdEdictDenyAdd,

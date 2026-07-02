@@ -22,8 +22,10 @@ const CHANNELS = [
     description: "Telegram bot",
     transport: "long-poll",
     duplex: true,
+    media: { image_in: true, image_out: true, voice_in: true },
     configured: true,
     live: true,
+    probe: { roundtrip_status: "ready", roundtrip_ready: true, mode: "two_way" },
     fields: [
       { env: "AGEZT_TELEGRAM_TOKEN", label: "Bot token", secret: true, required: true, set: true },
       { env: "AGEZT_TELEGRAM_CHAT_ID", label: "Allowed chats", set: false, value: "" },
@@ -36,6 +38,7 @@ const CHANNELS = [
     transport: "webhook",
     duplex: true,
     configured: false,
+    probe: { roundtrip_status: "needs_setup", roundtrip_ready: false, mode: "two_way" },
     fields: [{ env: "AGEZT_WHATSAPP_ACCESS_TOKEN", label: "Access token", secret: true, required: true, set: false }],
   },
 ];
@@ -105,11 +108,15 @@ describe("Channels", () => {
     expect(await screen.findByText("Telegram")).toBeTruthy();
     expect(screen.getByText("WhatsApp")).toBeTruthy();
     expect(screen.getByText("live")).toBeTruthy(); // telegram is running
+    expect(screen.getByText("roundtrip ready")).toBeTruthy();
     expect(screen.getByText("needs setup")).toBeTruthy(); // whatsapp not configured
+    expect(screen.getByText("setup first")).toBeTruthy();
     // Summary moved from a single "2 channels · 1 live · 1 configured" string into metric widgets.
     expect(screen.getByText("Total")).toBeTruthy();
     expect(screen.getByText("Live")).toBeTruthy();
     expect(screen.getByText("Configured")).toBeTruthy();
+    expect(screen.getByText("Roundtrip")).toBeTruthy();
+    expect(screen.getByText("Media")).toBeTruthy();
   });
 
   it("sends a test message via a live account", async () => {

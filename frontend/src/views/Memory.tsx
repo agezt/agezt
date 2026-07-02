@@ -9,7 +9,7 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -313,13 +313,13 @@ export function Memory() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Brain}
-        title="Memory"
-        actions={
-          <>
-            {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
+    <Page
+      icon={Brain}
+      title="Memory"
+      width="wide"
+      actions={
+        <>
+          {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
               <input
@@ -364,8 +364,7 @@ export function Memory() {
             </Button>
           </>
         }
-      />
-
+    >
       <MemoryPanel
         icon={UserRound}
         title="Operator Profile"
@@ -468,7 +467,7 @@ export function Memory() {
           <Muted>no memories match “{q.trim()}”</Muted>
         )
       ) : (
-        <div className="min-h-0 flex-1 space-y-2 overflow-auto">
+        <div className="space-y-2">
           {byType.length > 0 && <BreakdownBar segments={byType} />}
           <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {shown.map((r, i) => {
@@ -581,7 +580,7 @@ export function Memory() {
           />
         </MemoryModal>
       )}
-    </div>
+    </Page>
   );
 }
 

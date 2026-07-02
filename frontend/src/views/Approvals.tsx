@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, History, Check, X, Clock } from "lucide-react";
-import { Panel, Row, Count } from "@/components/Panel";
+import { ShieldCheck, History, Check, X, Clock, RefreshCw } from "lucide-react";
+import { Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
+import { Page } from "@/components/ui/page";
 import { EmptyState } from "@/components/ui/empty";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { ActionButton } from "@/components/ActionButton";
+import { usePanel } from "@/lib/usePanel";
 import { getJSON } from "@/lib/api";
-import { fmtTime } from "@/lib/utils";
-import { Muted } from "@/components/JsonView";
+import { cn, fmtTime } from "@/lib/utils";
+import { ErrorText, Muted } from "@/components/JsonView";
 
 interface PendingApproval {
   id?: string;
@@ -16,12 +21,26 @@ interface PendingApproval {
 }
 
 export function Approvals() {
+  const { data, error, loading, reload } = usePanel<{ pending?: PendingApproval[] }>("/api/approvals");
+  const items = data?.pending || [];
   return (
-    <div className="space-y-4">
-      <Panel<{ pending?: PendingApproval[] }> title="Approvals" icon={ShieldCheck} description="Capabilities the agent is waiting on you to grant or deny" path="/api/approvals">
-        {(d, reload) => {
-          const items = d.pending || [];
-          return (
+    <Page
+      icon={ShieldCheck}
+      title="Approvals"
+      description="Capabilities the agent is waiting on you to grant or deny"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Refresh">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
+      <Card glass>
+        <CardBody className="space-y-3">
+          {error ? (
+            <ErrorText>{error}</ErrorText>
+          ) : !data ? (
+            <SkeletonList count={3} lines={2} />
+          ) : (
             <>
               <Count>{items.length} pending</Count>
               {items.length ? (
@@ -45,12 +64,12 @@ export function Approvals() {
                 />
               )}
             </>
-          );
-        }}
-      </Panel>
+          )}
+        </CardBody>
+      </Card>
 
       <ApprovalsHistory />
-    </div>
+    </Page>
   );
 }
 

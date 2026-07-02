@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
@@ -127,13 +127,13 @@ export function Artifacts() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Shapes}
-        title="Artifacts"
-        description={`${entries.length} produced`}
-        actions={
-          <>
+    <Page
+      icon={Shapes}
+      title="Artifacts"
+      width="full"
+      description={`${entries.length} produced`}
+      actions={
+        <>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
               <input
@@ -160,7 +160,7 @@ export function Artifacts() {
             </Button>
           </>
         }
-      />
+    >
 
       {/* Category chips with live counts */}
       <div className="flex flex-wrap items-center gap-1">
@@ -195,7 +195,7 @@ export function Artifacts() {
         />
       )}
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-auto pr-1">
+      <div className="space-y-5 pr-1">
         {shownGroups.map((g) => {
           const meta = CATEGORY_META.find((m) => m.key === g.key)!;
           const Icon = meta.icon;
@@ -218,7 +218,7 @@ export function Artifacts() {
       </div>
 
       {viewing && <Viewer entry={viewing} onClose={() => setViewing(null)} onDelete={() => del(viewing)} />}
-    </div>
+    </Page>
   );
 }
 

@@ -398,6 +398,7 @@ export async function streamRun(
     history?: ChatHistoryTurn[];
     system?: string;
     agent?: string;
+    execution_profile?: string;
     auto_approve_caps?: string;
     prompt_injection_trust?: boolean;
   },

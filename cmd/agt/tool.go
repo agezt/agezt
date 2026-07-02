@@ -89,6 +89,11 @@ func cmdToolList(args []string, stdout, stderr io.Writer) int {
 		r, _ := raw.(map[string]any)
 		name, _ := r["name"].(string)
 		desc, _ := r["description"].(string)
+		effect, _ := r["effect_class"].(string)
+		mode, _ := r["rollback_mode"].(string)
+		if lbl := toolRollbackLabel(effect, mode); lbl != "" {
+			desc = strings.TrimSpace(desc + " [" + lbl + "]")
+		}
 		if desc == "" {
 			fmt.Fprintf(stdout, "  %s\n", name)
 		} else {
@@ -96,6 +101,27 @@ func cmdToolList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	return 0
+}
+
+func toolRollbackLabel(effect, mode string) string {
+	switch mode {
+	case "audit_only":
+		if effect != "" {
+			return "rollback: audit only (" + effect + ")"
+		}
+		return "rollback: audit only"
+	case "compensate":
+		return "rollback: compensate"
+	case "rollbackable":
+		return "rollbackable"
+	case "none_needed":
+		return "no rollback needed"
+	default:
+		if effect == "irreversible" {
+			return "rollback: audit only"
+		}
+		return ""
+	}
 }
 
 // cmdToolLog implements `agt tool log [N] [--errors] [--tool <name>]

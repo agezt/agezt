@@ -86,6 +86,128 @@ func TestConfigSchema_ReturnsReloadBoundaries(t *testing.T) {
 	if !containsAnyString(byApply["restart"], "AGEZT_TELEGRAM_TOKEN") {
 		t.Fatalf("restart reload boundary should include channel fields: %+v", byApply["restart"])
 	}
+	if !containsAnyString(byApply["restart"], "AGEZT_PEERS") || !containsAnyString(byApply["restart"], "AGEZT_TENANT_PEERS") {
+		t.Fatalf("restart reload boundary should include peer mesh fields: %+v", byApply["restart"])
+	}
+}
+
+func TestConfigSet_PeerMeshIsSecretRestartSetting(t *testing.T) {
+	t.Setenv("AGEZT_PEERS", "")
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	res, err := c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+		"name":  "AGEZT_PEERS",
+		"value": "edge=https://edge.example|super-secret-token",
+	})
+	if err != nil {
+		t.Fatalf("config_set AGEZT_PEERS: %v", err)
+	}
+	if res["applied"] != "restart" {
+		t.Fatalf("AGEZT_PEERS applied = %v, want restart; res=%+v", res["applied"], res)
+	}
+
+	values, err := c.Call(context.Background(), controlplane.CmdConfigValues, nil)
+	if err != nil {
+		t.Fatalf("config_values: %v", err)
+	}
+	fields, _ := values["fields"].([]any)
+	var peer map[string]any
+	for _, raw := range fields {
+		row, _ := raw.(map[string]any)
+		if row["env"] == "AGEZT_PEERS" {
+			peer = row
+			break
+		}
+	}
+	if peer == nil {
+		t.Fatalf("AGEZT_PEERS missing from config values")
+	}
+	if peer["secret"] != true || peer["set"] != true {
+		t.Fatalf("AGEZT_PEERS should be reported as set secret: %+v", peer)
+	}
+	if _, ok := peer["value"]; ok {
+		t.Fatalf("AGEZT_PEERS leaked a value over config_values: %+v", peer)
+	}
+}
+
+func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
+	t.Setenv("AGEZT_EXEC_PROFILE_ALLOW", "")
+	t.Setenv("AGEZT_EXEC_PROFILE_DENY", "")
+	t.Setenv("AGEZT_EXEC_ENV_DOCKER", "")
+	t.Setenv("AGEZT_EXEC_SECRET_ENV_DOCKER", "")
+	t.Setenv("AGEZT_EXEC_SECRET_FILES_DOCKER", "")
+	t.Setenv("AGEZT_EXEC_SSH", "")
+	t.Setenv("AGEZT_EXEC_SSH_TARGET", "")
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	res, err := c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+		"name":  "AGEZT_EXEC_PROFILE_DENY",
+		"value": "warden",
+	})
+	if err != nil {
+		t.Fatalf("config_set policy: %v", err)
+	}
+	if res["applied"] != "live" {
+		t.Fatalf("policy config applied = %v, want live; res=%+v", res["applied"], res)
+	}
+
+	check, err := c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	if err != nil {
+		t.Fatalf("execution_profile_check: %v", err)
+	}
+	profiles, _ := check["routable_run_profiles"].([]any)
+	if containsAnyString(profiles, "warden") {
+		t.Fatalf("policy-denied warden should not be selectable: %+v", profiles)
+	}
+
+	res, err = c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+		"name":  "AGEZT_EXEC_PROFILE_DENY",
+		"value": "",
+	})
+	if err != nil {
+		t.Fatalf("clear policy: %v", err)
+	}
+	if res["applied"] != "live" {
+		t.Fatalf("cleared policy applied = %v, want live; res=%+v", res["applied"], res)
+	}
+	check, err = c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	if err != nil {
+		t.Fatalf("execution_profile_check after clear: %v", err)
+	}
+	profiles, _ = check["routable_run_profiles"].([]any)
+	if !containsAnyString(profiles, "warden") {
+		t.Fatalf("cleared policy should make warden selectable again: %+v", profiles)
+	}
+
+	for _, set := range []struct {
+		name  string
+		value string
+	}{
+		{"AGEZT_EXEC_ENV_DOCKER", "SAFE_DOCKER_ENV"},
+		{"AGEZT_EXEC_SECRET_ENV_DOCKER", "OPENAI_API_KEY"},
+		{"AGEZT_EXEC_SECRET_FILES_DOCKER", "OPENAI_API_KEY:openai.key"},
+		{"AGEZT_EXEC_SSH", "on"},
+		{"AGEZT_EXEC_SSH_TARGET", "deploy@example.com"},
+	} {
+		res, err = c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+			"name":  set.name,
+			"value": set.value,
+		})
+		if err != nil {
+			t.Fatalf("config_set %s: %v", set.name, err)
+		}
+		if res["applied"] != "live" {
+			t.Fatalf("%s applied = %v, want live; res=%+v", set.name, res["applied"], res)
+		}
+	}
+	check, err = c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	if err != nil {
+		t.Fatalf("execution_profile_check after ssh config: %v", err)
+	}
+	profiles, _ = check["routable_run_profiles"].([]any)
+	if !containsAnyString(profiles, "ssh") {
+		t.Fatalf("live SSH config should make ssh selectable: %+v", profiles)
+	}
 }
 
 // TestConfig_EnvPresenceIsBooleanNotValue is the privacy contract:

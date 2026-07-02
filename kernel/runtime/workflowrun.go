@@ -51,6 +51,26 @@ func (k *Kernel) SaveWorkflow(corr string, w workflow.Workflow) (workflow.Workfl
 	return saved, created, nil
 }
 
+// RestoreWorkflow restores a checkpointed workflow while preserving its stored
+// identity and enabled state. It is the rollback counterpart to SaveWorkflow and
+// journals workflow.restored.
+func (k *Kernel) RestoreWorkflow(corr string, w workflow.Workflow, reason string) (workflow.Workflow, bool, error) {
+	restored, created, err := k.workflows.Restore(w)
+	if err != nil {
+		return workflow.Workflow{}, false, err
+	}
+	payload := map[string]any{"id": restored.ID, "name": restored.Name, "created": created, "nodes": len(restored.Nodes), "edges": len(restored.Edges)}
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	_, _ = k.bus.Publish(event.Spec{
+		Subject: "workflow." + restored.Name, Kind: event.KindWorkflowRestored, Actor: "workflow",
+		CorrelationID: corr,
+		Payload:       payload,
+	})
+	return restored, created, nil
+}
+
 // SetWorkflowEnabled arms/disarms a workflow's triggers, journaling
 // workflow.updated.
 func (k *Kernel) SetWorkflowEnabled(corr, ref string, enabled bool) (workflow.Workflow, error) {
@@ -112,6 +132,7 @@ func (k *Kernel) RunWorkflow(ctx context.Context, corr, ref string, payload any)
 	if err := workflow.Validate(w); err != nil { // defense: stores can predate rules
 		return RunWorkflowResult{}, err
 	}
+	ctx = agent.WithCorrelation(ctx, corr)
 	runMeta := workflowRunProvenance(ctx)
 
 	_, _ = k.bus.Publish(event.Spec{

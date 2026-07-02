@@ -30,7 +30,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
@@ -1200,12 +1200,12 @@ export function Schedules() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={CalendarClock}
-        title="Schedules"
-        actions={
-          <>
+    <Page
+      icon={CalendarClock}
+      title="Schedules"
+      width="wide"
+      actions={
+        <>
             <Button size="sm" onClick={() => setShowForm(true)} title="Create a schedule">
               <Plus className="size-3.5" /> New schedule
             </Button>
@@ -1243,7 +1243,7 @@ export function Schedules() {
             </Button>
           </>
         }
-      />
+      >
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -1261,7 +1261,7 @@ export function Schedules() {
           }
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div>
           {/* Summary band (M917): the schedule fleet at a glance — how many are
               live, paused, and about to fire within the hour. */}
           {(() => {
@@ -1712,7 +1712,7 @@ export function Schedules() {
           />
         </ScheduleModal>
       )}
-    </div>
+    </Page>
   );
 }
 

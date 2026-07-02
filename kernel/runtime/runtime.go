@@ -42,16 +42,20 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/okr"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/seat"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
+	"github.com/agezt/agezt/kernel/taste"
 	"github.com/agezt/agezt/kernel/tenantctx"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
 
@@ -292,6 +296,12 @@ type Config struct {
 	// run's System prompt, so the assistant knows who it works for. Gated by
 	// AGEZT_USER_PROFILE (default on); a no-op until a profile exists.
 	ProfileInject bool
+	// TasteInject prepends curated "what good looks like" exemplars (kernel/taste)
+	// scoped to the run, so output quality is anchored to concrete examples. Gated
+	// by AGEZT_TASTE_INJECT (default on); a no-op until exemplars exist.
+	TasteInject bool
+	// TasteTopK bounds how many exemplars are injected per run (default 3).
+	TasteTopK int
 	// MemoryEmbedder, when non-nil, upgrades memory recall from the local
 	// feature-hash embedding to true provider embeddings (M884, DECISIONS C5
 	// opt-in). The kernel never picks an implementation — the daemon injects
@@ -516,6 +526,10 @@ type Kernel struct {
 	toolForge    *toolforge.Store
 	mcpStore     *mcp.Store
 	workflows    *workflow.Store
+	workboard    *workboard.Store
+	okr          *okr.Store
+	taste        *taste.Store
+	seat         *seat.Store
 	artifacts    *artifact.Store
 	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
 	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
@@ -748,6 +762,46 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, apperrors.WrapSimple("runtime: workflows", err)
 	}
 
+	wbstore, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, apperrors.WrapSimple("runtime: workboard", err)
+	}
+
+	okrstore, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, apperrors.WrapSimple("runtime: okr", err)
+	}
+
+	tastestore, err := taste.OpenStore(filepath.Join(cfg.BaseDir, "taste"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, apperrors.WrapSimple("runtime: taste", err)
+	}
+
+	seatstore, err := seat.OpenStore(filepath.Join(cfg.BaseDir, "seats"))
+	if err != nil {
+		j.Close()
+		st.Close()
+		mstore.Close()
+		wstore.Close()
+		skstore.Close()
+		return nil, apperrors.WrapSimple("runtime: seats", err)
+	}
+
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
 	// knobs; the daemon may override via the optional periodic trigger.
@@ -840,6 +894,10 @@ func Open(cfg Config) (*Kernel, error) {
 		mcpStore:     mcpstore,
 		mcpConns:     make(map[string]mcp.Conn),
 		workflows:    wfstore,
+		workboard:    wbstore,
+		okr:          okrstore,
+		taste:        tastestore,
+		seat:         seatstore,
 		artifacts:    artStore,
 		artIndex:     artIndex,
 		lake:         lake,
@@ -3206,6 +3264,30 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 			system = injectUserProfile(system, p)
 		}
 	}
+	// Taste overlay: prepend curated "what good looks like" exemplars scoped to
+	// this run so output quality is anchored to concrete examples. Sits adjacent
+	// to the operator profile (both shape HOW the agent works) and before the
+	// factual memory recall below. Journaled as taste.injected under corr.
+	if k.cfg.TasteInject && !systemAgent && k.taste != nil {
+		topK := k.cfg.TasteTopK
+		if topK <= 0 {
+			topK = 3
+		}
+		if ex := k.taste.ForScope(agentSlugFromCtx(runCtx), topK); len(ex) > 0 {
+			system = injectTaste(system, ex)
+			ids := make([]string, 0, len(ex))
+			for _, e := range ex {
+				ids = append(ids, e.ID)
+			}
+			_, _ = k.bus.Publish(event.Spec{
+				Subject:       "agent.agent-" + corr + ".taste",
+				Kind:          event.KindTasteInjected,
+				Actor:         "taste",
+				CorrelationID: corr,
+				Payload:       map[string]any{"count": len(ex), "ids": ids, "scope": agentSlugFromCtx(runCtx)},
+			})
+		}
+	}
 	if k.cfg.MemoryInject && !systemAgent {
 		topK := k.cfg.MemoryTopK
 		if topK <= 0 {
@@ -3765,6 +3847,27 @@ func injectUserProfile(system, profileText string) string {
 	b.WriteString("What you know about the operator you work for (apply naturally; don't recite):\n")
 	b.WriteString(profileText)
 	b.WriteString("\n")
+	if system != "" {
+		b.WriteString("\n")
+		b.WriteString(system)
+	}
+	return b.String()
+}
+
+// injectTaste prepends a "what good looks like" block of curated exemplars to
+// the system prompt so the model anchors its output to concrete examples of good
+// work. Each exemplar renders as a titled block; scoped ones are already ordered
+// first by the store.
+func injectTaste(system string, exemplars []taste.Exemplar) string {
+	var b strings.Builder
+	b.WriteString("What good looks like (curated exemplars — match this quality and style, don't copy verbatim):\n")
+	for _, e := range exemplars {
+		b.WriteString("\n### ")
+		b.WriteString(e.Title)
+		b.WriteString("\n")
+		b.WriteString(e.Body)
+		b.WriteString("\n")
+	}
 	if system != "" {
 		b.WriteString("\n")
 		b.WriteString(system)

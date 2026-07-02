@@ -25,7 +25,7 @@ import { getJSON, postJSON, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -201,19 +201,21 @@ export function Data() {
       Array.from(new Set(visibleRecords.flatMap((r) => Object.keys(r.fields ?? {})))).map((name) => ({ name }));
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Database}
-        title="Data Lake"
-        actions={
-          <Button variant="ghost" size="sm" onClick={loadCollections} disabled={loadingCols} title="Reload">
-            <RefreshCw className={cn("size-3.5", loadingCols && "animate-spin")} />
-          </Button>
-        }
-      />
-      <div className="flex min-h-0 flex-1 gap-3">
-      {/* Collection sidebar */}
-      <div className="flex w-56 shrink-0 flex-col gap-2 overflow-y-auto">
+    <Page
+      icon={Database}
+      title="Data Lake"
+      mode="fill"
+      width="full"
+      actions={
+        <Button variant="ghost" size="sm" onClick={loadCollections} disabled={loadingCols} title="Reload">
+          <RefreshCw className={cn("size-3.5", loadingCols && "animate-spin")} />
+        </Button>
+      }
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row">
+      {/* Collection sidebar — stacks on top (capped, scrollable) on mobile,
+          becomes a fixed-width left rail from md up. */}
+      <div className="flex max-h-44 w-full shrink-0 flex-col gap-2 overflow-y-auto md:max-h-none md:w-56">
         {loadingCols && cols.length === 0 ? (
           <SkeletonList count={6} lines={1} />
         ) : (
@@ -390,7 +392,7 @@ export function Data() {
           onSave={saveRecord}
         />
       )}
-    </div>
+    </Page>
   );
 }
 

@@ -76,9 +76,9 @@ export function ACPAgents() {
 
       {inv && (
         <div className="grid grid-cols-3 gap-2">
-          <BigStat icon={Boxes} label="catalog" value={cen.total} />
-          <BigStat icon={PackageCheck} label="installed" value={cen.installed} accent={cen.installed > 0} />
-          <BigStat icon={PackageX} label="missing" value={cen.missing} />
+          <BigStat icon={Boxes} label="catalog" value={cen.total} tone="muted" />
+          <BigStat icon={PackageCheck} label="installed" value={cen.installed} tone={cen.installed > 0 ? "good" : "muted"} />
+          <BigStat icon={PackageX} label="missing" value={cen.missing} tone={cen.missing > 0 ? "bad" : "muted"} />
         </div>
       )}
 
@@ -167,13 +167,22 @@ function AgentCard({ a, onCopy }: { a: ACPAgentStatus; onCopy: (text: string, wh
   );
 }
 
-function BigStat({ icon: Icon, label, value, accent }: { icon: typeof Boxes; label: string; value: number | string; accent?: boolean }) {
+const STAT_TONE = {
+  accent: { fg: "text-accent", ring: "border-accent/50 bg-card" },
+  good: { fg: "text-good", ring: "border-good/50 bg-card" },
+  warn: { fg: "text-warn", ring: "border-warn/50 bg-card" },
+  bad: { fg: "text-bad", ring: "border-bad/50 bg-card" },
+  muted: { fg: "", ring: "" },
+} as const;
+
+function BigStat({ icon: Icon, label, value, tone = "muted" }: { icon: typeof Boxes; label: string; value: number | string; tone?: keyof typeof STAT_TONE }) {
+  const t = STAT_TONE[tone];
   return (
-    <div className={cn("rounded-xl p-2.5", accent ? "border border-accent/50 bg-card" : "glass")}>
+    <div className={cn("rounded-xl p-2.5", tone === "muted" ? "glass" : cn("border", t.ring))}>
       <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-        <Icon className={cn("size-3", accent && "text-accent")} /> {label}
+        <Icon className={cn("size-3", t.fg)} /> {label}
       </div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent && "text-accent")}>{value}</div>
+      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", t.fg)}>{value}</div>
     </div>
   );
 }

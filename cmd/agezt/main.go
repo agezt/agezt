@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -142,6 +143,7 @@ import (
 	skilltool "github.com/agezt/agezt/plugins/tools/skilltool"
 	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
 	"github.com/agezt/agezt/plugins/tools/websearch"
+	"github.com/agezt/agezt/plugins/tools/workboardtool"
 	"github.com/agezt/agezt/plugins/tools/workflowtool"
 )
 
@@ -367,9 +369,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Warden is constructed before the kernel so tools that close over
 	// it (shell) can be built before runtime.Open. Bus is attached
 	// post-Open via SetBus, same pattern as the Governor.
-	ward := warden.New(nil)
-	wardDesc := fmt.Sprintf("requested=namespace, effective=%s (M1.c facade; downgrades journaled)",
-		ward.EffectiveProfile(warden.ProfileNamespace))
+	wardOpts, wardBackendDesc := wardenOptionsFromEnv()
+	ward := warden.NewWithOptions(nil, wardOpts)
+	wardDesc := fmt.Sprintf("requested=namespace, effective=%s (M1.c facade; downgrades journaled)%s",
+		ward.EffectiveProfile(warden.ProfileNamespace), wardBackendDesc)
 
 	// Edict policy mode: AGEZT_APPROVAL_MODE=allow|deny|prompt
 	// (M1.a default: allow; M1.d adds prompt for live HITL).
@@ -509,6 +512,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	workflowToolInst := workflowtool.New()
 	tools["workflow"] = workflowToolInst
 
+	// Workboard tool: agents create and move durable typed work items through the
+	// same journaled runtime path the CLI and control plane use.
+	workboardToolInst := workboardtool.New()
+	tools["workboard"] = workboardToolInst
+
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
 	// re-runs primary-provider selection against the freshly-reloaded
@@ -542,6 +550,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// run. Requires memory; default on, AGEZT_USER_PROFILE=off disables both the
 	// injection and the daily auto-synthesis.
 	profileOn := memOn && !strings.EqualFold(os.Getenv(brand.EnvPrefix+"USER_PROFILE"), "off")
+	// Taste overlay: inject curated "what good looks like" exemplars into runs.
+	// Default on; AGEZT_TASTE_INJECT=off disables the injection (the store and
+	// `agt taste` CLI stay live regardless).
+	tasteOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"TASTE_INJECT"), "off")
 	// World-model per-run behaviour (entity injection + the `world` tool).
 	// The graph store and `agt world` CLI always work; this only gates the
 	// in-run wiring. AGEZT_WORLDMODEL=off disables it.
@@ -795,6 +807,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		MemoryTool:                 memOn,
 		MemoryDistill:              memOn,
 		ProfileInject:              profileOn,
+		TasteInject:                tasteOn,
 		MemoryTopK:                 5,
 		MemoryDistillMinTools:      distillMinTools,
 		MemoryEmbedder:             memEmbedder, // M901: provider embeddings opt-in (nil = local hashing)
@@ -1170,10 +1183,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if fe, ok := tools["fetch"].(*fetch.Tool); ok {
 		fe.SetIndex(k.ArtifactIndex())
 	}
+	// Inject the artifact index into browser.action so screenshots/downloads
+	// become durable Files-view artifacts instead of temp-file-only paths.
+	if ba, ok := tools["browser.action"].(*browser.ActionTool); ok {
+		ba.SetIndex(k.ArtifactIndex())
+	}
 	// Inject the artifact index into the artifacts tool (M832) so the agent can
 	// list/read/delete the files it has saved.
 	if af, ok := tools["artifacts"].(*artifactstool.Tool); ok {
 		af.SetIndex(k.ArtifactIndex())
+	}
+	// Inject the artifact index into code_exec so scripts can intentionally
+	// export durable files by writing them under .agezt-artifacts/.
+	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
+		ce.SetIndex(k.ArtifactIndex())
 	}
 	// Inject the data lake into the db tool (M834).
 	if dbt, ok := tools["db"].(*dbtool.Tool); ok {
@@ -1730,6 +1753,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  reflection       : on-demand (agt reflect run; set AGEZT_REFLECT_EVERY for a timer)\n")
 	}
 
+	if wbSweepDesc := startWorkboardSweepTicker(ctx, k, stdout); wbSweepDesc != "" {
+		fmt.Fprintf(stdout, "  workboard sweep  : %s\n", wbSweepDesc)
+	} else {
+		fmt.Fprintf(stdout, "  workboard sweep  : on-demand (agt workboard sweep; set AGEZT_WORKBOARD_SWEEP_EVERY for a timer)\n")
+	}
+
 	// Brain distillation (M804). Always available via `agt memory
 	// consolidate`; set AGEZT_BRAIN_DISTILL_EVERY (e.g. 24h) to run the
 	// consolidation pass on a timer — the standing "sleep cycle" that merges
@@ -1750,20 +1779,21 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Web UI (SPEC-07) — the primary product surface. Default-on, loopback-bound,
 	// and auto-opened in the desktop browser unless AGEZT_WEB_OPEN=off.
-	if webDesc := buildWebUI(ctx, k, baseDir, stdout); webDesc != "" {
-		fmt.Fprintf(stdout, "  %s           : %s\n", bannerColor("web ui", "1;35"), webDesc)
+	webSurface := buildWebUI(ctx, k, baseDir, stdout)
+	if webSurface.desc != "" {
+		fmt.Fprintf(stdout, "  %s           : %s\n", bannerColor("web ui", "1;35"), webSurface.desc)
 	} else {
 		fmt.Fprintf(stdout, "  web ui           : disabled (AGEZT_WEB_ADDR=off; unset it to serve on 127.0.0.1:8787)\n")
 	}
 
 	// Tunnel (SPEC-07) — expose a local HTTP service (the Web UI, else the REST
-	// API) to the public internet via a supervised cloudflared/ngrok/custom binary.
+	// API) through a supervised cloudflared/ngrok/tailscale/custom binary.
 	// Off unless AGEZT_TUNNEL or AGEZT_TUNNEL_CMD is set; the operator opts in
 	// explicitly since this makes the service publicly reachable.
-	if tunDesc := buildTunnel(ctx, stdout); tunDesc != "" {
+	if tunDesc := buildTunnel(ctx, stdout, webSurface); tunDesc != "" {
 		fmt.Fprintf(stdout, "  tunnel           : %s\n", tunDesc)
 	} else {
-		fmt.Fprintf(stdout, "  tunnel           : disabled (set AGEZT_TUNNEL=cloudflare|ngrok or AGEZT_TUNNEL_CMD)\n")
+		fmt.Fprintf(stdout, "  tunnel           : disabled (set AGEZT_TUNNEL=cloudflare|ngrok|tailscale|tailscale-funnel or AGEZT_TUNNEL_CMD)\n")
 	}
 
 	// OpenAI-compatible API (P7-API-01) — POST /v1/chat/completions,
@@ -2061,6 +2091,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// everything lands in the journaled workflow.* lifecycle the operator sees.
 	workflowToolInst.Bind(k)
 	fmt.Fprintf(stdout, "  workflow tool    : enabled (the agent can author & run workflows)\n")
+
+	// Bind the workboard tool: agents can coordinate through durable typed tasks
+	// instead of hiding state in chat.
+	workboardToolInst.Bind(k)
+	fmt.Fprintf(stdout, "  workboard tool   : enabled (agents can coordinate through durable tasks)\n")
 
 	// Bind the MCP self-install tool (M796) and auto-attach every ENABLED
 	// registered server. Per-server failures are reported, never fatal — one
@@ -4230,6 +4265,47 @@ func startReflectTicker(ctx context.Context, k *kernelruntime.Kernel, stdout io.
 	return "every " + every.String()
 }
 
+func startWorkboardSweepTicker(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
+	raw := os.Getenv(brand.EnvPrefix + "WORKBOARD_SWEEP_EVERY")
+	if raw == "" {
+		return ""
+	}
+	every, err := time.ParseDuration(raw)
+	if err != nil || every <= 0 {
+		fmt.Fprintf(stdout, "  workboard sweep  : invalid AGEZT_WORKBOARD_SWEEP_EVERY %q (%v) - on-demand only\n", raw, err)
+		return ""
+	}
+	staleAfter := 10 * time.Minute
+	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WORKBOARD_STALE_AFTER")); spec != "" {
+		if parsed, perr := time.ParseDuration(spec); perr == nil && parsed > 0 {
+			staleAfter = parsed
+		} else {
+			fmt.Fprintf(stdout, "  workboard sweep  : invalid AGEZT_WORKBOARD_STALE_AFTER %q (%v) - using %s\n", spec, perr, staleAfter)
+		}
+	}
+	go func() {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				corr := "workboard-sweep-" + ulid.New()
+				tasks, err := k.SweepStaleWorkboardClaims(corr, "workboard-sweeper", staleAfter, 100)
+				if err != nil {
+					fmt.Fprintf(stdout, "workboard sweep failed: %v\n", err)
+					continue
+				}
+				if len(tasks) > 0 {
+					fmt.Fprintf(stdout, "workboard sweep reclaimed %d stale claim(s)\n", len(tasks))
+				}
+			}
+		}
+	}()
+	return "every " + every.String() + " (stale after " + staleAfter.String() + ")"
+}
+
 // startBrainDistillTicker starts a periodic brain-distillation pass when
 // AGEZT_BRAIN_DISTILL_EVERY is a valid positive duration, on the daemon ctx
 // (so halt/shutdown stop it). Returns a banner description, or "" when no
@@ -4324,6 +4400,15 @@ const (
 	httpIdleTimeout       = 120 * time.Second
 )
 
+type webUISurface struct {
+	desc           string
+	localURL       string
+	token          string
+	passwordOn     bool
+	passwordStrict bool
+	allowHost      func(string)
+}
+
 // newGuardedHTTPServer builds an http.Server with the slow-loris timeouts applied
 // uniformly to every HTTP surface (web UI, OpenAI-compat API, REST). WriteTimeout is
 // intentionally left unset so long-lived SSE/streaming responses are not killed
@@ -4341,17 +4426,17 @@ func newGuardedHTTPServer(h http.Handler) *http.Server {
 // We never bind 0.0.0.0 implicitly: the operator supplies the host, and the
 // banner warns if it isn't loopback (public exposure is their explicit choice,
 // SPEC-06).
-func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, stdout io.Writer) string {
+func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, stdout io.Writer) webUISurface {
 	// Default-ON (M817): the web console is the product surface, so a bare
 	// `agezt` serves it without ceremony. AGEZT_WEB_ADDR overrides the bind
 	// address; the explicit opt-OUT keywords disable it (mirrors the owner's
 	// allow-by-default posture — you turn it off, you don't turn it on).
 	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR"))
 	defaulted := false
-	switch strings.ToLower(addr) {
-	case "off", "disabled", "none", "no", "0", "false":
-		return ""
-	case "":
+	switch {
+	case envDisabled(addr):
+		return webUISurface{}
+	case addr == "":
 		addr = "127.0.0.1:8787"
 		defaulted = true
 	}
@@ -4359,7 +4444,7 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	tokBytes := make([]byte, 32)
 	if _, err := rand.Read(tokBytes); err != nil {
 		fmt.Fprintf(stdout, "  web ui           : disabled (token mint failed: %v)\n", err)
-		return ""
+		return webUISurface{}
 	}
 	token := hex.EncodeToString(tokBytes)
 
@@ -4368,7 +4453,7 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	client, err := controlplane.NewClient(baseDir)
 	if err != nil {
 		fmt.Fprintf(stdout, "  web ui           : disabled (control-plane client: %v)\n", err)
-		return ""
+		return webUISurface{}
 	}
 
 	ln, err := net.Listen("tcp", addr)
@@ -4381,7 +4466,7 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	}
 	if err != nil {
 		fmt.Fprintf(stdout, "  web ui           : disabled (listen %s: %v)\n", addr, err)
-		return ""
+		return webUISurface{}
 	}
 	wsrv := webui.New(k.Bus(), client, token)
 	wsrv.SetAllowedHosts(webAllowedHosts(ln.Addr().String())...)
@@ -4394,7 +4479,8 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	// operator can browse to localhost and change it in Setup without env files.
 	webPassword := func() string { return effectiveWebPassword(ln.Addr().String()) }
 	wsrv.SetPasswordFn(webPassword)
-	wsrv.SetPasswordStrict(strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on"))
+	passwordStrict := strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on")
+	wsrv.SetPasswordStrict(passwordStrict)
 	passwordOn := webPassword() != ""
 	// Wire speech-to-text for the chat mic button (M689) and the console Voice
 	// mode. Prefer the runtime voice adapter so native providers (ElevenLabs /
@@ -4431,8 +4517,9 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		_ = srv.Shutdown(shutCtx)
 	}()
 
-	consoleURL := "http://" + ln.Addr().String() + "/?token=" + token
-	plainURL := "http://" + ln.Addr().String() + "/"
+	localURL := "http://" + ln.Addr().String()
+	consoleURL := localURL + "/?token=" + token
+	plainURL := localURL + "/"
 	desc := bannerColor(consoleURL, "1;36")
 	if passwordOn {
 		desc += "  " + bannerColor("(password login enabled at "+plainURL+")", "1;32")
@@ -4447,7 +4534,23 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 			desc += "  " + bannerColor("(opened in browser)", "1;32")
 		}
 	}
-	return desc
+	return webUISurface{
+		desc:           desc,
+		localURL:       localURL,
+		token:          token,
+		passwordOn:     passwordOn,
+		passwordStrict: passwordStrict,
+		allowHost:      func(host string) { wsrv.SetAllowedHosts(host) },
+	}
+}
+
+func envDisabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "off", "disabled", "none", "no", "0", "false":
+		return true
+	default:
+		return false
+	}
 }
 
 func bannerColor(s, code string) string {
@@ -4520,36 +4623,44 @@ func webAllowedHosts(bindAddr string) []string {
 	return hosts
 }
 
-// buildTunnel starts a public tunnel to a local HTTP service when AGEZT_TUNNEL
-// (cloudflare/cloudflared|ngrok) or AGEZT_TUNNEL_CMD (a custom command) is set. It targets
-// AGEZT_TUNNEL_TARGET, else the Web UI addr, else the REST addr. The supervised
-// binary's public URL is printed to the daemon log once it connects. Returns ""
-// (disabled) when no tunnel is configured.
+// buildTunnel starts a tunnel to a local HTTP service when AGEZT_TUNNEL
+// (cloudflare/cloudflared|ngrok|tailscale|tailscale-funnel) or AGEZT_TUNNEL_CMD
+// (a custom command) is set. It targets AGEZT_TUNNEL_TARGET, else the live Web
+// UI listener, else the REST addr. The supervised binary's remote URL is printed
+// to the daemon log once it connects. Returns "" (disabled) when no tunnel is
+// configured.
 //
-//	AGEZT_TUNNEL         provider preset: cloudflare/cloudflared | ngrok
+//	AGEZT_TUNNEL         provider preset: cloudflare/cloudflared | ngrok | tailscale | tailscale-funnel
 //	AGEZT_TUNNEL_CMD     explicit command (whitespace-split), overrides the preset
 //	AGEZT_TUNNEL_TARGET  local URL to expose (default: the Web UI, else REST, addr)
-func buildTunnel(ctx context.Context, stdout io.Writer) string {
+func buildTunnel(ctx context.Context, stdout io.Writer, web webUISurface) string {
 	provider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL"))
 	cmdStr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_CMD"))
 	if provider == "" && cmdStr == "" {
 		return ""
 	}
 
-	target := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_TARGET"))
-	if target == "" {
-		if web := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR")); web != "" {
-			target = addrToURL(web)
-		} else if rest := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "REST_ADDR")); rest != "" {
-			target = addrToURL(rest)
-		}
-	}
+	target := tunnelTargetFromEnv(web)
+	targetsWebUI := target != "" && sameURLTarget(target, web.localURL)
 
 	cfg := tunnel.Config{
 		Provider:  provider,
 		TargetURL: target,
 		OnURL: func(u string) {
-			fmt.Fprintf(stdout, "  tunnel public URL: %s  [the service is now reachable on the public internet]\n", u)
+			if targetsWebUI && web.allowHost != nil {
+				if h := publicURLHost(u); h != "" {
+					web.allowHost(h)
+				}
+			}
+			public := tunnelPublicURL(u, web, targetsWebUI)
+			fmt.Fprintf(stdout, "  tunnel URL       : %s  [the service is now reachable through the tunnel]\n", public)
+			if targetsWebUI && web.passwordOn && web.passwordStrict {
+				fmt.Fprintf(stdout, "  tunnel auth      : Web UI password strict mode is enabled; public host was allowlisted and token+password are required\n")
+			} else if targetsWebUI && web.passwordOn {
+				fmt.Fprintf(stdout, "  tunnel auth      : Web UI password is enabled; public URL opens password login and host was allowlisted automatically\n")
+			} else if targetsWebUI {
+				fmt.Fprintf(stdout, "  tunnel auth      : WARNING Web UI password is not set; access is token-only\n")
+			}
 		},
 	}
 	if cmdStr != "" {
@@ -4572,6 +4683,55 @@ func buildTunnel(ctx context.Context, stdout io.Writer) string {
 		desc = fmt.Sprintf("%s (custom command; no local target derived)", what)
 	}
 	return desc
+}
+
+func tunnelTargetFromEnv(web webUISurface) string {
+	if target := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_TARGET")); target != "" {
+		return target
+	}
+	if web.localURL != "" {
+		return web.localURL
+	}
+	if webAddr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR")); webAddr != "" && !envDisabled(webAddr) {
+		return addrToURL(webAddr)
+	}
+	if rest := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "REST_ADDR")); rest != "" && !envDisabled(rest) {
+		return addrToURL(rest)
+	}
+	return ""
+}
+
+func sameURLTarget(a, b string) bool {
+	return strings.EqualFold(strings.TrimRight(strings.TrimSpace(a), "/"), strings.TrimRight(strings.TrimSpace(b), "/"))
+}
+
+func publicURLHost(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Host
+}
+
+func tunnelPublicURL(raw string, web webUISurface, targetsWebUI bool) string {
+	if targetsWebUI && web.token != "" && (!web.passwordOn || web.passwordStrict) {
+		return urlWithToken(raw, web.token)
+	}
+	return raw
+}
+
+func urlWithToken(raw, token string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return raw
+	}
+	if u.Path == "" {
+		u.Path = "/"
+	}
+	q := u.Query()
+	q.Set("token", token)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // addrToURL turns a listen addr (host:port, or :port) into a loopback http URL.
@@ -4678,6 +4838,60 @@ func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, erro
 		return nil
 	})
 	return out, err
+}
+
+func (e kernelAPIEngine) ArtifactEntries(kind, source, corr string) ([]restapi.ArtifactEntry, error) {
+	idx := e.k.ArtifactIndex()
+	if idx == nil {
+		return nil, fmt.Errorf("artifact index unavailable")
+	}
+	ents := idx.List(artifact.Filter{Kind: kind, Source: source, Corr: corr})
+	out := make([]restapi.ArtifactEntry, 0, len(ents))
+	for _, a := range ents {
+		out = append(out, restArtifactEntry(a))
+	}
+	return out, nil
+}
+
+func (e kernelAPIEngine) ArtifactBytes(id string, maxBytes int64) ([]byte, restapi.ArtifactEntry, error) {
+	idx := e.k.ArtifactIndex()
+	if idx == nil {
+		return nil, restapi.ArtifactEntry{}, fmt.Errorf("artifact index unavailable")
+	}
+	meta, ok := idx.Get(id)
+	if !ok {
+		return nil, restapi.ArtifactEntry{}, restapi.ErrArtifactNotFound
+	}
+	if maxBytes > 0 && meta.Size > maxBytes {
+		return nil, restArtifactEntry(meta), restapi.ErrArtifactTooLarge
+	}
+	data, meta, err := idx.Bytes(id)
+	if err != nil {
+		if errors.Is(err, artifact.ErrNotFound) {
+			return nil, restapi.ArtifactEntry{}, restapi.ErrArtifactNotFound
+		}
+		return nil, restapi.ArtifactEntry{}, err
+	}
+	if maxBytes > 0 && int64(len(data)) > maxBytes {
+		return nil, restArtifactEntry(meta), restapi.ErrArtifactTooLarge
+	}
+	return data, restArtifactEntry(meta), nil
+}
+
+func restArtifactEntry(a artifact.Entry) restapi.ArtifactEntry {
+	return restapi.ArtifactEntry{
+		ID:        a.ID,
+		Ref:       a.Ref,
+		Name:      a.Name,
+		Mime:      a.Mime,
+		Kind:      a.Kind,
+		Source:    a.Source,
+		Sender:    a.Sender,
+		Corr:      a.Corr,
+		Size:      a.Size,
+		CreatedMs: a.CreatedMs,
+		Caption:   a.Caption,
+	}
 }
 
 // replayPolicyOverlay reads the journal, decodes every policy.changed event
@@ -7211,11 +7425,12 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	// shared workspace root (M609) so it sees the same files as the file tool.
 	sh := shell.NewWithWarden(ward)
 	sh.WorkDir = wsRoot
+	sh.BaseDir = baseDir
 	out["shell"] = sh
 	registered = append(registered, "shell(warden=requested-namespace)")
 
 	// file — scoped to the same workspace root.
-	ft, err := filetool.New(wsRoot)
+	ft, err := filetool.NewWithCheckpoint(wsRoot, baseDir)
 	if err != nil {
 		return nil, nil, nil, "", fmt.Errorf("file tool: %w", err)
 	}
@@ -7325,6 +7540,75 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		registered = append(registered, fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts)))
 	} else {
 		registered = append(registered, "browser.read(any host)")
+	}
+
+	// browser.action — opt-in stateless Playwright browser actions. This promotes
+	// the built-in browser-use skill's driver into a first-party governed tool
+	// when the operator has installed Playwright and explicitly enables it.
+	if os.Getenv(brand.EnvPrefix+"BROWSER_ACTIONS") == "1" {
+		driver := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_DRIVER"))
+		if driver == "" {
+			driver = browser.ResolveActionDriverPath()
+		}
+		if driver == "" {
+			fmt.Fprintf(stderr, "WARNING: %sBROWSER_ACTIONS=1 but no browse.mjs driver was found; set %sBROWSER_ACTION_DRIVER.\n", brand.EnvPrefix, brand.EnvPrefix)
+		} else if ba := browser.NewAction(os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_NODE"), driver); ba != nil {
+			actionRestricted := false
+			if hostsCSV := os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
+				for h := range strings.SplitSeq(hostsCSV, ",") {
+					if h = strings.TrimSpace(h); h != "" {
+						ba.AllowedHosts = append(ba.AllowedHosts, h)
+					}
+				}
+				actionRestricted = len(ba.AllowedHosts) > 0
+			}
+			if !actionRestricted {
+				ba.AllowAll = true
+			}
+			if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_ALL") == "1" {
+				ba.AllowAll = true
+				actionRestricted = false
+			}
+			if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_LOOPBACK") == "1" {
+				ba.AllowLoopback = true
+			}
+			if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_PRIVATE") == "1" {
+				ba.AllowPrivate = true
+				fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_PRIVATE=1 lets browser.action reach private-network pages.")
+			}
+			if os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_USER_PROFILE") == "1" {
+				if dir := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_USER_DATA_DIR")); dir != "" {
+					ba.AllowUserProfile = true
+					ba.UserDataDir = dir
+					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_USER_PROFILE=1 lets browser.action run with an operator-configured persistent browser profile.")
+				} else {
+					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_USER_PROFILE=1 ignored because AGEZT_BROWSER_ACTION_USER_DATA_DIR is empty.")
+				}
+			}
+			if os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_REMOTE_CDP") == "1" {
+				if cdpURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_REMOTE_CDP_URL")); cdpURL != "" {
+					ba.AllowRemoteCDP = true
+					ba.RemoteCDPURL = cdpURL
+					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_REMOTE_CDP=1 lets browser.action attach to an operator-configured remote Chrome DevTools endpoint.")
+				} else {
+					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_REMOTE_CDP=1 ignored because AGEZT_BROWSER_ACTION_REMOTE_CDP_URL is empty.")
+				}
+			}
+			if sessionDir := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_SESSION_DIR")); sessionDir != "" {
+				ba.SessionRoot = sessionDir
+			} else {
+				ba.SessionRoot = filepath.Join(baseDir, "browser-sessions")
+			}
+			out["browser.action"] = ba
+			for _, tool := range browser.NewActionVerbTools(ba) {
+				out[tool.Definition().Name] = tool
+			}
+			if actionRestricted {
+				registered = append(registered, fmt.Sprintf("browser.action+verbs(hosts=%d)", len(ba.AllowedHosts)))
+			} else {
+				registered = append(registered, "browser.action+verbs(any public host)")
+			}
+		}
 	}
 
 	// web_search — keyword search against a public engine, returning result
@@ -7628,6 +7912,33 @@ func selectAskPolicy() (edict.AskPolicy, string) {
 		return edict.AskAllow, fmt.Sprintf("AskAllow (unknown %sAPPROVAL_MODE=%q ignored)",
 			brand.EnvPrefix, os.Getenv(brand.EnvPrefix+"APPROVAL_MODE"))
 	}
+}
+
+func wardenOptionsFromEnv() (warden.Options, string) {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WARDEN_DOCKER")))
+	if raw != "1" && raw != "true" && raw != "yes" && raw != "on" {
+		return warden.Options{}, ""
+	}
+	runtimeName := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WARDEN_DOCKER_RUNTIME"))
+	if runtimeName == "" {
+		runtimeName = "docker"
+	}
+	image := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WARDEN_DOCKER_IMAGE"))
+	if image == "" {
+		image = "python:3.12-slim"
+	}
+	network := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WARDEN_DOCKER_NETWORK"))
+	if network == "" {
+		network = "none"
+	}
+	return warden.Options{
+		Container: warden.ContainerOptions{
+			Enabled: true,
+			Runtime: runtimeName,
+			Image:   image,
+			Network: network,
+		},
+	}, fmt.Sprintf("; container=%s image=%s network=%s", runtimeName, image, network)
 }
 
 func selectAutoApproveCapabilities() (map[string]bool, string) {

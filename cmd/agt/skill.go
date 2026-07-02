@@ -19,7 +19,7 @@ import (
 // draft→shadow→active and can revert non-destructively.
 func cmdSkill(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|revert|share|reassign|diff|export|import|registry)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s skill: subcommand required (list|show|history|promote|quarantine|archive|revert|share|reassign|diff|export|import|registry|workshop)\n", brand.CLI)
 		return 2
 	}
 	switch args[0] {
@@ -33,6 +33,8 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillPromote, "promote", stdout, stderr)
 	case "quarantine":
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillQuarantine, "quarantine", stdout, stderr)
+	case "archive":
+		return cmdSkillTransition(args[1:], controlplane.CmdSkillArchive, "archive", stdout, stderr)
 	case "revert":
 		return cmdSkillTransition(args[1:], controlplane.CmdSkillRevert, "revert", stdout, stderr)
 	case "share":
@@ -53,6 +55,8 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		return cmdSkillRegistry(args[1:], stdout, stderr)
 	case "hygiene":
 		return cmdSkillHygiene(args[1:], stdout, stderr)
+	case "workshop":
+		return cmdSkillWorkshop(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprintf(stdout, "usage: %s skill <subcommand>\n", brand.CLI)
 		fmt.Fprintf(stdout, "  list [--json]                 list all skills + lifecycle state\n")
@@ -60,6 +64,7 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  history <id> [--json]         the skill's lifecycle event chain\n")
 		fmt.Fprintf(stdout, "  promote <id> [--json]         advance draft->shadow->active\n")
 		fmt.Fprintf(stdout, "  quarantine <id> [--reason R] [--json]   pull from production\n")
+		fmt.Fprintf(stdout, "  archive <id> [--reason R] [--json]      retire without restoring a parent\n")
 		fmt.Fprintf(stdout, "  revert <id> [--json]          archive + restore lineage parent\n")
 		fmt.Fprintf(stdout, "  share <id> [--json]           promote a private (per-agent) skill to the shared pool\n")
 		fmt.Fprintf(stdout, "  reassign <id> [--agent S]     change a skill's owning agent (omit --agent to share)\n")
@@ -71,9 +76,10 @@ func cmdSkill(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  cat <id> <path>               print one bundle resource (reference file or script)\n")
 		fmt.Fprintf(stdout, "  registry <dir> [--install <name>]   list/install verifiable bundles in a directory\n")
 		fmt.Fprintf(stdout, "  hygiene [--idle-days N] [--json]   report idle/unused skills (epistemic hygiene)\n")
+		fmt.Fprintf(stdout, "  workshop <subcommand>         proposal review surface over Forge lifecycle\n")
 		return 0
 	default:
-		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|revert|share|reassign|diff|export|import|registry)\n", brand.CLI, args[0])
+		fmt.Fprintf(stderr, "%s skill: unknown subcommand %q (list|show|history|promote|quarantine|archive|revert|share|reassign|diff|export|import|registry|workshop)\n", brand.CLI, args[0])
 		return 2
 	}
 }
@@ -232,7 +238,11 @@ func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writ
 		case a == "--json":
 			asJSON = true
 		case a == "-h" || a == "--help":
-			fmt.Fprintf(stdout, "usage: %s skill %s <id> [--json]\n", brand.CLI, label)
+			if label == "quarantine" || label == "archive" {
+				fmt.Fprintf(stdout, "usage: %s skill %s <id> [--reason R] [--json]\n", brand.CLI, label)
+			} else {
+				fmt.Fprintf(stdout, "usage: %s skill %s <id> [--json]\n", brand.CLI, label)
+			}
 			return 0
 		case a == "--reason":
 			if i+1 >= len(args) {
@@ -275,6 +285,8 @@ func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writ
 		fmt.Fprintf(stdout, "%s -> %v\n", id, res["status"])
 	case "quarantine":
 		fmt.Fprintf(stdout, "quarantined %s\n", id)
+	case "archive":
+		fmt.Fprintf(stdout, "archived %s\n", id)
 	case "revert":
 		if restored, _ := res["restored"].(string); restored != "" {
 			fmt.Fprintf(stdout, "reverted %s (restored %s)\n", id, restored)
@@ -409,6 +421,8 @@ func renderSkillEventDetail(kind string, p map[string]any) string {
 			return "restored " + shortID(r)
 		}
 		return "archived"
+	case "skill.restored":
+		return fmt.Sprintf("%v -> %v", p["from"], p["to"])
 	case "skill.created":
 		return fmt.Sprintf("%v", p["name"])
 	case "skill.shared":

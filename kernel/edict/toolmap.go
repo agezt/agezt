@@ -51,6 +51,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return Capability("file." + p.Op)
 	case "browser.read":
 		return CapBrowserRead
+	case "browser.action", "browser.open", "browser.snapshot", "browser.click", "browser.type", "browser.wait", "browser.screenshot", "browser.downloads", "browser.cookies", "browser.tabs", "browser.close":
+		return CapBrowserAction
 	case "web_search":
 		return CapWebSearch
 	case "fetch":
@@ -76,6 +78,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapStanding
 	case "board":
 		return CapBoard
+	case "workboard":
+		return CapWorkboard
 	case "skill":
 		return CapSkill
 	case "tool_forge":

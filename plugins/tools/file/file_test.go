@@ -4,6 +4,7 @@ package file
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -60,6 +61,56 @@ func TestWriteReadRoundtrip(t *testing.T) {
 	if got != "hi there" {
 		t.Errorf("read=%q want %q", got, "hi there")
 	}
+}
+
+func TestMutatingOpsWriteRollbackCheckpointsWhenEnabled(t *testing.T) {
+	root := t.TempDir()
+	home := t.TempDir()
+	tool, err := NewWithCheckpoint(root, home)
+	if err != nil {
+		t.Fatalf("NewWithCheckpoint: %v", err)
+	}
+
+	ctx := agent.WithCorrelation(context.Background(), "run-file-123")
+	invokeWithContext(t, ctx, tool, fileInput{Op: "write", Path: "notes.txt", Content: "v1"})
+	invokeWithContext(t, ctx, tool, fileInput{Op: "replace", Path: "notes.txt", Find: "v1", Replacement: "v2"})
+	invokeWithContext(t, ctx, tool, fileInput{Op: "delete", Path: "notes.txt"})
+
+	cat, err := loadRollbackCatalog(filepath.Join(home, filepath.FromSlash(rollbackCatalogRelativePath)))
+	if err != nil {
+		t.Fatalf("load rollback catalog: %v", err)
+	}
+	if len(cat.Checkpoints) != 3 {
+		t.Fatalf("checkpoint count = %d, want 3: %+v", len(cat.Checkpoints), cat.Checkpoints)
+	}
+	if cat.Checkpoints[0].Kind != rollbackCheckpointKindFile || cat.Checkpoints[0].Action != "file.write" {
+		t.Fatalf("first checkpoint = %+v", cat.Checkpoints[0])
+	}
+	if cat.Checkpoints[0].RunID != "run-file-123" || cat.Checkpoints[1].RunID != "run-file-123" || cat.Checkpoints[2].RunID != "run-file-123" {
+		t.Fatalf("checkpoint run ids = %+v", cat.Checkpoints)
+	}
+	if exists, _ := cat.Checkpoints[0].Before["exists"].(bool); exists {
+		t.Fatalf("first write checkpoint should record absent file: %+v", cat.Checkpoints[0].Before)
+	}
+	if got := cat.Checkpoints[1].Before["content_b64"]; got != base64.StdEncoding.EncodeToString([]byte("v1")) {
+		t.Fatalf("replace checkpoint content = %v, want v1", got)
+	}
+	if got := cat.Checkpoints[2].Before["content_b64"]; got != base64.StdEncoding.EncodeToString([]byte("v2")) {
+		t.Fatalf("delete checkpoint content = %v, want v2", got)
+	}
+}
+
+func invokeWithContext(t *testing.T, ctx context.Context, tool *Tool, in fileInput) string {
+	t.Helper()
+	raw, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := tool.Invoke(ctx, raw)
+	if err != nil {
+		t.Fatalf("Invoke(%+v): %v", in, err)
+	}
+	return r.Output
 }
 
 func TestReadOnlyOpsAreUntrustedObservationsButWritesAreNot(t *testing.T) {

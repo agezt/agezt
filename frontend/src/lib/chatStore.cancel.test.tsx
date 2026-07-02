@@ -36,9 +36,10 @@ vi.mock("@/lib/events", () => ({ useEvents: () => ({ subscribe: () => () => {} }
 import { ChatProvider, useChat } from "@/lib/chatStore";
 
 function Harness() {
-  const { send, stop, busy } = useChat();
+  const { send, stop, busy, setExecutionProfile } = useChat();
   return (
     <div>
+      <button onClick={() => setExecutionProfile("local")}>profile local</button>
       <button onClick={() => send("hi")}>send</button>
       <button onClick={() => stop()}>stop</button>
       <span data-testid="busy">{busy ? "busy" : "idle"}</span>
@@ -90,5 +91,17 @@ describe("chat Stop cancels the server-side run (M907)", () => {
     fireEvent.click(screen.getByText("stop"));
     await waitFor(() => expect(screen.getByTestId("busy").textContent).toBe("idle"));
     expect(postAction).not.toHaveBeenCalledWith("/api/cancel_run", expect.anything());
+  });
+
+  it("passes the selected execution profile to streamed runs", async () => {
+    render(
+      <ChatProvider>
+        <Harness />
+      </ChatProvider>,
+    );
+    fireEvent.click(screen.getByText("profile local"));
+    fireEvent.click(screen.getByText("send"));
+    await waitFor(() => expect(streamRun).toHaveBeenCalledTimes(1));
+    expect(streamRun.mock.calls[0][0]).toMatchObject({ intent: "hi", execution_profile: "local" });
   });
 });

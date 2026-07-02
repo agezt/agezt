@@ -5,7 +5,7 @@ import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
 import { downloadText } from "@/lib/export";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -248,31 +248,19 @@ export function Standing() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <input
-        ref={fileRef}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        aria-hidden="true"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void importOrders(f);
-          e.target.value = "";
-        }}
-      />
-      <PageHeader
-        icon={Anchor}
-        title="Standing orders"
-        description={
-          <>
-            {orders ? `${orders.length} total` : ""}
-            {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
-            {!orders && "Persistent goals the daemon pursues on a trigger"}
-          </>
-        }
-        actions={
-          <>
+    <Page
+      icon={Anchor}
+      title="Standing orders"
+      width="wide"
+      description={
+        <>
+          {orders ? `${orders.length} total` : ""}
+          {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
+          {!orders && "Persistent goals the daemon pursues on a trigger"}
+        </>
+      }
+      actions={
+        <>
             <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import standing orders from a file">
               <Upload className="size-3.5" /> Import
             </Button>
@@ -298,6 +286,18 @@ export function Standing() {
             </Button>
           </>
         }
+      >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void importOrders(f);
+          e.target.value = "";
+        }}
       />
 
       {err ? (
@@ -317,7 +317,7 @@ export function Standing() {
           }
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <StandingStat label="wake rules" value={orders.length} />
             <StandingStat label="active" value={enabledCount} accent={enabledCount > 0} />
@@ -530,7 +530,7 @@ export function Standing() {
           />
         </StandingModal>
       )}
-    </div>
+    </Page>
   );
 }
 

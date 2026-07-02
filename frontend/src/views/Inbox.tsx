@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { BlobArtifact, type ArtifactEntry } from "@/views/Files";
 import { focusRun } from "@/lib/runfocus";
 
@@ -103,30 +103,30 @@ export function Inbox() {
   }, [head, events[0]?.id]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={InboxIcon}
-        title="Inbox"
-        description={threads ? `${threads.length} conversation(s)` : "Unified conversation view across every channel."}
-        actions={
-          <>
-            <Button
-              size="sm"
-              onClick={() => {
-                setPrefill(null);
-                setShowSend(true);
-              }}
-              title="Send a message via a channel"
-            >
-              <Send className="size-3.5" /> Send message
-            </Button>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            </Button>
-          </>
-        }
-      />
-
+    <Page
+      icon={InboxIcon}
+      title="Inbox"
+      description={threads ? `${threads.length} conversation(s)` : "Unified conversation view across every channel."}
+      mode="fill"
+      width="wide"
+      actions={
+        <>
+          <Button
+            size="sm"
+            onClick={() => {
+              setPrefill(null);
+              setShowSend(true);
+            }}
+            title="Send a message via a channel"
+          >
+            <Send className="size-3.5" /> Send message
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    >
       {showSend && (
         <InboxModal title={prefill ? `Reply via ${prefill.channel}` : "Send message"} onClose={() => setShowSend(false)}>
           <SendMessageForm
@@ -245,7 +245,7 @@ export function Inbox() {
           })()}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

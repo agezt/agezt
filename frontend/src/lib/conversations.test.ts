@@ -16,6 +16,8 @@ import {
   withActiveConvModel,
   activeConvAgent,
   withActiveConvAgent,
+  activeConvExecutionProfile,
+  withActiveConvExecutionProfile,
   togglePinned,
   sortConversations,
   filterConversations,
@@ -153,6 +155,31 @@ describe("store mutations", () => {
     s = withActiveConvAgent(s, "", 5);
     expect(activeConvAgent(s)).toBe("");
     expect(s.conversations.find((c) => c.id === s.activeId)!.agent).toBeUndefined();
+  });
+
+  it("withActiveConvExecutionProfile sets and clears the active conversation's execution profile", () => {
+    let s = loadStore(genId, 1);
+    expect(activeConvExecutionProfile(s)).toBe("");
+    s = withActiveConvExecutionProfile(s, " local ", 2);
+    expect(activeConvExecutionProfile(s)).toBe("local");
+    const firstId = s.activeId;
+
+    s = startConversation(withActiveMessages(s, [userMsg("hi")], 3), genId, 4);
+    expect(activeConvExecutionProfile(s)).toBe("");
+    expect(s.conversations.find((c) => c.id === firstId)!.executionProfile).toBe("local");
+
+    s = withActiveConvExecutionProfile(s, "docker", 5);
+    expect(activeConvExecutionProfile(s)).toBe("docker");
+    expect(s.conversations.find((c) => c.id === s.activeId)!.executionProfile).toBe("docker");
+
+    s = withActiveConvExecutionProfile(s, "ssh", 6);
+    expect(activeConvExecutionProfile(s)).toBe("ssh");
+    s = withActiveConvExecutionProfile(s, "warden", 7);
+    expect(activeConvExecutionProfile(s)).toBe("warden");
+    s = withActiveConvExecutionProfile(s, "remote-agezt", 8);
+    expect(activeConvExecutionProfile(s)).toBe("remote-agezt");
+    s = withActiveConvExecutionProfile(s, "", 9);
+    expect(activeConvExecutionProfile(s)).toBe("");
   });
 
   it("renameConversation sets a manual title; blank restores the derived one", () => {

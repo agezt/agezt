@@ -5,11 +5,15 @@ package webui
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -115,6 +119,26 @@ func TestSPADeepLinkServesIndex(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `id="root"`) {
 		t.Error("deep link did not serve the SPA shell")
+	}
+}
+
+func TestAllowedHostsCanBeAddedAfterHandlerStarts(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	h := s.Handler()
+
+	req := httptest.NewRequest(http.MethodGet, "http://late.example/?token=secret", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("before allowlist status = %d want 403", rec.Code)
+	}
+
+	s.SetAllowedHosts("late.example")
+	req = httptest.NewRequest(http.MethodGet, "http://late.example/?token=secret", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("after allowlist status = %d want 200", rec.Code)
 	}
 }
 
@@ -256,6 +280,123 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
 		t.Errorf("non-allowlisted arg leaked through: %v", fc.lastArgs)
+	}
+}
+
+func TestExecutionProfileRouteForwardsIDOnly(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"profile": map[string]any{"id": "warden"}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/execution_profile?token=secret&id=warden&evil=rm", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdExecutionProfileShow {
+		t.Fatalf("expected execution_profile_show call, got %v", fc.calls)
+	}
+	if fc.lastArgs["id"] != "warden" {
+		t.Fatalf("id not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("non-allowlisted arg leaked: %v", fc.lastArgs)
+	}
+}
+
+func TestExecutionProfileCheckRouteProxies(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"count": 1, "checks": []any{}}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/execution_profile_check?token=secret", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdExecutionProfileCheck {
+		t.Fatalf("expected execution_profile_check call, got %v", fc.calls)
+	}
+}
+
+func TestRollbackCheckpointsRouteFiltersByRunID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("AGEZT_HOME", home)
+	path := filepath.Join(home, filepath.FromSlash(rollbackCatalogRelativePath))
+	if err := writeRollbackCatalogAt(path, rollbackCatalog{Checkpoints: []rollbackCheckpoint{
+		{ID: "rb-a", Kind: rollbackCheckpointKindFile, Action: "file.write", RunID: "run-a", SubjectID: "a", CreatedMS: 100},
+		{ID: "rb-b", Kind: rollbackCheckpointKindFile, Action: "file.write", RunID: "run-b", SubjectID: "b", CreatedMS: 200},
+		{ID: "rb-c", Kind: rollbackCheckpointKindFile, Action: "file.write", RunID: "run-a", SubjectID: "c", CreatedMS: 300},
+	}}); err != nil {
+		t.Fatalf("write catalog: %v", err)
+	}
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodGet, "/api/rollback/checkpoints?token=secret&run_id=run-a", nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		RunID       string               `json:"run_id"`
+		Count       int                  `json:"count"`
+		Checkpoints []rollbackCheckpoint `json:"checkpoints"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.RunID != "run-a" || got.Count != 2 || len(got.Checkpoints) != 2 {
+		t.Fatalf("filtered output = %+v", got)
+	}
+	if got.Checkpoints[0].ID != "rb-c" || got.Checkpoints[1].ID != "rb-a" {
+		t.Fatalf("filtered order = %+v", got.Checkpoints)
+	}
+}
+
+func TestRollbackApplyRouteRestoresFileCheckpoint(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("AGEZT_HOME", home)
+	target := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(target, []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cp := rollbackCheckpoint{
+		ID:          "rb-file",
+		Kind:        rollbackCheckpointKindFile,
+		Action:      "file.write",
+		SubjectID:   target,
+		SubjectName: "notes.txt",
+		Before: map[string]any{
+			"abs_path":    target,
+			"exists":      true,
+			"content_b64": base64.StdEncoding.EncodeToString([]byte("old")),
+			"mode_perm":   int(0o600),
+		},
+		CreatedMS: 123,
+	}
+	path := filepath.Join(home, filepath.FromSlash(rollbackCatalogRelativePath))
+	if err := writeRollbackCatalogAt(path, rollbackCatalog{Checkpoints: []rollbackCheckpoint{cp}}); err != nil {
+		t.Fatalf("write checkpoint: %v", err)
+	}
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/rollback/apply?token=secret", strings.NewReader(`{"id":"rb-file"}`))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read restored file: %v", err)
+	}
+	if string(got) != "old" {
+		t.Fatalf("restored content = %q, want old", got)
+	}
+	cat, err := loadRollbackCatalogAt(path)
+	if err != nil {
+		t.Fatalf("reload checkpoint: %v", err)
+	}
+	if cat.Checkpoints[0].AppliedMS == 0 {
+		t.Fatalf("checkpoint should be marked applied: %+v", cat.Checkpoints[0])
 	}
 }
 
@@ -702,16 +843,20 @@ func TestAPIReadOnly(t *testing.T) {
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
 		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "schedule_system_tasks": true, "memory_list": true, "memory_audit": true, "world_list": true,
-		"skill_list": true, "standing_list": true, "agent_list": true, "toolforge_list": true, "mcp_list": true, "workflow_list": true, "workflow_templates": true, "inbox": true, "reflect_show": true, "approvals": true,
+		"skill_list": true, "standing_list": true, "agent_list": true, "toolforge_list": true, "mcp_list": true, "workflow_list": true, "workflow_templates": true, "inbox": true, "reflect_show": true, "approvals": true, "execution_profiles": true, "execution_profile_check": true,
 		"plan_stats": true, "edict_show": true, "tool_list": true, "board_read": true, "autonomy_feed": true,
 		"catalog_list": true, "sandbox_list": true,
 		"config_schema": true, "config_values": true, "routing_get": true, "chains_get": true, "persona_get": true, "prompts_get": true, "version": true,
-		"channel_list": true, "acp_agents": true,
+		"channel_list": true, "node_registry": true, "acp_agents": true,
 		"pulse_status": true, "pulse_asks": true, "journal_verify": true, "storage_stats": true,
 		"data_collections": true,
 		"council_members":  true,
 		"conductor_roles":  true,
 		"board_help":       true,
+		"workboard_list":   true,
+		"okr_list":         true,
+		"taste_list":       true,
+		"seat_list":        true,
 		"toolbox_detect":   true,
 		"toolbox_outdated": true,
 	}
@@ -1265,6 +1410,55 @@ func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
 	}
 }
 
+func TestWorkboardJSONRoutesForwardAllowedBodies(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		cmd  string
+		body string
+		want map[string]any
+	}{
+		{
+			path: "/api/workboard/comment",
+			cmd:  controlplane.CmdWorkboardComment,
+			body: `{"id":"wb1","author":"operator","body":"looks good","evil":"x"}`,
+			want: map[string]any{"id": "wb1", "author": "operator", "body": "looks good"},
+		},
+		{
+			path: "/api/workboard/policy",
+			cmd:  controlplane.CmdWorkboardPolicy,
+			body: `{"id":"wb1","actor":"operator","max_attempts":3,"escalate_to":"lead","clear":false,"evil":"x"}`,
+			want: map[string]any{"id": "wb1", "actor": "operator", "max_attempts": float64(3), "escalate_to": "lead", "clear": false},
+		},
+		{
+			path: "/api/workboard/dispatch",
+			cmd:  controlplane.CmdWorkboardDispatch,
+			body: `{"id":"wb1","agent":"builder","intent":"ship","reason":"operator dispatch","evil":"x"}`,
+			want: map[string]any{"id": "wb1", "agent": "builder", "intent": "ship", "reason": "operator dispatch"},
+		},
+	} {
+		fc := &fakeCaller{result: map[string]any{"ok": true}}
+		s, _ := newServer(t, fc, "secret")
+		req := httptest.NewRequest(http.MethodPost, tc.path+"?token=secret", strings.NewReader(tc.body))
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d want 200 body=%s", tc.path, rec.Code, rec.Body.String())
+		}
+		if len(fc.calls) != 1 || fc.calls[0] != tc.cmd {
+			t.Fatalf("%s expected one %s call, got %v", tc.path, tc.cmd, fc.calls)
+		}
+		for k, want := range tc.want {
+			if fc.lastArgs[k] != want {
+				t.Fatalf("%s arg %s = %v want %v (args=%v)", tc.path, k, fc.lastArgs[k], want, fc.lastArgs)
+			}
+		}
+		if _, leaked := fc.lastArgs["evil"]; leaked {
+			t.Fatalf("%s leaked unexpected body key: %v", tc.path, fc.lastArgs)
+		}
+	}
+}
+
 func TestAgentRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 	for _, tc := range []struct {
 		path string
@@ -1566,6 +1760,25 @@ func TestRunStreamForwardsEventsInline(t *testing.T) {
 	}
 	if !strings.Contains(out, `"kind":"done"`) || !strings.Contains(out, "hi there") {
 		t.Errorf("terminal result not relayed: %s", out)
+	}
+}
+
+func TestRunStreamForwardsExecutionProfile(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"answer": "ok"}}
+	s, _ := newServer(t, fc, "secret")
+	body := `{"intent":"say hi","execution_profile":"local","evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/run?token=secret", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if got, _ := fc.lastArgs["execution_profile"].(string); got != "local" {
+		t.Errorf("execution_profile not forwarded: %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Errorf("non-allowlisted body key leaked through: %v", fc.lastArgs)
 	}
 }
 

@@ -26,6 +26,10 @@ func TestBuildCommand(t *testing.T) {
 			want: []string{"cloudflared", "tunnel", "--url", "http://127.0.0.1:8787"}},
 		{name: "ngrok preset strips scheme", cfg: Config{Provider: "ngrok", TargetURL: "http://127.0.0.1:8800/api"},
 			want: []string{"ngrok", "http", "127.0.0.1:8800", "--log=stdout", "--log-format=logfmt"}},
+		{name: "tailscale serve preset", cfg: Config{Provider: "tailscale", TargetURL: "http://127.0.0.1:8787"},
+			want: []string{"tailscale", "serve", "http://127.0.0.1:8787"}},
+		{name: "tailscale funnel preset", cfg: Config{Provider: "tailscale-funnel", TargetURL: "http://127.0.0.1:8787"},
+			want: []string{"tailscale", "funnel", "http://127.0.0.1:8787"}},
 		{name: "explicit command wins", cfg: Config{Command: []string{"mytunnel", "--port", "9000"}, Provider: "cloudflared"},
 			want: []string{"mytunnel", "--port", "9000"}},
 		{name: "custom provider requires explicit command", cfg: Config{Provider: "custom", TargetURL: "http://127.0.0.1:8787"}, err: true,
@@ -66,6 +70,7 @@ func TestExtractURL(t *testing.T) {
 		{`t=2026-06-08 lvl=info msg="started tunnel" url=https://abcd.ngrok-free.app`, "https://abcd.ngrok-free.app"},
 		// Prefer the tunnel domain over a docs/banner link on the same line.
 		{"visit https://developers.cloudflare.com/ or use https://x.trycloudflare.com now", "https://x.trycloudflare.com"},
+		{"Available on: https://agezt.tail000.ts.net/", "https://agezt.tail000.ts.net/"},
 		// Custom binary: no known domain → first https wins, trailing punctuation trimmed.
 		{"forwarding to https://my.custom.example/path).", "https://my.custom.example/path"},
 		{"no url here", ""},

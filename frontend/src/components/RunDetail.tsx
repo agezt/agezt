@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -11,8 +11,14 @@ import {
   Navigation,
   Send,
   OctagonX,
+  RotateCcw,
+  History,
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  Download,
 } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/lib/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { ToolOutput } from "@/components/DataView";
@@ -20,6 +26,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { fmtTime, clip } from "@/lib/utils";
 import { money } from "@/lib/format";
+import { useUI } from "@/components/ui/feedback";
 import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { IncidentBadges } from "@/components/IncidentBadges";
@@ -35,6 +42,32 @@ interface RunPhaseStep {
   kind: string;
   phase: string;
   detail?: string;
+}
+
+interface RollbackCheckpoint {
+  id: string;
+  kind: string;
+  action?: string;
+  run_id?: string;
+  subject_id?: string;
+  subject_name?: string;
+  before_status?: string;
+  before?: Record<string, unknown>;
+  created_ms?: number;
+  applied_ms?: number;
+}
+
+interface RemoteArtifact {
+  peer: string;
+  remoteCorrelation: string;
+  id: string;
+  ref: string;
+  name: string;
+  mime: string;
+  kind: string;
+  source: string;
+  size?: number;
+  createdMs?: number;
 }
 
 function payloadString(e: AgentEvent, key: string): string {
@@ -94,6 +127,121 @@ function subagentCompletedDetail(e: AgentEvent): string {
     payloadString(e, "error") ? clip(payloadString(e, "error"), 100) : "",
     e.payload?.async ? "async" : "",
   ].filter(Boolean).join(" · ");
+}
+
+function stringField(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+function numberField(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+export function remoteArtifactsFromArc(arc: AgentEvent[]): RemoteArtifact[] {
+  const out: RemoteArtifact[] = [];
+  const seen = new Set<string>();
+  for (const e of [...arc].sort((a, b) => num(a.seq) - num(b.seq))) {
+    const p = e.payload || {};
+    if (p.phase !== "peer_events_mirrored" || !Array.isArray(p.artifacts)) continue;
+    const peer = stringField(p.remote_peer);
+    const remoteCorrelation = stringField(p.remote_correlation);
+    for (const raw of p.artifacts) {
+      if (!raw || typeof raw !== "object") continue;
+      const row = raw as Record<string, unknown>;
+      const id = stringField(row.id);
+      if (!id) continue;
+      const corr = stringField(row.corr) || remoteCorrelation;
+      const key = `${peer}\x00${corr}\x00${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        peer,
+        remoteCorrelation: corr,
+        id,
+        ref: stringField(row.ref),
+        name: stringField(row.name),
+        mime: stringField(row.mime),
+        kind: stringField(row.kind),
+        source: stringField(row.source),
+        size: numberField(row.size),
+        createdMs: numberField(row.created_ms),
+      });
+    }
+  }
+  return out;
+}
+
+function artifactSize(n?: number): string {
+  if (n == null || !Number.isFinite(n)) return "unknown";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+  return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function remoteArtifactCommand(a: RemoteArtifact): string {
+  return `agt peers artifact-get ${a.peer || "<peer>"} ${a.id} <out_file>`;
+}
+
+function CopyRemoteArtifactCommand({ artifact }: { artifact: RemoteArtifact }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard?.writeText(remoteArtifactCommand(artifact));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
+  return (
+    <button
+      onClick={copy}
+      title={copied ? "Copied" : "Copy artifact-get command"}
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-border text-muted transition-colors hover:border-accent hover:text-foreground"
+    >
+      <Copy className={cn("size-3.5", copied && "text-good")} />
+    </button>
+  );
+}
+
+function RemoteArtifactsPanel({ arc }: { arc: AgentEvent[] }) {
+  const artifacts = remoteArtifactsFromArc(arc);
+  if (!artifacts.length) return null;
+  const visible = artifacts.slice(0, 12);
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
+        <Download className="size-3.5 text-accent" />
+        Remote artifacts ({artifacts.length})
+      </div>
+      <ul className="space-y-1">
+        {visible.map((a) => {
+          const label = a.name || a.id;
+          const ref = a.ref.length > 12 ? a.ref.slice(0, 12) : a.ref;
+          return (
+            <li key={`${a.peer}:${a.remoteCorrelation}:${a.id}`} className="rounded-md border border-border bg-panel px-2 py-1.5 text-xs">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground">{label}</span>
+                <Badge variant="accent">{a.peer || "peer"}</Badge>
+                <CopyRemoteArtifactCommand artifact={a} />
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
+                <span>{a.kind || "artifact"}</span>
+                <span>{artifactSize(a.size)}</span>
+                {a.mime && <span>{a.mime}</span>}
+                {a.remoteCorrelation && <span>{a.remoteCorrelation}</span>}
+                {ref && <span className="font-mono">{ref}</span>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {artifacts.length > visible.length && (
+        <div className="mt-1 text-xs text-muted">{artifacts.length - visible.length} more remote artifact(s)</div>
+      )}
+    </div>
+  );
 }
 
 function formatRetryDelay(ms: number): string {
@@ -360,6 +508,8 @@ export function RunDetailCards({
         )}
       </div>
 
+      <RemoteArtifactsPanel arc={arc} />
+
       {d.answer && (
         <div>
           <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted">
@@ -512,6 +662,147 @@ export function SteerControls({ correlationId, arc }: { correlationId: string; a
   );
 }
 
+function rollbackSubject(cp: RollbackCheckpoint): string {
+  if (cp.subject_name) return cp.subject_name;
+  return cp.subject_id ? clip(cp.subject_id, 40) : cp.id;
+}
+
+function rollbackRestoreText(cp: RollbackCheckpoint): string {
+  if (cp.before_status) return `status -> ${cp.before_status}`;
+  if (cp.kind === "workflow.snapshot") return "workflow snapshot";
+  if (cp.kind === "file.snapshot") return cp.before?.exists === false ? "remove created file" : "file content snapshot";
+  if (cp.kind === "config.setting") {
+    if (cp.before?.rollbackable === false) return "audit only";
+    return cp.before?.set === false ? "config -> unset" : "config -> previous value";
+  }
+  return cp.kind;
+}
+
+function rollbackAuditReason(cp: RollbackCheckpoint): string {
+  const reason = cp.before?.non_rollbackable_reason;
+  return typeof reason === "string" ? reason : "";
+}
+
+export function RunRollbackDrawer({ correlationId }: { correlationId: string }) {
+  const ui = useUI();
+  const [open, setOpen] = useState(false);
+  const [checkpoints, setCheckpoints] = useState<RollbackCheckpoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busyID, setBusyID] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!correlationId) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const data = await getJSON<{ checkpoints?: RollbackCheckpoint[] }>("/api/rollback/checkpoints", {
+        run_id: correlationId,
+      });
+      setCheckpoints(data.checkpoints || []);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [correlationId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function apply(cp: RollbackCheckpoint) {
+    const auditReason = rollbackAuditReason(cp);
+    if (cp.applied_ms || auditReason) return;
+    const ok = await ui.confirm({
+      title: "Apply rollback checkpoint?",
+      message: `${rollbackSubject(cp)} will be restored from ${cp.id}.`,
+      confirmLabel: "Apply rollback",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusyID(cp.id);
+    try {
+      await postJSON("/api/rollback/apply", { id: cp.id });
+      ui.toast("Rollback applied", "success");
+      await load();
+    } catch (e) {
+      ui.toast(`Rollback failed: ${(e as Error).message}`, "error");
+    } finally {
+      setBusyID(null);
+    }
+  }
+
+  const unapplied = checkpoints.filter((c) => !c.applied_ms).length;
+  return (
+    <div className="rounded-lg border border-border bg-panel/40">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-xs"
+      >
+        {open ? <ChevronDown className="size-3.5 text-muted" /> : <ChevronRight className="size-3.5 text-muted" />}
+        <RotateCcw className="size-3.5 text-accent" />
+        <span className="font-semibold uppercase tracking-normal text-muted">rollback</span>
+        <Badge variant={unapplied ? "accent" : "default"}>{unapplied}</Badge>
+        {loading && <span className="text-muted">loading...</span>}
+      </button>
+      {open && (
+        <div className="border-t border-border/60 px-2.5 py-2">
+          {err ? (
+            <ErrorText>{err}</ErrorText>
+          ) : checkpoints.length === 0 ? (
+            <Muted>no checkpoints for this run</Muted>
+          ) : (
+            <ul className="space-y-1.5">
+              {checkpoints.map((cp) => {
+                const auditReason = rollbackAuditReason(cp);
+                const applied = !!cp.applied_ms;
+                return (
+                  <li key={cp.id} className="rounded-md border border-border bg-card px-2.5 py-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <History className="size-3.5 text-muted" />
+                      <span className="min-w-0 flex-1 truncate font-medium">{rollbackSubject(cp)}</span>
+                      <Badge variant={cp.kind === "file.snapshot" ? "good" : "accent"}>{cp.kind}</Badge>
+                      {auditReason && (
+                        <Badge variant="warn">
+                          <AlertTriangle className="mr-1 size-3" />
+                          audit only
+                        </Badge>
+                      )}
+                      {applied && (
+                        <Badge variant="good">
+                          <CheckCircle2 className="mr-1 size-3" />
+                          applied
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
+                      <span>{cp.action || "checkpoint"}</span>
+                      <span>{rollbackRestoreText(cp)}</span>
+                      <span>{fmtTime(cp.created_ms)}</span>
+                      {auditReason && <span className="text-warn">{auditReason}</span>}
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() => void apply(cp)}
+                        disabled={applied || !!auditReason || busyID === cp.id}
+                        className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs transition-colors hover:border-accent disabled:opacity-50"
+                      >
+                        <RotateCcw className={cn("size-3.5", busyID === cp.id && "animate-spin")} />
+                        Apply
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // RunDetailLoader fetches a run's journaled arc once (the first time it mounts)
 // and folds the live event stream into it so the detail updates as the agent
 // works — the same live pattern Flow Studio uses. It renders RunDetailCards plus
@@ -556,6 +847,7 @@ export function RunDetailLoader({
   return (
     <>
       {correlationId && runIsLive(arc) && <SteerControls correlationId={correlationId} arc={arc} />}
+      {correlationId && <RunRollbackDrawer correlationId={correlationId} />}
       <RunPhaseTimeline arc={arc} />
       <RunDetailCards arc={arc} status={status} durationMs={durationMs} />
       <button

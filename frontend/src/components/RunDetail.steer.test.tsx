@@ -3,7 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
 const postAction = vi.fn();
-vi.mock("@/lib/api", () => ({ postAction: (...a: unknown[]) => postAction(...a) }));
+const getJSON = vi.fn();
+const postJSON = vi.fn();
+vi.mock("@/lib/api", () => ({
+  getJSON: (...a: unknown[]) => getJSON(...a),
+  postAction: (...a: unknown[]) => postAction(...a),
+  postJSON: (...a: unknown[]) => postJSON(...a),
+}));
 
 import { SteerControls } from "@/components/RunDetail";
 import type { AgentEvent } from "@/lib/events";
@@ -11,7 +17,9 @@ import type { AgentEvent } from "@/lib/events";
 const liveArc: AgentEvent[] = [{ kind: "task.received", correlation_id: "run-7", payload: {} }];
 
 beforeEach(() => {
+  getJSON.mockReset();
   postAction.mockReset();
+  postJSON.mockReset();
   postAction.mockResolvedValue({});
 });
 afterEach(cleanup);

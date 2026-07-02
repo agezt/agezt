@@ -10,7 +10,7 @@ import "testing"
 
 func TestNewlyRegisteredCaps_HaveDefaultsAndAreAllowed(t *testing.T) {
 	e := New(Options{}) // defaults, AskAllow
-	for _, cap := range []Capability{CapBrowserRead, CapMemory, CapWorld} {
+	for _, cap := range []Capability{CapBrowserRead, CapBrowserAction, CapMemory, CapWorld} {
 		if _, ok := e.Levels()[cap]; !ok {
 			t.Errorf("%q must have a default trust level (was unregistered)", cap)
 		}
@@ -26,7 +26,7 @@ func TestNewlyRegisteredCaps_InAllCapabilities(t *testing.T) {
 	for _, c := range AllCapabilities() {
 		all[c] = true
 	}
-	for _, c := range []Capability{CapBrowserRead, CapMemory, CapWorld} {
+	for _, c := range []Capability{CapBrowserRead, CapBrowserAction, CapMemory, CapWorld} {
 		if !all[c] {
 			t.Errorf("AllCapabilities() is missing %q — the policy control center can't list/grant it", c)
 		}
@@ -57,9 +57,15 @@ func TestUnknownAllow_AllowsUnconfiguredCap(t *testing.T) {
 // The tool→capability map resolves the three tools to their registered caps.
 func TestToolMap_ResolvesNewTools(t *testing.T) {
 	cases := map[string]Capability{
-		"browser.read": CapBrowserRead,
-		"memory":       CapMemory,
-		"world":        CapWorld,
+		"browser.read":    CapBrowserRead,
+		"browser.action":  CapBrowserAction,
+		"browser.open":    CapBrowserAction,
+		"browser.click":   CapBrowserAction,
+		"browser.cookies": CapBrowserAction,
+		"browser.tabs":    CapBrowserAction,
+		"browser.close":   CapBrowserAction,
+		"memory":          CapMemory,
+		"world":           CapWorld,
 	}
 	for tool, want := range cases {
 		if got := CapabilityForToolCall(tool, []byte(`{}`)); got != want {

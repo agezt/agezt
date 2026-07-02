@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Send,
   Square,
@@ -36,6 +36,7 @@ import {
   Gauge,
   Scissors,
   Radio,
+  Terminal,
 } from "lucide-react";
 import { cn, fmtTime } from "@/lib/utils";
 import { money, fmtCount } from "@/lib/format";
@@ -77,8 +78,43 @@ import { SuggestionsBar, type Suggestion } from "@/components/SuggestionsBar";
 // cost. The engine (store, streaming, model) lives in ChatProvider so a run keeps
 // going when you leave the view; this component is the full-screen UI over it.
 export function Chat() {
-  const { store, messages, busy, model, setModel, agent, setAgent, activeModel, send, retry, continueRun, editAndResend, conversationPersona, setConversationPersona, autoApproveForge, setAutoApproveForge, trustWebContent, setTrustWebContent, historySummary, stop, newChat, selectConversation, removeConversation, renameConversation, togglePin, activeCorr, steer, queue, enqueue, removeQueued, reorderQueued, clearQueue, sendQueuedNow } =
-    useChat();
+  const {
+    store,
+    messages,
+    busy,
+    model,
+    setModel,
+    agent,
+    setAgent,
+    executionProfile,
+    setExecutionProfile,
+    activeModel,
+    send,
+    retry,
+    continueRun,
+    editAndResend,
+    conversationPersona,
+    setConversationPersona,
+    autoApproveForge,
+    setAutoApproveForge,
+    trustWebContent,
+    setTrustWebContent,
+    historySummary,
+    stop,
+    newChat,
+    selectConversation,
+    removeConversation,
+    renameConversation,
+    togglePin,
+    activeCorr,
+    steer,
+    queue,
+    enqueue,
+    removeQueued,
+    reorderQueued,
+    clearQueue,
+    sendQueuedNow,
+  } = useChat();
   const ui = useUI();
   const [input, setInput] = useState("");
   // convFilter filters the conversation sidebar by title/message text (M732).
@@ -480,6 +516,7 @@ export function Chat() {
             pinned={chatChain.length ? { label: "chat routing chain", ids: chatChain } : undefined}
           />
           <AgentPicker value={agent} onChange={setAgent} />
+          <ExecutionProfilePicker value={executionProfile} onChange={setExecutionProfile} />
           <ConversationPersona value={conversationPersona} onChange={setConversationPersona} />
           <button
             onClick={() => setAutoApproveForge(!autoApproveForge)}
@@ -1113,6 +1150,131 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
       {show && (
         <div className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border px-2.5 py-1.5 font-mono text-[11px] leading-snug text-muted">
           {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ExecutionProfileCheck {
+  profile_id?: string;
+  status?: string;
+  title?: string;
+  detail?: string;
+  next?: string;
+}
+
+const EXEC_PROFILE_OPTIONS: { id: string; label: string; hint: string }[] = [
+  { id: "", label: "tool defaults", hint: "use each tool's configured execution profile" },
+  { id: "local", label: "local", hint: "request direct host execution for shell/code" },
+  { id: "warden", label: "warden", hint: "request warden-backed shell/code execution" },
+];
+
+const EXEC_PROFILE_HINTS: Record<string, string> = {
+  docker: "request container-backed shell/code execution",
+  ssh: "request shell-only remote execution over SSH",
+  "remote-agezt": "delegate the whole run to a configured AGEZT peer",
+};
+
+export function ExecutionProfilePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (profile: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [checks, setChecks] = useState<Record<string, ExecutionProfileCheck>>({});
+  const [routable, setRoutable] = useState<string[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+  const options = useMemo(() => {
+    const seen = new Set(EXEC_PROFILE_OPTIONS.map((o) => o.id));
+    const out = [...EXEC_PROFILE_OPTIONS];
+    for (const id of routable) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push({ id, label: id, hint: EXEC_PROFILE_HINTS[id] || `request ${id} execution profile` });
+    }
+    if (value && !seen.has(value)) {
+      out.push({ id: value, label: value, hint: EXEC_PROFILE_HINTS[value] || `request ${value} execution profile` });
+    }
+    return out;
+  }, [routable, value]);
+  const selected = options.find((o) => o.id === value) || options[0];
+  const active = selected.id !== "";
+
+  useEffect(() => {
+    if (!open) return;
+    getJSON<{ checks?: ExecutionProfileCheck[]; routable_run_profiles?: string[] }>("/api/execution_profile_check")
+      .then((r) => {
+        const next: Record<string, ExecutionProfileCheck> = {};
+        for (const c of r.checks || []) {
+          if (c.profile_id) next[c.profile_id] = c;
+        }
+        setChecks(next);
+        setRoutable(r.routable_run_profiles || []);
+      })
+      .catch(() => {
+        setChecks({});
+        setRoutable([]);
+      });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Choose execution profile"
+        title="Choose execution profile for shell/code runs"
+        className={cn(
+          "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs transition-colors",
+          active ? "border-accent/40 text-accent" : "border-border text-muted hover:text-foreground",
+        )}
+      >
+        <Terminal className="size-3.5" />
+        <span>{active ? selected.label : "exec"}</span>
+        {active && <span className="size-1.5 rounded-full bg-accent" />}
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-30 mb-1.5 w-72 rounded-lg border border-border bg-card p-1 shadow-xl shadow-black/30">
+          {options.map((opt) => {
+            const c = opt.id ? checks[opt.id] : undefined;
+            const status = (c?.status || "").toLowerCase();
+            return (
+              <button
+                key={opt.id || "default"}
+                onClick={() => {
+                  onChange(opt.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-start gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-panel",
+                  selected.id === opt.id ? "text-accent" : "text-foreground",
+                )}
+              >
+                <Check className={cn("mt-0.5 size-3 shrink-0", selected.id === opt.id ? "opacity-100" : "opacity-0")} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1 font-medium">
+                    {opt.label}
+                    {status === "ok" && <ShieldCheck className="size-3 text-good" />}
+                    {status === "warning" && <AlertTriangle className="size-3 text-warn" />}
+                    {status === "fail" && <ShieldX className="size-3 text-bad" />}
+                  </span>
+                  <span className="block text-muted">{c?.detail || opt.hint}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

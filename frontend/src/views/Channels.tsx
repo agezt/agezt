@@ -34,11 +34,22 @@ interface MediaCaps {
   voice_out?: boolean;
 }
 
+interface ChannelProbe {
+  accounts?: number;
+  configured_accounts?: number;
+  live_accounts?: number;
+  roundtrip_status?: string;
+  roundtrip_ready?: boolean;
+  mode?: string;
+  note?: string;
+}
+
 // One configured account-instance of a channel (default = empty label).
 interface ChannelAccount {
   label: string;
   configured?: boolean;
   live?: boolean;
+  probe?: ChannelProbe;
   fields: ChannelField[];
 }
 
@@ -55,6 +66,7 @@ interface ChannelRow {
   setup_steps?: string[];
   configured?: boolean;
   live?: boolean;
+  probe?: ChannelProbe;
   fields: ChannelField[];
   accounts?: ChannelAccount[];
 }
@@ -109,6 +121,14 @@ function StatusBadge({ live, configured }: { live?: boolean; configured?: boolea
     );
   if (configured) return <Badge variant="warn">configured · restart</Badge>;
   return <Badge variant="warn">needs setup</Badge>;
+}
+
+function RoundtripBadge({ probe }: { probe?: ChannelProbe }) {
+  const status = probe?.roundtrip_status;
+  if (!status) return null;
+  if (status === "ready") return <Badge variant="good" title={probe.note || "ready"}>roundtrip ready</Badge>;
+  if (status === "restart_required") return <Badge variant="warn" title={probe.note || "restart required"}>restart first</Badge>;
+  return <Badge variant="warn" title={probe.note || "setup required"}>setup first</Badge>;
 }
 
 // accountsOf returns a row's accounts, falling back to a synthetic default
@@ -477,6 +497,7 @@ function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => 
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-foreground">{a.label || "default"}</span>
               <StatusBadge live={a.live} configured={a.configured} />
+              <RoundtripBadge probe={a.probe} />
               <div className="ml-auto flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setActiveForm({ account: a, isNew: false })}>
                   <Pencil className="size-3.5" /> Edit
@@ -591,6 +612,11 @@ export function Channels() {
 
   const liveCount = useMemo(() => (rows || []).filter((r) => r.live).length, [rows]);
   const configuredCount = useMemo(() => (rows || []).filter((r) => r.configured).length, [rows]);
+  const roundtripReadyCount = useMemo(() => (rows || []).filter((r) => r.probe?.roundtrip_status === "ready").length, [rows]);
+  const mediaCount = useMemo(
+    () => (rows || []).filter((r) => !!(r.media?.image_in || r.media?.image_out || r.media?.voice_in || r.media?.voice_out)).length,
+    [rows],
+  );
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -625,6 +651,18 @@ export function Channels() {
             value={configuredCount}
             tone={configuredCount > 0 ? "accent" : "muted"}
           />
+          <MetricWidget
+            icon={Check}
+            label="Roundtrip"
+            value={roundtripReadyCount}
+            tone={roundtripReadyCount > 0 ? "good" : "muted"}
+          />
+          <MetricWidget
+            icon={ImageIcon}
+            label="Media"
+            value={mediaCount}
+            tone={mediaCount > 0 ? "accent" : "muted"}
+          />
         </MetricGrid>
       )}
 
@@ -645,6 +683,7 @@ export function Channels() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-medium text-foreground">{r.display}</span>
                       <StatusBadge live={r.live} configured={r.configured} />
+                      <RoundtripBadge probe={r.probe} />
                       {accts.length > 1 && (
                         <span className="text-xs text-muted">
                           {accts.length} accounts{liveAccts ? ` · ${liveAccts} live` : ""}

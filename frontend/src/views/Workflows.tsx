@@ -50,6 +50,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/lib/events";
 
@@ -804,19 +805,23 @@ function NodePanel({
               <span className="text-xs text-warn">{runInfo.attempts} attempts</span>
             )}
           </div>
-          {runInfo.input && (
-            <div>
-              <div className="text-xs text-muted">input</div>
-              <pre className="max-h-24 overflow-auto rounded bg-card p-1 text-xs whitespace-pre-wrap">{runInfo.input}</pre>
-            </div>
-          )}
-          {runInfo.output && (
-            <div>
-              <div className="text-xs text-muted">
-                output{runInfo.output_truncated ? " (truncated)" : ""}
-              </div>
-              <pre className="max-h-32 overflow-auto rounded bg-card p-1 text-xs whitespace-pre-wrap">{runInfo.output}</pre>
-            </div>
+          {(runInfo.input || runInfo.output) && (
+            <Disclosure summary={<span className="text-xs text-muted">run input / output</span>}>
+              {runInfo.input && (
+                <div>
+                  <div className="text-xs text-muted">input</div>
+                  <pre className="max-h-24 overflow-auto rounded bg-card p-1 text-xs whitespace-pre-wrap">{runInfo.input}</pre>
+                </div>
+              )}
+              {runInfo.output && (
+                <div>
+                  <div className="text-xs text-muted">
+                    output{runInfo.output_truncated ? " (truncated)" : ""}
+                  </div>
+                  <pre className="max-h-32 overflow-auto rounded bg-card p-1 text-xs whitespace-pre-wrap">{runInfo.output}</pre>
+                </div>
+              )}
+            </Disclosure>
           )}
           {runInfo.error && <div className="text-xs text-bad">{runInfo.error}</div>}
         </div>

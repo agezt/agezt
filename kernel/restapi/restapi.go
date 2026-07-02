@@ -16,6 +16,8 @@
 //	GET  /api/v1/models            — the model ids the daemon can route
 //	POST /api/v1/runs              — submit an intent; sync JSON or SSE stream
 //	GET  /api/v1/runs/{corr}       — the journaled event arc of a past run
+//	GET  /api/v1/artifacts         — artifact index metadata, no bytes
+//	GET  /api/v1/artifacts/{id}/bytes — opt-in artifact bytes, base64 JSON
 //	/api/v1/mailbox/*              — the shared message board for SDK apps
 //	                                 (see mailbox.go, M937)
 
@@ -180,6 +182,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/models", s.auth(s.handleModels))
 	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
 	mux.HandleFunc("/api/v1/runs/", s.auth(s.handleRunByID))
+	mux.HandleFunc("/api/v1/artifacts", s.auth(s.handleArtifacts))
+	mux.HandleFunc("/api/v1/artifacts/", s.auth(s.handleArtifactBytes))
 	// Mailbox (M937): the shared inter-agent message board for SDK apps —
 	// send/read messages, an inbox per name, replies, ack, topics. The board is a
 	// single daemon-global instance with no tenant partition, so it is gated to

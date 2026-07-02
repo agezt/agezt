@@ -10,15 +10,30 @@ it, with emphasis on the operator controls.
 
 ## Opening it
 
-The console is off by default. Start the daemon with a loopback address:
+The console starts on loopback by default:
 
 ```bash
-AGEZT_WEB_ADDR=127.0.0.1:8787 ./bin/agezt
+./bin/agezt
 ```
 
 The startup banner prints a tokenized URL — `http://127.0.0.1:8787/?token=<hex>`. Open
 it. The token authenticates the session; treat the URL like a password and keep the
 address on loopback unless you deliberately expose it.
+
+To publish the Web UI through a supervised tunnel, set a real console password and choose
+a provider in Config Center → External access, or via env:
+
+```bash
+AGEZT_WEB_PASSWORD='choose-a-strong-password' AGEZT_WEB_PASSWORD_STRICT=on AGEZT_TUNNEL=cloudflare ./bin/agezt
+```
+
+`cloudflare`/`cloudflared` creates an automatic `https://*.trycloudflare.com` Quick
+Tunnel. `ngrok`, `tailscale` (tailnet-only), `tailscale-funnel` (public), and
+`AGEZT_TUNNEL_CMD=<command>` are also supported. When the public URL appears, AGEZT adds
+that host to the Web UI allowlist and prints the public console URL. With a password and
+strict mode, the public URL still carries the boot token and the UI requires the password
+session too; with a password and non-strict mode, the public URL opens the password login
+screen without embedding the token.
 
 - **⌘K / Ctrl-K** opens the command palette: jump to any view, start a new chat, open a
   run, or trigger appearance/config export-import.
@@ -120,8 +135,8 @@ Most stores are fully CRUD-able from their views:
 
 ## Safety notes
 
-- The token in the URL authenticates the whole session — keep it private and the address
-  on loopback.
+- The token in the URL authenticates the whole session — keep it private and keep the
+  address on loopback unless you deliberately enable a password-protected tunnel.
 - **GET** routes are read-only by construction (enforced by a test); **POST** routes are
   the only ones that mutate.
 - "Runtime-only" controls (pause) reset on restart; cadence and dial persist.

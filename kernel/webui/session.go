@@ -135,7 +135,17 @@ func (s *Server) SetPasswordFn(fn func() string) { s.passwordFn = fn }
 
 // SetPasswordStrict restores the M817 compose semantics (token AND password
 // session on every data route) instead of the M933 alternative-door default.
-func (s *Server) SetPasswordStrict(on bool) { s.passwordStrict = on }
+func (s *Server) SetPasswordStrict(on bool) {
+	s.hostPolicyMu.Lock()
+	s.passwordStrict = on
+	s.hostPolicyMu.Unlock()
+}
+
+func (s *Server) passwordStrictOn() bool {
+	s.hostPolicyMu.RLock()
+	defer s.hostPolicyMu.RUnlock()
+	return s.passwordStrict
+}
 
 // consolePassword returns the live console password. Empty = no password gate.
 func (s *Server) consolePassword() string {

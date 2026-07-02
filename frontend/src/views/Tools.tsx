@@ -37,6 +37,9 @@ interface ToolDef {
   name?: string;
   description?: string;
   capability?: string; // the Edict capability this tool exercises (M916)
+  effect_class?: string;
+  rollback_mode?: string;
+  rollback_notes?: string;
 }
 
 // ToolView is one row of the capability gallery: the catalog definition joined
@@ -45,6 +48,9 @@ export interface ToolView {
   name: string;
   description: string;
   capability: string;
+  effectClass: string;
+  rollbackMode: string;
+  rollbackNotes: string;
   source: ToolSource;
   calls: number;
   errors: number;
@@ -75,6 +81,9 @@ export function mergeToolViews(catalog: ToolDef[], byTool: Record<string, ToolSt
         name: t.name!,
         description: t.description || "",
         capability: t.capability || "",
+        effectClass: t.effect_class || "",
+        rollbackMode: t.rollback_mode || "",
+        rollbackNotes: t.rollback_notes || "",
         source: toolSource(t.name!),
         calls: s.calls || 0,
         errors: s.errors || 0,
@@ -99,7 +108,9 @@ export function filterTools(views: ToolView[], query: string, capability: string
     return (
       v.name.toLowerCase().includes(q) ||
       v.description.toLowerCase().includes(q) ||
-      v.capability.toLowerCase().includes(q)
+      v.capability.toLowerCase().includes(q) ||
+      v.effectClass.toLowerCase().includes(q) ||
+      v.rollbackMode.toLowerCase().includes(q)
     );
   });
 }
@@ -128,6 +139,21 @@ function ms(v?: number): string {
   if (v == null) return "—";
   if (v < 1000) return `${v}ms`;
   return `${(v / 1000).toFixed(1)}s`;
+}
+
+function rollbackBadge(v: ToolView): { label: string; tone: "good" | "warn" | "bad" | "muted" } | null {
+  switch (v.rollbackMode) {
+    case "audit_only":
+      return { label: "audit only", tone: "bad" };
+    case "compensate":
+      return { label: "compensate", tone: "warn" };
+    case "rollbackable":
+      return { label: "rollbackable", tone: "good" };
+    case "none_needed":
+      return { label: "no rollback", tone: "muted" };
+    default:
+      return v.effectClass === "irreversible" ? { label: "audit only", tone: "bad" } : null;
+  }
 }
 
 // Tools is the tool-usage monitor: call volume, error rate, per-tool calls /
@@ -251,37 +277,58 @@ export function Tools() {
                   <Muted>no tools match</Muted>
                 ) : (
                   <ul className="grid gap-1.5 sm:grid-cols-2">
-                    {shownTools.map((t) => (
-                      <li key={t.name} className="rounded-md border border-border/60 bg-panel/40 px-2.5 py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate font-mono text-xs font-medium">{t.name}</span>
-                          {t.source !== "builtin" && (
-                            <span className="shrink-0 rounded bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-normal text-accent">
-                              {SOURCE_LABEL[t.source]}
-                            </span>
-                          )}
-                          <span
-                            className={cn(
-                              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-                              t.calls > 0 ? "bg-accent/15 text-accent" : "bg-panel text-muted",
+                    {shownTools.map((t) => {
+                      const rb = rollbackBadge(t);
+                      return (
+                        <li key={t.name} className="rounded-md border border-border/60 bg-panel/40 px-2.5 py-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate font-mono text-xs font-medium">{t.name}</span>
+                            {t.source !== "builtin" && (
+                              <span className="shrink-0 rounded bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-normal text-accent">
+                                {SOURCE_LABEL[t.source]}
+                              </span>
                             )}
-                            title={t.calls > 0 ? "called this session" : "available but not yet called"}
-                          >
-                            {t.calls > 0 ? `${t.calls} call${t.calls === 1 ? "" : "s"}` : "idle"}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                          {t.capability && (
-                            <span className="inline-flex items-center gap-0.5" title="Edict capability">
-                              <ShieldCheck className="size-2.5" /> {t.capability}
+                            <span
+                              className={cn(
+                                "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums",
+                                t.calls > 0 ? "bg-accent/15 text-accent" : "bg-panel text-muted",
+                              )}
+                              title={t.calls > 0 ? "called this session" : "available but not yet called"}
+                            >
+                              {t.calls > 0 ? `${t.calls} call${t.calls === 1 ? "" : "s"}` : "idle"}
                             </span>
-                          )}
-                          {t.errors > 0 && <span className="text-bad">{t.errors} err</span>}
-                          {t.avgMs != null && <span>{ms(t.avgMs)} avg</span>}
-                        </div>
-                        {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{clip(t.description, 140)}</p>}
-                      </li>
-                    ))}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+                            {t.capability && (
+                              <span className="inline-flex items-center gap-0.5" title="Edict capability">
+                                <ShieldCheck className="size-2.5" /> {t.capability}
+                              </span>
+                            )}
+                            {rb && (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+                                  rb.tone === "bad"
+                                    ? "bg-bad/10 text-bad"
+                                    : rb.tone === "warn"
+                                      ? "bg-warn/10 text-warn"
+                                      : rb.tone === "good"
+                                        ? "bg-good/10 text-good"
+                                        : "bg-panel text-muted",
+                                )}
+                                title={t.rollbackNotes || t.effectClass || rb.label}
+                              >
+                                {rb.tone === "bad" && <AlertTriangle className="size-2.5" />}
+                                {rb.label}
+                              </span>
+                            )}
+                            {t.errors > 0 && <span className="text-bad">{t.errors} err</span>}
+                            {t.avgMs != null && <span>{ms(t.avgMs)} avg</span>}
+                          </div>
+                          {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{clip(t.description, 140)}</p>}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </>

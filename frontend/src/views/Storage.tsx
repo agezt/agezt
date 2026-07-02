@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Advanced } from "@/components/ui/disclosure";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
 // Storage view (M927): what under ~/.agezt is taking the space, and the
@@ -56,22 +57,20 @@ export function Storage() {
   const biggest = dirs[0];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={HardDrive}
-        title="Storage"
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        }
-      />
-
+    <Page
+      icon={HardDrive}
+      title="Storage"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
       {error && <ErrorText>{error}</ErrorText>}
       {loading && !data && <SkeletonGrid count={6} />}
 
       {data && (
-        <div className="min-h-0 flex-1 space-y-4 overflow-auto pr-1">
+        <div className="space-y-4">
           {/* Summary band */}
           <MetricGrid>
             <MetricWidget
@@ -139,23 +138,26 @@ export function Storage() {
             </ul>
           </StoragePanel>
 
-          {/* Collectors */}
-          <StoragePanel
-            icon={Trash2}
-            title="Collectors"
-            status="dry-run first"
-            tone="bad"
-          >
-            <div className="grid gap-2 md:grid-cols-2">
-              <ArtifactCollector onDone={reload} />
-              <MemoryPruner onDone={reload} />
-              <BrainConsolidator onDone={reload} />
-              <ReaperCard />
-            </div>
-          </StoragePanel>
+          {/* Collectors — destructive space-reclamation actions. Folded away by
+              default (calm view); the operator expands when they mean to prune. */}
+          <Advanced label="Collectors — reclaim space (dry-run first)">
+            <StoragePanel
+              icon={Trash2}
+              title="Collectors"
+              status="dry-run first"
+              tone="bad"
+            >
+              <div className="grid gap-2 md:grid-cols-2">
+                <ArtifactCollector onDone={reload} />
+                <MemoryPruner onDone={reload} />
+                <BrainConsolidator onDone={reload} />
+                <ReaperCard />
+              </div>
+            </StoragePanel>
+          </Advanced>
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

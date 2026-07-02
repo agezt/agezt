@@ -28,8 +28,8 @@ beforeEach(() => {
     if (path === "/api/tool_log") return Promise.resolve({ invocations: [] });
     if (path === "/api/tools_catalog")
       return Promise.resolve({ tools: [
-        { name: "shell", description: "Run a shell command in the warden sandbox." },
-        { name: "web_search", description: "Search the web via DuckDuckGo." },
+        { name: "shell", description: "Run a shell command in the warden sandbox.", effect_class: "irreversible", rollback_mode: "audit_only", rollback_notes: "No reliable generic rollback exists." },
+        { name: "web_search", description: "Search the web via DuckDuckGo.", effect_class: "reversible", rollback_mode: "rollbackable" },
       ], count: 2 });
     return Promise.resolve({});
   });
@@ -61,9 +61,9 @@ describe("mergeToolViews (M916)", () => {
 
 describe("filterTools (M916)", () => {
   const views: ToolView[] = [
-    { name: "shell", description: "run a command", capability: "code.exec", source: "builtin", calls: 1, errors: 0 },
-    { name: "web_search", description: "search the web", capability: "net.fetch", source: "builtin", calls: 0, errors: 0 },
-    { name: "mcp_x_do", description: "remote", capability: "mcp.call", source: "mcp", calls: 0, errors: 0 },
+    { name: "shell", description: "run a command", capability: "code.exec", effectClass: "irreversible", rollbackMode: "audit_only", rollbackNotes: "", source: "builtin", calls: 1, errors: 0 },
+    { name: "web_search", description: "search the web", capability: "net.fetch", effectClass: "reversible", rollbackMode: "rollbackable", rollbackNotes: "", source: "builtin", calls: 0, errors: 0 },
+    { name: "mcp_x_do", description: "remote", capability: "mcp.call", effectClass: "compensable", rollbackMode: "compensate", rollbackNotes: "", source: "mcp", calls: 0, errors: 0 },
   ];
   it("matches name/description/capability case-insensitively", () => {
     expect(filterTools(views, "WEB", "").map((v) => v.name)).toEqual(["web_search"]);
@@ -79,10 +79,10 @@ describe("filterTools (M916)", () => {
 describe("capabilityCounts (M916)", () => {
   it("tallies per capability, sorted by count then name, skipping blanks", () => {
     const views: ToolView[] = [
-      { name: "a", description: "", capability: "fs.read", source: "builtin", calls: 0, errors: 0 },
-      { name: "b", description: "", capability: "fs.read", source: "builtin", calls: 0, errors: 0 },
-      { name: "c", description: "", capability: "code.exec", source: "builtin", calls: 0, errors: 0 },
-      { name: "d", description: "", capability: "", source: "builtin", calls: 0, errors: 0 },
+      { name: "a", description: "", capability: "fs.read", effectClass: "", rollbackMode: "", rollbackNotes: "", source: "builtin", calls: 0, errors: 0 },
+      { name: "b", description: "", capability: "fs.read", effectClass: "", rollbackMode: "", rollbackNotes: "", source: "builtin", calls: 0, errors: 0 },
+      { name: "c", description: "", capability: "code.exec", effectClass: "", rollbackMode: "", rollbackNotes: "", source: "builtin", calls: 0, errors: 0 },
+      { name: "d", description: "", capability: "", effectClass: "", rollbackMode: "", rollbackNotes: "", source: "builtin", calls: 0, errors: 0 },
     ];
     expect(capabilityCounts(views)).toEqual([
       { capability: "fs.read", n: 2 },
@@ -107,6 +107,12 @@ describe("Tools — available-tools catalog (M771)", () => {
     await waitFor(() => expect(screen.getByText("web_search")).toBeTruthy());
     expect(screen.getByText("3 calls")).toBeTruthy();
     expect(screen.getByText("idle")).toBeTruthy();
+  });
+
+  it("labels non-rollbackable tools as audit-only", async () => {
+    render(<Tools />);
+    await waitFor(() => expect(screen.getAllByText("shell").length).toBeGreaterThan(0));
+    expect(screen.getByText("audit only")).toBeTruthy();
   });
 
   it("shows an empty state when no tools are registered", async () => {

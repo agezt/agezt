@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -65,6 +66,10 @@ type Tool struct {
 	// workspace root) see different directories, which is deeply confusing
 	// (M609).
 	WorkDir string
+	// BaseDir points at the AGEZT home/base dir so profile-specific vault-backed
+	// secret file mounts can resolve creds.json. Empty disables that feature
+	// unless no mounts are configured.
+	BaseDir string
 }
 
 // NewWithWarden returns a Tool that routes through the supplied Warden
@@ -135,10 +140,95 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if w == nil {
 		w = warden.New(nil)
 	}
+	if sshCfg, ok := executionprofile.SSHOverrideFrom(ctx); ok {
+		res, err := w.Run(ctx, warden.Spec{
+			Profile: warden.ProfileNone,
+			Argv:    sshCfg.ShellCommandArgv(in.Command),
+			Env:     sshEnv(),
+			Limits: warden.Limits{
+				Timeout:        timeout,
+				MaxOutputBytes: MaxOutputBytes,
+			},
+			Actor:         "tool.shell.ssh",
+			CorrelationID: warden.CorrelationFrom(ctx),
+		})
+		if err != nil {
+			return agent.Result{
+				Output:  fmt.Sprintf("ssh run failed: %v", err),
+				IsError: true,
+			}, nil
+		}
+		return renderResult(timeout, res), nil
+	}
+	if k8sCfg, ok := executionprofile.K8sOverrideFrom(ctx); ok {
+		res, err := w.Run(ctx, warden.Spec{
+			Profile: warden.ProfileNone,
+			Argv:    k8sCfg.ShellCommandArgv(in.Command),
+			Env:     kubectlEnv(),
+			Limits: warden.Limits{
+				Timeout:        timeout,
+				MaxOutputBytes: MaxOutputBytes,
+			},
+			Actor:         "tool.shell.k8s",
+			CorrelationID: warden.CorrelationFrom(ctx),
+		})
+		if err != nil {
+			return agent.Result{
+				Output:  fmt.Sprintf("kubectl run failed: %v", err),
+				IsError: true,
+			}, nil
+		}
+		return renderResult(timeout, res), nil
+	}
+	if modalCfg, ok := executionprofile.ModalOverrideFrom(ctx); ok {
+		res, err := w.Run(ctx, warden.Spec{
+			Profile: warden.ProfileNone,
+			Argv:    modalCfg.ShellCommandArgv(in.Command),
+			Env:     cloudCLIEnv(),
+			Limits: warden.Limits{
+				Timeout:        timeout,
+				MaxOutputBytes: MaxOutputBytes,
+			},
+			Actor:         "tool.shell.modal",
+			CorrelationID: warden.CorrelationFrom(ctx),
+		})
+		if err != nil {
+			return agent.Result{
+				Output:  fmt.Sprintf("modal run failed: %v", err),
+				IsError: true,
+			}, nil
+		}
+		return renderResult(timeout, res), nil
+	}
+	if daytonaCfg, ok := executionprofile.DaytonaOverrideFrom(ctx); ok {
+		timeoutSeconds := int((timeout + time.Second - 1) / time.Second)
+		res, err := w.Run(ctx, warden.Spec{
+			Profile: warden.ProfileNone,
+			Argv:    daytonaCfg.ShellCommandArgv(in.Command, timeoutSeconds),
+			Env:     cloudCLIEnv(),
+			Limits: warden.Limits{
+				Timeout:        timeout,
+				MaxOutputBytes: MaxOutputBytes,
+			},
+			Actor:         "tool.shell.daytona",
+			CorrelationID: warden.CorrelationFrom(ctx),
+		})
+		if err != nil {
+			return agent.Result{
+				Output:  fmt.Sprintf("daytona run failed: %v", err),
+				IsError: true,
+			}, nil
+		}
+		return renderResult(timeout, res), nil
+	}
 	profile := t.Profile
 	if profile == "" {
 		profile = warden.ProfileNamespace
 	}
+	if override, ok := warden.ProfileOverrideFrom(ctx); ok {
+		profile = override
+	}
+	profileID := executionprofile.ProfileIDForWardenProfile(profile)
 
 	// Per-agent workdir (M792): a named agent's commands run inside its
 	// workspace subdirectory (created lazily on first use). Anchored under the
@@ -152,6 +242,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 
 	shellBin, shellArg := t.resolveShell()
+	env := executionprofile.AppendEnvPassthrough(scrubEnv(workDir), profileID)
+	secretEnv, cleanupSecrets, _, serr := executionprofile.PrepareSecretFileMounts(t.BaseDir, profileID, workDir)
+	if serr != nil {
+		return agent.Result{Output: "shell: secret file mounts: " + serr.Error(), IsError: true}, nil
+	}
+	defer cleanupSecrets()
+	env = append(env, secretEnv...)
 	res, err := w.Run(ctx, warden.Spec{
 		Profile: profile,
 		Argv:    []string{shellBin, shellArg, in.Command},
@@ -159,7 +256,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		// secrets dropped. Warden defaults a nil Env to EMPTY (anti-leak), but an
 		// empty env breaks cmd.exe on Windows (no PATH/SystemRoot → "not
 		// recognized" / "syntax is incorrect"), which was crippling the shell tool.
-		Env:     scrubEnv(workDir),
+		Env:     env,
 		WorkDir: workDir, // M609 workspace coherence + M792 per-agent subdir
 		Limits: warden.Limits{
 			Timeout:        timeout,
@@ -178,6 +275,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}, nil
 	}
 
+	return renderResult(timeout, res), nil
+}
+
+func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
 	// Combine streams the way the previous implementation did
 	// (CombinedOutput). Stderr appended after stdout keeps the order
 	// stable across shells.
@@ -196,15 +297,15 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		return agent.Result{
 			Output:  fmt.Sprintf("timed out after %s\n%s", timeout, combined),
 			IsError: true,
-		}, nil
+		}
 	}
 	if res.ExitCode != 0 {
 		return agent.Result{
 			Output:  fmt.Sprintf("%s\n[exit code %d]", combined, res.ExitCode),
 			IsError: true,
-		}, nil
+		}
 	}
-	return agent.Result{Output: string(combined)}, nil
+	return agent.Result{Output: string(combined)}
 }
 
 // ShellHint reports the shell binary and command flag this tool will use on

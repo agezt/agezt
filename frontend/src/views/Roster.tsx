@@ -52,6 +52,7 @@ export interface AgentProfile {
   tool_allow?: string[];
   tool_deny?: string[];
   trust_ceiling?: "L0" | "L1" | "L2" | "L3" | "L4";
+  execution_profile?: string;
   config_overrides?: Record<string, string>;
   status?: AgentRuntimeStatus;
   lifecycle?: AgentLifecycle;

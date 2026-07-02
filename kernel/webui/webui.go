@@ -82,8 +82,8 @@ type Synthesizer interface {
 type Server struct {
 	bus         *bus.Bus
 	client      Caller
-	token       string // main console / API bearer token
-	sseToken    string // ephemeral SSE-only token for /events EventSource URL
+	token       string      // main console / API bearer token
+	sseToken    string      // ephemeral SSE-only token for /events EventSource URL
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
 	synthesizer Synthesizer // optional TTS backend for /api/tts (nil = not configured)
@@ -95,6 +95,7 @@ type Server struct {
 	passwordStrict bool
 	sessions       *sessionStore
 	allowedHosts   map[string]bool
+	hostPolicyMu   sync.RWMutex
 	// allowQueryTokensForData preserves legacy package tests that still pass
 	// ?token= to /api/*; production data routes use Bearer/session, except
 	// /events where EventSource cannot set Authorization.
@@ -135,6 +136,8 @@ func (s *Server) SetAllowedHosts(hosts ...string) {
 	if len(hosts) == 0 {
 		return
 	}
+	s.hostPolicyMu.Lock()
+	defer s.hostPolicyMu.Unlock()
 	if s.allowedHosts == nil {
 		s.allowedHosts = map[string]bool{}
 	}
@@ -174,28 +177,30 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 // apiRoutes maps each GET /api path to the read-only control-plane command it
 // proxies. Read-only by construction: there is no path here that mutates.
 var apiRoutes = map[string]string{
-	"/api/status":                controlplane.CmdStatus,
-	"/api/config":                controlplane.CmdConfig,
-	"/api/runs":                  controlplane.CmdRunsList,
-	"/api/stats":                 controlplane.CmdRunsStats,
-	"/api/budget":                controlplane.CmdBudget,
-	"/api/cache":                 controlplane.CmdCacheStats,
-	"/api/providers":             controlplane.CmdProviderStats,
-	"/api/catalog":               controlplane.CmdCatalogList,
-	"/api/tools":                 controlplane.CmdToolStats,
-	"/api/tools_catalog":         controlplane.CmdToolList,
-	"/api/policy":                controlplane.CmdEdictStats,
-	"/api/edict_show":            controlplane.CmdEdictShow,
-	"/api/schedules":             controlplane.CmdScheduleList,
-	"/api/schedule/system_tasks": controlplane.CmdScheduleSystemTasks,
-	"/api/memory":                controlplane.CmdMemoryList,
-	"/api/memory/audit":          controlplane.CmdMemoryAudit,
-	"/api/world":                 controlplane.CmdWorldList,
-	"/api/skills":                controlplane.CmdSkillList,
-	"/api/standing":              controlplane.CmdStandingList,
-	"/api/agents":                controlplane.CmdAgentList,
-	"/api/toolforge":             controlplane.CmdToolforgeList,
-	"/api/mcp":                   controlplane.CmdMCPList,
+	"/api/status":                  controlplane.CmdStatus,
+	"/api/config":                  controlplane.CmdConfig,
+	"/api/runs":                    controlplane.CmdRunsList,
+	"/api/stats":                   controlplane.CmdRunsStats,
+	"/api/budget":                  controlplane.CmdBudget,
+	"/api/cache":                   controlplane.CmdCacheStats,
+	"/api/providers":               controlplane.CmdProviderStats,
+	"/api/catalog":                 controlplane.CmdCatalogList,
+	"/api/tools":                   controlplane.CmdToolStats,
+	"/api/execution_profiles":      controlplane.CmdExecutionProfiles,
+	"/api/execution_profile_check": controlplane.CmdExecutionProfileCheck,
+	"/api/tools_catalog":           controlplane.CmdToolList,
+	"/api/policy":                  controlplane.CmdEdictStats,
+	"/api/edict_show":              controlplane.CmdEdictShow,
+	"/api/schedules":               controlplane.CmdScheduleList,
+	"/api/schedule/system_tasks":   controlplane.CmdScheduleSystemTasks,
+	"/api/memory":                  controlplane.CmdMemoryList,
+	"/api/memory/audit":            controlplane.CmdMemoryAudit,
+	"/api/world":                   controlplane.CmdWorldList,
+	"/api/skills":                  controlplane.CmdSkillList,
+	"/api/standing":                controlplane.CmdStandingList,
+	"/api/agents":                  controlplane.CmdAgentList,
+	"/api/toolforge":               controlplane.CmdToolforgeList,
+	"/api/mcp":                     controlplane.CmdMCPList,
 	// CLI Toolbox (M956): host tool inventory + upgradable set. Read-only host
 	// probes (LookPath + bounded --version; package-manager upgrade-list). The
 	// install action streams, so it has its own proxy (toolInstallProxy) below.
@@ -209,6 +214,13 @@ var apiRoutes = map[string]string{
 	"/api/board":               controlplane.CmdBoardRead,
 	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
 	"/api/board/help": controlplane.CmdBoardHelp,
+	"/api/workboard":  controlplane.CmdWorkboardList,
+	// OKR spine (Phase 2): list objectives with live rollup (no args). Read-only.
+	"/api/okr": controlplane.CmdOKRList,
+	// Taste overlay (Phase 3): list curated exemplars (no args). Read-only.
+	"/api/taste": controlplane.CmdTasteList,
+	// Execution seats (Phase 4): the built-in seat catalog (no args). Read-only.
+	"/api/seats": controlplane.CmdSeatList,
 	// Personal Data Lake (M836): list collections (no args). Read-only.
 	"/api/data/collections": controlplane.CmdDataCollections,
 	// Council of Elders (M839): the default membership the panel convenes with. Read-only.
@@ -223,6 +235,7 @@ var apiRoutes = map[string]string{
 	"/api/config/schema":   controlplane.CmdConfigSchema,
 	"/api/config/values":   controlplane.CmdConfigValues,
 	"/api/channels":        controlplane.CmdChannelList,
+	"/api/nodes":           controlplane.CmdNodeRegistry,
 	// Build/version provenance (M971): semver + git revision, so the UI can show
 	// exactly which build the daemon is running.
 	"/api/version": controlplane.CmdVersion,
@@ -269,6 +282,9 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/journal_search": {controlplane.CmdJournalGrep, []string{"pattern", "kind", "subject", "actor", "correlation_id", "limit"}},
 	"/api/provider_log":   {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
 	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
+	"/api/execution_profile": {controlplane.CmdExecutionProfileShow, []string{
+		"id",
+	}},
 	// Read one sandbox project file's content (M686), path-confined server-side.
 	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
 	// Artifact index listing (M822): browsable metadata for stored artifacts
@@ -295,6 +311,11 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/configcenter/get":  {controlplane.CmdConfigCenterGet, []string{"key"}},
 	// Reaper scan (M903): dead-agent + stale-artifact candidates. Read-only detection. (#53)
 	"/api/reaper/scan": {controlplane.CmdReaperScan, []string{"idle_days", "stale_days"}},
+	"/api/workboard/lanes": {controlplane.CmdWorkboardLanes, []string{
+		"status", "tenant", "limit", "include_archived",
+	}},
+	"/api/workboard/watch": {controlplane.CmdWorkboardWatch, []string{"id", "run_id", "limit"}},
+	"/api/okr/show":        {controlplane.CmdOKRShow, []string{"id"}},
 	// Skill bundle resources (M847): list a skill's reference files + scripts, and
 	// read one resource's content. Both read-only; the daemon path-confines reads.
 	"/api/skill/files": {controlplane.CmdSkillFiles, []string{"id"}},
@@ -431,6 +452,7 @@ var writeRoutes = map[string]writeRoute{
 	"/api/edict/deny_rm":    {controlplane.CmdEdictDenyRemove, []string{"name"}},
 	"/api/skill/promote":    {controlplane.CmdSkillPromote, []string{"id"}},
 	"/api/skill/quarantine": {controlplane.CmdSkillQuarantine, []string{"id", "reason"}},
+	"/api/skill/archive":    {controlplane.CmdSkillArchive, []string{"id", "reason"}},
 	"/api/skill/revert":     {controlplane.CmdSkillRevert, []string{"id"}},
 	"/api/skill/share":      {controlplane.CmdSkillShare, []string{"id"}},
 	"/api/skill/reassign":   {controlplane.CmdSkillReassign, []string{"id", "agent"}},
@@ -573,6 +595,29 @@ var jsonRoutes = map[string]writeRoute{
 	// agents use with the board tool.
 	"/api/board/send": {controlplane.CmdBoardSend, []string{"from", "to", "topic", "reply_to", "text", "help"}},
 	"/api/board/ack":  {controlplane.CmdBoardAck, []string{"id", "by"}},
+	// Workboard operator actions: the dedicated task-detail UI uses body-shaped
+	// calls so long comments/reasons/intents never ride in query strings.
+	"/api/workboard/create":   {controlplane.CmdWorkboardCreate, []string{"title", "description", "assignee", "priority", "criteria", "seat"}},
+	"/api/workboard/comment":  {controlplane.CmdWorkboardComment, []string{"id", "author", "body"}},
+	"/api/workboard/block":    {controlplane.CmdWorkboardBlock, []string{"id", "actor", "reason"}},
+	"/api/workboard/fail":     {controlplane.CmdWorkboardFail, []string{"id", "actor", "reason"}},
+	"/api/workboard/unblock":  {controlplane.CmdWorkboardUnblock, []string{"id", "actor"}},
+	"/api/workboard/complete": {controlplane.CmdWorkboardComplete, []string{"id", "actor"}},
+	"/api/workboard/prove":    {controlplane.CmdWorkboardProve, []string{"id", "actor", "answer"}},
+	"/api/workboard/seat":     {controlplane.CmdWorkboardSeat, []string{"id", "seat"}},
+	"/api/workboard/policy":   {controlplane.CmdWorkboardPolicy, []string{"id", "actor", "max_attempts", "escalate_to", "clear"}},
+	// OKR spine (Phase 2): operator + agent actions on objectives.
+	"/api/okr/create":    {controlplane.CmdOKRCreate, []string{"title", "description", "owner", "tenant"}},
+	"/api/okr/keyresult": {controlplane.CmdOKRKeyResult, []string{"id", "title", "target"}},
+	"/api/okr/link":      {controlplane.CmdOKRLink, []string{"id", "key_result", "task"}},
+	"/api/okr/unlink":    {controlplane.CmdOKRUnlink, []string{"id", "key_result", "task"}},
+	"/api/okr/archive":   {controlplane.CmdOKRArchive, []string{"id"}},
+	// Taste overlay (Phase 3): curate exemplars from the console.
+	"/api/taste/create":       {controlplane.CmdTasteCreate, []string{"title", "body", "scope", "tags"}},
+	"/api/taste/delete":       {controlplane.CmdTasteDelete, []string{"id"}},
+	"/api/seats/create":       {controlplane.CmdSeatCreate, []string{"id", "name", "description", "execution_profile", "model_chain", "tools", "restrict_tools"}},
+	"/api/seats/delete":       {controlplane.CmdSeatDelete, []string{"id"}},
+	"/api/workboard/dispatch": {controlplane.CmdWorkboardDispatch, []string{"id", "agent", "intent", "reason"}},
 	// Script-tool forge draft/edit (M794): the tool is a structured object
 	// (code body, schema text) — a JSON body, not query args.
 	"/api/toolforge/draft": {controlplane.CmdToolforgeDraft, []string{"tool"}},
@@ -674,6 +719,8 @@ func (s *Server) Handler() http.Handler {
 	for path, jr := range jsonRoutes {
 		mux.HandleFunc(path, s.auth(s.jsonProxy(jr)))
 	}
+	mux.HandleFunc("/api/rollback/checkpoints", s.auth(s.handleRollbackCheckpoints))
+	mux.HandleFunc("/api/rollback/apply", s.auth(s.handleRollbackApply))
 	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
 	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
 	// CLI Toolbox install (M956): runs the host package manager and streams a
@@ -915,7 +962,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 			return
 		}
-		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history", "system", "agent", "auto_approve_caps"})
+		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history", "system", "agent", "execution_profile", "auto_approve_caps"})
 		if !ok {
 			return
 		}
@@ -1213,6 +1260,8 @@ func (s *Server) hostAllowed(hostport string) bool {
 	if ip := net.ParseIP(host); ip != nil {
 		return !ip.IsUnspecified()
 	}
+	s.hostPolicyMu.RLock()
+	defer s.hostPolicyMu.RUnlock()
 	return s.allowedHosts[lower]
 }
 
@@ -1319,7 +1368,7 @@ func (s *Server) authorized(r *http.Request) bool {
 	if pw == "" {
 		return s.dataTokenPresented(r)
 	}
-	if s.passwordStrict {
+	if s.passwordStrictOn() {
 		return s.dataTokenPresented(r) && s.sessionValid(r)
 	}
 	return s.dataTokenPresented(r) || s.sessionValid(r)

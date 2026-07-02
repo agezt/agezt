@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 
 // File manager (M823): browse/preview/download/delete the stored artifacts the
 // daemon indexed (M822) — inbound channel images as a gallery, everything else
@@ -239,13 +239,13 @@ export function Files() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={FolderOpen}
-        title="Files"
-        description={`${entries.length} stored`}
-        actions={
-          <>
+    <Page
+      icon={FolderOpen}
+      title="Files"
+      width="full"
+      description={`${entries.length} stored`}
+      actions={
+        <>
             <div className="flex items-center gap-1">
               {(["all", "images", "files"] as const).map((f) => (
                 <button
@@ -280,7 +280,7 @@ export function Files() {
             </Button>
           </>
         }
-      />
+    >
 
       {error && <ErrorText>{error}</ErrorText>}
       {loading && entries.length === 0 && <SkeletonGrid count={8} />}
@@ -297,7 +297,7 @@ export function Files() {
         />
       )}
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-auto">
+      <div className="space-y-4">
         {images.length > 0 && (
           <div>
             <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
@@ -370,7 +370,7 @@ export function Files() {
       </div>
 
       {preview && <PreviewModal entry={preview} onClose={() => setPreview(null)} onDelete={() => del(preview)} />}
-    </div>
+    </Page>
   );
 }
 

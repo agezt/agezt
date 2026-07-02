@@ -4,9 +4,11 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 const getJSON = vi.fn();
 const postAction = vi.fn();
+const postJSON = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
+  postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 vi.mock("@/lib/events", () => ({
   useEvents: () => ({
@@ -14,12 +16,60 @@ vi.mock("@/lib/events", () => ({
   }),
 }));
 
-import { RunDetailLoader } from "@/components/RunDetail";
+import { RunDetailLoader, RunRollbackDrawer } from "@/components/RunDetail";
+import { UIProvider } from "@/components/ui/feedback";
 
 afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postAction.mockReset();
+  postJSON.mockReset();
+});
+
+describe("RunRollbackDrawer", () => {
+  it("lists run checkpoints, labels audit-only rows, and applies an actionable checkpoint", async () => {
+    getJSON.mockResolvedValue({
+      checkpoints: [
+        {
+          id: "rb-file",
+          kind: "file.snapshot",
+          action: "file.write",
+          subject_name: "notes.txt",
+          created_ms: 10,
+          before: { exists: true },
+        },
+        {
+          id: "rb-secret",
+          kind: "config.setting",
+          action: "config.set",
+          subject_name: "AGEZT_API_KEY",
+          created_ms: 9,
+          before: {
+            rollbackable: false,
+            non_rollbackable_reason: "previous secret value is masked by the daemon",
+          },
+        },
+      ],
+    });
+    postJSON.mockResolvedValue({ applied: true });
+    render(
+      <UIProvider>
+        <RunRollbackDrawer correlationId="run-1" />
+      </UIProvider>,
+    );
+
+    await waitFor(() =>
+      expect(getJSON).toHaveBeenCalledWith("/api/rollback/checkpoints", { run_id: "run-1" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /rollback/i }));
+    expect(screen.getByText("notes.txt")).toBeTruthy();
+    expect(screen.getAllByText("audit only").length).toBeGreaterThan(0);
+    expect(screen.getByText("previous secret value is masked by the daemon")).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Apply/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply rollback" }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/rollback/apply", { id: "rb-file" }));
+  });
 });
 
 describe("RunDetailLoader raw events", () => {
@@ -68,7 +118,11 @@ describe("RunDetailLoader raw events", () => {
         },
       ],
     });
-    render(<RunDetailLoader correlationId="run-1" status="completed" />);
+    render(
+      <UIProvider>
+        <RunDetailLoader correlationId="run-1" status="completed" />
+      </UIProvider>,
+    );
     await waitFor(() =>
       expect(getJSON).toHaveBeenCalledWith("/api/journal", {
         correlation_id: "run-1",

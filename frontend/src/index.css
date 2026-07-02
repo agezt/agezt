@@ -421,6 +421,20 @@ h4 { font-weight: 550; }
   animation: help-drawer-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The mobile nav drawer pulls out from the LEFT edge (mirror of the help
+   drawer), used below lg where the two-level sidebar is hidden. */
+@keyframes nav-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.nav-drawer-in {
+  animation: nav-drawer-in 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Skeleton loaders: a muted block with a soft shimmer sweeping across it, so a
    loading view looks alive and previews the shape of what's coming. */
 @keyframes skeleton-shimmer {
@@ -506,6 +520,7 @@ h4 { font-weight: 550; }
   .modal-overlay,
   .modal-in,
   .help-drawer-in,
+  .nav-drawer-in,
   .skeleton,
   .breathe,
   .now-in {

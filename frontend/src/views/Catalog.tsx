@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonGrid } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
 import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
@@ -66,17 +66,16 @@ export function Catalog() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Boxes}
-        title="Capability catalog"
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        }
-      />
-
+    <Page
+      icon={Boxes}
+      title="Capability catalog"
+      width="wide"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !rows ? (
@@ -84,8 +83,7 @@ export function Catalog() {
       ) : rows.length === 0 ? (
         <EmptyState icon={Boxes} title="No tools registered" hint="No capabilities are wired into this agent's runtime yet." />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {rows.map((r) => (
               <li key={r.name} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
@@ -151,9 +149,8 @@ export function Catalog() {
                 <p className="mt-1.5 text-xs leading-snug text-foreground/85">{r.description || "—"}</p>
               </li>
             ))}
-          </ul>
-        </div>
+        </ul>
       )}
-    </div>
+    </Page>
   );
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/settings"
@@ -89,20 +90,69 @@ func TestChannelAccountSetRemove(t *testing.T) {
 	}
 }
 
+func TestChannelListIncludesProbeMatrix(t *testing.T) {
+	builtinchannels.RegisterAll()
+	t.Setenv("AGEZT_TELEGRAM_TOKEN", "tok-test")
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	channel.SetLive([]string{"telegram"})
+	channel.SetLiveInstances([]string{"telegram"})
+	t.Cleanup(func() {
+		channel.SetLive(nil)
+		channel.SetLiveInstances(nil)
+	})
+
+	res, err := c.Call(context.Background(), controlplane.CmdChannelList, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := res["probe_matrix"].(map[string]any); !ok {
+		t.Fatalf("channel list missing probe_matrix: %v", res)
+	}
+	if _, ok := res["media_matrix"].(map[string]any); !ok {
+		t.Fatalf("channel list missing media_matrix: %v", res)
+	}
+	row := findChannel(res, "telegram")
+	if row == nil {
+		t.Fatal("telegram row missing")
+	}
+	probe, _ := row["probe"].(map[string]any)
+	if probe["roundtrip_status"] != "ready" || probe["mode"] != "two_way" {
+		t.Fatalf("telegram probe = %v, want ready two_way", probe)
+	}
+	accounts, _ := row["accounts"].([]any)
+	if len(accounts) == 0 {
+		t.Fatal("telegram accounts missing")
+	}
+	account, _ := accounts[0].(map[string]any)
+	accountProbe, _ := account["probe"].(map[string]any)
+	if accountProbe["roundtrip_ready"] != true {
+		t.Fatalf("telegram account probe = %v, want roundtrip_ready", accountProbe)
+	}
+}
+
 func hasAccount(res map[string]any, kind, label string) bool {
+	row := findChannel(res, kind)
+	if row == nil {
+		return false
+	}
+	accts, _ := row["accounts"].([]any)
+	for _, a := range accts {
+		ar, _ := a.(map[string]any)
+		if ar["label"] == label {
+			return true
+		}
+	}
+	return false
+}
+
+func findChannel(res map[string]any, kind string) map[string]any {
 	chans, _ := res["channels"].([]any)
 	for _, c := range chans {
 		row, _ := c.(map[string]any)
 		if row["kind"] != kind {
 			continue
 		}
-		accts, _ := row["accounts"].([]any)
-		for _, a := range accts {
-			ar, _ := a.(map[string]any)
-			if ar["label"] == label {
-				return true
-			}
-		}
+		return row
 	}
-	return false
+	return nil
 }

@@ -62,6 +62,52 @@ func TestCmdRun_QuietFlagAccepted(t *testing.T) {
 	}
 }
 
+func TestCmdRun_ExecProfileFlagAccepted(t *testing.T) {
+	// With no daemon the command fails at dial (exit 1), not arg parsing (exit 2).
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"--exec-profile", "local", "hello"}, &out, &errOut); code == 2 {
+		t.Errorf("--exec-profile should be accepted, got arg-error exit 2; stderr=%q", errOut.String())
+	}
+}
+
+func TestCmdRun_RemotePeerFlagAcceptedWithRemoteProfile(t *testing.T) {
+	// With no daemon the command fails at dial (exit 1), not arg parsing (exit 2).
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"--exec-profile", "remote-agezt", "--peer", "nodeB", "hello"}, &out, &errOut); code == 2 {
+		t.Errorf("--peer should be accepted with remote-agezt, got arg-error exit 2; stderr=%q", errOut.String())
+	}
+}
+
+func TestCmdRun_RemotePeerRequiresRemoteProfile(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"--peer", "nodeB", "hello"}, &out, &errOut); code != 2 {
+		t.Fatalf("--peer without remote-agezt should be exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "requires --exec-profile remote-agezt") {
+		t.Errorf("expected remote-agezt requirement, got %q", errOut.String())
+	}
+}
+
+func TestCmdRun_RemotePeerFlagNeedsValue(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"--exec-profile", "remote-agezt", "--remote-peer"}, &out, &errOut); code != 2 {
+		t.Errorf("missing --remote-peer value should be exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "needs a peer name") {
+		t.Errorf("expected missing peer error, got %q", errOut.String())
+	}
+}
+
+func TestCmdRun_ExecProfileFlagNeedsValue(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := cmdRun([]string{"--execution-profile"}, &out, &errOut); code != 2 {
+		t.Errorf("missing --execution-profile value should be exit 2, got %d", code)
+	}
+	if !strings.Contains(errOut.String(), "needs a profile id") {
+		t.Errorf("expected missing profile error, got %q", errOut.String())
+	}
+}
+
 func TestCmdRun_InvalidTimeout(t *testing.T) {
 	// A malformed --timeout is rejected (exit 2) before any daemon dial.
 	var out, errOut bytes.Buffer

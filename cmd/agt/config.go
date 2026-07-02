@@ -332,6 +332,10 @@ func cmdConfigSet(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	if _, cerr := saveConfigSettingRollbackCheckpoint(ctx, c, "config.set", env); cerr != nil {
+		fmt.Fprintf(stderr, "%s config set: checkpoint: %v\n", brand.CLI, cerr)
+		return 1
+	}
 	res, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": env, "value": value})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s config set: %v\n", brand.CLI, err)

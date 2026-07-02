@@ -31,13 +31,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -52,10 +55,11 @@ const (
 	// Best-effort resource caps (real teeth only on Linux+ProfileNamespace; a
 	// harmless no-op elsewhere). They guard against an accidental runaway pegging
 	// the host, not against a determined escape.
-	limitCPUSeconds       = 120
-	limitAddressSpaceByte = 2 << 30   // 2 GiB — Go-runtime children need ≥1 GiB; Python/Node fit
-	limitMaxOpenFiles     = 512       //
-	limitMaxFileSizeBytes = 256 << 20 // 256 MiB per file
+	limitCPUSeconds           = 120
+	limitAddressSpaceByte     = 2 << 30   // 2 GiB — Go-runtime children need ≥1 GiB; Python/Node fit
+	limitMaxOpenFiles         = 512       //
+	limitMaxFileSizeBytes     = 256 << 20 // 256 MiB per file
+	modalArtifactArchiveBytes = 8 << 20
 )
 
 // Tool implements agent.Tool. Construct with New (tests) or NewWithWarden
@@ -66,6 +70,9 @@ type Tool struct {
 	// SandboxRoot is <baseDir>/sandbox: ephemeral runs land in run-* tempdirs
 	// here, named projects in <SandboxRoot>/projects/<slug>.
 	SandboxRoot string
+	// BaseDir points at the AGEZT home/base dir so profile-specific vault-backed
+	// secret file mounts can resolve creds.json.
+	BaseDir string
 	// Runtimes maps a language id to its resolved interpreter absolute path. Only
 	// languages present here can run.
 	Runtimes map[string]string
@@ -75,8 +82,17 @@ type Tool struct {
 	// Profile is the isolation profile requested of the warden (default
 	// ProfileNamespace, downgraded + journaled where unavailable).
 	Profile warden.Profile
+	// Now returns wall-clock millis for exported artifact metadata.
+	Now func() int64
 
-	bus *bus.Bus
+	bus   *bus.Bus
+	index artifactIndexer
+}
+
+// artifactIndexer is the slice of *artifact.Index code_exec needs for files a
+// script intentionally exports under .agezt-artifacts/.
+type artifactIndexer interface {
+	PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error)
 }
 
 // NewWithWarden returns a Tool routed through the supplied warden engine — the
@@ -85,6 +101,7 @@ func NewWithWarden(w warden.Engine, sandboxRoot string, runtimes map[string]stri
 	return &Tool{
 		Warden:      w,
 		SandboxRoot: sandboxRoot,
+		BaseDir:     filepath.Dir(sandboxRoot),
 		Runtimes:    runtimes,
 		NetEnabled:  netEnabled,
 		Profile:     warden.ProfileNamespace,
@@ -94,6 +111,10 @@ func NewWithWarden(w warden.Engine, sandboxRoot string, runtimes map[string]stri
 // Bind wires the live bus so each run publishes a code.executed event. Called
 // once after the kernel opens.
 func (t *Tool) Bind(b *bus.Bus) { t.bus = b }
+
+// SetIndex injects the artifact index so code can export files by writing them
+// under .agezt-artifacts/ in the workspace.
+func (t *Tool) SetIndex(idx artifactIndexer) { t.index = idx }
 
 // Languages returns the available language ids (sorted) — for the daemon banner.
 func (t *Tool) Languages() []string { return sortedLangs(t.Runtimes) }
@@ -111,7 +132,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		". Each call runs in its own scratch directory; pass a `project` name to keep a " +
 		"persistent directory you can revisit and extend across calls (write more files, re-run). " +
 		"Use `files` to drop extra source files alongside the entrypoint, and `packages` to pip-install " +
-		"Python dependencies (they persist in a project). " + netLine +
+		"Python dependencies (they persist in a project). Save files you want to keep under `.agezt-artifacts/`; " +
+		"they are copied into the artifact store when artifact storage is available. " + netLine +
 		". The daemon's secrets are never visible to your code. Good for computation, scraping, " +
 		"data processing, and building small programs. Returns combined stdout+stderr (truncated to 256 KiB)."
 
@@ -176,6 +198,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if strings.TrimSpace(in.Code) == "" {
 		return errResult("code is required"), nil
 	}
+	sshCfg, sshMode := executionprofile.SSHOverrideFrom(ctx)
+	k8sCfg, k8sMode := executionprofile.K8sOverrideFrom(ctx)
+	modalCfg, modalMode := executionprofile.ModalOverrideFrom(ctx)
+	daytonaCfg, daytonaMode := executionprofile.DaytonaOverrideFrom(ctx)
 
 	// Network: default on for Deno; honored only when the daemon allows it.
 	allowNet := true
@@ -219,15 +245,40 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if profile == "" {
 		profile = warden.ProfileNamespace
 	}
+	if override, ok := warden.ProfileOverrideFrom(ctx); ok {
+		profile = override
+	}
+	profileID := executionprofile.ProfileIDForWardenProfile(profile)
 	w := t.Warden
 	if w == nil {
 		w = warden.New(nil)
+	}
+
+	timeout := resolveTimeout(in.TimeoutMS)
+	if sshMode {
+		return t.invokeSSH(ctx, sshCfg, w, lang, interp, entry, dir, ephemeral, projectSlug, in.Packages, allowNet, timeout, len(in.Code)), nil
+	}
+	if k8sMode {
+		return t.invokeK8s(ctx, k8sCfg, w, lang, interp, entry, dir, ephemeral, projectSlug, in.Packages, allowNet, timeout, len(in.Code)), nil
+	}
+	if modalMode {
+		return t.invokeModal(ctx, modalCfg, w, lang, interp, entry, dir, projectSlug, in.Packages, allowNet, timeout, len(in.Code)), nil
+	}
+	if daytonaMode {
+		return t.invokeDaytona(ctx, daytonaCfg, w, lang, interp, entry, dir, ephemeral, projectSlug, in.Packages, allowNet, timeout, len(in.Code)), nil
 	}
 
 	// Install dependencies before running (Python only). They land in <dir>/.deps,
 	// so a project's installs persist across calls and an ephemeral run's are
 	// discarded with it. A failed install short-circuits — we never run code
 	// against a half-installed environment.
+	env := executionprofile.AppendEnvPassthrough(scrubEnv(dir), profileID)
+	secretEnv, cleanupSecrets, _, serr := executionprofile.PrepareSecretFileMounts(t.BaseDir, profileID, dir)
+	if serr != nil {
+		return errResult("secret file mounts: " + serr.Error()), nil
+	}
+	defer cleanupSecrets()
+	env = append(env, secretEnv...)
 	depsDir := filepath.Join(dir, pyDepsName)
 	if len(in.Packages) > 0 {
 		if lang != LangPython {
@@ -241,7 +292,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			return errResult(perr.Error()), nil
 		}
 		if len(pkgs) > 0 {
-			ires, ierr := pipInstall(ctx, w, interp, dir, depsDir, pkgs, profile)
+			ires, ierr := pipInstall(ctx, w, interp, dir, depsDir, pkgs, profile, env)
 			if ierr != nil {
 				return errResult("pip install failed: " + ierr.Error()), nil
 			}
@@ -251,18 +302,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 	}
 
-	timeout := DefaultTimeout
-	if in.TimeoutMS > 0 {
-		timeout = time.Duration(in.TimeoutMS) * time.Millisecond
-	}
-	if timeout > MaxTimeout {
-		timeout = MaxTimeout
-	}
-
 	// The program's environment: scrubbed, plus PYTHONPATH pointing at any
 	// installed deps (present whenever a project — or this call — installed
 	// packages), so `import requests` resolves.
-	env := scrubEnv(dir)
 	if lang == LangPython {
 		if _, serr := os.Stat(depsDir); serr == nil {
 			env = append(env, "PYTHONPATH="+depsDir)
@@ -290,7 +332,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 
 	t.publish(ctx, lang, projectSlug, len(in.Code), allowNet, res)
-	return render(lang, projectSlug, dir, ephemeral, timeout, res), nil
+	artifacts, artifactErr := t.exportArtifactsFromDir(ctx, dir, "local")
+	return appendArtifactExport(render(lang, projectSlug, dir, ephemeral, timeout, res), "local", artifacts, artifactErr), nil
 }
 
 // RunScript executes a stored script once in the sandbox: an ephemeral work
@@ -331,6 +374,469 @@ func (t *Tool) workDir(project string) (dir string, ephemeral bool, projectSlug 
 	return dir, false, projectSlug, nil
 }
 
+func resolveTimeout(timeoutMS int64) time.Duration {
+	timeout := DefaultTimeout
+	if timeoutMS > 0 {
+		timeout = time.Duration(timeoutMS) * time.Millisecond
+	}
+	if timeout > MaxTimeout {
+		timeout = MaxTimeout
+	}
+	return timeout
+}
+
+func (t *Tool) invokeSSH(
+	ctx context.Context,
+	cfg executionprofile.SSHConfig,
+	w warden.Engine,
+	lang, interp, entry, dir string,
+	ephemeral bool,
+	projectSlug string,
+	packages []string,
+	allowNet bool,
+	timeout time.Duration,
+	codeBytes int,
+) agent.Result {
+	remoteDir := remoteWorkDir(cfg, dir, projectSlug)
+	if strings.TrimSpace(remoteDir) == "" {
+		return errResult("ssh remote workdir is empty")
+	}
+	if len(packages) > 0 {
+		if lang != LangPython {
+			return errResult(`packages are only supported for python; for deno/JS, import npm packages inline instead, e.g. import x from "npm:cheerio"`)
+		}
+		if !t.NetEnabled {
+			return errResult("cannot install packages: network is disabled on this daemon (AGEZT_SANDBOX_NO_NET=1)")
+		}
+	}
+	if r, err := runSSHCommand(ctx, w, cfg, "mkdir -p "+executionprofile.ShellQuote(remoteDir), timeout, "tool.code_exec.ssh.prepare"); err != nil {
+		return errResult("ssh prepare failed: " + err.Error())
+	} else if r.ExitCode != 0 {
+		return errResult(fmt.Sprintf("ssh prepare failed (exit %d):\n%s", r.ExitCode, installTail(r)))
+	}
+	src := filepath.Join(dir, ".")
+	if r, err := w.Run(ctx, warden.Spec{
+		Profile: warden.ProfileNone,
+		Argv:    cfg.SCPToArgv(src, remoteDir),
+		Env:     sshClientEnv(),
+		Limits: warden.Limits{
+			Timeout:        timeout,
+			MaxOutputBytes: MaxOutputBytes,
+		},
+		Actor:         "tool.code_exec.ssh.upload",
+		CorrelationID: warden.CorrelationFrom(ctx),
+	}); err != nil {
+		return errResult("ssh upload failed: " + err.Error())
+	} else if r.ExitCode != 0 {
+		return errResult(fmt.Sprintf("ssh upload failed (exit %d):\n%s", r.ExitCode, installTail(r)))
+	}
+
+	remoteRuntime := remoteRuntimeCommand(lang, interp)
+	if len(packages) > 0 {
+		pkgs, perr := validatePackages(packages)
+		if perr != nil {
+			return errResult(perr.Error())
+		}
+		if len(pkgs) > 0 {
+			cmd := "cd " + executionprofile.ShellQuote(remoteDir) + " && " + remotePipInstallCommand(remoteRuntime, pkgs)
+			if r, err := runSSHCommand(ctx, w, cfg, cmd, pipInstallTimeout, "tool.code_exec.ssh.install"); err != nil {
+				return errResult("pip install failed: " + err.Error())
+			} else if r.ExitCode != 0 {
+				return errResult(fmt.Sprintf("pip install failed (exit %d):\n%s", r.ExitCode, installTail(r)))
+			}
+		}
+	}
+
+	runCmd := "cd " + executionprofile.ShellQuote(remoteDir) + " && " + remoteRunCommand(lang, remoteRuntime, entry, allowNet, len(packages) > 0)
+	res, err := runSSHCommand(ctx, w, cfg, runCmd, timeout, "tool.code_exec.ssh.run")
+	var artifacts []artifactExportRecord
+	var artifactErr error
+	if err == nil {
+		artifacts, artifactErr = t.exportSSHArtifacts(ctx, w, cfg, remoteDir)
+	}
+	if ephemeral {
+		_, _ = runSSHCommand(ctx, w, cfg, "rm -rf "+executionprofile.ShellQuote(remoteDir), 30*time.Second, "tool.code_exec.ssh.cleanup")
+	}
+	if err != nil {
+		return errResult(fmt.Sprintf("remote run failed: %v", err))
+	}
+	t.publish(ctx, lang, projectSlug, codeBytes, allowNet, res)
+	return appendArtifactExport(renderRemote(lang, projectSlug, remoteDir, timeout, res), "ssh", artifacts, artifactErr)
+}
+
+func runSSHCommand(ctx context.Context, w warden.Engine, cfg executionprofile.SSHConfig, command string, timeout time.Duration, actor string) (*warden.Result, error) {
+	return w.Run(ctx, warden.Spec{
+		Profile: warden.ProfileNone,
+		Argv:    cfg.CommandArgv(command),
+		Env:     sshClientEnv(),
+		Limits: warden.Limits{
+			Timeout:        timeout,
+			MaxOutputBytes: MaxOutputBytes,
+		},
+		Actor:         actor,
+		CorrelationID: warden.CorrelationFrom(ctx),
+	})
+}
+
+func (t *Tool) invokeK8s(
+	ctx context.Context,
+	cfg executionprofile.K8sConfig,
+	w warden.Engine,
+	lang, interp, entry, dir string,
+	ephemeral bool,
+	projectSlug string,
+	packages []string,
+	allowNet bool,
+	timeout time.Duration,
+	codeBytes int,
+) agent.Result {
+	remoteDir := k8sWorkDir(cfg, dir, projectSlug)
+	if strings.TrimSpace(remoteDir) == "" {
+		return errResult("k8s remote workdir is empty")
+	}
+	if len(packages) > 0 {
+		if lang != LangPython {
+			return errResult(`packages are only supported for python; for deno/JS, import npm packages inline instead, e.g. import x from "npm:cheerio"`)
+		}
+		if !t.NetEnabled {
+			return errResult("cannot install packages: network is disabled on this daemon (AGEZT_SANDBOX_NO_NET=1)")
+		}
+	}
+	if r, err := runK8sCommand(ctx, w, cfg, "mkdir -p "+executionprofile.ShellQuote(remoteDir), timeout, "tool.code_exec.k8s.prepare"); err != nil {
+		return errResult("k8s prepare failed: " + err.Error())
+	} else if r.ExitCode != 0 {
+		return errResult(fmt.Sprintf("k8s prepare failed (exit %d):\n%s", r.ExitCode, installTail(r)))
+	}
+	src := filepath.Join(dir, ".")
+	if r, err := w.Run(ctx, warden.Spec{
+		Profile: warden.ProfileNone,
+		Argv:    cfg.CopyToArgv(src, remoteDir),
+		Env:     kubectlClientEnv(),
+		Limits: warden.Limits{
+			Timeout:        timeout,
+			MaxOutputBytes: MaxOutputBytes,
+		},
+		Actor:         "tool.code_exec.k8s.upload",
+		CorrelationID: warden.CorrelationFrom(ctx),
+	}); err != nil {
+		return errResult("k8s upload failed: " + err.Error())
+	} else if r.ExitCode != 0 {
+		return errResult(fmt.Sprintf("k8s upload failed (exit %d):\n%s", r.ExitCode, installTail(r)))
+	}
+
+	remoteRuntime := remoteRuntimeCommand(lang, interp)
+	if len(packages) > 0 {
+		pkgs, perr := validatePackages(packages)
+		if perr != nil {
+			return errResult(perr.Error())
+		}
+		if len(pkgs) > 0 {
+			cmd := "cd " + executionprofile.ShellQuote(remoteDir) + " && " + remotePipInstallCommand(remoteRuntime, pkgs)
+			if r, err := runK8sCommand(ctx, w, cfg, cmd, pipInstallTimeout, "tool.code_exec.k8s.install"); err != nil {
+				return errResult("pip install failed: " + err.Error())
+			} else if r.ExitCode != 0 {
+				return errResult(fmt.Sprintf("pip install failed (exit %d):\n%s", r.ExitCode, installTail(r)))
+			}
+		}
+	}
+
+	runCmd := "cd " + executionprofile.ShellQuote(remoteDir) + " && " + remoteRunCommand(lang, remoteRuntime, entry, allowNet, len(packages) > 0)
+	res, err := runK8sCommand(ctx, w, cfg, runCmd, timeout, "tool.code_exec.k8s.run")
+	var artifacts []artifactExportRecord
+	var artifactErr error
+	if err == nil {
+		artifacts, artifactErr = t.exportK8sArtifacts(ctx, w, cfg, remoteDir)
+	}
+	if ephemeral {
+		_, _ = runK8sCommand(ctx, w, cfg, "rm -rf "+executionprofile.ShellQuote(remoteDir), 30*time.Second, "tool.code_exec.k8s.cleanup")
+	}
+	if err != nil {
+		return errResult(fmt.Sprintf("k8s run failed: %v", err))
+	}
+	t.publish(ctx, lang, projectSlug, codeBytes, allowNet, res)
+	return appendArtifactExport(renderRemoteProfile("k8s", lang, projectSlug, remoteDir, timeout, res), "k8s", artifacts, artifactErr)
+}
+
+func runK8sCommand(ctx context.Context, w warden.Engine, cfg executionprofile.K8sConfig, command string, timeout time.Duration, actor string) (*warden.Result, error) {
+	return w.Run(ctx, warden.Spec{
+		Profile: warden.ProfileNone,
+		Argv:    cfg.CommandArgv(command),
+		Env:     kubectlClientEnv(),
+		Limits: warden.Limits{
+			Timeout:        timeout,
+			MaxOutputBytes: MaxOutputBytes,
+		},
+		Actor:         actor,
+		CorrelationID: warden.CorrelationFrom(ctx),
+	})
+}
+
+func (t *Tool) invokeModal(
+	ctx context.Context,
+	cfg executionprofile.ModalConfig,
+	w warden.Engine,
+	lang, interp, entry, dir string,
+	projectSlug string,
+	packages []string,
+	allowNet bool,
+	timeout time.Duration,
+	codeBytes int,
+) agent.Result {
+	if len(packages) > 0 {
+		if lang != LangPython {
+			return errResult(`packages are only supported for python; for deno/JS, import npm packages inline instead, e.g. import x from "npm:cheerio"`)
+		}
+		if !t.NetEnabled {
+			return errResult("cannot install packages: network is disabled on this daemon (AGEZT_SANDBOX_NO_NET=1)")
+		}
+	}
+	remoteDir := modalMountDir(dir)
+	remoteRuntime := remoteRuntimeCommand(lang, interp)
+	runCmd := remoteRunCommand(lang, remoteRuntime, entry, allowNet, len(packages) > 0)
+	if len(packages) > 0 {
+		pkgs, perr := validatePackages(packages)
+		if perr != nil {
+			return errResult(perr.Error())
+		}
+		if len(pkgs) > 0 {
+			runCmd = remotePipInstallCommand(remoteRuntime, pkgs) + " && " + runCmd
+		}
+	}
+	cmd := "cd " + executionprofile.ShellQuote(remoteDir) + " && " + runCmd
+	cmd = wrapModalArtifactExport(cmd, path.Join(remoteDir, artifactExportDir))
+	res, err := w.Run(ctx, warden.Spec{
+		Profile: warden.ProfileNone,
+		Argv:    cfg.CodeExecArgv(dir, cmd),
+		Env:     modalClientEnv(),
+		Limits: warden.Limits{
+			Timeout:        timeout,
+			MaxOutputBytes: MaxOutputBytes + modalArtifactArchiveBytes,
+		},
+		Actor:         "tool.code_exec.modal.run",
+		CorrelationID: warden.CorrelationFrom(ctx),
+	})
+	if err != nil {
+		return errResult(fmt.Sprintf("modal run failed: %v", err))
+	}
+	var artifacts []artifactExportRecord
+	var artifactErr error
+	if t.index != nil {
+		var payload string
+		var found bool
+		var splitErr error
+		res.Stdout, payload, found, splitErr = splitArtifactEnvelope(res.Stdout, modalArtifactBegin, modalArtifactEnd)
+		if splitErr != nil {
+			artifactErr = splitErr
+		} else if found {
+			artifacts, artifactErr = t.exportTarGzBase64Artifacts(ctx, payload, "modal")
+		}
+	}
+	t.publish(ctx, lang, projectSlug, codeBytes, allowNet, res)
+	return appendArtifactExport(renderRemoteProfile("modal", lang, projectSlug, remoteDir, timeout, res), "modal", artifacts, artifactErr)
+}
+
+func wrapModalArtifactExport(runCmd, artifactDir string) string {
+	qDir := executionprofile.ShellQuote(artifactDir)
+	return "(" + runCmd + "); status=$?; " +
+		"if [ -d " + qDir + " ] && command -v tar >/dev/null 2>&1 && command -v base64 >/dev/null 2>&1; then " +
+		"printf '\\n" + modalArtifactBegin + "\\n'; " +
+		"tar -C " + qDir + " -czf - . | base64; " +
+		"printf '\\n" + modalArtifactEnd + "\\n'; " +
+		"fi; exit $status"
+}
+
+func remoteWorkDir(cfg executionprofile.SSHConfig, localDir, projectSlug string) string {
+	root := strings.Trim(strings.TrimSpace(cfg.WorkDir), "/")
+	if root == "" {
+		root = ".agezt/code_exec"
+	}
+	if strings.HasPrefix(strings.TrimSpace(cfg.WorkDir), "/") {
+		root = "/" + root
+	}
+	if projectSlug != "" {
+		return path.Join(root, "projects", projectSlug)
+	}
+	base := filepath.Base(localDir)
+	if base == "." || base == string(filepath.Separator) || strings.TrimSpace(base) == "" {
+		base = fmt.Sprintf("run-%d", time.Now().UnixNano())
+	}
+	return path.Join(root, "runs", base)
+}
+
+func modalMountDir(localDir string) string {
+	base := filepath.Base(localDir)
+	if base == "." || base == string(filepath.Separator) || strings.TrimSpace(base) == "" {
+		base = fmt.Sprintf("run-%d", time.Now().UnixNano())
+	}
+	return path.Join("/mnt", base)
+}
+
+func k8sWorkDir(cfg executionprofile.K8sConfig, localDir, projectSlug string) string {
+	root := strings.Trim(strings.TrimSpace(cfg.WorkDir), "/")
+	if root == "" {
+		root = ".agezt/code_exec"
+	}
+	if strings.HasPrefix(strings.TrimSpace(cfg.WorkDir), "/") {
+		root = "/" + root
+	}
+	if projectSlug != "" {
+		return path.Join(root, "projects", projectSlug)
+	}
+	base := filepath.Base(localDir)
+	if base == "." || base == string(filepath.Separator) || strings.TrimSpace(base) == "" {
+		base = fmt.Sprintf("run-%d", time.Now().UnixNano())
+	}
+	return path.Join(root, "runs", base)
+}
+
+func remoteRuntimeCommand(lang, interp string) string {
+	switch lang {
+	case LangPython:
+		base := strings.ToLower(filepath.Base(interp))
+		if strings.HasPrefix(base, "python3") {
+			return "python3"
+		}
+		return "python3"
+	case LangNode:
+		return "node"
+	case LangDeno:
+		return "deno"
+	default:
+		return filepath.Base(interp)
+	}
+}
+
+func remotePipInstallCommand(runtime string, pkgs []string) string {
+	args := []string{runtime, "-m", "pip", "install", "--target", pyDepsName, "--no-input", "--disable-pip-version-check", "--no-warn-script-location"}
+	args = append(args, pkgs...)
+	return quoteCommand(args)
+}
+
+func remoteRunCommand(lang, runtime, entry string, allowNet bool, hasDeps bool) string {
+	switch lang {
+	case LangPython:
+		args := []string{runtime, entry}
+		cmd := quoteCommand(args)
+		if hasDeps {
+			cmd = "PYTHONPATH=" + executionprofile.ShellQuote(pyDepsName) + " " + cmd
+		}
+		return cmd
+	case LangDeno:
+		args := []string{runtime, "run", "--quiet", "--no-prompt", "--allow-read=.", "--allow-write=.", "--allow-env"}
+		if allowNet {
+			args = append(args, "--allow-net")
+		}
+		args = append(args, entry)
+		return quoteCommand(args)
+	default:
+		return quoteCommand([]string{runtime, entry})
+	}
+}
+
+func quoteCommand(args []string) string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		out = append(out, executionprofile.ShellQuote(a))
+	}
+	return strings.Join(out, " ")
+}
+
+func sshClientEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true, "SSH_AUTH_SOCK": true,
+		"LANG": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+func kubectlClientEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true, "KUBECONFIG": true,
+		"LANG": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+func modalClientEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true, "MODAL_CONFIG_PATH": true,
+		"LANG": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+func daytonaClientEnv() []string {
+	allow := map[string]bool{
+		"PATH": true, "PATHEXT": true, "COMSPEC": true,
+		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
+		"HOME": true, "USERPROFILE": true, "DAYTONA_CONFIG_PATH": true,
+		"LANG": true,
+	}
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		up := strings.ToUpper(name)
+		if isSecretName(up) {
+			continue
+		}
+		if allow[up] || strings.HasPrefix(up, "LC_") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
 // render builds the model-facing Result: a one-line header (language / project /
 // effective isolation profile / dir) followed by combined output, with the same
 // truncation / timeout / non-zero-exit semantics as the shell tool.
@@ -360,6 +866,41 @@ func render(lang, projectSlug, dir string, ephemeral bool, timeout time.Duration
 		combined = append([]byte("[truncated to last 256 KiB]\n"), combined...)
 	}
 
+	body := strings.TrimRight(string(combined), "\n")
+	if res.TimedOut {
+		return agent.Result{Output: fmt.Sprintf("%s\ntimed out after %s\n%s", header, timeout, body), IsError: true}
+	}
+	if res.ExitCode != 0 {
+		return agent.Result{Output: fmt.Sprintf("%s\n%s\n[exit code %d]", header, body, res.ExitCode), IsError: true}
+	}
+	if body == "" {
+		body = "(no output)"
+	}
+	return agent.Result{Output: header + "\n" + body}
+}
+
+func renderRemote(lang, projectSlug, remoteDir string, timeout time.Duration, res *warden.Result) agent.Result {
+	return renderRemoteProfile("ssh", lang, projectSlug, remoteDir, timeout, res)
+}
+
+func renderRemoteProfile(profile, lang, projectSlug, remoteDir string, timeout time.Duration, res *warden.Result) agent.Result {
+	var head strings.Builder
+	fmt.Fprintf(&head, "[code_exec] language=%s isolation=%s remote_dir=%s", lang, profile, remoteDir)
+	if projectSlug != "" {
+		fmt.Fprintf(&head, " project=%s", projectSlug)
+	}
+	header := head.String()
+
+	combined := append([]byte{}, res.Stdout...)
+	if len(res.Stderr) > 0 {
+		if len(combined) > 0 {
+			combined = append(combined, '\n')
+		}
+		combined = append(combined, res.Stderr...)
+	}
+	if res.Truncated {
+		combined = append([]byte("[truncated to last 256 KiB]\n"), combined...)
+	}
 	body := strings.TrimRight(string(combined), "\n")
 	if res.TimedOut {
 		return agent.Result{Output: fmt.Sprintf("%s\ntimed out after %s\n%s", header, timeout, body), IsError: true}

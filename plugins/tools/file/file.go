@@ -52,7 +52,8 @@ const MaxScanBytes = 8 * 1024 * 1024
 
 // Tool is the file tool implementation of agent.Tool.
 type Tool struct {
-	root string // absolute, symlink-resolved
+	root         string // absolute, symlink-resolved
+	rollbackBase string // AGEZT home for checkpoint catalog; empty disables checkpoints
 }
 
 // New returns a Tool scoped to root. The directory must exist and be
@@ -92,6 +93,18 @@ func New(root string) (*Tool, error) {
 	return &Tool{root: resolved}, nil
 }
 
+// NewWithCheckpoint returns a file tool that writes pre-mutation rollback
+// snapshots under baseDir. Tests and embedded callers that need no checkpointing
+// can keep using New.
+func NewWithCheckpoint(root, baseDir string) (*Tool, error) {
+	t, err := New(root)
+	if err != nil {
+		return nil, err
+	}
+	t.rollbackBase = baseDir
+	return t, nil
+}
+
 // Root returns the canonicalized root path.
 func (t *Tool) Root() string { return t.root }
 
@@ -109,7 +122,7 @@ func (t *Tool) Definition() agent.ToolDef {
 				"mutate workspace files for write/append/delete/replace operations",
 			},
 			AffectedResources: []string{"workspace files under " + t.root},
-			RollbackNotes:     "Read-only file operations need no rollback. Mutating operations can be reverted from version control, backups, or the journaled file path/content trail when available.",
+			RollbackNotes:     "Read-only file operations need no rollback. Daemon-registered mutating operations write pre-mutation file.snapshot checkpoints that `agt rollback apply` can restore; otherwise use version control or backups.",
 			Confidence:        0.85,
 		},
 		InputSchema: json.RawMessage(`{
@@ -173,9 +186,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	case "read":
 		return t.doRead(in)
 	case "write":
-		return t.doWrite(in, false)
+		return t.doWrite(ctx, in, false)
 	case "append":
-		return t.doWrite(in, true)
+		return t.doWrite(ctx, in, true)
 	case "list":
 		return t.doList(in)
 	case "search":
@@ -183,9 +196,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	case "stat":
 		return t.doStat(in)
 	case "delete":
-		return t.doDelete(in)
+		return t.doDelete(ctx, in)
 	case "replace":
-		return t.doReplace(in)
+		return t.doReplace(ctx, in)
 	case "glob":
 		return t.doGlob(in)
 	case "":
@@ -304,10 +317,17 @@ func (t *Tool) doReadRange(in fileInput, p string) (agent.Result, error) {
 	return fileObservation(in.Path, header+"\n"+b.String()), nil
 }
 
-func (t *Tool) doWrite(in fileInput, appendMode bool) (agent.Result, error) {
+func (t *Tool) doWrite(ctx context.Context, in fileInput, appendMode bool) (agent.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
+	}
+	action := "file.write"
+	if appendMode {
+		action = "file.append"
+	}
+	if err := t.checkpointFileSnapshot(ctx, action, in.Path, p); err != nil {
+		return errResult("checkpoint: " + err.Error()), nil
 	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return errResult("mkdir parent: " + err.Error()), nil
@@ -349,7 +369,7 @@ func (t *Tool) doWrite(in fileInput, appendMode bool) (agent.Result, error) {
 // ambiguous edit fails loudly instead of changing the wrong place; set all=true
 // to replace every occurrence. This lets an agent edit a file surgically rather
 // than read-and-rewrite the whole thing, cutting context cost and clobber risk.
-func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
+func (t *Tool) doReplace(ctx context.Context, in fileInput) (agent.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -398,6 +418,9 @@ func (t *Tool) doReplace(in fileInput) (agent.Result, error) {
 		return errResult("write: " + lerr.Error()), nil
 	} else if li.Mode()&os.ModeSymlink != 0 {
 		return errResult("write: refusing to follow symlink at " + in.Path), nil
+	}
+	if err := t.checkpointFileSnapshot(ctx, "file.replace", in.Path, p); err != nil {
+		return errResult("checkpoint: " + err.Error()), nil
 	}
 	if err := atomicWriteFile(p, []byte(updated), info.Mode().Perm()); err != nil {
 		return errResult("write: " + err.Error()), nil
@@ -681,7 +704,7 @@ func (t *Tool) doStat(in fileInput) (agent.Result, error) {
 	return fileObservation(in.Path, string(body)), nil
 }
 
-func (t *Tool) doDelete(in fileInput) (agent.Result, error) {
+func (t *Tool) doDelete(ctx context.Context, in fileInput) (agent.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -697,6 +720,9 @@ func (t *Tool) doDelete(in fileInput) (agent.Result, error) {
 		// For M1 we refuse recursive delete; the model can list and delete
 		// individual files. Recursive ops are a future Edict-gated action.
 		return errResult(in.Path + " is a directory; recursive delete is not allowed in M1"), nil
+	}
+	if err := t.checkpointFileSnapshot(ctx, "file.delete", in.Path, p); err != nil {
+		return errResult("checkpoint: " + err.Error()), nil
 	}
 	if err := os.Remove(p); err != nil {
 		return errResult("remove: " + err.Error()), nil

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { ModelPicker } from "@/components/ModelPicker";
 import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr } from "@/lib/councilStore";
 import {
@@ -155,28 +155,27 @@ export function Council() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      {/* Header */}
-      <PageHeader
-        icon={Scale}
-        title="Council of Elders"
-        description={
-          <span className="inline-flex items-center gap-1">
-            <Users className="size-3.5" />
-            {members.length > 0 ? members.map((m) => m.seat).join(" · ") : "no keyed members"}
-          </span>
-        }
-        actions={
-          !editMode ? (
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs" onClick={enterEdit}>
-              <Pencil className="size-3" /> Edit
-            </Button>
-          ) : (
-            <span className="text-xs text-muted">Editing</span>
-          )
-        }
-      />
-
+    <Page
+      icon={Scale}
+      title="Council of Elders"
+      mode="fill"
+      width="wide"
+      description={
+        <span className="inline-flex items-center gap-1">
+          <Users className="size-3.5" />
+          {members.length > 0 ? members.map((m) => m.seat).join(" · ") : "no keyed members"}
+        </span>
+      }
+      actions={
+        !editMode ? (
+          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs" onClick={enterEdit}>
+            <Pencil className="size-3" /> Edit
+          </Button>
+        ) : (
+          <span className="text-xs text-muted">Editing</span>
+        )
+      }
+    >
       {/* Member badges (view mode) */}
       {!editMode && members.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -299,7 +298,7 @@ export function Council() {
           </div>
         )}
       </div>
-    </div>
+    </Page>
   );
 }
 

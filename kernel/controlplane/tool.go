@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -42,9 +43,12 @@ func (s *Server) handleToolList(conn net.Conn, req Request) {
 		def := t.Definition()
 		cap := edict.CapabilityForToolCall(name, catalogProbe[name])
 		rows = append(rows, map[string]any{
-			"name":        def.Name,
-			"description": def.Description,
-			"capability":  string(cap),
+			"name":           def.Name,
+			"description":    def.Description,
+			"capability":     string(cap),
+			"effect_class":   string(def.Effect.Class),
+			"rollback_mode":  toolRollbackMode(def.Effect.Class),
+			"rollback_notes": def.Effect.RollbackNotes,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -60,6 +64,21 @@ func (s *Server) handleToolList(conn net.Conn, req Request) {
 			"count": len(rows),
 		},
 	})
+}
+
+func toolRollbackMode(class agent.EffectClass) string {
+	switch class {
+	case agent.EffectReadOnly:
+		return "none_needed"
+	case agent.EffectReversible:
+		return "rollbackable"
+	case agent.EffectCompensable:
+		return "compensate"
+	case agent.EffectIrreversible:
+		return "audit_only"
+	default:
+		return "unknown"
+	}
 }
 
 func (s *Server) handleAgentPermissions(conn net.Conn, req Request) {

@@ -398,6 +398,36 @@ func (f *Forge) Archive(corr, id, reason string) error {
 	return nil
 }
 
+// RestoreStatus restores only the lifecycle status recorded by a rollback
+// checkpoint. It deliberately bypasses the forward-only transition matrix, but
+// it still validates that the target is a real persisted status and journals the
+// restore as a new event.
+func (f *Forge) RestoreStatus(corr, id string, target Status, reason string) (Status, Status, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !ValidStatus(target) {
+		return "", "", fmt.Errorf("%w: invalid status %q", ErrIllegalTransition, target)
+	}
+	sk, _, err := f.get(id)
+	if err != nil {
+		return "", "", err
+	}
+	from := sk.Status
+	sk.Status = target
+	sk.LastSeenMS = f.now().UnixMilli()
+	if err := f.store.Put(sk); err != nil {
+		return "", "", err
+	}
+	payload := map[string]any{
+		"id": id, "name": sk.Name, "from": string(from), "to": string(target),
+	}
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	f.publish(event.KindSkillRestored, corr, payload)
+	return from, target, nil
+}
+
 // Revert appends a reversal (SPEC-05 §5.3): it archives the target skill and
 // re-activates its most recent non-archived lineage parent if there is one, so
 // reverting a bad new version restores the previous good one. History is never

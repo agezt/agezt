@@ -617,6 +617,100 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  taste: {
+    title: "Taste",
+    intro:
+      "Curated “what good looks like” exemplars. Each is a concrete sample of good work — a model answer, a snippet, a well-formed artifact — that AGEZT injects into runs so output quality is anchored to examples rather than left to chance.",
+    sections: [
+      {
+        heading: "How it works",
+        items: [
+          {
+            term: "Exemplar",
+            desc: "A title plus the example body itself. Before a run acts, matching exemplars are prepended to the system prompt as “what good looks like”.",
+          },
+          {
+            term: "Scope",
+            desc: "Blank scope means the exemplar shapes every run; setting an agent slug restricts it to that agent's runs. Scoped exemplars are injected ahead of global ones.",
+          },
+          {
+            term: "Distinct from memory and skills",
+            desc: "Memory is facts the agent recalls; skills are procedures it follows; taste is the quality bar it matches. They layer together in the system prompt.",
+          },
+        ],
+      },
+      {
+        heading: "Control",
+        paragraphs: [
+          "Injection is on by default and capped at a few exemplars per run; AGEZT_TASTE_INJECT=off disables it while keeping the store and the `agt taste` CLI live. Each injection is journaled as taste.injected, so `agt why` shows exactly which exemplars shaped a run.",
+        ],
+      },
+    ],
+    tips: [
+      "Keep exemplars short and exemplary — the point is the quality signal, not a knowledge dump.",
+    ],
+  },
+
+  seats: {
+    title: "Seats",
+    intro:
+      "Execution seats are named presets that decide HOW a workboard task runs — its model tier, tool tier, and isolation surface — layered on top of the agent it's dispatched to. The agent stays the identity; the seat refines execution for that task.",
+    sections: [
+      {
+        heading: "Built-in seats",
+        items: [
+          { term: "default", desc: "Inherit everything from the assigned agent — no overrides." },
+          { term: "reader", desc: "Read-only research: search, fetch, read artifacts. No shell, writes, or code execution." },
+          { term: "builder", desc: "Full tools on the local execution surface — repo edits, tests, shell." },
+          { term: "isolated", desc: "Full tools inside the warden sandbox, for untrusted or high-risk work." },
+        ],
+      },
+      {
+        heading: "Custom seats",
+        paragraphs: [
+          "Add your own seat with an id and an isolation surface (local, warden, or container — remote backends aren't available to seats). Custom seats sit alongside the built-ins in the task seat picker; built-ins can't be deleted. Pin a seat on a task with the seat picker on the Workboard, or `workboard create --seat`.",
+        ],
+      },
+    ],
+    tips: [
+      "Precedence at dispatch: a task's seat wins, otherwise the agent's own default isolation applies.",
+    ],
+  },
+
+  okr: {
+    title: "Objectives",
+    intro:
+      "Objectives and their key results — the goal layer that makes fleet work legible as progress instead of a flat task list. Key results roll up the completion of the workboard tasks you link to them.",
+    sections: [
+      {
+        heading: "Structure",
+        items: [
+          {
+            term: "Objective",
+            desc: "A durable goal you want the fleet to reach. It owns key results and shows an overall progress percentage averaged across them.",
+          },
+          {
+            term: "Key result",
+            desc: "A measurable outcome under an objective. Its target is a number of linked tasks that must be done; target 0 means every linked task must be done.",
+          },
+          {
+            term: "Linked tasks",
+            desc: "Workboard tasks you attach to a key result. As they complete, the key result's progress bar fills.",
+          },
+        ],
+      },
+      {
+        heading: "Proof rolls up",
+        paragraphs: [
+          "Progress is fed by DONE tasks. Because the workboard proof gate only lets a task with acceptance criteria reach done once those criteria are proven, a gated task rolling up here means it was genuinely proven — legitimately-completed ungated tasks count too. An objective flips to achieved the moment every key result crosses its target.",
+        ],
+      },
+    ],
+    tips: [
+      "Create an objective, add key results, then paste workboard task ids into a key result to link them.",
+    ],
+  },
+
   alerts: {
     title: "Alerts",
     intro:

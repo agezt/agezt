@@ -3,14 +3,22 @@
 package codeexec
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -18,16 +26,21 @@ import (
 // the tool's argv/env/workdir building and result rendering are testable without
 // actually running an interpreter. Satisfies warden.Engine.
 type fakeWarden struct {
-	last    warden.Spec
-	all     []warden.Spec
-	result  warden.Result   // default result
-	results []warden.Result // consumed in order (per call), then falls back to result
-	calls   int
+	last      warden.Spec
+	all       []warden.Spec
+	result    warden.Result   // default result
+	results   []warden.Result // consumed in order (per call), then falls back to result
+	calls     int
+	inspect   func(warden.Spec)
+	resultFor func(warden.Spec) (warden.Result, bool)
 }
 
 func (f *fakeWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, error) {
 	f.last = s
 	f.all = append(f.all, s)
+	if f.inspect != nil {
+		f.inspect(s)
+	}
 	// Simulate `pip install --target <dir>` creating its target dir, so the
 	// PYTHONPATH wiring (which keys on the dir existing) is exercised.
 	for i, a := range s.Argv {
@@ -36,7 +49,15 @@ func (f *fakeWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, erro
 		}
 	}
 	var r warden.Result
-	if f.calls < len(f.results) {
+	if f.resultFor != nil {
+		if scripted, ok := f.resultFor(s); ok {
+			r = scripted
+		} else if f.calls < len(f.results) {
+			r = f.results[f.calls]
+		} else {
+			r = f.result
+		}
+	} else if f.calls < len(f.results) {
 		r = f.results[f.calls]
 	} else {
 		r = f.result
@@ -59,10 +80,29 @@ func newTool(t *testing.T, runtimes map[string]string, net bool) (*Tool, *fakeWa
 	return tl, fw
 }
 
+type fakeCodeExecIndex struct {
+	entries []artifact.Entry
+	data    [][]byte
+}
+
+func (f *fakeCodeExecIndex) PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error) {
+	meta.ID = fmt.Sprintf("art-%d", len(f.entries)+1)
+	meta.Ref = fmt.Sprintf("ref-%d", len(f.entries)+1)
+	meta.Size = int64(len(data))
+	meta.CreatedMs = createdMs
+	f.entries = append(f.entries, meta)
+	f.data = append(f.data, append([]byte(nil), data...))
+	return meta, nil
+}
+
 func run(t *testing.T, tl *Tool, in map[string]any) (string, bool) {
+	return runWithContext(t, tl, context.Background(), in)
+}
+
+func runWithContext(t *testing.T, tl *Tool, ctx context.Context, in map[string]any) (string, bool) {
 	t.Helper()
 	raw, _ := json.Marshal(in)
-	res, err := tl.Invoke(context.Background(), raw)
+	res, err := tl.Invoke(ctx, raw)
 	if err != nil {
 		t.Fatalf("Invoke hard error: %v", err)
 	}
@@ -87,6 +127,412 @@ func TestPython_Argv_And_EphemeralDir(t *testing.T) {
 	}
 	if !strings.Contains(out, "isolation=") || !strings.Contains(out, "ok-output") {
 		t.Errorf("result missing header/output: %s", out)
+	}
+}
+
+func TestCodeExec_UsesExecutionProfileOverride(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileNone)
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)", "packages": []any{"requests"}})
+	if isErr {
+		t.Fatalf("unexpected error result: %s", out)
+	}
+	if len(fw.all) != 2 {
+		t.Fatalf("want pip install + program run, got %d warden calls", len(fw.all))
+	}
+	for i, spec := range fw.all {
+		if spec.Profile != warden.ProfileNone {
+			t.Errorf("call %d Profile = %q, want override %q", i, spec.Profile, warden.ProfileNone)
+		}
+	}
+}
+
+func TestCodeExec_UsesSSHExecutionProfileRemoteWorkspace(t *testing.T) {
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	ctx := executionprofile.WithSSHOverride(context.Background(), executionprofile.SSHConfig{
+		Enabled: true,
+		Target:  "deploy@example.com",
+		WorkDir: "/srv/agezt",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "isolation=ssh") || !strings.Contains(out, "remote_dir=/srv/agezt/runs/") {
+		t.Fatalf("ssh profile should run remotely, isErr=%v out=%q", isErr, out)
+	}
+	if fw.calls != 4 {
+		t.Fatalf("want prepare + upload + run + cleanup, got %d calls: %+v", fw.calls, fw.all)
+	}
+	if fw.all[0].Argv[0] != "ssh" || !strings.Contains(strings.Join(fw.all[0].Argv, " "), "mkdir -p") {
+		t.Fatalf("prepare argv wrong: %+v", fw.all[0].Argv)
+	}
+	if fw.all[1].Argv[0] != "scp" || !strings.Contains(strings.Join(fw.all[1].Argv, " "), "deploy@example.com:") {
+		t.Fatalf("upload argv wrong: %+v", fw.all[1].Argv)
+	}
+	if fw.all[2].Argv[0] != "ssh" || !strings.Contains(strings.Join(fw.all[2].Argv, " "), "python3") {
+		t.Fatalf("run argv wrong: %+v", fw.all[2].Argv)
+	}
+	for i, spec := range fw.all {
+		if spec.Profile != warden.ProfileNone {
+			t.Fatalf("ssh call %d profile = %q, want none", i, spec.Profile)
+		}
+	}
+}
+
+func TestCodeExec_ExportsSSHArtifacts(t *testing.T) {
+	idx := &fakeCodeExecIndex{}
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.SetIndex(idx)
+	tl.Now = func() int64 { return 1234 }
+	fw.inspect = func(s warden.Spec) {
+		if s.Actor != "tool.code_exec.ssh.artifacts.download" {
+			return
+		}
+		dest := s.Argv[len(s.Argv)-1]
+		if err := os.WriteFile(filepath.Join(dest, "report.txt"), []byte("remote report"), 0o600); err != nil {
+			t.Fatalf("write fake ssh artifact: %v", err)
+		}
+	}
+	ctx := warden.WithCorrelation(context.Background(), "run-ssh-art")
+	ctx = executionprofile.WithSSHOverride(ctx, executionprofile.SSHConfig{
+		Enabled: true,
+		Target:  "deploy@example.com",
+		WorkDir: "/srv/agezt",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "[artifact_export]") || !strings.Contains(out, `"name": "report.txt"`) {
+		t.Fatalf("ssh artifact export missing, isErr=%v out=%q", isErr, out)
+	}
+	if fw.calls != 6 {
+		t.Fatalf("want prepare + upload + run + artifact check + download + cleanup, got %d calls: %+v", fw.calls, fw.all)
+	}
+	if got := idx.entries[0]; got.Source != "code_exec" || got.Corr != "run-ssh-art" || got.Name != "report.txt" || got.Kind != "file" {
+		t.Fatalf("indexed ssh artifact wrong: %+v", got)
+	}
+	if string(idx.data[0]) != "remote report" {
+		t.Fatalf("ssh artifact bytes = %q", string(idx.data[0]))
+	}
+}
+
+func TestCodeExec_UsesK8sExecutionProfileRemoteWorkspace(t *testing.T) {
+	t.Setenv("KUBECONFIG", "/tmp/kubeconfig")
+	t.Setenv("KUBE_TOKEN", "must-not-forward")
+	t.Setenv("AGEZT_API_TOKEN", "must-not-forward")
+
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	ctx := executionprofile.WithK8sOverride(context.Background(), executionprofile.K8sConfig{
+		Enabled:   true,
+		Context:   "prod",
+		Namespace: "agents",
+		Pod:       "runner-0",
+		Container: "worker",
+		WorkDir:   "/workspace",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "isolation=k8s") || !strings.Contains(out, "remote_dir=/workspace/runs/") {
+		t.Fatalf("k8s profile should run remotely, isErr=%v out=%q", isErr, out)
+	}
+	if fw.calls != 4 {
+		t.Fatalf("want prepare + upload + run + cleanup, got %d calls: %+v", fw.calls, fw.all)
+	}
+	if fw.all[0].Argv[0] != "kubectl" || !strings.Contains(strings.Join(fw.all[0].Argv, " "), "mkdir -p") {
+		t.Fatalf("prepare argv wrong: %+v", fw.all[0].Argv)
+	}
+	if fw.all[1].Argv[0] != "kubectl" || !strings.Contains(strings.Join(fw.all[1].Argv, " "), " cp ") || !strings.Contains(strings.Join(fw.all[1].Argv, " "), "runner-0:/workspace/runs/") {
+		t.Fatalf("upload argv wrong: %+v", fw.all[1].Argv)
+	}
+	if fw.all[2].Argv[0] != "kubectl" || !strings.Contains(strings.Join(fw.all[2].Argv, " "), "python3") {
+		t.Fatalf("run argv wrong: %+v", fw.all[2].Argv)
+	}
+	for i, spec := range fw.all {
+		if spec.Profile != warden.ProfileNone {
+			t.Fatalf("k8s call %d profile = %q, want none", i, spec.Profile)
+		}
+		joinedArgv := strings.Join(spec.Argv, " ")
+		for _, want := range []string{"--context prod", "-n agents", "runner-0", "-c worker"} {
+			if !strings.Contains(joinedArgv, want) {
+				t.Fatalf("k8s call %d argv missing %q: %+v", i, want, spec.Argv)
+			}
+		}
+	}
+	env := strings.Join(fw.all[0].Env, "\n")
+	if !strings.Contains(env, "KUBECONFIG=/tmp/kubeconfig") {
+		t.Fatalf("k8s env missing KUBECONFIG:\n%s", env)
+	}
+	for _, leak := range []string{"KUBE_TOKEN", "AGEZT_API_TOKEN", "must-not-forward"} {
+		if strings.Contains(env, leak) {
+			t.Fatalf("k8s env leaked %q:\n%s", leak, env)
+		}
+	}
+}
+
+func TestCodeExec_ExportsK8sArtifacts(t *testing.T) {
+	idx := &fakeCodeExecIndex{}
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.SetIndex(idx)
+	tl.Now = func() int64 { return 5678 }
+	fw.inspect = func(s warden.Spec) {
+		if s.Actor != "tool.code_exec.k8s.artifacts.download" {
+			return
+		}
+		var dest string
+		for i, arg := range s.Argv {
+			if arg == "cp" && i+2 < len(s.Argv) {
+				dest = s.Argv[i+2]
+				break
+			}
+		}
+		if dest == "" {
+			t.Fatalf("could not find kubectl cp destination in %+v", s.Argv)
+		}
+		if err := os.WriteFile(filepath.Join(dest, "plot.png"), []byte("PNGDATA"), 0o600); err != nil {
+			t.Fatalf("write fake k8s artifact: %v", err)
+		}
+	}
+	ctx := warden.WithCorrelation(context.Background(), "run-k8s-art")
+	ctx = executionprofile.WithK8sOverride(ctx, executionprofile.K8sConfig{
+		Enabled: true,
+		Pod:     "runner-0",
+		WorkDir: "/workspace",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "[artifact_export]") || !strings.Contains(out, `"name": "plot.png"`) {
+		t.Fatalf("k8s artifact export missing, isErr=%v out=%q", isErr, out)
+	}
+	if fw.calls != 6 {
+		t.Fatalf("want prepare + upload + run + artifact check + download + cleanup, got %d calls: %+v", fw.calls, fw.all)
+	}
+	if got := idx.entries[0]; got.Source != "code_exec" || got.Corr != "run-k8s-art" || got.Name != "plot.png" || got.Kind != "image" {
+		t.Fatalf("indexed k8s artifact wrong: %+v", got)
+	}
+	if string(idx.data[0]) != "PNGDATA" {
+		t.Fatalf("k8s artifact bytes = %q", string(idx.data[0]))
+	}
+}
+
+func TestCodeExec_UsesModalExecutionProfileLocalMount(t *testing.T) {
+	t.Setenv("MODAL_CONFIG_PATH", "/tmp/modal.toml")
+	t.Setenv("MODAL_TOKEN_SECRET", "must-not-forward")
+	t.Setenv("AGEZT_API_TOKEN", "must-not-forward")
+
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	ctx := executionprofile.WithModalOverride(context.Background(), executionprofile.ModalConfig{
+		Enabled:     true,
+		Image:       "python:3.12",
+		Environment: "prod",
+		AddPython:   "3.12",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "isolation=modal") || !strings.Contains(out, "remote_dir=/mnt/") {
+		t.Fatalf("modal profile should run remotely, isErr=%v out=%q", isErr, out)
+	}
+	if fw.calls != 1 {
+		t.Fatalf("want one modal shell run, got %d calls: %+v", fw.calls, fw.all)
+	}
+	argv := strings.Join(fw.last.Argv, " ")
+	for _, want := range []string{"modal", "shell", "--env prod", "--image python:3.12", "--add-python 3.12", "--add-local", "--cmd", "python3", "main.py", "--no-pty"} {
+		if !strings.Contains(argv, want) {
+			t.Fatalf("modal argv missing %q: %+v", want, fw.last.Argv)
+		}
+	}
+	if fw.last.Profile != warden.ProfileNone || fw.last.Actor != "tool.code_exec.modal.run" {
+		t.Fatalf("modal spec profile/actor = %q/%q", fw.last.Profile, fw.last.Actor)
+	}
+	env := strings.Join(fw.last.Env, "\n")
+	if !strings.Contains(env, "MODAL_CONFIG_PATH=/tmp/modal.toml") {
+		t.Fatalf("modal env missing MODAL_CONFIG_PATH:\n%s", env)
+	}
+	for _, leak := range []string{"MODAL_TOKEN_SECRET", "AGEZT_API_TOKEN", "must-not-forward"} {
+		if strings.Contains(env, leak) {
+			t.Fatalf("modal env leaked %q:\n%s", leak, env)
+		}
+	}
+}
+
+func TestCodeExec_ExportsModalArtifacts(t *testing.T) {
+	idx := &fakeCodeExecIndex{}
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.SetIndex(idx)
+	tl.Now = func() int64 { return 2468 }
+	fw.resultFor = func(s warden.Spec) (warden.Result, bool) {
+		if s.Actor == "tool.code_exec.modal.run" {
+			out := "ok-output\n" + modalArtifactBegin + "\n" + testTarGzB64(t, map[string]string{"chart.txt": "modal artifact"}) + "\n" + modalArtifactEnd + "\n"
+			return warden.Result{ExitCode: 0, Stdout: []byte(out)}, true
+		}
+		return warden.Result{}, false
+	}
+	ctx := warden.WithCorrelation(context.Background(), "run-modal-art")
+	ctx = executionprofile.WithModalOverride(ctx, executionprofile.ModalConfig{
+		Enabled: true,
+		Image:   "python:3.12",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "[artifact_export]") || !strings.Contains(out, `"name": "chart.txt"`) {
+		t.Fatalf("modal artifact export missing, isErr=%v out=%q", isErr, out)
+	}
+	if strings.Contains(out, modalArtifactBegin) || strings.Contains(out, modalArtifactEnd) {
+		t.Fatalf("modal artifact envelope leaked into rendered output: %q", out)
+	}
+	if !strings.Contains(strings.Join(fw.last.Argv, " "), "tar -C") {
+		t.Fatalf("modal command did not include artifact archive wrapper: %+v", fw.last.Argv)
+	}
+	if got := idx.entries[0]; got.Source != "code_exec" || got.Corr != "run-modal-art" || got.Name != "chart.txt" || got.Kind != "file" {
+		t.Fatalf("indexed modal artifact wrong: %+v", got)
+	}
+	if string(idx.data[0]) != "modal artifact" {
+		t.Fatalf("modal artifact bytes = %q", string(idx.data[0]))
+	}
+}
+
+func TestCodeExec_UsesDaytonaExecutionProfileMaterializedWorkspace(t *testing.T) {
+	t.Setenv("DAYTONA_CONFIG_PATH", "/tmp/daytona.toml")
+	t.Setenv("DAYTONA_TOKEN_SECRET", "must-not-forward")
+	t.Setenv("AGEZT_API_TOKEN", "must-not-forward")
+
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	ctx := executionprofile.WithDaytonaOverride(context.Background(), executionprofile.DaytonaConfig{
+		Enabled: true,
+		Sandbox: "sandbox-1",
+		WorkDir: "/workspace",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{
+		"language": "python",
+		"code":     "import util\nprint('daytona')",
+		"stdin":    "hello",
+		"files": map[string]string{
+			"util.py": "VALUE = 1\n",
+		},
+	})
+	if isErr || !strings.Contains(out, "isolation=daytona") || !strings.Contains(out, "remote_dir=/workspace/runs/") {
+		t.Fatalf("daytona profile should run remotely, isErr=%v out=%q", isErr, out)
+	}
+	var runSpec *warden.Spec
+	var sawWrite bool
+	for i := range fw.all {
+		spec := &fw.all[i]
+		if spec.Actor == "tool.code_exec.daytona.run" {
+			runSpec = spec
+		}
+		if spec.Actor == "tool.code_exec.daytona.write" && strings.Contains(strings.Join(spec.Argv, " "), "base64 -d") {
+			sawWrite = true
+		}
+		if spec.Profile != warden.ProfileNone {
+			t.Fatalf("daytona call %d profile = %q, want none", i, spec.Profile)
+		}
+	}
+	if runSpec == nil {
+		t.Fatalf("missing daytona run spec: %+v", fw.all)
+	}
+	runArgv := strings.Join(runSpec.Argv, " ")
+	for _, want := range []string{"daytona", "exec", "sandbox-1", "--cwd", "/workspace/runs/", "--timeout", "120", "--", "sh", "-lc", "python3", "main.py"} {
+		if !strings.Contains(runArgv, want) {
+			t.Fatalf("daytona run argv missing %q: %+v", want, runSpec.Argv)
+		}
+	}
+	if !sawWrite {
+		t.Fatalf("daytona workspace was not materialized with base64 writes: %+v", fw.all)
+	}
+	env := strings.Join(runSpec.Env, "\n")
+	if !strings.Contains(env, "DAYTONA_CONFIG_PATH=/tmp/daytona.toml") {
+		t.Fatalf("daytona env missing DAYTONA_CONFIG_PATH:\n%s", env)
+	}
+	for _, leak := range []string{"DAYTONA_TOKEN_SECRET", "AGEZT_API_TOKEN", "must-not-forward"} {
+		if strings.Contains(env, leak) {
+			t.Fatalf("daytona env leaked %q:\n%s", leak, env)
+		}
+	}
+}
+
+func TestCodeExec_ExportsDaytonaArtifacts(t *testing.T) {
+	idx := &fakeCodeExecIndex{}
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.SetIndex(idx)
+	tl.Now = func() int64 { return 6789 }
+	fw.resultFor = func(s warden.Spec) (warden.Result, bool) {
+		if s.Actor == "tool.code_exec.daytona.artifacts.download" {
+			return warden.Result{ExitCode: 0, Stdout: []byte(testTarGzB64(t, map[string]string{"result.txt": "daytona artifact"}))}, true
+		}
+		return warden.Result{}, false
+	}
+	ctx := warden.WithCorrelation(context.Background(), "run-daytona-art")
+	ctx = executionprofile.WithDaytonaOverride(ctx, executionprofile.DaytonaConfig{
+		Enabled: true,
+		Sandbox: "sandbox-1",
+		WorkDir: "/workspace",
+	})
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "[artifact_export]") || !strings.Contains(out, `"name": "result.txt"`) {
+		t.Fatalf("daytona artifact export missing, isErr=%v out=%q", isErr, out)
+	}
+	var sawDownload bool
+	for _, spec := range fw.all {
+		if spec.Actor == "tool.code_exec.daytona.artifacts.download" {
+			sawDownload = true
+			joined := strings.Join(spec.Argv, " ")
+			if !strings.Contains(joined, "tar -C") || !strings.Contains(joined, ".agezt-artifacts") {
+				t.Fatalf("daytona artifact download argv wrong: %+v", spec.Argv)
+			}
+		}
+	}
+	if !sawDownload {
+		t.Fatalf("missing daytona artifact download call: %+v", fw.all)
+	}
+	if got := idx.entries[0]; got.Source != "code_exec" || got.Corr != "run-daytona-art" || got.Name != "result.txt" || got.Kind != "file" {
+		t.Fatalf("indexed daytona artifact wrong: %+v", got)
+	}
+	if string(idx.data[0]) != "daytona artifact" {
+		t.Fatalf("daytona artifact bytes = %q", string(idx.data[0]))
+	}
+}
+
+func testTarGzB64(t *testing.T, files map[string]string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	for name, body := range files {
+		data := []byte(body)
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: int64(len(data))}); err != nil {
+			t.Fatalf("tar header: %v", err)
+		}
+		if _, err := tw.Write(data); err != nil {
+			t.Fatalf("tar write: %v", err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("tar close: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+func TestCodeExec_ExportsLocalArtifacts(t *testing.T) {
+	idx := &fakeCodeExecIndex{}
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.SetIndex(idx)
+	tl.Now = func() int64 { return 42 }
+	fw.inspect = func(s warden.Spec) {
+		if s.Actor != "tool.code_exec" {
+			return
+		}
+		dir := filepath.Join(s.WorkDir, artifactExportDir, "nested")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatalf("mkdir fake artifact dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "result.txt"), []byte("local result"), 0o600); err != nil {
+			t.Fatalf("write fake local artifact: %v", err)
+		}
+	}
+	ctx := warden.WithCorrelation(context.Background(), "run-local-art")
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "print(1)"})
+	if isErr || !strings.Contains(out, "[artifact_export]") || !strings.Contains(out, `"name": "nested/result.txt"`) {
+		t.Fatalf("local artifact export missing, isErr=%v out=%q", isErr, out)
+	}
+	if got := idx.entries[0]; got.Source != "code_exec" || got.Corr != "run-local-art" || got.Name != "nested/result.txt" || got.Kind != "file" {
+		t.Fatalf("indexed local artifact wrong: %+v", got)
+	}
+	if string(idx.data[0]) != "local result" {
+		t.Fatalf("local artifact bytes = %q", string(idx.data[0]))
 	}
 }
 
@@ -162,6 +608,72 @@ func TestEnv_ScrubsSecrets(t *testing.T) {
 	}
 	if !strings.Contains(joined, "PATH=") {
 		t.Errorf("PATH should be preserved:\n%s", joined)
+	}
+}
+
+func TestEnv_AddsProfileEnvPassthrough(t *testing.T) {
+	t.Setenv("SAFE_DOCKER_ENV", "visible")
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("AGEZT_WEB_PASSWORD", "internal")
+	t.Setenv(executionprofile.EnvDocker, "SAFE_DOCKER_ENV,OPENAI_API_KEY")
+	t.Setenv(executionprofile.SecretEnvDocker, "OPENAI_API_KEY,AGEZT_WEB_PASSWORD")
+	t.Setenv("PATH", "/usr/bin")
+
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileContainer)
+	runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "x"})
+	joined := strings.Join(fw.last.Env, "\n")
+	for _, want := range []string{"SAFE_DOCKER_ENV=visible", "OPENAI_API_KEY=sk-test"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("env missing %q:\n%s", want, joined)
+		}
+	}
+	for _, leak := range []string{"AGEZT_WEB_PASSWORD", "internal"} {
+		if strings.Contains(joined, leak) {
+			t.Fatalf("env leaked %q:\n%s", leak, joined)
+		}
+	}
+}
+
+func TestEnv_AddsVaultSecretFileMounts(t *testing.T) {
+	baseDir := t.TempDir()
+	vault := creds.NewStore(baseDir)
+	if err := vault.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Set("OPENAI_API_KEY", "sk-test-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Save(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(executionprofile.SecretFilesDocker, "OPENAI_API_KEY:openai.key")
+
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.BaseDir = baseDir
+	var hostPath string
+	fw.inspect = func(s warden.Spec) {
+		for _, kv := range s.Env {
+			if v, ok := strings.CutPrefix(kv, "SECRET_FILE_OPENAI_API_KEY="); ok && v != "/workspace/.agezt-secrets/openai.key" {
+				t.Fatalf("docker secret file env path = %q, want /workspace/.agezt-secrets/openai.key", v)
+			}
+		}
+		hostPath = filepath.Join(s.WorkDir, ".agezt-secrets", "openai.key")
+		data, err := os.ReadFile(hostPath)
+		if err != nil {
+			t.Fatalf("secret file should exist while code runs: %v", err)
+		}
+		if string(data) != "sk-test-secret" {
+			t.Fatalf("secret file content = %q", data)
+		}
+	}
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileContainer)
+	out, isErr := runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "x", "project": "secret project"})
+	if isErr {
+		t.Fatalf("unexpected error result: %s", out)
+	}
+	if _, err := os.Stat(hostPath); !os.IsNotExist(err) {
+		t.Fatalf("secret file should be cleaned after run, stat err=%v", err)
 	}
 }
 

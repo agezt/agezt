@@ -309,6 +309,7 @@ const (
 	KindSkillPromoted    Kind = "skill.promoted"         // draft→shadow→active (or un-quarantine)
 	KindSkillQuarantined Kind = "skill.quarantined"      // pulled from production
 	KindSkillReverted    Kind = "skill.reverted"         // a reversal appended (never an edit)
+	KindSkillRestored    Kind = "skill.restored"         // status restored from an operator checkpoint
 	KindSkillActivated   Kind = "skill.activated"        // active skills injected into a run's context
 	KindSkillShadowEval  Kind = "skill.shadow_evaluated" // a shadow skill judged against a completed run (M400)
 	KindSkillShared      Kind = "skill.shared"           // a private (per-agent) skill promoted to the shared pool (M942)
@@ -402,6 +403,7 @@ const (
 	KindWorkflowSaved     Kind = "workflow.saved"
 	KindWorkflowUpdated   Kind = "workflow.updated" // enabled/disabled
 	KindWorkflowRemoved   Kind = "workflow.removed"
+	KindWorkflowRestored  Kind = "workflow.restored"
 	KindWorkflowStarted   Kind = "workflow.started"
 	KindWorkflowNode      Kind = "workflow.node" // one node executed (ok/error, fired port)
 	KindWorkflowCompleted Kind = "workflow.completed"
@@ -409,4 +411,30 @@ const (
 	// KindWorkflowDrafted (M802): the copilot turned a plain-language
 	// description into a validated (but UNSAVED) workflow graph.
 	KindWorkflowDrafted Kind = "workflow.drafted"
+
+	// Workboard (Phase 4) — durable typed tasks with claims, heartbeats,
+	// comments, links, and auditable status transitions.
+	KindWorkboardTaskCreated    Kind = "workboard.task.created"
+	KindWorkboardTaskUpdated    Kind = "workboard.task.updated"
+	KindWorkboardTaskClaimed    Kind = "workboard.task.claimed"
+	KindWorkboardTaskHeartbeat  Kind = "workboard.task.heartbeat"
+	KindWorkboardTaskCommented  Kind = "workboard.task.commented"
+	KindWorkboardTaskLinked     Kind = "workboard.task.linked"
+	KindWorkboardTaskDependency Kind = "workboard.task.dependency"
+	KindWorkboardTaskDispatched Kind = "workboard.task.dispatched"
+	// Proof loop ("PROOF > VIBES"): a task's acceptance criteria were judged
+	// against produced artifacts + traces. Proved = criteria satisfied and the
+	// task reached done; Unproven = it parked in review with the gap visible.
+	KindWorkboardTaskProved   Kind = "workboard.task.proved"
+	KindWorkboardTaskUnproven Kind = "workboard.task.unproven"
+
+	// OKR spine (Phase 2): objectives own key results that roll up proven
+	// workboard tasks. Achieved fires when every key result crosses its target.
+	KindOKRObjectiveCreated  Kind = "okr.objective.created"
+	KindOKRObjectiveUpdated  Kind = "okr.objective.updated"
+	KindOKRObjectiveAchieved Kind = "okr.objective.achieved"
+
+	// Taste overlay: curated "what good looks like" exemplars were injected into
+	// a run's system prompt (kernel/taste).
+	KindTasteInjected Kind = "taste.injected"
 )

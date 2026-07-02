@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/skilltool"
 	"github.com/agezt/agezt/plugins/tools/standingtool"
 	"github.com/agezt/agezt/plugins/tools/websearch"
+	"github.com/agezt/agezt/plugins/tools/workboardtool"
 	"github.com/agezt/agezt/plugins/tools/workflowtool"
 )
 
@@ -42,11 +43,13 @@ func TestFirstPartyToolDefinitionsDeclareEffects(t *testing.T) {
 		t.Fatalf("file.New: %v", err)
 	}
 
+	ba := browser.NewAction("node", "/tmp/browse.mjs")
 	tools := []agent.Tool{
 		acpagent.New("agent", t.TempDir()),
 		artifacts.New(),
 		boardtool.New(),
 		browser.New(),
+		ba,
 		codeexec.NewWithWarden(warden.New(nil), t.TempDir(), map[string]string{"python": "python"}, true),
 		coding.New("agent", t.TempDir()),
 		config.New(t.TempDir()),
@@ -68,8 +71,10 @@ func TestFirstPartyToolDefinitionsDeclareEffects(t *testing.T) {
 		skilltool.New(),
 		standingtool.New(),
 		websearch.New(),
+		workboardtool.New(),
 		workflowtool.New(),
 	}
+	tools = append(tools, browser.NewActionVerbTools(ba)...)
 
 	for _, tool := range tools {
 		if tool == nil {

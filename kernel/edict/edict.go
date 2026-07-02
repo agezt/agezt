@@ -87,6 +87,11 @@ const (
 	// browser.read permanently default-denied and ungrantable via the policy
 	// surface (M613).
 	CapBrowserRead Capability = "browser.read"
+	// CapBrowserAction gates `browser.action`: launching a real browser and
+	// performing user-like clicks/fills/keypresses. It has a higher blast radius
+	// than browser.read because actions can mutate remote state, so operators can
+	// govern it separately from plain page reads.
+	CapBrowserAction Capability = "browser.action"
 	// CapMemory gates the `memory` tool: persisting/recalling durable knowledge
 	// in the operator's own local store. Low risk, Allow by default. Previously
 	// unregistered → default-denied (M613).
@@ -118,6 +123,11 @@ const (
 	// other. A local shared note-store like memory — low risk, Allow by
 	// default (M647).
 	CapBoard Capability = "board"
+	// CapWorkboard gates the `workboard` tool: agents creating and moving durable
+	// typed task records. It is local coordination state, not external execution,
+	// and every mutation is journaled as workboard.task.*; operators can still
+	// tighten this axis independently from the free-form board mailbox.
+	CapWorkboard Capability = "workboard"
 	// CapSkill gates the `skill` tool: the agent modifying ITSELF — authoring,
 	// promoting, and retiring its own reusable procedures through Forge. A genuine
 	// self-modification grant (a learned, active skill shapes future planning), but
@@ -646,7 +656,7 @@ func AllCapabilities() []Capability {
 		CapHTTPGet, CapHTTPPost, CapProviderCall, CapDelegate, CapCoding,
 		CapACPAgent, CapRemoteRun, CapNotify,
 		CapHomeAssistantRead, CapHomeAssistantCall,
-		CapBrowserRead, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapSkill,
+		CapBrowserRead, CapBrowserAction, CapMemory, CapWorld, CapWebSearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapWorkboard, CapSkill,
 		CapIntrospect, CapOversee, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
 		CapWorkflow,
 	}

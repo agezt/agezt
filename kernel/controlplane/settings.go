@@ -150,12 +150,18 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		// A live SECRET (e.g. AGEZT_WEB_PASSWORD, M933) is pushed into the env —
 		// consumers that read it lazily (the console password gate) pick it up
 		// immediately. No provider rebuild: a secret edit doesn't change routing.
-		_ = os.Setenv(name, value)
+		setLiveEnv(name, value)
+		result["applied"] = "live"
+	case field.Apply == settings.ApplyLive && !configFieldNeedsKernelReload(name):
+		// Some live non-secret settings are read lazily from the process env at
+		// submission/check time (for example execution-profile policy). Push them
+		// into the env without rebuilding the provider.
+		setLiveEnv(name, value)
 		result["applied"] = "live"
 	case field.Apply == settings.ApplyLive:
 		// Push into the live env and rebuild the provider in place — same path as
 		// provider_reload.
-		_ = os.Setenv(name, value)
+		setLiveEnv(name, value)
 		if _, _, err := s.k.Reload(); err != nil {
 			result["applied"] = "restart"
 			result["reload_error"] = err.Error()
@@ -166,6 +172,23 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		result["applied"] = "restart"
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+func configFieldNeedsKernelReload(name string) bool {
+	switch name {
+	case "AGEZT_PROVIDER", "AGEZT_MODEL":
+		return true
+	default:
+		return false
+	}
+}
+
+func setLiveEnv(name, value string) {
+	if value == "" {
+		_ = os.Unsetenv(name)
+		return
+	}
+	_ = os.Setenv(name, value)
 }
 
 // handleConfigSchemaRegister persists a skill/plugin-contributed schema section to

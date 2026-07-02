@@ -209,6 +209,12 @@ func cmdWorkflowSave(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if name := str(graph["name"]); name != "" {
+		if _, _, cerr := saveWorkflowSnapshotRollbackCheckpointIfFound(ctx, c, "workflow.save", name, ""); cerr != nil {
+			fmt.Fprintf(stderr, "%s workflow save: checkpoint: %v\n", brand.CLI, cerr)
+			return 1
+		}
+	}
 	res, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow save: %v\n", brand.CLI, err)
@@ -281,6 +287,12 @@ func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
 	}
 	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer saveCancel()
+	if name := str(w["name"]); name != "" {
+		if _, _, cerr := saveWorkflowSnapshotRollbackCheckpointIfFound(saveCtx, c, "workflow.draft.save", name, ""); cerr != nil {
+			fmt.Fprintf(stderr, "%s workflow draft: checkpoint: %v\n", brand.CLI, cerr)
+			return 1
+		}
+	}
 	saveRes, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow draft: save: %v\n", brand.CLI, err)
@@ -353,6 +365,10 @@ func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
 	}
 	saveCtx, saveCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer saveCancel()
+	if _, _, cerr := saveWorkflowSnapshotRollbackCheckpointIfFound(saveCtx, c, "workflow.refine.save", ref, ""); cerr != nil {
+		fmt.Fprintf(stderr, "%s workflow refine: checkpoint: %v\n", brand.CLI, cerr)
+		return 1
+	}
 	saveRes, err := c.Call(saveCtx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow refine: save: %v\n", brand.CLI, err)
@@ -500,6 +516,10 @@ func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stderr, "%s workflow templates: template %q carries no graph\n", brand.CLI, use)
 				return 1
 			}
+			if _, _, cerr := saveWorkflowSnapshotRollbackCheckpointIfFound(ctx, c, "workflow.template.save", name, ""); cerr != nil {
+				fmt.Fprintf(stderr, "%s workflow templates: checkpoint: %v\n", brand.CLI, cerr)
+				return 1
+			}
 			w["name"] = name
 			delete(w, "id")
 			saveRes, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
@@ -616,6 +636,10 @@ func cmdWorkflowSetEnabled(args []string, stdout, stderr io.Writer, enabled bool
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	if _, _, cerr := saveWorkflowSnapshotRollbackCheckpointIfFound(ctx, c, "workflow."+verb, args[0], ""); cerr != nil {
+		fmt.Fprintf(stderr, "%s workflow %s: checkpoint: %v\n", brand.CLI, verb, cerr)
+		return 1
+	}
 	if _, err := c.Call(ctx, controlplane.CmdWorkflowSetEnabled, map[string]any{"ref": args[0], "enabled": enabled}); err != nil {
 		fmt.Fprintf(stderr, "%s workflow %s: %v\n", brand.CLI, verb, err)
 		return 1
@@ -635,6 +659,10 @@ func cmdWorkflowRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	if _, _, cerr := saveWorkflowSnapshotRollbackCheckpointIfFound(ctx, c, "workflow.remove", args[0], ""); cerr != nil {
+		fmt.Fprintf(stderr, "%s workflow remove: checkpoint: %v\n", brand.CLI, cerr)
+		return 1
+	}
 	res, err := c.Call(ctx, controlplane.CmdWorkflowRemove, map[string]any{"ref": args[0]})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow remove: %v\n", brand.CLI, err)

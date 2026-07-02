@@ -132,6 +132,94 @@ func TestSkillPromoteIllegalErrors(t *testing.T) {
 	}
 }
 
+func TestSkillArchiveOverControlPlane(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "proposal", Body: "steps"})
+	ctx := context.Background()
+
+	res, err := c.Call(ctx, controlplane.CmdSkillArchive, map[string]any{
+		"id": sk.ID, "reason": "operator rejected",
+	})
+	if err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if res["status"] != "archived" {
+		t.Fatalf("archive status = %v, want archived", res["status"])
+	}
+	got, found, err := k.Forge().Get(sk.ID)
+	if err != nil || !found {
+		t.Fatalf("stored skill found=%v err=%v", found, err)
+	}
+	if got.Status != skill.StatusArchived {
+		t.Fatalf("stored status = %s, want archived", got.Status)
+	}
+
+	hist, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": sk.ID})
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	events, _ := hist["events"].([]any)
+	foundReason := false
+	for _, raw := range events {
+		e, _ := raw.(map[string]any)
+		p, _ := e["payload"].(map[string]any)
+		if p["reason"] == "operator rejected" && p["archived"] == true {
+			foundReason = true
+		}
+	}
+	if !foundReason {
+		t.Fatalf("archive reason not found in history events: %+v", events)
+	}
+}
+
+func TestSkillRestoreStatusOverControlPlane(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "proposal", Body: "steps"})
+	ctx := context.Background()
+
+	if _, err := c.Call(ctx, controlplane.CmdSkillArchive, map[string]any{
+		"id": sk.ID, "reason": "operator rejected",
+	}); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	res, err := c.Call(ctx, controlplane.CmdSkillRestore, map[string]any{
+		"id": sk.ID, "status": "draft", "reason": "rollback checkpoint rb-test",
+	})
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if res["from"] != "archived" || res["status"] != "draft" {
+		t.Fatalf("restore result = %+v, want archived -> draft", res)
+	}
+	got, found, err := k.Forge().Get(sk.ID)
+	if err != nil || !found {
+		t.Fatalf("stored skill found=%v err=%v", found, err)
+	}
+	if got.Status != skill.StatusDraft {
+		t.Fatalf("stored status = %s, want draft", got.Status)
+	}
+
+	hist, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": sk.ID})
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	events, _ := hist["events"].([]any)
+	foundRestore := false
+	for _, raw := range events {
+		e, _ := raw.(map[string]any)
+		if e["kind"] != "skill.restored" {
+			continue
+		}
+		p, _ := e["payload"].(map[string]any)
+		if p["from"] == "archived" && p["to"] == "draft" && p["reason"] == "rollback checkpoint rb-test" {
+			foundRestore = true
+		}
+	}
+	if !foundRestore {
+		t.Fatalf("skill.restored event not found in history: %+v", events)
+	}
+}
+
 func TestSkillListEmpty(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	res, err := c.Call(context.Background(), controlplane.CmdSkillList, nil)

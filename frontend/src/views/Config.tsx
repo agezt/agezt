@@ -1,6 +1,13 @@
-import { Brain, Cable, FolderOpen, Gauge, Network, Puzzle, Route, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
-import { Panel, Stats, Count } from "@/components/Panel";
+import { Brain, Cable, FolderOpen, Gauge, Network, Puzzle, RefreshCw, Route, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Stats, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardBody } from "@/components/ui/card";
+import { Page } from "@/components/ui/page";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { usePanel } from "@/lib/usePanel";
+import { cn } from "@/lib/utils";
+import { ErrorText } from "@/components/JsonView";
 
 // CATEGORIES buckets the AGEZT_* settings (sans prefix) into labelled groups so
 // the Config view reads like a settings panel instead of a flat chip cloud. Rules
@@ -9,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 const CATEGORIES: { label: string; match: string[] }[] = [
   { label: "Provider & Model", match: ["PROVIDER", "MODEL", "OLLAMA", "CATALOG", "PRICING", "CONTEXT"] },
   { label: "Channels", match: ["TELEGRAM", "SLACK", "DISCORD", "MATRIX", "EMAIL", "SMS", "WHATSAPP", "TEAMS", "WEBHOOK", "HOMEASSISTANT", "CHANNEL"] },
-  { label: "Interfaces", match: ["WEB_ADDR", "API_ADDR", "REST", "MULTITENANT", "PEERS", "MESH"] },
+  { label: "Interfaces", match: ["WEB_ADDR", "WEB_ALLOWED_HOSTS", "WEB_PASSWORD", "TUNNEL", "API_ADDR", "REST", "MULTITENANT", "PEERS", "MESH"] },
   { label: "Autonomy & Learning", match: ["SCHEDULE", "STANDING", "PULSE", "FORGE", "MEMORY", "REFLECT", "BRIEF", "WORLD", "SKILL"] },
   { label: "Security & Policy", match: ["ALLOW_ALL", "EDICT", "APPROVAL", "ANOMALY", "HTTP_ALLOW", "BROWSER_ALLOW", "AWS", "FORCE_START"] },
   { label: "Tools & Plugins", match: ["CODING", "ACP", "PLUGIN", "BROWSER", "HTTP", "TOOL", "ENV_INJECT", "ARTIFACT"] },
@@ -44,10 +51,35 @@ function objectCount(value: unknown): number {
 }
 
 export function Config() {
+  const { data, error, loading, reload } = usePanel<Record<string, any>>("/api/config");
   return (
-    <Panel<Record<string, any>> title="Config" icon={Settings} description="Every AGEZT_* setting the daemon sees, grouped by area" path="/api/config">
-      {(d) => {
-        const setKeys = Object.keys(d.env || {})
+    <Page
+      icon={Settings}
+      title="Config"
+      description="Every AGEZT_* setting the daemon sees, grouped by area"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Refresh">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
+      <Card glass>
+        <CardBody className="space-y-3">
+          {error ? (
+            <ErrorText>{error}</ErrorText>
+          ) : !data ? (
+            <SkeletonList count={3} lines={2} />
+          ) : (
+            <ConfigBody d={data} />
+          )}
+        </CardBody>
+      </Card>
+    </Page>
+  );
+}
+
+function ConfigBody({ d }: { d: Record<string, any> }) {
+  const setKeys = Object.keys(d.env || {})
           .filter((k) => d.env[k])
           .sort();
         // Bucket the set keys into ordered sections.
@@ -151,8 +183,5 @@ export function Config() {
               </section>
             )}
           </>
-        );
-      }}
-    </Panel>
   );
 }

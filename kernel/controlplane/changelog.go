@@ -33,6 +33,8 @@ var changelogKinds = map[event.Kind]string{
 	event.KindSkillPromoted:             "skill promoted",
 	event.KindSkillQuarantined:          "skill quarantined",
 	event.KindSkillReverted:             "skill reverted",
+	event.KindSkillRestored:             "skill restored",
+	event.KindWorkflowRestored:          "workflow restored",
 	event.KindReflectionCompleted:       "reflection completed",
 	event.KindCatalogSynced:             "model catalog synced",
 	event.KindCatalogSyncFailed:         "model catalog sync FAILED",

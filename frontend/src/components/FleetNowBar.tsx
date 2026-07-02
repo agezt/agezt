@@ -381,7 +381,7 @@ function NowSlider({
   const summary = fleetNowSummary(live);
 
   return (
-    <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-panel/40 px-3 py-2">
+    <div className="flex max-h-[38vh] shrink-0 flex-col gap-1.5 overflow-y-auto border-b border-border bg-panel/40 px-3 py-2">
       <div className="flex items-center gap-2 text-xs">
         <button
           onClick={onOverseer}

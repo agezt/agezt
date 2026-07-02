@@ -61,6 +61,9 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 	if p["timeout"] != "none" {
 		t.Errorf("timeout = %v, want none", p["timeout"])
 	}
+	if p["execution_profile"] != "(tool defaults)" || p["execution_profile_source"] != "tool defaults" || p["warden_profile"] != "tool defaults" {
+		t.Errorf("execution defaults wrong: profile=%v source=%v warden=%v", p["execution_profile"], p["execution_profile_source"], p["warden_profile"])
+	}
 	if p["tenant"] != "(primary)" {
 		t.Errorf("tenant = %v, want (primary)", p["tenant"])
 	}
@@ -71,17 +74,20 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 
 	// All overrides set.
 	p = buildRunPlan(runPlanInput{
-		Intent:          "x",
-		Tenant:          "acme",
-		Model:           "claude",
-		ModelOverridden: true,
-		ModelKnown:      true,
-		SupportsVision:  true,
-		SupportsTools:   true,
-		SystemSet:       true,
-		SystemOverride:  true,
-		Timeout:         "30s",
-		DaemonTimeout:   5 * time.Minute,
+		Intent:           "x",
+		Tenant:           "acme",
+		Model:            "claude",
+		ModelOverridden:  true,
+		ModelKnown:       true,
+		SupportsVision:   true,
+		SupportsTools:    true,
+		SystemSet:        true,
+		SystemOverride:   true,
+		Timeout:          "30s",
+		DaemonTimeout:    5 * time.Minute,
+		ExecutionProfile: "remote-agezt",
+		WardenProfile:    "remote-agezt",
+		RemotePeer:       "nodeB",
 	})
 	if p["model_source"] != "per-run (--model)" {
 		t.Errorf("model_source = %v", p["model_source"])
@@ -91,6 +97,12 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 	}
 	if p["timeout"] != "30s (per-run)" {
 		t.Errorf("timeout = %v, want 30s (per-run)", p["timeout"])
+	}
+	if p["execution_profile"] != "remote-agezt" || p["execution_profile_source"] != "per-run (--exec-profile)" || p["warden_profile"] != "remote-agezt" {
+		t.Errorf("execution override wrong: profile=%v source=%v warden=%v", p["execution_profile"], p["execution_profile_source"], p["warden_profile"])
+	}
+	if p["remote_peer"] != "nodeB" {
+		t.Errorf("remote_peer = %v, want nodeB", p["remote_peer"])
 	}
 	if p["tenant"] != "acme" {
 		t.Errorf("tenant = %v", p["tenant"])

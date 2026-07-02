@@ -5,7 +5,7 @@ import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 
 interface Observations {
   window_events?: number;
@@ -75,23 +75,22 @@ export function Reflect() {
   const props = report?.proposals || [];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Brain}
-        title="Reflection"
-        description="The daemon folds its journal into observations and advisory proposals."
-        actions={
-          <>
-            {report?.generated_ms ? (
-              <span className="text-xs text-muted">last {fmtDateTime(report.generated_ms)}</span>
-            ) : null}
-            <Button variant="ghost" size="sm" className="gap-1.5" onClick={runNow} disabled={running}>
-              {running ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-              Run now
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Brain}
+      title="Reflection"
+      description="The daemon folds its journal into observations and advisory proposals."
+      actions={
+        <>
+          {report?.generated_ms ? (
+            <span className="text-xs text-muted">last {fmtDateTime(report.generated_ms)}</span>
+          ) : null}
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={runNow} disabled={running}>
+            {running ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+            Run now
+          </Button>
+        </>
+      }
+    >
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -103,7 +102,7 @@ export function Reflect() {
       ) : !report ? (
         <SkeletonList count={3} lines={2} />
       ) : (
-        <div className="min-h-0 flex-1 space-y-4 overflow-auto">
+        <div className="space-y-4">
           {/* Observation tiles */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             <Tile label="events folded" value={o.window_events} />
@@ -150,7 +149,7 @@ export function Reflect() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { RunDetailCards, ToolCallRow, runPhaseSteps } from "@/components/RunDetail";
+import { RunDetailCards, ToolCallRow, remoteArtifactsFromArc, runPhaseSteps } from "@/components/RunDetail";
 import type { ToolCall } from "@/lib/rundetail";
 
 afterEach(cleanup);
@@ -134,5 +134,39 @@ describe("RunDetailCards", () => {
     );
     expect(screen.getByText("delegations")).toBeTruthy();
     expect(screen.getByText("1 spawned / 1 completed / 1 failed")).toBeTruthy();
+  });
+
+  it("summarizes mirrored remote artifact metadata without raw bytes", () => {
+    const arc = [
+      {
+        seq: 1,
+        kind: "info",
+        payload: {
+          phase: "peer_events_mirrored",
+          remote_peer: "nodeB",
+          remote_correlation: "run-remote",
+          artifacts: [
+            {
+              id: "art-1",
+              ref: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              name: "result.txt",
+              mime: "text/plain",
+              kind: "tool-output",
+              corr: "run-remote",
+              size: 12,
+              data: "do-not-render",
+            },
+          ],
+        },
+      },
+    ];
+    expect(remoteArtifactsFromArc(arc)).toHaveLength(1);
+    render(<RunDetailCards arc={arc} />);
+    expect(screen.getByText("Remote artifacts (1)")).toBeTruthy();
+    expect(screen.getByText("result.txt")).toBeTruthy();
+    expect(screen.getByText("nodeB")).toBeTruthy();
+    expect(screen.getByText("tool-output")).toBeTruthy();
+    expect(screen.getByTitle("Copy artifact-get command")).toBeTruthy();
+    expect(screen.queryByText("do-not-render")).toBeNull();
   });
 });

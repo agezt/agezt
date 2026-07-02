@@ -7,7 +7,7 @@ import { categoryOf, isErrorKind } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/lib/utils";
 import { DataView } from "@/components/DataView";
 import { Muted, ErrorText } from "@/components/JsonView";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import {
   incidentBadgeItem,
@@ -53,19 +53,19 @@ export function Search() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={SearchIcon}
-        title="Journal search"
-        description="find and inspect any past event across the daemon's whole history"
-        actions={
-          <>
-            <JournalIntegrity />
-            <JournalExport />
-          </>
-        }
-      />
-
+    <Page
+      icon={SearchIcon}
+      title="Journal search"
+      description="find and inspect any past event across the daemon's whole history"
+      mode="fill"
+      width="wide"
+      actions={
+        <>
+          <JournalIntegrity />
+          <JournalExport />
+        </>
+      }
+    >
       {/* Filters */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="text" value={pattern} onChange={setPattern} onKey={onKey} placeholder="match anywhere…" autoFocus />
@@ -142,7 +142,7 @@ export function Search() {
           </ul>
         )}
       </div>
-    </div>
+    </Page>
   );
 }
 

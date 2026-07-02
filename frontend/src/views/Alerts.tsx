@@ -11,6 +11,7 @@ import { IncidentBadges } from "@/components/IncidentBadges";
 import { Badge } from "@/components/ui/badge";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { Page } from "@/components/ui/page";
 
 const MAX_ALERTS = 100;
 
@@ -113,21 +114,14 @@ export function Alerts() {
   const shown = filter === "all" ? rows : rows.filter((r) => r.level === filter);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
-            <Bell className="size-5" />
-          </span>
-          <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Alerts</h2>
-            <Badge variant={connected ? "good" : "bad"} className="mt-0.5">
-              {connected ? "live" : "offline"}
-            </Badge>
-          </div>
-        </div>
-      </div>
-
+    <Page
+      icon={Bell}
+      title="Alerts"
+      width="readable"
+      actions={
+        <Badge variant={connected ? "good" : "bad"}>{connected ? "live" : "offline"}</Badge>
+      }
+    >
       <TabNav
         tabs={[
           {
@@ -176,9 +170,8 @@ export function Alerts() {
           <span className="text-sm">{rows.length === 0 ? "no alerts — all quiet" : "none at this level"}</span>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ul className="space-y-1.5">
-            {shown.map((r) => {
+        <ul className="space-y-1.5">
+          {shown.map((r) => {
               const s = LEVEL_STYLE[r.level];
               const Icon = s.icon;
               return (
@@ -227,9 +220,8 @@ export function Alerts() {
                 </li>
               );
             })}
-          </ul>
-        </div>
+        </ul>
       )}
-    </div>
+    </Page>
   );
 }

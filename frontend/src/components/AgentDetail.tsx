@@ -736,6 +736,23 @@ export function AgentDetail({
     }
   }
 
+  async function saveExecProfile(value: string) {
+    setBusy(true);
+    try {
+      await postJSON("/api/agents/edit", {
+        ref: slug,
+        profile: editableAgentProfile(profile, { execution_profile: value }),
+      });
+      ui.toast(value ? `${slug} runs on "${value}" isolation` : `${slug} isolation cleared`, "success");
+      onChanged?.();
+      setBump((b) => b + 1);
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function pauseFrequentSchedules(scheduleIds: string[]) {
     const ids = Array.from(new Set(scheduleIds.filter(Boolean)));
     if (ids.length === 0) return;
@@ -1248,6 +1265,23 @@ export function AgentDetail({
                 <Row label="schedule pressure" value={schedulePassport.detail} />
                 <Row label="delegation" value={delegationPassport.detail} />
                 <Row label="trust ceiling" value={profile.trust_ceiling || "L4"} />
+                <Row
+                  label="isolation"
+                  value={
+                    <select
+                      aria-label="Execution isolation profile"
+                      value={profile.execution_profile || ""}
+                      disabled={busy}
+                      onChange={(e) => saveExecProfile(e.target.value)}
+                      className="h-7 rounded-md border border-border bg-panel px-2 text-xs outline-none focus-visible:border-accent"
+                    >
+                      <option value="">tool defaults</option>
+                      <option value="local">local</option>
+                      <option value="warden">warden</option>
+                      <option value="container">container</option>
+                    </select>
+                  }
+                />
                 <Row
                   label="memory scope"
                   value={
@@ -5862,6 +5896,7 @@ function editableAgentProfile(profile: AgentProfile, patch: Partial<AgentProfile
     tool_allow: profile.tool_allow || [],
     tool_deny: profile.tool_deny || [],
     trust_ceiling: profile.trust_ceiling || "",
+    execution_profile: profile.execution_profile || "",
     config_overrides: profile.config_overrides || {},
     lifecycle: profile.lifecycle || {},
     tasklist: profile.tasklist || [],

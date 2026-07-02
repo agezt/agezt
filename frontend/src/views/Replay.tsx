@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { FlightRecorder } from "@/components/FlightRecorder";
 
 interface Run {
@@ -75,18 +75,18 @@ export function Replay() {
   const isLive = selRun?.status === "running";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Clapperboard}
-        title="Flight recorder"
-        description="Pick any run and scrub through exactly what the agent did, step by step."
-        actions={
-          <Button variant="ghost" size="sm" onClick={loadRuns} title="Reload run list">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        }
-      />
-
+    <Page
+      icon={Clapperboard}
+      title="Flight recorder"
+      description="Pick any run and scrub through exactly what the agent did, step by step."
+      mode="fill"
+      width="full"
+      actions={
+        <Button variant="ghost" size="sm" onClick={loadRuns} title="Reload run list">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
       {runs.length > 0 ? (
         <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Replay run">
           {runs.map((r) => {
@@ -124,6 +124,6 @@ export function Replay() {
           <FlightRecorder steps={steps} live={isLive} />
         </div>
       )}
-    </div>
+    </Page>
   );
 }

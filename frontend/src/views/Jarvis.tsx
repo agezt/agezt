@@ -6,7 +6,7 @@ import { getJSON, postAction, authHeaders } from "@/lib/api";
 import type { AgentEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useUI } from "@/components/ui/feedback";
 
@@ -235,18 +235,17 @@ export function Jarvis() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
-      <PageHeader
-        icon={Sparkles}
-        title="Jarvis"
-        description="Your AI's presence — it hears you, acts for you, and knows you."
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} title="Refresh">
-            <RefreshCw className="size-3.5" />
-          </Button>
-        }
-      />
-
+    <Page
+      icon={Sparkles}
+      title="Jarvis"
+      description="Your AI's presence — it hears you, acts for you, and knows you."
+      width="wide"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} title="Refresh">
+          <RefreshCw className="size-3.5" />
+        </Button>
+      }
+    >
       {/* Presence hero — an aurora band with the live pillar count. */}
       <div className="glass glow-accent relative overflow-hidden rounded-lg p-5">
         <div
@@ -493,7 +492,7 @@ export function Jarvis() {
           </ul>
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

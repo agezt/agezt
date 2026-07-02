@@ -12,6 +12,7 @@ beforeEach(() => {
     if (path === "/api/catalog") return Promise.resolve({ providers: [{ id: "deepseek", name: "DeepSeek", credentialed: true }, { id: "openai", credentialed: false }] });
     if (path === "/api/channels") return Promise.resolve({ channels: [{ kind: "telegram", display: "Telegram", live: true, configured: true }, { kind: "irc", display: "IRC", live: false, configured: true }] });
     if (path === "/api/mcp") return Promise.resolve({ servers: [{ name: "fetch", attached: true, enabled: true }] });
+    if (path === "/api/nodes") return Promise.resolve({ nodes: [{ name: "local", local: true, reachable: true }, { name: "nodeB", reachable: true, version: "peer-1" }] });
     return Promise.resolve({});
   });
 });
@@ -25,6 +26,7 @@ describe("Connections", () => {
     expect(screen.getByText("Telegram")).toBeTruthy(); // live channel
     expect(screen.getByText(/restart to start/i)).toBeTruthy(); // configured-not-live
     expect(screen.getByText("fetch")).toBeTruthy(); // attached MCP
+    expect(screen.getByText("nodeB")).toBeTruthy(); // reachable peer node
   });
 
   it("navigates to the manage views via hash", async () => {
@@ -43,6 +45,7 @@ describe("Connections", () => {
     expect(btn.textContent).toMatch(/1 provider keyed/i);
     expect(btn.textContent).toMatch(/1 channel live/i);
     expect(btn.textContent).toMatch(/1 MCP attached/i);
+    expect(btn.textContent).toMatch(/2 nodes reachable/i);
     fireEvent.click(btn);
     expect(location.hash).toBe("#connections");
   });

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Ring } from "@/components/Widgets";
 
 interface CacheData {
@@ -81,11 +82,11 @@ export function Cache() {
           </div>
 
           {/* Token tiles */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Tile icon={Download} label="cache reads" value={`${reads.toLocaleString()} tok`} />
-            <Tile icon={Upload} label="cache writes" value={`${writes.toLocaleString()} tok`} />
-            <Tile icon={Hash} label="priced calls" value={(d.calls ?? 0).toLocaleString()} />
-          </div>
+          <MetricGrid cols="repeat(auto-fill, minmax(160px, 1fr))">
+            <MetricWidget icon={Download} label="cache reads" value={`${reads.toLocaleString()} tok`} tone="good" />
+            <MetricWidget icon={Upload} label="cache writes" value={`${writes.toLocaleString()} tok`} tone="accent" />
+            <MetricWidget icon={Hash} label="priced calls" value={(d.calls ?? 0).toLocaleString()} tone="muted" />
+          </MetricGrid>
 
           {/* Read vs write split, with a read-share gauge */}
           {total > 0 ? (
@@ -117,17 +118,6 @@ export function Cache() {
           )}
         </>
       )}
-    </div>
-  );
-}
-
-function Tile({ icon: Icon, label, value }: { icon: typeof Database; label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-      </div>
-      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
     </div>
   );
 }

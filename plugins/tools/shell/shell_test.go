@@ -5,6 +5,7 @@ package shell
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -27,10 +30,16 @@ func (f *fakeWarden) SetBus(*bus.Bus)                                          {
 
 // capturingWarden records the Spec it was asked to run, so a test can assert
 // what the shell tool put on it (e.g. the correlation id read from ctx).
-type capturingWarden struct{ got warden.Spec }
+type capturingWarden struct {
+	got     warden.Spec
+	inspect func(warden.Spec)
+}
 
 func (c *capturingWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, error) {
 	c.got = s
+	if c.inspect != nil {
+		c.inspect(s)
+	}
 	return &warden.Result{ExitCode: 0, Stdout: []byte("ok")}, nil
 }
 func (c *capturingWarden) EffectiveProfile(p warden.Profile) warden.Profile { return p }
@@ -61,6 +70,259 @@ func TestShell_StampsRunCorrelationOnSpec(t *testing.T) {
 	}
 	if cw.got.CorrelationID != "" {
 		t.Errorf("Spec.CorrelationID = %q, want empty with no ctx correlation", cw.got.CorrelationID)
+	}
+}
+
+func TestShell_UsesExecutionProfileOverride(t *testing.T) {
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "x"})
+
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileNone)
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if cw.got.Profile != warden.ProfileNone {
+		t.Errorf("Spec.Profile = %q, want per-run override %q", cw.got.Profile, warden.ProfileNone)
+	}
+}
+
+func TestShell_AddsProfileEnvPassthrough(t *testing.T) {
+	t.Setenv("SAFE_TOOL_ENV", "visible")
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("AGEZT_WEB_PASSWORD", "internal")
+	t.Setenv(executionprofile.EnvLocal, "SAFE_TOOL_ENV,OPENAI_API_KEY")
+	t.Setenv(executionprofile.SecretEnvLocal, "OPENAI_API_KEY,AGEZT_WEB_PASSWORD")
+
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "x"})
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileNone)
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	joined := strings.Join(cw.got.Env, "\n")
+	for _, want := range []string{"SAFE_TOOL_ENV=visible", "OPENAI_API_KEY=sk-test"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("env missing %q:\n%s", want, joined)
+		}
+	}
+	for _, leak := range []string{"AGEZT_WEB_PASSWORD", "internal"} {
+		if strings.Contains(joined, leak) {
+			t.Fatalf("env leaked %q:\n%s", leak, joined)
+		}
+	}
+}
+
+func TestShell_AddsVaultSecretFileMounts(t *testing.T) {
+	baseDir := t.TempDir()
+	workDir := t.TempDir()
+	vault := creds.NewStore(baseDir)
+	if err := vault.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Set("OPENAI_API_KEY", "sk-test-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Save(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(executionprofile.SecretFilesLocal, "OPENAI_API_KEY:openai.key")
+
+	var mountedPath string
+	cw := &capturingWarden{inspect: func(s warden.Spec) {
+		for _, kv := range s.Env {
+			if v, ok := strings.CutPrefix(kv, "SECRET_FILE_OPENAI_API_KEY="); ok {
+				mountedPath = v
+			}
+		}
+		if mountedPath == "" {
+			t.Fatalf("missing secret file env in %+v", s.Env)
+		}
+		data, err := os.ReadFile(mountedPath)
+		if err != nil {
+			t.Fatalf("secret file should exist while command runs: %v", err)
+		}
+		if string(data) != "sk-test-secret" {
+			t.Fatalf("secret file content = %q", data)
+		}
+	}}
+	sh := NewWithWarden(cw)
+	sh.BaseDir = baseDir
+	sh.WorkDir = workDir
+	in, _ := json.Marshal(shellInput{Command: "x"})
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileNone)
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if _, err := os.Stat(mountedPath); !os.IsNotExist(err) {
+		t.Fatalf("secret file should be cleaned after command, stat err=%v", err)
+	}
+}
+
+func TestShell_UsesSSHExecutionProfileOverride(t *testing.T) {
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "echo 'remote ok'"})
+
+	ctx := executionprofile.WithSSHOverride(context.Background(), executionprofile.SSHConfig{
+		Enabled:               true,
+		Target:                "deploy@example.com",
+		WorkDir:               "/srv/app dir",
+		Port:                  "2222",
+		IdentityFile:          "/keys/id_ed25519",
+		StrictHostKeyChecking: "accept-new",
+	})
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	got := strings.Join(cw.got.Argv, "\n")
+	for _, want := range []string{
+		"ssh",
+		"BatchMode=yes",
+		"StrictHostKeyChecking=accept-new",
+		"/keys/id_ed25519",
+		"2222",
+		"deploy@example.com",
+		"sh -lc",
+		"/srv/app dir",
+		"remote ok",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("ssh argv missing %q:\n%v", want, cw.got.Argv)
+		}
+	}
+	if cw.got.Profile != warden.ProfileNone || cw.got.Actor != "tool.shell.ssh" {
+		t.Fatalf("ssh spec profile/actor = %q/%q", cw.got.Profile, cw.got.Actor)
+	}
+}
+
+func TestShell_UsesK8sExecutionProfileOverride(t *testing.T) {
+	t.Setenv("KUBECONFIG", "/tmp/kubeconfig")
+	t.Setenv("KUBE_TOKEN", "must-not-forward")
+	t.Setenv("AGEZT_API_TOKEN", "must-not-forward")
+
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "echo 'cluster ok'"})
+
+	ctx := executionprofile.WithK8sOverride(context.Background(), executionprofile.K8sConfig{
+		Enabled:   true,
+		Context:   "prod",
+		Namespace: "agents",
+		Pod:       "runner-0",
+		Container: "worker",
+		WorkDir:   "/workspace app",
+	})
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	got := strings.Join(cw.got.Argv, "\n")
+	for _, want := range []string{
+		"kubectl",
+		"--context",
+		"prod",
+		"-n",
+		"agents",
+		"exec",
+		"runner-0",
+		"-c",
+		"worker",
+		"sh",
+		"-lc",
+		"/workspace app",
+		"cluster ok",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("k8s argv missing %q:\n%v", want, cw.got.Argv)
+		}
+	}
+	if cw.got.Profile != warden.ProfileNone || cw.got.Actor != "tool.shell.k8s" {
+		t.Fatalf("k8s spec profile/actor = %q/%q", cw.got.Profile, cw.got.Actor)
+	}
+	env := strings.Join(cw.got.Env, "\n")
+	if !strings.Contains(env, "KUBECONFIG=/tmp/kubeconfig") {
+		t.Fatalf("k8s env missing KUBECONFIG:\n%s", env)
+	}
+	for _, leak := range []string{"KUBE_TOKEN", "AGEZT_API_TOKEN", "must-not-forward"} {
+		if strings.Contains(env, leak) {
+			t.Fatalf("k8s env leaked %q:\n%s", leak, env)
+		}
+	}
+}
+
+func TestShell_UsesModalExecutionProfileOverride(t *testing.T) {
+	t.Setenv("MODAL_CONFIG_PATH", "/tmp/modal.toml")
+	t.Setenv("MODAL_TOKEN_SECRET", "must-not-forward")
+	t.Setenv("AGEZT_API_TOKEN", "must-not-forward")
+
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "echo 'modal ok'"})
+
+	ctx := executionprofile.WithModalOverride(context.Background(), executionprofile.ModalConfig{
+		Enabled:     true,
+		Ref:         "app.py::main",
+		Environment: "prod",
+		WorkDir:     "/workspace app",
+	})
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	got := strings.Join(cw.got.Argv, "\n")
+	for _, want := range []string{"modal", "shell", "--env", "prod", "app.py::main", "--cmd", "/workspace app", "modal ok", "--no-pty"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("modal argv missing %q:\n%v", want, cw.got.Argv)
+		}
+	}
+	if cw.got.Profile != warden.ProfileNone || cw.got.Actor != "tool.shell.modal" {
+		t.Fatalf("modal spec profile/actor = %q/%q", cw.got.Profile, cw.got.Actor)
+	}
+	env := strings.Join(cw.got.Env, "\n")
+	if !strings.Contains(env, "MODAL_CONFIG_PATH=/tmp/modal.toml") {
+		t.Fatalf("modal env missing MODAL_CONFIG_PATH:\n%s", env)
+	}
+	for _, leak := range []string{"MODAL_TOKEN_SECRET", "AGEZT_API_TOKEN", "must-not-forward"} {
+		if strings.Contains(env, leak) {
+			t.Fatalf("modal env leaked %q:\n%s", leak, env)
+		}
+	}
+}
+
+func TestShell_UsesDaytonaExecutionProfileOverride(t *testing.T) {
+	t.Setenv("DAYTONA_CONFIG_PATH", "/tmp/daytona.toml")
+	t.Setenv("DAYTONA_API_KEY", "must-not-forward")
+	t.Setenv("AGEZT_API_TOKEN", "must-not-forward")
+
+	cw := &capturingWarden{}
+	sh := NewWithWarden(cw)
+	in, _ := json.Marshal(shellInput{Command: "echo 'daytona ok'", TimeoutMS: 1500})
+
+	ctx := executionprofile.WithDaytonaOverride(context.Background(), executionprofile.DaytonaConfig{
+		Enabled: true,
+		Sandbox: "sandbox-1",
+		WorkDir: "/workspace app",
+	})
+	if _, err := sh.Invoke(ctx, in); err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	got := strings.Join(cw.got.Argv, "\n")
+	for _, want := range []string{"daytona", "exec", "sandbox-1", "--cwd", "/workspace app", "--timeout", "2", "--", "sh", "-lc", "daytona ok"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("daytona argv missing %q:\n%v", want, cw.got.Argv)
+		}
+	}
+	if cw.got.Profile != warden.ProfileNone || cw.got.Actor != "tool.shell.daytona" {
+		t.Fatalf("daytona spec profile/actor = %q/%q", cw.got.Profile, cw.got.Actor)
+	}
+	env := strings.Join(cw.got.Env, "\n")
+	if !strings.Contains(env, "DAYTONA_CONFIG_PATH=/tmp/daytona.toml") {
+		t.Fatalf("daytona env missing DAYTONA_CONFIG_PATH:\n%s", env)
+	}
+	for _, leak := range []string{"DAYTONA_API_KEY", "AGEZT_API_TOKEN", "must-not-forward"} {
+		if strings.Contains(env, leak) {
+			t.Fatalf("daytona env leaked %q:\n%s", leak, env)
+		}
 	}
 }
 

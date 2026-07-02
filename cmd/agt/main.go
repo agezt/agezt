@@ -137,6 +137,8 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	system := ""
 	file := ""
 	timeout := ""
+	execProfile := ""
+	remotePeer := ""
 	toolsSet := false
 	var toolsList []any
 	dryRun := false
@@ -194,6 +196,28 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 			timeout = args[i]
 		case strings.HasPrefix(a, "--timeout="):
 			timeout = strings.TrimPrefix(a, "--timeout=")
+		case a == "--exec-profile" || a == "--execution-profile":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: %s needs a profile id (local, warden, docker, ssh, k8s, modal, daytona, or remote-agezt)\n", brand.CLI, a)
+				return 2
+			}
+			i++
+			execProfile = args[i]
+		case strings.HasPrefix(a, "--exec-profile="):
+			execProfile = strings.TrimPrefix(a, "--exec-profile=")
+		case strings.HasPrefix(a, "--execution-profile="):
+			execProfile = strings.TrimPrefix(a, "--execution-profile=")
+		case a == "--peer" || a == "--remote-peer":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s run: %s needs a peer name\n", brand.CLI, a)
+				return 2
+			}
+			i++
+			remotePeer = args[i]
+		case strings.HasPrefix(a, "--peer="):
+			remotePeer = strings.TrimPrefix(a, "--peer=")
+		case strings.HasPrefix(a, "--remote-peer="):
+			remotePeer = strings.TrimPrefix(a, "--remote-peer=")
 		case a == "--dry-run":
 			dryRun = true
 		case a == "--assure":
@@ -305,6 +329,16 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 	}
 	if strings.TrimSpace(system) != "" {
 		runArgs["system"] = system
+	}
+	if execProfile = strings.TrimSpace(execProfile); execProfile != "" {
+		runArgs["execution_profile"] = execProfile
+	}
+	if remotePeer = strings.TrimSpace(remotePeer); remotePeer != "" {
+		if !strings.EqualFold(execProfile, "remote-agezt") {
+			fmt.Fprintf(stderr, "%s run: --peer/--remote-peer requires --exec-profile remote-agezt\n", brand.CLI)
+			return 2
+		}
+		runArgs["remote_peer"] = remotePeer
 	}
 	// Per-run wall-clock timeout (M154): validated client-side for fast feedback,
 	// passed to the server which enforces it on the run.
@@ -582,6 +616,10 @@ func runDryRunMode(ctx context.Context, c *controlplane.Client, runArgs map[stri
 	fmt.Fprintf(stdout, "  system prompt : %s\n", str("system_source"))
 	fmt.Fprintf(stdout, "  timeout       : %s\n", str("timeout"))
 	fmt.Fprintf(stdout, "  cost cap      : %s\n", str("cost_cap"))
+	fmt.Fprintf(stdout, "  execution     : %s (%s), warden=%s\n", str("execution_profile"), str("execution_profile_source"), str("warden_profile"))
+	if peer := str("remote_peer"); peer != "" {
+		fmt.Fprintf(stdout, "  remote peer   : %s\n", peer)
+	}
 
 	tools := toStringSlice(plan["tools"])
 	switch str("tools_mode") {

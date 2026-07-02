@@ -24,7 +24,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { buildLiveRunContexts, liveWakeLabel } from "@/lib/liveruncontext";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Advanced } from "@/components/ui/disclosure";
 import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
@@ -152,36 +153,35 @@ export function Overseer() {
   const recent = useMemo(() => events.filter(isSignificant).slice(0, 10), [events]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Eye}
-        title="Overseer"
-        description="The supervisory dashboard — what is running, who is on the roster, who needs help."
-        actions={
-          <>
-            <span
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
-              )}
-              title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
-            >
-              <CircleDot className={cn("size-3", connected && "animate-pulse")} />
-              {connected ? "live" : "offline"}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={reload}
-              disabled={loading}
-              title="Refresh now"
-            >
-              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-            </Button>
-          </>
-        }
-      />
-
+    <Page
+      icon={Eye}
+      title="Overseer"
+      description="The supervisory dashboard — what is running, who is on the roster, who needs help."
+      width="wide"
+      actions={
+        <>
+          <span
+            className={cn(
+              "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+              connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
+            )}
+            title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
+          >
+            <CircleDot className={cn("size-3", connected && "animate-pulse")} />
+            {connected ? "live" : "offline"}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={reload}
+            disabled={loading}
+            title="Refresh now"
+          >
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    >
       {err && <ErrorText>{err}</ErrorText>}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -208,8 +208,8 @@ export function Overseer() {
       {firstLoad ? (
         <SkeletonList count={4} />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
-          <div className="flex min-h-0 flex-col gap-3">
+        <>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <Panel title="Active runs" icon={<ActivityIcon className="size-4 text-accent" />}>
               {active.length === 0 ? (
                 <span className="text-xs text-muted">Nothing running right now.</span>
@@ -310,8 +310,9 @@ export function Overseer() {
                 </ul>
               )}
             </Panel>
-          </div>
+        </div>
 
+        <Advanced label="Recent activity feed">
           <Panel title="Recent activity" icon={<Radio className="size-4 text-accent" />}>
             {recent.length === 0 ? (
               <span className="text-xs text-muted">Waiting for events…</span>
@@ -340,9 +341,10 @@ export function Overseer() {
               </ul>
             )}
           </Panel>
-        </div>
+        </Advanced>
+        </>
       )}
-    </div>
+    </Page>
   );
 }
 

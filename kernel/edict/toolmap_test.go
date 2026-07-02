@@ -26,6 +26,17 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"http", `{"method":"GET","url":"https://x"}`, CapHTTPGet},
 		{"http", `{"method":"POST","url":"https://x"}`, CapHTTPPost},
 		{"http", `{"method":"  post  ","url":"https://x"}`, CapHTTPPost},
+		{"browser.action", `{"url":"https://x","actions":[]}`, CapBrowserAction},
+		{"browser.open", `{"url":"https://x"}`, CapBrowserAction},
+		{"browser.snapshot", `{"url":"https://x"}`, CapBrowserAction},
+		{"browser.click", `{"url":"https://x","selector":"button"}`, CapBrowserAction},
+		{"browser.type", `{"url":"https://x","selector":"input","value":"hi"}`, CapBrowserAction},
+		{"browser.wait", `{"url":"https://x","wait_ms":100}`, CapBrowserAction},
+		{"browser.screenshot", `{"url":"https://x"}`, CapBrowserAction},
+		{"browser.downloads", `{"url":"https://x","selector":"a"}`, CapBrowserAction},
+		{"browser.cookies", `{"url":"https://x"}`, CapBrowserAction},
+		{"browser.tabs", `{"session_id":"work"}`, CapBrowserAction},
+		{"browser.close", `{"session_id":"work"}`, CapBrowserAction},
 		// A download (fetch) is a network GET that saves the bytes (M831).
 		{"fetch", `{"url":"https://x/cat.png"}`, CapHTTPGet},
 		// The artifacts tool (M832): list/read are file-read; delete is file-delete.
@@ -45,6 +56,8 @@ func TestCapabilityForToolCall(t *testing.T) {
 		{"homeassistant", `{"operation":"call_service","domain":"light","service":"turn_on"}`, CapHomeAssistantCall},
 		{"homeassistant", `{"operation":"  CALL_SERVICE  "}`, CapHomeAssistantCall},
 		{"homeassistant", `{}`, CapHomeAssistantRead}, // unparsed/absent op → read (low-risk default)
+		{"workboard", `{"op":"create","title":"x"}`, CapWorkboard},
+		{"workboard", `{"op":"list"}`, CapWorkboard},
 		{"unknown-tool", `{}`, Capability("unknown-tool")},
 		// Script-tool forge (M794): every forged forge_<name> call IS a
 		// sandboxed code execution; tool_forge authoring is its own grant,

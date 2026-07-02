@@ -30,7 +30,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { openIncident } from "@/lib/incidentnav";
@@ -118,33 +118,31 @@ export function Autonomy() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Waves}
-        title="Autonomy"
-        description="A live timeline of everything the daemon did on its own - schedules, standing orders, learned skills, pulse briefings."
-        actions={
-          <>
-            <span className="text-xs text-muted">
-              {feed
-                ? `${feed.count ?? 0} self-directed event${feed.count === 1 ? "" : "s"}`
-                : ""}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={reload}
-              disabled={loading}
-              title="Reload"
-            >
-              <RefreshCw
-                className={cn("size-3.5", loading && "animate-spin")}
-              />
-            </Button>
-          </>
-        }
-      />
-
+    <Page
+      icon={Waves}
+      title="Autonomy"
+      description="A live timeline of everything the daemon did on its own - schedules, standing orders, learned skills, pulse briefings."
+      actions={
+        <>
+          <span className="text-xs text-muted">
+            {feed
+              ? `${feed.count ?? 0} self-directed event${feed.count === 1 ? "" : "s"}`
+              : ""}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={reload}
+            disabled={loading}
+            title="Reload"
+          >
+            <RefreshCw
+              className={cn("size-3.5", loading && "animate-spin")}
+            />
+          </Button>
+        </>
+      }
+    >
       <PulseControl />
 
       {cats.length > 0 && (
@@ -203,9 +201,8 @@ export function Autonomy() {
           system is quiet, not asleep.
         </Muted>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ul className="space-y-1.5">
-            {items.map((it) => {
+        <ul className="space-y-1.5">
+          {items.map((it) => {
               const meta = catMeta[it.category] || {
                 icon: Waves,
                 tone: "text-muted",
@@ -237,10 +234,9 @@ export function Autonomy() {
                 </li>
               );
             })}
-          </ul>
-        </div>
+        </ul>
       )}
-    </div>
+    </Page>
   );
 }
 

@@ -102,6 +102,11 @@ type Profile struct {
 	ToolAllow        []string          `json:"tool_allow,omitempty"`
 	ToolDeny         []string          `json:"tool_deny,omitempty"`
 	TrustCeiling     string            `json:"trust_ceiling,omitempty"`
+	// ExecutionProfile is the agent's default isolation surface (a warden-family
+	// execution profile id: local|warden|container) for its dispatched work. A
+	// per-task seat that sets its own isolation overrides this; empty = tool
+	// defaults. Applied on the workboard dispatch path.
+	ExecutionProfile string            `json:"execution_profile,omitempty"`
 	ConfigOverrides  map[string]string `json:"config_overrides,omitempty"`
 	Lifecycle        AgentLifecycle    `json:"lifecycle,omitempty"`
 	TaskList         []AgentTask       `json:"tasklist,omitempty"`

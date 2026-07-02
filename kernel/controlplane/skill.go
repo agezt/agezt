@@ -129,6 +129,26 @@ func (s *Server) handleSkillQuarantine(conn net.Conn, req Request) {
 	})
 }
 
+func (s *Server) handleSkillArchive(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	reason, _ := req.Args["reason"].(string)
+	if err := s.k.Forge().Archive("", id, reason); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"id": id, "status": string(skill.StatusArchived), "reason": reason,
+		},
+	})
+}
+
 func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 	id, _ := req.Args["id"].(string)
 	if id == "" {
@@ -143,6 +163,29 @@ func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{
 		ID: req.ID, Type: RespResult,
 		Result: map[string]any{"id": id, "restored": restored},
+	})
+}
+
+func (s *Server) handleSkillRestore(conn net.Conn, req Request) {
+	id, _ := req.Args["id"].(string)
+	if id == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+		return
+	}
+	statusText, _ := req.Args["status"].(string)
+	if statusText == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.status required"})
+		return
+	}
+	reason, _ := req.Args["reason"].(string)
+	from, to, err := s.k.Forge().RestoreStatus("", id, skill.Status(statusText), reason)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID: req.ID, Type: RespResult,
+		Result: map[string]any{"id": id, "from": string(from), "status": string(to), "reason": reason},
 	})
 }
 
@@ -365,7 +408,7 @@ func (s *Server) handleSkillHygiene(conn net.Conn, req Request) {
 func isSkillKind(k event.Kind) bool {
 	switch k {
 	case event.KindSkillCreated, event.KindSkillPromoted, event.KindSkillQuarantined,
-		event.KindSkillReverted, event.KindSkillActivated:
+		event.KindSkillReverted, event.KindSkillRestored, event.KindSkillActivated:
 		return true
 	}
 	return false

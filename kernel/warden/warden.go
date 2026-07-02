@@ -205,7 +205,8 @@ type Engine interface {
 // build-tag partition will eventually attach extra fields and override
 // EffectiveProfile/Run for namespace+cgroups support.
 type engine struct {
-	bus *bus.Bus
+	bus       *bus.Bus
+	container ContainerOptions
 
 	// mu guards downgradeWarned so we only journal one downgrade event
 	// per (requested-profile) per process lifetime — repeated tool
@@ -217,8 +218,15 @@ type engine struct {
 // New constructs the default engine. b may be nil for tests; events are
 // silently dropped in that case.
 func New(b *bus.Bus) Engine {
+	return NewWithOptions(b, Options{})
+}
+
+// NewWithOptions constructs the default engine with optional external
+// backends. The zero Options value is identical to New.
+func NewWithOptions(b *bus.Bus, opts Options) Engine {
 	return &engine{
 		bus:             b,
+		container:       normalizeContainerOptions(opts.Container),
 		downgradeWarned: map[Profile]struct{}{},
 	}
 }
@@ -237,6 +245,9 @@ func (e *engine) SetBus(b *bus.Bus) { e.bus = b }
 func (e *engine) EffectiveProfile(p Profile) Profile {
 	if !p.IsKnown() {
 		return ProfileNone
+	}
+	if p == ProfileContainer && e.container.active() {
+		return ProfileContainer
 	}
 	return resolveEffectiveProfile(p)
 }
@@ -261,6 +272,17 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 		e.publishDowngradeOnce(spec, requested, effective)
 	}
 
+	execSpec := spec
+	if effective == ProfileContainer {
+		argv, err := buildContainerArgv(spec, e.container)
+		if err != nil {
+			return nil, fmt.Errorf("warden: container: %w", err)
+		}
+		execSpec.Argv = argv
+		execSpec.WorkDir = ""
+		execSpec.Env = []string{}
+	}
+
 	timeout := spec.Limits.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
@@ -277,8 +299,8 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(runCtx, spec.Argv[0], spec.Argv[1:]...)
-	cmd.Dir = spec.WorkDir
+	cmd := exec.CommandContext(runCtx, execSpec.Argv[0], execSpec.Argv[1:]...)
+	cmd.Dir = execSpec.WorkDir
 	// Honor the documented contract that a nil Env means an EMPTY
 	// environment (most restrictive), NOT inheritance (M186). Go's
 	// os/exec treats cmd.Env == nil as "inherit the parent's
@@ -288,10 +310,10 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 	// (Env: nil) rely on. Translate nil to an explicit empty slice so the
 	// documented default is also the safe one. A caller that genuinely
 	// wants inheritance must pass os.Environ() explicitly.
-	if spec.Env == nil {
+	if execSpec.Env == nil {
 		cmd.Env = []string{}
 	} else {
-		cmd.Env = spec.Env
+		cmd.Env = execSpec.Env
 	}
 	cmd.WaitDelay = waitDelay
 
@@ -324,7 +346,7 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 			Duration:         end.Sub(start),
 		}
 		e.publishExecuted(spec, res)
-		return res, fmt.Errorf("warden: start %q: %w", spec.Argv[0], err)
+		return res, fmt.Errorf("warden: start %q: %w", execSpec.Argv[0], err)
 	}
 
 	// M1.d: platform-specific post-Start hardening (best-effort
@@ -332,7 +354,7 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 	// Errors are surfaced via a warden.limit event but do NOT abort
 	// the run — the existing wall-clock timeout still bounds the
 	// worst case if rlimits can't be applied.
-	applyPlatformLimits(cmd, spec, effective, e)
+	applyPlatformLimits(cmd, execSpec, effective, e)
 
 	err := cmd.Wait()
 	end := time.Now()
@@ -363,7 +385,7 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 
 	e.publishExecuted(spec, res)
 
-	if cerr := classifyWaitErr(err, res.TimedOut, spec.Argv[0]); cerr != nil {
+	if cerr := classifyWaitErr(err, res.TimedOut, execSpec.Argv[0]); cerr != nil {
 		return res, cerr
 	}
 	return res, nil
@@ -478,7 +500,10 @@ func downgradeReason(req Profile) string {
 
 type ctxKey int
 
-const ctxKeyCorrelation ctxKey = iota
+const (
+	ctxKeyCorrelation ctxKey = iota
+	ctxKeyProfileOverride
+)
 
 // WithCorrelation returns a child context carrying corr so a tool that runs
 // commands through the warden (e.g. the shell tool) can stamp it onto Spec.
@@ -498,4 +523,24 @@ func CorrelationFrom(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// WithProfileOverride returns a child context carrying a per-run requested
+// profile. Tools that route through Warden can honor it instead of their
+// package default, letting the control plane switch a run between local host and
+// warden-backed execution without rebuilding tool instances.
+func WithProfileOverride(ctx context.Context, profile Profile) context.Context {
+	if profile == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, ctxKeyProfileOverride, profile)
+}
+
+// ProfileOverrideFrom extracts the per-run profile set by WithProfileOverride.
+func ProfileOverrideFrom(ctx context.Context) (Profile, bool) {
+	v, ok := ctx.Value(ctxKeyProfileOverride).(Profile)
+	if !ok || v == "" {
+		return "", false
+	}
+	return v, true
 }

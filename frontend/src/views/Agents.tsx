@@ -40,7 +40,7 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import type { AgentProfile } from "@/views/Roster";
@@ -322,24 +322,18 @@ export function Agents() {
     if (view) location.hash = view;
   }
 
-  const header = (
-    <PageHeader
-      icon={Network}
-      title="Agents"
-      actions={
-        <>
-          <Button variant="ghost" size="sm" onClick={reloadAll} title="Reload">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        </>
-      }
-    />
+  const headerActions = (
+    <>
+      <Button variant="ghost" size="sm" onClick={reloadAll} title="Reload">
+        <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+      </Button>
+    </>
   );
 
   // ───────────────────────── Live tab: delegation drill-in ─────────────────────────
   if (tab === "live" && sel) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-3">
+      <Page mode="fill" width="full">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
@@ -390,16 +384,14 @@ export function Agents() {
             </aside>
           )}
         </div>
-      </div>
+      </Page>
     );
   }
 
   // ───────────────────────── Live tab: run gallery ─────────────────────────
   if (tab === "live") {
     return (
-      <div className="space-y-3">
-        {header}
-
+      <Page icon={Network} title="Agents" width="wide" actions={headerActions}>
         {runs && (
           <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
             <MetricWidget icon={Network} label="Leads" value={roots.length} tone="muted" />
@@ -527,15 +519,13 @@ export function Agents() {
 
         {err && <ErrorText>{err}</ErrorText>}
         {!runs && !err && <SkeletonList count={3} lines={2} />}
-      </div>
+      </Page>
     );
   }
 
   // ───────────────────────── Fleet tab: the census ─────────────────────────
   return (
-    <div className="space-y-3">
-      {header}
-
+    <Page icon={Network} title="Agents" width="wide" actions={headerActions}>
       {/* Census band — what you own, at a glance, even at rest. */}
       <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
         <MetricWidget icon={Users} label="Roster" value={census.roster} tone="muted" />
@@ -629,7 +619,7 @@ export function Agents() {
           )}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

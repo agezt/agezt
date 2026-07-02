@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Board, awaitingReply, boardAgentFilterFromHash, boardAgentMailboxSummary, boardAgentWakeIssue, boardAgentWakePlan, boardCounts, boardHashForAgentFilter, boardMessageFilterCounts, boardMessageInvolvesAgent, filterBoardMessages, filterBoardMessagesByAgent, messageAckedBy } from "@/views/Board";
+import { Board, awaitingReply, boardAgentFilterFromHash, boardAgentMailboxSummary, boardAgentWakeIssue, boardAgentWakePlan, boardCounts, boardHashForAgentFilter, boardMessageFilterCounts, boardMessageInvolvesAgent, filterBoardMessages, filterBoardMessagesByAgent, messageAckedBy, normalizeWorkboardLanes, workboardOpenTaskCount, workboardStatusCounts } from "@/views/Board";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -115,6 +115,26 @@ describe("boardCounts", () => {
   });
 });
 
+describe("workboard lane helpers", () => {
+  it("normalizes lane payloads and counts open durable tasks", () => {
+    const data = normalizeWorkboardLanes({
+      lanes: [
+        { assignee: "researcher", counts: { ready: 1, running: 1 }, tasks: [{ id: "wb1", title: "Research", status: "ready" }] },
+        { counts: { done: 1, blocked: 2 }, tasks: null as never },
+      ],
+    });
+    expect(data.count).toBe(2);
+    expect(data.task_count).toBe(5);
+    expect(data.lanes?.[1].label).toBe("unassigned");
+    expect(workboardStatusCounts(data.lanes)).toEqual({ ready: 1, running: 1, done: 1, blocked: 2 });
+    expect(workboardOpenTaskCount(data)).toBe(4);
+    expect(workboardStatusCounts(normalizeWorkboardLanes({
+      lanes: [{ tasks: [{ id: "wb2", title: "Fallback", status: "ready" }] }],
+    }).lanes)).toEqual({ ready: 1 });
+    expect(normalizeWorkboardLanes({ count: 3 } as never)).toEqual({ lanes: [], count: 3, task_count: 0 });
+  });
+});
+
 describe("boardAgentWakeIssue", () => {
   it("keeps mailbox wake aligned with roster lifecycle and hierarchy", () => {
     expect(boardAgentWakeIssue({ slug: "ops" })).toBe("");
@@ -186,6 +206,48 @@ describe("boardAgentMailboxSummary", () => {
 });
 
 describe("Board", () => {
+  it("renders durable workboard lanes next to the agent mailbox", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/board/help") return Promise.resolve({ open_help: [] });
+      if (path === "/api/agents") return Promise.resolve({ profiles: [{ slug: "researcher" }, { slug: "builder" }] });
+      if (path === "/api/workboard/lanes")
+        return Promise.resolve({
+          count: 2,
+          task_count: 3,
+          lanes: [
+            {
+              assignee: "researcher",
+              label: "researcher",
+              count: 2,
+              counts: { ready: 1, running: 1 },
+              tasks: [
+                { id: "wb1", title: "Map Hermes parity", status: "ready", priority: 2, failed_attempt_count: 1, max_attempts: 2, next_attempt: 2, retry_policy: { max_attempts: 2, escalate_to: "lead" } },
+                { id: "wb2", title: "Dispatch OpenClaw benchmark", status: "running", claim: { agent: "researcher" } },
+              ],
+            },
+            {
+              assignee: "",
+              label: "unassigned",
+              count: 1,
+              counts: { blocked: 1 },
+              tasks: [{ id: "wb3", title: "Wait for sandbox token", status: "blocked", block_reason: "needs token" }],
+            },
+          ],
+        });
+      return Promise.resolve({ count: 0, topics: {}, messages: [] });
+    });
+    render(<Board />);
+
+    const lanes = await screen.findByTestId("workboard-lanes");
+    expect(within(lanes).getByText("Workboard lanes")).toBeTruthy();
+    expect(within(lanes).getByText("3 open tasks across 2 lanes")).toBeTruthy();
+    expect(within(lanes).getByText("Map Hermes parity")).toBeTruthy();
+    expect(within(lanes).getByText("attempts 1/2 · next 2 · escalate lead")).toBeTruthy();
+    expect(within(lanes).getByText("Dispatch OpenClaw benchmark")).toBeTruthy();
+    expect(within(lanes).getByText("claimed by researcher")).toBeTruthy();
+    expect(within(lanes).getByText("needs token")).toBeTruthy();
+  });
+
   it("renders DM addressing, reply linkage, and the awaiting-reply badge", async () => {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/board/help") return Promise.resolve({ open_help: [{ topic: "help", id: "h1", from: "builder", text: "blocked" }] });

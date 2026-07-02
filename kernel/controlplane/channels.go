@@ -88,6 +88,20 @@ func (s *Server) handleChannelList(conn net.Conn, req Request) {
 
 	allKeys := append(store.Names(), vault.Names()...)
 	rows := make([]map[string]any, 0, len(channel.Manifests()))
+	probeMatrix := map[string]any{
+		"total":           0,
+		"configured":      0,
+		"live":            0,
+		"roundtrip_ready": 0,
+		"restart_needed":  0,
+		"needs_setup":     0,
+	}
+	mediaMatrix := map[string]any{
+		"image_in":  0,
+		"image_out": 0,
+		"voice_in":  0,
+		"voice_out": 0,
+	}
 	for _, m := range channel.Manifests() {
 		sectionFields := fieldsBySection[m.ConfigSection]
 		baseEnvs := make([]string, 0, len(sectionFields))
@@ -97,13 +111,19 @@ func (s *Server) handleChannelList(conn net.Conn, req Request) {
 		// Accounts: the default instance ("") + every discovered "#label".
 		accounts := make([]map[string]any, 0, 2)
 		for _, label := range append([]string{""}, settings.AccountLabels(allKeys, baseEnvs)...) {
+			configured := configuredFor(m.RequiredEnv, label)
+			live := channel.IsLiveInstance(channel.InstanceKey(m.Kind, label))
 			accounts = append(accounts, map[string]any{
 				"label":      label,
-				"configured": configuredFor(m.RequiredEnv, label),
-				"live":       channel.IsLiveInstance(channel.InstanceKey(m.Kind, label)),
+				"configured": configured,
+				"live":       live,
+				"probe":      channelAccountProbe(m, configured, live),
 				"fields":     fieldsFor(sectionFields, label),
 			})
 		}
+		probe := channelProbe(m, accounts)
+		addChannelProbeTotals(probeMatrix, probe)
+		addChannelMediaTotals(mediaMatrix, m.Media)
 		rows = append(rows, map[string]any{
 			"kind":           m.Kind,
 			"display":        m.Display,
@@ -117,14 +137,118 @@ func (s *Server) handleChannelList(conn net.Conn, req Request) {
 			"docs_url":       m.DocsURL,
 			"configured":     configuredFor(m.RequiredEnv, ""), // default-instance, back-compat
 			"live":           channel.IsLive(m.Kind),
+			"probe":          probe,
 			"fields":         fieldsFor(sectionFields, ""), // default-instance fields, back-compat
 			"accounts":       accounts,
 		})
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"channels": rows,
-		"count":    len(rows),
+		"channels":     rows,
+		"count":        len(rows),
+		"probe_matrix": probeMatrix,
+		"media_matrix": mediaMatrix,
 	}})
+}
+
+func channelAccountProbe(m channel.Manifest, configured, live bool) map[string]any {
+	status := "needs_setup"
+	note := "required channel settings are missing"
+	switch {
+	case live:
+		status = "ready"
+		if m.Duplex {
+			note = "live two-way account can receive and send a test reply"
+		} else {
+			note = "live outbound account can send a test message"
+		}
+	case configured:
+		status = "restart_required"
+		note = "configured but not live in this daemon process"
+	}
+	return map[string]any{
+		"configured":       configured,
+		"live":             live,
+		"roundtrip_status": status,
+		"roundtrip_ready":  live,
+		"mode":             channelProbeMode(m),
+		"note":             note,
+	}
+}
+
+func channelProbe(m channel.Manifest, accounts []map[string]any) map[string]any {
+	configuredAccounts := 0
+	liveAccounts := 0
+	for _, account := range accounts {
+		if b, _ := account["configured"].(bool); b {
+			configuredAccounts++
+		}
+		if b, _ := account["live"].(bool); b {
+			liveAccounts++
+		}
+	}
+	status := "needs_setup"
+	switch {
+	case liveAccounts > 0:
+		status = "ready"
+	case configuredAccounts > 0:
+		status = "restart_required"
+	}
+	return map[string]any{
+		"accounts":            len(accounts),
+		"configured_accounts": configuredAccounts,
+		"live_accounts":       liveAccounts,
+		"roundtrip_status":    status,
+		"roundtrip_ready":     liveAccounts > 0,
+		"mode":                channelProbeMode(m),
+	}
+}
+
+func channelProbeMode(m channel.Manifest) string {
+	if m.Duplex {
+		return "two_way"
+	}
+	return "outbound"
+}
+
+func addChannelProbeTotals(matrix map[string]any, probe map[string]any) {
+	incr := func(key string) {
+		n, _ := matrix[key].(int)
+		matrix[key] = n + 1
+	}
+	incr("total")
+	if n, _ := probe["configured_accounts"].(int); n > 0 {
+		incr("configured")
+	}
+	if n, _ := probe["live_accounts"].(int); n > 0 {
+		incr("live")
+	}
+	switch probe["roundtrip_status"] {
+	case "ready":
+		incr("roundtrip_ready")
+	case "restart_required":
+		incr("restart_needed")
+	default:
+		incr("needs_setup")
+	}
+}
+
+func addChannelMediaTotals(matrix map[string]any, media channel.MediaCaps) {
+	incr := func(key string) {
+		n, _ := matrix[key].(int)
+		matrix[key] = n + 1
+	}
+	if media.ImageIn {
+		incr("image_in")
+	}
+	if media.ImageOut {
+		incr("image_out")
+	}
+	if media.VoiceIn {
+		incr("voice_in")
+	}
+	if media.VoiceOut {
+		incr("voice_out")
+	}
 }
 
 // handleWhatsAppGatewayStatus probes a self-hosted WhatsApp gateway (WAHA or

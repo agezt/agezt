@@ -2,14 +2,14 @@
 
 // Package tunnel exposes a local Agezt HTTP service (the Web UI or REST API) to
 // the public internet by supervising an operator-chosen tunnel binary —
-// cloudflared or ngrok out of the box, or any custom command. It spawns the
-// binary pointed at the local address, scans its output for the public URL it
-// prints, surfaces that URL (startup log + `agt status`), restarts it with
-// backoff if it drops, and tears the whole process tree down on shutdown.
+// cloudflared, ngrok, Tailscale, or any custom command. It spawns the binary
+// pointed at the local address, scans its output for the public URL it prints,
+// surfaces that URL, restarts it with backoff if it drops, and tears the whole
+// process tree down on shutdown.
 //
 // Why wrap an external binary rather than build a relay: a tunnel needs a public
-// rendezvous server, which is exactly what cloudflared/ngrok already operate
-// (battle-tested, free tiers). Agezt already supervises external processes
+// rendezvous server, which is exactly what cloudflared/ngrok/Tailscale already
+// operate. Agezt already supervises external processes
 // (plugins, coding agents), so this fits the model — and keeps the daemon's one
 // dependency promise (net/os/exec only, no SDK). The operator stays in authority:
 // nothing is exposed unless they configure a tunnel, and they pick the provider.
@@ -29,7 +29,8 @@ import (
 
 // Config constructs a Tunnel.
 type Config struct {
-	// Provider is a built-in preset: "cloudflare"/"cloudflared" or "ngrok".
+	// Provider is a built-in preset: "cloudflare"/"cloudflared", "ngrok",
+	// "tailscale" (tailnet-only serve), or "tailscale-funnel" (public Funnel).
 	// "custom" requires Command. Ignored when Command is set.
 	Provider string
 	// Command is an explicit command + args to run (overrides Provider), for any
@@ -160,12 +161,26 @@ func buildCommand(cfg Config) ([]string, error) {
 		// ngrok wants a host:port (or addr), not a full URL; logfmt to stdout so we
 		// can scan the "url=" field.
 		return []string{"ngrok", "http", stripScheme(target), "--log=stdout", "--log-format=logfmt"}, nil
+	case "tailscale", "tailscale-serve":
+		target := strings.TrimSpace(cfg.TargetURL)
+		if target == "" {
+			return nil, fmt.Errorf("tunnel: a target URL is required for the %q preset", cfg.Provider)
+		}
+		// Tailscale Serve shares the local service inside the operator's tailnet.
+		return []string{"tailscale", "serve", target}, nil
+	case "tailscale-funnel", "funnel":
+		target := strings.TrimSpace(cfg.TargetURL)
+		if target == "" {
+			return nil, fmt.Errorf("tunnel: a target URL is required for the %q preset", cfg.Provider)
+		}
+		// Tailscale Funnel publishes the local service to the public internet.
+		return []string{"tailscale", "funnel", target}, nil
 	case "custom":
 		return nil, fmt.Errorf("tunnel: AGEZT_TUNNEL=custom requires AGEZT_TUNNEL_CMD")
 	case "":
-		return nil, fmt.Errorf("tunnel: set AGEZT_TUNNEL to a provider (cloudflare|cloudflared|ngrok) or AGEZT_TUNNEL_CMD to a command")
+		return nil, fmt.Errorf("tunnel: set AGEZT_TUNNEL to a provider (cloudflare|cloudflared|ngrok|tailscale|tailscale-funnel) or AGEZT_TUNNEL_CMD to a command")
 	default:
-		return nil, fmt.Errorf("tunnel: unknown provider %q (use cloudflare, cloudflared, ngrok, or AGEZT_TUNNEL_CMD)", cfg.Provider)
+		return nil, fmt.Errorf("tunnel: unknown provider %q (use cloudflare, cloudflared, ngrok, tailscale, tailscale-funnel, or AGEZT_TUNNEL_CMD)", cfg.Provider)
 	}
 }
 
@@ -201,7 +216,8 @@ func extractURL(line string) string {
 			strings.Contains(l, "ngrok.io") ||
 			strings.Contains(l, "ngrok-free.app") ||
 			strings.Contains(l, "ngrok.app") ||
-			strings.Contains(l, "ngrok.dev") {
+			strings.Contains(l, "ngrok.dev") ||
+			strings.Contains(l, "ts.net") {
 			return clean(m)
 		}
 	}
@@ -213,8 +229,8 @@ func extractURL(line string) string {
 
 // execRun is the production runFunc: it spawns the binary, scans its merged
 // stdout+stderr line by line, and tears the whole process tree down when ctx is
-// cancelled (cloudflared/ngrok are well-behaved, but a process-group kill is
-// correct and cheap).
+// cancelled (cloudflared/ngrok/tailscale are well-behaved, but a process-group
+// kill is correct and cheap).
 func execRun(ctx context.Context, name string, args []string, onLine func(string)) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	setProcessGroup(cmd)

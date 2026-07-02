@@ -37,6 +37,7 @@ import {
   FolderOpen,
   MessagesSquare,
   CheckSquare,
+  Target,
   Pause,
   Play,
   Search,
@@ -56,6 +57,11 @@ import {
   HardDrive,
   Shapes,
   RefreshCw,
+  Terminal,
+  Menu,
+  X,
+  Lightbulb,
+  FileCog,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -121,6 +127,10 @@ const Overseer = lazyNamed(() => import("@/views/Overseer"), "Overseer");
 const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
 const Mcp = lazyNamed(() => import("@/views/Mcp"), "Mcp");
 const Workflows = lazyNamed(() => import("@/views/Workflows"), "Workflows");
+const Workboard = lazyNamed(() => import("@/views/Workboard"), "Workboard");
+const OKR = lazyNamed(() => import("@/views/OKR"), "OKR");
+const Taste = lazyNamed(() => import("@/views/Taste"), "Taste");
+const Seats = lazyNamed(() => import("@/views/Seats"), "Seats");
 const Wizards = lazyNamed(() => import("@/views/Wizards"), "Wizards");
 const Dashboard = lazyNamed(() => import("@/views/Dashboard"), "Dashboard");
 const Insights = lazyNamed(() => import("@/views/Insights"), "Insights");
@@ -135,6 +145,7 @@ const Providers = lazyNamed(() => import("@/views/Providers"), "Providers");
 const QuickConnect = lazyNamed(() => import("@/views/QuickConnect"), "QuickConnect");
 const Connections = lazyNamed(() => import("@/views/Connections"), "Connections");
 const Tools = lazyNamed(() => import("@/views/Tools"), "Tools");
+const ExecutionProfiles = lazyNamed(() => import("@/views/ExecutionProfiles"), "ExecutionProfiles");
 const Catalog = lazyNamed(() => import("@/views/Catalog"), "Catalog");
 const Models = lazyNamed(() => import("@/views/Models"), "Models");
 const Routing = lazyNamed(() => import("@/views/Routing"), "Routing");
@@ -259,6 +270,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "wizards", label: "Wizards", icon: Wand2, render: Wizards },
       { id: "workflows", label: "Workflows", icon: GitFork, render: Workflows },
+      { id: "workboard", label: "Workboard", icon: CheckSquare, render: Workboard },
+      { id: "okr", label: "Objectives", icon: Target, render: OKR },
+      { id: "seats", label: "Seats", icon: Blocks, render: Seats },
       { id: "schedules", label: "Schedules", icon: CalendarClock, render: Schedules },
       { id: "standing", label: "Standing", icon: Anchor, render: Standing },
     ],
@@ -269,9 +283,10 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Brain,
     items: [
       { id: "memory", label: "Memory", icon: Brain, render: Memory },
+      { id: "taste", label: "Taste", icon: Sparkles, render: Taste },
       { id: "world", label: "World", icon: Network, render: World },
       { id: "skills", label: "Skills", icon: Sparkles, render: Skills },
-      { id: "reflect", label: "Reflection", icon: Brain, render: Reflect },
+      { id: "reflect", label: "Reflection", icon: Lightbulb, render: Reflect },
     ],
   },
   {
@@ -295,7 +310,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "persona", label: "Default Identity", icon: Bot, render: Persona },
       { id: "prompts", label: "Prompts", icon: MessageSquarePlus, render: Prompts },
       { id: "configcenter", label: "Config Center", icon: SlidersHorizontal, render: ConfigCenter },
-      { id: "config", label: "Config", icon: Settings, render: Config },
+      { id: "config", label: "Config", icon: FileCog, render: Config },
       { id: "connections", label: "Connections", icon: Network, render: Connections },
       { id: "quickconnect", label: "Quick Connect", icon: Plug, render: QuickConnect },
       { id: "providers", label: "Providers", icon: Cpu, render: Providers },
@@ -303,6 +318,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: "routing", label: "Routing", icon: RouteIcon, render: Routing },
       { id: "chains", label: "Fallback Chains", icon: Link2, render: Chains },
       { id: "tools", label: "Tools", icon: Wrench, render: Tools },
+      { id: "execution-profiles", label: "Execution Profiles", icon: Terminal, render: ExecutionProfiles },
       { id: "catalog", label: "Catalog", icon: Boxes, render: Catalog },
       { id: "policy", label: "Policy", icon: Shield, render: Policy },
       { id: "cache", label: "Cache", icon: Database, render: Cache },
@@ -367,6 +383,51 @@ export default function App() {
   // follows the active view's section, but a rail click can browse another
   // section without navigating yet.
   const [navSection, setNavSection] = useState<string>(() => groupForView[viewFromHash()] || NAV_GROUPS[0].id);
+  // Mobile nav drawer (below lg, where the two-level sidebar is hidden).
+  const [navDrawerOpen, setNavDrawerOpen] = useState(false);
+  const navDrawerRef = useRef<HTMLDivElement>(null);
+  // Make the drawer a real modal (it claims aria-modal): move focus in, trap Tab,
+  // lock background scroll, and restore focus to the opener on close.
+  useEffect(() => {
+    if (!navDrawerOpen) return;
+    const prevFocused = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusables = () =>
+      navDrawerRef.current
+        ? Array.from(
+            navDrawerRef.current.querySelectorAll<HTMLElement>(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            ),
+          ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null)
+        : [];
+    focusables()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setNavDrawerOpen(false);
+        return;
+      }
+      if (e.key === "Tab") {
+        const items = focusables();
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      prevFocused?.focus?.();
+    };
+  }, [navDrawerOpen]);
   const { connected, events, subscribe } = useEvents();
   const ui = useUI();
 
@@ -730,6 +791,7 @@ export default function App() {
         inspectorOpen={inspectorOpen}
         activeLlmCount={activeLlmCount}
         onNavigate={setActive}
+        onOpenNav={() => setNavDrawerOpen(true)}
         onOpenChat={() => setActive("chat")}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
@@ -738,127 +800,21 @@ export default function App() {
       <Vitals onNavigate={setActive} />
       <FleetNowBar onNavigate={setActive} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* Two-level nav (M974): a big-icon section RAIL on the far left, then a
-            secondary LIST of that section's views. Far fewer items on screen at
-            once than the old long single list. On small screens both rows scroll
-            horizontally. */}
-        <nav className="flex min-w-0 shrink-0 overflow-hidden lg:border-r lg:border-border">
-          {/* Section rail — colourful, glassy, one accent per section. */}
-          <div className="flex max-w-full shrink-0 gap-1 overflow-x-auto p-1.5 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:border-r lg:border-border">
-            {NAV_GROUPS.map((g) => {
-              const on = navSection === g.id;
-              const isActiveSection = activeGroupId === g.id;
-              const hue = sectionHue(g.id);
-              const sectionBadge =
-                (g.id === "monitor" ? unseenAlerts : 0) + (g.id === "agents" ? activeRunCount : 0);
-              return (
-                <button
-                  key={g.id}
-                  onClick={() => setNavSection(g.id)}
-                  title={g.label}
-                  aria-label={g.label}
-                  className={cn(
-                    "relative flex size-11 shrink-0 flex-col items-center justify-center gap-0 rounded-xl transition-all duration-150",
-                    on ? "scale-[1.04] shadow-e2" : "hover:scale-[1.02] hover:bg-panel",
-                  )}
-                  style={
-                    on
-                      ? {
-                          background: `linear-gradient(155deg, oklch(0.65 0.18 ${hue} / 0.35), oklch(0.6 0.16 ${hue} / 0.08))`,
-                          color: `oklch(0.62 0.18 ${hue})`,
-                          boxShadow: `inset 0 0 0 1px oklch(0.62 0.16 ${hue} / 0.5), 0 0 20px -4px oklch(0.6 0.16 ${hue} / 0.4)`,
-                        }
-                      : { color: `oklch(0.6 0.14 ${hue})` }
-                  }
-                >
-                  <g.icon className="size-5" />
-                  <span className="text-[9px] font-semibold leading-none tracking-normal">{g.label}</span>
-                  {isActiveSection && !on && (
-                    <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.62 0.16 ${hue})` }} />
-                  )}
-                  {sectionBadge > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[9px] font-bold leading-3.5 text-white">
-                      {sectionBadge > 99 ? "99+" : sectionBadge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Secondary item list for the selected section */}
-          <div className="flex min-w-0 max-w-full flex-1 gap-1 overflow-x-auto p-2 lg:w-44 lg:flex-none lg:flex-col lg:gap-0.5 lg:overflow-y-auto">
-            <div
-              className="hidden items-center gap-1.5 px-2 pb-1.5 pt-1 text-xs font-bold uppercase tracking-normal lg:flex"
-              style={{ color: `oklch(0.6 0.14 ${sectionHue(shownGroup.id)})` }}
-            >
-              <shownGroup.icon className="size-3.5" />
-              {shownGroup.label}
-            </div>
-            {shownGroup.items.map((n) => {
-              const hue = sectionHue(shownGroup.id);
-              const isOn = n.id === active;
-              return (
-              <button
-                key={n.id}
-                onClick={() => setActive(n.id)}
-                className={cn(
-                  "relative flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-150",
-                  isOn
-                    ? "font-semibold before:absolute before:left-0 before:top-1/2 before:hidden before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:content-[''] lg:before:block"
-                    : "text-muted hover:bg-panel hover:text-foreground",
-                )}
-                style={
-                  isOn
-                    ? {
-                        background: `linear-gradient(90deg, oklch(0.6 0.16 ${hue} / 0.2), oklch(0.6 0.16 ${hue} / 0.03))`,
-                        color: `oklch(0.56 0.16 ${hue})`,
-                      }
-                    : undefined
-                }
-              >
-                {isOn && <span className="absolute left-0 top-1/2 hidden h-5 w-[3px] -translate-y-1/2 rounded-r-full lg:block" style={{ background: `oklch(0.62 0.16 ${hue})` }} />}
-                <n.icon className="size-4 shrink-0" />
-                <span>{n.label}</span>
-                {n.id === "alerts" && unseenAlerts > 0 && (
-                  <span
-                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-xs font-semibold leading-4 text-white"
-                    title={`${unseenAlerts} new alert${unseenAlerts === 1 ? "" : "s"} — the agent flagged something`}
-                    aria-label={`${unseenAlerts} unseen alerts`}
-                  >
-                    {unseenAlerts > 99 ? "99+" : unseenAlerts}
-                  </span>
-                )}
-                {n.id === "overseer" && activeRunCount > 0 && (
-                  <span
-                    className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-semibold leading-4 text-accent"
-                    title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
-                    aria-label={`${activeRunCount} active runs`}
-                  >
-                    {activeRunCount > 99 ? "99+" : activeRunCount}
-                  </span>
-                )}
-              </button>
-              );
-            })}
-            {build && (
-              <div
-                className="mt-auto hidden px-3 pt-3 text-xs leading-tight text-muted/60 lg:block"
-                title={
-                  build.revision
-                    ? `Daemon build ${build.revision}${build.build_modified ? " (modified working tree)" : ""}${build.built ? ` · built ${build.built}` : ""}`
-                    : build.built
-                      ? `Daemon built ${build.built}`
-                      : "Build revision unavailable (binary built without VCS info)"
-                }
-              >
-                v{build.version || "?"}
-                {build.revision ? (
-                  <> · {build.revision.slice(0, 7)}{build.build_modified ? "+" : ""}</>
-                ) : null}
-              </div>
-            )}
-          </div>
+        {/* Two-level nav (M974): a big-icon section RAIL then a secondary LIST
+            of that section's views. On lg+ it is a fixed sidebar; below lg it is
+            hidden and reached through the hamburger → drawer (M1002). */}
+        <nav className="hidden shrink-0 lg:flex lg:border-r lg:border-border">
+          <SectionNav
+            navSection={navSection}
+            setNavSection={setNavSection}
+            activeGroupId={activeGroupId}
+            shownGroup={shownGroup}
+            active={active}
+            onSelect={setActive}
+            unseenAlerts={unseenAlerts}
+            activeRunCount={activeRunCount}
+            build={build}
+          />
         </nav>
         <main className="min-h-0 flex-1 overflow-auto p-3 pb-7 sm:p-4 sm:pb-7">
           {/* Keyed remount so each view fades + rises in on navigation. The
@@ -880,6 +836,39 @@ export default function App() {
         </main>
       </div>
     </div>
+    {/* Mobile nav drawer (below lg): slides in from the left over a fading
+        overlay; tapping a view navigates and closes it. */}
+    {navDrawerOpen && (
+      <div className="fixed inset-0 z-[120] lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div className="modal-overlay absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setNavDrawerOpen(false)} />
+        <div ref={navDrawerRef} className="nav-drawer-in absolute inset-y-0 left-0 flex max-w-[85vw] flex-col border-r border-border bg-background shadow-2xl shadow-black/40">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <ConsoleName />
+            <button
+              onClick={() => setNavDrawerOpen(false)}
+              className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-panel hover:text-foreground"
+              aria-label="Close navigation menu"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+          <SectionNav
+            navSection={navSection}
+            setNavSection={setNavSection}
+            activeGroupId={activeGroupId}
+            shownGroup={shownGroup}
+            active={active}
+            onSelect={(id) => {
+              setActive(id);
+              setNavDrawerOpen(false);
+            }}
+            unseenAlerts={unseenAlerts}
+            activeRunCount={activeRunCount}
+            build={build}
+          />
+        </div>
+      </div>
+    )}
     {inspectorOpen ? (
       <div className="absolute bottom-0 left-0 right-0 z-40 flex flex-col">
         <Inspector open onClose={() => setInspectorOpen(false)} />
@@ -904,6 +893,152 @@ function RouteLoading({ label }: { label: string }) {
   );
 }
 
+// SectionNav renders the two-level navigation (section icon rail + the selected
+// section's item list). It is used in BOTH the lg+ sidebar and the mobile
+// drawer, so it always lays out vertically; the parent decides visibility.
+function SectionNav({
+  navSection,
+  setNavSection,
+  activeGroupId,
+  shownGroup,
+  active,
+  onSelect,
+  unseenAlerts,
+  activeRunCount,
+  build,
+}: {
+  navSection: string;
+  setNavSection: (id: string) => void;
+  activeGroupId: string;
+  shownGroup: NavGroup;
+  active: string;
+  onSelect: (id: string) => void;
+  unseenAlerts: number;
+  activeRunCount: number;
+  build: { version?: string; revision?: string; built?: string; build_modified?: boolean } | null;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1">
+      {/* Section rail — a vertical column of colourful, glassy section icons. */}
+      <div className="flex shrink-0 flex-col gap-1.5 overflow-y-auto border-r border-border p-1.5">
+        {NAV_GROUPS.map((g) => {
+          const on = navSection === g.id;
+          const isActiveSection = activeGroupId === g.id;
+          const hue = sectionHue(g.id);
+          const sectionBadge =
+            (g.id === "monitor" ? unseenAlerts : 0) + (g.id === "agents" ? activeRunCount : 0);
+          return (
+            <button
+              key={g.id}
+              onClick={() => setNavSection(g.id)}
+              title={g.label}
+              aria-label={g.label}
+              className={cn(
+                "relative flex size-11 shrink-0 flex-col items-center justify-center gap-0 rounded-xl transition-all duration-150",
+                on ? "scale-[1.04] shadow-e2" : "hover:scale-[1.02] hover:bg-panel",
+              )}
+              style={
+                on
+                  ? {
+                      background: `linear-gradient(155deg, oklch(0.65 0.18 ${hue} / 0.35), oklch(0.6 0.16 ${hue} / 0.08))`,
+                      color: `oklch(0.62 0.18 ${hue})`,
+                      boxShadow: `inset 0 0 0 1px oklch(0.62 0.16 ${hue} / 0.5), 0 0 20px -4px oklch(0.6 0.16 ${hue} / 0.4)`,
+                    }
+                  : { color: `oklch(0.6 0.14 ${hue})` }
+              }
+            >
+              <g.icon className="size-5" />
+              <span className="text-[9px] font-semibold leading-none tracking-normal">{g.label}</span>
+              {isActiveSection && !on && (
+                <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: `oklch(0.62 0.16 ${hue})` }} />
+              )}
+              {sectionBadge > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-3.5 items-center justify-center rounded-full bg-bad px-0.5 text-[9px] font-bold leading-3.5 text-white">
+                  {sectionBadge > 99 ? "99+" : sectionBadge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Secondary item list for the selected section */}
+      <div className="flex w-44 shrink-0 flex-col gap-0.5 overflow-y-auto p-2">
+        <div
+          className="flex items-center gap-1.5 px-2 pb-1.5 pt-1 text-xs font-bold uppercase tracking-normal"
+          style={{ color: `oklch(0.6 0.14 ${sectionHue(shownGroup.id)})` }}
+        >
+          <shownGroup.icon className="size-3.5" />
+          {shownGroup.label}
+        </div>
+        {shownGroup.items.map((n) => {
+          const hue = sectionHue(shownGroup.id);
+          const isOn = n.id === active;
+          return (
+            <button
+              key={n.id}
+              onClick={() => onSelect(n.id)}
+              className={cn(
+                "relative flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-150",
+                isOn
+                  ? "font-semibold before:absolute before:left-0 before:top-1/2 before:block before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:content-['']"
+                  : "text-muted hover:bg-panel hover:text-foreground",
+              )}
+              style={
+                isOn
+                  ? {
+                      background: `linear-gradient(90deg, oklch(0.6 0.16 ${hue} / 0.2), oklch(0.6 0.16 ${hue} / 0.03))`,
+                      color: `oklch(0.56 0.16 ${hue})`,
+                    }
+                  : undefined
+              }
+            >
+              {isOn && <span className="absolute left-0 top-1/2 block h-5 w-[3px] -translate-y-1/2 rounded-r-full" style={{ background: `oklch(0.62 0.16 ${hue})` }} />}
+              <n.icon className="size-4 shrink-0" />
+              <span>{n.label}</span>
+              {n.id === "alerts" && unseenAlerts > 0 && (
+                <span
+                  className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-bad px-1 text-xs font-semibold leading-4 text-white"
+                  title={`${unseenAlerts} new alert${unseenAlerts === 1 ? "" : "s"} — the agent flagged something`}
+                  aria-label={`${unseenAlerts} unseen alerts`}
+                >
+                  {unseenAlerts > 99 ? "99+" : unseenAlerts}
+                </span>
+              )}
+              {n.id === "overseer" && activeRunCount > 0 && (
+                <span
+                  className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-semibold leading-4 text-accent"
+                  title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
+                  aria-label={`${activeRunCount} active runs`}
+                >
+                  {activeRunCount > 99 ? "99+" : activeRunCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+        {build && (
+          <div
+            className="mt-auto px-3 pt-3 text-xs leading-tight text-muted/60"
+            title={
+              build.revision
+                ? `Daemon build ${build.revision}${build.build_modified ? " (modified working tree)" : ""}${build.built ? ` · built ${build.built}` : ""}`
+                : build.built
+                  ? `Daemon built ${build.built}`
+                  : "Build revision unavailable (binary built without VCS info)"
+            }
+          >
+            v{build.version || "?"}
+            {build.revision ? (
+              <> · {build.revision.slice(0, 7)}{build.build_modified ? "+" : ""}</>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Header({
   connected,
   chatActive,
@@ -911,6 +1046,7 @@ function Header({
   inspectorOpen,
   activeLlmCount,
   onNavigate,
+  onOpenNav,
   onOpenChat,
   onOpenPalette,
   onOpenHelp,
@@ -922,6 +1058,7 @@ function Header({
   inspectorOpen: boolean;
   activeLlmCount: number;
   onNavigate: (id: string) => void;
+  onOpenNav: () => void;
   onOpenChat: () => void;
   onOpenPalette: () => void;
   onOpenHelp: () => void;
@@ -945,14 +1082,24 @@ function Header({
     <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-panel px-3 py-2 shadow-e1 sm:gap-3 sm:px-4">
       {/* Lit accent edge under the header (M977 command-center). */}
       <div className="accent-rule pointer-events-none absolute inset-x-0 bottom-0 h-px" />
+      {/* Hamburger — opens the nav drawer below lg, where the sidebar is hidden. */}
+      <button
+        onClick={onOpenNav}
+        className="inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-panel hover:text-foreground lg:hidden"
+        title="Menu"
+        aria-label="Open navigation menu"
+      >
+        <Menu className="size-5" />
+      </button>
       <ConsoleName />
       <span
         className={cn(
-          "ml-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+          "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium sm:px-2",
           connected ? "border-good/30 bg-good/10 text-good" : "border-bad/30 bg-bad/10 text-bad",
         )}
+        title={connected ? "live" : "disconnected"}
       >
-        ● {connected ? "live" : "disconnected"}
+        ● <span className="hidden sm:inline">{connected ? "live" : "disconnected"}</span>
       </span>
       {/* Always-visible "something is working" chip: lights up whenever a run is
           in flight anywhere (chat reply, tool call, autonomous agent), so the

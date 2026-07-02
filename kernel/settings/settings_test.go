@@ -111,6 +111,30 @@ func TestSchema_FieldByEnv(t *testing.T) {
 	if pf, ok := builtinFieldByEnv("AGEZT_PROVIDER"); !ok || pf.Apply != ApplyLive {
 		t.Errorf("provider should be live-apply: %+v ok=%v", pf, ok)
 	}
+	if pf, ok := builtinFieldByEnv("AGEZT_EXEC_PROFILE_DENY"); !ok || pf.Apply != ApplyLive || pf.Type != TypeCSV {
+		t.Errorf("execution profile deny should be live CSV: %+v ok=%v", pf, ok)
+	}
+	if ef, ok := builtinFieldByEnv("AGEZT_EXEC_SECRET_ENV_DOCKER"); !ok || ef.Apply != ApplyLive || ef.Type != TypeCSV {
+		t.Errorf("docker secret env passthrough should be live CSV: %+v ok=%v", ef, ok)
+	}
+	if mf, ok := builtinFieldByEnv("AGEZT_EXEC_SECRET_FILES_DOCKER"); !ok || mf.Apply != ApplyLive || mf.Type != TypeCSV {
+		t.Errorf("docker secret file mounts should be live CSV: %+v ok=%v", mf, ok)
+	}
+	if rf, ok := builtinFieldByEnv("AGEZT_EXEC_REMOTE_SECRET_POLICY"); !ok || rf.Apply != ApplyLive || rf.Type != TypeSelect {
+		t.Errorf("remote secret policy should be live select: %+v ok=%v", rf, ok)
+	}
+	if sf, ok := builtinFieldByEnv("AGEZT_EXEC_SSH_TARGET"); !ok || sf.Apply != ApplyLive || sf.Type != TypeText {
+		t.Errorf("ssh target should be live text: %+v ok=%v", sf, ok)
+	}
+	if df, ok := builtinFieldByEnv("AGEZT_WARDEN_DOCKER_IMAGE"); !ok || df.Apply != ApplyRestart || df.Type != TypeText {
+		t.Errorf("docker image should be restart text: %+v ok=%v", df, ok)
+	}
+	if pf, ok := builtinFieldByEnv("AGEZT_PEERS"); !ok || pf.Apply != ApplyRestart || pf.Type != TypePassword || !pf.Secret {
+		t.Errorf("peer mesh should be a restart secret: %+v ok=%v", pf, ok)
+	}
+	if tpf, ok := builtinFieldByEnv("AGEZT_TENANT_PEERS"); !ok || tpf.Apply != ApplyRestart || tpf.Type != TypePassword || !tpf.Secret {
+		t.Errorf("tenant peer mesh should be a restart secret: %+v ok=%v", tpf, ok)
+	}
 	if _, ok := builtinFieldByEnv("AGEZT_NOT_A_FIELD"); ok {
 		t.Error("unknown env should not resolve")
 	}

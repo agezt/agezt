@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Wand2, X, Bot, CalendarClock, KeyRound, Check, ArrowRight, Plug, Anchor, Wallet, type LucideIcon } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { postAction } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
@@ -233,13 +233,11 @@ export function Wizards() {
   const close = () => setActive(null);
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Wand2}
-        title="Wizards"
-        description="Guided flows — finish a task without hunting through menus."
-      />
-
+    <Page
+      icon={Wand2}
+      title="Wizards"
+      description="Guided flows — finish a task without hunting through menus."
+    >
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {WIZARDS.map((w) => {
           const Icon = w.icon;
@@ -280,6 +278,6 @@ export function Wizards() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   );
 }

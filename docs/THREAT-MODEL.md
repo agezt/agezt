@@ -228,10 +228,12 @@ copied URL) can fully control the daemon.
   easily: browser history, referrers, screenshots, reverse-proxy logs, copied
   URLs. Prefer `Authorization: Bearer` for fetch/XHR. Treat the query form as
   a compatibility path for the browser, not a general auth mechanism.
-- **Tunnel exposure.** `AGEZT_TUNNEL` (cloudflared/ngrok/custom) can expose the
-  Web UI / REST API to the internet. This is opt-in and operator-supervised.
-  If enabled, the daemon's token becomes an internet-reachable credential;
-  operators must treat it accordingly.
+- **Tunnel exposure.** `AGEZT_TUNNEL` (cloudflared/ngrok/tailscale/custom) can
+  expose the Web UI / REST API beyond loopback. This is opt-in and
+  operator-supervised. Supervised Web UI tunnels add the discovered public host
+  to the Host allowlist automatically. If enabled, the daemon's token and Web UI
+  password become internet-reachable credentials; operators must treat them
+  accordingly.
 - **Local multi-user hosts.** The token file is `0600`, but on a shared host
   any process running as the same user can read it. AGEZT assumes a
   single-user trusted host by default.
@@ -343,11 +345,42 @@ pivot.
   request's headers.
 - **Default-deny host policy.** The HTTP tool refuses every host unless
   explicitly allowlisted (or `AllowAll` is set for trusted/dev contexts).
+- **Opt-in browser actions.** `browser.action` is disabled unless
+  `AGEZT_BROWSER_ACTIONS=1`. When enabled, it uses a separate Edict capability,
+  a host allowlist, DNS/IP preflight through netguard, a scrubbed child
+  environment, and default blocks for loopback/private/link-local targets.
+- **Browser profile policy.** `browser.action` defaults to an isolated
+  Playwright context. `profile=session` stores cookies/storage only under the
+  AGEZT-managed browser session directory and can be deleted with
+  `browser.close`. `tab_id` state in that same directory stores the final URL and
+  latest snapshot ref-to-selector map for follow-up actions; it is persistent
+  URL/ref state, not a live browser tab.
+  `browser.tabs` lists these saved refs, and `browser.close` with `tab_id`
+  deletes one saved ref while leaving session cookies/storage intact.
+  `browser.cookies` / `cookies=true` can return cookie values for the final page
+  and is therefore governed under the browser action capability.
+  Persistent user-profile mode and remote Chrome DevTools attachment require
+  explicit operator env opt-ins; model input can request only the profile
+  mode/session id/tab id, not the local profile path or CDP endpoint.
 
 **Limitations.**
 
 - `AllowLoopback` / `AllowPrivate` opt back in for legitimate local-service
   use. These are operator choices and weaken the default.
+- `browser.action` drives Playwright through Node, so its browser network stack
+  is not wired into AGEZT's HTTP dial-time guard. The preflight blocks obvious
+  private/internal targets, but strict environments should keep it disabled or
+  pin explicit hosts because DNS can change after preflight.
+- `profile=session` persists authenticated browser state under
+  `AGEZT_BROWSER_ACTION_SESSION_DIR` (or `<baseDir>/browser-sessions` when
+  unset). `tab_id` files also persist final URLs and snapshot selectors under
+  the same session root.
+  Treat session ids and tab ids as sensitive workflow state and close them when
+  no longer needed.
+- `profile=user-attached` and `profile=remote-cdp` intentionally widen the blast
+  radius to authenticated browser state or a live browser endpoint. Keep them
+  off unless the target workflow specifically needs them, and pair remote CDP
+  with loopback/private egress flags only when the endpoint is expected there.
 - Egress controls apply to governed tools. A plugin that opens its own sockets
   outside the netguard client is not covered; plugin authors must use the
   provided primitives.
@@ -446,6 +479,10 @@ surfaced by `agt config show`.
 | `AGEZT_OVERSEER_FLEET_LOCK=on` | off | The agent-reachable `overseer` tool can no longer **edit or create agents** (no agent→fleet-admin self-administration). Operator control-plane edits and the auto-repair daemon are unaffected. System-guardian edits are always refused regardless. Maps to T2. |
 | `AGEZT_VAULT_PASSPHRASE=…` | machine-bound | Encrypts the credential vault with a passphrase instead of the machine-bound default — the only mode that resists same-user local code reading secrets. Source it from an OS secret manager, not a committed file. Maps to T4. |
 | `AGEZT_SANDBOX_NO_NET=1` | network on | Drops network from `code_exec`/`shell` sandbox children, closing the in-process-netguard-bypass egress path (incl. cloud metadata) for sandboxed code. Set it when an agent runs untrusted code. Maps to T3/T9. |
+| `AGEZT_BROWSER_ACTIONS=1` | off | Enables the opt-in Playwright-backed `browser.action` tool. Keep off in strict environments unless host allowlists and egress flags are intentionally configured. Maps to T9. |
+| `AGEZT_BROWSER_ACTION_SESSION_DIR=…` | `<baseDir>/browser-sessions` | Stores AGEZT-managed `profile=session` browser cookies/storage plus `tab_id` final-URL and snapshot-selector refs. Use a private directory and clean unused sessions with `browser.close`. Maps to T4/T9. |
+| `AGEZT_BROWSER_ACTION_ALLOW_USER_PROFILE=1` | off | Allows `profile=user-attached` using `AGEZT_BROWSER_ACTION_USER_DATA_DIR`. Grants access to persistent browser state, so use only for trusted workflows. Maps to T4/T9. |
+| `AGEZT_BROWSER_ACTION_ALLOW_REMOTE_CDP=1` | off | Allows `profile=remote-cdp` using `AGEZT_BROWSER_ACTION_REMOTE_CDP_URL`. The endpoint is operator-configured and egress-checked before use. Maps to T9. |
 | `AGEZT_AUTO_REPAIR=off` | armed | Disables the self-healing daemon that lets guardian agents retune the fleet, if you prefer all fleet changes to be operator-driven. Maps to T2. |
 
 Bind addresses (`AGEZT_API_ADDR` / `AGEZT_REST_ADDR` / `AGEZT_WEB_ADDR`) default

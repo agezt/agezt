@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
+import { Page } from "@/components/ui/page";
 
 // downloadText saves text content to a file via a transient object URL — lets the
 // operator grab an artifact an agent built without leaving the browser.
@@ -73,7 +74,7 @@ export function Sandbox() {
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <Page mode="scroll" width="wide">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
@@ -110,7 +111,7 @@ export function Sandbox() {
           ))}
         </MetricGrid>
       )}
-    </div>
+    </Page>
   );
 }
 

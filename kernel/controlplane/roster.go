@@ -1291,6 +1291,9 @@ func applyAgentMutableProfilePatch(dst *roster.Profile, in roster.Profile, provi
 	if provided["trust_ceiling"] {
 		dst.TrustCeiling = in.TrustCeiling
 	}
+	if provided["execution_profile"] {
+		dst.ExecutionProfile = strings.TrimSpace(in.ExecutionProfile)
+	}
 	if provided["config_overrides"] {
 		dst.ConfigOverrides = in.ConfigOverrides
 	}

@@ -769,6 +769,44 @@ func (s *Store) Save(w Workflow) (Workflow, bool, error) {
 	return cp, true, nil
 }
 
+// Restore upserts a checkpointed workflow while preserving identity and enabled
+// state. It is intentionally separate from Save, whose normal editor semantics
+// preserve the current lifecycle fields instead of trusting posted ones.
+func (s *Store) Restore(w Workflow) (Workflow, bool, error) {
+	w.Name = strings.TrimSpace(w.Name)
+	if err := Validate(w); err != nil {
+		return Workflow{}, false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now().UnixMilli()
+	if w.ID == "" {
+		w.ID = ulid.New()
+	}
+	if w.CreatedMS == 0 {
+		w.CreatedMS = now
+	}
+	w.UpdatedMS = now
+	for _, ex := range s.items {
+		if ex.ID == w.ID || ex.Name == w.Name {
+			snapshot := *ex
+			*ex = w
+			if err := s.save(); err != nil {
+				*ex = snapshot
+				return Workflow{}, false, err
+			}
+			return *ex, false, nil
+		}
+	}
+	cp := w
+	s.items = append(s.items, &cp)
+	if err := s.save(); err != nil {
+		s.items = s.items[:len(s.items)-1]
+		return Workflow{}, false, err
+	}
+	return cp, true, nil
+}
+
 // SetEnabled flips trigger-arming for a workflow by id or name.
 func (s *Store) SetEnabled(ref string, enabled bool) (Workflow, error) {
 	s.mu.Lock()

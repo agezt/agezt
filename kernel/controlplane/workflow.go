@@ -115,6 +115,35 @@ func (s *Server) handleWorkflowSave(conn net.Conn, req Request) {
 	})
 }
 
+func (s *Server) handleWorkflowRestore(conn net.Conn, req Request) {
+	raw, ok := req.Args["workflow"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow required"})
+		return
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	var w workflow.Workflow
+	if err := json.Unmarshal(b, &w); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	reason, _ := req.Args["reason"].(string)
+	restored, created, err := s.k.RestoreWorkflow("", w, reason)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(restored, true), "created": created},
+	})
+}
+
 func (s *Server) handleWorkflowRemove(conn net.Conn, req Request) {
 	ref, _ := req.Args["ref"].(string)
 	if strings.TrimSpace(ref) == "" {

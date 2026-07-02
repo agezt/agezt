@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/executionprofile"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
@@ -32,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // Server hosts the control plane for a running Kernel.
@@ -602,6 +604,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleToolLog(conn, req)
 	case CmdToolStats:
 		s.handleToolStats(conn, req)
+	case CmdExecutionProfiles:
+		s.handleExecutionProfiles(conn, req)
+	case CmdExecutionProfileShow:
+		s.handleExecutionProfileShow(conn, req)
+	case CmdExecutionProfileCheck:
+		s.handleExecutionProfileCheck(conn, req)
 	case CmdCacheStats:
 		s.handleCacheStats(conn, req)
 	case CmdStatus:
@@ -800,8 +808,12 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleSkillPromote(conn, req)
 	case CmdSkillQuarantine:
 		s.handleSkillQuarantine(conn, req)
+	case CmdSkillArchive:
+		s.handleSkillArchive(conn, req)
 	case CmdSkillRevert:
 		s.handleSkillRevert(conn, req)
+	case CmdSkillRestore:
+		s.handleSkillRestore(conn, req)
 	case CmdSkillShare:
 		s.handleSkillShare(conn, req)
 	case CmdSkillReassign:
@@ -922,6 +934,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleWorkflowShow(conn, req)
 	case CmdWorkflowSave:
 		s.handleWorkflowSave(conn, req)
+	case CmdWorkflowRestore:
+		s.handleWorkflowRestore(conn, req)
 	case CmdWorkflowRemove:
 		s.handleWorkflowRemove(conn, req)
 	case CmdWorkflowSetEnabled:
@@ -952,6 +966,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleConfigValues(conn, req)
 	case CmdChannelList:
 		s.handleChannelList(conn, req)
+	case CmdNodeRegistry:
+		s.handleNodeRegistry(conn, req)
 	case CmdChannelAccountSet:
 		s.handleChannelAccountSet(conn, req)
 	case CmdChannelAccountRemove:
@@ -1052,6 +1068,74 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleBoardReplies(conn, req)
 	case CmdBoardGet:
 		s.handleBoardGet(conn, req)
+	case CmdWorkboardList:
+		s.handleWorkboardList(conn, req)
+	case CmdWorkboardLanes:
+		s.handleWorkboardLanes(conn, req)
+	case CmdWorkboardShow:
+		s.handleWorkboardShow(conn, req)
+	case CmdWorkboardCreate:
+		s.handleWorkboardCreate(conn, req)
+	case CmdWorkboardClaim:
+		s.handleWorkboardClaim(conn, req)
+	case CmdWorkboardHeartbeat:
+		s.handleWorkboardHeartbeat(conn, req)
+	case CmdWorkboardComment:
+		s.handleWorkboardComment(conn, req)
+	case CmdWorkboardBlock:
+		s.handleWorkboardBlock(conn, req)
+	case CmdWorkboardFail:
+		s.handleWorkboardFail(conn, req)
+	case CmdWorkboardUnblock:
+		s.handleWorkboardUnblock(conn, req)
+	case CmdWorkboardComplete:
+		s.handleWorkboardComplete(conn, req)
+	case CmdWorkboardProve:
+		s.handleWorkboardProve(conn, req)
+	case CmdWorkboardSeat:
+		s.handleWorkboardSeat(conn, req)
+	case CmdSeatList:
+		s.handleSeatList(conn, req)
+	case CmdSeatCreate:
+		s.handleSeatCreate(conn, req)
+	case CmdSeatDelete:
+		s.handleSeatDelete(conn, req)
+	case CmdOKRList:
+		s.handleOKRList(conn, req)
+	case CmdOKRShow:
+		s.handleOKRShow(conn, req)
+	case CmdOKRCreate:
+		s.handleOKRCreate(conn, req)
+	case CmdOKRKeyResult:
+		s.handleOKRKeyResult(conn, req)
+	case CmdOKRLink:
+		s.handleOKRLink(conn, req)
+	case CmdOKRUnlink:
+		s.handleOKRUnlink(conn, req)
+	case CmdOKRArchive:
+		s.handleOKRArchive(conn, req)
+	case CmdTasteList:
+		s.handleTasteList(conn, req)
+	case CmdTasteCreate:
+		s.handleTasteCreate(conn, req)
+	case CmdTasteDelete:
+		s.handleTasteDelete(conn, req)
+	case CmdWorkboardArchive:
+		s.handleWorkboardArchive(conn, req)
+	case CmdWorkboardLink:
+		s.handleWorkboardLink(conn, req)
+	case CmdWorkboardPolicy:
+		s.handleWorkboardPolicy(conn, req)
+	case CmdWorkboardDepend:
+		s.handleWorkboardDepend(conn, req)
+	case CmdWorkboardReclaim:
+		s.handleWorkboardReclaim(conn, req)
+	case CmdWorkboardSweep:
+		s.handleWorkboardSweep(conn, req)
+	case CmdWorkboardDispatch:
+		s.handleWorkboardDispatch(conn, req)
+	case CmdWorkboardWatch:
+		s.handleWorkboardWatch(conn, req)
 	case CmdAutonomyFeed:
 		s.handleAutonomyFeed(conn, req)
 	case CmdUpdateCheck:
@@ -1690,6 +1774,136 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = runtime.WithMaxCost(ctx, maxCost)
 	}
 
+	// Per-run execution profile (Hermes parity): selects the requested warden
+	// profile for shell/code_exec. Conditional profiles such as docker are only
+	// accepted when the active backend can satisfy them; otherwise they are
+	// rejected instead of silently falling back.
+	execProfileRaw, _, eperr := argString(req.Args, "execution_profile")
+	if eperr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: eperr.Error()})
+		return
+	}
+	execProfile := strings.TrimSpace(execProfileRaw)
+	// No explicit profile? Fall back to the assigned agent's default isolation
+	// surface (roster.Profile.ExecutionProfile), so an agent configured to run
+	// sandboxed does so on direct runs too — an explicit arg still wins.
+	if execProfile == "" && agentProf != nil {
+		execProfile = strings.TrimSpace(agentProf.ExecutionProfile)
+	}
+	execProfileLabel := ""
+	remoteExecutionProfile := false
+	if execProfile != "" {
+		if ok, reason := executionprofile.PolicyFromEnv().Allows(execProfile); !ok {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
+				"execution profile %q is blocked by policy: %s", execProfile, reason,
+			)})
+			return
+		}
+		if strings.EqualFold(execProfile, "ssh") {
+			sshCfg := executionprofile.SSHConfigFromEnv()
+			if !sshCfg.Active() {
+				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "ssh" requires an active SSH backend (set AGEZT_EXEC_SSH=1 and AGEZT_EXEC_SSH_TARGET=user@host)`})
+				return
+			}
+			execProfileLabel = "ssh"
+			ctx = executionprofile.WithSSHOverride(ctx, sshCfg)
+			goto executionProfileDone
+		}
+		if strings.EqualFold(execProfile, "k8s") {
+			k8sCfg := executionprofile.K8sConfigFromEnv()
+			if !k8sCfg.Active() {
+				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "k8s" requires an active Kubernetes backend (set AGEZT_EXEC_K8S=1 and AGEZT_EXEC_K8S_POD=<pod>; optional AGEZT_EXEC_K8S_NAMESPACE/CONTEXT/CONTAINER/WORKDIR)`})
+				return
+			}
+			if _, ok := k.Tools()["shell"]; !ok {
+				if _, ok := k.Tools()["code_exec"]; !ok {
+					s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "k8s" requires the shell or code_exec tool to be registered`})
+					return
+				}
+			}
+			execProfileLabel = "k8s"
+			ctx = executionprofile.WithK8sOverride(ctx, k8sCfg)
+			goto executionProfileDone
+		}
+		if strings.EqualFold(execProfile, "modal") {
+			modalCfg := executionprofile.ModalConfigFromEnv()
+			if !modalCfg.Active() {
+				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "modal" requires an active Modal backend (set AGEZT_EXEC_MODAL=1; optional AGEZT_EXEC_MODAL_REF or AGEZT_EXEC_MODAL_IMAGE)`})
+				return
+			}
+			if _, ok := k.Tools()["shell"]; !ok {
+				if _, ok := k.Tools()["code_exec"]; !ok {
+					s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "modal" requires the shell or code_exec tool to be registered`})
+					return
+				}
+			}
+			execProfileLabel = "modal"
+			ctx = executionprofile.WithModalOverride(ctx, modalCfg)
+			goto executionProfileDone
+		}
+		if strings.EqualFold(execProfile, "daytona") {
+			daytonaCfg := executionprofile.DaytonaConfigFromEnv()
+			if !daytonaCfg.Active() {
+				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "daytona" requires an active Daytona backend (set AGEZT_EXEC_DAYTONA=1 and AGEZT_EXEC_DAYTONA_SANDBOX=<id-or-name>)`})
+				return
+			}
+			if _, ok := k.Tools()["shell"]; !ok {
+				if _, ok := k.Tools()["code_exec"]; !ok {
+					s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "daytona" requires the shell or code_exec tool to be registered`})
+					return
+				}
+			}
+			execProfileLabel = "daytona"
+			ctx = executionprofile.WithDaytonaOverride(ctx, daytonaCfg)
+			goto executionProfileDone
+		}
+		if strings.EqualFold(execProfile, "remote-agezt") {
+			if _, ok := k.Tools()["remote_run"]; !ok {
+				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "remote-agezt" requires configured AGEZT peers (set AGEZT_PEERS=name=https://host|token so the remote_run tool is registered)`})
+				return
+			}
+			execProfileLabel = "remote-agezt"
+			remoteExecutionProfile = true
+			goto executionProfileDone
+		}
+		p, ok := executionprofile.WardenProfileForRun(execProfile)
+		if !ok {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
+				"execution profile %q is not routable for run tools yet (supported: %s)",
+				execProfile, strings.Join(executionprofile.RoutableRunProfileIDsFor(executionprofile.Build(executionprofile.Options{
+					Tools:   toolNames(k.Tools()),
+					Warden:  k.Warden(),
+					SSH:     executionprofile.SSHConfigFromEnv(),
+					K8s:     executionprofile.K8sConfigFromEnv(),
+					Modal:   executionprofile.ModalConfigFromEnv(),
+					Daytona: executionprofile.DaytonaConfigFromEnv(),
+				})), ", ")),
+			})
+			return
+		}
+		if p == warden.ProfileContainer && k.Warden().EffectiveProfile(p) != warden.ProfileContainer {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
+				"execution profile %q requires an active container backend (set AGEZT_WARDEN_DOCKER=1 and configure AGEZT_WARDEN_DOCKER_IMAGE/runtime)",
+				execProfile),
+			})
+			return
+		}
+		execProfileLabel = string(p)
+		ctx = warden.WithProfileOverride(ctx, p)
+	}
+executionProfileDone:
+
+	remotePeerRaw, _, rperr := argString(req.Args, "remote_peer")
+	if rperr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: rperr.Error()})
+		return
+	}
+	remotePeer := strings.TrimSpace(remotePeerRaw)
+	if remotePeer != "" && !remoteExecutionProfile {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `remote_peer requires execution_profile "remote-agezt"`})
+		return
+	}
+
 	// Session-scoped auto-approve grant (chat "auto-approve Tool Forge this
 	// session"): a comma/space-separated list of edict capabilities to auto-grant
 	// when policy would otherwise prompt for HITL approval, for this run and every
@@ -1732,18 +1946,21 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	if dryRun {
 		in := runPlanInput{
-			Intent:          intent,
-			Tenant:          tenantID,
-			Model:           effModel,
-			ModelOverridden: modelOverride != "",
-			SystemSet:       strings.TrimSpace(k.System()) != "",
-			SystemOverride:  systemOverride != "",
-			Timeout:         timeoutRaw,
-			DaemonTimeout:   k.MaxDuration(),
-			AllowSet:        toolsSet,
-			Allow:           toolsAllow,
-			MaxCostMC:       maxCost,
-			ModelPriced:     modelPriced(effModel), // authoritative (catalog → fallback table)
+			Intent:           intent,
+			Tenant:           tenantID,
+			Model:            effModel,
+			ModelOverridden:  modelOverride != "",
+			SystemSet:        strings.TrimSpace(k.System()) != "",
+			SystemOverride:   systemOverride != "",
+			Timeout:          timeoutRaw,
+			DaemonTimeout:    k.MaxDuration(),
+			AllowSet:         toolsSet,
+			Allow:            toolsAllow,
+			MaxCostMC:        maxCost,
+			ExecutionProfile: execProfile,
+			WardenProfile:    execProfileLabel,
+			RemotePeer:       remotePeer,
+			ModelPriced:      modelPriced(effModel), // authoritative (catalog → fallback table)
 		}
 		in.StrictPricing, in.ModelHasPrice = strictPricingPlan(k.Provider(), effModel)
 		if cat := k.Catalog(); cat != nil {
@@ -1758,6 +1975,10 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			in.AllToolNames = append(in.AllToolNames, name)
 		}
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: buildRunPlan(in)})
+		return
+	}
+	if remoteExecutionProfile && assureN > 0 {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `execution profile "remote-agezt" cannot combine with assure yet; delegate once or run assurance on the peer`})
 		return
 	}
 
@@ -1792,6 +2013,100 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	resultCh := make(chan runResult, 1)
 	go func() {
+		if remoteExecutionProfile {
+			receivedPayload := map[string]any{
+				"intent":            intent,
+				"execution_profile": "remote-agezt",
+				"remote_tool":       "remote_run",
+			}
+			if remotePeer != "" {
+				receivedPayload["remote_peer"] = remotePeer
+			}
+			if err := publishRemoteExecutionProfileRunEvent(k, corr, event.KindTaskReceived, "task", receivedPayload); err != nil {
+				resultCh <- runResult{"", err}
+				return
+			}
+			delegatingInfo := map[string]any{
+				"profile": "remote-agezt",
+				"phase":   "delegating",
+				"tool":    "remote_run",
+			}
+			if remotePeer != "" {
+				delegatingInfo["remote_peer"] = remotePeer
+			}
+			if err := publishRemoteExecutionProfileRunEvent(k, corr, event.KindInfo, "execution_profile", delegatingInfo); err != nil {
+				resultCh <- runResult{"", err}
+				return
+			}
+			payload := map[string]string{"task": intent}
+			if remotePeer != "" {
+				payload["peer"] = remotePeer
+			}
+			if strings.TrimSpace(modelOverride) != "" {
+				payload["model"] = effModel
+			}
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindTaskFailed, "task", map[string]any{
+					"error":             err.Error(),
+					"reason":            "remote-agezt",
+					"execution_profile": "remote-agezt",
+				})
+				resultCh <- runResult{"", err}
+				return
+			}
+			res, err := k.RunTool(ctx, corr, "execution-profile-remote-agezt", "remote_run", raw)
+			if err != nil {
+				_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindTaskFailed, "task", map[string]any{
+					"error":             err.Error(),
+					"reason":            "remote-agezt",
+					"execution_profile": "remote-agezt",
+				})
+				resultCh <- runResult{"", err}
+				return
+			}
+			if res.IsError {
+				msg := strings.TrimSpace(res.Output)
+				if msg == "" {
+					msg = "remote-agezt execution profile failed"
+				}
+				err := errors.New(msg)
+				_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindTaskFailed, "task", map[string]any{
+					"error":             err.Error(),
+					"reason":            "remote-agezt",
+					"execution_profile": "remote-agezt",
+				})
+				resultCh <- runResult{"", err}
+				return
+			}
+			peerMeta := remoteExecutionProfilePeerMetadata(res.Output)
+			s.mirrorRemoteExecutionProfileEvents(ctx, k, corr, peerMeta)
+			completedInfo := map[string]any{
+				"profile": "remote-agezt",
+				"phase":   "completed",
+				"tool":    "remote_run",
+				"chars":   len(res.Output),
+			}
+			addRemoteExecutionProfilePeerMetadata(completedInfo, peerMeta)
+			if err := publishRemoteExecutionProfileRunEvent(k, corr, event.KindInfo, "execution_profile", completedInfo); err != nil {
+				resultCh <- runResult{"", err}
+				return
+			}
+			completedTask := map[string]any{
+				"iters":             0,
+				"chars":             len(res.Output),
+				"stopped":           "remote-agezt",
+				"answer":            remoteExecutionProfileAnswerPreview(res.Output),
+				"execution_profile": "remote-agezt",
+			}
+			addRemoteExecutionProfilePeerMetadata(completedTask, peerMeta)
+			if err := publishRemoteExecutionProfileRunEvent(k, corr, event.KindTaskCompleted, "task", completedTask); err != nil {
+				resultCh <- runResult{"", err}
+				return
+			}
+			resultCh <- runResult{res.Output, nil}
+			return
+		}
 		if assureN > 0 {
 			ans, _, err := k.RunAssured(ctx, corr, intent, int(assureN))
 			resultCh <- runResult{ans, err}
@@ -1879,5 +2194,63 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func publishRemoteExecutionProfileRunEvent(k *runtime.Kernel, corr string, kind event.Kind, suffix string, payload any) error {
+	actor := "agent-" + corr
+	_, err := k.Bus().Publish(event.Spec{
+		Subject:       "agent." + actor + "." + suffix,
+		Kind:          kind,
+		Actor:         actor,
+		CorrelationID: corr,
+		Payload:       payload,
+	})
+	return err
+}
+
+func remoteExecutionProfileAnswerPreview(answer string) string {
+	const max = 4096
+	runes := []rune(answer)
+	if len(runes) <= max {
+		return answer
+	}
+	return string(runes[:max]) + "...[truncated]"
+}
+
+func remoteExecutionProfilePeerMetadata(answer string) map[string]string {
+	lines := strings.Split(strings.TrimSpace(answer), "\n")
+	if len(lines) == 0 {
+		return nil
+	}
+	footer := strings.TrimSpace(lines[len(lines)-1])
+	if !strings.HasPrefix(footer, "[") || !strings.HasSuffix(footer, "]") {
+		return nil
+	}
+	fields := strings.Fields(strings.TrimSuffix(strings.TrimPrefix(footer, "["), "]"))
+	meta := map[string]string{}
+	for _, field := range fields {
+		key, value, ok := strings.Cut(field, "=")
+		if !ok || strings.TrimSpace(value) == "" {
+			continue
+		}
+		switch key {
+		case "peer":
+			meta["remote_peer"] = value
+		case "model":
+			meta["remote_model"] = value
+		case "correlation":
+			meta["remote_correlation"] = value
+		}
+	}
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
+}
+
+func addRemoteExecutionProfilePeerMetadata(payload map[string]any, meta map[string]string) {
+	for key, value := range meta {
+		payload[key] = value
 	}
 }

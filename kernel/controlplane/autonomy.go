@@ -35,6 +35,7 @@ var autonomyKinds = map[event.Kind]struct{ category, verb string }{
 	event.KindSkillPromoted:    {"skill", "a skill was promoted"},
 	event.KindSkillQuarantined: {"skill", "a skill was quarantined"},
 	event.KindSkillReverted:    {"skill", "a skill change was reverted"},
+	event.KindSkillRestored:    {"skill", "a skill checkpoint was restored"},
 	event.KindBriefingSent:     {"pulse", "a briefing was sent"},
 	event.KindBoardPosted:      {"board", "an agent posted to the board"},
 }

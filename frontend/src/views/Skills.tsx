@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -17,7 +17,10 @@ interface Skill {
   description?: string;
   body?: string;
   status?: string;
-  version?: number;
+  version?: string | number;
+  lineage?: string[];
+  resources?: string[];
+  source_event?: string;
   // Owning roster agent (M932): a skill the agent learned itself, retrieved
   // only when IT acts. Empty/absent = shared pool.
   agent?: string;
@@ -38,11 +41,44 @@ interface Skill {
   last_used_ms?: number;
 }
 
+interface SkillScanFinding {
+  severity: "high" | "medium" | "low";
+  code: string;
+  message: string;
+  evidence?: string;
+}
+
+interface SkillScanReport {
+  findings: SkillScanFinding[];
+  count: number;
+  maxSeverity: "high" | "medium" | "low" | "none";
+}
+
+interface SkillDiffLine {
+  sign: " " | "+" | "-";
+  text: string;
+}
+
+interface SkillDiffReport {
+  parentID: string;
+  parentName?: string;
+  added: number;
+  removed: number;
+  lines: SkillDiffLine[];
+}
+
 const statusVariant: Record<string, "good" | "accent" | "default" | "bad"> = {
   active: "good",
   shadow: "accent",
   draft: "default",
   quarantined: "bad",
+};
+
+const scanBadgeVariant: Record<SkillScanReport["maxSeverity"], "bad" | "warn" | "accent" | "default"> = {
+  high: "bad",
+  medium: "warn",
+  low: "accent",
+  none: "default",
 };
 
 // skillMatches tests a skill against a lowercased query over its name, description,
@@ -56,6 +92,123 @@ export function skillMatches(s: Skill, q: string): boolean {
     .join(" ")
     .toLowerCase();
   return hay.includes(q);
+}
+
+export function isWorkshopProposal(s: Skill): boolean {
+  return s.status === "draft" || s.status === "shadow";
+}
+
+export function scanSkill(s: Pick<Skill, "body" | "tools_required">): SkillScanReport {
+  const body = s.body || "";
+  const lower = body.toLowerCase();
+  const findings: SkillScanFinding[] = [];
+  const seen = new Set<string>();
+  const add = (severity: SkillScanFinding["severity"], code: string, message: string, evidence?: string) => {
+    if (seen.has(code)) return;
+    seen.add(code);
+    findings.push({ severity, code, message, evidence });
+  };
+
+  if (["ignore previous", "ignore all previous", "system prompt", "developer message", "jailbreak", "prompt injection"].some((p) => lower.includes(p))) {
+    add("high", "prompt-injection", "override language", "instruction override");
+  }
+  if ((s.tools_required || []).some((t) => ["shell", "code_exec", "codeexec"].includes(t.toLowerCase()) || t.toLowerCase().includes("browser"))) {
+    add("medium", "effectful-tool", "effectful tool required", (s.tools_required || []).join(", "));
+  }
+  if (["rm -rf", "sudo ", "chmod 777", "powershell -enc", "invoke-webrequest", "curl ", "wget ", "ssh "].some((p) => lower.includes(p))) {
+    add("medium", "shell-network-effect", "shell/network operation", "command text");
+  }
+  if ([".env", "api_key", "apikey", "secret", "token", "password", "credential"].some((p) => lower.includes(p))) {
+    add("high", "secret-handling", "secret or credential reference", "sensitive text");
+  }
+  if (["exfiltrate", "pastebin", "webhook", "upload ", "send to http"].some((p) => lower.includes(p))) {
+    add("high", "exfiltration-hint", "external sink wording", "data transfer");
+  }
+  if (lower.includes("curl") && lower.includes("| sh")) {
+    add("high", "curl-pipe-shell", "remote code execution pattern", "curl ... | sh");
+  }
+  if (hasUnpinnedInstall(lower)) {
+    add("medium", "unpinned-install", "dependency install without obvious pin", "install");
+  }
+  const url = body.match(/https?:\/\/[^\s)'"]+/)?.[0];
+  if (url) {
+    add(url.toLowerCase().startsWith("http://") ? "high" : "medium", "external-url", "external URL", url);
+  }
+  if (["../", "~/.ssh", "$home", "%userprofile%", "c:\\", "/etc/", "/var/", "/usr/bin"].some((p) => lower.includes(p))) {
+    add("medium", "cross-workspace-path", "path may escape workspace", "path text");
+  }
+
+  const maxSeverity = findings.reduce<SkillScanReport["maxSeverity"]>((max, f) => (severityRank(f.severity) > severityRank(max) ? f.severity : max), "none");
+  return { findings, count: findings.length, maxSeverity };
+}
+
+function hasUnpinnedInstall(lower: string): boolean {
+  for (const marker of ["pip install ", "npm install ", "pnpm add ", "yarn add "]) {
+    const idx = lower.indexOf(marker);
+    if (idx < 0) continue;
+    const line = lower.slice(idx).split("\n")[0];
+    if (line.includes("==") || line.includes("@") || line.includes("-r ") || line.includes("package-lock")) continue;
+    return true;
+  }
+  return false;
+}
+
+function severityRank(s: SkillScanReport["maxSeverity"]): number {
+  if (s === "high") return 3;
+  if (s === "medium") return 2;
+  if (s === "low") return 1;
+  return 0;
+}
+
+export function lineDiff(a: string[], b: string[]): SkillDiffLine[] {
+  const n = a.length;
+  const m = b.length;
+  const lcs = Array.from({ length: n + 1 }, () => Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const out: SkillDiffLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      out.push({ sign: " ", text: a[i] });
+      i++;
+      j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      out.push({ sign: "-", text: a[i] });
+      i++;
+    } else {
+      out.push({ sign: "+", text: b[j] });
+      j++;
+    }
+  }
+  for (; i < n; i++) out.push({ sign: "-", text: a[i] });
+  for (; j < m; j++) out.push({ sign: "+", text: b[j] });
+  return out;
+}
+
+export function diffSkillAgainstParent(s: Skill, all: Skill[]): SkillDiffReport | null {
+  const parentID = s.lineage?.[s.lineage.length - 1];
+  if (!parentID || !s.body) return null;
+  const parent = all.find((x) => x.id === parentID);
+  if (!parent?.body) return { parentID, parentName: parent?.name, added: 0, removed: 0, lines: [] };
+  const lines = lineDiff(splitSkillLines(parent.body), splitSkillLines(s.body));
+  const added = lines.filter((l) => l.sign === "+").length;
+  const removed = lines.filter((l) => l.sign === "-").length;
+  return { parentID, parentName: parent.name, added, removed, lines };
+}
+
+function splitSkillLines(s: string): string[] {
+  if (!s) return [];
+  return s.replace(/\r\n/g, "\n").split("\n");
+}
+
+function shortRef(id?: string, n = 10): string {
+  if (!id) return "";
+  return id.length > n ? id.slice(0, n) : id;
 }
 
 // Skills is the learned-procedure library: each skill is a card with its status,
@@ -92,11 +245,11 @@ export function Skills() {
     reload();
   }, []);
 
-  async function act(id: string, path: string, opts?: { confirm?: ConfirmOptions; success?: string }) {
+  async function act(id: string, path: string, opts?: { confirm?: ConfirmOptions; success?: string; params?: Record<string, string> }) {
     if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
     setBusy(id);
     try {
-      await postAction(path, { id });
+      await postAction(path, { id, ...(opts?.params || {}) });
       if (opts?.success) ui.toast(opts.success, "success");
       await reload();
     } catch (e) {
@@ -105,14 +258,14 @@ export function Skills() {
       setBusy(null);
     }
   }
+  const proposals = (skills || []).filter((s) => s.id && isWorkshopProposal(s));
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Sparkles}
-        title="Skills"
-        actions={
-          <>
+    <Page
+      icon={Sparkles}
+      title="Skills"
+      actions={
+        <>
             <Button
               size="sm"
               onClick={() => {
@@ -127,7 +280,7 @@ export function Skills() {
             </Button>
           </>
         }
-      />
+    >
 
       {idle.length > 0 && (
         <SkillOpsPanel
@@ -160,6 +313,59 @@ export function Skills() {
                 </button>
               </li>
             ))}
+          </ul>
+        </SkillOpsPanel>
+      )}
+
+      {proposals.length > 0 && (
+        <SkillOpsPanel
+          icon={Sparkles}
+          title="Forge Workshop"
+          status={`${proposals.length} pending`}
+          tone="accent"
+        >
+          <ul className="space-y-1.5">
+            {proposals.slice(0, 5).map((s) => {
+              const scan = scanSkill(s);
+              const diff = diffSkillAgainstParent(s, skills || []);
+              return (
+                <li key={s.id} className="flex items-center gap-2 text-xs">
+                  <Badge variant={statusVariant[s.status || ""] || "default"}>{s.status}</Badge>
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground/85">{s.name}</span>
+                  <Badge variant={scanBadgeVariant[scan.maxSeverity]}>{scan.maxSeverity === "none" ? "clean" : `${scan.maxSeverity} risk`}</Badge>
+                  {diff && diff.lines.length > 0 && (
+                    <span className="shrink-0 text-[11px] text-muted">
+                      <span className="text-good">+{diff.added}</span> <span className="text-bad">-{diff.removed}</span>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => act(s.id!, "/api/skill/promote", { success: "Workshop gate advanced" })}
+                    disabled={busy === s.id}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-xs text-good hover:bg-good/10"
+                  >
+                    apply
+                  </button>
+                  <button
+                    onClick={() =>
+                      act(s.id!, "/api/skill/archive", {
+                        params: { reason: "workshop reject" },
+                        confirm: {
+                          title: `Reject proposal "${s.name}"?`,
+                          message: "It will be archived and kept in history.",
+                          confirmLabel: "Reject",
+                          danger: true,
+                        },
+                        success: "Proposal rejected",
+                      })
+                    }
+                    disabled={busy === s.id}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-xs text-bad hover:bg-bad/10"
+                  >
+                    reject
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </SkillOpsPanel>
       )}
@@ -200,7 +406,7 @@ export function Skills() {
           }
         />
       ) : (
-        <div className="min-h-0 flex-1 space-y-2 overflow-auto">
+        <div className="space-y-2">
           <StatusSummary skills={skills} />
           {/* Find a skill by name, what it does, when it fires, or its status (M778). */}
           {skills.length > 4 && (
@@ -227,6 +433,8 @@ export function Skills() {
             return shown.map((s, i) => {
             const m = s.metrics || {};
             const isOpen = open === (s.id || String(i));
+            const scan = scanSkill(s);
+            const diff = diffSkillAgainstParent(s, skills);
             return (
               <div key={s.id || i} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
@@ -273,13 +481,33 @@ export function Skills() {
                       />
                     )}
                     {(s.status === "draft" || s.status === "shadow") && s.id && (
-                      <IconBtn
-                        label="promote"
-                        tone="good"
-                        icon={Check}
-                        busy={busy === s.id}
-                        onClick={() => act(s.id!, "/api/skill/promote", { success: "Skill promoted to active" })}
-                      />
+                      <>
+                        <IconBtn
+                          label="apply"
+                          tone="good"
+                          icon={Check}
+                          busy={busy === s.id}
+                          onClick={() => act(s.id!, "/api/skill/promote", { success: "Workshop gate advanced" })}
+                        />
+                        <IconBtn
+                          label="reject"
+                          tone="bad"
+                          icon={X}
+                          busy={busy === s.id}
+                          onClick={() =>
+                            act(s.id!, "/api/skill/archive", {
+                              params: { reason: "workshop reject" },
+                              confirm: {
+                                title: "Reject this proposal?",
+                                message: s.name ? `"${s.name}" will be archived and kept in history.` : "This proposal will be archived and kept in history.",
+                                confirmLabel: "Reject",
+                                danger: true,
+                              },
+                              success: "Proposal rejected",
+                            })
+                          }
+                        />
+                      </>
                     )}
                     {s.status === "active" && s.id && (
                       <IconBtn
@@ -346,6 +574,9 @@ export function Skills() {
                   {s.tools_required?.length ? <span>tools: {s.tools_required.join(", ")}</span> : null}
                 </div>
 
+                <SkillProvenance skill={s} diff={diff} />
+                <SkillScanSummary report={scan} />
+
                 {s.body && (
                   <>
                     <button
@@ -355,9 +586,12 @@ export function Skills() {
                       {isOpen ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />} procedure
                     </button>
                     {isOpen && (
-                      <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-panel p-2 text-[11px] text-foreground/85">
-                        {s.body}
-                      </pre>
+                      <div className="mt-1 space-y-2">
+                        {diff && <SkillDiffPreview diff={diff} />}
+                        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-panel p-2 text-[11px] text-foreground/85">
+                          {s.body}
+                        </pre>
+                      </div>
                     )}
                   </>
                 )}
@@ -367,7 +601,7 @@ export function Skills() {
           })()}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -484,6 +718,90 @@ function StatusSummary({ skills }: { skills: Skill[] }) {
   );
 }
 
+function SkillProvenance({ skill, diff }: { skill: Skill; diff: SkillDiffReport | null }) {
+  if (!skill.id && !skill.source_event && !skill.lineage?.length && !skill.resources?.length && !diff) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+      {skill.id && (
+        <span title={skill.id}>
+          hash <code className="rounded bg-panel px-1 py-0.5">{shortRef(skill.id, 12)}</code>
+        </span>
+      )}
+      {skill.source_event && (
+        <span title={skill.source_event}>
+          source <code className="rounded bg-panel px-1 py-0.5">{shortRef(skill.source_event, 12)}</code>
+        </span>
+      )}
+      {diff && (
+        <span title={diff.parentID}>
+          parent <code className="rounded bg-panel px-1 py-0.5">{shortRef(diff.parentID, 12)}</code>
+        </span>
+      )}
+      {diff && diff.lines.length > 0 && (
+        <span>
+          diff <span className="text-good">+{diff.added}</span> <span className="text-bad">-{diff.removed}</span>
+        </span>
+      )}
+      {skill.resources?.length ? <span>{skill.resources.length} resource{skill.resources.length === 1 ? "" : "s"}</span> : null}
+    </div>
+  );
+}
+
+function SkillDiffPreview({ diff }: { diff: SkillDiffReport }) {
+  if (diff.lines.length === 0) {
+    return (
+      <div className="rounded-md border border-border bg-panel p-2 text-[11px] text-muted">
+        Parent {shortRef(diff.parentID, 12)} is not available in the current list.
+      </div>
+    );
+  }
+  if (diff.added === 0 && diff.removed === 0) {
+    return (
+      <div className="rounded-md border border-border bg-panel p-2 text-[11px] text-muted">
+        No body changes from parent {shortRef(diff.parentID, 12)}.
+      </div>
+    );
+  }
+  const shown = compactDiffLines(diff.lines, 80);
+  return (
+    <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-panel p-2 text-[11px]">
+      {shown.map((line, i) => (
+        <div key={i} className={line.sign === "+" ? "text-good" : line.sign === "-" ? "text-bad" : "text-muted"}>
+          {line.sign} {line.text}
+        </div>
+      ))}
+      {shown.length < diff.lines.length && <div className="text-muted">... {diff.lines.length - shown.length} more line(s)</div>}
+    </pre>
+  );
+}
+
+function compactDiffLines(lines: SkillDiffLine[], max: number): SkillDiffLine[] {
+  const changed = lines.findIndex((l) => l.sign !== " ");
+  if (changed < 0 || lines.length <= max) return lines;
+  const start = Math.max(0, changed - 8);
+  return lines.slice(start, start + max);
+}
+
+function SkillScanSummary({ report }: { report: SkillScanReport }) {
+  if (report.count === 0) return null;
+  return (
+    <div className="mt-2 rounded-md border border-warn/25 bg-warn/5 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <AlertTriangle className="size-3.5 text-warn" />
+        <Badge variant={scanBadgeVariant[report.maxSeverity]}>{report.maxSeverity} risk</Badge>
+        <span className="text-xs text-muted">{report.count} scanner finding{report.count === 1 ? "" : "s"}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {report.findings.slice(0, 4).map((f) => (
+          <span key={f.code} title={f.message} className="rounded border border-border bg-panel px-1.5 py-0.5 text-[11px] text-muted">
+            {f.code}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function IconBtn({
   label,
   tone,
@@ -493,7 +811,7 @@ function IconBtn({
 }: {
   label: string;
   tone: "good" | "bad" | "muted";
-  icon: typeof Check;
+  icon: LucideIcon;
   busy?: boolean;
   onClick: () => void;
 }) {

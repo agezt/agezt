@@ -28,7 +28,7 @@ func cmdChannel(args []string, stdout, stderr io.Writer) int {
 		return cmdChannelList(rest, stdout, stderr)
 	case "-h", "--help":
 		fmt.Fprintf(stdout, "usage: %s channel list [--json]\n\n", brand.CLI)
-		fmt.Fprintf(stdout, "  list   every registered channel with its live / configured / needs-setup status\n\n")
+		fmt.Fprintf(stdout, "  list   every registered channel with live / configured / roundtrip readiness\n\n")
 		fmt.Fprintf(stdout, "send a message with `%s send <channel> <to> <text>`.\n", brand.CLI)
 		return 0
 	default:
@@ -84,8 +84,20 @@ func cmdChannelList(args []string, stdout, stderr io.Writer) int {
 		if b, _ := ch["duplex"].(bool); b {
 			dir = "⇄ two-way"
 		}
-		fmt.Fprintf(stdout, "%-14s %-22s %-30s %s\n", str(ch["kind"]), str(ch["display"]), status, dir)
+		fmt.Fprintf(stdout, "%-14s %-22s %-30s %-18s %s\n", str(ch["kind"]), str(ch["display"]), status, channelProbeText(ch), dir)
 	}
 	fmt.Fprintf(stdout, "%d channel(s) · %d live · %d configured (need a restart)\n", len(channels), live, configured)
 	return 0
+}
+
+func channelProbeText(ch map[string]any) string {
+	probe, _ := ch["probe"].(map[string]any)
+	switch str(probe["roundtrip_status"]) {
+	case "ready":
+		return "roundtrip ready"
+	case "restart_required":
+		return "restart first"
+	default:
+		return "setup first"
+	}
 }

@@ -19,7 +19,9 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	browsertool "github.com/agezt/agezt/plugins/tools/browser"
 )
 
 // TestInstanceMatch verifies send-target → instance-key resolution: a bare kind
@@ -82,6 +84,26 @@ func TestOverlayEnv(t *testing.T) {
 	}
 	if v, _ := os.LookupEnv(base[1]); v != "bare-b" {
 		t.Fatalf("post-restore B = %q, want bare-b", v)
+	}
+}
+
+func TestWardenOptionsFromEnv(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"WARDEN_DOCKER", "")
+	opts, desc := wardenOptionsFromEnv()
+	if opts.Container.Enabled || desc != "" {
+		t.Fatalf("unset docker options = %+v %q, want disabled", opts, desc)
+	}
+
+	t.Setenv(brand.EnvPrefix+"WARDEN_DOCKER", "1")
+	t.Setenv(brand.EnvPrefix+"WARDEN_DOCKER_RUNTIME", "podman")
+	t.Setenv(brand.EnvPrefix+"WARDEN_DOCKER_IMAGE", "agezt/runtime:dev")
+	t.Setenv(brand.EnvPrefix+"WARDEN_DOCKER_NETWORK", "bridge")
+	opts, desc = wardenOptionsFromEnv()
+	if !opts.Container.Enabled || opts.Container.Runtime != "podman" || opts.Container.Image != "agezt/runtime:dev" || opts.Container.Network != "bridge" {
+		t.Fatalf("docker options = %+v", opts.Container)
+	}
+	if !strings.Contains(desc, "container=podman") || !strings.Contains(desc, "image=agezt/runtime:dev") {
+		t.Fatalf("desc = %q", desc)
 	}
 }
 
@@ -520,6 +542,95 @@ func TestDrainWait(t *testing.T) {
 	}
 }
 
+func TestBuildToolsBrowserActionOptIn(t *testing.T) {
+	for _, env := range []string{
+		"ALLOW_ALL",
+		"BROWSER_ACTIONS",
+		"BROWSER_ACTION_DRIVER",
+		"BROWSER_ACTION_NODE",
+		"BROWSER_ACTION_ALLOWED_HOSTS",
+		"BROWSER_ACTION_ALLOW_ALL",
+		"BROWSER_ACTION_ALLOW_LOOPBACK",
+		"BROWSER_ACTION_ALLOW_PRIVATE",
+		"BROWSER_ACTION_ALLOW_USER_PROFILE",
+		"BROWSER_ACTION_USER_DATA_DIR",
+		"BROWSER_ACTION_ALLOW_REMOTE_CDP",
+		"BROWSER_ACTION_REMOTE_CDP_URL",
+		"BROWSER_ACTION_SESSION_DIR",
+		"CODING_CMD",
+		"ACP_AGENT_CMD",
+		"HOMEASSISTANT_URL",
+		"HOMEASSISTANT_TOKEN",
+		"HOMEASSISTANT_TOOL_READ",
+		"HOMEASSISTANT_TOOL_SERVICES",
+		"PEERS",
+		"TENANT_PEERS",
+		"PLUGINS",
+		"PLUGIN_PINS",
+		"PLUGIN_TOOLS",
+		"SANDBOX",
+	} {
+		t.Setenv(brand.EnvPrefix+env, "")
+	}
+	t.Setenv(brand.EnvPrefix+"SANDBOX", "off")
+
+	var stderr bytes.Buffer
+	tools, _, _, _, err := buildTools(t.TempDir(), &stderr, warden.New(nil))
+	if err != nil {
+		t.Fatalf("buildTools disabled: %v; stderr=%s", err, stderr.String())
+	}
+	if _, ok := tools["browser.action"]; ok {
+		t.Fatal("browser.action registered while AGEZT_BROWSER_ACTIONS is unset")
+	}
+
+	driver := filepath.Join(t.TempDir(), "browse.mjs")
+	if err := os.WriteFile(driver, []byte("// test driver\n"), 0o600); err != nil {
+		t.Fatalf("write fake driver: %v", err)
+	}
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTIONS", "1")
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_DRIVER", driver)
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOWED_HOSTS", "example.com, docs.example")
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_USER_PROFILE", "1")
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_USER_DATA_DIR", filepath.Join(t.TempDir(), "profile"))
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_REMOTE_CDP", "1")
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_REMOTE_CDP_URL", "https://cdp.example")
+	sessionRoot := filepath.Join(t.TempDir(), "sessions")
+	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_SESSION_DIR", sessionRoot)
+
+	stderr.Reset()
+	tools, _, _, desc, err := buildTools(t.TempDir(), &stderr, warden.New(nil))
+	if err != nil {
+		t.Fatalf("buildTools enabled: %v; stderr=%s", err, stderr.String())
+	}
+	ba, ok := tools["browser.action"].(*browsertool.ActionTool)
+	if !ok {
+		t.Fatalf("browser.action type = %T, want *browser.ActionTool", tools["browser.action"])
+	}
+	for _, name := range []string{"browser.open", "browser.snapshot", "browser.click", "browser.type", "browser.screenshot", "browser.downloads", "browser.cookies", "browser.tabs", "browser.close"} {
+		if _, ok := tools[name].(*browsertool.ActionVerbTool); !ok {
+			t.Fatalf("%s type = %T, want *browser.ActionVerbTool", name, tools[name])
+		}
+	}
+	if ba.AllowAll {
+		t.Fatal("allowlist-configured browser.action should not AllowAll")
+	}
+	if got := strings.Join(ba.AllowedHosts, ","); got != "example.com,docs.example" {
+		t.Fatalf("AllowedHosts = %q, want example.com,docs.example", got)
+	}
+	if ba.DriverPath != driver {
+		t.Fatalf("DriverPath = %q, want %q", ba.DriverPath, driver)
+	}
+	if !ba.AllowUserProfile || ba.UserDataDir == "" || !ba.AllowRemoteCDP || ba.RemoteCDPURL != "https://cdp.example" {
+		t.Fatalf("profile policy not wired: %+v", ba)
+	}
+	if ba.SessionRoot != sessionRoot {
+		t.Fatalf("SessionRoot = %q, want %q", ba.SessionRoot, sessionRoot)
+	}
+	if !strings.Contains(desc, "browser.action+verbs(hosts=2)") {
+		t.Fatalf("tools desc missing browser.action+verbs(hosts=2): %s", desc)
+	}
+}
+
 func TestIsLoopback_ClassifiesExposureCorrectly(t *testing.T) {
 	// isLoopback drives the "reachable beyond localhost" exposure warning shown
 	// when the web UI / control plane / REST API binds to a public address. A
@@ -549,6 +660,80 @@ func TestIsLoopback_ClassifiesExposureCorrectly(t *testing.T) {
 		if isLoopback(a) {
 			t.Errorf("isLoopback(%q) = true, want false (reachable beyond localhost)", a)
 		}
+	}
+}
+
+func TestTunnelTargetDefaultsToLiveWebUI(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"TUNNEL_TARGET", "")
+	t.Setenv(brand.EnvPrefix+"WEB_ADDR", "")
+	t.Setenv(brand.EnvPrefix+"REST_ADDR", "127.0.0.1:8800")
+
+	got := tunnelTargetFromEnv(webUISurface{localURL: "http://127.0.0.1:8787"})
+	if got != "http://127.0.0.1:8787" {
+		t.Fatalf("target = %q, want live Web UI", got)
+	}
+}
+
+func TestTunnelTargetFallsBackToRESTWhenWebUIDisabled(t *testing.T) {
+	t.Setenv(brand.EnvPrefix+"TUNNEL_TARGET", "")
+	t.Setenv(brand.EnvPrefix+"WEB_ADDR", "off")
+	t.Setenv(brand.EnvPrefix+"REST_ADDR", ":8800")
+
+	got := tunnelTargetFromEnv(webUISurface{})
+	if got != "http://127.0.0.1:8800" {
+		t.Fatalf("target = %q, want REST loopback URL", got)
+	}
+}
+
+func TestURLWithToken(t *testing.T) {
+	got := urlWithToken("https://demo.trycloudflare.com/path?x=1", "abc123")
+	if !strings.Contains(got, "token=abc123") || !strings.Contains(got, "x=1") {
+		t.Fatalf("tokened url = %q, want existing query plus token", got)
+	}
+	if host := publicURLHost(got); host != "demo.trycloudflare.com" {
+		t.Fatalf("host = %q, want demo.trycloudflare.com", host)
+	}
+}
+
+func TestTunnelPublicURLUsesPasswordLoginWhenAvailable(t *testing.T) {
+	base := "https://demo.trycloudflare.com/"
+	cases := []struct {
+		name string
+		web  webUISurface
+		want string
+	}{
+		{
+			name: "no password stays tokened",
+			web:  webUISurface{token: "tok"},
+			want: "token=tok",
+		},
+		{
+			name: "password without strict prints login url",
+			web:  webUISurface{token: "tok", passwordOn: true},
+			want: base,
+		},
+		{
+			name: "strict password needs tokened url",
+			web:  webUISurface{token: "tok", passwordOn: true, passwordStrict: true},
+			want: "token=tok",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tunnelPublicURL(base, tc.web, true)
+			if tc.want == base {
+				if got != base {
+					t.Fatalf("public url = %q, want plain password login URL", got)
+				}
+				return
+			}
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("public url = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	if got := tunnelPublicURL(base, webUISurface{token: "tok", passwordOn: true}, false); got != base {
+		t.Fatalf("non-Web UI tunnel URL = %q, want untouched URL", got)
 	}
 }
 

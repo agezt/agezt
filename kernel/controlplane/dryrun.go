@@ -53,25 +53,28 @@ func strictPricingPlan(provider any, model string) (strict, hasPrice bool) {
 // can stay pure (no kernel/catalog handles) and table-testable. handleRun fills it
 // from the request args + kernel accessors when `dry_run` is set.
 type runPlanInput struct {
-	Intent          string
-	Tenant          string // "" = primary kernel
-	Model           string // effective model this run would use
-	ModelOverridden bool   // true if a per-run --model was given
-	ModelKnown      bool   // catalog knows the effective model
-	SupportsVision  bool   // catalog cap (meaningful only when ModelKnown)
-	SupportsTools   bool   // catalog tool_call cap (meaningful only when ModelKnown)
-	ContextLimit    int    // model's context window in tokens (0 = unknown)
-	SystemSet       bool   // a daemon-default system prompt is configured
-	SystemOverride  bool   // a per-run --system was given
-	Timeout         string // per-run timeout (raw, validated); "" if none
-	DaemonTimeout   time.Duration
-	AllToolNames    []string // the kernel's full toolset (names)
-	AllowSet        bool     // a "tools" arg was present (restriction in effect)
-	Allow           []string // requested tool names (the allow-list)
-	MaxCostMC       int64    // per-run cost cap in microcents (0 = none)
-	ModelPriced     bool     // model prices to > $0 (a cap could trip) — catalog → fallback
-	StrictPricing   bool     // daemon refuses unpriced models (AGEZT_PRICING_STRICT)
-	ModelHasPrice   bool     // model has a KNOWN price entry (incl. known-free); != ModelPriced
+	Intent           string
+	Tenant           string // "" = primary kernel
+	Model            string // effective model this run would use
+	ModelOverridden  bool   // true if a per-run --model was given
+	ModelKnown       bool   // catalog knows the effective model
+	SupportsVision   bool   // catalog cap (meaningful only when ModelKnown)
+	SupportsTools    bool   // catalog tool_call cap (meaningful only when ModelKnown)
+	ContextLimit     int    // model's context window in tokens (0 = unknown)
+	SystemSet        bool   // a daemon-default system prompt is configured
+	SystemOverride   bool   // a per-run --system was given
+	Timeout          string // per-run timeout (raw, validated); "" if none
+	DaemonTimeout    time.Duration
+	AllToolNames     []string // the kernel's full toolset (names)
+	AllowSet         bool     // a "tools" arg was present (restriction in effect)
+	Allow            []string // requested tool names (the allow-list)
+	MaxCostMC        int64    // per-run cost cap in microcents (0 = none)
+	ExecutionProfile string   // per-run execution profile id; "" = tool defaults
+	WardenProfile    string   // requested warden profile when ExecutionProfile is set
+	RemotePeer       string   // requested remote-agezt peer, if pinned
+	ModelPriced      bool     // model prices to > $0 (a cap could trip) — catalog → fallback
+	StrictPricing    bool     // daemon refuses unpriced models (AGEZT_PRICING_STRICT)
+	ModelHasPrice    bool     // model has a KNOWN price entry (incl. known-free); != ModelPriced
 }
 
 // buildRunPlan resolves what a run WOULD do — effective model (and its catalog
@@ -109,6 +112,17 @@ func buildRunPlan(in runPlanInput) map[string]any {
 	costCap := "none"
 	if in.MaxCostMC > 0 {
 		costCap = formatMicrocentsUSD(in.MaxCostMC) + " (per-run)"
+	}
+	executionProfile := strings.TrimSpace(in.ExecutionProfile)
+	executionSource := "tool defaults"
+	wardenProfile := "tool defaults"
+	if executionProfile != "" {
+		executionSource = "per-run (--exec-profile)"
+		if strings.TrimSpace(in.WardenProfile) != "" {
+			wardenProfile = in.WardenProfile
+		}
+	} else {
+		executionProfile = "(tool defaults)"
 	}
 
 	// Effective tool set. Absent allow-list = the full kernel toolset. A present
@@ -196,17 +210,20 @@ func buildRunPlan(in runPlanInput) map[string]any {
 	}
 
 	plan := map[string]any{
-		"dry_run":       true,
-		"intent":        in.Intent,
-		"tenant":        tenant,
-		"model":         in.Model,
-		"model_source":  modelSource,
-		"model_known":   in.ModelKnown,
-		"system_source": systemSource,
-		"timeout":       timeout,
-		"cost_cap":      costCap,
-		"tools_mode":    toolsMode,
-		"tools":         effective,
+		"dry_run":                  true,
+		"intent":                   in.Intent,
+		"tenant":                   tenant,
+		"model":                    in.Model,
+		"model_source":             modelSource,
+		"model_known":              in.ModelKnown,
+		"system_source":            systemSource,
+		"timeout":                  timeout,
+		"cost_cap":                 costCap,
+		"execution_profile":        executionProfile,
+		"execution_profile_source": executionSource,
+		"warden_profile":           wardenProfile,
+		"tools_mode":               toolsMode,
+		"tools":                    effective,
 	}
 	if in.ModelKnown {
 		plan["supports_vision"] = in.SupportsVision
@@ -217,6 +234,9 @@ func buildRunPlan(in runPlanInput) map[string]any {
 	}
 	if len(warnings) > 0 {
 		plan["warnings"] = warnings
+	}
+	if peer := strings.TrimSpace(in.RemotePeer); peer != "" {
+		plan["remote_peer"] = peer
 	}
 	return plan
 }

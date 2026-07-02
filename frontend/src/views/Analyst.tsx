@@ -5,7 +5,7 @@ import { money } from "@/lib/format";
 import { Markdown } from "@/components/Markdown";
 import { ErrorText } from "@/components/JsonView";
 import { streamRun, foldChatFrame, newTurn, type ChatTurn } from "@/lib/chat";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 
 const SUGGESTED = [
   "Summarize the system's health right now.",
@@ -100,9 +100,7 @@ export function Analyst() {
   const answer = turn?.answer || turn?.streamedText || "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader icon={Sparkles} title="Analyst" description="ask the daemon about itself" />
-
+    <Page icon={Sparkles} title="Analyst" description="ask the daemon about itself" width="readable">
       {/* Ask box */}
       <div className="flex items-center gap-2">
         <input
@@ -144,7 +142,7 @@ export function Analyst() {
 
       {/* Answer */}
       {turn && (
-        <div className="glass min-h-0 flex-1 overflow-auto rounded-xl p-4">
+        <div className="glass rounded-xl p-4">
           {turn.reasoning && (
             <div className="mb-3">
               <button
@@ -174,6 +172,6 @@ export function Analyst() {
           )}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

@@ -4,6 +4,7 @@ package restapi
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -53,6 +54,43 @@ func (f *fakeEngine) RunModel(ctx context.Context, corr, intent, model string, _
 }
 func (f *fakeEngine) EventsForCorrelation(corr string) ([]*event.Event, error) {
 	return f.events, nil
+}
+
+type fakeArtifactEngine struct {
+	*fakeEngine
+	artifacts             []ArtifactEntry
+	gotKind, gotSource    string
+	gotCorrelationID      string
+	artifactLookupErr     error
+	artifactLookupInvoked bool
+	artifactBytes         map[string][]byte
+}
+
+func (f *fakeArtifactEngine) ArtifactEntries(kind, source, corr string) ([]ArtifactEntry, error) {
+	f.artifactLookupInvoked = true
+	f.gotKind = kind
+	f.gotSource = source
+	f.gotCorrelationID = corr
+	if f.artifactLookupErr != nil {
+		return nil, f.artifactLookupErr
+	}
+	return f.artifacts, nil
+}
+func (f *fakeArtifactEngine) ArtifactBytes(id string, maxBytes int64) ([]byte, ArtifactEntry, error) {
+	for _, a := range f.artifacts {
+		if a.ID != id {
+			continue
+		}
+		if maxBytes > 0 && a.Size > maxBytes {
+			return nil, a, ErrArtifactTooLarge
+		}
+		data, ok := f.artifactBytes[id]
+		if !ok {
+			return nil, ArtifactEntry{}, ErrArtifactNotFound
+		}
+		return data, a, nil
+	}
+	return nil, ArtifactEntry{}, ErrArtifactNotFound
 }
 
 func newServer(t *testing.T, eng *fakeEngine, token string) *Server {
@@ -408,6 +446,100 @@ func TestRunsRoot_RejectsGET(t *testing.T) {
 	rec := do(t, s, http.MethodGet, "/api/v1/runs", "", "secret")
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("GET on /runs should be 405, got %d", rec.Code)
+	}
+}
+
+func TestArtifacts_MetadataOnlyWithFiltersAndLimit(t *testing.T) {
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	b := bus.New(j)
+	t.Cleanup(func() { b.Close(); j.Close() })
+	eng := &fakeArtifactEngine{
+		fakeEngine: &fakeEngine{model: "m", b: b},
+		artifacts: []ArtifactEntry{
+			{ID: "art-2", Ref: strings.Repeat("b", 64), Name: "second.png", Mime: "image/png", Kind: "image", Source: "run", Corr: "run-abc", Size: 20, CreatedMs: 2000},
+			{ID: "art-1", Ref: strings.Repeat("a", 64), Name: "first.txt", Mime: "text/plain", Kind: "file", Source: "run", Corr: "run-abc", Size: 10, CreatedMs: 1000, Caption: "note"},
+		},
+	}
+	s := New(eng, b, "secret", "9.9.9")
+
+	rec := do(t, s, http.MethodGet, "/api/v1/artifacts?kind=image&source=run&corr=run-abc&limit=1", "", "secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !eng.artifactLookupInvoked || eng.gotKind != "image" || eng.gotSource != "run" || eng.gotCorrelationID != "run-abc" {
+		t.Fatalf("artifact filters not passed through: kind=%q source=%q corr=%q invoked=%v",
+			eng.gotKind, eng.gotSource, eng.gotCorrelationID, eng.artifactLookupInvoked)
+	}
+	var out struct {
+		Count      int             `json:"count"`
+		TotalCount int             `json:"total_count"`
+		Truncated  bool            `json:"truncated"`
+		Entries    []ArtifactEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out.Count != 1 || out.TotalCount != 2 || !out.Truncated || len(out.Entries) != 1 {
+		t.Fatalf("artifact list = %+v, want one truncated entry out of two", out)
+	}
+	raw := rec.Body.String()
+	if strings.Contains(raw, "data") || strings.Contains(raw, "secret") {
+		t.Fatalf("artifact metadata endpoint leaked bytes/token-like fields: %s", raw)
+	}
+}
+
+func TestArtifacts_UnavailableWhenEngineDoesNotList(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newServer(t, eng, "secret")
+	rec := do(t, s, http.MethodGet, "/api/v1/artifacts", "", "secret")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s, want 503", rec.Code, rec.Body.String())
+	}
+}
+
+func TestArtifactBytes_DefaultDenyThenAllow(t *testing.T) {
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	b := bus.New(j)
+	t.Cleanup(func() { b.Close(); j.Close() })
+	entry := ArtifactEntry{ID: "art-1", Ref: strings.Repeat("a", 64), Name: "result.txt", Mime: "text/plain", Kind: "tool-output", Corr: "run-abc", Size: 11, CreatedMs: 1000}
+	eng := &fakeArtifactEngine{
+		fakeEngine:    &fakeEngine{model: "m", b: b},
+		artifacts:     []ArtifactEntry{entry},
+		artifactBytes: map[string][]byte{"art-1": []byte("hello world")},
+	}
+	s := New(eng, b, "secret", "9.9.9")
+
+	t.Setenv("AGEZT_REMOTE_ARTIFACT_BYTES", "")
+	rec := do(t, s, http.MethodGet, "/api/v1/artifacts/art-1/bytes", "", "secret")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("default artifact bytes status=%d body=%s, want 403", rec.Code, rec.Body.String())
+	}
+
+	t.Setenv("AGEZT_REMOTE_ARTIFACT_BYTES", "allow")
+	rec = do(t, s, http.MethodGet, "/api/v1/artifacts/art-1/bytes", "", "secret")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("allowed artifact bytes status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Entry ArtifactEntry `json:"entry"`
+		Size  int           `json:"size"`
+		Data  string        `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	data, err := base64.StdEncoding.DecodeString(out.Data)
+	if err != nil {
+		t.Fatalf("base64 decode: %v", err)
+	}
+	if out.Entry.ID != "art-1" || out.Size != len("hello world") || string(data) != "hello world" {
+		t.Fatalf("artifact bytes response = %+v data=%q", out, data)
 	}
 }
 
