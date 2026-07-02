@@ -552,6 +552,8 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		s.handleConductorRoles(conn, req)
 	case CmdConductorAsk:
 		s.handleConductorAsk(ctx, conn, req)
+	case CmdResearchAsk:
+		s.handleResearchAsk(ctx, conn, req)
 	case CmdApprovals:
 		s.handleApprovals(conn, req)
 	case CmdApprovalsLog:

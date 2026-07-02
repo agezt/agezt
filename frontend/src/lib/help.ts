@@ -1213,6 +1213,57 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
+  research: {
+    title: "Research",
+    intro:
+      "The deep-research harness: a question is broken into sub-questions, each gathers independent web sources, the answer may only state claims it can cite, and every cited claim is then adversarially verified against its own source.",
+    sections: [
+      {
+        heading: "Running research",
+        items: [
+          {
+            term: "Question",
+            desc: "Ask an open question that needs current, cross-checked evidence rather than one model's memory. Press Research (or ⌘/Ctrl+Enter).",
+          },
+          {
+            term: "Adversarial verification",
+            desc: "On by default: each cited claim gets an independent, skeptical check that tries to refute it against the source text. Turn it off for a faster, unverified draft.",
+          },
+          {
+            term: "Advanced caps",
+            desc: "Bound the run: max sources gathered, max sub-questions explored, and max claims verified. Every search and fetch is still governed and journaled.",
+          },
+        ],
+      },
+      {
+        heading: "Reading the report",
+        items: [
+          {
+            term: "Confidence & verified",
+            desc: "Confidence is the share of verified claims the sources actually supported (or, unverified, the share of gathered sources the answer cited). The badge shows whether the adversarial pass ran.",
+          },
+          {
+            term: "Claims",
+            desc: "Each cited claim with its verdict — supported, refuted, or uncertain — the sources it cited, and the verifier's one-line reason. Refuted claims are the ones to distrust.",
+          },
+          {
+            term: "Sources",
+            desc: "Every gathered source, numbered [S1], [S2], …, linking out to the original page. The answer's citations refer to these.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Research needs a provider and the web_search + browser.read tools; both are governed by their own policy and leave a trail in `agt why`.",
+      "The report text is treated as untrusted external content, so it can never inject instructions back into an agent that reads it.",
+    ],
+    related: [
+      { id: "conductor", label: "Conductor" },
+      { id: "council", label: "Council" },
+      { id: "memory", label: "Memory" },
+    ],
+  },
+
   toolforge: {
     title: "Tool Forge",
     intro:

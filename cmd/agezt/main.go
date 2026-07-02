@@ -125,6 +125,7 @@ import (
 	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
 	counciltool "github.com/agezt/agezt/plugins/tools/council"
+	researchtool "github.com/agezt/agezt/plugins/tools/research"
 	dbtool "github.com/agezt/agezt/plugins/tools/db"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
@@ -1209,6 +1210,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Inject the kernel into the conductor tool (M997) as the orchestration runner.
 	if cond, ok := tools["conductor"].(*conductortool.Tool); ok {
 		cond.SetRunner(k)
+	}
+	// Inject the kernel into the research tool (M1001) as the harness runner.
+	if rt, ok := tools["research"].(*researchtool.Tool); ok {
+		rt.SetRunner(k)
 	}
 
 	// Wire the bus into the Governor and the Warden so their events
@@ -7666,6 +7671,15 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	cond := conductortool.New()
 	out["conductor"] = cond
 	registered = append(registered, "conductor(verify-driven panel)")
+
+	// research — the deep-research harness (M1001): decompose a question,
+	// gather independent web sources via web_search + browser.read, and
+	// synthesize a citation-grounded report. The kernel runner is injected
+	// after Open. Always registered; the underlying searches/fetches are each
+	// gated by their own capability inside RunTool.
+	rt := researchtool.New()
+	out["research"] = rt
+	registered = append(registered, "research(deep-research harness)")
 
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider

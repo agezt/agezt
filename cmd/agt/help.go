@@ -92,6 +92,14 @@ func helpGroups() []helpGroup {
 				"  [--json|-q]                 full transcript as JSON / answer-only",
 				"  exit: 0 = verified, 3 = not verified, 1 = error",
 			}},
+			{"research", "deep-research: decompose, gather web sources, synthesize a cited answer, verify each claim", []string{
+				`research "<question>"         gather + synthesize + adversarially verify`,
+				"  [--max-sources <n>]         cap sources gathered (default 8, max 20)",
+				"  [--max-sub-questions <n>]   cap sub-questions explored (default 3, max 8)",
+				"  [--max-verify-claims <n>]   cap claims verified (default 6, max 12)",
+				"  [--no-verify]               skip the adversarial claim check",
+				"  [--json|-q]                 full report (sources + claims) as JSON / answer-only",
+			}},
 			{"approvals", "list pending human-in-the-loop approval requests", []string{
 				"approvals [--json]",
 			}},

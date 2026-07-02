@@ -576,6 +576,11 @@ var jsonRoutes = map[string]writeRoute{
 	// Long-running (several model calls + possibly a sandbox run) but bounded by
 	// the jsonProxy timeout. POST body.
 	"/api/conductor/ask": {controlplane.CmdConductorAsk, []string{"task", "thinker", "worker", "verifier", "max_rounds", "plan", "corr"}},
+	// Deep-research harness ask (M1001): decompose, gather web sources,
+	// synthesize a cited answer, adversarially verify each claim. Long-running
+	// (several searches/fetches + model calls) but bounded by the jsonProxy
+	// timeout. POST body.
+	"/api/research/ask": {controlplane.CmdResearchAsk, []string{"question", "max_sub_questions", "max_sources", "verify", "max_verify_claims", "corr"}},
 	"/api/prompts/set":   {controlplane.CmdPromptsSet, []string{"prompts"}},
 	"/api/standing/add":  {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable

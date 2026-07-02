@@ -55,6 +55,8 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapBrowserAction
 	case "web_search":
 		return CapWebSearch
+	case "research":
+		return CapResearch
 	case "fetch":
 		// A download is a network GET that saves the bytes — same capability as http.get.
 		return CapHTTPGet
