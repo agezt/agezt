@@ -17,6 +17,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 // handleWardenStats aggregates sandboxed executions (M97) — total execs,
@@ -119,7 +120,8 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 	}
 	// --downgrades keeps only the noteworthy events (downgrades + limit breaches).
 	issuesOnly, _ := req.Args["issues"].(bool)
-	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
+	cutoff := sinceCutoff(req.Args["since_ms"])                                // M65 helper
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -196,6 +198,15 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 		}
 		return rows[i].seq > rows[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := rows[:0]
+		for _, r := range rows {
+			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -219,9 +230,13 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 		}
 		out = append(out, m)
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(rows); n > 0 {
+		nextCursor = journal.NextCursor(rows[n-1].ts, rows[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"executions": out, "count": len(out)},
+		Result: map[string]any{"executions": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
