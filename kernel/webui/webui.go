@@ -197,7 +197,6 @@ var apiRoutes = map[string]string{
 	"/api/world":                   controlplane.CmdWorldList,
 	"/api/skills":                  controlplane.CmdSkillList,
 	"/api/standing":                controlplane.CmdStandingList,
-	"/api/agents":                  controlplane.CmdAgentList,
 	"/api/toolforge":               controlplane.CmdToolforgeList,
 	"/api/mcp":                     controlplane.CmdMCPList,
 	// CLI Toolbox (M956): host tool inventory + upgradable set. Read-only host
@@ -279,6 +278,13 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/runs": {controlplane.CmdRunsList, []string{
 		"limit", "cursor", "status", "intent", "model", "min_cost_mc", "max_cost_mc",
 	}},
+	// Cursor-paginated agents roster (M-pending): the SPA's Agents /
+	// AgentPage / Roster / Board / Dashboard / Schedules / Standing /
+	// IncidentPage / Overseer / Voice views all poll this. `cursor` is the
+	// opaque "<CreatedMS>:<slug>" boundary of the previous page, returned
+	// as `next_cursor` in the same shape. Slugs are unique and never
+	// contain ':', so strings.Cut on ':' round-trips losslessly.
+	"/api/agents": {controlplane.CmdAgentList, []string{"limit", "cursor"}},
 	// Export an integrity-attested journal bundle for archival/compliance (M772):
 	// every event with its hash + the chain head, re-verifiable offline. Read-only.
 	"/api/journal/export": {controlplane.CmdJournalExport, []string{"since_ms"}},

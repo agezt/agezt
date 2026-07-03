@@ -199,11 +199,89 @@ func (s *Server) handleAgentList(conn net.Conn, req Request) {
 			enabled++
 		}
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"profiles": out, "count": len(out), "enabled_count": enabled},
-	})
+	total := len(out)
+
+	// Cursor pagination (M-pending follow-up): the SPA's Agents / AgentPage /
+	// Roster views load this on every poll, so for large rosters streaming the
+	// whole thing makes the panel slow. Cursor encodes (CreatedMS, Slug) of the
+	// LAST entry on the previous page; the server sorts DESC and skips entries
+	// strictly newer than the cursor. List() returns ASC — reverse in place
+	// once, then filter+truncate.
+	limit := 0
+	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
+		limit = int(raw)
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	var cursorMS int64
+	var cursorSlug string
+	cursorOK := false
+	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+		msStr, slug, _ := strings.Cut(raw, ":")
+		if ms, err := strconv.ParseInt(msStr, 10, 64); err == nil {
+			cursorMS, cursorSlug, cursorOK = ms, slug, true
+		}
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	if cursorOK {
+		filtered := out[:0]
+		for _, raw := range out {
+			v, _ := raw.(map[string]any)
+			// profileView round-trips the wire shape through JSON, so int64
+			// fields arrive as float64. Both forms are accepted; cover the
+			// float64 case (typical) and int64 (defensive).
+			var ms int64
+			switch n := v["created_ms"].(type) {
+			case float64:
+				ms = int64(n)
+			case int64:
+				ms = n
+			}
+			slug, _ := v["slug"].(string)
+			if ms > cursorMS {
+				continue
+			}
+			if ms == cursorMS && slug >= cursorSlug {
+				continue
+			}
+			filtered = append(filtered, raw)
+		}
+		out = filtered
+	}
+	var nextCursor string
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+		last := out[limit-1].(map[string]any)
+		var lastMS int64
+		switch n := last["created_ms"].(type) {
+		case float64:
+			lastMS = int64(n)
+		case int64:
+			lastMS = n
+		}
+		nextCursor = encodeAgentsCursor(lastMS, last["slug"].(string))
+	}
+	result := map[string]any{
+		"profiles":      out,
+		"count":         len(out),
+		"total":         total,
+		"enabled_count": enabled,
+	}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+// encodeAgentsCursor packs (CreatedMS, Slug) into the opaque "<ms>:<slug>"
+// cursor string the SPA echoes back in the next request. Slugs are guaranteed
+// unique (validated at roster.Add time) and never contain ':' (slugRe), so
+// strings.Cut on ':' round-trips losslessly.
+func encodeAgentsCursor(ms int64, slug string) string {
+	return strconv.FormatInt(ms, 10) + ":" + slug
 }
 
 func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
