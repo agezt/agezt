@@ -598,6 +598,12 @@ func runProbe(entry *catalog.Provider, lookup func(string) string) probeResult {
 	if err != nil {
 		return probeResult{modelID: modelID, latency: latency, err: err}
 	}
+	if resp == nil {
+		// A provider returning (nil, nil) violates the contract; this CLI probe
+		// runs against a raw provider (not the daemon governor that normalizes
+		// this), so guard the deref here rather than panicking the check.
+		return probeResult{modelID: modelID, latency: latency, err: fmt.Errorf("provider returned a nil response without an error")}
+	}
 
 	model := entry.Models[modelID]
 	return probeResult{
