@@ -199,11 +199,122 @@ func (s *Server) handleAgentList(conn net.Conn, req Request) {
 			enabled++
 		}
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"profiles": out, "count": len(out), "enabled_count": enabled},
-	})
+	total := len(out)
+
+	// Cursor pagination (M-pending follow-up): the SPA's Agents / AgentPage /
+	// Roster views load this on every poll, so for large rosters streaming the
+	// whole thing makes the panel slow. Cursor encodes (CreatedMS, Slug) of the
+	// LAST entry on the previous page; the server sorts DESC and skips entries
+	// strictly newer than the cursor. List() returns ASC — reverse in place
+	// once, then filter+truncate.
+	limit := 0
+	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
+		limit = int(raw)
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	var cursorMS int64
+	var cursorSlug string
+	cursorOK := false
+	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+		msStr, slug, _ := strings.Cut(raw, ":")
+		if ms, err := strconv.ParseInt(msStr, 10, 64); err == nil {
+			cursorMS, cursorSlug, cursorOK = ms, slug, true
+		}
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	if cursorOK {
+		filtered := out[:0]
+		for _, raw := range out {
+			v, _ := raw.(map[string]any)
+			// profileView round-trips the wire shape through JSON, so int64
+			// fields arrive as float64. Both forms are accepted; cover the
+			// float64 case (typical) and int64 (defensive).
+			var ms int64
+			switch n := v["created_ms"].(type) {
+			case float64:
+				ms = int64(n)
+			case int64:
+				ms = n
+			}
+			slug, _ := v["slug"].(string)
+			if ms > cursorMS {
+				continue
+			}
+			if ms == cursorMS && slug >= cursorSlug {
+				continue
+			}
+			filtered = append(filtered, raw)
+		}
+		out = filtered
+	}
+	var nextCursor string
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+		last := out[limit-1].(map[string]any)
+		var lastMS int64
+		switch n := last["created_ms"].(type) {
+		case float64:
+			lastMS = int64(n)
+		case int64:
+			lastMS = n
+		}
+		nextCursor = encodeAgentsCursor(lastMS, last["slug"].(string))
+	}
+	result := map[string]any{
+		"profiles":      out,
+		"count":         len(out),
+		"total":         total,
+		"enabled_count": enabled,
+	}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+// encodeAgentsCursor packs (CreatedMS, Slug) into the opaque "<ms>:<slug>"
+// cursor string the SPA echoes back in the next request. Slugs are guaranteed
+// unique (validated at roster.Add time) and never contain ':' (slugRe), so
+// strings.Cut on ':' round-trips losslessly.
+func encodeAgentsCursor(ms int64, slug string) string {
+	return strconv.FormatInt(ms, 10) + ":" + slug
+}
+
+// parseSeqCursor extracts the opaque "<seq>" cursor used by the journal-sorted
+// endpoints (agents/activity, agents/repair_status). Returns (0, false) for a
+// missing, empty, or unparseable cursor — callers treat that as "no cursor,
+// return first page."
+func parseSeqCursor(raw string) (int64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+	seq, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || seq <= 0 {
+		return 0, false
+	}
+	return seq, true
+}
+
+// paginateBySeq trims a Seq-DESC list to `limit` and emits a next_cursor
+// pointing at the LAST entry of the current page. Caller must pass the
+// already-sorted list (DESC). Returns the truncated list and the cursor ("" if
+// terminal — fewer rows remain than `limit`).
+//
+// Cursor semantics match the runs cursor: encode the LAST emitted row's seq;
+// next page skips entries with seq >= cursorSeq (strictly older only).
+func paginateBySeq[T any](rows []T, seqOf func(T) int64, limit int) ([]T, string) {
+	if limit <= 0 || len(rows) <= limit {
+		return rows, ""
+	}
+	out := rows[:limit]
+	last := out[limit-1]
+	next := strconv.FormatInt(seqOf(last), 10)
+	return out, next
 }
 
 func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
@@ -1795,12 +1906,35 @@ func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
 		return items[i]["seq"].(int64) > items[j]["seq"].(int64)
 	})
 	total := len(items)
-	if len(items) > limit {
-		items = items[:limit]
+
+	// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
+	// AgentPage views load this on every poll, and the journal can hold tens
+	// of thousands of events. `cursor` is the opaque "<seq>" boundary of the
+	// previous page; the server skips entries with seq >= cursorSeq (the list
+	// is already sorted DESC, so strictly-older means strictly-smaller seq).
+	cursorSeq, cursorOK := parseSeqCursor(stringArg(req.Args, "cursor"))
+	if cursorOK {
+		filtered := items[:0]
+		for _, it := range items {
+			if it["seq"].(int64) >= cursorSeq {
+				continue
+			}
+			filtered = append(filtered, it)
+		}
+		items = filtered
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+	var nextCursor string
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+		nextCursor = strconv.FormatInt(items[limit-1]["seq"].(int64), 10)
+	}
+	result := map[string]any{
 		"slug": slug, "activity": items, "count": len(items), "total": total,
-	}})
+	}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 // handleAgentRepairStatus folds the journal into one agent's autonomous
@@ -1874,9 +2008,28 @@ func (s *Server) handleAgentRepairStatus(conn net.Conn, req Request) {
 	})
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Seq > rows[j].Seq })
 	total := len(rows)
+
+	// Cursor pagination (M-pending follow-up): `cursor` is the opaque "<seq>"
+	// boundary of the previous page; server skips rows with seq >= cursorSeq.
+	// Note: the `latest`/`next_eligible_ms` fields below intentionally use the
+	// FULL row list (rows[0]) — they reflect the agent's current state, not the
+	// page being viewed, so they must not move with cursor pagination.
+	cursorSeq, cursorOK := parseSeqCursor(stringArg(req.Args, "cursor"))
 	history := rows
-	if len(history) > limit {
+	if cursorOK {
+		filtered := rows[:0]
+		for _, r := range rows {
+			if r.Seq >= cursorSeq {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		history = filtered
+	}
+	var nextCursor string
+	if limit > 0 && len(history) > limit {
 		history = history[:limit]
+		nextCursor = strconv.FormatInt(history[limit-1].Seq, 10)
 	}
 	inflightRows := make([]agentRepairRow, 0, len(latestByFingerprint))
 	for _, row := range latestByFingerprint {
@@ -1895,6 +2048,9 @@ func (s *Server) handleAgentRepairStatus(conn net.Conn, req Request) {
 		"total":          total,
 		"inflight":       repairRowsView(inflightRows),
 		"inflight_count": len(inflightRows),
+	}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
 	}
 	if len(rows) > 0 {
 		result["latest"] = repairRowView(rows[0])
@@ -2540,7 +2696,23 @@ func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
-	rows := s.agentEscalationRows(st, p.Slug, limit)
+	// Cursor pagination (M-pending follow-up): `cursor` is the opaque
+	// "<ts_unix_ms>:<message_id>" boundary of the previous page; server skips
+	// entries strictly newer-or-equal. ts can collide across messages, so the
+	// message_id is the tie-break.
+	var cursorTS int64
+	var cursorID string
+	cursorOK := false
+	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+		tsStr, id, _ := strings.Cut(raw, ":")
+		if ts, err := strconv.ParseInt(tsStr, 10, 64); err == nil {
+			cursorTS, cursorID, cursorOK = ts, id, true
+		}
+	}
+	if !cursorOK {
+		cursorTS, cursorID = 0, ""
+	}
+	rows, nextCursor := s.agentEscalationRows(st, p.Slug, limit, cursorTS, cursorID)
 	openCount := 0
 	for _, row := range rows {
 		if row.Status == "open" {
@@ -2577,12 +2749,16 @@ func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {
 			"parent_incident_id":  row.ParentIncidentID,
 		})
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
+	result := map[string]any{
 		"slug":        p.Slug,
 		"escalations": out,
 		"count":       len(out),
 		"open_count":  openCount,
-	}})
+	}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 type operatorWakeLineage struct {
@@ -3374,7 +3550,7 @@ func repairRowView(row agentRepairRow) map[string]any {
 	}
 }
 
-func (s *Server) agentEscalationRows(st *board.Store, slug string, limit int) []agentEscalationRow {
+func (s *Server) agentEscalationRows(st *board.Store, slug string, limit int, cursorTS int64, cursorID string) ([]agentEscalationRow, string) {
 	msgs := st.Read("help", boardReadMaxLimit)
 	metaByMessage := map[string]agentRepairRow{}
 	_ = s.k.Journal().Range(func(e *event.Event) error {
@@ -3488,10 +3664,27 @@ func (s *Server) agentEscalationRows(st *board.Store, slug string, limit int) []
 		out = append(out, row)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].TSUnixMS > out[j].TSUnixMS })
-	if len(out) > limit {
-		out = out[:limit]
+	// Cursor pagination: cursor encodes (TSUnixMS, MessageID) of the LAST
+	// entry on the previous page; server skips entries strictly newer-or-equal.
+	if cursorTS > 0 || cursorID != "" {
+		filtered := out[:0]
+		for _, r := range out {
+			if r.TSUnixMS > cursorTS {
+				continue
+			}
+			if r.TSUnixMS == cursorTS && r.MessageID >= cursorID {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		out = filtered
 	}
-	return out
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+		last := out[limit-1]
+		return out, strconv.FormatInt(last.TSUnixMS, 10) + ":" + last.MessageID
+	}
+	return out, ""
 }
 
 func boardMessageAckedBy(m board.Message, slug string) bool {

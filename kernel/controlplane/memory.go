@@ -12,6 +12,9 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/memory"
@@ -194,15 +197,59 @@ func (s *Server) handleMemoryList(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
+	// Cursor pagination (M-pending follow-up): the SPA's Memory view polls
+	// this on every render; for a busy memory store the response is large
+	// enough to slow the panel. Newest first; cursor = (CreatedMS, ID).
+	limit := 100
+	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
+		limit = int(raw)
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	sort.SliceStable(recs, func(i, j int) bool {
+		if recs[i].CreatedMS != recs[j].CreatedMS {
+			return recs[i].CreatedMS > recs[j].CreatedMS
+		}
+		return recs[i].ID > recs[j].ID
+	})
+	total := len(recs)
+	var cursorMS int64
+	var cursorID string
+	cursorOK := false
+	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+		msStr, id, _ := strings.Cut(raw, ":")
+		if ms, err := strconv.ParseInt(msStr, 10, 64); err == nil {
+			cursorMS, cursorID, cursorOK = ms, id, true
+		}
+	}
+	if cursorOK {
+		filtered := recs[:0]
+		for _, r := range recs {
+			if r.CreatedMS > cursorMS {
+				continue
+			}
+			if r.CreatedMS == cursorMS && r.ID >= cursorID {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		recs = filtered
+	}
+	var nextCursor string
+	if limit > 0 && len(recs) > limit {
+		recs = recs[:limit]
+		nextCursor = strconv.FormatInt(recs[limit-1].CreatedMS, 10) + ":" + recs[limit-1].ID
+	}
 	out := make([]any, 0, len(recs))
 	for _, r := range recs {
 		out = append(out, recordView(r))
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"records": out, "count": len(out)},
-	})
+	result := map[string]any{"records": out, "count": len(out), "total": total}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 func (s *Server) handleMemoryGet(conn net.Conn, req Request) {

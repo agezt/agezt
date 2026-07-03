@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -198,5 +199,108 @@ func TestBoardWrite_Validation(t *testing.T) {
 	if _, err := c.Call(ctx, controlplane.CmdBoardReplies, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "id") {
 		t.Fatalf("replies without id: err = %v", err)
+	}
+}
+
+func TestBoardRead_CursorPaginatesByTSMSDesc(t *testing.T) {
+	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	st, err := board.Open(filepath.Join(dir, "board"))
+	if err != nil {
+		t.Fatalf("board.Open: %v", err)
+	}
+	srv.SetBoard(st, nil)
+	ctx := context.Background()
+
+	// Five distinct posts on a single topic.
+	for i := 0; i < 5; i++ {
+		if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+			"from": "u", "topic": "paging-test", "text": "msg-" + strconv.Itoa(i),
+		}); err != nil {
+			t.Fatalf("send %d: %v", i, err)
+		}
+	}
+
+	p1, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+		"topic": "paging-test", "limit": 2,
+	})
+	if err != nil {
+		t.Fatalf("board read p1: %v", err)
+	}
+	msgs1, _ := p1["messages"].([]any)
+	if len(msgs1) != 2 {
+		t.Fatalf("page 1 should have 2 messages, got %d", len(msgs1))
+	}
+	if p1["next_cursor"] == "" || p1["next_cursor"] == nil {
+		t.Fatal("page 1 should have next_cursor")
+	}
+	if intOf(p1["total"]) != 5 {
+		t.Fatalf("page 1 total wrong: %v", p1["total"])
+	}
+
+	p2, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+		"topic": "paging-test", "limit": 2, "cursor": p1["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("board read p2: %v", err)
+	}
+	msgs2, _ := p2["messages"].([]any)
+	if len(msgs2) != 2 {
+		t.Fatalf("page 2 should have 2 messages, got %d", len(msgs2))
+	}
+
+	// No duplicate IDs.
+	seen := map[string]bool{}
+	for _, raw := range msgs1 {
+		if v, _ := raw.(map[string]any); v != nil {
+			seen[v["id"].(string)] = true
+		}
+	}
+	for _, raw := range msgs2 {
+		if v, _ := raw.(map[string]any); v != nil {
+			if seen[v["id"].(string)] {
+				t.Fatalf("id %s appeared on both pages", v["id"])
+			}
+		}
+	}
+
+	p3, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+		"topic": "paging-test", "limit": 2, "cursor": p2["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("board read p3: %v", err)
+	}
+	msgs3, _ := p3["messages"].([]any)
+	if len(msgs3) != 1 {
+		t.Fatalf("page 3 should have 1 message, got %d", len(msgs3))
+	}
+	if _, has := p3["next_cursor"]; has {
+		t.Fatalf("page 3 should not have next_cursor, got %v", p3["next_cursor"])
+	}
+}
+
+func TestBoardRead_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
+	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	st, err := board.Open(filepath.Join(dir, "board"))
+	if err != nil {
+		t.Fatalf("board.Open: %v", err)
+	}
+	srv.SetBoard(st, nil)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+			"from": "u", "topic": "paging-test", "text": "msg-" + strconv.Itoa(i),
+		}); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+	}
+	res, err := c.Call(ctx, controlplane.CmdBoardRead, map[string]any{
+		"topic": "paging-test", "limit": 10, "cursor": "garbage",
+	})
+	if err != nil {
+		t.Fatalf("board read: %v", err)
+	}
+	msgs, _ := res["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
 	}
 }

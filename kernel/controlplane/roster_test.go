@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -3420,5 +3421,402 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 	}
 	if rows, _ := other["escalations"].([]any); len(rows) != 0 {
 		t.Fatalf("writer should not see lead's escalation, got %+v", rows)
+	}
+}
+
+// addAgentWithCreatedMS was an early-attempt helper that turned out
+// unnecessary: roster.Add sets CreatedMS via time.Now().UnixMilli() but the
+// (CreatedMS, Slug) cursor breaks ties on slug, so back-to-back adds in the
+// same ms still paginate deterministically.
+
+func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	// Five agents. Add them sequentially; CreatedMS may collide on the same
+	// millisecond, but the slug tie-break in the cursor keeps ordering
+	// deterministic.
+	slugs := []string{"alpha", "bravo", "charlie", "delta", "echo"}
+	for _, s := range slugs {
+		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
+		}); err != nil {
+			t.Fatalf("agent add %s: %v", s, err)
+		}
+	}
+
+	// Page 1 — limit 2, no cursor. Expect next_cursor present (more pages).
+	p1, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{"limit": 2})
+	if err != nil {
+		t.Fatalf("agent list p1: %v", err)
+	}
+	p1Profiles, _ := p1["profiles"].([]any)
+	if len(p1Profiles) != 2 {
+		t.Fatalf("page 1 should have 2 profiles, got %d", len(p1Profiles))
+	}
+	if p1["next_cursor"] == "" || p1["next_cursor"] == nil {
+		t.Fatal("page 1 should have next_cursor (more pages exist)")
+	}
+	if intOf(p1["count"]) != 2 {
+		t.Fatalf("page 1 count wrong: %v", p1["count"])
+	}
+	if intOf(p1["total"]) != 5 {
+		t.Fatalf("page 1 total wrong: %v", p1["total"])
+	}
+
+	// Page 2 — limit 2 with cursor from page 1.
+	p2, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{
+		"limit":  2,
+		"cursor": p1["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("agent list p2: %v", err)
+	}
+	p2Profiles, _ := p2["profiles"].([]any)
+	if len(p2Profiles) != 2 {
+		t.Fatalf("page 2 should have 2 profiles, got %d", len(p2Profiles))
+	}
+	if p2["next_cursor"] == "" || p2["next_cursor"] == nil {
+		t.Fatal("page 2 should have next_cursor (one more page exists)")
+	}
+	// No duplicate slugs across page 1 and page 2.
+	p1Set := map[string]bool{}
+	for _, raw := range p1Profiles {
+		if v, _ := raw.(map[string]any); v != nil {
+			p1Set[v["slug"].(string)] = true
+		}
+	}
+	for _, raw := range p2Profiles {
+		if v, _ := raw.(map[string]any); v != nil {
+			if p1Set[v["slug"].(string)] {
+				t.Fatalf("slug %s appeared on both pages", v["slug"])
+			}
+		}
+	}
+
+	// Page 3 — terminal. One agent left, no next_cursor.
+	p3, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{
+		"limit":  2,
+		"cursor": p2["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("agent list p3: %v", err)
+	}
+	p3Profiles, _ := p3["profiles"].([]any)
+	if len(p3Profiles) != 1 {
+		t.Fatalf("page 3 should have 1 profile, got %d", len(p3Profiles))
+	}
+	if _, hasNext := p3["next_cursor"]; hasNext {
+		t.Fatalf("page 3 should NOT have next_cursor, got %v", p3["next_cursor"])
+	}
+
+	// Combined: all 5 distinct slugs across the three pages.
+	seen := map[string]bool{}
+	for _, raw := range append(append(p1Profiles, p2Profiles...), p3Profiles...) {
+		if v, _ := raw.(map[string]any); v != nil {
+			seen[v["slug"].(string)] = true
+		}
+	}
+	for _, s := range slugs {
+		if !seen[s] {
+			t.Fatalf("slug %s missing from paginated union", s)
+		}
+	}
+}
+
+func TestAgentList_DescendingOrderAcrossPages(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	for _, s := range []string{"alpha", "bravo", "charlie"} {
+		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
+		}); err != nil {
+			t.Fatalf("agent add %s: %v", s, err)
+		}
+	}
+
+	// Single page of 3 — expect DESC order: (latest CreatedMS first; within
+	// the same ms, DESC by slug). Because all three were added back-to-back,
+	// they likely share CreatedMS, so DESC by slug: charlie, bravo, alpha.
+	res, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{"limit": 3})
+	if err != nil {
+		t.Fatalf("agent list: %v", err)
+	}
+	profiles, _ := res["profiles"].([]any)
+	if len(profiles) != 3 {
+		t.Fatalf("expected 3 profiles, got %d", len(profiles))
+	}
+	gotSlugs := []string{}
+	for _, raw := range profiles {
+		if v, _ := raw.(map[string]any); v != nil {
+			gotSlugs = append(gotSlugs, v["slug"].(string))
+		}
+	}
+	// DESC by slug when CreatedMS is equal (within-ms ordering is DESC by
+	// slug lexicographically).
+	want := []string{"charlie", "bravo", "alpha"}
+	for i := range want {
+		if gotSlugs[i] != want[i] {
+			t.Fatalf("order: got %v want %v", gotSlugs, want)
+		}
+	}
+}
+
+func TestAgentList_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	for _, s := range []string{"alpha", "bravo"} {
+		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
+		}); err != nil {
+			t.Fatalf("agent add: %v", err)
+		}
+	}
+	// Garbage cursor — server should treat as no cursor, return first page.
+	res, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{
+		"limit":  10,
+		"cursor": "not-a-cursor",
+	})
+	if err != nil {
+		t.Fatalf("agent list: %v", err)
+	}
+	profiles, _ := res["profiles"].([]any)
+	if len(profiles) != 2 {
+		t.Fatalf("expected 2 profiles, got %d", len(profiles))
+	}
+}
+
+func TestAgentList_LimitZeroReturnsAll(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	for _, s := range []string{"alpha", "bravo", "charlie"} {
+		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
+		}); err != nil {
+			t.Fatalf("agent add: %v", err)
+		}
+	}
+	// limit=0 (or absent) — return everything; no next_cursor.
+	res, err := c.Call(ctx, controlplane.CmdAgentList, map[string]any{"limit": 0})
+	if err != nil {
+		t.Fatalf("agent list: %v", err)
+	}
+	profiles, _ := res["profiles"].([]any)
+	if len(profiles) != 3 {
+		t.Fatalf("expected 3 profiles, got %d", len(profiles))
+	}
+	if _, has := res["next_cursor"]; has {
+		t.Fatalf("limit=0 should not emit next_cursor, got %v", res["next_cursor"])
+	}
+	if intOf(res["total"]) != 3 {
+		t.Fatalf("total wrong: %v", res["total"])
+	}
+}
+
+// publishActivityEvents seeds the journal with N doctor.auto_repair events
+// attributable to slug, returning their assigned seqs in the order they were
+// published (oldest first). Backs the cursor pagination tests for
+// handleAgentActivity / handleAgentRepairStatus / handleAgentEscalations —
+// all three handlers attribute events by their journal subject + agent slug,
+// and doctor.auto_repair is the broadest "this happened to <agent>" signal.
+func publishActivityEvents(t *testing.T, k *runtime.Kernel, slug string, n int) []int64 {
+	t.Helper()
+	seqs := make([]int64, 0, n)
+	for i := 0; i < n; i++ {
+		ev, err := k.Bus().Publish(event.Spec{
+			Subject: "doctor.auto_repair",
+			Kind:    event.KindInfo,
+			Actor:   "kernel",
+			Payload: map[string]any{
+				"agent":       slug,
+				"fingerprint": "fp-" + strconv.Itoa(i),
+				"phase":       "completed",
+				"reason":      "test event " + strconv.Itoa(i),
+			},
+		})
+		if err != nil {
+			t.Fatalf("publish %d: %v", i, err)
+		}
+		if ev != nil {
+			seqs = append(seqs, ev.Seq)
+		}
+	}
+	return seqs
+}
+
+func TestAgentActivity_CursorPaginatesBySeqDesc(t *testing.T) {
+	k, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		"profile": map[string]any{"slug": "audited", "model": "mock-model", "task_type": "code"},
+	}); err != nil {
+		t.Fatalf("agent add: %v", err)
+	}
+	publishActivityEvents(t, k, "audited", 5)
+	_ = srv
+
+	// Page 1 — limit 2, no cursor.
+	p1, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+		"ref": "audited", "limit": 2,
+	})
+	if err != nil {
+		t.Fatalf("agent activity p1: %v", err)
+	}
+	activity1, _ := p1["activity"].([]any)
+	if len(activity1) != 2 {
+		t.Fatalf("page 1 should have 2 activity items, got %d", len(activity1))
+	}
+	if p1["next_cursor"] == "" || p1["next_cursor"] == nil {
+		t.Fatal("page 1 should have next_cursor")
+	}
+	if intOf(p1["total"]) < 5 {
+		t.Fatalf("page 1 total should be >= 5, got %v", p1["total"])
+	}
+
+	// Page 2 — limit 2 with cursor from page 1.
+	p2, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+		"ref": "audited", "limit": 2, "cursor": p1["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("agent activity p2: %v", err)
+	}
+	activity2, _ := p2["activity"].([]any)
+	if len(activity2) != 2 {
+		t.Fatalf("page 2 should have 2 activity items, got %d", len(activity2))
+	}
+	// No duplicate seqs across page 1 and page 2.
+	seen := map[int64]bool{}
+	for _, raw := range activity1 {
+		if v, _ := raw.(map[string]any); v != nil {
+			seen[int64(intOf(v["seq"]))] = true
+		}
+	}
+	for _, raw := range activity2 {
+		if v, _ := raw.(map[string]any); v != nil {
+			seq := int64(intOf(v["seq"]))
+			if seen[seq] {
+				t.Fatalf("seq %d appeared on both pages", seq)
+			}
+		}
+	}
+
+	// Page 3 — terminal; no next_cursor.
+	p3, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+		"ref": "audited", "limit": 2, "cursor": p2["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("agent activity p3: %v", err)
+	}
+	activity3, _ := p3["activity"].([]any)
+	if len(activity3) < 1 {
+		t.Fatalf("page 3 should have at least 1 activity item, got %d", len(activity3))
+	}
+	if _, has := p3["next_cursor"]; has {
+		t.Fatalf("page 3 should not have next_cursor, got %v", p3["next_cursor"])
+	}
+}
+
+func TestAgentActivity_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		"profile": map[string]any{"slug": "audited", "model": "mock-model", "task_type": "code"},
+	}); err != nil {
+		t.Fatalf("agent add: %v", err)
+	}
+	publishActivityEvents(t, k, "audited", 2)
+	res, err := c.Call(ctx, controlplane.CmdAgentActivity, map[string]any{
+		"ref": "audited", "limit": 10, "cursor": "garbage",
+	})
+	if err != nil {
+		t.Fatalf("agent activity: %v", err)
+	}
+	activity, _ := res["activity"].([]any)
+	if len(activity) != 2 {
+		t.Fatalf("expected 2 activity items, got %d", len(activity))
+	}
+}
+
+func TestAgentRepairStatus_CursorPaginatesBySeqDesc(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("repair complete")))
+	ctx := context.Background()
+	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+		"profile": map[string]any{"slug": "audited", "model": "mock-model", "task_type": "code"},
+	}); err != nil {
+		t.Fatalf("agent add: %v", err)
+	}
+	// Publish 5 doctor.auto_repair events.
+	for i := 0; i < 5; i++ {
+		_, err := k.Bus().Publish(event.Spec{
+			Subject: "doctor.auto_repair",
+			Kind:    event.KindInfo,
+			Actor:   "kernel",
+			Payload: map[string]any{
+				"agent":       "audited",
+				"fingerprint": "fp-" + strconv.Itoa(i),
+				"phase":       "completed",
+				"reason":      "test event " + strconv.Itoa(i),
+			},
+		})
+		if err != nil {
+			t.Fatalf("publish repair %d: %v", i, err)
+		}
+	}
+
+	p1, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{
+		"ref": "audited", "limit": 2,
+	})
+	if err != nil {
+		t.Fatalf("agent repair status p1: %v", err)
+	}
+	history1, _ := p1["history"].([]any)
+	if len(history1) != 2 {
+		t.Fatalf("page 1 history should have 2, got %d", len(history1))
+	}
+	if p1["next_cursor"] == "" || p1["next_cursor"] == nil {
+		t.Fatal("page 1 should have next_cursor")
+	}
+
+	p2, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{
+		"ref": "audited", "limit": 2, "cursor": p1["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("agent repair status p2: %v", err)
+	}
+	history2, _ := p2["history"].([]any)
+	if len(history2) != 2 {
+		t.Fatalf("page 2 history should have 2, got %d", len(history2))
+	}
+
+	// No duplicate seqs.
+	seen := map[int64]bool{}
+	for _, raw := range history1 {
+		if v, _ := raw.(map[string]any); v != nil {
+			seen[int64(intOf(v["seq"]))] = true
+		}
+	}
+	for _, raw := range history2 {
+		if v, _ := raw.(map[string]any); v != nil {
+			seq := int64(intOf(v["seq"]))
+			if seen[seq] {
+				t.Fatalf("seq %d appeared on both pages", seq)
+			}
+		}
+	}
+
+	// Page 3 — terminal.
+	p3, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{
+		"ref": "audited", "limit": 2, "cursor": p2["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("agent repair status p3: %v", err)
+	}
+	history3, _ := p3["history"].([]any)
+	if len(history3) != 1 {
+		t.Fatalf("page 3 history should have 1, got %d", len(history3))
+	}
+	if _, has := p3["next_cursor"]; has {
+		t.Fatalf("page 3 should not have next_cursor, got %v", p3["next_cursor"])
 	}
 }

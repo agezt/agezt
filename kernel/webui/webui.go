@@ -192,12 +192,10 @@ var apiRoutes = map[string]string{
 	"/api/edict_show":              controlplane.CmdEdictShow,
 	"/api/schedules":               controlplane.CmdScheduleList,
 	"/api/schedule/system_tasks":   controlplane.CmdScheduleSystemTasks,
-	"/api/memory":                  controlplane.CmdMemoryList,
 	"/api/memory/audit":            controlplane.CmdMemoryAudit,
 	"/api/world":                   controlplane.CmdWorldList,
 	"/api/skills":                  controlplane.CmdSkillList,
 	"/api/standing":                controlplane.CmdStandingList,
-	"/api/agents":                  controlplane.CmdAgentList,
 	"/api/toolforge":               controlplane.CmdToolforgeList,
 	"/api/mcp":                     controlplane.CmdMCPList,
 	// CLI Toolbox (M956): host tool inventory + upgradable set. Read-only host
@@ -209,8 +207,6 @@ var apiRoutes = map[string]string{
 	"/api/workflows":       controlplane.CmdWorkflowList,
 	// Built-in workflow template gallery (M807). Read-only.
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
-	"/api/inbox":               controlplane.CmdInbox,
-	"/api/board":               controlplane.CmdBoardRead,
 	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
 	"/api/board/help": controlplane.CmdBoardHelp,
 	"/api/workboard":  controlplane.CmdWorkboardList,
@@ -279,6 +275,21 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/runs": {controlplane.CmdRunsList, []string{
 		"limit", "cursor", "status", "intent", "model", "min_cost_mc", "max_cost_mc",
 	}},
+	// Cursor-paginated agents roster (M-pending): the SPA's Agents /
+	// AgentPage / Roster / Board / Dashboard / Schedules / Standing /
+	// IncidentPage / Overseer / Voice views all poll this. `cursor` is the
+	// opaque "<CreatedMS>:<slug>" boundary of the previous page, returned
+	// as `next_cursor` in the same shape. Slugs are unique and never
+	// contain ':', so strings.Cut on ':' round-trips losslessly.
+	"/api/agents": {controlplane.CmdAgentList, []string{"limit", "cursor"}},
+	// Cursor-paginated conversation-shaped lists (M-pending follow-up):
+	// /api/inbox (channel threads, newest activity first), /api/board
+	// (board posts, newest ts first; topic filter preserved), /api/memory
+	// (active records, newest CreatedMS first). All three use a "<ts_or_ms>:<id>"
+	// cursor shape with the ID field as the tie-break when ts collides.
+	"/api/inbox":  {controlplane.CmdInbox, []string{"limit", "cursor", "channel"}},
+	"/api/board":  {controlplane.CmdBoardRead, []string{"limit", "cursor", "topic"}},
+	"/api/memory": {controlplane.CmdMemoryList, []string{"limit", "cursor"}},
 	// Export an integrity-attested journal bundle for archival/compliance (M772):
 	// every event with its hash + the chain head, re-verifiable offline. Read-only.
 	"/api/journal/export": {controlplane.CmdJournalExport, []string{"since_ms"}},
@@ -303,14 +314,23 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/agents/impact": {controlplane.CmdAgentImpact, []string{"ref"}},
 	// Agent effective permissions: roster tool allow/deny + Edict/trust ceiling. Read-only.
 	"/api/agents/permissions": {controlplane.CmdAgentPermissions, []string{"ref"}},
-	// Per-agent activity timeline (M854): what the agent did, from the journal. Read-only.
-	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit"}},
+	// Per-agent activity timeline (M854): what the agent did, from the journal.
+// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
+	// AgentPage views load this on every poll, and the journal can hold tens
+	// of thousands of events. `cursor` is the opaque "<seq>" boundary of the
+	// previous page; server skips entries with seq >= cursorSeq. Journal seq
+	// is monotonic per kernel, so this is unique without a tie-break.
+	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit", "cursor"}},
 	// Autonomous self-repair history/state: queued/completed/failed auto-repair
 	// attempts for one agent, with inflight/cooldown detail. Read-only.
-	"/api/agents/repair_status": {controlplane.CmdAgentRepairStatus, []string{"ref", "limit"}},
+	// Same `<seq>` cursor as /api/agents/activity.
+	"/api/agents/repair_status": {controlplane.CmdAgentRepairStatus, []string{"ref", "limit", "cursor"}},
 	// Owner/parent escalation queue for one agent: doctor-triggered help requests
 	// it is currently responsible for, enriched with wake/provenance metadata.
-	"/api/agents/escalations": {controlplane.CmdAgentEscalations, []string{"ref", "limit"}},
+	// Cursor pagination: `<ts_unix_ms>:<message_id>` — ts can collide across
+	// board messages so the message_id is the tie-break. server skips entries
+	// strictly newer-or-equal to the cursor.
+	"/api/agents/escalations": {controlplane.CmdAgentEscalations, []string{"ref", "limit", "cursor"}},
 	// Rated agent Config Center (distinct from daemon /api/config settings):
 	// key/value entries agents can read under rating + allow/deny policy.
 	"/api/configcenter/list": {controlplane.CmdConfigCenterList, []string{"rating"}},
