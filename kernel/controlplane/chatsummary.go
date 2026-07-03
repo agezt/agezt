@@ -47,6 +47,11 @@ func (s *Server) handleChatSummarize(ctx context.Context, conn net.Conn, req Req
 	if len(transcript) > chatSummaryInputCap {
 		transcript = transcript[len(transcript)-chatSummaryInputCap:]
 	}
+	// A disconnected client can't receive the briefing — cancel the summarize
+	// call instead of spending it into a closed connection.
+	ctx, cancel := cancelOnConnClose(ctx, conn)
+	defer cancel()
+
 	resp, err := provider.Complete(ctx, agent.CompletionRequest{
 		Model:     model,
 		TaskType:  "summarize",

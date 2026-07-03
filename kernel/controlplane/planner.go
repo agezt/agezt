@@ -51,6 +51,11 @@ func (s *Server) handlePlanGenerate(ctx context.Context, conn net.Conn, req Requ
 		return
 	}
 
+	// A disconnected client can't receive the plan — cancel generation instead
+	// of spending it into a closed connection.
+	ctx, cancel := cancelOnConnClose(ctx, conn)
+	defer cancel()
+
 	rawJSON, plan, err := planner.Generate(ctx, cfg, intent)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
@@ -110,6 +115,11 @@ func (s *Server) handlePlanRefine(ctx context.Context, conn net.Conn, req Reques
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "daemon has no provider configured"})
 		return
 	}
+
+	// A disconnected client can't receive the revision — cancel refinement
+	// instead of spending it into a closed connection.
+	ctx, cancel := cancelOnConnClose(ctx, conn)
+	defer cancel()
 
 	rawJSON, revised, err := planner.Refine(ctx, cfg, original, feedback)
 	if err != nil {
