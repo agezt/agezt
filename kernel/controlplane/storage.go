@@ -30,6 +30,7 @@ var storageLabels = map[string]string{
 	"skills":     "Skill registry + agentskills.io bundles",
 	"cadence":    "Typed schedules (agent/workflow/system-task/tool jobs)",
 	"standing":   "Standing orders",
+	"resume":     "Durable in-flight-run tickets for restart resume",
 	"roster":     "Agent roster profiles",
 	"toolforge":  "Custom forged tool definitions",
 	"mcp":        "MCP server registry",
