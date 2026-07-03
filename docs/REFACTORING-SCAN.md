@@ -85,6 +85,8 @@ list-endpoint paginations.
   `kernel/identity/scopedstore` interface.
 - **B5.** No dedicated auth package; `s.auth()` + token/tenant/oauth logic scattered across
   controlplane/webui/restapi/openaiapi/agentgw. Extract `kernel/auth/{token,middleware,tenant,oauth}.go`.
+  **Reconciled with A3** in `docs/REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md`: `kernel/auth` (domain) +
+  `kernel/httpserver` (transport, imports auth).
 - **B6.** Three scheduling subsystems (`standing`/`scheduler`/`cadence`) with similar trigger
   evaluation. Factor a shared `kernel/triggers` evaluator, keep queues separate.
 - **B7.** `kernel/resume` split from `runtime/resume.go` incomplete; finish making
