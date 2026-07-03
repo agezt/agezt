@@ -95,6 +95,7 @@ import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
 import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
 import { incidentIdFromHash } from "@/lib/incidentnav";
+import { goToView } from "@/lib/nav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { downloadText } from "@/lib/export";
@@ -552,7 +553,10 @@ export default function App() {
     setActiveRaw(id);
     setAgentSlug(null); // leaving any agent detail route for a normal nav view
     setIncidentId(null); // leaving any incident detail route for a normal nav view
-    if (location.hash.replace(/^#\/?/, "") !== id) location.hash = id;
+    // goToView is a no-op when the destination already matches the current
+    // hash (and that includes the strip-`#` normalisation this branch used
+    // to do inline) — so dropping the manual equality check is safe.
+    goToView(id);
   };
   // Sync when the hash changes externally (back/forward, manual edit, openAgent).
   useEffect(() => {

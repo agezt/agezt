@@ -9,6 +9,7 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
+import { Modal } from "@/components/ui/Modal";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { FileManagerWorkspace } from "@/components/FileManagerWorkspace";
@@ -422,41 +423,33 @@ function PreviewModal({
   onDelete: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="glass flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.name || entry.id}</span>
-          <button onClick={() => downloadArtifact(entry).catch(console.error)} className="text-muted hover:text-accent" title="Download">
-            <Download className="size-4" />
-          </button>
-          <button onClick={onDelete} className="text-muted hover:text-bad" title="Delete">
-            <Trash2 className="size-4" />
-          </button>
-          <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close preview">
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
-          <PreviewBody entry={entry} />
-        </div>
-        <div className="space-y-1 border-t border-border px-4 py-2 text-[11px] text-muted">
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-            {entry.source && <span>source: {entry.source}</span>}
-            {entry.sender && <span>from: {entry.sender}</span>}
-            {entry.mime && <span>{entry.mime}</span>}
-            <span>{humanSize(entry.size)}</span>
-            <span>{fmtTime(entry.created_ms)}</span>
-          </div>
-          {entry.caption && <div className="text-foreground/80">“{entry.caption}”</div>}
-        </div>
+    <Modal open onClose={onClose} ariaLabel={`File preview: ${entry.name || entry.id}`} panelClassName="max-h-[90vh] w-full max-w-2xl">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.name || entry.id}</span>
+        <button onClick={() => downloadArtifact(entry).catch(console.error)} className="text-muted hover:text-accent" title="Download">
+          <Download className="size-4" />
+        </button>
+        <button onClick={onDelete} className="text-muted hover:text-bad" title="Delete">
+          <Trash2 className="size-4" />
+        </button>
+        <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close preview">
+          <X className="size-4" />
+        </button>
       </div>
-    </div>
+      <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
+        <PreviewBody entry={entry} />
+      </div>
+      <div className="space-y-1 border-t border-border px-4 py-2 text-[11px] text-muted">
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+          {entry.source && <span>source: {entry.source}</span>}
+          {entry.sender && <span>from: {entry.sender}</span>}
+          {entry.mime && <span>{entry.mime}</span>}
+          <span>{humanSize(entry.size)}</span>
+          <span>{fmtTime(entry.created_ms)}</span>
+        </div>
+        {entry.caption && <div className="text-foreground/80">“{entry.caption}”</div>}
+      </div>
+    </Modal>
   );
 }
 

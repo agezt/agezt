@@ -61,10 +61,31 @@ async function errMsg(res: Response): Promise<string> {
   return `HTTP ${res.status}`;
 }
 
+/**
+ * HTTPError is the typed wrapper around the throw sites in this module. Callers
+ * that need to branch on a status code (e.g. "the route exists in the future,
+ * render a placeholder") can do so without parsing the human message string.
+ *
+ * Plain `Error` is still the throw contract for everything else (network
+ * failures, malformed JSON, etc.); check `err instanceof HTTPError` when the
+ * status matters.
+ */
+export class HTTPError extends Error {
+  status: number;
+  url: string;
+  constructor(status: number, url: string, message: string) {
+    super(message);
+    this.name = "HTTPError";
+    this.status = status;
+    this.url = url;
+  }
+}
+
 export async function getJSON<T = any>(path: string, params?: Record<string, string>): Promise<T> {
   const query = new URLSearchParams(params || {}).toString();
-  const res = await fetch(query ? `${path}?${query}` : path, { headers: authHeaders({ Accept: "application/json" }) });
-  if (!res.ok) throw new Error(await errMsg(res));
+  const url = query ? `${path}?${query}` : path;
+  const res = await fetch(url, { headers: authHeaders({ Accept: "application/json" }) });
+  if (!res.ok) throw new HTTPError(res.status, url, await errMsg(res));
   return res.json() as Promise<T>;
 }
 
@@ -74,13 +95,14 @@ export async function postJSON<T = any>(path: string, body: unknown): Promise<T>
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body ?? {}),
   });
-  if (!res.ok) throw new Error(await errMsg(res));
+  if (!res.ok) throw new HTTPError(res.status, path, await errMsg(res));
   return res.json() as Promise<T>;
 }
 
 export async function postAction<T = any>(path: string, params?: Record<string, string>): Promise<T> {
   const query = new URLSearchParams(params || {}).toString();
-  const res = await fetch(query ? `${path}?${query}` : path, { method: "POST", headers: authHeaders() });
-  if (!res.ok) throw new Error(await errMsg(res));
+  const url = query ? `${path}?${query}` : path;
+  const res = await fetch(url, { method: "POST", headers: authHeaders() });
+  if (!res.ok) throw new HTTPError(res.status, url, await errMsg(res));
   return res.json() as Promise<T>;
 }

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Download, FileText, Loader2, X } from "lucide-react";
 import { fetchFileBlob, isPathSafe, rawFileURL } from "@/lib/files";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/Modal";
 import { MonacoView } from "@/components/MonacoView";
+import { goToView } from "@/lib/nav";
 
 // FileMention is a clickable chip used by Chat's Markdown for any token the
 // parser flagged as `t: "file"`. Click → opens the FileDetail modal so the
@@ -92,7 +94,7 @@ export function FileDetail({ path, onClose }: { path: string; onClose: () => voi
   }, [path]);
 
   const openInFileManager = () => {
-    window.location.hash = `files?path=${encodeURIComponent(path)}`;
+    goToView("files", `path=${encodeURIComponent(path)}`);
     onClose();
   };
 
@@ -116,78 +118,67 @@ export function FileDetail({ path, onClose }: { path: string; onClose: () => voi
   const leaf = path.slice(path.lastIndexOf("/") + 1) || path;
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`File detail: ${path}`}
-    >
-      <div
-        className="glass flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <Badge variant="accent">file</Badge>
-          <span className="min-w-0 flex-1 truncate font-mono text-xs" title={path}>
-            {path}
-          </span>
-          <button
-            onClick={openInFileManager}
-            className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-muted hover:text-foreground"
-            title="Open in the File Manager workspace"
-          >
-            file manager
-          </button>
-          <button
-            onClick={download}
-            className="text-muted hover:text-accent"
-            title="Download"
-            aria-label="Download file"
-          >
-            <Download className="size-4" />
-          </button>
-          <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close detail">
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
-          {loading && (
-            <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted">
-              <Loader2 className="size-3.5 animate-spin" /> loading {leaf}…
-            </p>
-          )}
-          {!loading && err === "not_found" && (
-            <p className="py-6 text-center text-xs text-muted">
-              <span className="block">
-                The file API isn't responding yet (route lands in a later release).
-              </span>
-              <button
-                onClick={openInFileManager}
-                className="mt-2 inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-accent hover:border-accent"
-              >
-                open the File Manager
-              </button>
-            </p>
-          )}
-          {!loading && err && err !== "not_found" && (
-            <p className="py-6 text-center text-xs text-muted">{err}</p>
-          )}
-          {!loading && !err && tooLarge && (
-            <p className="py-6 text-center text-xs text-muted">
-              File is too large to preview inline — use Download.
-            </p>
-          )}
-          {!loading && !err && !tooLarge && content !== null && (
-            <MonacoView
-              value={content}
-              path={path}
-              readOnly
-              height={Math.min(420, content.split("\n").length * 18 + 60)}
-            />
-          )}
-        </div>
+    <Modal open onClose={onClose} ariaLabel={`File detail: ${path}`} panelClassName="max-h-[85vh] w-full max-w-3xl">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+        <Badge variant="accent">file</Badge>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs" title={path}>
+          {path}
+        </span>
+        <button
+          onClick={openInFileManager}
+          className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-muted hover:text-foreground"
+          title="Open in the File Manager workspace"
+        >
+          file manager
+        </button>
+        <button
+          onClick={download}
+          className="text-muted hover:text-accent"
+          title="Download"
+          aria-label="Download file"
+        >
+          <Download className="size-4" />
+        </button>
+        <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close detail">
+          <X className="size-4" />
+        </button>
       </div>
-    </div>
+      <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
+        {loading && (
+          <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted">
+            <Loader2 className="size-3.5 animate-spin" /> loading {leaf}…
+          </p>
+        )}
+        {!loading && err === "not_found" && (
+          <p className="py-6 text-center text-xs text-muted">
+            <span className="block">
+              The file API isn't responding yet (route lands in a later release).
+            </span>
+            <button
+              onClick={openInFileManager}
+              className="mt-2 inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-accent hover:border-accent"
+            >
+              open the File Manager
+            </button>
+          </p>
+        )}
+        {!loading && err && err !== "not_found" && (
+          <p className="py-6 text-center text-xs text-muted">{err}</p>
+        )}
+        {!loading && !err && tooLarge && (
+          <p className="py-6 text-center text-xs text-muted">
+            File is too large to preview inline — use Download.
+          </p>
+        )}
+        {!loading && !err && !tooLarge && content !== null && (
+          <MonacoView
+            value={content}
+            path={path}
+            readOnly
+            height={Math.min(420, content.split("\n").length * 18 + 60)}
+          />
+        )}
+      </div>
+    </Modal>
   );
 }

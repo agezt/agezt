@@ -38,6 +38,20 @@ import { textKind } from "@/views/Files";
 const MAX_BYTES = 2 * 1024 * 1024; // matches Files preview cap (M842)
 const TEXT_LANGS = new Set(["markdown", "json", "code", "text"]);
 
+/**
+ * tooLargeReason returns the sentinel `too_large:<bytes>` if the file exceeds
+ * the preview cap, otherwise null. Extracted as a pure function so the rule
+ * can be unit-tested without rendering the whole detail panel.
+ */
+export function tooLargeReason(contentLength: number | null, actualBytes?: number): string | null {
+  // Prefer the Content-Length header when present (cheap; bails before the
+  // round-trip completes). Fall back to the actual byte count we observed in
+  // the body, which catches servers that lie or omit the header.
+  const probe = actualBytes ?? contentLength;
+  if (probe === null || probe === undefined) return null;
+  return probe > MAX_BYTES ? `too_large:${probe}` : null;
+}
+
 function humanSize(n?: number): string {
   if (!n || n <= 0) return "—";
   if (n < 1024) return `${n} B`;
@@ -273,33 +287,63 @@ function FileDetail({ path, onJump: _onJump }: { path: string; onJump: (p: strin
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    // Reset every piece of detail state when the path switches, so a brief
+    // mismatched render of the old file's content never flashes on screen.
     setErr(null);
     setContent(null);
     setSize(null);
     setMime("");
+    setLoading(false);
+
     if (!isPathSafe(path)) {
+      // Belt-and-braces: the UI uses a stub `entry` synthesised from the path,
+      // but the route also rejects unsafe paths. Surface the rejection here
+      // so the operator sees WHY the preview is empty instead of a stale one.
       setErr("Unsafe path");
       return () => {
         cancelled = true;
       };
     }
     if (!TEXT_LANGS.has(kind)) {
-      // Binary-ish — fall through to download-only.
+      // Binary/over-cap kinds already render an explicit "use Download" CTA via
+      // the JSX below; there's nothing to fetch, so leave every detail state
+      // cleared and return.
       return () => {
         cancelled = true;
       };
     }
+
     setLoading(true);
     fetch(rawFileURL(path), { headers: {} })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        setSize(parseInt(r.headers.get("content-length") || "0", 10) || null);
+        const lenHeader = parseInt(r.headers.get("content-length") || "0", 10) || null;
+        // Pre-flight cap check. If we already know the body is too big to
+        // preview, refuse to call r.text() — saving a 50 MB round-trip on
+        // huge log files. The "too_large:<n>" sentinel is how the render
+        // block recognises this and shows the Download CTA.
+        const pre = tooLargeReason(lenHeader);
+        if (pre) {
+          setSize(lenHeader);
+          setErr(pre);
+          return null;
+        }
+        setSize(lenHeader);
         setMime(r.headers.get("content-type") || "");
         return r.text();
       })
       .then((t) => {
-        if (!cancelled) setContent(t);
+        if (cancelled || t === null) return;
+        // Post-body check: Content-Length lied, was missing, or the server
+        // truncated it differently than we expected. Catches streaming
+        // responses that didn't carry a header.
+        const post = tooLargeReason(null, t.length);
+        if (post) {
+          setSize(t.length);
+          setErr(post);
+          return;
+        }
+        setContent(t);
       })
       .catch((e: Error) => !cancelled && setErr(e.message))
       .finally(() => !cancelled && setLoading(false));
@@ -345,13 +389,17 @@ function FileDetail({ path, onJump: _onJump }: { path: string; onJump: (p: strin
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">
-        {err && <p className="py-6 text-center text-xs text-muted">{err}</p>}
+        {/* "too_large:<bytes>" is a sentinel the useEffect sets after either a
+            Content-Length pre-check or a post-body check fires; both indicate
+            the file is past the inline preview cap and we should show the
+            Download-CTA EmptyState instead of a raw error string. */}
+        {err && !err.startsWith("too_large:") && <p className="py-6 text-center text-xs text-muted">{err}</p>}
         {!err && loading && (
           <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted">
             <Loader2 className="size-3.5 animate-spin" /> loading…
           </p>
         )}
-        {!err && !loading && content === null && (
+        {((err && err.startsWith("too_large:")) || (!err && !loading && content === null)) && (
           <div className="flex h-full items-center justify-center py-10">
             <EmptyState
               icon={Download}

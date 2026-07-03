@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJSON, authHeaders } from "@/lib/api";
+import { getJSON, authHeaders, HTTPError } from "@/lib/api";
 
 // Files workspace — types + hooks backed by /api/files/{tree,raw,…}. The Go
 // side lands in Slice 5; until then the tree hook falls back to a small in-memory
@@ -90,7 +90,10 @@ export function useFileTree(path: string): TreeState {
       })
       .catch((e: Error) => {
         // 404 → stub fallback so the workspace still renders pre-Slice 5.
-        if (/\b404\b/.test(e.message) || /not found/i.test(e.message)) {
+        // Use HTTPError.status (typed) instead of the previous regex on the
+        // human error message, which silently broke when the message format
+        // changed (it now lives on `err.message` but is not a regex target).
+        if (e instanceof HTTPError && e.status === 404) {
           setData(stubTree(path));
           setError(null);
         } else {

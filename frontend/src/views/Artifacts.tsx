@@ -30,8 +30,10 @@ import { EmptyState } from "@/components/ui/empty";
 import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
+import { Modal } from "@/components/ui/Modal";
 import { MonacoView } from "@/components/MonacoView";
 import { useUI } from "@/components/ui/feedback";
+import { goToView } from "@/lib/nav";
 import {
   type ArtifactEntry,
   type ArtifactCategory,
@@ -291,14 +293,6 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
   const [full, setFull] = useState(false);
   const category = categoryOf(entry);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   // "Open in File Manager" only makes sense when the artifact's `ref` is a
   // path-shaped string (e.g. "notes/README.md" written by the coding/file
   // tools). Raw blob hashes and inbound channel refs are content addresses,
@@ -306,81 +300,81 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
   const filePath = looksLikePath(entry.ref);
   const openInFileManager = () => {
     if (!filePath) return;
-    window.location.hash = `files?path=${encodeURIComponent(filePath)}`;
+    goToView("files", `path=${encodeURIComponent(filePath)}`);
     onClose();
   };
 
+  // When `full` is true we want the panel itself to fill the viewport, so
+  // use a different class set (the Modal overlay still centres, but the panel
+  // uses inset-2 instead of max-w-4xl / max-h-90vh).
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className={cn(
-          "glass flex flex-col overflow-hidden rounded-xl shadow-2xl",
-          full ? "fixed inset-2" : "max-h-[90vh] w-full max-w-4xl",
+    <Modal
+      open
+      onClose={onClose}
+      ariaLabel={`Artifact preview: ${entry.name || entry.id}`}
+      panelClassName={cn(full ? "fixed inset-2" : "max-h-[90vh] w-full max-w-4xl")}
+    >
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+        <Badge variant="accent">{category}</Badge>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.name || entry.id}</span>
+        {filePath && (
+          <button
+            onClick={openInFileManager}
+            className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-muted hover:text-foreground"
+            title={`Open ${filePath} in the File Manager workspace`}
+          >
+            <FolderTree className="size-3.5" /> file manager
+          </button>
         )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <Badge variant="accent">{category}</Badge>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.name || entry.id}</span>
-          {filePath && (
-            <button
-              onClick={openInFileManager}
-              className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-muted hover:text-foreground"
-              title={`Open ${filePath} in the File Manager workspace`}
-            >
-              <FolderTree className="size-3.5" /> file manager
-            </button>
+        <button onClick={() => setFull(!full)} className="text-muted hover:text-accent" title={full ? "Exit fullscreen" : "Fullscreen"} aria-label={full ? "Exit fullscreen" : "Fullscreen"}>
+          {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+        </button>
+        <button onClick={() => downloadArtifact(entry).catch(console.error)} className="text-muted hover:text-accent" title="Download">
+          <Download className="size-4" />
+        </button>
+        <button onClick={onDelete} className="text-muted hover:text-bad" title="Delete">
+          <Trash2 className="size-4" />
+        </button>
+        <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close viewer">
+          <X className="size-4" />
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Persistent metadata column on the left — full-height, narrow,
+            readable. The body region keeps the centred preview. */}
+        <aside className="hidden w-52 shrink-0 flex-col gap-1 overflow-auto border-r border-border bg-panel/40 p-3 text-[11px] text-muted md:flex">
+          <div className="text-xs font-semibold uppercase tracking-normal text-foreground/80">Metadata</div>
+          {entry.name && <Field label="name" value={entry.name} />}
+          {entry.ref && <Field label="ref" value={entry.ref} mono />}
+          {entry.mime && <Field label="mime" value={entry.mime} mono />}
+          {entry.kind && entry.kind !== "file" && <Field label="kind" value={entry.kind} />}
+          {entry.source && <Field label="source" value={entry.source} />}
+          {entry.sender && <Field label="from" value={entry.sender} />}
+          {entry.corr && <Field label="corr" value={entry.corr} mono />}
+          <Field label="size" value={humanSize(entry.size)} />
+          <Field label="created" value={fmtTime(entry.created_ms)} />
+          {entry.caption && (
+            <div className="mt-2">
+              <div className="text-foreground/80">caption</div>
+              <div className="text-foreground/90">“{entry.caption}”</div>
+            </div>
           )}
-          <button onClick={() => setFull(!full)} className="text-muted hover:text-accent" title={full ? "Exit fullscreen" : "Fullscreen"} aria-label={full ? "Exit fullscreen" : "Fullscreen"}>
-            {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </button>
-          <button onClick={() => downloadArtifact(entry).catch(console.error)} className="text-muted hover:text-accent" title="Download">
-            <Download className="size-4" />
-          </button>
-          <button onClick={onDelete} className="text-muted hover:text-bad" title="Delete">
-            <Trash2 className="size-4" />
-          </button>
-          <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close viewer">
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {/* Persistent metadata column on the left — full-height, narrow,
-              readable. The body region keeps the centred preview. */}
-          <aside className="hidden w-52 shrink-0 flex-col gap-1 overflow-auto border-r border-border bg-panel/40 p-3 text-[11px] text-muted md:flex">
-            <div className="text-xs font-semibold uppercase tracking-normal text-foreground/80">Metadata</div>
-            {entry.name && <Field label="name" value={entry.name} />}
-            {entry.ref && <Field label="ref" value={entry.ref} mono />}
-            {entry.mime && <Field label="mime" value={entry.mime} mono />}
-            {entry.kind && entry.kind !== "file" && <Field label="kind" value={entry.kind} />}
-            {entry.source && <Field label="source" value={entry.source} />}
-            {entry.sender && <Field label="from" value={entry.sender} />}
-            {entry.corr && <Field label="corr" value={entry.corr} mono />}
-            <Field label="size" value={humanSize(entry.size)} />
-            <Field label="created" value={fmtTime(entry.created_ms)} />
-            {entry.caption && (
-              <div className="mt-2">
-                <div className="text-foreground/80">caption</div>
-                <div className="text-foreground/90">“{entry.caption}”</div>
-              </div>
-            )}
-          </aside>
-          {/* Preview body. md+ works with the metadata column; below md the
-              column collapses and the preview fills width — handled in CSS. */}
-          <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
-            <ViewerBody entry={entry} category={category} full={full} />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 border-t border-border px-4 py-2 text-[11px] text-muted md:hidden">
-          {entry.source && <span>source: {entry.source}</span>}
-          {entry.sender && <span>from: {entry.sender}</span>}
-          {entry.mime && <span>{entry.mime}</span>}
-          <span>{humanSize(entry.size)}</span>
-          <span>{fmtTime(entry.created_ms)}</span>
-          {entry.caption && <span className="text-foreground/80">“{entry.caption}”</span>}
+        </aside>
+        {/* Preview body. md+ works with the metadata column; below md the
+            column collapses and the preview fills width — handled in CSS. */}
+        <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
+          <ViewerBody entry={entry} category={category} full={full} />
         </div>
       </div>
-    </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-0.5 border-t border-border px-4 py-2 text-[11px] text-muted md:hidden">
+        {entry.source && <span>source: {entry.source}</span>}
+        {entry.sender && <span>from: {entry.sender}</span>}
+        {entry.mime && <span>{entry.mime}</span>}
+        <span>{humanSize(entry.size)}</span>
+        <span>{fmtTime(entry.created_ms)}</span>
+        {entry.caption && <span className="text-foreground/80">“{entry.caption}”</span>}
+      </div>
+    </Modal>
   );
 }
 

@@ -105,6 +105,27 @@ describe("parseInline", () => {
       { t: "text", v: "archive.zip" },
     ]);
   });
+
+  it("lets inline grammar win the tie when file-mention and inline start at the same column", () => {
+    // `**README.md**` could be interpreted as "strong("README.md")" by the
+    // inline grammar OR as a file-mention span. The explicit tie-break
+    // rule prefers inline (it is the dominant grammar; file-mention is a
+    // strict subset), so ** README.md ** renders as a strong token.
+    expect(parseInline("**README.md**")).toEqual([{ t: "strong", v: "README.md" }]);
+    // Same idea with em: *notes/x.md* is a folder/file path inside an em,
+    // not a clickable file mention.
+    expect(parseInline("*notes/x.md*")).toEqual([{ t: "em", v: "notes/x.md" }]);
+  });
+
+  it("picks file-mention when it starts strictly earlier than inline at the same position", () => {
+    // `**notes/x.md**` — the file-mention regex looks like it could pick up
+    // `notes/x.md` from position 2 to position 12, which would beat the
+    // strong grammar (which starts at position 0). The decision belongs to
+    // whichever match's index is smaller.
+    // In this input, the strong span starts at 0 and the file path starts
+    // at 2; inline (strong) wins because position 0 < 2.
+    expect(parseInline("**notes/x.md**")).toEqual([{ t: "strong", v: "notes/x.md" }]);
+  });
 });
 
 describe("parseMarkdown", () => {

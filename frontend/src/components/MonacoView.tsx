@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { languageFor } from "@/lib/language";
 import { PINNED_MONACO_VERSION } from "@/lib/monaco";
@@ -57,6 +57,13 @@ export function MonacoView({
   // important for tests, but also for users: chat scroll doesn't blank while
   // the CDN bundle downloads.
   const [mounted, setMounted] = useState(false);
+  // Editor instance handle, captured in onMount so we can dispose it on
+  // unmount. Without this, switching `path` (or remounting the whole panel)
+  // accumulates Monaco models in its internal URI registry until the page
+  // slogs down — Monaco leaks unless explicitly torn down.
+  // typed as `unknown` because @monaco-editor/react's editor type is the
+  // third-party package's own `editor.IEditor`; we only need `dispose()`.
+  const editorRef = useRef<{ dispose: () => void } | null>(null);
 
   // Editor height: collapse mode shows the first ~12 lines (a chat-sized
   // preview), expand mode shows a full editor at `height`. We don't fight
@@ -65,9 +72,31 @@ export function MonacoView({
   const collapsedLines = Math.min(12, lineCount);
   const editorHeight = expanded ? Math.max(height, 120) : Math.min(220, collapsedLines * 18 + 36);
 
-  if (!value && value !== "") {
-    return <p className="py-2 text-xs text-muted">empty</p>;
+  // Empty value: don't mount Monaco at all. The previous guard (`!value &&
+  // value !== ""`) was a bug — empty string is falsy so the condition was
+  // always false, and a zero-byte buffer paid for a Monaco instance and an
+  // eager <pre> with minHeight:editorHeight. Render a tiny placeholder
+  // instead.
+  if (value === "") {
+    return (
+      <div className={cn("flex items-center gap-2 rounded-md border border-border bg-card/40 px-3 py-2 text-xs text-muted", className)} data-testid={dataTestId}>
+        <FileText className="size-3.5" />
+        <span>empty {path || "buffer"}</span>
+      </div>
+    );
   }
+
+  // Dispose the Monaco editor instance when this component unmounts.
+  // Without this the next mount creates a fresh editor AND the old model
+  // stays registered with Monaco, leaking memory over many viewings of
+  // long chat sessions.
+  useEffect(() => {
+    return () => {
+      editorRef.current?.dispose();
+      editorRef.current = null;
+    };
+  }, []);
+
   return (
     <div className={cn("group relative overflow-hidden rounded-md border border-border", className)} data-testid={dataTestId}>
       <div className="flex items-center gap-2 border-b border-border bg-panel/60 px-2 py-1 text-[11px] text-muted">
@@ -146,13 +175,11 @@ export function MonacoView({
             automaticLayout: true,
           }}
           onChange={onChange as unknown as (v: string | undefined) => void}
-          onMount={(_editor: unknown, monaco: unknown) => {
+          onMount={(editor: unknown) => {
             // Hide the eager <pre> now that the editor is alive.
             setMounted(true);
-            // Lazily register common languages we want explicit support for.
-            // They're bundled with the CDN monaco and only need a language id
-            // hint to enable their grammars.
-            void monaco;
+            // Capture the editor so the cleanup effect above can dispose it.
+            editorRef.current = editor as { dispose: () => void };
           }}
         />
       </Suspense>

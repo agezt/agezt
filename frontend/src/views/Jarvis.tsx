@@ -5,6 +5,7 @@ import {
 import { getJSON, postAction, authHeaders } from "@/lib/api";
 import type { AgentEvent } from "@/lib/events";
 import { cn } from "@/lib/utils";
+import { goToView } from "@/lib/nav";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
@@ -57,8 +58,10 @@ type VoiceState = "probing" | "natural" | "browser";
 type HearState = "probing" | "server" | "browser";
 
 // navigate to another view by hash (the app routes on location.hash).
+// goToView in lib/nav is the canonical version; this thin shim keeps the
+// existing call sites legible without forcing a 30-site rewrite.
 function go(id: string) {
-  window.location.hash = id;
+  goToView(id);
 }
 
 // Compact relative time for the recent-initiative feed ("3m", "2h", "just now").

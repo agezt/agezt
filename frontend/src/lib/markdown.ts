@@ -58,22 +58,33 @@ function stripMathDelimiters(s: string): string {
 export function parseInline(input: string): Inline[] {
   const out: Inline[] = [];
   let rest = stripMathDelimiters(input);
-  // Local non-global copies of the mention regex so we can call .exec() each
-  // iteration without stateful lastIndex drift. fileMentionRegex() returns a
-  // /g regex by design (for callers that want all matches); we keep one
-  // matched group explicit here so the link grammar never sees "notes/x.md"
-  // as a malformed "[x](.md)" link.
+  // fileMentionRegex() returns a /g regex, which has a stateful lastIndex
+  // that drifts across .exec() calls. Build one non-global local copy per
+  // parseInline() call (cheap — `fileMentionRegex()` itself is memoised at
+  // module load), then reuse it on every iteration. The previous code
+  // rebuilt this object on EVERY character step, allocating thousands of
+  // regex instances for a long chat answer with several file mentions.
+  const fileMatchRE = new RegExp(fileMentionRegex().source);
   while (rest.length > 0) {
-    const fm = new RegExp(fileMentionRegex().source).exec(rest);
+    const fm = fileMatchRE.exec(rest);
     const im = rest.match(INLINE_RE);
-    // Pick whichever match lands earlier in `rest`. Default to whichever
-    // exists when the other doesn't.
+    // Pick whichever match lands earlier in `rest`. Tie-break rule (made
+    // explicit because the previous `||` chain read like coincidence):
+    //   • If both start at the same column, INLINE wins — the inline grammar
+    //     is the dominant one (bold/em/code/link), and the file-mention
+    //     grammar is a strict subset.
+    //   • File-mention wins only when it starts strictly earlier.
     let picked: "file" | "inline" | null = null;
     let pos = -1;
-    if (fm && fm.index != null && (!im || im.index == null || fm.index <= im.index)) {
-      picked = "file";
-      pos = fm.index;
-    } else if (im && im.index != null) {
+    if (fm && fm.index != null) {
+      const imIdx = im?.index ?? null;
+      const fmIdx = fm.index;
+      if (imIdx === null || fmIdx < imIdx) {
+        picked = "file";
+        pos = fmIdx;
+      }
+    }
+    if (!picked && im && im.index != null) {
       picked = "inline";
       pos = im.index;
     }
