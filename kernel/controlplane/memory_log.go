@@ -126,6 +126,7 @@ func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
 	for _, m := range ops {
 		out = append(out, map[string]any{
 			"ts_unix_ms": m.ts,
+			"seq":        m.seq, // A2: stable per-row id for the frontend cursor pager
 			"op":         m.op,
 			"id":         m.id,
 			"type":       m.mtyp,

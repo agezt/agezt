@@ -213,7 +213,7 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 
 	out := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
-		m := map[string]any{"ts_unix_ms": r.ts, "kind": r.kind, "profile": r.profile}
+		m := map[string]any{"ts_unix_ms": r.ts, "seq": r.seq, "kind": r.kind, "profile": r.profile}
 		switch r.kind {
 		case "exec":
 			m["argv0"] = r.argv0

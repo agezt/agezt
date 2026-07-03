@@ -121,6 +121,7 @@ func (s *Server) handleWorldLog(conn net.Conn, req Request) {
 	for _, o := range ops {
 		out = append(out, map[string]any{
 			"ts_unix_ms": o.ts,
+			"seq":        o.seq, // A2: stable per-row id for the frontend cursor pager
 			"op":         o.op,
 			"what":       o.what,
 			"label":      o.label,

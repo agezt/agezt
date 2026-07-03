@@ -161,6 +161,7 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	for _, r := range results {
 		out = append(out, map[string]any{
 			"ts_unix_ms":     r.ts,
+			"seq":            r.seq, // A2: stable per-row id for the frontend cursor pager
 			"actor":          r.actor,
 			"correlation_id": r.corr,
 			"tool":           r.tool,

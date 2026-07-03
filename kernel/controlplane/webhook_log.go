@@ -106,6 +106,7 @@ func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
 	for _, r := range rows {
 		m := map[string]any{
 			"ts_unix_ms": r.ts,
+			"seq":        r.seq, // A2: stable per-row id for the frontend cursor pager
 			"ok":         r.ok,
 			"url":        r.url,
 			"event_kind": r.kind,

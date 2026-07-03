@@ -108,6 +108,7 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 	for _, d := range decisions {
 		out = append(out, map[string]any{
 			"ts_unix_ms":     d.ts,
+			"seq":            d.seq, // A2: stable per-row id for the frontend cursor pager
 			"actor":          d.actor,
 			"correlation_id": d.corr,
 			"tool":           d.tool,

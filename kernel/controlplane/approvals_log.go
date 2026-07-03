@@ -271,6 +271,7 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 	for _, a := range rows {
 		out = append(out, map[string]any{
 			"ts_unix_ms":     a.ts,
+			"seq":            a.seq, // A2: stable per-row id for the frontend cursor pager
 			"approval_id":    a.id,
 			"capability":     a.capability,
 			"tool":           a.tool,

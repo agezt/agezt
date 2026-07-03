@@ -92,6 +92,7 @@ func (s *Server) handleRateLimitLog(conn net.Conn, req Request) {
 	for _, r := range rows {
 		out = append(out, map[string]any{
 			"ts_unix_ms":    r.ts,
+			"seq":           r.seq, // A2: stable per-row id for the frontend cursor pager's dedup
 			"used":          r.used,
 			"limit_per_min": r.limitN,
 		})
