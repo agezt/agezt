@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   Download,
@@ -105,23 +105,45 @@ export function FileManagerWorkspace() {
         >
           <div className="p-1">
             {tree.error && <ErrorText>{tree.error}</ErrorText>}
-            <button
-              onClick={() => {
-                setCwd("");
-                setSelected(null);
-              }}
-              className={cn(
-                "flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs transition-colors",
-                cwd === "" ? "bg-accent/10 text-accent" : "text-muted hover:bg-panel hover:text-foreground",
-              )}
-            >
-              <Home className="size-3.5" /> workspace root
-            </button>
-            {tree.data?.nodes.map((n) =>
-              n.type === "dir" ? (
-                <TreeRow key={n.path} node={n} current={cwd} onPick={(p) => setCwd(p)} />
-              ) : null,
-            )}
+            {/* Workspace folders tree. role="tree" + the inner treeitems use
+                roving tabindex (ArrowDown/Up cycle items, Tab moves between
+                regions). Only directory nodes appear here — files are in the
+                middle pane where you click to open them. */}
+            <div role="tree" aria-label="Workspace folders">
+              {/* The workspace root is a synthetic level-1 item so screen-reader
+                  users land inside the tree on the same first row a sighted
+                  user sees. Disclosure control is implicit: the root is always
+                  "expanded" (showing its children directly in this view), so
+                  aria-expanded isn't meaningful here. */}
+              <div
+                role="treeitem"
+                aria-level={1}
+                aria-selected={cwd === ""}
+                tabIndex={cwd === "" ? 0 : -1}
+                onClick={() => {
+                  setCwd("");
+                  setSelected(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setCwd("");
+                    setSelected(null);
+                  }
+                }}
+                className={cn(
+                  "flex w-full cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-left text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                  cwd === "" ? "bg-accent/10 text-accent" : "text-muted hover:bg-panel hover:text-foreground",
+                )}
+              >
+                <Home className="size-3.5 shrink-0" aria-hidden="true" /> workspace root
+              </div>
+              {tree.data?.nodes
+                .filter((n) => n.type === "dir")
+                .map((n) => (
+                  <TreeRow key={n.path} node={n} current={cwd} onPick={(p) => setCwd(p)} level={1} />
+                ))}
+            </div>
           </div>
         </WorkspaceColumn>
       }
@@ -145,6 +167,27 @@ export function FileManagerWorkspace() {
           {!tree.data?.nodes.length ? (
             <p className="px-3 py-6 text-center text-xs text-muted">
               {tree.loading ? "loading…" : "Empty folder"}
+            </p>
+          ) : listed.length === 0 ? (
+            // The user typed a filter but it matched nothing in the current
+            // directory. Don't render an empty <ul> — explain why and steer
+            // them toward the tree (search is scoped to cwd, not recursive).
+            <p
+              className="px-3 py-6 text-center text-xs text-muted"
+              role="status"
+              aria-live="polite"
+            >
+              No matches for{" "}
+              <span className="font-mono text-foreground/80">“{query}”</span>
+              {cwd ? (
+                <>
+                  {" "}in <span className="font-mono">{cwd || "~"}</span>
+                </>
+              ) : (
+                " in the workspace root"
+              )}
+              . The filter only scans the current folder — expand a directory
+              in the tree on the left to look inside it.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -200,43 +243,203 @@ export function FileManagerWorkspace() {
 // TreeRow is a single collapsible folder row in the left pane. Single level of
 // disclosure; the user expands into the list view if they want to go deeper.
 // Cheaper than a full tree walker when most folders stay unexpanded.
-function TreeRow({ node, current, onPick }: { node: FileNode; current: string; onPick: (p: string) => void }) {
+//
+// A11y: implements the WAI-ARIA tree pattern
+// (https://www.w3.org/WAI/ARIA/apg/patterns/treeview/). Roaming tabindex —
+// only the focused item is in the tab order; siblings carry tabIndex={-1} so
+// Tab/Shift+Tab move BETWEEN regions (Folders → file list → preview pane),
+// not within a region.
+function TreeRow({
+  node,
+  current,
+  onPick,
+  level,
+}: {
+  node: FileNode;
+  current: string;
+  onPick: (p: string) => void;
+  level: number;
+}) {
   const [open, setOpen] = useState(false);
   const subtree = useFileTree(open ? node.path : "");
   const on = current === node.path || current.startsWith(node.path + "/");
-  return (
-    <div>
-      <button
-        onClick={() => {
-          setOpen((v) => !v);
+  // The expanded-children group lives at level + 1. Only render once the
+  // subtree has resolved (or returned an error) — rendering an empty group
+  // would expose a confusing "no children" disclosure to screen readers.
+  const childDirs = open && subtree.data?.nodes ? subtree.data.nodes.filter((n) => n.type === "dir") : [];
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  // Move keyboard focus onto this row's DOM node. Used by the parent key
+  // handlers (parent calls focusRow() on the appropriate child) and by the
+  // arrow handlers below to walk the tree.
+  const focusRow = () => rowRef.current?.focus();
+
+  // Find all visible treeitems in DOM order, starting from this row's
+  // ancestor tree. Walking the row's own DOM is tricky because each row
+  // is its own component instance, so we reach up to the role="tree"
+  // root, then do a single pre-order traversal that includes both siblings
+  // (via the immediate parent) and expanded children (via the row's
+  // role="group" container).
+  //
+  // We avoid `:scope >` here because jsdom's CSS engine doesn't honour it
+  // reliably; instead we iterate children and filter to the role we need.
+  // The structure under the tree is fixed so a small set of direct child
+  // checks is enough.
+  const collectVisibleRows = (): HTMLElement[] => {
+    const start = rowRef.current;
+    if (!start) return [];
+    const treeRoot = start.closest('[role="tree"]') as HTMLElement | null;
+    if (!treeRoot) return [start];
+    const out: HTMLElement[] = [];
+    // jsdom-friendly walk: scan all descendants once, sort by document
+    // position, and emit only those whose DOM tree holds a role="treeitem".
+    // `querySelectorAll` returns nodes in document order, so no extra sort
+    // is required — and we avoid `:scope >` because jsdom's CSS engine
+    // doesn't honour it reliably.
+    const allTreeitems = Array.from(treeRoot.querySelectorAll('[role="treeitem"]'));
+    allTreeitems.forEach((el) => out.push(el as HTMLElement));
+    return out;
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const rows = collectVisibleRows();
+    const idx = rows.findIndex((r) => r === rowRef.current);
+    if (idx < 0) return;
+
+    switch (e.key) {
+      case "ArrowDown": {
+        e.preventDefault();
+        const next = rows[idx + 1];
+        if (next) next.focus();
+        break;
+      }
+      case "ArrowUp": {
+        e.preventDefault();
+        const prev = rows[idx - 1];
+        if (prev) prev.focus();
+        break;
+      }
+      case "Home": {
+        e.preventDefault();
+        rows[0]?.focus();
+        break;
+      }
+      case "End": {
+        e.preventDefault();
+        rows[rows.length - 1]?.focus();
+        break;
+      }
+      case "ArrowRight": {
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
           onPick(node.path);
-        }}
-        className={cn(
-          "flex w-full items-center gap-1 rounded px-2 py-1 text-left text-xs transition-colors",
-          on ? "bg-accent/10 text-accent" : "text-foreground/90 hover:bg-panel",
-        )}
-        title={node.path}
-      >
-        {open ? (
-          <ChevronDown className="size-3 shrink-0 text-muted" />
-        ) : (
-          <ChevronRight className="size-3 shrink-0 text-muted" />
-        )}
-        {open ? <FolderOpen className="size-3.5 shrink-0" /> : <Folder className="size-3.5 shrink-0" />}
-        <span className="min-w-0 flex-1 truncate font-mono">{node.name}</span>
-      </button>
-      {open && subtree.data?.nodes && (
-        <ul className="ml-4 border-l border-border pl-2">
-          {subtree.data.nodes
-            .filter((n) => n.type === "dir")
-            .map((child) => (
-              <li key={child.path}>
-                <TreeRow node={child} current={current} onPick={onPick} />
-              </li>
-            ))}
-        </ul>
+        }
+        // If we already had children, focus the first one.
+        else if (rows[idx + 1]) {
+          rows[idx + 1].focus();
+        }
+        break;
+      }
+      case "ArrowLeft": {
+        e.preventDefault();
+        if (open) {
+          setOpen(false);
+        } else {
+          // Collapsed + ArrowLeft: focus the parent. Walk up to the enclosing
+          // treeitem (skipping the row container so the parent's rowRef matches
+          // a treeitem).
+          const parent = rowRef.current?.parentElement?.closest('[role="treeitem"]') as HTMLElement | null;
+          parent?.focus();
+        }
+        break;
+      }
+      case "Enter":
+      case " ": {
+        e.preventDefault();
+        // Enter/Space toggle disclosure, matching the click affordance.
+        setOpen((v) => !v);
+        onPick(node.path);
+        break;
+      }
+    }
+  };
+
+  return (
+    <>
+    <div
+      ref={rowRef}
+      role="treeitem"
+      aria-level={level + 1}
+      // aria-expanded applies only when the disclosure has effect. A folder
+      // that hasn't been opened yet still has potential children — until we
+      // know it doesn't, we declare it expandable.
+      aria-expanded={open || subtree.data === null ? true : childDirs.length > 0}
+      aria-selected={on}
+      tabIndex={on ? 0 : -1}
+      onClick={() => {
+        setOpen((v) => !v);
+        onPick(node.path);
+      }}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "flex w-full cursor-pointer items-center gap-1 rounded px-2 py-1 text-left text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        on ? "bg-accent/10 text-accent" : "text-foreground/90 hover:bg-panel",
       )}
+      title={node.path}
+    >
+      {open ? (
+        <ChevronDown className="size-3 shrink-0 text-muted" aria-hidden="true" />
+      ) : (
+        <ChevronRight className="size-3 shrink-0 text-muted" aria-hidden="true" />
+      )}
+      {open ? (
+        <FolderOpen className="size-3.5 shrink-0" aria-hidden="true" />
+      ) : (
+        <Folder className="size-3.5 shrink-0" aria-hidden="true" />
+      )}
+      <span className="min-w-0 flex-1 truncate font-mono">{node.name}</span>
     </div>
+    {open && (
+      <div role="group" aria-label={`${node.name} contents`} className="ml-4 border-l border-border pl-2">
+        {/* Subtree-loading state: an open folder whose child fetch hasn't
+            resolved yet. Without it a screen-reader expanding a folder hears
+            silence until the network call lands. */}
+        {subtree.loading && subtree.data === null && (
+          <p className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-muted" role="status">
+            <Loader2 className="size-3 animate-spin" /> loading…
+          </p>
+        )}
+        {/* Subtree error state (S1.4): previously the only feedback was
+            silent absence of children. Show a one-liner + a Retry so the
+            operator can recover without reloading the whole panel. */}
+        {subtree.error && (
+          <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-muted">
+            <span className="truncate">couldn't list: {subtree.error}</span>
+            <button
+              onClick={subtree.reload}
+              className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:text-foreground"
+              title={`Retry listing ${node.path}`}
+            >
+              retry
+            </button>
+          </div>
+        )}
+        {/* Tree's disclosure state once the fetch resolves. When a folder
+            turns out to be empty, render an explicit "empty" line so the
+            row above stays meaningful as a disclosure anchor. */}
+        {!subtree.loading && !subtree.error && subtree.data !== null && childDirs.length === 0 && (
+          <p className="px-2 py-1 text-[11px] text-muted" role="note">
+            empty
+          </p>
+        )}
+        {childDirs.map((child) => (
+          // Key on the path so React can keep subtree state stable across
+          // re-renders. The child's level is current + 1.
+          <TreeRow key={child.path} node={child} current={current} onPick={onPick} level={level + 1} />
+        ))}
+      </div>
+    )}
+  </>
   );
 }
 
