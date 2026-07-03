@@ -25,12 +25,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 import { HTTPError, getJSON } from "@/lib/api";
-import { useFileTree, basename, isPathSafe, joinPath, parentPath } from "./files";
+import { useFileTree, basename, isPathSafe, joinPath, parentPath, __resetTreeCacheForTest } from "./files";
 
 const mockedGetJSON = vi.mocked(getJSON);
 
 beforeEach(() => {
   mockedGetJSON.mockReset();
+  __resetTreeCacheForTest();
 });
 
 afterEach(() => {

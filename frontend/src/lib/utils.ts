@@ -10,12 +10,34 @@ export function clip(s: unknown, n: number): string {
   return str.length > n ? str.slice(0, n - 1) + "…" : str;
 }
 
+// prettyJSONCache memoizes the parse + re-format pass for the life of the
+// page. Strings are immutable so a Map keyed by the input safely dedupes
+// repeated calls with the same JSON text — without growing unbounded,
+// because the keys are exactly the inputs callers have already built
+// (mostly artefact or panel bodies that came over the wire once). Modules
+// that pass a fresh string per render (e.g. via JSON.stringify on each
+// keystroke) still pay the cost, but the common pattern — render the same
+// JSON once, then re-render the panel around it — drops to a Map lookup.
+const prettyJSONCache = new Map<string, string>();
+
 export function prettyJSON(s: string): string {
+  if (!s) return "";
+  const cached = prettyJSONCache.get(s);
+  if (cached !== undefined) return cached;
+  let out: string;
   try {
-    return JSON.stringify(JSON.parse(s), null, 2);
+    out = JSON.stringify(JSON.parse(s), null, 2);
   } catch {
-    return s || "";
+    out = s;
   }
+  prettyJSONCache.set(s, out);
+  return out;
+}
+
+// Test-only escape hatch. The cache is module-scoped; tests reset between
+// assertions to keep determinism. Production code never calls this.
+export function __resetPrettyJSONCacheForTest(): void {
+  prettyJSONCache.clear();
 }
 
 export function fmtTime(ms?: number): string {
