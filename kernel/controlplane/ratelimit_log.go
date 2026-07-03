@@ -16,6 +16,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleRateLimitLog(conn net.Conn, req Request) {
@@ -36,6 +37,7 @@ func (s *Server) handleRateLimitLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	cutoff := sinceCutoff(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
@@ -74,6 +76,15 @@ func (s *Server) handleRateLimitLog(conn net.Conn, req Request) {
 		}
 		return rows[i].seq > rows[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := rows[:0]
+		for _, r := range rows {
+			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -85,10 +96,14 @@ func (s *Server) handleRateLimitLog(conn net.Conn, req Request) {
 			"limit_per_min": r.limitN,
 		})
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(rows); n > 0 {
+		nextCursor = journal.NextCursor(rows[n-1].ts, rows[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"throttles": out, "count": len(out)},
+		Result: map[string]any{"throttles": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 
