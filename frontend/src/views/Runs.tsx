@@ -12,8 +12,7 @@ import {
   CircleStop,
   Loader2,
 } from "lucide-react";
-import { usePanel } from "@/lib/usePanel";
-import { getJSON, postAction } from "@/lib/api";
+import { postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
@@ -27,6 +26,7 @@ import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { useCursorPager } from "@/lib/cursorPager";
 
 interface Run {
   correlation_id?: string;
@@ -38,6 +38,10 @@ interface Run {
   // a fallback for the client-side event fold so the phase shows on a fresh load.
   phase?: string;
   tool?: string;
+  // Index signature so this shape satisfies useCursorPager's
+  // `Record<string, unknown>` constraint — the helper reads fields by
+  // string key when deduping across pages.
+  [k: string]: unknown;
 }
 
 function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: LiveRunContext }) {
@@ -189,83 +193,18 @@ interface RunsPage {
  * auth, error retry, and the live-event reload) with a separate `loadMore`
  * that hits /api/runs?cursor=… on demand. The two share the first page —
  * `usePanel` gets us the leading 50 rows; the pager extends from there.
+ *
+ * Implementation note: this is now a thin wrapper around the generic
+ * `useCursorPager` helper (lib/cursorPager) — kept as a named export so
+ * existing tests at `@/views/Runs` keep importing it from a stable path.
  */
 export function useRunsPager() {
-  const query = { limit: String(RUN_PAGE_SIZE) };
-  const { data, error, loading, reload } = usePanel<{ runs?: Run[]; next_cursor?: string }>(
+  return useCursorPager<Run>(
     "/api/runs",
-    query,
+    "runs",
+    "correlation_id",
+    RUN_PAGE_SIZE,
   );
-  const [paged, setPaged] = useState<Run[]>([]);
-  // The current cursor is "" for null. Object form so we always reset to null
-  // when the upstream reload invalidates the page sequence.
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [moreError, setMoreError] = useState<string | null>(null);
-
-  // Whenever usePanel reports fresh data (initial load OR a reload), reset
-  // the paged state to the new first page. The polled `data` is the
-  // authoritative source — even if `loadMore` is mid-flight, a reload
-  // wins (the second page's rows would be stale once the first page
-  // shifts).
-  useEffect(() => {
-    if (!data) return;
-    const runs = (data.runs ?? []) as Run[];
-    setPaged(runs);
-    // The server's `next_cursor` is the only authoritative "more available"
-    // signal. We don't double-check against `runs.length >= RUN_PAGE_SIZE`
-    // because the server can legitimately return a short, full page (e.g.
-    // exactly-LIMIT rows that happened to be the tail) — in that case the
-    // cursor is null and we treat it as terminal.
-    setCursor(data.next_cursor ?? null);
-    setMoreError(null);
-    // loadingMore deliberately NOT reset — an in-flight "load more" call
-    // resolves and its own success branch is a no-op now that paged has been
-    // replaced by the latest data.
-  }, [data]);
-
-  const loadMore = async () => {
-    if (loadingMore) return;
-    if (!cursor) return; // server already said "you're at the end"
-    setLoadingMore(true);
-    setMoreError(null);
-    try {
-      const page = await getJSON<{ runs?: Run[]; next_cursor?: string }>(
-        "/api/runs",
-        {
-          limit: String(RUN_PAGE_SIZE),
-          cursor,
-        },
-      );
-      const next = (page.runs ?? []) as Run[];
-      setPaged((cur) => {
-        // Dedup by correlation id so an apparent re-emission from a buggy
-        // server (we caught a real instance of this during P1 testing)
-        // doesn't double up the rows.
-        const seen = new Set(cur.map((r) => r.correlation_id));
-        const merged = [...cur];
-        for (const r of next) {
-          const id = r.correlation_id;
-          if (id && seen.has(id)) continue;
-          merged.push(r);
-          if (id) seen.add(id);
-        }
-        return merged;
-      });
-      const nc = page.next_cursor ?? null;
-      // Same reasoning as the initial-page branch: a non-null
-      // `next_cursor` is an authoritative "more available" signal.
-      // A short page is allowed — it just means the server's response
-      // happened to be smaller than `limit` and the cursor is missing.
-      setCursor(nc);
-    } catch (err) {
-      setMoreError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  return { paged, error, loading, loadMore, loadingMore, moreError, hasMore: cursor !== null, reload };
 }
 
 export function Runs() {
