@@ -239,3 +239,81 @@ export function useAgentEscalationsPager(ref: string, limit: number = 50) {
     { ref },
   );
 }
+
+// ─────────────────────── log endpoints (A2 Phase 1 + 2) ───────────────────────
+//
+// The 12 journal-backed log endpoints all page on the shared ms:seq cursor and
+// expose a `seq` field on every row as the dedup id (plan/schedule use their
+// natural correlation_id). itemsKey matches each handler's response envelope.
+
+export interface LogRow extends Record<string, unknown> {
+  seq: number;
+}
+
+/** useToolLogPager — /api/tool_log (tool-invocation audit). */
+export function useToolLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/tool_log", "invocations", "seq", limit);
+}
+
+/** useProviderLogPager — /api/provider_log (routing + fallbacks). */
+export function useProviderLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/provider_log", "events", "seq", limit);
+}
+
+/** usePolicyLogPager — /api/policy_log (edict gating decisions). */
+export function usePolicyLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/policy_log", "decisions", "seq", limit);
+}
+
+/** useApprovalsLogPager — /api/approvals_log (resolved HITL approvals). */
+export function useApprovalsLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/approvals_log", "approvals", "seq", limit);
+}
+
+/** useRateLimitLogPager — /api/ratelimit_log (throttle events). */
+export function useRateLimitLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/ratelimit_log", "throttles", "seq", limit);
+}
+
+/** useWebhookLogPager — /api/webhook_log (delivery attempts). */
+export function useWebhookLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/webhook_log", "deliveries", "seq", limit);
+}
+
+/** useWardenLogPager — /api/warden_log (sandboxed executions). */
+export function useWardenLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/warden_log", "executions", "seq", limit);
+}
+
+/** useNetguardLogPager — /api/netguard_log (blocked egress). */
+export function useNetguardLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/netguard_log", "blocks", "seq", limit);
+}
+
+/** useWorldLogPager — /api/world_log (world-model ops). */
+export function useWorldLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/world_log", "ops", "seq", limit);
+}
+
+/** useMemoryLogPager — /api/memory_log (memory write/forget ops). */
+export function useMemoryLogPager(limit: number = 50) {
+  return useCursorPager<LogRow>("/api/memory_log", "ops", "seq", limit);
+}
+
+export interface PlanHistoryRow extends Record<string, unknown> {
+  correlation_id: string;
+}
+
+/** usePlanHistoryPager — /api/plan_history (past plan runs; id = correlation_id). */
+export function usePlanHistoryPager(limit: number = 50) {
+  return useCursorPager<PlanHistoryRow>("/api/plan_history", "plans", "correlation_id", limit);
+}
+
+export interface ScheduleFiresRow extends Record<string, unknown> {
+  correlation_id: string;
+}
+
+/** useScheduleFiresPager — /api/schedule/fires (cronjob firings; id = correlation_id). */
+export function useScheduleFiresPager(limit: number = 50) {
+  return useCursorPager<ScheduleFiresRow>("/api/schedule/fires", "fires", "correlation_id", limit);
+}

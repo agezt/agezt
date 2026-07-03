@@ -302,7 +302,7 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 
 	out := make([]map[string]any, 0, len(events))
 	for _, e := range events {
-		row := map[string]any{"ts_unix_ms": e.ts, "kind": e.kind}
+		row := map[string]any{"ts_unix_ms": e.ts, "seq": e.seq, "kind": e.kind}
 		if e.kind == "route" {
 			row["primary"] = e.primary
 			row["chain"] = e.chain
