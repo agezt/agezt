@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { ShieldCheck, History, Check, X, Clock, RefreshCw } from "lucide-react";
 import { Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +8,8 @@ import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ActionButton } from "@/components/ActionButton";
 import { usePanel } from "@/lib/usePanel";
-import { getJSON } from "@/lib/api";
+import { useApprovalsLogPager } from "@/lib/cursorPager";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { cn, fmtTime } from "@/lib/utils";
 import { ErrorText, Muted } from "@/components/JsonView";
 
@@ -88,49 +88,50 @@ interface ResolvedApproval {
 // to-do; this is the record — the audit trail of the trust boundary, so you can review
 // what was allowed, what was refused, and who/what resolved it. Read-only.
 export function ApprovalsHistory() {
-  const [rows, setRows] = useState<ResolvedApproval[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  async function load() {
-    try {
-      const d = await getJSON<{ approvals?: ResolvedApproval[] }>("/api/approvals_log", { limit: "50" });
-      // The log includes still-pending rows; those live in the panel above, so the
-      // history shows only resolved decisions.
-      setRows((d.approvals || []).filter((a) => a.status && a.status !== "pending"));
-    } catch {
-      setRows([]);
-    } finally {
-      setLoaded(true);
-    }
-  }
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 8000);
-    return () => clearInterval(id);
-  }, []);
+  // The resolved-decision history is cursor-paginated via useApprovalsLogPager
+  // (the hook owns polling + live-event reload). The log envelope includes
+  // still-pending rows; those live in the panel above, so we filter to resolved
+  // decisions only for display. loadMore pulls the next raw page, then the same
+  // filter re-applies.
+  const { paged, loading, loadMore, loadingMore, moreError, hasMore } = useApprovalsLogPager(50);
+  const rows = (paged as unknown as ResolvedApproval[]).filter((a) => a.status && a.status !== "pending");
 
   return (
     <div className="glass rounded-xl p-3">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
         <History className="size-3.5" /> Decision history
-        {loaded && <span className="ml-1 normal-case text-muted/70">({rows.length})</span>}
+        {!loading && <span className="ml-1 normal-case text-muted/70">({rows.length})</span>}
       </div>
-      {!loaded ? (
+      {loading && paged.length === 0 ? (
         <Muted>loading…</Muted>
-      ) : rows.length === 0 ? (
+      ) : rows.length === 0 && !hasMore ? (
         <Muted>no resolved approvals yet — decisions you make above will be recorded here</Muted>
       ) : (
-        <ul className="space-y-1">
-          {rows.map((a, i) => (
-            <li key={a.approval_id || i} className="flex items-center gap-2 border-b border-border/40 py-1 text-xs last:border-0">
-              <StatusBadge status={a.status} />
-              <span className="shrink-0 font-mono text-[11px] text-foreground">{a.capability || a.tool || "?"}</span>
-              <span className="min-w-0 flex-1 truncate text-muted">{a.reason || a.tool || ""}</span>
-              {a.resolved_by && <span className="shrink-0 text-xs text-muted/80">by {a.resolved_by}</span>}
-              <span className="w-14 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.ts_unix_ms)}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          {rows.length > 0 && (
+            <ul className="space-y-1">
+              {rows.map((a, i) => (
+                <li key={a.approval_id || i} className="flex items-center gap-2 border-b border-border/40 py-1 text-xs last:border-0">
+                  <StatusBadge status={a.status} />
+                  <span className="shrink-0 font-mono text-[11px] text-foreground">{a.capability || a.tool || "?"}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted">{a.reason || a.tool || ""}</span>
+                  {a.resolved_by && <span className="shrink-0 text-xs text-muted/80">by {a.resolved_by}</span>}
+                  <span className="w-14 shrink-0 text-right tabular-nums text-muted">{fmtTime(a.ts_unix_ms)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* Footer stays reachable even when the current page filtered to
+              zero resolved rows, so loadMore can pull more history. */}
+          <LoadMoreFooter
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            moreError={moreError}
+            onLoadMore={loadMore}
+            pageSize={50}
+            label="decision history"
+          />
+        </>
       )}
     </div>
   );
