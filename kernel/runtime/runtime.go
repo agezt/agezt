@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -44,6 +45,7 @@ import (
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/okr"
 	"github.com/agezt/agezt/kernel/reflect"
+	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/seat"
@@ -170,6 +172,16 @@ type Config struct {
 	// 0 → DefaultShutdownDrainTimeout; negative → no wait (the historical
 	// immediate teardown).
 	ShutdownDrainTimeout time.Duration
+
+	// ResumeEnabled turns on durable run resume (M1002): a root run's dispatch
+	// context and conversation snapshot are persisted so that if the daemon goes
+	// down — stop/start, self-update, or hard kill — the run is re-dispatched on
+	// restart and continues instead of being abandoned. Off leaves the historical
+	// cancel-and-drop behaviour. The daemon defaults it on (default-allow posture).
+	ResumeEnabled bool
+	// ResumeSnapshotMaxBytes caps a serialized resume ticket; a larger snapshot is
+	// dropped (the run then resumes by intent-replay). 0 uses the package default.
+	ResumeSnapshotMaxBytes int
 
 	// SubAgentTool registers the in-process `delegate` tool (P6-MULTI-01) so
 	// a lead agent can spawn a bounded sub-agent for a focused subtask and get
@@ -522,6 +534,7 @@ type Kernel struct {
 	skillDir     *skill.FileStore
 	marketMgr    *market.Manager
 	standing     *standing.Store
+	resume       *resume.Store // durable in-flight-run tickets for restart resume (M1002); nil when disabled
 	roster       *roster.Store
 	toolForge    *toolforge.Store
 	mcpStore     *mcp.Store
@@ -562,14 +575,19 @@ type Kernel struct {
 	mcpMu    sync.Mutex // guards: mcpConns
 
 	halted bool
-	system string                        // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
-	model  string                        // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
-	runs   map[string]context.CancelFunc // correlation_id → cancel
-	fanout map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
-	tree   map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
-	steers map[string]*runControl        // correlation_id → live-steering control surface (M608)
-	spawns map[string]*spawnHandle       // child correlation_id → pending/finished async delegation (M881)
-	runWG  sync.WaitGroup                // in-flight runs + async spawn goroutines; Close drains it bounded (M883)
+	// suspending latches true when Suspend begins tearing the daemon down for a
+	// restart (M1002). A run cancelled while this is set is treated as INTERRUPTED
+	// (its ticket is kept for resume) rather than operator-cancelled (ticket
+	// deleted). Never cleared — the process is on its way out.
+	suspending atomic.Bool
+	system     string                        // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
+	model      string                        // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
+	runs       map[string]context.CancelFunc // correlation_id → cancel
+	fanout     map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
+	tree       map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
+	steers     map[string]*runControl        // correlation_id → live-steering control surface (M608)
+	spawns     map[string]*spawnHandle       // child correlation_id → pending/finished async delegation (M881)
+	runWG      sync.WaitGroup                // in-flight runs + async spawn goroutines; Close drains it bounded (M883)
 
 	// toolCaps is the validated declared-capability overlay (M900): tool name
 	// → Edict capability, consulted by policyHook before the built-in
@@ -720,6 +738,22 @@ func Open(cfg Config) (*Kernel, error) {
 		wstore.Close()
 		skstore.Close()
 		return nil, apperrors.WrapSimple("runtime: standing", err)
+	}
+
+	// Durable in-flight-run tickets (M1002): opened only when resume is enabled so
+	// a disabled daemon writes nothing. The store just prepares a directory, so a
+	// failure here is unusual but still unwinds the stores opened above.
+	var rsstore *resume.Store
+	if cfg.ResumeEnabled {
+		rsstore, err = resume.Open(filepath.Join(cfg.BaseDir, "resume"), cfg.ResumeSnapshotMaxBytes)
+		if err != nil {
+			j.Close()
+			st.Close()
+			mstore.Close()
+			wstore.Close()
+			skstore.Close()
+			return nil, apperrors.WrapSimple("runtime: resume", err)
+		}
 	}
 
 	rstore, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
@@ -889,6 +923,7 @@ func Open(cfg Config) (*Kernel, error) {
 		forge:        forge,
 		skillDir:     skstore,
 		standing:     ststore,
+		resume:       rsstore,
 		roster:       rstore,
 		toolForge:    tfstore,
 		mcpStore:     mcpstore,
@@ -983,7 +1018,8 @@ const DefaultShutdownDrainTimeout = 5 * time.Second
 // cancelled via Halt, then given a bounded drain window (M883) so a run
 // mid-journal-write finishes cleanly instead of racing store teardown.
 func (k *Kernel) Close() error {
-	k.Halt() // cancel any in-flight runs first
+	k.Suspend("close") // M1002: classify in-flight runs as resumable before Halt cancels them
+	k.Halt()           // cancel any in-flight runs first
 	// Drain: cancelled runs still need to unwind — publish their terminal
 	// task.failed, release fan-out tallies, return from tools that honour the
 	// cancel late. Wait bounded; a run wedged in a cancel-ignoring tool must
@@ -2011,6 +2047,8 @@ const (
 	ctxKeyWakeContext
 	ctxKeyAutoApproveCaps
 	ctxKeyTrustedObservations
+	ctxKeyResumeOwned // M1002: a resume ticket for this corr is already owned by an outer frame
+	ctxKeyResumeSeed  // M1002: prior conversation + iter to seed a resumed run
 )
 
 // agentIdent carries a named agent's identity + daily ceiling for the
@@ -2784,7 +2822,8 @@ func (k *Kernel) HaltWith(reason string) {
 // Use this instead of Halt() when the caller needs to know whether the drain
 // completed within the timeout, e.g. for update vs. shutdown decisions.
 func (k *Kernel) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns int) {
-	k.Halt() // cancel and mark halted; no-op if already halted
+	k.Suspend("drain") // M1002: classify in-flight runs as resumable BEFORE cancelling them
+	k.Halt()           // cancel and mark halted; no-op if already halted
 	k.runsMu.Lock()
 	activeRuns = len(k.runs)
 	k.runsMu.Unlock()
@@ -2892,6 +2931,11 @@ const assureVerifyMaxTokens = 400
 // whole objective streams and journals under one correlation id. Returns the
 // final answer and the loop result (attempts, completion, per-attempt history).
 func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error) {
+	// Resume ticket ownership (M1002): the assure wrapper owns one ticket for the
+	// whole objective; inner attempts (RunWith/RunWithRetry) reuse the corr and
+	// skip creation. On resume the objective re-runs from attempt 1 (re-verification
+	// is cheap), so no inner message snapshot is kept for an assured ticket.
+	ctx, owns := k.claimResumeTicket(ctx, corr, intent, resume.KindAssured, maxAttempts)
 	res, err := assure.Until(ctx, intent, maxAttempts,
 		func(ctx context.Context, _ int, task string) (string, error) {
 			if pol, ok := agentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
@@ -2903,6 +2947,9 @@ func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 			return k.verifyCompletion(ctx, corr, task, answer)
 		},
 	)
+	if owns {
+		k.finalizeResumeTicket(corr, err)
+	}
 	return res.Answer, res, err
 }
 
@@ -2910,7 +2957,7 @@ func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 // This is distinct from provider retry (one LLM request) and RunAssured
 // (semantic completion verification): it retries the whole governed run after a
 // terminal error, journaling each retry decision under the same correlation.
-func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error) {
+func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (ans string, err error) {
 	max := pol.MaxAttempts
 	if max <= 1 {
 		return k.RunWith(ctx, corr, intent)
@@ -2918,9 +2965,18 @@ func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol rost
 	if max > 10 {
 		max = 10
 	}
+	// Resume ticket ownership (M1002): the retry wrapper owns one ticket across
+	// all attempts; the inner RunWith calls reuse the corr and skip creation. The
+	// deferred finalize reads the final named err, so a shutdown-interrupted retry
+	// keeps its ticket while a genuine give-up deletes it.
+	var owns bool
+	ctx, owns = k.claimResumeTicket(ctx, corr, intent, resume.KindRetry, 0)
+	if owns {
+		defer func() { k.finalizeResumeTicket(corr, err) }()
+	}
 	var lastErr error
 	for attempt := 1; attempt <= max; attempt++ {
-		ans, err := k.RunWith(ctx, corr, intent)
+		ans, err = k.RunWith(ctx, corr, intent)
 		if err == nil {
 			return ans, nil
 		}
@@ -3527,6 +3583,23 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 	wake := wakeContextFromCtx(runCtx)
 
+	// Durable resume (M1002): a root run owns a ticket unless a governed wrapper
+	// (RunAssured/RunWithRetry) or the resumer already created one for this corr.
+	// A message-bearing run (Kind=run, fresh or resumed) also refreshes its
+	// conversation snapshot each iteration via the Checkpoint hook, and a resumed
+	// run seeds the saved conversation so it continues where it left off.
+	var ownedHere bool
+	runCtx, ownedHere = k.claimResumeTicket(runCtx, corr, intent, resume.KindRun, 0)
+	var resumeCheckpoint func(int, []agent.Message)
+	var resumePriorMessages []agent.Message
+	var resumeStartIter int
+	if kind, owned := resumeOwnedKind(runCtx); ownedHere || (owned && kind == resume.KindRun) {
+		resumeCheckpoint = k.resumeCheckpointFn(corr)
+		if msgs, it, ok := resumeSeedFromCtx(runCtx); ok {
+			resumePriorMessages, resumeStartIter = msgs, it
+		}
+	}
+
 	answer, err := agent.Run(runCtx, agent.LoopConfig{
 		Provider:             k.cfg.Provider,
 		Tools:                runTools,
@@ -3566,8 +3639,19 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
 		SummarizeElided:      summarizeElided,           // M398: abstractive summary of dropped outputs
 		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
-		Steer:                rc, // M608: live operator steering
+		Steer:                rc,                  // M608: live operator steering
+		Checkpoint:           resumeCheckpoint,    // M1002: persist snapshot each iteration
+		PriorMessages:        resumePriorMessages, // M1002: seed a resumed run's conversation
+		StartIter:            resumeStartIter,     // M1002: continue iter numbering on resume
 	}, intent)
+
+	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but
+	// keep it if the run was interrupted by shutdown (finalizeResumeTicket honours
+	// k.suspending). Only when THIS frame owns the ticket — a wrapper/resumer owns
+	// it otherwise and clears it on its own return.
+	if ownedHere {
+		k.finalizeResumeTicket(corr, err)
+	}
 
 	// Deregister the steering control the instant the agent loop returns — BEFORE
 	// the post-run work below (skill-outcome attribution, memory distillation,

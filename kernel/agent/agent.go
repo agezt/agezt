@@ -442,6 +442,26 @@ type LoopConfig struct {
 	// overhead. Implementations must be safe for concurrent use: the operator
 	// drives them from another goroutine while the loop runs.
 	Steer Steerer
+	// PriorMessages, when non-empty, seeds the loop with an existing conversation
+	// instead of a fresh user turn — the mechanism the daemon uses to RESUME a run
+	// interrupted by a restart (M1002). The slice is the run's message history as
+	// captured at a safe iteration boundary (a complete assistant→tool set), so
+	// tool-call/result pairing stays consistent. Its first element is already the
+	// original user-intent turn, so it REPLACES that turn (the loop does not
+	// prepend a second). nil (the default) is a normal fresh run.
+	PriorMessages []Message
+	// StartIter is the iteration number a resumed run continues from, so journal
+	// iter numbers keep climbing and the resumed run gets a full fresh MaxIter
+	// budget from that point. 0 for a fresh run.
+	StartIter int
+	// Checkpoint, when set, is called at the top of every iteration (the same safe
+	// boundary Steer uses) with the current iteration number and the conversation
+	// so far. The daemon persists it (M1002) so the run can resume after a restart.
+	// Called on the loop goroutine — the implementation MUST be cheap and
+	// non-blocking, and MUST copy the slice if it retains it (the loop keeps
+	// appending to the passed messages). nil disables checkpointing with zero
+	// overhead.
+	Checkpoint func(iter int, messages []Message)
 }
 
 // Steerer is the optional per-run control surface the loop consults at the top
@@ -961,6 +981,13 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	messages := []Message{
 		{Role: RoleUser, Content: userIntent, Images: cfg.Images},
 	}
+	if len(cfg.PriorMessages) > 0 {
+		// Resume (M1002): continue the interrupted conversation rather than
+		// starting fresh. The snapshot already opens with the original intent turn,
+		// so adopt it as-is instead of prepending a duplicate. Copy so a caller's
+		// backing array is never mutated by the loop's appends.
+		messages = append([]Message(nil), cfg.PriorMessages...)
+	}
 
 	tools := make([]ToolDef, 0, len(cfg.Tools))
 	for name, t := range cfg.Tools {
@@ -1038,8 +1065,14 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// `iter` is monotonic across segments (so journal iter numbers keep climbing);
 	// segmentEnd is the round budget for the current segment.
 	autoContinuesUsed := 0
-	segmentEnd := cfg.MaxIter
-	for iter := 0; ; iter++ {
+	// Resume (M1002) continues from StartIter with a full fresh MaxIter segment;
+	// StartIter == 0 (a fresh run) reduces to the original segmentEnd := cfg.MaxIter.
+	iterStart := cfg.StartIter
+	if iterStart < 0 {
+		iterStart = 0
+	}
+	segmentEnd := iterStart + cfg.MaxIter
+	for iter := iterStart; ; iter++ {
 		if iter >= segmentEnd {
 			// Segment exhausted without a final answer. Continue automatically if
 			// budget remains; otherwise fall through to ErrMaxIter.
@@ -1073,6 +1106,17 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		}
 		if err := ctx.Err(); err != nil {
 			return "", err
+		}
+
+		// Resume checkpoint (M1002): snapshot the conversation at this safe
+		// boundary. The previous iteration's model turn and its tool results are
+		// fully settled here (every early exit between them is a return, not a
+		// continue), so `messages` ends on a complete assistant→tool set with no
+		// dangling tool_call — the daemon can persist and later re-seed it without
+		// corrupting tool-call pairing. Placed before Steer so a paused run's state
+		// is still captured.
+		if cfg.Checkpoint != nil {
+			cfg.Checkpoint(iter, messages)
 		}
 
 		// Live steering (M608): honour an operator pause at this safe boundary

@@ -67,6 +67,7 @@ import (
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/restapi"
+	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
@@ -125,7 +126,6 @@ import (
 	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
 	counciltool "github.com/agezt/agezt/plugins/tools/council"
-	researchtool "github.com/agezt/agezt/plugins/tools/research"
 	dbtool "github.com/agezt/agezt/plugins/tools/db"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
@@ -137,6 +137,7 @@ import (
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/overseertool"
 	"github.com/agezt/agezt/plugins/tools/peer"
+	researchtool "github.com/agezt/agezt/plugins/tools/research"
 	"github.com/agezt/agezt/plugins/tools/runstool"
 	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
 	"github.com/agezt/agezt/plugins/tools/sendmedia"
@@ -569,6 +570,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// its OS/shell/workspace to act correctly (esp. on Windows). AGEZT_ENV_INJECT=off
 	// disables it for operators who pin everything via a custom system prompt.
 	envInjectOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"ENV_INJECT"), "off")
+	// Durable run resume (M1002): on by default (default-allow posture). A root
+	// run's dispatch context + conversation snapshot are persisted so a restart
+	// — stop/start, self-update, or hard kill — re-dispatches the run instead of
+	// abandoning it. AGEZT_RESUME=off restores the historical cancel-and-drop.
+	resumeOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"RESUME"), "off")
+	// AGEZT_RESUME_SNAPSHOT_MAX_BYTES caps a serialized ticket; a larger snapshot
+	// is dropped (the run then resumes by intent-replay). 0 → package default.
+	resumeSnapshotMaxBytes := 0
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RESUME_SNAPSHOT_MAX_BYTES")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			resumeSnapshotMaxBytes = n
+		}
+	}
 	// Multi-agent delegation (P6-MULTI-01): the `delegate` tool lets a lead
 	// agent spawn bounded sub-agents. On by default; AGEZT_SUBAGENT=off disables
 	// it, AGEZT_SUBAGENT_DEPTH sets how deep delegation may nest (default 1).
@@ -836,7 +850,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		DisableHeuristicBypass:     disableHeuristicBypass,
 		ShadowEval:                 shadowEval,
 		SubAgentTool:               subAgentOn,
-		MarketTool:                 true, // agents can discover + install capability packs mid-task
+		ResumeEnabled:              resumeOn,               // M1002: durable in-flight-run resume across restarts
+		ResumeSnapshotMaxBytes:     resumeSnapshotMaxBytes, // M1002
+		MarketTool:                 true,                   // agents can discover + install capability packs mid-task
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
 		SubAgentMaxSpendMicrocents: subAgentSpendCap,
@@ -2171,6 +2187,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingBrief)
 	srv.SetStandingFire(fireStandingNow)
 	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
+	// Resume interrupted runs (M1002): re-dispatch any run that a prior restart —
+	// stop/start, self-update, or hard kill — left mid-flight, so ongoing work
+	// survives the interruption. Runs the roster + run infra armed just above.
+	fmt.Fprintf(stdout, "  run resume       : %s\n", buildResumer(ctx, k))
 	fmt.Fprintf(stdout, "  auto repair      : %s\n", wireAutoRepair(ctx, k, baseDir, boardStore, boardNotify))
 
 	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
@@ -2244,6 +2264,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// kill work mid-flight. AGEZT_DRAIN_TIMEOUT tunes the wait (default 15s; 0 =
 	// no wait, the old immediate-halt behavior).
 	draining.Store(true)
+	// Durable resume (M1002): classify in-flight runs as resumable and notify them
+	// BEFORE the drain/cancel below, so a run still cancelled at the end of the
+	// drain window keeps its ticket (→ resumed on restart) rather than being
+	// recorded as operator-cancelled and dropped. Cooperating agents also get the
+	// whole drain window to wrap up. Idempotent with the Suspend inside Close.
+	if k != nil {
+		if n := k.Suspend("shutdown"); n > 0 {
+			fmt.Fprintf(stdout, "  suspend: %d in-flight run(s) marked to resume on restart\n", n)
+		}
+	}
 	drainTimeout := 15 * time.Second
 	if v := os.Getenv(brand.EnvPrefix + "DRAIN_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
@@ -5707,6 +5737,159 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		return "disabled", fireNow
 	}
 	return fmt.Sprintf("on (event + cron triggers; %d order(s) defined)", k.Standing().Count()), fireNow
+}
+
+// buildResumer re-dispatches runs that were interrupted by a restart (M1002). On
+// boot, any ticket left in the resume store is a run that did not finish cleanly
+// (a clean finish deletes its ticket) — self-update, stop/start, or hard kill.
+// Each resumable ticket is re-dispatched through the SAME governed entry point it
+// used, seeded with its saved conversation so a Kind=run continues where it left
+// off. The resumer owns the ticket lifecycle for the runs it launches: it marks
+// them owned (so the inner RunWith/wrapper neither recreates the ticket — which
+// would reset the crash-loop counter — nor deletes it) and finalizes on return.
+//
+// Safety rails: a ticket that used an un-reconstructable per-run override, whose
+// agent is gone, or that has exceeded AGEZT_RESUME_MAX_ATTEMPTS is quarantined
+// (moved aside for postmortem) rather than re-dispatched, so a poison run can
+// never wedge boot. The attempt counter is incremented and fsynced BEFORE
+// dispatch, so a resume that hard-crashes the daemon still records the attempt.
+func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
+	store := k.ResumeStore()
+	if store == nil {
+		return "disabled"
+	}
+	tickets, err := store.List()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "resume: list tickets: %v\n", err)
+		return "error"
+	}
+	if len(tickets) == 0 {
+		return "none pending"
+	}
+	maxAttempts := 3
+	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RESUME_MAX_ATTEMPTS")); v != "" {
+		if n, aerr := strconv.Atoi(v); aerr == nil && n > 0 {
+			maxAttempts = n
+		}
+	}
+
+	quarantine := func(t *resume.Ticket, reason string) {
+		_ = store.Quarantine(t.Corr)
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "run.resume.quarantined",
+			Kind:          event.KindAnomalyDetected,
+			Actor:         "resume",
+			CorrelationID: t.Corr,
+			Payload:       map[string]any{"corr": t.Corr, "agent": t.AgentSlug, "attempts": t.Attempts, "reason": reason, "severity": "warning"},
+		})
+	}
+
+	resumed := 0
+	for _, t := range tickets {
+		if !t.Resumable {
+			quarantine(t, "non-resumable (per-run override cannot be reconstructed)")
+			continue
+		}
+		if t.Attempts >= maxAttempts {
+			quarantine(t, fmt.Sprintf("exceeded resume attempt cap (%d)", maxAttempts))
+			continue
+		}
+		// Resolve the agent this run ran AS. If it named an agent that is now gone
+		// or disabled, quarantine rather than silently resume under the default
+		// identity (which would run with the wrong persona/tools/ceilings).
+		var prof *roster.Profile
+		if slug := strings.TrimSpace(t.AgentSlug); slug != "" {
+			p, ok := k.Roster().Get(slug)
+			if !ok || p.Retired || !p.Enabled {
+				quarantine(t, "agent "+slug+" is gone, retired, or disabled")
+				continue
+			}
+			prof = &p
+		}
+		// Record the attempt durably BEFORE dispatch: a resume that hard-crashes the
+		// daemon must still have counted, or the crash-loop guard never trips.
+		if _, aerr := store.IncrementAttempt(t.Corr); aerr != nil {
+			fmt.Fprintf(os.Stderr, "resume: increment attempt for %s: %v\n", t.Corr, aerr)
+			continue
+		}
+
+		// Rebuild the run context from the ticket's resolved fields. The resumer
+		// OWNS the ticket, so mark it owned to stop the inner RunWith recreating it.
+		rctx := kernelruntime.WithResumeOwned(ctx, t.Kind)
+		if prof != nil {
+			rctx = kernelruntime.WithAgentProfile(rctx, *prof)
+		}
+		rctx = kernelruntime.WithWakeContext(rctx, kernelruntime.WakeContext{
+			Source:         firstNonEmpty(t.WakeSource, "resume"),
+			Reason:         "resumed",
+			ScheduleID:     t.WakeScheduleID,
+			StandingID:     t.WakeStandingID,
+			StandingName:   t.WakeStandingName,
+			TriggerSubject: t.WakeTriggerSubject,
+		})
+		// Governance invariant (M1002): a tightened trust ceiling MUST be re-applied
+		// so a resumed run never silently regains authority.
+		if t.TrustCeiling != nil {
+			rctx = kernelruntime.WithTrustCeiling(rctx, edict.TrustLevel(*t.TrustCeiling))
+		}
+		if t.MaxCostMc > 0 {
+			rctx = kernelruntime.WithMaxCost(rctx, t.MaxCostMc)
+		}
+		if t.RunTimeoutMs > 0 {
+			rctx = kernelruntime.WithRunTimeout(rctx, time.Duration(t.RunTimeoutMs)*time.Millisecond)
+		}
+		// Continue the interrupted conversation for a message-bearing run; assured/
+		// retry re-run from the top (cheap re-verification), so they carry no seed.
+		if t.Kind == resume.KindRun && len(t.Messages) > 0 {
+			rctx = kernelruntime.WithResumeSeed(rctx, t.Messages, t.Iter)
+		}
+
+		resumed++
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject:       "run.resumed",
+			Kind:          event.KindInfo,
+			Actor:         "resume",
+			CorrelationID: t.Corr,
+			Payload:       map[string]any{"corr": t.Corr, "agent": t.AgentSlug, "kind": t.Kind, "iter": t.Iter, "attempt": t.Attempts + 1, "seeded": len(t.Messages) > 0},
+		})
+		go func() {
+			// Contain a panic to this run — a bad resumed run must not take down boot.
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Fprintf(os.Stderr, "resume: run %s panicked: %v\n", t.Corr, r)
+					k.ResumeFinalize(t.Corr, fmt.Errorf("resume panic: %v", r))
+				}
+			}()
+			var rerr error
+			switch t.Kind {
+			case resume.KindAssured:
+				budget := t.AssureBudget
+				if budget <= 0 {
+					budget = 1
+				}
+				_, _, rerr = k.RunAssured(rctx, t.Corr, t.Intent, budget)
+			case resume.KindRetry:
+				if prof != nil && prof.RetryPolicy != nil && prof.RetryPolicy.MaxAttempts > 1 {
+					_, rerr = k.RunWithRetry(rctx, t.Corr, t.Intent, *prof.RetryPolicy)
+				} else {
+					_, rerr = k.RunWith(rctx, t.Corr, t.Intent)
+				}
+			default:
+				_, rerr = k.RunWith(rctx, t.Corr, t.Intent)
+			}
+			// The resumer owns the ticket: clear it on a clean/failed terminal, keep
+			// it if a NEW shutdown interrupted the resumed run.
+			k.ResumeFinalize(t.Corr, rerr)
+		}()
+	}
+	quarantined := len(tickets) - resumed
+	if resumed == 0 {
+		return fmt.Sprintf("none resumable (%d quarantined)", quarantined)
+	}
+	if quarantined > 0 {
+		return fmt.Sprintf("%d run(s) resumed, %d quarantined", resumed, quarantined)
+	}
+	return fmt.Sprintf("%d run(s) resumed", resumed)
 }
 
 // delegationBanner renders the active multi-agent delegation ceilings (M58) for
