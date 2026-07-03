@@ -10,6 +10,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { BarList } from "@/components/Charts";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { useProviderLogPager } from "@/lib/cursorPager";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 interface Stats {
   routed?: number;
@@ -35,10 +37,22 @@ export function Providers() {
   const { events } = useEvents();
   const ui = useUI();
   const [stats, setStats] = useState<Stats | null>(null);
-  const [log, setLog] = useState<LogEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [reloading, setReloading] = useState(false);
+
+  // The routing log is cursor-paginated via useProviderLogPager: the hook owns
+  // its own polling + live-event reload (see lib/usePanel), so the stats
+  // reload() below no longer fetches /api/provider_log. Rows arrive as the
+  // generic LogRow shape; we read them back as LogEvent for rendering.
+  const {
+    paged: logRows,
+    loadMore,
+    loadingMore,
+    moreError,
+    hasMore,
+  } = useProviderLogPager(50);
+  const log = logRows as unknown as LogEvent[];
 
   // Re-read credentials + catalog on the daemon, in place (M745) — apply a key or
   // provider change without restarting. Distinct from Refresh, which only re-fetches
@@ -66,15 +80,15 @@ export function Providers() {
 
   async function reload() {
     setLoading(true);
-    const [s, l] = await Promise.allSettled([
-      getJSON<Stats>("/api/providers"),
-      getJSON<{ events?: LogEvent[] }>("/api/provider_log", { limit: "50" }),
-    ]);
-    if (s.status === "fulfilled") {
-      setStats(s.value);
+    // Only the routing stats are fetched here now — the routing log is owned
+    // by useProviderLogPager (which polls and reloads on live events itself).
+    try {
+      const s = await getJSON<Stats>("/api/providers");
+      setStats(s);
       setErr(null);
-    } else setErr((s.reason as Error).message);
-    if (l.status === "fulfilled") setLog(l.value.events || []);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
     setLoading(false);
   }
   useEffect(() => {
@@ -155,24 +169,37 @@ export function Providers() {
             {log.length === 0 ? (
               <Muted>no routing events</Muted>
             ) : (
-              <ul className="max-h-80 overflow-auto font-mono text-xs">
-                {log.map((ev, i) => (
-                  <li key={i} className="flex items-center gap-2 border-b border-border/40 py-1 last:border-0">
-                    <span className="w-14 shrink-0 tabular-nums text-muted">{fmtTime(ev.ts_unix_ms)}</span>
-                    {ev.kind === "fallback" ? (
-                      <span className="text-bad">
-                        ↻ fallback {ev.failed || "?"} → {ev.next || "?"}
-                        {ev.reason ? <span className="text-muted"> · {ev.reason.slice(0, 80)}</span> : null}
-                      </span>
-                    ) : (
-                      <span className="text-accent">
-                        → route {ev.primary || "?"}
-                        {ev.task_type ? <span className="text-muted"> · {ev.task_type}</span> : null}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="max-h-80 overflow-auto font-mono text-xs">
+                  {log.map((ev, i) => (
+                    <li
+                      key={(ev as { seq?: number }).seq ?? i}
+                      className="flex items-center gap-2 border-b border-border/40 py-1 last:border-0"
+                    >
+                      <span className="w-14 shrink-0 tabular-nums text-muted">{fmtTime(ev.ts_unix_ms)}</span>
+                      {ev.kind === "fallback" ? (
+                        <span className="text-bad">
+                          ↻ fallback {ev.failed || "?"} → {ev.next || "?"}
+                          {ev.reason ? <span className="text-muted"> · {ev.reason.slice(0, 80)}</span> : null}
+                        </span>
+                      ) : (
+                        <span className="text-accent">
+                          → route {ev.primary || "?"}
+                          {ev.task_type ? <span className="text-muted"> · {ev.task_type}</span> : null}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <LoadMoreFooter
+                  hasMore={hasMore}
+                  loadingMore={loadingMore}
+                  moreError={moreError}
+                  onLoadMore={loadMore}
+                  pageSize={50}
+                  label="routing log"
+                />
+              </>
             )}
           </ProviderPanel>
         </>
