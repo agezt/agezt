@@ -8,6 +8,8 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Ring } from "@/components/Widgets";
+import { useToolLogPager } from "@/lib/cursorPager";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 interface ToolStat {
   calls?: number;
@@ -161,25 +163,34 @@ function rollbackBadge(v: ToolView): { label: string; tone: "good" | "warn" | "b
 export function Tools() {
   const { events } = useEvents();
   const [stats, setStats] = useState<Stats | null>(null);
-  const [log, setLog] = useState<Invocation[]>([]);
   const [catalog, setCatalog] = useState<ToolDef[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [capFilter, setCapFilter] = useState("");
 
+  // The invocation log is cursor-paginated via useToolLogPager (which owns its
+  // own polling + live-event reload); reload() below fetches only the stats and
+  // catalog. Rows arrive as the generic LogRow shape; read back as Invocation.
+  const {
+    paged: logRows,
+    loadMore,
+    loadingMore,
+    moreError,
+    hasMore,
+  } = useToolLogPager(50);
+  const log = logRows as unknown as Invocation[];
+
   async function reload() {
     setLoading(true);
-    const [s, l, c] = await Promise.allSettled([
+    const [s, c] = await Promise.allSettled([
       getJSON<Stats>("/api/tools"),
-      getJSON<{ invocations?: Invocation[] }>("/api/tool_log", { limit: "50" }),
       getJSON<{ tools?: ToolDef[] }>("/api/tools_catalog"),
     ]);
     if (s.status === "fulfilled") {
       setStats(s.value);
       setErr(null);
     } else setErr((s.reason as Error).message);
-    if (l.status === "fulfilled") setLog(l.value.invocations || []);
     if (c.status === "fulfilled") setCatalog(c.value.tools || []);
     setLoading(false);
   }
@@ -369,24 +380,34 @@ export function Tools() {
             {log.length === 0 ? (
               <Muted>no invocations</Muted>
             ) : (
-              <ul className="max-h-80 overflow-auto font-mono text-xs">
-                {log.map((ev, i) => (
-                  <li
-                    key={i}
-                    className={cn("flex items-center gap-2 border-b border-border/40 py-1 last:border-0", ev.error && "bg-bad/5")}
-                  >
-                    <span className="w-14 shrink-0 tabular-nums text-muted">{fmtTime(ev.ts_unix_ms)}</span>
-                    <span className={cn("w-28 shrink-0 truncate font-medium", ev.error ? "text-bad" : "text-accent")}>
-                      {ev.error ? "✗" : "✓"} {ev.tool || "?"}
-                    </span>
-                    {ev.duration_ms != null && <span className="w-12 shrink-0 tabular-nums text-muted">{ms(ev.duration_ms)}</span>}
-                    <ObservationBadge ev={ev} />
-                    <span className="min-w-0 flex-1 truncate text-muted">
-                      {[ev.input, ev.output].filter(Boolean).map((s) => clip(String(s), 60)).join(" → ")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="max-h-80 overflow-auto font-mono text-xs">
+                  {log.map((ev, i) => (
+                    <li
+                      key={(ev as { seq?: number }).seq ?? i}
+                      className={cn("flex items-center gap-2 border-b border-border/40 py-1 last:border-0", ev.error && "bg-bad/5")}
+                    >
+                      <span className="w-14 shrink-0 tabular-nums text-muted">{fmtTime(ev.ts_unix_ms)}</span>
+                      <span className={cn("w-28 shrink-0 truncate font-medium", ev.error ? "text-bad" : "text-accent")}>
+                        {ev.error ? "✗" : "✓"} {ev.tool || "?"}
+                      </span>
+                      {ev.duration_ms != null && <span className="w-12 shrink-0 tabular-nums text-muted">{ms(ev.duration_ms)}</span>}
+                      <ObservationBadge ev={ev} />
+                      <span className="min-w-0 flex-1 truncate text-muted">
+                        {[ev.input, ev.output].filter(Boolean).map((s) => clip(String(s), 60)).join(" → ")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <LoadMoreFooter
+                  hasMore={hasMore}
+                  loadingMore={loadingMore}
+                  moreError={moreError}
+                  onLoadMore={loadMore}
+                  pageSize={50}
+                  label="invocation log"
+                />
+              </>
             )}
           </Card>
         </>
