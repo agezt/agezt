@@ -929,7 +929,18 @@ func (g *Governor) Complete(ctx context.Context, req agent.CompletionRequest) (*
 			return nil, err
 		}
 		return g.runChain(ctx, r, chain, func(p *ProviderInfo) (*agent.CompletionResponse, error) {
-			return p.Provider.Complete(ctx, r)
+			// A provider returning (nil, nil) violates the contract and would
+			// panic every downstream resp.Message deref (and the governor's own
+			// usage accounting). Normalize it to an error at the provider
+			// boundary — the one choke point every governed call flows through —
+			// so callers degrade via their existing err checks instead of
+			// crashing (mirrors kernel/agent's loop guard). A nil-returning entry
+			// is then treated like a failing one, so the fallback chain proceeds.
+			resp, err := p.Provider.Complete(ctx, r)
+			if err == nil && resp == nil {
+				return nil, fmt.Errorf("governor: provider %s returned a nil response without an error", p.Name)
+			}
+			return resp, err
 		})
 	})
 	if err == nil && resp != nil && g.respCache != nil {
