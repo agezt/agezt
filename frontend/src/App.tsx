@@ -68,6 +68,7 @@ import {
 import { cn } from "@/lib/utils";
 import { postAction, getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { ConnectionChip } from "@/components/ConnectionChip";
 import { ingestCouncilEvent } from "@/lib/councilStore";
 import { ingestConductorEvent } from "@/lib/conductorStore";
 import { attentionAlertCount } from "@/lib/alerts";
@@ -1099,15 +1100,7 @@ function Header({
         <Menu className="size-5" />
       </button>
       <ConsoleName />
-      <span
-        className={cn(
-          "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium sm:px-2",
-          connected ? "border-good/30 bg-good/10 text-good" : "border-bad/30 bg-bad/10 text-bad",
-        )}
-        title={connected ? "live" : "disconnected"}
-      >
-        ● <span className="hidden sm:inline">{connected ? "live" : "disconnected"}</span>
-      </span>
+      <ConnectionChip />
       {/* Always-visible "something is working" chip: lights up whenever a run is
           in flight anywhere (chat reply, tool call, autonomous agent), so the
           background never reads as a frozen screen. */}
