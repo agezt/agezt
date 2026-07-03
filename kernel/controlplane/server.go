@@ -443,6 +443,27 @@ func (s *Server) acceptLoop(ctx context.Context) {
 	}
 }
 
+// cancelOnConnClose derives a child context that is cancelled when the client
+// closes conn. For synchronous request/response handlers (research/council/
+// conductor) a disconnected client means the result can no longer be delivered,
+// so continuing to spend model calls is pure waste. It generalizes the run
+// disconnect sentinel in handleRun: since these handlers read exactly one
+// request and the client then sends nothing, a blocking Read unblocks only on
+// disconnect (or when the handler itself returns and handleConn closes the
+// conn, at which point the cancel is a harmless no-op). The caller must
+// defer the returned cancel. Unlike run, this is always on: these handlers have
+// no detach path, so there is nothing to preserve by keeping the work alive.
+func cancelOnConnClose(ctx context.Context, conn net.Conn) (context.Context, context.CancelFunc) {
+	cctx, cancel := context.WithCancel(ctx)
+	go func() {
+		_ = conn.SetReadDeadline(time.Time{}) // clear the 10-min handleConn read deadline
+		buf := make([]byte, 1)
+		_, _ = conn.Read(buf) // blocks until the client disconnects or the conn closes
+		cancel()
+	}()
+	return cctx, cancel
+}
+
 func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	// Contain a panic ANYWHERE in this connection's handling — including the

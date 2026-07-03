@@ -71,6 +71,11 @@ func (s *Server) handleCouncilAsk(ctx context.Context, conn net.Conn, req Reques
 	if corr == "" {
 		corr = s.k.NewCorrelation()
 	}
+	// A disconnected client can't receive the deliberation — cancel the panel
+	// instead of spending every seat's model call into a closed connection.
+	ctx, cancel := cancelOnConnClose(ctx, conn)
+	defer cancel()
+
 	res, err := s.k.Council(ctx, corr, question, nil, rounds)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})

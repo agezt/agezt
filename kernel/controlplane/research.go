@@ -35,6 +35,11 @@ func (s *Server) handleResearchAsk(ctx context.Context, conn net.Conn, req Reque
 		}
 	}
 
+	// A disconnected client can't receive the report — cancel the (model-heavy)
+	// harness instead of spending it into a closed connection.
+	ctx, cancel := cancelOnConnClose(ctx, conn)
+	defer cancel()
+
 	rep, err := s.k.Research(ctx, corr, question, runtime.ResearchOptions{
 		MaxSubQuestions: dlInt(req.Args, "max_sub_questions"),
 		MaxSources:      dlInt(req.Args, "max_sources"),
