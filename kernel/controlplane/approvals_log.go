@@ -15,6 +15,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 // handleApprovalsStats aggregates HITL approvals (M88) — total / granted /
@@ -158,6 +159,7 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	deniedOnly, _ := req.Args["denied"].(bool)
 	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper
 
@@ -252,6 +254,15 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 		}
 		return rows[i].seq > rows[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := rows[:0]
+		for _, r := range rows {
+			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -270,9 +281,13 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 			"resolved_by":    a.resolvedBy,
 		})
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(rows); n > 0 {
+		nextCursor = journal.NextCursor(rows[n-1].ts, rows[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"approvals": out, "count": len(out)},
+		Result: map[string]any{"approvals": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
