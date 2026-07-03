@@ -10,14 +10,13 @@ package controlplane
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -251,55 +250,9 @@ func (s *Server) collectRuns(k *runtime.Kernel) (map[string]*runEntry, error) {
 	return runs, nil
 }
 
-// decodeRunsCursor parses the opaque "after this entry, give me older
-// runs" cursor sent by the web UI. The format is `<ms>:<seq>` — the pair
-// that uniquely identifies the boundary entry on the previous page, in
-// the same (StartedUnixMS, StartedSeq) sort order handleRunsList uses.
-//
-// Returns all-zeros when the cursor is absent or unparseable; callers treat
-// that as "no cursor, return the newest page". We don't error on a bad
-// cursor — the request gracefully falls back to the first page, which is
-// closer to "the user got their list" than "the user got an error".
-func decodeRunsCursor(raw any) (ms int64, seq int64, ok bool) {
-	s, _ := raw.(string)
-	if s == "" {
-		return 0, 0, false
-	}
-	// Web URLSearchParams will percent-encode the colon, so we tolerate both
-	// raw `<ms>:<seq>` and the URL-encoded `<ms>%3A<seq>` form.
-	i := strings.IndexByte(s, ':')
-	if i <= 0 || i >= len(s)-1 {
-		return 0, 0, false
-	}
-	parsed, err := strconv.ParseInt(s[:i], 10, 64)
-	if err != nil {
-		return 0, 0, false
-	}
-	parsedSeq, err := strconv.ParseInt(s[i+1:], 10, 64)
-	if err != nil {
-		return 0, 0, false
-	}
-	// A negative ms or seq means the cursor was forged, or aged out, or
-	// hand-crafted by the operator — none of those are valid positions in
-	// the journal. Treat the cursor as malformed and fall back to the
-	// first page.
-	if parsed < 0 || parsedSeq < 0 {
-		return 0, 0, false
-	}
-	return parsed, parsedSeq, true
-}
-
-// encodeRunsCursor is the inverse of decodeRunsCursor: it takes the last
-// emitted entry's sort key and returns an opaque, easy-to-URL-encode token
-// the client passes back as the `cursor` arg on the next page request.
-func encodeRunsCursor(ms int64, seq int64) string {
-	if ms == 0 && seq == 0 {
-		return ""
-	}
-	// Plain "<ms>:<seq>" — round-trips through Go's fmt and through JS's
-	// URLSearchParams as long as the field is percent-encoded.
-	return fmt.Sprintf("%d:%d", ms, seq)
-}
+// Cursor encode/decode/filter now live in kernel/journal (shared by every
+// journal-backed list endpoint). See journal.DecodeCursor / EncodeCursor /
+// KeepBeforeCursor / NextCursor and docs/REFACTOR-A1-CONTROLPLANE-PLAN.md.
 
 func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	limit := defaultRunsLimit
@@ -325,7 +278,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	// (ms, seq) pair the token encodes. Cursor is optional — a missing or
 	// unparseable cursor falls back to the newest page, which is what the
 	// first call of a session does anyway.
-	cursorMS, cursorSeq, cursorOK := decodeRunsCursor(req.Args["cursor"])
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"])
 
 	// Optional status filter (M61): completed|failed|running|abandoned.
 	statusFilter, _ := req.Args["status"].(string)
@@ -404,13 +357,9 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	if cursorOK {
 		filtered := entries[:0]
 		for _, r := range entries {
-			if r.StartedUnixMS > cursorMS {
-				continue
+			if journal.KeepBeforeCursor(r.StartedUnixMS, r.StartedSeq, cursorMS, cursorSeq) {
+				filtered = append(filtered, r)
 			}
-			if r.StartedUnixMS == cursorMS && r.StartedSeq >= cursorSeq {
-				continue
-			}
-			filtered = append(filtered, r)
 		}
 		entries = filtered
 	}
@@ -480,11 +429,7 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	var nextCursor string
 	if n := len(entries); n > 0 {
 		last := entries[n-1]
-		// Only advertise a cursor when we returned exactly `limit` entries —
-		// that signals "there might be more". A short page is terminal.
-		if n == limit {
-			nextCursor = encodeRunsCursor(last.StartedUnixMS, last.StartedSeq)
-		}
+		nextCursor = journal.NextCursor(last.StartedUnixMS, last.StartedSeq, n, limit)
 	}
 
 	s.writeResp(conn, Response{
