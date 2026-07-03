@@ -1443,3 +1443,225 @@ func TestRunsStats_IntentScope(t *testing.T) {
 		t.Errorf("--intent deploy total = %v want 2", res["total"])
 	}
 }
+
+// TestRunsList_CursorPaginatesFullPages publishes 7 runs (page size 3 =
+// 3 pages: 3+3+1) and drives every page through the cursor API. Each
+// publish is followed by a tiny sleep so each run lands in a distinct
+// millisecond — that way the cursor filter's "ms strictly older" path is
+// exercised rather than the seq tie-breaker.
+//
+// Asserts:
+//   - every page has at most `limit` rows,
+//   - exactly 7 distinct rows appear across all pages,
+//   - each full page carries a non-empty next_cursor,
+//   - the terminal (1-row) page carries no next_cursor,
+//   - chronological order is newest-first across pages, so each page's
+//     first row has a StartedUnixMS STRICTLY OLDER than the previous
+//     page's first row.
+func TestRunsList_CursorPaginatesFullPages(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	for i := 0; i < 7; i++ {
+		if _, err := k.Bus().Publish(event.Spec{
+			Subject:       "agent.x.task",
+			Kind:          event.KindTaskReceived,
+			Actor:         "agent-x",
+			CorrelationID: "page-" + string(rune('A'+i)),
+			Payload:       map[string]string{"intent": "x"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(3 * time.Millisecond)
+	}
+
+	// Diagnostic — print the raw sort order so we know the ms/seq shape.
+	diag, _ := c.Call(context.Background(), controlplane.CmdRunsList, map[string]any{"limit": 20})
+	if drows, _ := diag["runs"].([]any); true {
+		for i, raw := range drows {
+			row, _ := raw.(map[string]any)
+			id, _ := row["correlation_id"].(string)
+			ms, _ := row["started_unix_ms"].(float64)
+			t.Logf("diag[%d] = %s ms=%d", i, id, int64(ms))
+		}
+	}
+	t.Logf("diag next_cursor=%v", diag["next_cursor"])
+
+	// And once more with limit=3, so we see the first-page cursor.
+	page1, _ := c.Call(context.Background(), controlplane.CmdRunsList, map[string]any{"limit": 3})
+	t.Logf("page1 rows=%v next_cursor=%v", page1["runs"], page1["next_cursor"])
+
+	// Patch up the cursor logic — old test compared page-N+1.first vs page-N.last
+	// ASSUMING cursor=first of page; we now encode cursor=last of page. With the
+	// new encoding the cursor represents the BOUNDARY (oldest of prev page) and
+	// the next page must start STRICTLY OLDER than it. The ORIGINAL assertion
+	// `ms < lastMS` was actually the correct shape; keep it. (This paragraph
+	// exists to remind future-me why we kept the original comparison.)
+
+	const limit = 3
+	// Cap iterations so a server-side bug that returns the same cursor
+	// every time fails this test with a clear message instead of looping
+	// forever.
+	const maxIters = 16
+
+	seen := map[string]bool{}
+	var prevFirstMS int64
+	args := map[string]any{"limit": limit}
+	for iter := 0; iter < maxIters; iter++ {
+		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		if err != nil {
+			t.Fatalf("Call: %v", err)
+		}
+		rows, _ := res["runs"].([]any)
+		if len(rows) > limit {
+			t.Errorf("page len %d > limit %d", len(rows), limit)
+		}
+		if len(rows) == 0 {
+			// Terminal page once we've already seen all 7 rows. Anything
+			// before that means we over-paginated.
+			if len(seen) < 7 {
+				t.Errorf("got a 0-row page before exhausting data; saw %d", len(seen))
+			}
+			break
+		}
+		// First row of this page must be strictly older than the previous
+		// page's first row (descending sort across the whole cursor chain).
+		if iter > 0 {
+			firstRow := rows[0].(map[string]any)
+			firstMS, _ := firstRow["started_unix_ms"].(float64)
+			if int64(firstMS) >= prevFirstMS {
+				t.Errorf("page %d first ms=%d not strictly older than page %d first ms=%d",
+					iter, int64(firstMS), iter-1, prevFirstMS)
+			}
+			prevFirstMS = int64(firstMS)
+		} else {
+			firstRow := rows[0].(map[string]any)
+			ms, _ := firstRow["started_unix_ms"].(float64)
+			prevFirstMS = int64(ms)
+		}
+		for _, raw := range rows {
+			row, _ := raw.(map[string]any)
+			id, _ := row["correlation_id"].(string)
+			if seen[id] {
+				t.Errorf("duplicate row id=%s across pages", id)
+			}
+			seen[id] = true
+		}
+		next, _ := res["next_cursor"].(string)
+		if len(rows) == limit {
+			if next == "" {
+				t.Errorf("page len %d == limit but next_cursor is empty", limit)
+			}
+			args["cursor"] = next
+		} else {
+			// Short (terminal) page → no cursor.
+			if next != "" {
+				t.Errorf("terminal page len %d < limit but next_cursor=%q", len(rows), next)
+			}
+			break
+		}
+	}
+	if len(seen) != 7 {
+		t.Errorf("paged through %d distinct runs, want 7", len(seen))
+	}
+}
+
+// TestRunsList_CursorUnparseableFallsBack — a malformed cursor (bad
+// characters, missing colon, malformed seq) must NOT crash the handler
+// and must behave exactly like an absent cursor. This is the recovery
+// path that keeps a stale bookmark from breaking the Runs view forever.
+func TestRunsList_CursorUnparseableFallsBack(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	for i := 0; i < 3; i++ {
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.x.task", Kind: event.KindTaskReceived,
+			Actor:   "agent-x",
+			CorrelationID: "fallback-" + string(rune('A'+i)),
+			Payload: map[string]string{"intent": "x"},
+		})
+		time.Sleep(3 * time.Millisecond)
+	}
+	for _, garbage := range []string{"", "abc", "1:", ":5", "1:abc", "%%3A%%", "1:2:3", "-1:-1"} {
+		res, err := c.Call(context.Background(), controlplane.CmdRunsList,
+			map[string]any{"limit": 10, "cursor": garbage})
+		if err != nil {
+			t.Errorf("cursor=%q raised error: %v", garbage, err)
+			continue
+		}
+		rows, _ := res["runs"].([]any)
+		if len(rows) != 3 {
+			t.Errorf("cursor=%q returned %d rows, want 3 (newest-page fallback)",
+				garbage, len(rows))
+		}
+	}
+}
+
+// TestRunsList_CursorSurvivesStatusFilter — the cursor narrows by sort
+// order while the status filter narrows by predicate. A cursor pointing
+// at the third failed run must still let the client fetch only failed
+// runs on subsequent pages, never returning completed ones even when
+// their started_unix_ms would otherwise fit.
+func TestRunsList_CursorSurvivesStatusFilter(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+
+	const totalFails = 4
+	const totalDone = 3
+	// Publish in order: failed-A, completed-A, failed-B, completed-B, …
+	// so the cursor test's chronological assertion isn't trivially
+	// satisfied by "completed never appears when filtering by failed".
+	for i := 0; i < totalFails; i++ {
+		corr := "fail-" + string(rune('A'+i))
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.x.task", Kind: event.KindTaskReceived,
+			Actor:   "agent-x", CorrelationID: corr,
+			Payload: map[string]string{"intent": "x"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.x.task", Kind: event.KindTaskFailed,
+			Actor:   "agent-x", CorrelationID: corr,
+			Payload: map[string]any{"reason": "provider error"},
+		})
+		corr2 := "done-" + string(rune('A'+i))
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.x.task", Kind: event.KindTaskReceived,
+			Actor:   "agent-x", CorrelationID: corr2,
+			Payload: map[string]string{"intent": "x"},
+		})
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: "agent.x.task", Kind: event.KindTaskCompleted,
+			Actor:   "agent-x", CorrelationID: corr2,
+			Payload: map[string]any{"iters": 1, "chars": 1, "stopped": "end_turn"},
+		})
+		time.Sleep(3 * time.Millisecond)
+	}
+	_ = totalDone // totalDone unused but documents the constant intent
+
+	args := map[string]any{"status": "failed", "limit": 2}
+	const maxIters = 16
+	seenFailed := map[string]bool{}
+	for iter := 0; iter < maxIters; iter++ {
+		res, err := c.Call(context.Background(), controlplane.CmdRunsList, args)
+		if err != nil {
+			t.Fatalf("Call: %v", err)
+		}
+		rows, _ := res["runs"].([]any)
+		for _, raw := range rows {
+			row := raw.(map[string]any)
+			if got, _ := row["status"].(string); got != "failed" {
+				t.Errorf("status filter leaked: row status=%q, want failed", got)
+			}
+			id, _ := row["correlation_id"].(string)
+			if seenFailed[id] {
+				t.Errorf("duplicate failed row id=%s across pages", id)
+			}
+			seenFailed[id] = true
+		}
+		next, _ := res["next_cursor"].(string)
+		if next == "" || len(rows) < 2 {
+			break
+		}
+		args["cursor"] = next
+	}
+	if len(seenFailed) != totalFails {
+		t.Errorf("paged through %d failed runs, want %d", len(seenFailed), totalFails)
+	}
+}

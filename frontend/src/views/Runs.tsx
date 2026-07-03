@@ -10,9 +10,10 @@ import {
   Clock,
   CircleDot,
   CircleStop,
+  Loader2,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
@@ -166,12 +167,112 @@ export function runCounts(runs: Run[]): RunCounts {
   return c;
 }
 
+// Run page size used by the cursor pager. We pick 50 — large enough that the
+// first page covers what the operator typically wants to scan, small enough that
+// reloading on every event-driven refresh doesn't pull a 10 MB JSON body.
+export const RUN_PAGE_SIZE = 50;
+
+interface RunsPage {
+  runs: Run[];
+  /** Opaque "<ms>:<seq>" boundary of the last row we just emitted, or null
+   * when the server returned a short page (terminal — no more rows). The
+   * pager's `loadMore` passes this back as `cursor` on the next request. */
+  next_cursor: string | null;
+}
+
+/**
+ * useRunsPager is the load-more state machine used by the Runs view. The
+ * actual rendering lives in `Runs`; this hook is exported so the load-more
+ * behaviour can be unit-tested without rendering the whole page.
+ *
+ * The hook composes the existing `usePanel` (which already does polling,
+ * auth, error retry, and the live-event reload) with a separate `loadMore`
+ * that hits /api/runs?cursor=… on demand. The two share the first page —
+ * `usePanel` gets us the leading 50 rows; the pager extends from there.
+ */
+export function useRunsPager() {
+  const query = { limit: String(RUN_PAGE_SIZE) };
+  const { data, error, loading, reload } = usePanel<{ runs?: Run[]; next_cursor?: string }>(
+    "/api/runs",
+    query,
+  );
+  const [paged, setPaged] = useState<Run[]>([]);
+  // The current cursor is "" for null. Object form so we always reset to null
+  // when the upstream reload invalidates the page sequence.
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+
+  // Whenever usePanel reports fresh data (initial load OR a reload), reset
+  // the paged state to the new first page. The polled `data` is the
+  // authoritative source — even if `loadMore` is mid-flight, a reload
+  // wins (the second page's rows would be stale once the first page
+  // shifts).
+  useEffect(() => {
+    if (!data) return;
+    const runs = (data.runs ?? []) as Run[];
+    setPaged(runs);
+    // The server's `next_cursor` is the only authoritative "more available"
+    // signal. We don't double-check against `runs.length >= RUN_PAGE_SIZE`
+    // because the server can legitimately return a short, full page (e.g.
+    // exactly-LIMIT rows that happened to be the tail) — in that case the
+    // cursor is null and we treat it as terminal.
+    setCursor(data.next_cursor ?? null);
+    setMoreError(null);
+    // loadingMore deliberately NOT reset — an in-flight "load more" call
+    // resolves and its own success branch is a no-op now that paged has been
+    // replaced by the latest data.
+  }, [data]);
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    if (!cursor) return; // server already said "you're at the end"
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const page = await getJSON<{ runs?: Run[]; next_cursor?: string }>(
+        "/api/runs",
+        {
+          limit: String(RUN_PAGE_SIZE),
+          cursor,
+        },
+      );
+      const next = (page.runs ?? []) as Run[];
+      setPaged((cur) => {
+        // Dedup by correlation id so an apparent re-emission from a buggy
+        // server (we caught a real instance of this during P1 testing)
+        // doesn't double up the rows.
+        const seen = new Set(cur.map((r) => r.correlation_id));
+        const merged = [...cur];
+        for (const r of next) {
+          const id = r.correlation_id;
+          if (id && seen.has(id)) continue;
+          merged.push(r);
+          if (id) seen.add(id);
+        }
+        return merged;
+      });
+      const nc = page.next_cursor ?? null;
+      // Same reasoning as the initial-page branch: a non-null
+      // `next_cursor` is an authoritative "more available" signal.
+      // A short page is allowed — it just means the server's response
+      // happened to be smaller than `limit` and the cursor is missing.
+      setCursor(nc);
+    } catch (err) {
+      setMoreError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  return { paged, error, loading, loadMore, loadingMore, moreError, hasMore: cursor !== null, reload };
+}
+
 export function Runs() {
-  const { data, error, loading, reload } = usePanel<{ runs?: Run[] }>("/api/runs");
+  const { paged, error, loading, loadMore, loadingMore, moreError, hasMore, reload } = useRunsPager();
   const { events, connected } = useEvents();
-  const runs = data?.runs || [];
   const focus = useRunFocus();
-  const counts = runCounts(runs);
+  const counts = runCounts(paged);
   const [q, setQ] = useState("");
   // Per-run live context (current phase/tool/agent) folded from the event stream,
   // shared with the Overseer monitor. Keyed by correlation id.
@@ -209,9 +310,23 @@ export function Runs() {
 
   // Runs in this bucket, ignoring the text query — used to decide whether the filter box shows,
   // so it stays mounted (and keeps focus) even after a query narrows the visible list.
-  const bucketRuns = (filter: RunBucket | null) => runs.filter((r) => !filter || runBucket(r) === filter);
+  const bucketRuns = (filter: RunBucket | null) =>
+    paged.filter((r) => !filter || runBucket(r) === filter);
   const getShown = (filter: RunBucket | null) =>
     bucketRuns(filter).filter((r) => !query || runMatches(r, query));
+
+  // hasMoreVisibleOnly is true when the pager has more pages AND no client-
+  // side filter is narrowing the list. We pass the same pager bits to every
+  // RunList so each bucket's footer can drive loadMore. The bucket filter
+  // applies client-side over the paged data: the "Load more" pulls another
+  // 50 raw runs (mixed statuses) and the bucket selector re-filters for
+  // display.
+  const pagerProps = {
+    hasMore,
+    loadingMore,
+    moreError,
+    onLoadMore: loadMore,
+  };
 
   const tabs = [
     {
@@ -219,28 +334,28 @@ export function Runs() {
       label: "All",
       icon: ListTree,
       count: counts.total,
-      content: <RunList runs={getShown(null)} bucketTotal={bucketRuns(null).length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
+      content: <RunList runs={getShown(null)} bucketTotal={bucketRuns(null).length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} pager={pagerProps} />,
     },
     {
       id: "running",
       label: "Running",
       icon: CircleDot,
       count: counts.running,
-      content: <RunList runs={getShown("running")} bucketTotal={bucketRuns("running").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
+      content: <RunList runs={getShown("running")} bucketTotal={bucketRuns("running").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} pager={pagerProps} />,
     },
     {
       id: "completed",
       label: "Completed",
       icon: CheckCircle2,
       count: counts.completed,
-      content: <RunList runs={getShown("completed")} bucketTotal={bucketRuns("completed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
+      content: <RunList runs={getShown("completed")} bucketTotal={bucketRuns("completed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} pager={pagerProps} />,
     },
     {
       id: "failed",
       label: "Failed",
       icon: XOctagon,
       count: counts.failed,
-      content: <RunList runs={getShown("failed")} bucketTotal={bucketRuns("failed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} />,
+      content: <RunList runs={getShown("failed")} bucketTotal={bucketRuns("failed").length} query={query} q={q} setQ={setQ} focus={focus} error={error} liveCtx={liveCtx} pager={pagerProps} />,
     },
   ];
 
@@ -314,6 +429,7 @@ function RunList({
   focus,
   error,
   liveCtx,
+  pager,
 }: {
   runs: Run[];
   bucketTotal: number;
@@ -323,6 +439,12 @@ function RunList({
   focus?: string | null;
   error?: string | null;
   liveCtx: Record<string, LiveRunContext>;
+  pager?: {
+    hasMore: boolean;
+    loadingMore: boolean;
+    moreError?: string | null;
+    onLoadMore: () => void;
+  };
 }) {
   if (error) {
     return <ErrorText>{error}</ErrorText>;
@@ -376,6 +498,39 @@ function RunList({
       {runs.map((r, i) => (
         <RunRow key={r.correlation_id || i} run={r} focus={focus} ctx={liveCtx[r.correlation_id || ""]} />
       ))}
+      {/* Pager footer (M-pending): load 50 more runs at a time. We only show the
+          footer when the page count is > RUN_PAGE_SIZE worth of content visible
+          — a stable terminal page hides it. The `pager` prop is optional so the
+          test suite can render RunList without a real hook. */}
+      {pager && (
+        <div className="flex flex-col items-center gap-1 border-t border-border/50 px-3 py-3">
+          {pager.hasMore ? (
+            <>
+              <button
+                onClick={pager.onLoadMore}
+                disabled={pager.loadingMore}
+                aria-busy={pager.loadingMore || undefined}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground hover:border-accent disabled:opacity-50"
+              >
+                {pager.loadingMore ? (
+                  <>
+                    <Loader2 className="size-3 animate-spin" /> loading…
+                  </>
+                ) : (
+                  <>Load 50 more</>
+                )}
+              </button>
+              {pager.moreError && (
+                <p className="text-[11px] text-bad" role="alert">
+                  couldn't load more: {pager.moreError}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted">— end of run history —</p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

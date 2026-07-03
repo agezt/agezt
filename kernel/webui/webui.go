@@ -179,7 +179,6 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 var apiRoutes = map[string]string{
 	"/api/status":                  controlplane.CmdStatus,
 	"/api/config":                  controlplane.CmdConfig,
-	"/api/runs":                    controlplane.CmdRunsList,
 	"/api/stats":                   controlplane.CmdRunsStats,
 	"/api/budget":                  controlplane.CmdBudget,
 	"/api/cache":                   controlplane.CmdCacheStats,
@@ -273,6 +272,13 @@ type writeRoute struct {
 // detail view, which fetches one run's events by correlation_id.
 var readArgsRoutes = map[string]writeRoute{
 	"/api/journal": {controlplane.CmdJournalGrep, []string{"correlation_id", "kind", "limit"}},
+	// Cursor-paginated runs (M-pending): per the audit follow-up the SPA
+	// needs to page through long histories without paying for the whole
+	// journal. `cursor` is the opaque "<ms>:<seq>" boundary of the previous
+	// page, returned as `next_cursor` in the same shape.
+	"/api/runs": {controlplane.CmdRunsList, []string{
+		"limit", "cursor", "status", "intent", "model", "min_cost_mc", "max_cost_mc",
+	}},
 	// Export an integrity-attested journal bundle for archival/compliance (M772):
 	// every event with its hash + the chain head, re-verifiable offline. Read-only.
 	"/api/journal/export": {controlplane.CmdJournalExport, []string{"since_ms"}},
