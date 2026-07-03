@@ -5,6 +5,9 @@ package controlplane
 import (
 	"net"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/board"
@@ -85,19 +88,70 @@ func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 	}
 	topic, _ := req.Args["topic"].(string)
 
+	// Cursor pagination (M-pending follow-up): the SPA's Board / Inbox /
+	// ChannelSessions views poll this on every render; for a busy board the
+	// payload is large enough to make the panel slow. Cursor encodes the
+	// (TSMS, ID) of the LAST entry on the previous page; server skips
+	// entries strictly newer-or-equal. ID tie-breaks when TSMS collides.
+	var cursorTS int64
+	var cursorID string
+	cursorOK := false
+	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+		tsStr, id, _ := strings.Cut(raw, ":")
+		if ts, err := strconv.ParseInt(tsStr, 10, 64); err == nil {
+			cursorTS, cursorID, cursorOK = ts, id, true
+		}
+	}
+	limit := boardLimitArg(req.Args)
+	// Always ask the store for the full set — Read() truncates internally,
+	// which would hide the rows the cursor filter is supposed to skip, and
+	// would prevent page 1 from emitting a next_cursor when the total is
+	// exactly one full page. The handler applies limit + cursor itself.
+	storeLimit := 0
+
 	// Addressed messaging (M788/M791): the views carry id/to/reply_to so the
 	// console threads DMs and replies.
-	msgs := st.Read(topic, boardLimitArg(req.Args))
+	msgs := st.Read(topic, storeLimit)
+	// st.Read() sorts by TSMS DESC with stable insertion order — two messages
+	// with identical TSMS keep their insertion order, so "newest" within a
+	// millisecond is not actually at position 0. Re-sort by (TSMS, ID) DESC
+	// here so the pagination cursor's tie-break (ID) is well-defined.
+	sort.SliceStable(msgs, func(i, j int) bool {
+		if msgs[i].TSMS != msgs[j].TSMS {
+			return msgs[i].TSMS > msgs[j].TSMS
+		}
+		return msgs[i].ID > msgs[j].ID
+	})
+	total := len(msgs)
+	if cursorOK {
+		filtered := msgs[:0]
+		for _, m := range msgs {
+			if m.TSMS > cursorTS {
+				continue
+			}
+			if m.TSMS == cursorTS && m.ID >= cursorID {
+				continue
+			}
+			filtered = append(filtered, m)
+		}
+		msgs = filtered
+	}
+	var nextCursor string
+	if limit > 0 && len(msgs) > limit {
+		msgs = msgs[:limit]
+		last := msgs[limit-1]
+		nextCursor = strconv.FormatInt(last.TSMS, 10) + ":" + last.ID
+	}
 	views := make([]map[string]any, 0, len(msgs))
 	for _, m := range msgs {
 		views = append(views, boardMsgView(m))
 	}
 
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"messages": views, "topics": st.Topics(), "count": len(views)},
-	})
+	result := map[string]any{"messages": views, "topics": st.Topics(), "count": len(views), "total": total}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 // handleBoardHelp serves CmdBoardHelp: the still-open (unanswered) help requests

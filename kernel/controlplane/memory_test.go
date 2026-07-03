@@ -4,6 +4,7 @@ package controlplane_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -439,5 +440,98 @@ func TestMemoryCleanDryRunAndExecute(t *testing.T) {
 	got, _ = c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
 	if found, _ := got["found"].(bool); found {
 		t.Fatal("execute should hard-delete low-value memory")
+	}
+}
+
+func TestMemoryList_CursorPaginatesByCreatedMSDesc(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		if _, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+			"subject": "subj-" + strconv.Itoa(i),
+			"content": "fact " + strconv.Itoa(i),
+			"type":    "FACT",
+		}); err != nil {
+			t.Fatalf("add %d: %v", i, err)
+		}
+	}
+
+	p1, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{"limit": 2})
+	if err != nil {
+		t.Fatalf("memory list p1: %v", err)
+	}
+	records1, _ := p1["records"].([]any)
+	if len(records1) != 2 {
+		t.Fatalf("page 1 should have 2 records, got %d", len(records1))
+	}
+	if p1["next_cursor"] == "" || p1["next_cursor"] == nil {
+		t.Fatal("page 1 should have next_cursor")
+	}
+	if intOf(p1["total"]) != 5 {
+		t.Fatalf("page 1 total wrong: %v", p1["total"])
+	}
+
+	p2, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{
+		"limit": 2, "cursor": p1["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("memory list p2: %v", err)
+	}
+	records2, _ := p2["records"].([]any)
+	if len(records2) != 2 {
+		t.Fatalf("page 2 should have 2 records, got %d", len(records2))
+	}
+
+	// No duplicate IDs across pages.
+	seen := map[string]bool{}
+	for _, raw := range records1 {
+		if v, _ := raw.(map[string]any); v != nil {
+			seen[v["id"].(string)] = true
+		}
+	}
+	for _, raw := range records2 {
+		if v, _ := raw.(map[string]any); v != nil {
+			if seen[v["id"].(string)] {
+				t.Fatalf("id %s appeared on both pages", v["id"])
+			}
+		}
+	}
+
+	p3, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{
+		"limit": 2, "cursor": p2["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("memory list p3: %v", err)
+	}
+	records3, _ := p3["records"].([]any)
+	if len(records3) != 1 {
+		t.Fatalf("page 3 should have 1 record, got %d", len(records3))
+	}
+	if _, has := p3["next_cursor"]; has {
+		t.Fatalf("page 3 should not have next_cursor, got %v", p3["next_cursor"])
+	}
+}
+
+func TestMemoryList_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if _, err := c.Call(ctx, controlplane.CmdMemoryAdd, map[string]any{
+			"subject": "subj-" + strconv.Itoa(i),
+			"content": "fact " + strconv.Itoa(i),
+			"type":    "FACT",
+		}); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+	}
+	res, err := c.Call(ctx, controlplane.CmdMemoryList, map[string]any{
+		"limit": 10, "cursor": "garbage",
+	})
+	if err != nil {
+		t.Fatalf("memory list: %v", err)
+	}
+	records, _ := res["records"].([]any)
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(records))
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -129,15 +130,50 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 		}
 		return all[i].CorrelationID > all[j].CorrelationID
 	})
-	if len(all) > limit {
+	total := len(all)
+
+	// Cursor pagination (M-pending follow-up): the SPA's Inbox view polls
+	// this on every render, and active agents can generate thousands of
+	// channel events. `cursor` encodes the (LastTSUnixMS, CorrelationID) of
+	// the LAST entry on the previous page; server skips entries strictly
+	// newer-or-equal. CorrelationID tie-breaks when LastTSUnixMS collides.
+	var cursorTS int64
+	var cursorCorr string
+	cursorOK := false
+	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+		tsStr, corr, _ := strings.Cut(raw, ":")
+		if ts, err := strconv.ParseInt(tsStr, 10, 64); err == nil {
+			cursorTS, cursorCorr, cursorOK = ts, corr, true
+		}
+	}
+	if cursorOK {
+		filtered := all[:0]
+		for _, th := range all {
+			if th.LastTSUnixMS > cursorTS {
+				continue
+			}
+			if th.LastTSUnixMS == cursorTS && th.CorrelationID >= cursorCorr {
+				continue
+			}
+			filtered = append(filtered, th)
+		}
+		all = filtered
+	}
+	var nextCursor string
+	if limit > 0 && len(all) > limit {
 		all = all[:limit]
+		last := all[limit-1]
+		nextCursor = strconv.FormatInt(last.LastTSUnixMS, 10) + ":" + last.CorrelationID
 	}
 
 	out := make([]any, 0, len(all))
 	for _, th := range all {
 		out = append(out, th)
 	}
-	result := map[string]any{"threads": out, "count": len(out)}
+	result := map[string]any{"threads": out, "count": len(out), "total": total}
+	if nextCursor != "" {
+		result["next_cursor"] = nextCursor
+	}
 	if channelFilter != "" {
 		result["channel"] = channelFilter
 	}

@@ -192,7 +192,6 @@ var apiRoutes = map[string]string{
 	"/api/edict_show":              controlplane.CmdEdictShow,
 	"/api/schedules":               controlplane.CmdScheduleList,
 	"/api/schedule/system_tasks":   controlplane.CmdScheduleSystemTasks,
-	"/api/memory":                  controlplane.CmdMemoryList,
 	"/api/memory/audit":            controlplane.CmdMemoryAudit,
 	"/api/world":                   controlplane.CmdWorldList,
 	"/api/skills":                  controlplane.CmdSkillList,
@@ -208,8 +207,6 @@ var apiRoutes = map[string]string{
 	"/api/workflows":       controlplane.CmdWorkflowList,
 	// Built-in workflow template gallery (M807). Read-only.
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
-	"/api/inbox":               controlplane.CmdInbox,
-	"/api/board":               controlplane.CmdBoardRead,
 	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
 	"/api/board/help": controlplane.CmdBoardHelp,
 	"/api/workboard":  controlplane.CmdWorkboardList,
@@ -285,6 +282,14 @@ var readArgsRoutes = map[string]writeRoute{
 	// as `next_cursor` in the same shape. Slugs are unique and never
 	// contain ':', so strings.Cut on ':' round-trips losslessly.
 	"/api/agents": {controlplane.CmdAgentList, []string{"limit", "cursor"}},
+	// Cursor-paginated conversation-shaped lists (M-pending follow-up):
+	// /api/inbox (channel threads, newest activity first), /api/board
+	// (board posts, newest ts first; topic filter preserved), /api/memory
+	// (active records, newest CreatedMS first). All three use a "<ts_or_ms>:<id>"
+	// cursor shape with the ID field as the tie-break when ts collides.
+	"/api/inbox":  {controlplane.CmdInbox, []string{"limit", "cursor", "channel"}},
+	"/api/board":  {controlplane.CmdBoardRead, []string{"limit", "cursor", "topic"}},
+	"/api/memory": {controlplane.CmdMemoryList, []string{"limit", "cursor"}},
 	// Export an integrity-attested journal bundle for archival/compliance (M772):
 	// every event with its hash + the chain head, re-verifiable offline. Read-only.
 	"/api/journal/export": {controlplane.CmdJournalExport, []string{"since_ms"}},

@@ -125,3 +125,97 @@ func TestInboxNewestFirst(t *testing.T) {
 		t.Errorf("newest thread should be first; got %v", top["channel_id"])
 	}
 }
+
+func TestInbox_CursorPaginatesByLastTSUnixMSDesc(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	// Five independent threads with distinct correlations.
+	corrs := []string{"alpha", "bravo", "charlie", "delta", "echo"}
+	for _, corr := range corrs {
+		if _, err := k.Bus().Publish(event.Spec{
+			Subject: "channel.inbound.telegram", Kind: event.KindChannelInbound,
+			Actor: "channel-telegram", CorrelationID: corr,
+			Payload: map[string]any{"channel_kind": "telegram", "channel_id": corr, "sender": "u", "text": "hi " + corr},
+		}); err != nil {
+			t.Fatalf("publish %s: %v", corr, err)
+		}
+	}
+
+	p1, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{"limit": 2})
+	if err != nil {
+		t.Fatalf("inbox p1: %v", err)
+	}
+	threads1, _ := p1["threads"].([]any)
+	if len(threads1) != 2 {
+		t.Fatalf("page 1 should have 2 threads, got %d", len(threads1))
+	}
+	if p1["next_cursor"] == "" || p1["next_cursor"] == nil {
+		t.Fatal("page 1 should have next_cursor")
+	}
+	if intOf(p1["total"]) != 5 {
+		t.Fatalf("page 1 total wrong: %v", p1["total"])
+	}
+
+	p2, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{
+		"limit": 2, "cursor": p1["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("inbox p2: %v", err)
+	}
+	threads2, _ := p2["threads"].([]any)
+	if len(threads2) != 2 {
+		t.Fatalf("page 2 should have 2 threads, got %d", len(threads2))
+	}
+	// No duplicate correlation IDs across pages.
+	seen := map[string]bool{}
+	for _, raw := range threads1 {
+		if th, _ := raw.(map[string]any); th != nil {
+			seen[th["correlation_id"].(string)] = true
+		}
+	}
+	for _, raw := range threads2 {
+		if th, _ := raw.(map[string]any); th != nil {
+			if seen[th["correlation_id"].(string)] {
+				t.Fatalf("corr %s appeared on both pages", th["correlation_id"])
+			}
+		}
+	}
+
+	p3, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{
+		"limit": 2, "cursor": p2["next_cursor"],
+	})
+	if err != nil {
+		t.Fatalf("inbox p3: %v", err)
+	}
+	threads3, _ := p3["threads"].([]any)
+	if len(threads3) != 1 {
+		t.Fatalf("page 3 should have 1 thread, got %d", len(threads3))
+	}
+	if _, has := p3["next_cursor"]; has {
+		t.Fatalf("page 3 should not have next_cursor, got %v", p3["next_cursor"])
+	}
+}
+
+func TestInbox_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	for _, corr := range []string{"alpha", "bravo"} {
+		if _, err := k.Bus().Publish(event.Spec{
+			Subject: "channel.inbound.telegram", Kind: event.KindChannelInbound,
+			Actor: "channel-telegram", CorrelationID: corr,
+			Payload: map[string]any{"channel_kind": "telegram", "channel_id": corr, "sender": "u", "text": "hi " + corr},
+		}); err != nil {
+			t.Fatalf("publish: %v", err)
+		}
+	}
+	res, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{
+		"limit": 10, "cursor": "garbage",
+	})
+	if err != nil {
+		t.Fatalf("inbox: %v", err)
+	}
+	threads, _ := res["threads"].([]any)
+	if len(threads) != 2 {
+		t.Fatalf("expected 2 threads, got %d", len(threads))
+	}
+}
