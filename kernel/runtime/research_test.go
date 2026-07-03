@@ -170,6 +170,12 @@ func TestParseResearchVerdict(t *testing.T) {
 		{"The source CONTRADICTS the claim", "refuted"},
 		{"UNCERTAIN\nsource is insufficient", "uncertain"},
 		{"I cannot tell from this", "uncertain"},
+		// A negated keyword in the REASON must not flip a leading SUPPORTED
+		// verdict — the verdict is read from the first line only, leftmost wins.
+		{"SUPPORTED\nThe source does not contradict the claim; it states it directly.", "supported"},
+		{"SUPPORTED — the claim is not contradicted by the source", "supported"},
+		{"SUPPORTED\nThis is not refuted by the evidence.", "supported"},
+		{"Verdict: SUPPORTED", "supported"},
 	}
 	for _, c := range cases {
 		gotV, _ := parseResearchVerdict(c.reply)

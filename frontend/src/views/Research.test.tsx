@@ -53,9 +53,10 @@ describe("Research", () => {
     expect((body as { question: string }).question).toBe("why is the sky blue?");
     expect((body as { verify: boolean }).verify).toBe(true);
 
-    // Confidence + verified badge.
+    // Confidence + verified badge. With a refuted claim present the badge must
+    // reflect the result (never a bare green "verified").
     expect(await screen.findByText(/50% confidence/)).toBeTruthy();
-    expect(screen.getAllByText(/verified/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/verified · 1 refuted/i)).toBeTruthy();
     // The refuted claim and its verdict chip are surfaced.
     expect(screen.getByText("The sky is blue because of the ocean.")).toBeTruthy();
     expect(screen.getAllByText(/refuted/i).length).toBeGreaterThan(0);

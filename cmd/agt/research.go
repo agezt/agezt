@@ -144,21 +144,11 @@ func cmdResearch(args []string, stdout, stderr io.Writer) int {
 
 	conf := jsonNum100(res["confidence"])
 	verified, _ := res["verified"].(bool)
-	badge := "unverified"
-	if verified {
-		badge = "verified"
-	}
-	nSources := 0
-	if ss, ok := res["sources"].([]any); ok {
-		nSources = len(ss)
-	}
-	fmt.Fprintf(stdout, "research: %d%% confidence · %s · %d source(s)\n", conf, badge, nSources)
-	fmt.Fprintln(stdout, strings.Repeat("─", 40))
-	fmt.Fprintln(stdout, strings.TrimSpace(markdown))
 
-	// Surface any refuted claims — the point of the adversarial pass.
+	// Collect refuted claims up front so the badge reflects the verification
+	// RESULT, not merely that verification ran.
+	var refuted []string
 	if claims, ok := res["claims"].([]any); ok {
-		var refuted []string
 		for _, cv := range claims {
 			m, ok := cv.(map[string]any)
 			if !ok {
@@ -169,12 +159,30 @@ func cmdResearch(args []string, stdout, stderr io.Writer) int {
 				refuted = append(refuted, t)
 			}
 		}
+	}
+
+	badge := "unverified"
+	if verified {
 		if len(refuted) > 0 {
-			fmt.Fprintln(stdout, strings.Repeat("─", 40))
-			fmt.Fprintf(stdout, "REFUTED under verification (%d):\n", len(refuted))
-			for _, t := range refuted {
-				fmt.Fprintf(stdout, "  ✗ %s\n", t)
-			}
+			badge = fmt.Sprintf("verified · %d refuted", len(refuted))
+		} else {
+			badge = "verified"
+		}
+	}
+	nSources := 0
+	if ss, ok := res["sources"].([]any); ok {
+		nSources = len(ss)
+	}
+	fmt.Fprintf(stdout, "research: %d%% confidence · %s · %d source(s)\n", conf, badge, nSources)
+	fmt.Fprintln(stdout, strings.Repeat("─", 40))
+	fmt.Fprintln(stdout, strings.TrimSpace(markdown))
+
+	// Surface any refuted claims — the point of the adversarial pass.
+	if len(refuted) > 0 {
+		fmt.Fprintln(stdout, strings.Repeat("─", 40))
+		fmt.Fprintf(stdout, "REFUTED under verification (%d):\n", len(refuted))
+		for _, t := range refuted {
+			fmt.Fprintf(stdout, "  ✗ %s\n", t)
 		}
 	}
 	return 0

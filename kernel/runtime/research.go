@@ -254,18 +254,23 @@ func (k *Kernel) Research(ctx context.Context, corr, question string, opts Resea
 		report.Claims = k.verifyResearchClaims(ctx, corr, opts.Model, report.Sources, claims)
 		report.Verified = len(report.Claims) > 0
 		if report.Verified {
-			supported, refuted := 0, 0
+			supported := 0
+			var refuted []ResearchClaim
 			for _, c := range report.Claims {
 				switch c.Verdict {
 				case "supported":
 					supported++
 				case "refuted":
-					refuted++
+					refuted = append(refuted, c)
 				}
 			}
 			report.Confidence = researchConfidence(supported, len(report.Claims))
-			if refuted > 0 {
-				report.Notes = append(report.Notes, fmt.Sprintf("%d of %d verified claim(s) were REFUTED under adversarial check", refuted, len(report.Claims)))
+			if len(refuted) > 0 {
+				report.Notes = append(report.Notes, fmt.Sprintf("%d of %d verified claim(s) were REFUTED under adversarial check", len(refuted), len(report.Claims)))
+				// Surface the refutation INSIDE the answer itself — a reader of
+				// the synthesis block must see that a stated claim did not hold
+				// up, not only a reader of the separate claims list.
+				report.Markdown += buildRefutedWarning(refuted)
 			}
 		}
 	}
@@ -332,6 +337,25 @@ func buildResearchSynthPrompt(question string, sources []ResearchSource) string 
 		fmt.Fprintf(&b, "\n[%s] %s (%s)\n%s\n", s.ID, title, s.URL, s.Text)
 	}
 	b.WriteString("\nWrite the cited answer now. Every claim needs an [S#] citation, and use only these sources.")
+	return b.String()
+}
+
+// buildRefutedWarning renders a Markdown callout appended to the answer when the
+// adversarial pass refuted one or more cited claims, so the refutation travels
+// with the synthesis text and not only in the separate claims list.
+func buildRefutedWarning(refuted []ResearchClaim) string {
+	var b strings.Builder
+	b.WriteString("\n\n---\n\n> ⚠️ **Adversarial verification refuted the following claim(s)** — the cited source did not support them; treat them as unverified:\n>\n")
+	for _, c := range refuted {
+		b.WriteString("> - ")
+		b.WriteString(strings.TrimSpace(c.Text))
+		if n := strings.TrimSpace(c.Note); n != "" {
+			b.WriteString(" — _")
+			b.WriteString(n)
+			b.WriteString("_")
+		}
+		b.WriteString("\n")
+	}
 	return b.String()
 }
 
@@ -502,20 +526,23 @@ func buildResearchVerifyPrompt(c ResearchClaim, byID map[string]ResearchSource) 
 	return b.String()
 }
 
-// parseResearchVerdict reads the verifier's reply into a normalized verdict and a short
-// reason. It checks the refuting signals before "supported" because
-// "UNSUPPORTED" contains "SUPPORTED".
+// reSupportedWord matches "SUPPORTED" as a whole word so it never fires inside
+// "UNSUPPORTED".
+var reSupportedWord = regexp.MustCompile(`\bSUPPORTED\b`)
+
+// parseResearchVerdict reads the verifier's reply into a normalized verdict and a
+// short reason. The verdict is classified from the FIRST non-empty line ALONE:
+// scanning the whole reply let a trailing reason such as "the source does not
+// contradict it" flip a leading SUPPORTED to refuted.
 func parseResearchVerdict(reply string) (verdict, note string) {
 	reply = strings.TrimSpace(reply)
-	upper := strings.ToUpper(reply)
-	switch {
-	case strings.Contains(upper, "REFUTED"), strings.Contains(upper, "UNSUPPORTED"),
-		strings.Contains(upper, "NOT SUPPORTED"), strings.Contains(upper, "CONTRADICT"):
-		verdict = "refuted"
-	case strings.Contains(upper, "SUPPORTED"):
-		verdict = "supported"
-	default:
-		verdict = "uncertain"
+	verdict = "uncertain"
+	for _, line := range strings.Split(reply, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		verdict = classifyResearchVerdict(line)
+		break
 	}
 	// Reason = the first non-empty line that is not just the verdict word.
 	for _, line := range strings.Split(reply, "\n") {
@@ -531,4 +558,38 @@ func parseResearchVerdict(reply string) (verdict, note string) {
 		break
 	}
 	return verdict, note
+}
+
+// classifyResearchVerdict maps one verdict line to a normalized verdict. The
+// LEFTMOST verdict keyword wins, so a reason clause on the same line (e.g.
+// "SUPPORTED — not contradicted by the source") cannot override the verdict the
+// model leads with. Refute signals are matched before bare "SUPPORTED" because
+// "UNSUPPORTED"/"NOT SUPPORTED" contain it.
+func classifyResearchVerdict(line string) string {
+	up := strings.ToUpper(line)
+	ref := firstIndexOf(up, "REFUTED", "UNSUPPORTED", "NOT SUPPORTED", "CONTRADICT")
+	sup := -1
+	if m := reSupportedWord.FindStringIndex(up); m != nil {
+		sup = m[0]
+	}
+	switch {
+	case ref >= 0 && (sup < 0 || ref < sup):
+		return "refuted"
+	case sup >= 0:
+		return "supported"
+	default:
+		return "uncertain"
+	}
+}
+
+// firstIndexOf returns the smallest index at which any of subs occurs in s, or
+// -1 if none occur.
+func firstIndexOf(s string, subs ...string) int {
+	best := -1
+	for _, sub := range subs {
+		if i := strings.Index(s, sub); i >= 0 && (best < 0 || i < best) {
+			best = i
+		}
+	}
+	return best
 }

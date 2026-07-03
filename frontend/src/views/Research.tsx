@@ -140,15 +140,29 @@ export function Research() {
           {/* Verdict header */}
           <Card glass className="flex-row flex-wrap items-center gap-3 p-3">
             <span className="font-semibold text-foreground">{confPct}% confidence</span>
-            {report.verified ? (
-              <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-500">
-                <CheckCircle2 className="size-4" /> verified
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-sm text-muted">
-                <HelpCircle className="size-4" /> unverified
-              </span>
-            )}
+            {(() => {
+              const refutedCount = report.claims?.filter((c) => c.verdict === "refuted").length ?? 0;
+              if (report.verified && refutedCount === 0) {
+                return (
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-500">
+                    <CheckCircle2 className="size-4" /> verified
+                  </span>
+                );
+              }
+              if (report.verified && refutedCount > 0) {
+                // Verification ran but refuted claim(s) — never show a green tick.
+                return (
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-red-500">
+                    <XCircle className="size-4" /> verified · {refutedCount} refuted
+                  </span>
+                );
+              }
+              return (
+                <span className="flex items-center gap-1.5 text-sm text-muted">
+                  <HelpCircle className="size-4" /> unverified
+                </span>
+              );
+            })()}
             <span className="text-xs text-muted">
               {(report.sources?.length ?? 0)} source{(report.sources?.length ?? 0) === 1 ? "" : "s"}
               {report.cited_sources != null && ` · ${report.cited_sources} cited`}
