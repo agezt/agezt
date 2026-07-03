@@ -746,6 +746,15 @@ func (s *Server) Handler() http.Handler {
 	// a sanitized Content-Type, so an <img src> / download link can render stored
 	// images and files. Proxies CmdArtifactGet (which re-verifies the bytes).
 	mux.HandleFunc("/api/artifact/raw", s.auth(s.handleArtifactRaw))
+	// File Manager routes (M1017): live filesystem under the configured
+	// `AGEZT_FILE_ROOT` (default `~/agezt/workspace`). Every endpoint here
+	// path-traversal-guards before touching the OS — see files_route.go for
+	// the chokepoint.
+	mux.HandleFunc("/api/files/tree", s.auth(s.handleFileTree))
+	mux.HandleFunc("/api/files/raw", s.auth(s.handleFileRaw))
+	mux.HandleFunc("/api/files/mkdir", s.auth(s.handleFileMkdir))
+	mux.HandleFunc("/api/files/rename", s.auth(s.handleFileRename))
+	mux.HandleFunc("/api/files/delete", s.auth(s.handleFileDelete))
 	// Workflow webhooks (M809): the ONE deliberately console-token-free
 	// path. Authentication is the per-workflow secret, verified by the
 	// control plane (constant-time); all this handler can ever do is ask

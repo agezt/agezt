@@ -617,9 +617,100 @@ export function Agents() {
               onLive={selEntity.kind === "roster" ? () => openLiveFor(selEntity.slug) : undefined}
             />
           )}
+          {/* Workspace live-activity column. It folds per-agent events from the
+              live buffer into a compact, newest-first list. Independent of the
+              global Inspector so the operator can watch one agent's stream
+              while something else runs in the main event feed. */}
+          <FleetLiveColumn
+            selEntity={selEntity}
+            events={events as unknown as FleetLiveEvent[]}
+            onOpenRun={(corr) => {
+              setTab("live");
+              setSel(corr);
+              setPicked(null);
+            }}
+          />
         </div>
       )}
     </Page>
+  );
+}
+
+// FleetLiveEvent is the subset of the live event buffer that the per-agent
+// activity column cares about. Keeping the type narrow here means the column
+// doesn't depend on the wider Event shape (which lives in lib/events and
+// evolves freely).
+interface FleetLiveEvent {
+  id?: string;
+  kind?: string;
+  agent?: string;
+  correlation_id?: string;
+  intent?: string;
+  ts?: number;
+}
+
+// FleetLiveColumn is the per-entity live activity sidebar. It folds the
+// agent-scoped events from the live buffer into a compact, newest-first list.
+// Picking a roster card filters the column without opening any other surface.
+function FleetLiveColumn({
+  selEntity,
+  events,
+  onOpenRun,
+}: {
+  selEntity: { kind: string; slug?: string; name?: string; raw?: unknown } | null;
+  events: FleetLiveEvent[];
+  onOpenRun: (correlationId: string) => void;
+}) {
+  const agentFilter =
+    selEntity?.kind === "roster"
+      ? selEntity?.slug ||
+        (selEntity?.raw && typeof selEntity.raw === "object" && "slug" in (selEntity.raw as Record<string, unknown>)
+          ? (selEntity.raw as { slug?: string }).slug || ""
+          : "") ||
+        selEntity?.name ||
+        ""
+      : "";
+  const filtered = useMemo(() => {
+    if (!agentFilter) return events.slice(0, 12);
+    return events
+      .filter((ev) => (ev.agent || "").includes(agentFilter) || (ev.kind || "").startsWith("agent."))
+      .slice(0, 12);
+  }, [events, agentFilter]);
+  return (
+    <aside className="glass flex min-h-0 w-full shrink-0 overflow-hidden rounded-xl lg:w-72">
+      <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-normal text-muted">
+        Live activity{selEntity?.kind ? ` · ${selEntity.kind}` : ""}
+      </div>
+      {filtered.length === 0 ? (
+        <p className="px-3 py-6 text-center text-[11px] text-muted">No recent events.</p>
+      ) : (
+        <ul className="max-h-[60vh] divide-y divide-border overflow-auto text-[11px]">
+          {filtered.map((ev, i) => (
+            <li key={ev.id || i} className="flex items-start gap-1.5 px-3 py-1.5">
+              <span className="mt-1 size-1.5 shrink-0 rounded-full bg-accent/70" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <span className="font-mono text-[10px] uppercase tracking-normal text-muted">
+                    {ev.kind || "event"}
+                  </span>
+                  {ev.correlation_id && (
+                    <button
+                      onClick={() => onOpenRun(ev.correlation_id!)}
+                      className="ml-auto truncate rounded px-1 text-[10px] text-accent hover:underline"
+                      title="Open run"
+                    >
+                      {clip(ev.correlation_id, 12)}
+                    </button>
+                  )}
+                </div>
+                {ev.intent && <div className="truncate text-foreground/90">{clip(ev.intent, 80)}</div>}
+                {ev.agent && !agentFilter && <div className="truncate text-muted">{ev.agent}</div>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </aside>
   );
 }
 

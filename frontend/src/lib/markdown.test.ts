@@ -51,6 +51,60 @@ describe("parseInline", () => {
     ]);
     expect(parseInline("\\[ E = mc^2 \\]")).toEqual([{ t: "text", v: "E = mc^2" }]);
   });
+
+  it("recognises inline file mentions with a directory", () => {
+    expect(parseInline("see notes/x.md for details")).toEqual([
+      { t: "text", v: "see " },
+      { t: "file", v: "notes/x.md" },
+      { t: "text", v: " for details" },
+    ]);
+    expect(parseInline("from kernel/agent/agent.go")).toEqual([
+      { t: "text", v: "from " },
+      { t: "file", v: "kernel/agent/agent.go" },
+    ]);
+  });
+
+  it("recognises a bare filename with a known extension", () => {
+    expect(parseInline("the README.md file")).toEqual([
+      { t: "text", v: "the " },
+      { t: "file", v: "README.md" },
+      { t: "text", v: " file" },
+    ]);
+  });
+
+  it("leaves URLs alone (URLs stay links, not file mentions)", () => {
+    expect(parseInline("https://example.com/notes/x.md")).toEqual([
+      { t: "text", v: "https://example.com/notes/x.md" },
+    ]);
+  });
+
+  it("does not touch paths inside inline code spans", () => {
+    // parseInline is called on the inside of an inline code token separately;
+    // here we prove the OUTER parseInline doesn't double-process.
+    expect(parseInline("use `notes/x.md` instead")).toEqual([
+      { t: "text", v: "use " },
+      { t: "code", v: "notes/x.md" },
+      { t: "text", v: " instead" },
+    ]);
+  });
+
+  it("ignores bare names with no extension or path separator", () => {
+    expect(parseInline("this is just prose")).toEqual([
+      { t: "text", v: "this is just prose" },
+    ]);
+    expect(parseInline("hello world")).toEqual([
+      { t: "text", v: "hello world" },
+    ]);
+  });
+
+  it("ignores known-named image/binary extensions", () => {
+    expect(parseInline("see photo.jpg")).toEqual([
+      { t: "text", v: "see photo.jpg" },
+    ]);
+    expect(parseInline("archive.zip")).toEqual([
+      { t: "text", v: "archive.zip" },
+    ]);
+  });
 });
 
 describe("parseMarkdown", () => {

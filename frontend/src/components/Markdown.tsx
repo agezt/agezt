@@ -2,6 +2,8 @@ import { Fragment, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { parseInline, parseMarkdown, type Inline } from "@/lib/markdown";
 import { DataView } from "@/components/DataView";
+import { FileMention } from "@/components/FileMention";
+import { MonacoView } from "@/components/MonacoView";
 
 // Markdown renders an agent answer from the tiny AST in lib/markdown. Every leaf
 // is plain React text (React escapes it) — there is no raw-HTML path — so it is
@@ -91,8 +93,13 @@ export function Markdown({ source, className }: { source: string; className?: st
   );
 }
 
-// CodeBlock renders a fenced block with a hover Copy button — the snippet/command
-// an agent hands you is usually the thing you want to grab, so make it one click.
+// CodeBlock renders a fenced block with a Monaco editor — the snippet/command
+// an agent hands you is usually the thing you want to grab, so the language
+// tag and copy button still live on the surface. Blocks over 12 lines render
+// collapsed (chat scroll stays light); the user expands inline.
+//
+// Behind the scenes, Monaco is loaded lazily from a CDN only when a code block
+// becomes visible — see lib/monaco.ts.
 function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
@@ -104,24 +111,35 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
       /* clipboard unavailable (non-secure context) — silently no-op */
     }
   }
+  const lineCount = code ? code.split("\n").length : 1;
+  const startCollapsed = lineCount > 12;
+  // MonacoView derives its language from `path`, so we synthesise a fake one
+  // that carries the language tag in the basename's extension when possible.
+  // For languages that don't map to a file ext (e.g. "rust"), Monaco still
+  // resolves correctly because `languageFor` falls back to the lang hint.
+  const fakePath = lang ? `snippet.${lang === "rust" ? "rs" : lang}` : "";
   return (
-    <div className="group relative my-2">
-      <pre className="overflow-auto rounded-md border border-border bg-panel/70 p-2.5 font-mono text-[12px] leading-snug">
-        <code>{code}</code>
-      </pre>
+    <div className="my-2">
+      <MonacoView
+        value={code}
+        path={fakePath}
+        readOnly
+        collapsed={startCollapsed}
+        height={Math.min(420, 60 + lineCount * 18)}
+      />
       {lang && (
-        <span className="pointer-events-none absolute left-2 top-1 select-none text-xs uppercase tracking-normal text-muted/60">
-          {lang}
-        </span>
+        <div className="mt-1 flex items-center gap-2 text-[10px] uppercase tracking-normal text-muted/70">
+          <span>lang: {lang}</span>
+          <button
+            onClick={copy}
+            className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted hover:text-foreground"
+            title={copied ? "Copied" : "Copy"}
+          >
+            {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
       )}
-      <button
-        onClick={copy}
-        title={copied ? "Copied" : "Copy"}
-        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded border border-border bg-card px-1.5 py-0.5 text-xs text-muted opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        {copied ? <Check className="size-3 text-good" /> : <Copy className="size-3" />}
-        {copied ? "Copied" : "Copy"}
-      </button>
     </div>
   );
 }
@@ -153,6 +171,8 @@ function renderInline(tokens: Inline[]) {
             {tok.v}
           </a>
         );
+      case "file":
+        return <FileMention key={i} path={tok.v} />;
       default:
         return <Fragment key={i}>{tok.v}</Fragment>;
     }

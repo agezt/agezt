@@ -12,7 +12,11 @@ export type Inline =
   | { t: "strong"; v: string }
   | { t: "em"; v: string }
   | { t: "del"; v: string }
-  | { t: "link"; v: string; href: string };
+  | { t: "link"; v: string; href: string }
+  // File mention: a clickable POSIX path that opens the File Manager. Paths
+  // need a slash OR a known code/text/markdown/json extension to qualify —
+  // arbitrary words like "untitled" never match.
+  | { t: "file"; v: string };
 
 export type Block =
   | { t: "code"; lang: string; v: string }
@@ -39,6 +43,8 @@ export function safeHref(href: string): string {
   return /^(https?:\/\/|mailto:)/i.test(href.trim()) ? href.trim() : "";
 }
 
+import { fileMentionRegex } from "@/lib/languages";
+
 // Strip LaTeX math delimiters (\( … \), \[ … \]) so a model's math reads as the
 // plain expression instead of literal backslash-brackets. Applied only to
 // inline (paragraph/cell/heading/list) text — never to code blocks, which don't
@@ -52,14 +58,36 @@ function stripMathDelimiters(s: string): string {
 export function parseInline(input: string): Inline[] {
   const out: Inline[] = [];
   let rest = stripMathDelimiters(input);
+  // Local non-global copies of the mention regex so we can call .exec() each
+  // iteration without stateful lastIndex drift. fileMentionRegex() returns a
+  // /g regex by design (for callers that want all matches); we keep one
+  // matched group explicit here so the link grammar never sees "notes/x.md"
+  // as a malformed "[x](.md)" link.
   while (rest.length > 0) {
-    const m = rest.match(INLINE_RE);
-    if (!m || m.index == null) {
+    const fm = new RegExp(fileMentionRegex().source).exec(rest);
+    const im = rest.match(INLINE_RE);
+    // Pick whichever match lands earlier in `rest`. Default to whichever
+    // exists when the other doesn't.
+    let picked: "file" | "inline" | null = null;
+    let pos = -1;
+    if (fm && fm.index != null && (!im || im.index == null || fm.index <= im.index)) {
+      picked = "file";
+      pos = fm.index;
+    } else if (im && im.index != null) {
+      picked = "inline";
+      pos = im.index;
+    }
+    if (!picked) {
       out.push({ t: "text", v: rest });
       break;
     }
-    if (m.index > 0) out.push({ t: "text", v: rest.slice(0, m.index) });
-    const tok = m[0];
+    if (pos > 0) out.push({ t: "text", v: rest.slice(0, pos) });
+    if (picked === "file") {
+      out.push({ t: "file", v: fm![0] });
+      rest = rest.slice(pos + fm![0].length);
+      continue;
+    }
+    const tok = im![0];
     if (tok.startsWith("`")) {
       out.push({ t: "code", v: tok.slice(1, -1) });
     } else if (tok.startsWith("[")) {
@@ -74,7 +102,7 @@ export function parseInline(input: string): Inline[] {
     } else {
       out.push({ t: "em", v: tok.slice(1, -1) });
     }
-    rest = rest.slice(m.index + tok.length);
+    rest = rest.slice(pos + tok.length);
   }
   return out;
 }

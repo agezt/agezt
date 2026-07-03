@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, RefreshCw, Trash2, Download, ImageIcon, FileText, X, Loader2 } from "lucide-react";
+import { FolderOpen, RefreshCw, Trash2, Download, ImageIcon, FileText, X, Loader2, LayoutGrid, FolderTree } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { authHeaders, postAction } from "@/lib/api";
 import { cn, fmtTime } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
+import { FileManagerWorkspace } from "@/components/FileManagerWorkspace";
 
 // File manager (M823): browse/preview/download/delete the stored artifacts the
 // daemon indexed (M822) — inbound channel images as a gallery, everything else
@@ -174,6 +175,10 @@ export function Files() {
   const [filter, setFilter] = useState<"all" | "images" | "files">("all");
   const [showRuns, setShowRuns] = useState(false);
   const [preview, setPreview] = useState<ArtifactEntry | null>(null);
+  // File Manager workspace: a dedicated tree + list + detail surface backed by
+  // /api/files/{tree,raw,…} (Slice 5). Off by default so existing gallery
+  // users see no change; toggle in the page actions switches modes.
+  const [mode, setMode] = useState<"gallery" | "workspace">("gallery");
 
   const allEntries = useMemo(() => data?.entries ?? [], [data]);
   const runCount = useMemo(() => allEntries.filter(isRunInternal).length, [allEntries]);
@@ -260,6 +265,28 @@ export function Files() {
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setMode("gallery")}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                  mode === "gallery" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
+                )}
+                title="Gallery of indexed artifacts"
+              >
+                <LayoutGrid className="size-3" /> gallery
+              </button>
+              <button
+                onClick={() => setMode("workspace")}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
+                  mode === "workspace" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
+                )}
+                title="Browse the live workspace as a tree"
+              >
+                <FolderTree className="size-3" /> file manager
+              </button>
+            </div>
             {runCount > 0 && (
               <button
                 onClick={() => setShowRuns((v) => !v)}
@@ -282,6 +309,15 @@ export function Files() {
         }
     >
 
+      {mode === "workspace" ? (
+        // Workspace mode owns the full body — the gallery/tree/list/detail panels
+        // are all internal. Read actions (Collect / Reload) still apply via the
+        // header chrome so a Collect never needs a context switch.
+        <div className="min-h-[60vh] flex-1">
+          <FileManagerWorkspace />
+        </div>
+      ) : (
+        <>
       {error && <ErrorText>{error}</ErrorText>}
       {loading && entries.length === 0 && <SkeletonGrid count={8} />}
 
@@ -370,6 +406,8 @@ export function Files() {
       </div>
 
       {preview && <PreviewModal entry={preview} onClose={() => setPreview(null)} onDelete={() => del(preview)} />}
+        </>
+      )}
     </Page>
   );
 }

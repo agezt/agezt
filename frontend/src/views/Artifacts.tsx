@@ -17,6 +17,7 @@ import {
   PenLine,
   File as FileIcon,
   Search,
+  FolderTree,
   type LucideIcon,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
@@ -29,6 +30,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
+import { MonacoView } from "@/components/MonacoView";
 import { useUI } from "@/components/ui/feedback";
 import {
   type ArtifactEntry,
@@ -297,18 +299,38 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // "Open in File Manager" only makes sense when the artifact's `ref` is a
+  // path-shaped string (e.g. "notes/README.md" written by the coding/file
+  // tools). Raw blob hashes and inbound channel refs are content addresses,
+  // not FS paths, so the button stays hidden for those.
+  const filePath = looksLikePath(entry.ref);
+  const openInFileManager = () => {
+    if (!filePath) return;
+    window.location.hash = `files?path=${encodeURIComponent(filePath)}`;
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className={cn(
           "glass flex flex-col overflow-hidden rounded-xl shadow-2xl",
-          full ? "fixed inset-2" : "max-h-[90vh] w-full max-w-3xl",
+          full ? "fixed inset-2" : "max-h-[90vh] w-full max-w-4xl",
         )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">
           <Badge variant="accent">{category}</Badge>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{entry.name || entry.id}</span>
+          {filePath && (
+            <button
+              onClick={openInFileManager}
+              className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-muted hover:text-foreground"
+              title={`Open ${filePath} in the File Manager workspace`}
+            >
+              <FolderTree className="size-3.5" /> file manager
+            </button>
+          )}
           <button onClick={() => setFull(!full)} className="text-muted hover:text-accent" title={full ? "Exit fullscreen" : "Fullscreen"} aria-label={full ? "Exit fullscreen" : "Fullscreen"}>
             {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
           </button>
@@ -322,10 +344,34 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
             <X className="size-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
-          <ViewerBody entry={entry} category={category} full={full} />
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {/* Persistent metadata column on the left — full-height, narrow,
+              readable. The body region keeps the centred preview. */}
+          <aside className="hidden w-52 shrink-0 flex-col gap-1 overflow-auto border-r border-border bg-panel/40 p-3 text-[11px] text-muted md:flex">
+            <div className="text-xs font-semibold uppercase tracking-normal text-foreground/80">Metadata</div>
+            {entry.name && <Field label="name" value={entry.name} />}
+            {entry.ref && <Field label="ref" value={entry.ref} mono />}
+            {entry.mime && <Field label="mime" value={entry.mime} mono />}
+            {entry.kind && entry.kind !== "file" && <Field label="kind" value={entry.kind} />}
+            {entry.source && <Field label="source" value={entry.source} />}
+            {entry.sender && <Field label="from" value={entry.sender} />}
+            {entry.corr && <Field label="corr" value={entry.corr} mono />}
+            <Field label="size" value={humanSize(entry.size)} />
+            <Field label="created" value={fmtTime(entry.created_ms)} />
+            {entry.caption && (
+              <div className="mt-2">
+                <div className="text-foreground/80">caption</div>
+                <div className="text-foreground/90">“{entry.caption}”</div>
+              </div>
+            )}
+          </aside>
+          {/* Preview body. md+ works with the metadata column; below md the
+              column collapses and the preview fills width — handled in CSS. */}
+          <div className="min-h-0 flex-1 overflow-auto bg-panel/40 p-3">
+            <ViewerBody entry={entry} category={category} full={full} />
+          </div>
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 border-t border-border px-4 py-2 text-[11px] text-muted">
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5 border-t border-border px-4 py-2 text-[11px] text-muted md:hidden">
           {entry.source && <span>source: {entry.source}</span>}
           {entry.sender && <span>from: {entry.sender}</span>}
           {entry.mime && <span>{entry.mime}</span>}
@@ -336,6 +382,35 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
       </div>
     </div>
   );
+}
+
+// Field is one metadata row inside the persistent column. Mono-styled values
+// render longer refs/IDs/paths on one line without wrapping the layout.
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="leading-tight">
+      <div className="text-[10px] uppercase tracking-normal text-muted/80">{label}</div>
+      <div
+        className={cn("break-all text-foreground/90", mono && "font-mono text-[11px]")}
+        title={value}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// looksLikePath is a cheap heuristic — does the ref look like a POSIX path?
+// Returns null when it doesn't (so the File Manager button stays hidden for
+// content-addressed blobs / channel refs).
+export function looksLikePath(ref?: string): string | null {
+  if (!ref) return null;
+  if (ref.startsWith("/") || /^[A-Za-z]:/.test(ref)) return null;
+  if (ref.includes("\0")) return null;
+  // must contain at least one path separator, OR end in a known file extension
+  if (ref.includes("/")) return ref;
+  if (/\.(md|txt|json|ya?ml|toml|sh|ts|tsx|js|jsx|go|py|rs|html|css|sql)$/i.test(ref)) return ref;
+  return null;
 }
 
 // ViewerBody renders the artifact by category. HTML artifacts render inside a
@@ -409,10 +484,16 @@ function ViewerBody({ entry, category, full }: { entry: ArtifactEntry; category:
   if (category === "markdown") {
     return <Markdown source={text} className="prose-sm max-w-none text-sm text-foreground/90" />;
   }
+  // code / json / text → Monaco. Monaco's built-in JSON formatter handles the
+  // json case out of the box (its language id is "json"). The path picker
+  // keeps syntax highlighting reasonable for every text-shaped artifact.
   return (
-    <pre className="overflow-auto whitespace-pre-wrap break-words rounded-md bg-card p-3 text-left font-mono text-xs leading-relaxed text-foreground/90">
-      {text}
-    </pre>
+    <MonacoView
+      value={text}
+      path={entry.name || `artifact.${category}`}
+      readOnly
+      height={Math.min(560, text.split("\n").length * 18 + 60)}
+    />
   );
 }
 
