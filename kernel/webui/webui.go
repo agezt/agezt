@@ -309,14 +309,23 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/agents/impact": {controlplane.CmdAgentImpact, []string{"ref"}},
 	// Agent effective permissions: roster tool allow/deny + Edict/trust ceiling. Read-only.
 	"/api/agents/permissions": {controlplane.CmdAgentPermissions, []string{"ref"}},
-	// Per-agent activity timeline (M854): what the agent did, from the journal. Read-only.
-	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit"}},
+	// Per-agent activity timeline (M854): what the agent did, from the journal.
+// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
+	// AgentPage views load this on every poll, and the journal can hold tens
+	// of thousands of events. `cursor` is the opaque "<seq>" boundary of the
+	// previous page; server skips entries with seq >= cursorSeq. Journal seq
+	// is monotonic per kernel, so this is unique without a tie-break.
+	"/api/agents/activity": {controlplane.CmdAgentActivity, []string{"ref", "limit", "cursor"}},
 	// Autonomous self-repair history/state: queued/completed/failed auto-repair
 	// attempts for one agent, with inflight/cooldown detail. Read-only.
-	"/api/agents/repair_status": {controlplane.CmdAgentRepairStatus, []string{"ref", "limit"}},
+	// Same `<seq>` cursor as /api/agents/activity.
+	"/api/agents/repair_status": {controlplane.CmdAgentRepairStatus, []string{"ref", "limit", "cursor"}},
 	// Owner/parent escalation queue for one agent: doctor-triggered help requests
 	// it is currently responsible for, enriched with wake/provenance metadata.
-	"/api/agents/escalations": {controlplane.CmdAgentEscalations, []string{"ref", "limit"}},
+	// Cursor pagination: `<ts_unix_ms>:<message_id>` — ts can collide across
+	// board messages so the message_id is the tie-break. server skips entries
+	// strictly newer-or-equal to the cursor.
+	"/api/agents/escalations": {controlplane.CmdAgentEscalations, []string{"ref", "limit", "cursor"}},
 	// Rated agent Config Center (distinct from daemon /api/config settings):
 	// key/value entries agents can read under rating + allow/deny policy.
 	"/api/configcenter/list": {controlplane.CmdConfigCenterList, []string{"rating"}},
