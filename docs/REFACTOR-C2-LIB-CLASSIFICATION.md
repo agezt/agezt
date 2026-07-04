@@ -89,3 +89,22 @@ KEEP: `agent`, `agentlive`, `attach`, `commands`, `conductor`, `council`, `deleg
 
 **Interaction with C4:** the voice merge (P1) touches Chat's `useVoice` concern — do C2-P1 and C4-P5
 sequentially, not concurrently.
+
+## Status
+
+- **P1 MERGE voice — ✅ DONE** (branch `refactor/c2-voice-merge`, commit `48451042`, off `main`).
+  Folded **5** modules into `lib/voice/` behind an `index.ts` barrel: `voice.ts→voice/transcribe.ts`,
+  `tts.ts→voice/tts.ts`, `voiceCatalog.ts→voice/catalog.ts`, `voiceSession.ts→voice/session.ts`,
+  `sentenceChunker.ts→voice/sentenceChunker.ts` (+ their tests). Internal cross-imports became
+  relative; `@/lib/chat`, `@/lib/api`, `@/lib/speech` stay absolute. Consumers (`MicButton`,
+  `VoiceSetup`, `Voice.tsx`) import from the `@/lib/voice` barrel; `Voice.test.tsx`'s mock was
+  narrowed to `@/lib/voice/session`. tsc clean, vitest 1453/1453, `vite build` regenerated
+  `kernel/webui/dist` (committed). **Frontend-only** → CI-verifiable on the `setup-node` jobs
+  independent of the flaky Go WSL runners.
+
+  **Scope note:** the merge table lists 5 modules, not 6 — `speech.ts` is deliberately left in `lib/`.
+  It is a lower-level browser `SpeechSynthesis` primitive imported by both `tts` and `views/Chat`, so
+  merging it would (a) pull a non-voice-pipeline primitive into the folder and (b) entangle with the
+  C4 `Chat.tsx` surface. Keeping it out honors the C2↔C4 sequencing constraint.
+
+- **P0, P2–P5** — not started.
