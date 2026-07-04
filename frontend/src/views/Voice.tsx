@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { getJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/lib/voiceSession";
+import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/lib/voice";
 import { VoiceSetup } from "@/views/VoiceSetup";
 
 const WAKE_KEY = "agezt.voice.wake";
