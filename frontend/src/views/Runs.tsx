@@ -10,7 +10,6 @@ import {
   Clock,
   CircleDot,
   CircleStop,
-  Loader2,
 } from "lucide-react";
 import { postAction } from "@/lib/api";
 import { useUI } from "@/components/ui/feedback";
@@ -27,6 +26,7 @@ import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { useCursorPager } from "@/lib/cursorPager";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 interface Run {
   correlation_id?: string;
@@ -442,33 +442,14 @@ function RunList({
           — a stable terminal page hides it. The `pager` prop is optional so the
           test suite can render RunList without a real hook. */}
       {pager && (
-        <div className="flex flex-col items-center gap-1 border-t border-border/50 px-3 py-3">
-          {pager.hasMore ? (
-            <>
-              <button
-                onClick={pager.onLoadMore}
-                disabled={pager.loadingMore}
-                aria-busy={pager.loadingMore || undefined}
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-foreground hover:border-accent disabled:opacity-50"
-              >
-                {pager.loadingMore ? (
-                  <>
-                    <Loader2 className="size-3 animate-spin" /> loading…
-                  </>
-                ) : (
-                  <>Load 50 more</>
-                )}
-              </button>
-              {pager.moreError && (
-                <p className="text-[11px] text-bad" role="alert">
-                  couldn't load more: {pager.moreError}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-muted">— end of run history —</p>
-          )}
-        </div>
+        <LoadMoreFooter
+          hasMore={pager.hasMore}
+          loadingMore={pager.loadingMore}
+          moreError={pager.moreError}
+          onLoadMore={pager.onLoadMore}
+          pageSize={RUN_PAGE_SIZE}
+          label="run history"
+        />
       )}
     </section>
   );

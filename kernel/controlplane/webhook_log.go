@@ -16,6 +16,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
@@ -37,6 +38,7 @@ func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	failedOnly, _ := req.Args["failed"].(bool)
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	cutoff := sinceCutoff(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
@@ -88,6 +90,15 @@ func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
 		}
 		return rows[i].seq > rows[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := rows[:0]
+		for _, r := range rows {
+			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
+				kept = append(kept, r)
+			}
+		}
+		rows = kept
+	}
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -95,6 +106,7 @@ func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
 	for _, r := range rows {
 		m := map[string]any{
 			"ts_unix_ms": r.ts,
+			"seq":        r.seq, // A2: stable per-row id for the frontend cursor pager
 			"ok":         r.ok,
 			"url":        r.url,
 			"event_kind": r.kind,
@@ -107,10 +119,14 @@ func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
 		}
 		out = append(out, m)
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(rows); n > 0 {
+		nextCursor = journal.NextCursor(rows[n-1].ts, rows[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"deliveries": out, "count": len(out)},
+		Result: map[string]any{"deliveries": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 

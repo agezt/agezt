@@ -15,6 +15,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleWorldLog(conn net.Conn, req Request) {
@@ -35,8 +36,9 @@ func (s *Server) handleWorldLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
-	kindFilter, _ := req.Args["kind"].(string)  // entity|relation
-	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper
+	kindFilter, _ := req.Args["kind"].(string)                          // entity|relation
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
+	cutoff := sinceCutoff(req.Args["since_ms"])                             // M65 helper
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -102,6 +104,15 @@ func (s *Server) handleWorldLog(conn net.Conn, req Request) {
 		}
 		return ops[i].seq > ops[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := ops[:0]
+		for _, o := range ops {
+			if journal.KeepBeforeCursor(o.ts, o.seq, cursorMS, cursorSeq) {
+				kept = append(kept, o)
+			}
+		}
+		ops = kept
+	}
 	if len(ops) > limit {
 		ops = ops[:limit]
 	}
@@ -110,14 +121,19 @@ func (s *Server) handleWorldLog(conn net.Conn, req Request) {
 	for _, o := range ops {
 		out = append(out, map[string]any{
 			"ts_unix_ms": o.ts,
+			"seq":        o.seq, // A2: stable per-row id for the frontend cursor pager
 			"op":         o.op,
 			"what":       o.what,
 			"label":      o.label,
 		})
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(ops); n > 0 {
+		nextCursor = journal.NextCursor(ops[n-1].ts, ops[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"ops": out, "count": len(out)},
+		Result: map[string]any{"ops": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleEdictLog(conn net.Conn, req Request) {
@@ -35,6 +36,7 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	deniedOnly, _ := req.Args["denied"].(bool)
 	toolFilter, _ := req.Args["tool"].(string)      // M74: scope to one tool
 	capFilter, _ := req.Args["capability"].(string) // M74: scope to one capability
@@ -89,6 +91,15 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 		}
 		return decisions[i].seq > decisions[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := decisions[:0]
+		for _, d := range decisions {
+			if journal.KeepBeforeCursor(d.ts, d.seq, cursorMS, cursorSeq) {
+				kept = append(kept, d)
+			}
+		}
+		decisions = kept
+	}
 	if len(decisions) > limit {
 		decisions = decisions[:limit]
 	}
@@ -97,6 +108,7 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 	for _, d := range decisions {
 		out = append(out, map[string]any{
 			"ts_unix_ms":     d.ts,
+			"seq":            d.seq, // A2: stable per-row id for the frontend cursor pager
 			"actor":          d.actor,
 			"correlation_id": d.corr,
 			"tool":           d.tool,
@@ -106,10 +118,14 @@ func (s *Server) handleEdictLog(conn net.Conn, req Request) {
 			"hard_denied":    d.hardDenied,
 		})
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(decisions); n > 0 {
+		nextCursor = journal.NextCursor(decisions[n-1].ts, decisions[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"decisions": out, "count": len(out)},
+		Result: map[string]any{"decisions": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 
