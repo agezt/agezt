@@ -45,13 +45,35 @@ Single-view importers (mapping verified by grep where ambiguous):
 |---|---|
 | acp | views/ACPAgents/lib/acp.ts |
 | catalog | views/Catalog/lib/catalog.ts |
-| channelSessions | views/Channels/lib/channelSessions.ts |
+| channelSessions | views/ChannelSessions/lib/channelSessions.ts |
 | insights (✓ Insights.tsx) | views/Insights/lib/insights.ts |
 | market | views/Market/lib/market.ts |
-| providerPresets | views/Providers/lib/providerPresets.ts |
+| providerPresets (→ QuickConnect.tsx) | views/QuickConnect/lib/providerPresets.ts |
 | routingSuggest (✓ Routing.tsx) | views/Routing/lib/routingSuggest.ts |
-| snapshot (✓ Backup.tsx) | views/Backup/lib/snapshot.ts |
 | telemetry (✓ Mission.tsx) | views/Mission/lib/telemetry.ts |
+
+> **Correction (measured during P3 prep):** two fixes to the table above vs. the
+> original scan.
+> 1. **`snapshot` removed — reclassify as KEEP (cross-cutting), not COLOCATE.**
+>    Although it has a single *importer* (`Backup.tsx`), `snapshot.ts` *imports*
+>    four **other** views — `@/views/{Standing,Schedules,Memory,World}` (their
+>    `parse*JSON` helpers) — to assemble/apply a full backup. It is a cross-view
+>    aggregator, not a Backup-local helper; colocating it under `views/Backup/`
+>    would make a module that reaches sideways into four sibling views. Leave it
+>    in `lib/`.
+> 2. **Import mapping corrected:** `channelSessions` is imported by
+>    `ChannelSessions.tsx` (not `Channels.tsx`); `providerPresets` by
+>    `QuickConnect.tsx` (not the Providers view). Targets updated accordingly.
+>
+> **Structural prerequisite (unresolved):** all `views/*` are **flat files**
+> today (`views/Backup.tsx`), with no `views/<X>/` folders. `views/<X>/lib/…`
+> therefore requires first converting each target view to a folder
+> (`views/X.tsx` → `views/X/index.tsx`; `@/views/X` still resolves, so consumers
+> don't change). That folder-per-view move is a real convention decision — do it
+> deliberately as its own step before executing these 8 colocations, or adopt a
+> flat `views/<X>.<helper>.ts` naming instead. Verified: of the 8 remaining
+> candidates, only `snapshot` reaches other views; the other 8 are self-contained
+> and safe to colocate once the folder convention is chosen.
 
 ## COLOCATE to a component (component folder)
 
