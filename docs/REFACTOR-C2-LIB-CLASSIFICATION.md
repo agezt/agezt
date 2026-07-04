@@ -78,7 +78,18 @@ Single-view importers (mapping verified by grep where ambiguous):
 ## COLOCATE to a component (component folder)
 
 Single-component importers: `agentactivity`, `agentrepair`, `help`, `notify`, `files` (2 comp),
-`language`+`monaco` → `components/MonacoView/`.
+`monaco` → `components/MonacoView/`.
+
+> **Correction (measured):** `language` **dropped from this list — it is now KEEP.**
+> P2 merged `languages` into `language`, so `language` gains `markdown.ts` as a
+> second consumer alongside `MonacoView.tsx` — it crosses the component↔lib
+> boundary and is shared, so it stays in `lib/`. (Only `monaco`, 1 consumer,
+> remains a MonacoView-local candidate.)
+>
+> **Same structural prerequisite as the view colocation applies:**
+> `components/*` are flat files too (`components/MonacoView.tsx`, only
+> `components/ui/` is a folder). `components/MonacoView/` requires the
+> flat→folder convention decision first.
 
 ## MERGE (fold into a sibling)
 
