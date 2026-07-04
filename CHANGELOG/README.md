@@ -10,7 +10,8 @@ This directory holds the split changelog structure.
 - `unreleased/m300-m399.md` — historical milestone slice
 - `unreleased/m400-m499.md` — historical milestone slice
 - `unreleased/m500-m599.md` — historical milestone slice
-- `unreleased/m600-m699.md` — historical milestone slice
+- `unreleased/m600-m649.md` — historical milestone slice
+- `unreleased/m650-m699.md` — historical milestone slice
 - `unreleased/m700-m799.md` — historical milestone slice
 - `unreleased/m800-m899.md` — historical milestone slice
 - `unreleased/m900-m999.md` — historical milestone slice
