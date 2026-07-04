@@ -87,5 +87,12 @@ KEEP: `agent`, `agentlive`, `attach`, `commands`, `conductor`, `council`, `deleg
 - **P4 COLOCATE component-scoped** — 6 modules into their component folder.
 - **P5** knip/deadcode verify; update barrels.
 
+> **P2 status — ✅ DONE** (branch `refactor/c2-store-merges`, commit `dd5f3864`, off `main`):
+> `conductorStore→conductor`, `councilStore→council`, `languages→language` all merged; consumers
+> repointed (`App`, `Conductor`, `Council`, `markdown`); `Conductor.test` mock moved to
+> `@/lib/conductor` via `importOriginal`; `languages.test.ts→language.exts.test.ts`. lib/ 68→65.
+> tsc clean, vitest 1453/1453, dist rebuilt. Frontend-only → CI-verifiable independent of the Go
+> WSL runners. (P1 voice-merge lands separately on `refactor/c2-voice-merge`.)
+
 **Interaction with C4:** the voice merge (P1) touches Chat's `useVoice` concern — do C2-P1 and C4-P5
 sequentially, not concurrently.
