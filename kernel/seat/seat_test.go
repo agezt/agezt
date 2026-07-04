@@ -41,10 +41,14 @@ func TestBuiltinsAndGet(t *testing.T) {
 }
 
 func TestValid(t *testing.T) {
-	if !Valid("") || !Valid("reader") || !Valid("Builder") {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("open seat store: %v", err)
+	}
+	if !st.Valid("") || !st.Valid("reader") || !st.Valid("Builder") {
 		t.Fatal("expected empty/reader/Builder valid")
 	}
-	if Valid("bogus") {
+	if st.Valid("bogus") {
 		t.Fatal("bogus should be invalid")
 	}
 }

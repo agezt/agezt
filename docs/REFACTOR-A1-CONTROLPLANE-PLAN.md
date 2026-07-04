@@ -1,7 +1,7 @@
 # Refactor A1 — `kernel/controlplane` → domain packages (file-by-file plan)
 
 > Companion to `docs/REFACTORING-SCAN.md` finding **A1**.
-> **Generated:** 2026-07-03 · **Branch analyzed:** `feat/cursor-pagination-agents`.
+> **Generated:** 2026-07-03 · **Branch analyzed at generation time:** `feat/cursor-pagination-agents` (historical snapshot; not the current branch).
 > Grounded in a live inventory of `kernel/controlplane/*.go` (not from memory).
 
 ## Evidence

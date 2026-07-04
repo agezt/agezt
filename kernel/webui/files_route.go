@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 // File Manager routes (M1017). The frontend's Files workspace talks to a
@@ -428,7 +427,3 @@ func readJSONBody(w http.ResponseWriter, r *http.Request, maxBytes int64) (map[s
 	return out, true
 }
 
-// tickWatchFile is a stub for the optional event loop the UI will eventually
-// use to invalidate FileTree entries on the client. Not exposed yet — kept
-// in this file so the next slice has a hook to wire without an edit here.
-func tickWatchFile(_ string, _ time.Duration) {}

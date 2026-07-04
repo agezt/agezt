@@ -123,15 +123,6 @@ func Get(id string) (Seat, bool) {
 	return Seat{}, false
 }
 
-// Valid reports whether id names a known seat (empty is valid — it means default).
-func Valid(id string) bool {
-	if strings.TrimSpace(id) == "" {
-		return true
-	}
-	_, ok := Get(id)
-	return ok
-}
-
 func cloneSeat(s Seat) Seat {
 	s.ModelChain = append([]string(nil), s.ModelChain...)
 	s.Tools = append([]string(nil), s.Tools...)

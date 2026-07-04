@@ -1,9 +1,18 @@
 # Refactor C4 — `views/Chat.tsx` decomposition (named sub-files)
 
 > Companion to `docs/REFACTORING-SCAN.md` finding **C4**.
-> **Generated:** 2026-07-03. Grounded in a live read of `Chat.tsx` + its 10 test files.
+> **Generated:** 2026-07-03. Grounded in a live read of the **pre-extraction monolith** `Chat.tsx` + its 10 sibling Chat test files.
+>
+> **Current-state note (2026-07-04):** this doc's measurements below are the **historical baseline** used to plan the decomposition. After P0-P5 extraction, the implementation now lives under `frontend/src/views/Chat/` with:
+> - `Chat.tsx` (barrel shim) = 1 line
+> - `Chat/Chat.tsx` = **416 lines / ~17.4 KiB**
+> - `useChatSession.ts` = **122 lines**
+> - extracted modules: `message.tsx`, `context.tsx`, `pickers.tsx`, `conversation.tsx`, `useComposer.ts`, `useVoice.ts`, `useContextWindow.ts`, `useConversationRouting.ts`, `useSteering.ts`, `useConversationControls.ts`
+> See `docs/MISSING-PARTS-PLAN.md` P1-A for the latest slice status.
 
 ## Evidence (measured)
+
+**Historical baseline (before decomposition):**
 
 `frontend/src/views/Chat.tsx` — **1,973 lines / 76.6 KB**, **29 components in one file**,
 **30 `useState`, 17 `useEffect`, 9 `useRef`, 2 `useMemo`, 0 `useReducer`**. Ten sibling tests:

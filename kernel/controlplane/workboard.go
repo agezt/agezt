@@ -781,8 +781,3 @@ func workboardStringSliceArg(raw any) []string {
 	}
 }
 
-func workboardStatusList() string {
-	return fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
-		workboard.StatusTriage, workboard.StatusTodo, workboard.StatusReady, workboard.StatusRunning,
-		workboard.StatusBlocked, workboard.StatusReview, workboard.StatusDone, workboard.StatusArchived)
-}

@@ -10,6 +10,8 @@ Legend: ✅ route string present in SDK source; — not present / intentionally 
 
 | Route | Kind | Go | Python | TypeScript | Rust | Notes |
 |---|---|---:|---:|---:|---:|---|
+| `/api/v1/artifacts` | exact | n/a | — | — | — |  |
+| `/api/v1/artifacts/` | prefix | n/a | — | — | — |  |
 | `/api/v1/health` | exact | n/a | ✅ | ✅ | ✅ | daemon health |
 | `/api/v1/mailbox/inbox` | exact | n/a | ✅ | ✅ | ✅ | inter-agent mailbox |
 | `/api/v1/mailbox/messages` | exact | n/a | ✅ | ✅ | ✅ | inter-agent mailbox |
@@ -25,9 +27,9 @@ Legend: ✅ route string present in SDK source; — not present / intentionally 
 ## Summary
 
 - **Go**: n/a for REST route-string coverage (uses local control-plane protocol; see Go SDK tests).
-- **Python**: 9/9 SDK-intended REST routes have static source coverage.
-- **TypeScript**: 9/9 SDK-intended REST routes have static source coverage.
-- **Rust**: 9/9 SDK-intended REST routes have static source coverage.
+- **Python**: 9/11 SDK-intended REST routes have static source coverage.
+- **TypeScript**: 9/11 SDK-intended REST routes have static source coverage.
+- **Rust**: 9/11 SDK-intended REST routes have static source coverage.
 
 ## Intentionally unsupported SDK routes
 
