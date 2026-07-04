@@ -263,16 +263,10 @@ func renderMain(prefix []string, versions []versionBlock) string {
 	b.WriteString(strings.Join(trimTrailingBlankLines(prefix), "\n"))
 	b.WriteString("\n\n## [Unreleased]\n\n")
 	b.WriteString("See `CHANGELOG/unreleased/current.md` for the active working set and `CHANGELOG/` for historical milestone slices.\n\n")
-	for i, v := range versions {
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString(v.Header)
-		b.WriteString("\n\n")
-		if len(v.Body) > 0 {
-			b.WriteString(strings.Join(v.Body, "\n"))
-			b.WriteString("\n")
-		}
+	b.WriteString("## Releases\n\n")
+	b.WriteString("Released version notes live in per-version files under `CHANGELOG/`.\n\n")
+	for _, v := range versions {
+		fmt.Fprintf(&b, "- `%s` — `%s` (%s)\n", vFilename(v), v.Tag, v.Date)
 	}
 	return b.String()
 }

@@ -70,6 +70,12 @@ func TestBuildSplit(t *testing.T) {
 	if !strings.Contains(res.MainChangelog, "See `CHANGELOG/unreleased/current.md`") {
 		t.Fatalf("main changelog missing unreleased pointer")
 	}
+	if !strings.Contains(res.MainChangelog, "## Releases") || !strings.Contains(res.MainChangelog, "`v1.0.0.md` — `1.0.0` (2026-06-03)") {
+		t.Fatalf("main changelog missing compact release index")
+	}
+	if strings.Contains(res.MainChangelog, "### Added\n- released thing") {
+		t.Fatalf("main changelog should not inline released bodies")
+	}
 	if !strings.Contains(res.Current, "### Fixed") {
 		t.Fatalf("current.md should keep unreleased chunk with no M refs")
 	}
