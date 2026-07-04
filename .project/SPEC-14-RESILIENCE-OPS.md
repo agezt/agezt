@@ -2,7 +2,7 @@
 > ⚠️ **AUTHORITY NOTICE:** This document is subordinate to `DECISIONS.md`. Where anything here conflicts with DECISIONS, **DECISIONS wins** — especially the foundational revisions **B0 (transport = stdio + JSON-RPC 2.0, NOT gRPC/protobuf)**, **B0a (plugins default in-process; out-of-process only for isolation)**, **B0b (minimal contract, grows append-only)**, **B0c (mutable state store is first-class alongside the event log)**, and **B0d (DAG is a second layer over a first-party single-agent tool-loop)**. Any mention of gRPC, protobuf, or "all plugins out-of-process" in this file is superseded. The contract source of truth is `agezt-contract.jsonc`.
 
 
-> Status: Draft v0.1 · Language: English · Domain/Repo: TBD
+> Status: Active · Domain: github.com/agezt/agezt · License: MIT · Language: English
 > Depends on: SPEC-02, SPEC-05, SPEC-06, SPEC-07, SPEC-10
 > Collects the cross-cutting concerns that make an autonomous system survivable, trustworthy, usable, and operable in the real world. Nothing here is "later" — each is placed in a phase. These are the gaps that separate a demo from a product.
 

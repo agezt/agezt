@@ -2,7 +2,7 @@
 > ⚠️ **AUTHORITY NOTICE:** This document is subordinate to `DECISIONS.md`. Where anything here conflicts with DECISIONS, **DECISIONS wins** — especially the foundational revisions **B0 (transport = stdio + JSON-RPC 2.0, NOT gRPC/protobuf)**, **B0a (plugins default in-process; out-of-process only for isolation)**, **B0b (minimal contract, grows append-only)**, **B0c (mutable state store is first-class alongside the event log)**, and **B0d (DAG is a second layer over a first-party single-agent tool-loop)**. Any mention of gRPC, protobuf, or "all plugins out-of-process" in this file is superseded. The contract source of truth is `agezt-contract.jsonc`.
 
 
-> Status: Draft v0.1 · Language: English · Domain/Repo: TBD
+> Status: Active · Domain: github.com/agezt/agezt · License: MIT · Language: English
 > Depends on: SPEC-01 (events/contracts), SPEC-02 (control plane), SPEC-03 (Pulse)
 > Defines every human-facing surface: the Web UI (Flow Studio, Unified Inbox, Live Monitor, Memory Explorer), the CLI/TUI, the gateway/API, and ambient surfaces. The contract: **maximum power inside, maximum simplicity outside.**
 

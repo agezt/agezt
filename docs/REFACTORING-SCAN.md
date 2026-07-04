@@ -1,6 +1,6 @@
 # Refactoring Scan — AGEZT
 
-> **Generated:** 2026-07-03 · **Branch:** `feat/cursor-pagination-agents` (clean tree)
+> **Generated:** 2026-07-03 · **Branch at generation time:** `feat/cursor-pagination-agents` (clean tree then; historical snapshot, not the current branch)
 > **Method:** cross-referenced `docs/ARCHITECTURE.md`, `docs/ARCHITECTURAL-REPORT.md`,
 > `docs/DEAD-CODE-AUDIT.md`, the live file listing of every `kernel/`, `frontend/src/`,
 > and `cmd/` directory, plus recent origin/main history (`dbff54ad`…`04ddbb0c`) which
@@ -182,7 +182,7 @@ list-endpoint paginations.
 ## H. Documentation
 
 - **H1.** `docs/ARCHITECTURAL-REPORT.md` self-flags as stale ("phase M781+"). Regenerate or drop the note.
-- **H2.** `README.md:19` links `docs/SYSTEM-REVIEW.md` which does not exist. Fix the link or add a stub.
+- **H2.** `README.md:19` used to point at a missing “system review” doc; the current correct target is `docs/SYSTEM-AUDIT-REPORT.md`. If this scan is reused, keep that target in sync rather than reintroducing a stub.
 - **H3.** `docs/AGENT-LOOP-INVARIANTS.md` invariants are enforced by `kernel/runtime/runtime.go`
   + `kernel/roster/roster.go` but not cross-referenced. Add 3-line package doc links at the top
   of each source file.

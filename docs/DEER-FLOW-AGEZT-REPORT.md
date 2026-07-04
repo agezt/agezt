@@ -137,7 +137,7 @@ DeerFlow `Install.md` dosyasını özellikle coding agent'ların repoyu kurması
 
 AGEZT karşılığı:
 
-- `Install.md` veya `docs/CODING-AGENT-INSTALL.md`.
+- `Install.md` (mevcut) veya ileride ayrı bir `CODING-AGENT-INSTALL.md` türevi.
 - "Secret-bearing `.env` okunmaz", "önce `make build`/`agt quickstart`", "daemon başlatmadan önce exact next command döndür" gibi kurallar.
 - `agt doctor` çıktısını daha actionable hale getirecek küçük checklist.
 
@@ -149,7 +149,7 @@ DeerFlow frontend docs içinde gerçek demo thread/artifact örnekleri taşıyor
 
 AGEZT karşılığı:
 
-- `docs/DEMO-GALLERY.md` veya Web UI içinde "Demos" sayfası.
+- `examples/autonomous/` (mevcut runnable demos) veya ileride Web UI içinde "Demos" sayfası.
 - Policy denial, mailbox delegation, typed schedule, plugin governance demolarının beklenen event timeline'ı ve artifact çıktısı.
 - Her demo için "hangi AGEZT iddiasını kanıtlıyor?" bölümü.
 
@@ -188,7 +188,7 @@ AGEZT karşılığı:
 ## Hızlı kazanımlar
 
 - AGEZT docs index'inden bu raporu görünür yap.
-- README'deki bazı doc referanslarını kontrol et: inceleme sırasında `docs/SYSTEM-REVIEW.md` referansının bu checkout'ta bulunmadığı görüldü. Benzer şekilde `docs/NEXT.md` içinde `docs/MISSING-PARTS-REPORT.md` ve `docs/MISSING-PARTS-PLAN.md` referansları varsa dosya varlığı doğrulanmalı.
+- README'deki bazı doc referanslarını kontrol et: önceki incelemede eksik bir “system review” referansı tespit edilmişti; bu checkout'ta doğru hedef artık `docs/SYSTEM-AUDIT-REPORT.md`. Benzer şekilde `docs/NEXT.md` içindeki `docs/MISSING-PARTS-REPORT.md` ve `docs/MISSING-PARTS-PLAN.md` referansları artık doğrulanmış durumda.
 - DeerFlow tarzı `Install.md` eklemek düşük maliyetli ve dış agent'ların AGEZT'yi denemesini kolaylaştırır.
 
 ## Kaynak dosyalar

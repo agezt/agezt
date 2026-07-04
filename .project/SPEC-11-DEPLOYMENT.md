@@ -2,7 +2,7 @@
 > ⚠️ **AUTHORITY NOTICE:** This document is subordinate to `DECISIONS.md`. Where anything here conflicts with DECISIONS, **DECISIONS wins** — especially the foundational revisions **B0 (transport = stdio + JSON-RPC 2.0, NOT gRPC/protobuf)**, **B0a (plugins default in-process; out-of-process only for isolation)**, **B0b (minimal contract, grows append-only)**, **B0c (mutable state store is first-class alongside the event log)**, and **B0d (DAG is a second layer over a first-party single-agent tool-loop)**. Any mention of gRPC, protobuf, or "all plugins out-of-process" in this file is superseded. The contract source of truth is `agezt-contract.jsonc`.
 
 
-> Status: Draft v0.1 · Language: English · Domain/Repo: TBD
+> Status: Active · Domain: github.com/agezt/agezt · License: MIT · Language: English
 > Depends on: SPEC-06 (Warden), SPEC-08 (GHCR distribution), POLICY (packaging)
 > Defines where and how Agezt runs: Docker as deployment substrate and as sandbox, GHCR images and CI/CD, multi-arch, and the spectrum from a $5 VPS to a cluster. Docker is an optional capability, never a hard requirement.
 
