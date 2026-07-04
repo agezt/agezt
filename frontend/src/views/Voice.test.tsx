@@ -13,10 +13,14 @@ vi.mock("@/lib/api", () => ({
 }));
 
 // Keep the voice session inert in tests — we only verify the view's chrome and
-// controls render and toggle, not the audio loop (covered in voiceSession.test).
+// controls render and toggle, not the audio loop (covered in voice/session.test).
+// The voice modules moved behind the @/lib/voice barrel; mock the session
+// submodule specifically (not the whole barrel) so the real STT/TTS provider
+// catalog the inline VoiceSetup panel reads stays intact, and the heavy audio
+// session module is never loaded.
 const start = vi.fn();
 const stop = vi.fn();
-vi.mock("@/lib/voiceSession", () => ({
+vi.mock("@/lib/voice/session", () => ({
   VoiceSession: class {
     start = start;
     stop = stop;
