@@ -875,13 +875,13 @@ func workshopScanSkill(sk map[string]any) workshopScanReport {
 	if unpinnedInstall(lower) {
 		add("medium", "unpinned-install", "installs dependencies without an obvious version pin", "install")
 	}
-	for _, url := range workshopURLPattern.FindAllString(body, -1) {
+	if urls := workshopURLPattern.FindAllString(body, -1); len(urls) > 0 {
+		url := urls[0]
 		severity := "medium"
 		if strings.HasPrefix(strings.ToLower(url), "http://") {
 			severity = "high"
 		}
 		add(severity, "external-url", "contains an external URL; review provenance and egress need", url)
-		break
 	}
 	for _, phrase := range []string{"../", "~/.ssh", "$home", "%userprofile%", "c:\\", "/etc/", "/var/", "/usr/bin"} {
 		if strings.Contains(lower, phrase) {

@@ -534,31 +534,6 @@ func k8sProfile(tools map[string]bool, cfg K8sConfig) Profile {
 	}
 }
 
-func plannedCloudProfile(id, name, summary, toolName, backend, filesystem, network, policyCapability string, notes []string, tools map[string]bool) Profile {
-	secretPolicy := RemoteSecretPolicyFromEnv()
-	return Profile{
-		ID:                 id,
-		Name:               name,
-		Summary:            summary,
-		Status:             StatusPlanned,
-		Routed:             false,
-		RequestedIsolation: id,
-		EffectiveIsolation: "not_routed",
-		Tools:              presentTools(tools, toolName),
-		Backends:           []string{backend},
-		FileSystem:         filesystem,
-		Network:            network,
-		Environment:        "cloud adapter environment; local daemon env is not forwarded by default",
-		Secrets:            RemoteSecretPolicySummary("cloud adapter secrets"),
-		SecretPolicy:       &secretPolicy,
-		Limits:             []string{"cloud provider timeout/quotas", "AGEZT run timeout once adapter is wired"},
-		BrowserAccess:      "adapter dependent",
-		Cleanup:            "adapter dependent",
-		PolicyCapability:   policyCapability,
-		Notes:              notes,
-	}
-}
-
 func toolSet(tools []string) map[string]bool {
 	out := make(map[string]bool, len(tools))
 	for _, t := range tools {

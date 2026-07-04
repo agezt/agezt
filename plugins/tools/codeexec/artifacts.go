@@ -316,7 +316,7 @@ func extractArtifactArchive(data []byte, dest string) error {
 				return err
 			}
 			continue
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 		default:
 			continue
 		}

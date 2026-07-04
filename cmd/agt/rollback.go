@@ -589,20 +589,6 @@ func rollbackHelpRequested(args []string) bool {
 	return false
 }
 
-func parseRollbackOnlyJSON(args []string, cmd string, stdout, stderr io.Writer) (bool, bool) {
-	asJSON := false
-	for _, a := range args {
-		switch a {
-		case "--json":
-			asJSON = true
-		default:
-			fmt.Fprintf(stderr, "%s rollback %s: unexpected arg %q\n", brand.CLI, cmd, a)
-			return false, false
-		}
-	}
-	return asJSON, true
-}
-
 func parseRollbackListArgs(args []string, stdout, stderr io.Writer) (bool, string, bool) {
 	asJSON := false
 	runID := ""

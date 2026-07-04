@@ -300,23 +300,6 @@ func parseSeqCursor(raw string) (int64, bool) {
 	return seq, true
 }
 
-// paginateBySeq trims a Seq-DESC list to `limit` and emits a next_cursor
-// pointing at the LAST entry of the current page. Caller must pass the
-// already-sorted list (DESC). Returns the truncated list and the cursor ("" if
-// terminal — fewer rows remain than `limit`).
-//
-// Cursor semantics match the runs cursor: encode the LAST emitted row's seq;
-// next page skips entries with seq >= cursorSeq (strictly older only).
-func paginateBySeq[T any](rows []T, seqOf func(T) int64, limit int) ([]T, string) {
-	if limit <= 0 || len(rows) <= limit {
-		return rows, ""
-	}
-	out := rows[:limit]
-	last := out[limit-1]
-	next := strconv.FormatInt(seqOf(last), 10)
-	return out, next
-}
-
 func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
 	const reaperWindow = 30 * 24 * time.Hour
 	const routingWindow = 24 * time.Hour
