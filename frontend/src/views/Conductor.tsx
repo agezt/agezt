@@ -10,13 +10,20 @@ import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ModelPicker } from "@/components/ModelPicker";
-import { useConductorStore, startConductorRun, applyConductorResult, genConductorCorr } from "@/lib/conductorStore";
-import { type ConductorRun, type ConductorStep, progressLabel } from "@/lib/conductor";
+import {
+  useConductorStore,
+  startConductorRun,
+  applyConductorResult,
+  genConductorCorr,
+  type ConductorRun,
+  type ConductorStep,
+  progressLabel,
+} from "@/lib/conductor";
 
 // Conductor view (M997): the operator's seat at the asymmetric, verify-driven
 // panel (kernel/runtime M997). A Thinker plans, a Worker solves, and a Verifier
 // checks (running the worker's code when it can), looping until accepted. The
-// loop streams live via conductor.* events (folded by lib/conductorStore, ABOVE
+// loop streams live via conductor.* events (folded by lib/conductor's store, ABOVE
 // the router so it survives navigation); the blocking POST then upgrades the
 // transcript to its full form. The agent reaches the same engine via the
 // `conductor` tool.

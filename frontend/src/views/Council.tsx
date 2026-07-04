@@ -9,8 +9,11 @@ import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { ModelPicker } from "@/components/ModelPicker";
-import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr } from "@/lib/councilStore";
 import {
+  useCouncilStore,
+  startCouncilRun,
+  applyCouncilResult,
+  genCouncilCorr,
   type CouncilRun,
   seatStatus,
   currentRound,

@@ -12,12 +12,19 @@ vi.mock("@/lib/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-vi.mock("@/lib/conductorStore", () => ({
-  useConductorStore: () => ({ runs: {}, activeCorr: null }),
-  startConductorRun: (...a: unknown[]) => startConductorRun(...a),
-  applyConductorResult: (...a: unknown[]) => applyConductorResult(...a),
-  genConductorCorr: () => "corr-test",
-}));
+// The conductor store was merged into @/lib/conductor (C2). Mock the store
+// surface but keep the real pure helpers (progressLabel, the fold/types the
+// view also imports from the same module) via importOriginal.
+vi.mock("@/lib/conductor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/conductor")>();
+  return {
+    ...actual,
+    useConductorStore: () => ({ runs: {}, activeCorr: null }),
+    startConductorRun: (...a: unknown[]) => startConductorRun(...a),
+    applyConductorResult: (...a: unknown[]) => applyConductorResult(...a),
+    genConductorCorr: () => "corr-test",
+  };
+});
 
 vi.mock("@/components/ModelPicker", () => ({
   ModelPicker: ({ activeModel }: { activeModel?: string }) => <button type="button">{activeModel || "auto"}</button>,
