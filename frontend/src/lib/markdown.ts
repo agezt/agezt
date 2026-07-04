@@ -43,7 +43,7 @@ export function safeHref(href: string): string {
   return /^(https?:\/\/|mailto:)/i.test(href.trim()) ? href.trim() : "";
 }
 
-import { fileMentionRegex } from "@/lib/languages";
+import { fileMentionRegex } from "@/lib/language";
 
 // Strip LaTeX math delimiters (\( … \), \[ … \]) so a model's math reads as the
 // plain expression instead of literal backslash-brackets. Applied only to
