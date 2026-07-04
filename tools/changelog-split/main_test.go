@@ -48,6 +48,8 @@ func TestBucketFor(t *testing.T) {
 	}{
 		{"current when no M", "### Fixed", []string{"- no milestone"}, "current"},
 		{"100 range", "### Added", []string{"- M145 added"}, "m100-m199"},
+		{"600 first half", "### Added", []string{"- M623 added"}, "m600-m649"},
+		{"600 second half", "### Added", []string{"- M688 added"}, "m650-m699"},
 		{"900 range", "### Changed", []string{"- M923 changed"}, "m900-m999"},
 		{"1000 plus", "### Security", []string{"- M1002 secure"}, "m1000+"},
 	}
@@ -113,6 +115,17 @@ func TestWriteAndVerify(t *testing.T) {
 	}
 	if err := verifyResult(out, res); err != nil {
 		t.Fatalf("verifyResult should pass after emit: %v", err)
+	}
+	// Stale split files should be pruned on a later emit.
+	stale := filepath.Join(out, "unreleased", "m600-m699.md")
+	if err := os.WriteFile(stale, []byte("old"), 0o644); err != nil {
+		t.Fatalf("write stale file: %v", err)
+	}
+	if err := writeResult(mainPath, out, res); err != nil {
+		t.Fatalf("rewrite after stale file: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("stale split file should be removed, stat err=%v", err)
 	}
 	// mutate one file to prove verify fails.
 	if err := os.WriteFile(filepath.Join(out, "README.md"), []byte("bad"), 0o644); err != nil {

@@ -203,6 +203,16 @@ func bucketFor(header string, body []string) string {
 	if min >= 1000 {
 		return "m1000+"
 	}
+	// The historical M600-M699 slice is much denser than its neighbors in the
+	// current changelog. Split only that range into 50-wide buckets so the tree
+	// stays readable without exploding the number of files elsewhere.
+	if min >= 600 && min < 700 {
+		start := (min / 50) * 50
+		if start < 600 {
+			start = 600
+		}
+		return fmt.Sprintf("m%d-m%d", start, start+49)
+	}
 	start := (min / 100) * 100
 	if start < 100 {
 		start = 100
@@ -326,6 +336,9 @@ func writeResult(mainPath, outDir string, res splitResult) error {
 	for path, content := range res.Released {
 		writes[filepath.Join(outDir, filepath.FromSlash(path))] = content
 	}
+	if err := removeStaleSplitFiles(outDir, writes); err != nil {
+		return err
+	}
 	for path, content := range writes {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
@@ -335,6 +348,25 @@ func writeResult(mainPath, outDir string, res splitResult) error {
 		}
 	}
 	return nil
+}
+
+func removeStaleSplitFiles(outDir string, writes map[string]string) error {
+	root := filepath.Clean(outDir)
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".md" {
+			return nil
+		}
+		if _, keep := writes[path]; keep {
+			return nil
+		}
+		return os.Remove(path)
+	})
 }
 
 func verifyResult(outDir string, res splitResult) error {
