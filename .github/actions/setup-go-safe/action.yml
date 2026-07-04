@@ -132,3 +132,28 @@ runs:
       run: |
         echo "GOFLAGS=-p=4" >> "$GITHUB_ENV"
         echo "GOMAXPROCS=4" >> "$GITHUB_ENV"
+
+    - name: Stage GOCACHE + GOTMPDIR to tmpfs (escape ext4 write→exec race)
+      shell: bash
+      # Staging GOROOT to tmpfs fixed the toolchain read-corruption, but the
+      # build/test steps still write into two ext4 paths and immediately exec
+      # what they wrote — which is the *other* half of the "fork/exec …:
+      # invalid argument" race on these WSL2 runners:
+      #   • GOCACHE (~/.cache/go-build) — compiled package objects the linker
+      #     reads back, and cached test/vet action binaries it re-execs;
+      #   • GOTMPDIR ($TMPDIR) — `go test` writes each package's test binary
+      #     here and execs it, the single most exec-heavy step in CI.
+      # Point both at the same per-runner tmpfs used for GOROOT so nothing the
+      # build produces is ever written to, then exec'd from, the flaky ext4
+      # disk. Per-runner paths keep the three runners-in-one-VM from colliding
+      # on a shared /dev/shm (same reasoning as the GOROOT staging above).
+      run: |
+        set -e
+        : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
+        CACHE="/dev/shm/gocache-${RUNNER_NAME}"
+        GTMP="/dev/shm/gotmp-${RUNNER_NAME}"
+        rm -rf "$CACHE" "$GTMP"
+        mkdir -p "$CACHE" "$GTMP"
+        echo "GOCACHE=$CACHE" >> "$GITHUB_ENV"
+        echo "GOTMPDIR=$GTMP" >> "$GITHUB_ENV"
+        echo "Staged GOCACHE ($CACHE) and GOTMPDIR ($GTMP) to tmpfs"
