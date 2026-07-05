@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -158,11 +157,4 @@ func checkChangelogLikeFile(path string, requireSection bool) error {
 		return fmt.Errorf("%s has no `###` subsection", filepath.ToSlash(path))
 	}
 	return nil
-}
-
-// sortedPaths is test-only helper for stable error messages / snapshotting.
-func sortedPaths(paths []string) []string {
-	out := append([]string(nil), paths...)
-	sort.Strings(out)
-	return out
 }
