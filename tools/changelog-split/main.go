@@ -8,9 +8,10 @@
 // - subsections with no M reference stay in `unreleased/current.md`.
 //
 // The tool supports three modes:
-//   --dry-run   print the planned output map only (default when no write flag is set)
-//   --emit      write the generated files under --out-dir
-//   --verify    compare the generated files to --out-dir and fail on drift
+//
+//	--dry-run   print the planned output map only (default when no write flag is set)
+//	--emit      write the generated files under --out-dir
+//	--verify    compare the generated files to --out-dir and fail on drift
 package main
 
 import (

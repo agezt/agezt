@@ -96,9 +96,9 @@ type fileTreeResponse struct {
 // is the single chokepoint for path-traversal defence: every handler below
 // funnels through here.
 //
-//   rootAbs  := <configured root absolute path>
-//   relPosix := the user-supplied POSIX path, cleaned
-//   target   := filepath.Join(rootAbs, relPosix) then resolved symlinks
+//	rootAbs  := <configured root absolute path>
+//	relPosix := the user-supplied POSIX path, cleaned
+//	target   := filepath.Join(rootAbs, relPosix) then resolved symlinks
 //
 // Anywhere along that walk that escapes `rootAbs` is a refusal with a 400.
 func (s *Server) resolveFileRoot(rel string) (rootAbs string, targetAbs string, relPosix string, err error) {
