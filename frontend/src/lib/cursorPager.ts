@@ -276,50 +276,32 @@ export function useApprovalsLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/approvals_log", "approvals", "seq", limit);
 }
 
-/**
- * useRateLimitLogPager — /api/ratelimit_log (throttle events).
- * @public Pre-wired for the RateLimit view; view integration lands in a follow-up.
- */
+/** useRateLimitLogPager — /api/ratelimit_log (throttle events). */
 export function useRateLimitLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/ratelimit_log", "throttles", "seq", limit);
 }
 
-/**
- * useWebhookLogPager — /api/webhook_log (delivery attempts).
- * @public Pre-wired for the Webhook view; view integration lands in a follow-up.
- */
+/** useWebhookLogPager — /api/webhook_log (delivery attempts). */
 export function useWebhookLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/webhook_log", "deliveries", "seq", limit);
 }
 
-/**
- * useWardenLogPager — /api/warden_log (sandboxed executions).
- * @public Pre-wired for the Warden view; view integration lands in a follow-up.
- */
+/** useWardenLogPager — /api/warden_log (sandboxed executions). */
 export function useWardenLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/warden_log", "executions", "seq", limit);
 }
 
-/**
- * useNetguardLogPager — /api/netguard_log (blocked egress).
- * @public Pre-wired for the Netguard view; view integration lands in a follow-up.
- */
+/** useNetguardLogPager — /api/netguard_log (blocked egress). */
 export function useNetguardLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/netguard_log", "blocks", "seq", limit);
 }
 
-/**
- * useWorldLogPager — /api/world_log (world-model ops).
- * @public Pre-wired for the World view; view integration lands in a follow-up.
- */
+/** useWorldLogPager — /api/world_log (world-model ops). */
 export function useWorldLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/world_log", "ops", "seq", limit);
 }
 
-/**
- * useMemoryLogPager — /api/memory_log (memory write/forget ops).
- * @public Pre-wired for the Memory view; view integration lands in a follow-up.
- */
+/** useMemoryLogPager — /api/memory_log (memory write/forget ops). */
 export function useMemoryLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/memory_log", "ops", "seq", limit);
 }

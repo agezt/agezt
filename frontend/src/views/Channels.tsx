@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Radio, RefreshCw, Check, ExternalLink, Save, SendHorizontal, QrCode,
   Image as ImageIcon, Mic, ArrowDown, ArrowUp, ArrowLeftRight, ArrowRight,
-  Plus, Pencil, Trash2, X, ListChecks, KeyRound,
+  Plus, Pencil, Trash2, X, ListChecks, KeyRound, Send,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { MetricGrid, MetricWidget } from "@/components/ui/metric-widget";
+import { useWebhookLogPager } from "@/lib/cursorPager";
+import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 // One account field of a channel (mirrors kernel/settings.Field + set-state).
 interface ChannelField {
@@ -597,6 +599,16 @@ export function Channels() {
   const [err, setErr] = useState("");
   const [openKind, setOpenKind] = useState<string>("");
 
+  // Cursor-paginated webhook delivery log (the journal-backed /api/webhook_log).
+  const {
+    paged: deliveryRows,
+    loading: deliveryLoading,
+    loadMore: loadMoreDelivery,
+    loadingMore: loadingMoreDelivery,
+    moreError: deliveryError,
+    hasMore: hasMoreDelivery,
+  } = useWebhookLogPager(50);
+
   async function load() {
     try {
       const res = await getJSON<{ channels: ChannelRow[] }>("/api/channels");
@@ -722,6 +734,29 @@ export function Channels() {
           })}
         </div>
       )}
+
+      <LogHistoryPanel
+        icon={Send}
+        title="Delivery log"
+        rows={deliveryRows}
+        loading={deliveryLoading}
+        loadMore={loadMoreDelivery}
+        loadingMore={loadingMoreDelivery}
+        moreError={deliveryError}
+        hasMore={hasMoreDelivery}
+        pageSize={50}
+        renderRow={(r) => {
+          const sc = typeof r.status_code === "number" ? r.status_code : Number(r.status_code);
+          const ok = !Number.isNaN(sc) && sc >= 200 && sc < 300;
+          return (
+            <>
+              <span className="font-mono text-foreground">{String(r.channel || "")}</span>
+              <span className="shrink-0 text-muted">{String(r.event || "")}</span>
+              <Badge variant={ok ? "good" : "bad"}>{String(r.status_code ?? "")}</Badge>
+            </>
+          );
+        }}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search, Tags, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search, Tags, SlidersHorizontal, History, type LucideIcon } from "lucide-react";
 import { Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { downloadText } from "@/lib/export";
 import { cn } from "@/lib/utils";
 import { useUI } from "@/components/ui/feedback";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useWorldLogPager } from "@/lib/cursorPager";
+import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 // The entity kinds the world model recognises — offered when teaching it one.
 const WORLD_KINDS = ["person", "project", "repo", "org", "account", "device", "channel", "topic", "task"];
@@ -135,6 +137,16 @@ export function World() {
   const [addOpen, setAddOpen] = useState(false);
   const [relateOpen, setRelateOpen] = useState(false);
   const { data, error, loading, reload } = usePanel<Record<string, any>>("/api/world");
+
+  // Cursor-paginated world-model ops log (the journal-backed /api/world_log).
+  const {
+    paged: opsRows,
+    loading: opsLoading,
+    loadMore: loadMoreOps,
+    loadingMore: loadingMoreOps,
+    moreError: opsError,
+    hasMore: hasMoreOps,
+  } = useWorldLogPager(50);
   return (
     <Page
       icon={Globe}
@@ -354,6 +366,26 @@ export function World() {
         );
             })()
           )}
+          <LogHistoryPanel
+            icon={History}
+            title="Operations log"
+            rows={opsRows}
+            loading={opsLoading}
+            loadMore={loadMoreOps}
+            loadingMore={loadingMoreOps}
+            moreError={opsError}
+            hasMore={hasMoreOps}
+            pageSize={50}
+            renderRow={(r) => (
+              <>
+                <Badge variant="default">{String(r.op || "")}</Badge>
+                <span className="font-mono text-foreground">
+                  {String(r.entity_type || "")}:{String(r.entity_id || "")}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-muted">{String(r.field || "")}</span>
+              </>
+            )}
+          />
         </CardBody>
       </Card>
     </Page>

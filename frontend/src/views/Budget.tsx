@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { RefreshCw, Wallet, Check, Infinity as InfinityIcon, SlidersHorizontal, X } from "lucide-react";
+import { RefreshCw, Wallet, Check, Infinity as InfinityIcon, SlidersHorizontal, X, Gauge } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { postAction } from "@/lib/api";
 import { money } from "@/lib/format";
@@ -9,6 +9,8 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Ring, BarRow } from "@/components/Widgets";
+import { useRateLimitLogPager } from "@/lib/cursorPager";
+import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 interface BudgetData {
   utc_date?: string;
@@ -41,6 +43,16 @@ export function Budget() {
   const [note, setNote] = useState<string | null>(null);
   const [noteBad, setNoteBad] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+
+  // Cursor-paginated rate-limit events (the journal-backed /api/ratelimit_log).
+  const {
+    paged: rateLimitRows,
+    loading: rateLimitLoading,
+    loadMore: loadMoreRateLimit,
+    loadingMore: loadingMoreRateLimit,
+    moreError: rateLimitError,
+    hasMore: hasMoreRateLimit,
+  } = useRateLimitLogPager(50);
 
   const spent = data?.spent_mc ?? 0;
   const ceiling = data?.ceiling_mc ?? 0;
@@ -243,6 +255,25 @@ export function Budget() {
           <SkeletonList count={3} lines={2} />
         )}
       </div>
+
+      <LogHistoryPanel
+        icon={Gauge}
+        title="Rate limit events"
+        rows={rateLimitRows}
+        loading={rateLimitLoading}
+        loadMore={loadMoreRateLimit}
+        loadingMore={loadingMoreRateLimit}
+        moreError={rateLimitError}
+        hasMore={hasMoreRateLimit}
+        pageSize={50}
+        renderRow={(r) => (
+          <>
+            <span className="font-mono text-foreground">{String(r.agent || "")}</span>
+            <span className="shrink-0 text-muted">{String(r.model || "")}</span>
+            <span className="min-w-0 flex-1 truncate text-muted">{String(r.reason || "")}</span>
+          </>
+        )}
+      />
     </div>
   );
 }
