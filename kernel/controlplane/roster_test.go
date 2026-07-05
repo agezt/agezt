@@ -3430,14 +3430,20 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 // same ms still paginate deterministically.
 
 func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
-	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	// Five agents. Add them sequentially; CreatedMS may collide on the same
-	// millisecond, but the slug tie-break in the cursor keeps ordering
-	// deterministic.
+	// Five agents with deterministic CreatedMS values so the cursor
+	// boundary is stable across runs. Each agent gets a distinct ms
+	// (incremented by 1ms) to avoid same-ms flakiness on slow runners.
 	slugs := []string{"alpha", "bravo", "charlie", "delta", "echo"}
-	for _, s := range slugs {
+	baseMS := int64(1_000_000)
+	for i, s := range slugs {
+		// Set the clock so each Add assigns a unique CreatedMS.
+		ms := baseMS + int64(i)
+		k.Roster().SetNowForTest(func() time.Time {
+			return time.UnixMilli(ms)
+		})
 		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
 			"profile": map[string]any{"slug": s, "model": "mock-model", "task_type": "code"},
 		}); err != nil {
