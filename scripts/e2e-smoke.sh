@@ -43,8 +43,10 @@ grep -q 'daemon ready' "$AGEZT_HOME/daemon.log" || fail "daemon did not become r
 sleep 1
 ok "daemon ready"
 
-OAI=$(grep -oE 'openai api.*Bearer [a-f0-9]+' "$AGEZT_HOME/daemon.log" | grep -oE '[a-f0-9]{64}')
-REST=$(grep -oE 'rest api.*Bearer [a-f0-9]+' "$AGEZT_HOME/daemon.log" | grep -oE '[a-f0-9]{64}')
+OAI=$(cat "$AGEZT_HOME/openai.token" 2>/dev/null | tr -d '\n\r')
+REST=$(cat "$AGEZT_HOME/rest.token" 2>/dev/null | tr -d '\n\r')
+[ -z "$OAI" ] && fail "could not read openai token from $AGEZT_HOME/openai.token"
+[ -z "$REST" ] && fail "could not read rest token from $AGEZT_HOME/rest.token"
 CHAT="http://127.0.0.1:$PORT_API/v1/chat/completions"
 RUNS="http://127.0.0.1:$PORT_REST/api/v1/runs"
 
