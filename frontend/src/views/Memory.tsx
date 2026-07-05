@@ -13,6 +13,8 @@ import { Page } from "@/components/ui/page";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useMemoryLogPager } from "@/lib/cursorPager";
+import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 interface MemRecord {
   id?: string;
@@ -93,6 +95,16 @@ export function Memory() {
   // owner browse them side by side.
   const [scopeFilter, setScopeFilter] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Cursor-paginated write/forget history (the journal-backed /api/memory_log).
+  const {
+    paged: writeLogRows,
+    loading: writeLogLoading,
+    loadMore: loadMoreWriteLog,
+    loadingMore: loadingMoreWriteLog,
+    moreError: writeLogError,
+    hasMore: hasMoreWriteLog,
+  } = useMemoryLogPager(50);
 
   function exportMemory() {
     downloadText("agezt-memory.json", JSON.stringify({ version: 1, memory: records ?? [] }, null, 2), "application/json");
@@ -580,6 +592,26 @@ export function Memory() {
           />
         </MemoryModal>
       )}
+
+      <LogHistoryPanel
+        icon={History}
+        title="Write history"
+        rows={writeLogRows}
+        loading={writeLogLoading}
+        loadMore={loadMoreWriteLog}
+        loadingMore={loadingMoreWriteLog}
+        moreError={writeLogError}
+        hasMore={hasMoreWriteLog}
+        pageSize={50}
+        renderRow={(r) => (
+          <>
+            <Badge variant="default">{String(r.op || "")}</Badge>
+            <span className="font-mono text-foreground">{String(r.record_id || "")}</span>
+            <span className="shrink-0 text-muted">{String(r.agent || "")}</span>
+            <span className="min-w-0 flex-1 truncate text-muted">{String(r.summary || "")}</span>
+          </>
+        )}
+      />
     </Page>
   );
 }

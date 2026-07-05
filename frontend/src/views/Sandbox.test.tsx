@@ -27,7 +27,15 @@ beforeEach(() => {
 
 describe("Sandbox view", () => {
   it("shows the empty state when no projects exist", async () => {
-    getJSON.mockResolvedValueOnce({ projects: [] });
+    // The view now also paginates /api/warden_log + /api/netguard_log via the
+    // cursor pager (usePanel-backed); answer them with empty envelopes so the
+    // panels render their "no entries yet" state without throwing.
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/sandbox") return Promise.resolve({ projects: [] });
+      if (path === "/api/warden_log") return Promise.resolve({ executions: [], next_cursor: null });
+      if (path === "/api/netguard_log") return Promise.resolve({ blocks: [], next_cursor: null });
+      return Promise.resolve({});
+    });
     render(withUI(<Sandbox />));
     await waitFor(() => expect(screen.getByText("No sandbox projects yet")).toBeTruthy());
   });

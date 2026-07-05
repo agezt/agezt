@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FlaskConical, RefreshCw, ChevronRight, ChevronDown, FileCode, FileText, Download, Trash2 } from "lucide-react";
+import { FlaskConical, RefreshCw, ChevronRight, ChevronDown, FileCode, FileText, Download, Trash2, ShieldAlert } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { ErrorText } from "@/components/JsonView";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Page } from "@/components/ui/page";
+import { useWardenLogPager, useNetguardLogPager } from "@/lib/cursorPager";
+import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 // downloadText saves text content to a file via a transient object URL — lets the
 // operator grab an artifact an agent built without leaving the browser.
@@ -53,6 +55,26 @@ export function Sandbox() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Cursor-paginated sandbox-execution log (the journal-backed /api/warden_log).
+  const {
+    paged: wardenRows,
+    loading: wardenLoading,
+    loadMore: loadMoreWarden,
+    loadingMore: loadingMoreWarden,
+    moreError: wardenError,
+    hasMore: hasMoreWarden,
+  } = useWardenLogPager(50);
+
+  // Cursor-paginated blocked-egress log (the journal-backed /api/netguard_log).
+  const {
+    paged: netguardRows,
+    loading: netguardLoading,
+    loadMore: loadMoreNetguard,
+    loadingMore: loadingMoreNetguard,
+    moreError: netguardError,
+    hasMore: hasMoreNetguard,
+  } = useNetguardLogPager(50);
 
   async function reload() {
     setLoading(true);
@@ -111,6 +133,52 @@ export function Sandbox() {
           ))}
         </MetricGrid>
       )}
+
+      <LogHistoryPanel
+        icon={FlaskConical}
+        title="Sandbox executions"
+        rows={wardenRows}
+        loading={wardenLoading}
+        loadMore={loadMoreWarden}
+        loadingMore={loadingMoreWarden}
+        moreError={wardenError}
+        hasMore={hasMoreWarden}
+        pageSize={50}
+        renderRow={(r) => {
+          const code = typeof r.exit_code === "number" ? r.exit_code : Number(r.exit_code);
+          const ok = !Number.isNaN(code) && code === 0;
+          return (
+            <>
+              <span className="font-mono text-foreground">{String(r.agent || "")}</span>
+              <span className="shrink-0 text-muted">{String(r.tool || "")}</span>
+              <Badge variant="default">{String(r.lang || "")}</Badge>
+              <Badge variant={ok ? "good" : "bad"}>exit {String(r.exit_code ?? "")}</Badge>
+            </>
+          );
+        }}
+      />
+
+      <LogHistoryPanel
+        icon={ShieldAlert}
+        title="Blocked egress"
+        rows={netguardRows}
+        loading={netguardLoading}
+        loadMore={loadMoreNetguard}
+        loadingMore={loadingMoreNetguard}
+        moreError={netguardError}
+        hasMore={hasMoreNetguard}
+        pageSize={50}
+        renderRow={(r) => (
+          <>
+            <span className="font-mono text-foreground">{String(r.agent || "")}</span>
+            <span className="shrink-0 text-muted">
+              {String(r.dest_host || "")}:{String(r.dest_port || "")}
+            </span>
+            <Badge variant="default">{String(r.protocol || "")}</Badge>
+            <Badge variant="bad">{String(r.action || "")}</Badge>
+          </>
+        )}
+      />
     </Page>
   );
 }
