@@ -315,7 +315,7 @@ var readArgsRoutes = map[string]writeRoute{
 	// Agent effective permissions: roster tool allow/deny + Edict/trust ceiling. Read-only.
 	"/api/agents/permissions": {controlplane.CmdAgentPermissions, []string{"ref"}},
 	// Per-agent activity timeline (M854): what the agent did, from the journal.
-// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
+	// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
 	// AgentPage views load this on every poll, and the journal can hold tens
 	// of thousands of events. `cursor` is the opaque "<seq>" boundary of the
 	// previous page; server skips entries with seq >= cursorSeq. Journal seq
@@ -372,12 +372,12 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/schedule/fires": {controlplane.CmdScheduleFires, []string{"limit", "cursor", "id", "status", "since_ms", "intent"}},
 	// A2 Phase 2: register the six log endpoints that previously streamed full
 	// slices via apiRoutes (no-args proxy). They now expose cursor pagination.
-	"/api/ratelimit_log":  {controlplane.CmdRateLimitLog, []string{"limit", "cursor", "since_ms"}},
-	"/api/webhook_log":    {controlplane.CmdWebhookLog, []string{"limit", "cursor", "since_ms"}},
-	"/api/warden_log":     {controlplane.CmdWardenLog, []string{"limit", "cursor", "since_ms"}},
-	"/api/netguard_log":   {controlplane.CmdNetguardLog, []string{"limit", "cursor", "since_ms"}},
-	"/api/world_log":      {controlplane.CmdWorldLog, []string{"limit", "cursor", "since_ms"}},
-	"/api/memory_log":     {controlplane.CmdMemoryLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/ratelimit_log": {controlplane.CmdRateLimitLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/webhook_log":   {controlplane.CmdWebhookLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/warden_log":    {controlplane.CmdWardenLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/netguard_log":  {controlplane.CmdNetguardLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/world_log":     {controlplane.CmdWorldLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/memory_log":    {controlplane.CmdMemoryLog, []string{"limit", "cursor", "since_ms"}},
 	// A standing order's life story (M746): every standing.* journal event for it —
 	// created, paused/resumed, each firing, removed. Read-only provenance.
 	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
@@ -615,8 +615,8 @@ var jsonRoutes = map[string]writeRoute{
 	// (several searches/fetches + model calls) but bounded by the jsonProxy
 	// timeout. POST body.
 	"/api/research/ask": {controlplane.CmdResearchAsk, []string{"question", "max_sub_questions", "max_sources", "verify", "max_verify_claims", "corr"}},
-	"/api/prompts/set":   {controlplane.CmdPromptsSet, []string{"prompts"}},
-	"/api/standing/add":  {controlplane.CmdStandingAdd, []string{"order"}},
+	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
 	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure", "cooldown_sec"}},

@@ -121,7 +121,7 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 	// --downgrades keeps only the noteworthy events (downgrades + limit breaches).
 	issuesOnly, _ := req.Args["issues"].(bool)
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	cutoff := sinceCutoff(req.Args["since_ms"])                                // M65 helper
+	cutoff := sinceCutoff(req.Args["since_ms"])                               // M65 helper
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {

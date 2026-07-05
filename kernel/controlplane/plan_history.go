@@ -39,7 +39,7 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	statusFilter, _ := req.Args["status"].(string)                           // completed|failed|running
+	statusFilter, _ := req.Args["status"].(string)                            // completed|failed|running
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {

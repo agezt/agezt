@@ -36,9 +36,9 @@ func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
-	opFilter, _ := req.Args["op"].(string)                            // written|forgotten|superseded
+	opFilter, _ := req.Args["op"].(string)                                    // written|forgotten|superseded
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	cutoff := sinceCutoff(req.Args["since_ms"])                       // M65 helper: optional window
+	cutoff := sinceCutoff(req.Args["since_ms"])                               // M65 helper: optional window
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {

@@ -36,9 +36,9 @@ func (s *Server) handleWorldLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
-	kindFilter, _ := req.Args["kind"].(string)                          // entity|relation
+	kindFilter, _ := req.Args["kind"].(string)                                // entity|relation
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	cutoff := sinceCutoff(req.Args["since_ms"])                             // M65 helper
+	cutoff := sinceCutoff(req.Args["since_ms"])                               // M65 helper
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
