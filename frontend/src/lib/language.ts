@@ -6,11 +6,13 @@
 // drifted apart already. (Previously lib/languages.ts; merged into lib/language
 // so the ext↔lang mapping lives as one concern — C2.)
 
+/** @public Shared with FileMention / Markdown / Files views. */
 export const CODE_EXTS = new Set([
  "js", "ts", "tsx", "jsx", "go", "py", "rs", "java", "c", "cpp", "h", "sh",
  "yaml", "yml", "toml", "css", "html", "xml", "sql",
 ]);
 
+/** @public Shared with FileMention / Markdown / Files views. */
 export const TEXT_EXTS = new Set([
  "txt", "log", "csv", "tsv", "ini", "env", "conf",
 ]);
@@ -21,6 +23,7 @@ export const TEXT_EXTS = new Set([
 // minus the binary / image ones — we never want to auto-link those.
 export const MENTION_EXTS = new Set<string>([...CODE_EXTS, ...TEXT_EXTS, "md", "markdown", "json"]);
 
+/** @public Escapes regex metacharacters; used by FileMention / Markdown parsers. */
 export function escapeRegex(s: string): string {
  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

@@ -9,11 +9,13 @@ import { loader } from "@monaco-editor/react";
 // deliberately, not on a floating latest.
 
 export const PINNED_MONACO_VERSION = "0.52.2";
+/** @public Configurable CDN base for Monaco assets. */
 export const MONACO_CDN_BASE = `https://cdn.jsdelivr.net/npm/monaco-editor@${PINNED_MONACO_VERSION}/min/vs`;
 
 // ensureLoader is idempotent: calling it more than once is harmless. It MUST
 // run before any `<Editor />` mounts so the first paint doesn't try to fetch
 // from the network unconfigured.
+/** @public Lazy Monaco AMD loader bootstrap. */
 export function ensureLoader(): void {
   if ((loader as { _configured?: boolean })._configured) return;
   try {

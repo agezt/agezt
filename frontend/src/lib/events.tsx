@@ -133,6 +133,7 @@ export function useEvents(): EventsCtx {
  */
 export const STALE_MS = 15_000;
 
+/** @public Union of connection-state display names. */
 export type ConnectionStateName = "live" | "disconnected" | "stale";
 
 export interface ConnectionState {

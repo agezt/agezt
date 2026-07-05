@@ -51,6 +51,7 @@ export function FileMention({ path }: { path: string }) {
 // workspace route.
 const TEXT_CAP = 256 * 1024; // 256 KB inline, anything bigger → download only
 
+/** @public Exported for future File-detail panels. */
 export function FileDetail({ path, onClose }: { path: string; onClose: () => void }) {
   const [content, setContent] = useState<string | null>(null);
   const [size, setSize] = useState<number | null>(null);

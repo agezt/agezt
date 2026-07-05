@@ -260,42 +260,66 @@ export function useProviderLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/provider_log", "events", "seq", limit);
 }
 
-/** usePolicyLogPager — /api/policy_log (edict gating decisions). */
+/**
+ * usePolicyLogPager — /api/policy_log (edict gating decisions).
+ * @public Pre-wired for the Policy view; view integration lands in a follow-up.
+ */
 export function usePolicyLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/policy_log", "decisions", "seq", limit);
 }
 
-/** useApprovalsLogPager — /api/approvals_log (resolved HITL approvals). */
+/**
+ * useApprovalsLogPager — /api/approvals_log (resolved HITL approvals).
+ * @public Pre-wired for the Approvals history panel; view integration lands in a follow-up.
+ */
 export function useApprovalsLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/approvals_log", "approvals", "seq", limit);
 }
 
-/** useRateLimitLogPager — /api/ratelimit_log (throttle events). */
+/**
+ * useRateLimitLogPager — /api/ratelimit_log (throttle events).
+ * @public Pre-wired for the RateLimit view; view integration lands in a follow-up.
+ */
 export function useRateLimitLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/ratelimit_log", "throttles", "seq", limit);
 }
 
-/** useWebhookLogPager — /api/webhook_log (delivery attempts). */
+/**
+ * useWebhookLogPager — /api/webhook_log (delivery attempts).
+ * @public Pre-wired for the Webhook view; view integration lands in a follow-up.
+ */
 export function useWebhookLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/webhook_log", "deliveries", "seq", limit);
 }
 
-/** useWardenLogPager — /api/warden_log (sandboxed executions). */
+/**
+ * useWardenLogPager — /api/warden_log (sandboxed executions).
+ * @public Pre-wired for the Warden view; view integration lands in a follow-up.
+ */
 export function useWardenLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/warden_log", "executions", "seq", limit);
 }
 
-/** useNetguardLogPager — /api/netguard_log (blocked egress). */
+/**
+ * useNetguardLogPager — /api/netguard_log (blocked egress).
+ * @public Pre-wired for the Netguard view; view integration lands in a follow-up.
+ */
 export function useNetguardLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/netguard_log", "blocks", "seq", limit);
 }
 
-/** useWorldLogPager — /api/world_log (world-model ops). */
+/**
+ * useWorldLogPager — /api/world_log (world-model ops).
+ * @public Pre-wired for the World view; view integration lands in a follow-up.
+ */
 export function useWorldLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/world_log", "ops", "seq", limit);
 }
 
-/** useMemoryLogPager — /api/memory_log (memory write/forget ops). */
+/**
+ * useMemoryLogPager — /api/memory_log (memory write/forget ops).
+ * @public Pre-wired for the Memory view; view integration lands in a follow-up.
+ */
 export function useMemoryLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/memory_log", "ops", "seq", limit);
 }
@@ -309,11 +333,17 @@ export function usePlanHistoryPager(limit: number = 50) {
   return useCursorPager<PlanHistoryRow>("/api/plan_history", "plans", "correlation_id", limit);
 }
 
+/**
+ * @public Pre-wired for the Schedule fires view; view integration lands in a follow-up.
+ */
 export interface ScheduleFiresRow extends Record<string, unknown> {
   correlation_id: string;
 }
 
-/** useScheduleFiresPager — /api/schedule/fires (cronjob firings; id = correlation_id). */
+/**
+ * useScheduleFiresPager — /api/schedule/fires (cronjob firings; id = correlation_id).
+ * @public Pre-wired for the Schedule fires view; view integration lands in a follow-up.
+ */
 export function useScheduleFiresPager(limit: number = 50) {
   return useCursorPager<ScheduleFiresRow>("/api/schedule/fires", "fires", "correlation_id", limit);
 }
