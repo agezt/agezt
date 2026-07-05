@@ -1,0 +1,19 @@
+[Unit]
+Description=WSL VM keepalive — holds a process so Windows doesn't suspend the VM
+# The WSL2 VM on host WHITE suspends when no user session holds it open,
+# killing long-running CI jobs (e.g. race detector stressed depth pass).
+# This service runs a lightweight sleep loop that keeps the VM alive
+# even when all CI jobs are between steps.
+After=network-online.target
+
+[Service]
+Type=simple
+# A perpetually-running process makes the VM ineligible for idle suspension.
+# The sleep duration is long (1h) and looped by systemd's Restart=always.
+ExecStart=/bin/sleep 3600
+Restart=always
+RestartSec=5
+# No resource cost — sleep is 0% CPU, ~0 memory.
+
+[Install]
+WantedBy=multi-user.target
