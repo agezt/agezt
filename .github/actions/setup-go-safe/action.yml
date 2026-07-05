@@ -78,6 +78,14 @@ runs:
         go build -o /dev/null "$tmp/probe.go"
         # exercise the flaky compile binary directly
         "$(go env GOROOT)/pkg/tool/$(go env GOHOSTOS)_$(go env GOHOSTARCH)/compile" -V
+        # probe gofmt: an unformatted snippet must produce a non-empty diff.
+        # A corrupt tmpfs gofmt binary would crash or produce no output.
+        printf 'package main\nfunc main( ){\n x:=1\n_ =x\n}\n' > "$tmp/fmt.go"
+        diff_out="$(gofmt -d "$tmp/fmt.go" 2>&1)" || true
+        if [ -z "$diff_out" ]; then
+          echo "::error::gofmt probe failed: no diff on deliberately unformatted input"
+          exit 1
+        fi
         echo "::notice::Go toolchain OK (tmpfs) ($(go version))"
 
     - name: Re-purge + re-install + re-stage on corruption
@@ -120,6 +128,13 @@ runs:
         printf 'package main\nimport "log"\nfunc main(){ log.Println("probe") }\n' > "$tmp/probe.go"
         go build -o /dev/null "$tmp/probe.go"
         "$(go env GOROOT)/pkg/tool/$(go env GOHOSTOS)_$(go env GOHOSTARCH)/compile" -V
+        # probe gofmt (same check as the initial verify step)
+        printf 'package main\nfunc main( ){\n x:=1\n_ =x\n}\n' > "$tmp/fmt.go"
+        diff_out="$(gofmt -d "$tmp/fmt.go" 2>&1)" || true
+        if [ -z "$diff_out" ]; then
+          echo "::error::gofmt probe failed after re-stage: no diff on deliberately unformatted input"
+          exit 1
+        fi
         echo "::notice::Go toolchain OK after re-stage ($(go version))"
 
     - name: Cap Go build/test parallelism (fewer concurrent compiler execs)
