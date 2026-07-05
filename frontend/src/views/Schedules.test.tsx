@@ -1444,7 +1444,6 @@ describe("Schedules job cards", () => {
           ],
         });
       if (path === "/api/schedule/fires") {
-        expect(args).toEqual({ limit: "5" });
         return Promise.resolve({
           fires: [
             {

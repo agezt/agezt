@@ -333,17 +333,12 @@ export function usePlanHistoryPager(limit: number = 50) {
   return useCursorPager<PlanHistoryRow>("/api/plan_history", "plans", "correlation_id", limit);
 }
 
-/**
- * @public Pre-wired for the Schedule fires view; view integration lands in a follow-up.
- */
+/** ScheduleFiresRow — row shape for /api/schedule/fires. */
 export interface ScheduleFiresRow extends Record<string, unknown> {
   correlation_id: string;
 }
 
-/**
- * useScheduleFiresPager — /api/schedule/fires (cronjob firings; id = correlation_id).
- * @public Pre-wired for the Schedule fires view; view integration lands in a follow-up.
- */
+/** useScheduleFiresPager — /api/schedule/fires (cronjob firings; id = correlation_id). */
 export function useScheduleFiresPager(limit: number = 50) {
   return useCursorPager<ScheduleFiresRow>("/api/schedule/fires", "fires", "correlation_id", limit);
 }
