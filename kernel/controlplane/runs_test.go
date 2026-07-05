@@ -1574,9 +1574,9 @@ func TestRunsList_CursorUnparseableFallsBack(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject: "agent.x.task", Kind: event.KindTaskReceived,
-			Actor:   "agent-x",
+			Actor:         "agent-x",
 			CorrelationID: "fallback-" + string(rune('A'+i)),
-			Payload: map[string]string{"intent": "x"},
+			Payload:       map[string]string{"intent": "x"},
 		})
 		time.Sleep(3 * time.Millisecond)
 	}
@@ -1612,23 +1612,23 @@ func TestRunsList_CursorSurvivesStatusFilter(t *testing.T) {
 		corr := "fail-" + string(rune('A'+i))
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject: "agent.x.task", Kind: event.KindTaskReceived,
-			Actor:   "agent-x", CorrelationID: corr,
+			Actor: "agent-x", CorrelationID: corr,
 			Payload: map[string]string{"intent": "x"},
 		})
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject: "agent.x.task", Kind: event.KindTaskFailed,
-			Actor:   "agent-x", CorrelationID: corr,
+			Actor: "agent-x", CorrelationID: corr,
 			Payload: map[string]any{"reason": "provider error"},
 		})
 		corr2 := "done-" + string(rune('A'+i))
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject: "agent.x.task", Kind: event.KindTaskReceived,
-			Actor:   "agent-x", CorrelationID: corr2,
+			Actor: "agent-x", CorrelationID: corr2,
 			Payload: map[string]string{"intent": "x"},
 		})
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject: "agent.x.task", Kind: event.KindTaskCompleted,
-			Actor:   "agent-x", CorrelationID: corr2,
+			Actor: "agent-x", CorrelationID: corr2,
 			Payload: map[string]any{"iters": 1, "chars": 1, "stopped": "end_turn"},
 		})
 		time.Sleep(3 * time.Millisecond)

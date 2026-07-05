@@ -41,10 +41,10 @@ Intro line.
 
 func TestBucketFor(t *testing.T) {
 	cases := []struct {
-		name string
+		name   string
 		header string
-		body []string
-		want string
+		body   []string
+		want   string
 	}{
 		{"current when no M", "### Fixed", []string{"- no milestone"}, "current"},
 		{"100 range", "### Added", []string{"- M145 added"}, "m100-m199"},

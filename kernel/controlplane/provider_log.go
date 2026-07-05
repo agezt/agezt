@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 // handleProviderStats aggregates provider routing (M90) — total routed calls,
@@ -216,6 +217,7 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	fallbacksOnly, _ := req.Args["fallbacks"].(bool)
 	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper
 
@@ -285,13 +287,22 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 		}
 		return events[i].seq > events[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := events[:0]
+		for _, e := range events {
+			if journal.KeepBeforeCursor(e.ts, e.seq, cursorMS, cursorSeq) {
+				kept = append(kept, e)
+			}
+		}
+		events = kept
+	}
 	if len(events) > limit {
 		events = events[:limit]
 	}
 
 	out := make([]map[string]any, 0, len(events))
 	for _, e := range events {
-		row := map[string]any{"ts_unix_ms": e.ts, "kind": e.kind}
+		row := map[string]any{"ts_unix_ms": e.ts, "seq": e.seq, "kind": e.kind}
 		if e.kind == "route" {
 			row["primary"] = e.primary
 			row["chain"] = e.chain
@@ -309,9 +320,13 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 		}
 		out = append(out, row)
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(events); n > 0 {
+		nextCursor = journal.NextCursor(events[n-1].ts, events[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"events": out, "count": len(out)},
+		Result: map[string]any{"events": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }

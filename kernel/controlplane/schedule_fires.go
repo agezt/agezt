@@ -19,6 +19,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -92,6 +93,7 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	// Optional filter (M55): only firings of this schedule id.
 	idFilter, _ := req.Args["id"].(string)
 	// Optional status filter (M61): completed|failed|running|abandoned.
@@ -185,6 +187,15 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		}
 		return fires[i].seq > fires[j].seq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := fires[:0]
+		for _, f := range fires {
+			if journal.KeepBeforeCursor(f.firedMS, f.seq, cursorMS, cursorSeq) {
+				kept = append(kept, f)
+			}
+		}
+		fires = kept
+	}
 	if len(fires) > limit {
 		fires = fires[:limit]
 	}
@@ -244,10 +255,14 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		out = append(out, row)
 	}
 
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(fires); n > 0 {
+		nextCursor = journal.NextCursor(fires[n-1].firedMS, fires[n-1].seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"fires": out, "count": len(out)},
+		Result: map[string]any{"fires": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 

@@ -297,8 +297,8 @@ var readArgsRoutes = map[string]writeRoute{
 	// free-text pattern plus kind/subject/actor/correlation — over all history,
 	// powering the Search view. Read-only, like every readArgsRoute.
 	"/api/journal_search": {controlplane.CmdJournalGrep, []string{"pattern", "kind", "subject", "actor", "correlation_id", "limit"}},
-	"/api/provider_log":   {controlplane.CmdProviderLog, []string{"limit", "fallbacks"}},
-	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "tool", "errors"}},
+	"/api/provider_log":   {controlplane.CmdProviderLog, []string{"limit", "cursor", "fallbacks"}},
+	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "cursor", "tool", "errors"}},
 	"/api/execution_profile": {controlplane.CmdExecutionProfileShow, []string{
 		"id",
 	}},
@@ -315,7 +315,7 @@ var readArgsRoutes = map[string]writeRoute{
 	// Agent effective permissions: roster tool allow/deny + Edict/trust ceiling. Read-only.
 	"/api/agents/permissions": {controlplane.CmdAgentPermissions, []string{"ref"}},
 	// Per-agent activity timeline (M854): what the agent did, from the journal.
-// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
+	// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
 	// AgentPage views load this on every poll, and the journal can hold tens
 	// of thousands of events. `cursor` is the opaque "<seq>" boundary of the
 	// previous page; server skips entries with seq >= cursorSeq. Journal seq
@@ -353,15 +353,15 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/market":         {controlplane.CmdMarketList, []string{"query"}},
 	"/api/market/show":    {controlplane.CmdMarketShow, []string{"name", "marketplace"}},
 	"/api/market/sources": {controlplane.CmdMarketSources, nil},
-	"/api/policy_log":     {controlplane.CmdEdictLog, []string{"limit", "denied"}},
+	"/api/policy_log":     {controlplane.CmdEdictLog, []string{"limit", "cursor", "denied"}},
 	// Chat suggested-prompts (memory-derived + tool-context). Read-only: blends
 	// the agent's active memory into starter/next-step chips for the chat surface.
 	// tools is a comma-joined list of recently-used tool names.
 	"/api/suggestions": {controlplane.CmdChatSuggestions, []string{"session_id", "tools"}},
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
-	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "denied"}},
-	"/api/plan_history":  {controlplane.CmdPlanHistory, []string{"limit", "status"}},
+	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "cursor", "denied"}},
+	"/api/plan_history":  {controlplane.CmdPlanHistory, []string{"limit", "cursor", "status"}},
 	// Provider keyring list (M700): labels + active + last-4 for one provider/env.
 	// Read-only — values never leave the daemon.
 	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"provider", "env"}},
@@ -369,7 +369,15 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/schedule/test": {controlplane.CmdScheduleTest, []string{"id", "count"}},
 	// Schedule firing history (M976): cronjob executions as structured actions,
 	// not prompt text. Read-only and filterable for the dashboard.
-	"/api/schedule/fires": {controlplane.CmdScheduleFires, []string{"limit", "id", "status", "since_ms", "intent"}},
+	"/api/schedule/fires": {controlplane.CmdScheduleFires, []string{"limit", "cursor", "id", "status", "since_ms", "intent"}},
+	// A2 Phase 2: register the six log endpoints that previously streamed full
+	// slices via apiRoutes (no-args proxy). They now expose cursor pagination.
+	"/api/ratelimit_log": {controlplane.CmdRateLimitLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/webhook_log":   {controlplane.CmdWebhookLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/warden_log":    {controlplane.CmdWardenLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/netguard_log":  {controlplane.CmdNetguardLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/world_log":     {controlplane.CmdWorldLog, []string{"limit", "cursor", "since_ms"}},
+	"/api/memory_log":    {controlplane.CmdMemoryLog, []string{"limit", "cursor", "since_ms"}},
 	// A standing order's life story (M746): every standing.* journal event for it —
 	// created, paused/resumed, each firing, removed. Read-only provenance.
 	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
@@ -607,8 +615,8 @@ var jsonRoutes = map[string]writeRoute{
 	// (several searches/fetches + model calls) but bounded by the jsonProxy
 	// timeout. POST body.
 	"/api/research/ask": {controlplane.CmdResearchAsk, []string{"question", "max_sub_questions", "max_sources", "verify", "max_verify_claims", "corr"}},
-	"/api/prompts/set":   {controlplane.CmdPromptsSet, []string{"prompts"}},
-	"/api/standing/add":  {controlplane.CmdStandingAdd, []string{"order"}},
+	"/api/prompts/set":  {controlplane.CmdPromptsSet, []string{"prompts"}},
+	"/api/standing/add": {controlplane.CmdStandingAdd, []string{"order"}},
 	// Edit a standing order in place (M729): id + any subset of the human-tunable
 	// fields. assure is numeric, so the JSON body preserves its type.
 	"/api/standing/edit": {controlplane.CmdStandingEdit, []string{"id", "name", "plan", "agent", "mode", "max_trust", "briefing_min", "assure", "cooldown_sec"}},

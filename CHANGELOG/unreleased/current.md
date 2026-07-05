@@ -4,6 +4,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Fix frontend `lib/language.ts` regressions introduced during the C2 P2 `lib/languages.ts → lib/language.ts` rename.** The rename collapsed three behavioural guarantees that downstream tests (`languages.test.ts`) and consumers (`markdown.ts` inline file-mention parser, `FileMention.tsx`) depended on:
+  - `extOf(".gitignore")` returned `"gitignore"` — restored to `""` (a leading dotfile has no extension).
+  - `extOf("foo.dir/bar")` returned `"dir"` — restored to `""` (when the last `/` comes after the last `.`, the segment is a directory, not an extension).
+  - `fileMentionRegex()` greedily consumed surrounding characters, producing tokens like `"see notes/x.md"` (whitespace) or `"(notes/x.md"` (punctuation); URLs like `https://example.com/x.md` matched the path portion after `://`. Restored the lookbehind/lookahead regex (`(?<=^|\s|[\(\["'])…(?=$|\s|[\)\]"'. ,;:!?])`) so the match is the exact path and the inline file-mention pipeline in `lib/markdown.ts` emits clean `{ t: "file", v: "notes/x.md" }` tokens.
+  - Memoised the compiled regex (previous implementation rebuilt it on every call).
+  - Updated the now-orphaned `lib/languages.test.ts` import to `./language` so `tsc --noEmit` is clean.
+  - Verification: `tsc --noEmit` clean, `vitest run` 177 files / 1461 tests pass (including `languages.test.ts` 9/9, `markdown.test.ts` 25/25, `FileMention.test.tsx` 3/3), `go build ./...` and `go vet ./...` clean (frontend-only change).
+
 ### Added — positioning, security, and SDK parity documentation
 
 - **`docs/COMPARISON.md`** — positions AGEZT against generic agent frameworks without unverifiable

@@ -21,6 +21,7 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+/** @public Response envelope for the file-tree API. */
 export interface FileTreeResponse {
   root: string;
   nodes: FileNode[];

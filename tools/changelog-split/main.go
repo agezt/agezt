@@ -8,9 +8,10 @@
 // - subsections with no M reference stay in `unreleased/current.md`.
 //
 // The tool supports three modes:
-//   --dry-run   print the planned output map only (default when no write flag is set)
-//   --emit      write the generated files under --out-dir
-//   --verify    compare the generated files to --out-dir and fail on drift
+//
+//	--dry-run   print the planned output map only (default when no write flag is set)
+//	--emit      write the generated files under --out-dir
+//	--verify    compare the generated files to --out-dir and fail on drift
 package main
 
 import (
@@ -42,11 +43,11 @@ type unreleasedChunk struct {
 }
 
 type splitResult struct {
-	Readme       string
-	ReorgLog     string
-	Current      string
-	Buckets      map[string]string // path -> content
-	Released     map[string]string // path -> content
+	Readme        string
+	ReorgLog      string
+	Current       string
+	Buckets       map[string]string // path -> content
+	Released      map[string]string // path -> content
 	MainChangelog string
 }
 
@@ -319,9 +320,9 @@ func writeResult(mainPath, outDir string, res splitResult) error {
 		return err
 	}
 	writes := map[string]string{
-		mainPath:                                     res.MainChangelog,
-		filepath.Join(outDir, "README.md"):             res.Readme,
-		filepath.Join(outDir, "REORG-LOG.md"):          res.ReorgLog,
+		mainPath:                                          res.MainChangelog,
+		filepath.Join(outDir, "README.md"):                res.Readme,
+		filepath.Join(outDir, "REORG-LOG.md"):             res.ReorgLog,
 		filepath.Join(outDir, "unreleased", "current.md"): res.Current,
 	}
 	for path, content := range res.Buckets {
@@ -365,8 +366,8 @@ func removeStaleSplitFiles(outDir string, writes map[string]string) error {
 
 func verifyResult(outDir string, res splitResult) error {
 	expected := map[string]string{
-		filepath.Join(outDir, "README.md"):             res.Readme,
-		filepath.Join(outDir, "REORG-LOG.md"):          res.ReorgLog,
+		filepath.Join(outDir, "README.md"):                res.Readme,
+		filepath.Join(outDir, "REORG-LOG.md"):             res.ReorgLog,
 		filepath.Join(outDir, "unreleased", "current.md"): res.Current,
 	}
 	for path, content := range res.Buckets {

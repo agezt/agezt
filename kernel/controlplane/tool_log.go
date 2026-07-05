@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 // toolOutputPreviewRunes bounds the one-line output/input excerpt folded into a
@@ -43,6 +44,10 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
+	// Cursor pagination (A2): opaque ts:seq token from the previous page; we
+	// return rows strictly older than it. Absent/unparseable falls back to the
+	// newest page. Shares journal.Cursor with /api/runs and the other logs.
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"])
 	errorsOnly, _ := req.Args["errors"].(bool)
 	toolFilter, _ := req.Args["tool"].(string)
 	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper: optional time window
@@ -137,6 +142,17 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 		}
 		return results[i].seq > results[j].seq
 	})
+	// Cursor filter (A2): keep only rows strictly older than the cursor, in the
+	// same descending (ts, seq) order, before applying the page limit.
+	if cursorOK {
+		kept := results[:0]
+		for _, r := range results {
+			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
+				kept = append(kept, r)
+			}
+		}
+		results = kept
+	}
 	if len(results) > limit {
 		results = results[:limit]
 	}
@@ -145,6 +161,7 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	for _, r := range results {
 		out = append(out, map[string]any{
 			"ts_unix_ms":     r.ts,
+			"seq":            r.seq, // A2: stable per-row id for the frontend cursor pager
 			"actor":          r.actor,
 			"correlation_id": r.corr,
 			"tool":           r.tool,
@@ -161,10 +178,17 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			"directive_matches":  r.directiveMatches,
 		})
 	}
+	// next_cursor (A2): the (ts, seq) of the last (oldest) emitted row, so the
+	// client's next request pages past it. Only when the page is full.
+	var nextCursor string
+	if n := len(results); n > 0 {
+		last := results[n-1]
+		nextCursor = journal.NextCursor(last.ts, last.seq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"invocations": out, "count": len(out)},
+		Result: map[string]any{"invocations": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 

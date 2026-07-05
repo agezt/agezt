@@ -77,3 +77,40 @@ Lowest-risk, most-mechanical of the refactoring plans. P1 = 6 × (3-line Go + 1 
 test). P2 = 6 × (same + route-map move). P3 = 11 tiny frontend wrappers + footers. No new cursor
 design. Per-endpoint gate: `go build ./... && go test ./kernel/{controlplane,webui,journal}/...`;
 frontend phase adds `tsc + vitest + npm run build`.
+
+## Status — DONE (locally verified; awaiting CI to merge)
+
+Branch `feat/log-cursor-pagination-phase2` (PR #475), stacked on PR #474 (P1) and merged PR #473
+(journal cursor helper). All work verified locally (`go build`/`go test` green; frontend `tsc`
+clean + `vitest` 1461/1461) — the only blocker is the self-hosted WSL runners flapping so CI never
+completes.
+
+- **P0/P1 (6 registered endpoints — cursor):** ✅ `17c136c9`.
+- **P2 (6 unregistered endpoints — register + cursor):** ✅ `3c03709a`.
+- **P3 backend (`seq` row-id on 10 log handlers) + 12 frontend `use*LogPager` wrappers + tests:**
+  ✅ `1148ad2d`.
+- **P4 shared footer + per-view wiring:**
+  - ✅ `29300ee9` — shared `components/ui/load-more-footer.tsx` (`LoadMoreFooter`) + 6 tests;
+    `Runs.tsx` refactored to consume it (drops the duplicated inline footer).
+  - ✅ `b55bf845` — **Providers** routing log → `useProviderLogPager` + footer.
+  - ✅ `032fe2d4` — **Approvals** decision history → `useApprovalsLogPager` + footer.
+  - ✅ `31f8df40` — **Tools** invocation log → `useToolLogPager` + footer.
+
+### Key finding — the view surface is smaller than "12 endpoints"
+
+Categorizing the 12 log endpoints against their consuming views: **only 6 are rendered by any view.**
+The other 6 — `ratelimit_log`, `webhook_log`, `warden_log`, `netguard_log`, `world_log`,
+`memory_log` (and `schedule_fires`) — have **no UI consumer**; their pager hooks exist for API
+completeness / future use. Of the 6 rendered:
+
+- **Providers, Approvals, Tools** — always-visible growing log streams → converted to pager + footer (done).
+- **FlowStudio** (`plan_history`) — **deliberately left as-is:** a mutation-driven "latest 8" recency
+  panel (re-fetched on `plan.completed`/`plan.failed`), not a growing log; pagination would fight its
+  design.
+- **Policy** (`policy_log`) — uses the collapsible `LogDetail` drill-down (lazy one-shot fetch on
+  expand); a load-more footer adds little → low priority, left as-is.
+- **AgentDetail** — aggregates **per-agent** `/agents/{ref}/*` routes, a different endpoint surface
+  from the top-level log routes; out of scope for this plan.
+
+**P4 is therefore functionally complete.** Remaining action is operational, not code: unblock/replace
+the WSL runners so PRs #473 → #474 → #475 can merge in order.

@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { extOf, fileMentionRegex, MENTION_EXTS } from "./languages";
+import { extOf, fileMentionRegex, MENTION_EXTS } from "./language";
 
-describe("languages.extOf", () => {
+describe("language.extOf", () => {
   it("returns lowercase extension, or empty when none", () => {
     expect(extOf("notes/x.md")).toBe("md");
     expect(extOf("FOO.TSX")).toBe("tsx");

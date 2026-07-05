@@ -50,6 +50,8 @@ import {
   useMemoryPager,
   useAgentActivityPager,
   useAgentEscalationsPager,
+  useToolLogPager,
+  usePlanHistoryPager,
 } from "@/lib/cursorPager";
 
 function row(id: string): Row {
@@ -274,5 +276,44 @@ describe("useAgentEscalationsPager", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(messages[0]).toContain("ref=audited");
     expect(result.current.paged.map((e) => e.message_id)).toEqual(["esc-1"]);
+  });
+});
+
+// Log endpoints (A2 Phase 1 + 2): representative seq-keyed and correlation_id-keyed wrappers.
+
+describe("useToolLogPager", () => {
+  it("hits /api/tool_log with the invocations envelope and seq-dedup", async () => {
+    const chain = ["50:2", null];
+    nextResponse = (cursor) => {
+      const i = ["", ...chain].indexOf(cursor ?? "");
+      return {
+        invocations: i === 0 ? [{ seq: 3 }, { seq: 2 }] : [{ seq: 1 }],
+        next_cursor: chain[Math.min(i, chain.length - 1)],
+      } as unknown as Record<string, unknown>;
+    };
+    const { result } = renderHook(() => useToolLogPager());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(messages[0]).toMatch(/^\/api\/tool_log\?/);
+    expect(result.current.paged.map((r) => String(r.seq))).toEqual(["3", "2"]);
+    expect(result.current.hasMore).toBe(true);
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(result.current.paged.map((r) => String(r.seq))).toEqual(["3", "2", "1"]);
+    expect(result.current.hasMore).toBe(false);
+  });
+});
+
+describe("usePlanHistoryPager", () => {
+  it("hits /api/plan_history with the plans envelope and correlation_id-dedup", async () => {
+    nextResponse = () => ({
+      plans: [{ correlation_id: "plan-a" }, { correlation_id: "plan-b" }],
+      next_cursor: null,
+    } as unknown as Record<string, unknown>);
+    const { result } = renderHook(() => usePlanHistoryPager());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(messages[0]).toMatch(/^\/api\/plan_history\?/);
+    expect(result.current.paged.map((r) => r.correlation_id)).toEqual(["plan-a", "plan-b"]);
+    expect(result.current.hasMore).toBe(false);
   });
 });

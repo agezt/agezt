@@ -17,6 +17,7 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
@@ -37,7 +38,8 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
-	statusFilter, _ := req.Args["status"].(string) // completed|failed|running
+	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
+	statusFilter, _ := req.Args["status"].(string)                            // completed|failed|running
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -107,6 +109,15 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 		}
 		return rows[i].startSeq > rows[j].startSeq
 	})
+	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
+		kept := rows[:0]
+		for _, p := range rows {
+			if journal.KeepBeforeCursor(p.startedMS, p.startSeq, cursorMS, cursorSeq) {
+				kept = append(kept, p)
+			}
+		}
+		rows = kept
+	}
 	if len(rows) > limit {
 		rows = rows[:limit]
 	}
@@ -126,10 +137,14 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 			"duration_ms":     duration,
 		})
 	}
+	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
+	if n := len(rows); n > 0 {
+		nextCursor = journal.NextCursor(rows[n-1].startedMS, rows[n-1].startSeq, n, limit)
+	}
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
-		Result: map[string]any{"plans": out, "count": len(out)},
+		Result: map[string]any{"plans": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 

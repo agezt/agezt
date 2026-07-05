@@ -4,13 +4,13 @@
 // tools/changelog-split.
 //
 // It checks three things:
-//   1. the root CHANGELOG.md still contains an `[Unreleased]` section that points
-//      at `CHANGELOG/unreleased/current.md`;
-//   2. the split tree exists (`CHANGELOG/README.md`, `CHANGELOG/REORG-LOG.md`,
-//      `CHANGELOG/unreleased/current.md`, released version files, and optional
-//      historical unreleased bucket files);
-//   3. the split markdown files have a minimal valid shape (`# Changelog...`
-//      heading and at least one `###` subsection where appropriate).
+//  1. the root CHANGELOG.md still contains an `[Unreleased]` section that points
+//     at `CHANGELOG/unreleased/current.md`;
+//  2. the split tree exists (`CHANGELOG/README.md`, `CHANGELOG/REORG-LOG.md`,
+//     `CHANGELOG/unreleased/current.md`, released version files, and optional
+//     historical unreleased bucket files);
+//  3. the split markdown files have a minimal valid shape (`# Changelog...`
+//     heading and at least one `###` subsection where appropriate).
 package main
 
 import (
@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -158,11 +157,4 @@ func checkChangelogLikeFile(path string, requireSection bool) error {
 		return fmt.Errorf("%s has no `###` subsection", filepath.ToSlash(path))
 	}
 	return nil
-}
-
-// sortedPaths is test-only helper for stable error messages / snapshotting.
-func sortedPaths(paths []string) []string {
-	out := append([]string(nil), paths...)
-	sort.Strings(out)
-	return out
 }

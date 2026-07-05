@@ -217,12 +217,14 @@ function readTheme(): string {
 // callers don't import the heavyweight @monaco-editor/react directly. Bump
 // these names when adding new wrappers; the lazy import above keeps the
 // bundle lean.
+/** @public Debug introspection for the Monaco loader. */
 export const __monacoRefs = { Editor };
 
 // Expose an `editorRef` factory so tests / call sites can call setValue etc.
 // without an explicit ref handle. Returns nothing in this preview build —
 // left intentionally minimal until the standalone Files editor (Slice 4)
 // needs imperative access.
+/** @public Exposes the Monaco editor ref for parent components. */
 export function useEditorRef() {
   return useRef(null);
 }
