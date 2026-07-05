@@ -224,7 +224,7 @@ func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
 		_ = full
 	}
 	resp := fileTreeResponse{
-		Root: rel,
+		Root:  rel,
 		Nodes: nodes,
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -426,4 +426,3 @@ func readJSONBody(w http.ResponseWriter, r *http.Request, maxBytes int64) (map[s
 	}
 	return out, true
 }
-

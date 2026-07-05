@@ -57,16 +57,16 @@ func TestGoModOnlyListsCompiledDeps(t *testing.T) {
 		"github.com/pmezard/go-difflib": true,
 		"github.com/stretchr/testify":   true,
 		"github.com/yuin/goldmark":      true,
-		"golang.org/x/crypto":          true,
-		"golang.org/x/mod":             true,
+		"golang.org/x/crypto":           true,
+		"golang.org/x/mod":              true,
 		// golang.org/x/net removed — now a DIRECT dep (browser tool PSL).
-		"golang.org/x/sync":            true,
-		"golang.org/x/sys":             true,
-		"golang.org/x/term":            true,
-		"golang.org/x/text":            true,
-		"golang.org/x/tools":           true,
-		"golang.org/x/xerrors":         true,
-		"gopkg.in/yaml.v3":             true,
+		"golang.org/x/sync":    true,
+		"golang.org/x/sys":     true,
+		"golang.org/x/term":    true,
+		"golang.org/x/text":    true,
+		"golang.org/x/tools":   true,
+		"golang.org/x/xerrors": true,
+		"gopkg.in/yaml.v3":     true,
 	}
 	// Inside a `require ()` block, every entry is indented with one
 	// tab — that's how `gofmt` formats them. Any line starting with
@@ -159,4 +159,3 @@ func goBin(t *testing.T) string {
 	}
 	return filepath.Dir(g)
 }
-

@@ -159,10 +159,10 @@ func TestFiles_PathTraversalRefused(t *testing.T) {
 	}
 
 	cases := []string{
-		"../secret.txt",       // plain traversal
+		"../secret.txt",        // plain traversal
 		"foo/../../secret.txt", // nested traversal
-		"/etc/passwd",         // absolute
-		`C:\\Windows`,         // windows drive-prefix
+		"/etc/passwd",          // absolute
+		`C:\\Windows`,          // windows drive-prefix
 	}
 	for _, p := range cases {
 		rec := httpJSON(t, s.Handler(), http.MethodGet, "/api/files/raw?path="+p+"&token=secret", "")

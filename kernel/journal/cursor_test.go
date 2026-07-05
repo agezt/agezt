@@ -36,18 +36,18 @@ func TestEncodeCursorZeroIsEmpty(t *testing.T) {
 func TestDecodeCursorMalformedFallsBack(t *testing.T) {
 	// Every one of these must be treated as "no cursor" (ok=false), not an error.
 	bad := []any{
-		nil,               // absent
-		"",                // empty
-		"abc",             // no colon
-		":",               // empty halves
-		":5",              // empty ms
-		"5:",              // empty seq
-		"x:5",             // non-numeric ms
-		"5:x",             // non-numeric seq
-		"-1:5",            // negative ms (forged/aged-out)
-		"5:-1",            // negative seq
-		42,                // non-string arg
-		"1700000000000",   // missing colon
+		nil,             // absent
+		"",              // empty
+		"abc",           // no colon
+		":",             // empty halves
+		":5",            // empty ms
+		"5:",            // empty seq
+		"x:5",           // non-numeric ms
+		"5:x",           // non-numeric seq
+		"-1:5",          // negative ms (forged/aged-out)
+		"5:-1",          // negative seq
+		42,              // non-string arg
+		"1700000000000", // missing colon
 	}
 	for _, b := range bad {
 		if ms, seq, ok := DecodeCursor(b); ok {
@@ -70,9 +70,9 @@ func TestDecodeCursorToleratesLargeValues(t *testing.T) {
 func TestKeepBeforeCursor(t *testing.T) {
 	const cMS, cSeq = 100, 5
 	cases := []struct {
-		name        string
+		name          string
 		rowMS, rowSeq int64
-		keep        bool
+		keep          bool
 	}{
 		{"newer ms dropped", 101, 0, false},
 		{"same ms newer seq dropped", 100, 6, false},
