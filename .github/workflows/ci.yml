@@ -171,6 +171,56 @@ jobs:
             exit 1
           fi
 
+  frontend-dist-rebuild:
+    # Safety net for the committed-dist pattern (next.md #2). The
+    # frontend-dist-in-sync gate above FAILS a PR when its committed
+    # kernel/webui/dist/ would drift from frontend/ sources — that stops
+    # drift entering main through a reviewed PR. But drift can still land on
+    # main via a direct push, a merge that skipped CI (admin override), or a
+    # rebase that re-resolved dist. So this job rebuilds dist on every push
+    # to main and auto-commits the result: main is self-healing.
+    #
+    # Loop safety: the commit is made by github-actions[bot] using the
+    # default GITHUB_TOKEN, and pushes made with GITHUB_TOKEN do NOT trigger
+    # workflow runs (documented GitHub behaviour), so there is no rebuild
+    # loop. The `[skip ci]` footer is a defensive belt-and-suspenders in
+    # case the token is later swapped for a PAT that DOES retrigger.
+    name: frontend-dist-rebuild
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      # This job needs to push the rebuilt dist back to main; every other
+      # job stays at the workflow-wide contents:read.
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          # Keep the token so the push step below can authenticate.
+          persist-credentials: true
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Rebuild the Web UI bundle
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      - name: Commit drift if the rebuild changed dist
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- kernel/webui/dist/; then
+            echo "::notice::kernel/webui/dist/ already in sync; nothing to commit."
+            exit 0
+          fi
+          git add kernel/webui/dist/
+          git commit -m "chore(frontend): auto-rebuild dist [skip ci]"
+          git push
+          echo "::notice::Rebuilt and pushed kernel/webui/dist/"
+
   frontend-test:
     name: frontend-test
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
