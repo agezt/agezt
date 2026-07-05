@@ -33,6 +33,8 @@ import { ErrorText } from "@/components/JsonView";
 import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { useScheduleFiresPager } from "@/lib/cursorPager";
 
 interface Sched {
   id: string;
@@ -1049,7 +1051,18 @@ export function Schedules() {
   const [tools, setTools] = useState<ScheduleTool[]>([]);
   const [systemTasks, setSystemTasks] = useState<string[]>(FALLBACK_SYSTEM_TASKS);
   const [systemTaskInfo, setSystemTaskInfo] = useState<ScheduleSystemTaskInfo[]>(FALLBACK_SYSTEM_TASK_INFO);
-  const [fires, setFires] = useState<ScheduleFire[]>([]);
+  // Recent firings are cursor-paginated via useScheduleFiresPager (the hook
+  // owns its own polling + live-event reload). reload() below fetches only the
+  // schedules, profiles, workflows, tools, and system-task catalog — the pager
+  // drives the fires list independently.
+  const {
+    paged: fireRows,
+    loadMore: loadMoreFires,
+    loadingMore: loadingMoreFires,
+    moreError: firesError,
+    hasMore: hasMoreFires,
+  } = useScheduleFiresPager(20);
+  const fires = fireRows as unknown as ScheduleFire[];
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1108,7 +1121,7 @@ export function Schedules() {
   async function reload() {
     setLoading(true);
     try {
-      const [d, a, w, t, st, f] = await Promise.all([
+      const [d, a, w, t, st] = await Promise.all([
         getJSON<{ schedules?: Sched[] }>("/api/schedules"),
         getJSON<{ profiles?: ScheduleAgent[] }>("/api/agents").catch(() => ({ profiles: [] })),
         getJSON<{ workflows?: ScheduleWorkflow[] }>("/api/workflows").catch(() => ({ workflows: [] })),
@@ -1117,13 +1130,11 @@ export function Schedules() {
           system_tasks: FALLBACK_SYSTEM_TASKS,
           system_task_info: FALLBACK_SYSTEM_TASK_INFO,
         })),
-        getJSON<{ fires?: ScheduleFire[] }>("/api/schedule/fires", { limit: "5" }).catch(() => ({ fires: [] })),
       ]);
       setItems(d.schedules || []);
       setProfiles(a.profiles || []);
       setWorkflows(w.workflows || []);
       setTools(t.tools || []);
-      setFires(f.fires || []);
       const nextSystemTasks = (st.system_tasks || []).filter(Boolean);
       setSystemTasks(nextSystemTasks.length ? nextSystemTasks : FALLBACK_SYSTEM_TASKS);
       const nextSystemTaskInfo = (st.system_task_info || []).filter((task) => task?.name);
@@ -1328,6 +1339,14 @@ export function Schedules() {
                   </div>
                 ))}
               </div>
+              <LoadMoreFooter
+                hasMore={hasMoreFires}
+                loadingMore={loadingMoreFires}
+                moreError={firesError}
+                onLoadMore={loadMoreFires}
+                pageSize={20}
+                label="firings"
+              />
             </ScheduleEventPanel>
           )}
           {shownItems.length === 0 ? (
