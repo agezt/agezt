@@ -720,6 +720,14 @@ type Store struct {
 	profiles []*Profile
 }
 
+// SetNowForTest overrides the store's clock so tests can inject deterministic
+// timestamps. Must not be used in production code.
+func (s *Store) SetNowForTest(now func() time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.now = now
+}
+
 // Open opens (or creates) the roster store under dir.
 func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
