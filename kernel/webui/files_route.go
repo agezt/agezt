@@ -224,7 +224,7 @@ func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
 		_ = full
 	}
 	resp := fileTreeResponse{
-		Root: rel,
+		Root:  rel,
 		Nodes: nodes,
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -240,7 +240,10 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	info, err := os.Stat(targetAbs)
+	// Lstat, not Stat: Stat follows the symlink and loses the ModeSymlink bit,
+	// which would let an in-root link to an out-of-root file sail past the
+	// symlink guard below and stream bytes from outside the workspace.
+	info, err := os.Lstat(targetAbs)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -374,7 +377,10 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	info, err := os.Stat(targetAbs)
+	// Lstat, not Stat: Stat resolves the link, hiding the ModeSymlink bit and
+	// defeating the symlink guard below — an in-root link could then let
+	// os.Remove/os.RemoveAll chase a target outside the workspace.
+	info, err := os.Lstat(targetAbs)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, "not found", http.StatusNotFound)
@@ -426,4 +432,3 @@ func readJSONBody(w http.ResponseWriter, r *http.Request, maxBytes int64) (map[s
 	}
 	return out, true
 }
-

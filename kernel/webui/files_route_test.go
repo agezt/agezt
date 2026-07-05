@@ -159,10 +159,10 @@ func TestFiles_PathTraversalRefused(t *testing.T) {
 	}
 
 	cases := []string{
-		"../secret.txt",       // plain traversal
+		"../secret.txt",        // plain traversal
 		"foo/../../secret.txt", // nested traversal
-		"/etc/passwd",         // absolute
-		`C:\\Windows`,         // windows drive-prefix
+		"/etc/passwd",          // absolute
+		`C:\\Windows`,          // windows drive-prefix
 	}
 	for _, p := range cases {
 		rec := httpJSON(t, s.Handler(), http.MethodGet, "/api/files/raw?path="+p+"&token=secret", "")
@@ -209,6 +209,38 @@ func TestFiles_SymlinkRefused(t *testing.T) {
 	rec = httpJSON(t, s.Handler(), http.MethodGet, "/api/files/raw?path=link.txt&token=secret", "")
 	if rec.Code == http.StatusOK {
 		t.Fatalf("symlink raw read returned 200; body=%s", rec.Body.String())
+	}
+}
+
+// TestFiles_SymlinkDeleteRefused locks in the same defence for the delete
+// handler: os.Stat used to follow the link there too, hiding the ModeSymlink
+// bit and letting os.Remove/os.RemoveAll chase a target outside the root.
+func TestFiles_SymlinkDeleteRefused(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics on Windows vary; covered by the resolver tests")
+	}
+	root := t.TempDir()
+	withFileRoot(t, root)
+	outsideDir := t.TempDir()
+	target := filepath.Join(outsideDir, "secret.txt")
+	if err := os.Symlink(target, filepath.Join(root, "link.txt")); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+	if err := os.WriteFile(target, []byte("OWNED\n"), 0o600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+
+	// Deleting the in-root symlink must be refused, never chase the target.
+	rec := httpJSON(t, s.Handler(), http.MethodPost, "/api/files/delete?token=secret",
+		`{"path":"link.txt"}`)
+	if rec.Code == http.StatusOK {
+		t.Fatalf("symlink delete returned 200; body=%s", rec.Body.String())
+	}
+	// The out-of-root target must be untouched.
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("out-of-root target was removed via symlink: %v", err)
 	}
 }
 
