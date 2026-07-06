@@ -36,9 +36,14 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     const title = page.locator("h1", { hasText: "· console" });
     await expect(title).toBeVisible();
     await expect(title).toContainText(/agezt/i);
-    // "● live" renders in the header AND in the Cockpit panel — either proves
-    // the SSE stream connected.
-    await expect(page.getByText("● live").first()).toBeVisible();
+    // The header ConnectionChip (commit 8fca29fa) is a dot+icon indicator:
+    // its visible label is screen-reader-only, so we assert on its
+    // data-connection-state attribute instead of literal "● live" text.
+    // The state flips to "live" once /events connects AND delivers an event,
+    // which proves the live SSE stream is wired end to end.
+    const conn = page.locator("[data-connection-state]").first();
+    await expect(conn).toBeVisible();
+    await expect(conn).toHaveAttribute("data-connection-state", "live");
 
     const nav = page.getByRole("navigation");
     // exact: true so a substring nav label can't hijack the match — e.g. the
