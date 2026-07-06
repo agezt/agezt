@@ -1,2 +1,6 @@
+overrides:
+  dompurify: ^3.4.11
+  undici: ^7.28.0
+
 allowBuilds:
   esbuild: set this to true or false

@@ -45,6 +45,7 @@
     "vitest": "^4.1.8"
   },
   "overrides": {
+    "dompurify": "^3.4.11",
     "undici": "^7.28.0"
   }
 }
