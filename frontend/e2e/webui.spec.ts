@@ -68,9 +68,13 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // The seeded run shows up in the completed counter; the vitals strip and
     // widgets are real daemon state, not placeholders.
     await openView("System", "Overview");
+    // Generous timeout for the first post-nav heading: a click + React re-mount
+    // + initial data fetch under WSL runner load can exceed the default 10s.
+    // Same rationale as the data-connection-state live-or-stale tolerance in
+    // the connection-state assertion above.
     await expect(
       page.getByRole("heading", { level: 2, name: "Cockpit" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/success rate/i)).toBeVisible();
     await expect(page.getByText(/active skills/i)).toBeVisible();
 
