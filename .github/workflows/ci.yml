@@ -42,23 +42,16 @@ jobs:
       - run: bash scripts/ci-go-retry.sh go test ./...
       - run: bash scripts/ci-go-retry.sh go build ./...
 
-  race:
-    # Race detector needs cgo, so it can't run in the default CGO_ENABLED=0
-    # build matrix. We run it on Linux (the self-hosted WSL-Ubuntu runners,
-    # which have native gcc) with cgo enabled to surface concurrent-code
-    # regressions in kernel/bus, kernel/journal, etc.
+  race-breadth:
+    # Race detector (BREADTH pass) needs cgo, so it can't run in the default
+    # CGO_ENABLED=0 build matrix. We run it on Linux (the self-hosted
+    # WSL-Ubuntu runners, which have native gcc) with cgo enabled to surface
+    # concurrent-code regressions across the whole tree.
     #
-    # Two passes, because the threat is two-fold:
-    #   1. BREADTH — one `-race ./...` run catches any obviously-racy access
-    #      across the whole tree.
-    #   2. DEPTH — a single pass is unreliable for SCHEDULE-DEPENDENT races
-    #      (the data race only manifests on an unlucky goroutine interleaving).
-    #      The concurrency fixes this gate exists to protect are exactly that
-    #      kind: the channel-registry boot-window race (VULN-002) and the
-    #      pulse / OAuth context-cancellation paths. So we additionally
-    #      stress-run just those packages with -count, multiplying the number
-    #      of interleavings sampled per push at negligible extra cost.
-    name: race (linux, cgo)
+    # This is the critical gate — a single `-race ./...` run catches any
+    # obviously-racy access. The DEPTH pass (race-depth below) is a separate
+    # job so its failure doesn't mask a breadth-pass green (next.md #7).
+    name: race-breadth (linux, cgo)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64]
     env:
@@ -70,19 +63,40 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - name: Race detector — full tree (breadth)
         run: bash scripts/ci-go-retry.sh go test -race ./...
+
+  race-depth:
+    # Race detector (DEPTH pass). A single breadth pass is unreliable for
+    # SCHEDULE-DEPENDENT races (a data race only manifests on an unlucky
+    # goroutine interleaving). The concurrency fixes this gate exists to
+    # protect are exactly that kind: the channel-registry boot-window race
+    # (VULN-002), the pulse / OAuth context-cancellation paths, etc. So we
+    # stress-run just those packages with -count, multiplying the number of
+    # interleavings sampled per push at negligible extra cost.
+    #
+    # Separate job from race-breadth so a depth-pass kill (often flaky on
+    # contended WSL runners) doesn't mask a breadth-pass green — next.md #7.
+    # Keep this list in sync with the concurrency/context fixes:
+    #   kernel/channel        — VULN-002 registry RWMutex (boot-window race)
+    #   kernel/controlplane   — pulse read-timeout + ctx-aware sleep + oauth ctx
+    #   kernel/chatgptauth    — ExchangeCode ctx cancellation
+    #   kernel/runtime        — WithTrustCeiling clamp / delegation ctx
+    #   kernel/pulse          — engine fan-out / subscription lifecycle
+    #   kernel/governor       — soft budget caps (concurrent recordUsage)
+    #   kernel/bus            — historically race-prone event fan-out
+    #   kernel/journal        — historically race-prone append/read
+    name: race-depth (linux, cgo)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go-safe
       - name: Race detector — concurrency-critical packages (depth, stressed)
-        # Re-run the packages touched by the concurrency/context fixes many
-        # times so a schedule-dependent race has many chances to surface.
         # -count forces real re-execution (not the test cache); these packages
-        # are small, so 20x is cheap. Keep this list in sync with the fixes:
-        #   kernel/channel        — VULN-002 registry RWMutex (boot-window race)
-        #   kernel/controlplane   — pulse read-timeout + ctx-aware sleep + oauth ctx
-        #   kernel/chatgptauth    — ExchangeCode ctx cancellation
-        #   kernel/runtime        — WithTrustCeiling clamp / delegation ctx
-        #   kernel/pulse          — engine fan-out / subscription lifecycle
-        #   kernel/governor       — soft budget caps (concurrent recordUsage)
-        #   kernel/bus            — historically race-prone event fan-out
-        #   kernel/journal        — historically race-prone append/read
+        # are small, so 20x is cheap.
         env:
           RACE_STRESS_COUNT: '20'
         run: |
