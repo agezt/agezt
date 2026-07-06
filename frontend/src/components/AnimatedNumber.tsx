@@ -20,6 +20,7 @@ export function AnimatedNumber({
   const [pulse, setPulse] = useState(false);
   const fromRef = useRef(value);
   const rafRef = useRef<number | null>(null);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevRef = useRef(value);
 
   useEffect(() => {
@@ -39,7 +40,8 @@ export function AnimatedNumber({
     // Pulse on change
     if (value !== prevRef.current) {
       setPulse(true);
-      setTimeout(() => setPulse(false), 400);
+      if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+      pulseTimerRef.current = setTimeout(() => setPulse(false), 400);
       prevRef.current = value;
     }
     const start = performance.now();
@@ -56,6 +58,10 @@ export function AnimatedNumber({
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (pulseTimerRef.current) {
+        clearTimeout(pulseTimerRef.current);
+        pulseTimerRef.current = null;
+      }
     };
   }, [value, durationMs]);
 
