@@ -1,6 +1,6 @@
 # Agezt — Comprehensive Architectural Report
 
-> **Generated:** 2026-06-20 · **Branch at generation time:** `main` · **Version:** v1.0.0+ · **Latest phase at generation time:** M781+ (historical; see `docs/SYSTEM-AUDIT-REPORT.md` for current counts)
+> **Generated:** 2026-06-20 (last refreshed: 2026-07-06) · **Branch:** `main` (HEAD: `ef7b412d`) · **Version:** v1.0.0+ · **Latest phase at generation time:** M781+ (historical; see `docs/SYSTEM-AUDIT-REPORT.md` for current counts)
 > **Scope:** Every component, module, and technology across the entire monorepo.
 > **Note:** Version and dependency details are sourced from `go.mod`, `frontend/package.json`, and `frontend/.nvmrc`. See `docs/SDK-PARITY.md` for API coverage and `DEPENDENCIES.md` for the dependency inventory.
 > **Current-state note:** This generated report is broad but partially stale in its phase/test-count sections. For the latest review and gap plan, see `docs/SYSTEM-AUDIT-REPORT.md`, `docs/MISSING-PARTS-REPORT.md`, and `docs/MISSING-PARTS-PLAN.md`.

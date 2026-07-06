@@ -1,8 +1,8 @@
 # AGEZT — Missing Parts Plan (Eksik Parçalar İçin Eylem Planı)
 
-> **Tarih:** 2026-07-04
-> **Dal:** `refactor/c4-agentdetail-phase0` (HEAD: `967de333`)
-> **Statü:** ACTIVE — `docs/NEXT.md` §0 referansını kapatmak için oluşturuldu. Ham envanter `docs/SYSTEM-AUDIT-REPORT.md` ve `docs/MISSING-PARTS-REPORT.md`'daki **28 fonksiyonel boşluk + 6 NEXT takip işi** üzerine kuruludur.
+> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
+> **Dal:** `main` (HEAD: `ef7b412d`)
+> **Statü:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference; see `docs/SYSTEM-AUDIT-REPORT.md` for current audit state.
 > **Diğer referanslar:** `docs/OPENCLAW-HERMES-ROADMAP.md`, `docs/JARVIS-VISION-2026.md`, `docs/REFACTORING-INDEX.md`, `docs/GRAVEYARD-POLICY.md`, `docs/PLUGIN-SECURITY.md`, `docs/OPERATIONS.md`, `docs/COMPARISON.md`, `docs/THREAT-MODEL.md`.
 
 ---

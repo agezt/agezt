@@ -1,7 +1,7 @@
 # AGEZT — Sistem Denetim Raporu (Eksikler, Tamamlanmamışlar, Yapılması Gerekenler)
 
-> **Tarih:** 2026-07-04
-> **Dal:** `refactor/c4-agentdetail-phase0` (HEAD: `967de333`)
+> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
+> **Dal:** `main` (HEAD: `ef7b412d`)
 > **Checkout:** Ana repo (`D:\Codebox\PROJECTS\AGEZT`); `.worktrees/` ve `.claude/worktrees/` **hariç tutulmuştur**.
 > **Yöntem:** Tüm kaynak kodu (575 Go + 212 TS/TSX), dokümanlar (`.project/SPEC-*.md`, `.project/PHASE-M*.md`, `docs/*.md`), CHANGELOG, refactoring planları, frontend kodu ve SPEC ↔ kod referansları taranmış; TODO/FIXME/HACK envanteri, build/test envanteri ve özellik eşleştirmesi yapılmıştır.
 > **Sınırlamalar:** Bu denetim sırasında dış fetch (`github.com`, `web search`) çalışmadığı için rakip doküman iddiaları yalnızca repo-içi `OPENCLAW-HERMES-ROADMAP.md` ve `JARVIS-VISION-2026.md` üzerinden kontrol edilmiştir. Yerel diskte olmayan `PHASE-M1xxx` raporları **disk'e göre** değil **CHANGELOG referansına** göre işlenmiştir.

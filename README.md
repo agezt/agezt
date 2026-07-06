@@ -16,7 +16,7 @@ channel, and marketplace surfaces remain capability- and environment-dependent.
 See [CHANGELOG.md](CHANGELOG.md).
 **Recent local gates:** local validation has included `go test ./...`, frontend
 `npm test`, `npm run build`, and Playwright browser E2E against the embedded SPA
-and a live demo daemon. See [docs/SYSTEM-REVIEW.md](docs/SYSTEM-REVIEW.md) for
+and a live demo daemon. See [docs/SYSTEM-AUDIT-REPORT.md](docs/SYSTEM-AUDIT-REPORT.md) for
 the latest review artifact and validation notes.
 **Dependencies:** see [DEPENDENCIES.md](DEPENDENCIES.md) for the current `go.mod`-derived dependency inventory and justification status.
 **Positioning:** see [docs/COMPARISON.md](docs/COMPARISON.md) for how AGEZT differs from generic agent frameworks without unverifiable competitor claims.
