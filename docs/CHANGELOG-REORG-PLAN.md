@@ -1,8 +1,8 @@
 # CHANGELOG Reorg Planı (P0-5)
 
-> **Tarih:** 2026-07-04
-> **Dal:** `refactor/c4-agentdetail-phase0` (HEAD: `967de333`)
-> **Statü:** ACTIVE — `docs/MISSING-PARTS-PLAN.md` P0-5 görevi için üretildi.
+> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
+> **Dal:** `main` (HEAD: `ef7b412d`)
+> **Statü:** ARCHIVED — CHANGELOG reorganization completed (root slimmed to release index, per-version bodies in `CHANGELOG/`). Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Plan retained for historical reference.
 > **Diğer referanslar:** `docs/MISSING-PARTS-PLAN.md`, `docs/MISSING-PARTS-REPORT.md` (H-04).
 
 ---

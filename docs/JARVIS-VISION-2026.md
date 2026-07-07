@@ -15,8 +15,8 @@
 bir *agentic operating system*. Ölçek doğrulandı:
 
 - ~**170.000 satır** Go (test hariç), 5.583 `.go` dosyası, **63 kernel paketi**
-- **25 kanal**, **15 sağlayıcı ailesi**, **29 tool**, **16 yerleşik skill paketi**, **~70 CLI komut grubu**
-- Gömülü React konsolu: **67 gerçek view**, ~73.000 satır TS/TSX, **~473 Vitest testi** (view başına ~1:1 kapsam), tek-EventSource canlı akış
+- **25 kanal**, **15 sağlayıcı ailesi**, **30 tool**, **16 yerleşik skill paketi**, **~70 CLI komut grubu**
+- Gömülü React konsolu: **71 gerçek view**, ~73.000 satır TS/TSX, **~473 Vitest testi** (view başına ~1:1 kapsam), tek-EventSource canlı akış
 - **Sıfır** `panic("unimplemented")`, çekirdekte parmakla sayılır TODO — placeholder ekran yok
 
 **Rakiplere karşı konum:**

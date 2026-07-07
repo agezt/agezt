@@ -1,8 +1,8 @@
 # AGEZT — SPEC Implementation Status (SPEC ↔ Kod Durum Matrisi)
 
-> **Tarih:** 2026-07-04
-> **Dal:** `refactor/c4-agentdetail-phase0` (HEAD: `967de333`)
-> **Statü:** ACTIVE — `docs/MISSING-PARTS-PLAN.md` P0-4 görevi için üretildi.
+> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
+> **Dal:** `main` (HEAD: `ef7b412d`)
+> **Statü:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference.
 > **Diğer referanslar:** `docs/SYSTEM-AUDIT-REPORT.md`, `docs/MISSING-PARTS-REPORT.md`, `docs/MISSING-PARTS-PLAN.md`, `docs/JARVIS-VISION-2026.md`, `docs/OPENCLAW-HERMES-ROADMAP.md`.
 
 ---

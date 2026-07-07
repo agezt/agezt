@@ -1,9 +1,9 @@
 # Security Assessment Report
 
 **Project:** AGEZT — self-hosted autonomous multi-agent platform (Go kernel + daemon/CLI, React/TS web console, Go/TS/Python/Rust SDKs)
-**Date:** 2026-06-27
+**Date:** 2026-06-27 (last refreshed: 2026-07-06)
 **Scanner:** security-check v1.1.0 (4-phase pipeline: Recon → Hunt → Verify → Report)
-**Branch / HEAD:** `main` @ `99d2e426`
+**Branch / HEAD at scan:** `main` @ `99d2e426`; **current HEAD:** `ef7b412d`
 **Risk Score:** **2.6 / 10 — Low Risk**
 
 > **Threat model.** AGEZT is a **localhost-first, single-operator, token-gated daemon**. Every network listener

@@ -1,8 +1,8 @@
 # AGEZT — Missing Parts Report (Eksik Parçalar — Ham Envanter)
 
-> **Tarih:** 2026-07-04
-> **Dal:** `refactor/c4-agentdetail-phase0` (HEAD: `967de333`)
-> **Statü:** ACTIVE — `docs/NEXT.md` §0 referansı için **ham envanter** (önsözünde "audit" da olan çifti `docs/SYSTEM-AUDIT-REPORT.md`, execution plan `docs/MISSING-PARTS-PLAN.md`).
+> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
+> **Dal:** `main` (HEAD: `ef7b412d`)
+> **Statü:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference; see `docs/SYSTEM-AUDIT-REPORT.md` for current audit state and `docs/MISSING-PARTS-PLAN.md` for the action plan.
 > **Diğer referanslar:** `docs/SYSTEM-AUDIT-REPORT.md`, `docs/MISSING-PARTS-PLAN.md`, `docs/OPENCLAW-HERMES-ROADMAP.md`, `docs/JARVIS-VISION-2026.md`, `docs/REFACTORING-INDEX.md`, `docs/GRAVEYARD-POLICY.md`.
 
 ---
