@@ -4,6 +4,7 @@ package ulid
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -84,6 +85,31 @@ func (r *fixedReader) Read(p []byte) (int, error) {
 		p[i] = r.b
 	}
 	return len(p), nil
+}
+
+// errReader returns 0 bytes and an error immediately — used to exercise the
+// panic path in Generator.New (io.ReadFull failure).
+type errReader struct{}
+
+func (errReader) Read(p []byte) (int, error) { return 0, errors.New("read error") }
+
+func TestGenerator_RandPanicsOnReadError(t *testing.T) {
+	g := &Generator{nowFunc: time.Now, randSrc: errReader{}}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic from rand read error")
+		}
+	}()
+	g.New()
+}
+
+func TestGeneratorDefaults(t *testing.T) {
+	// A zero-value Generator uses time.Now and crypto/rand fallbacks.
+	var g Generator
+	id := g.New()
+	if len(id) != EncodedSize {
+		t.Fatalf("len=%d want %d", len(id), EncodedSize)
+	}
 }
 
 // guard against accidental shared state mutation in encode.

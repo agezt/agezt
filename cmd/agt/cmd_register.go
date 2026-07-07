@@ -151,6 +151,7 @@ func registerManagementCommands() {
 	Register(&Command{Name: "tenant", Run: cmdTenant})
 	Register(&Command{Name: "token", Run: cmdToken})
 	Register(&Command{Name: "acp", Run: cmdACP})
+	Register(&Command{Name: "overseer", Run: cmdOverseer})
 	Register(&Command{Name: "quickstart", Run: cmdQuickstart})
 	Register(&Command{Name: "approve", Run: func(args []string, stdout, stderr io.Writer) int {
 		return cmdDecide("grant", args, stdout, stderr)

@@ -249,3 +249,15 @@ func TestNew_CopiesRawMessagePayload(t *testing.T) {
 		t.Errorf("VerifyHash failed after the caller mutated its slice: %v", err)
 	}
 }
+
+func TestNew_UnmarshalablePayload(t *testing.T) {
+	// A channel cannot be marshalled to JSON, so marshalPayload returns an error
+	// which causes New and NewEphemeral to return an error.
+	spec := Spec{Subject: "s", Kind: KindTaskReceived, Actor: "a", Payload: make(chan int)}
+	if _, err := New(spec, fixedID, 0, time.UnixMilli(1_700_000_000_000), GenesisHash); err == nil {
+		t.Fatal("expected marshal error for channel payload")
+	}
+	if _, err := NewEphemeral(spec); err == nil {
+		t.Fatal("expected marshal error for channel payload in Ephemeral")
+	}
+}

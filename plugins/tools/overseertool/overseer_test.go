@@ -33,6 +33,14 @@ type fakeSource struct {
 	created    roster.Profile
 	repaired   string
 	repairRes  RepairResult
+	deleted    string
+	deleteOK   bool
+	deleteErr  error
+	getRef     string
+	getResult  roster.Profile
+	getOK      bool
+	cloneSrc   string
+	cloneOver  roster.Profile
 }
 
 func (f *fakeSource) IsHalted() bool              { return f.halted }
@@ -58,7 +66,7 @@ func (f *fakeSource) SetAgentEnabled(ref string, enabled bool) (roster.Profile, 
 	f.enabled[ref] = enabled
 	return roster.Profile{Slug: ref, Enabled: enabled}, nil
 }
-func (f *fakeSource) SetAgentRetired(ref string, retired bool) (roster.Profile, error) {
+func (f *fakeSource) SetAgentRetired(ref string, retired bool, _ string) (roster.Profile, error) {
 	if f.setErr != nil {
 		return roster.Profile{}, f.setErr
 	}
@@ -85,6 +93,77 @@ func (f *fakeSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
 	in.System = false
 	f.created = in
 	return in, nil
+}
+func (f *fakeSource) DeleteAgent(ref string) (bool, error) {
+	if f.deleteErr != nil {
+		return false, f.deleteErr
+	}
+	f.deleted = ref
+	return f.deleteOK, nil
+}
+func (f *fakeSource) GetAgent(ref string) (roster.Profile, bool, error) {
+	if f.setErr != nil {
+		return roster.Profile{}, false, f.setErr
+	}
+	f.getRef = ref
+	if f.getOK {
+		return f.getResult, true, nil
+	}
+	return roster.Profile{}, false, nil
+}
+func (f *fakeSource) CloneAgent(source string, overrides roster.Profile) (roster.Profile, error) {
+	if f.setErr != nil {
+		return roster.Profile{}, f.setErr
+	}
+	f.cloneSrc = source
+	f.cloneOver = overrides
+	overrides.System = false
+	return overrides, nil
+}
+func (f *fakeSource) SearchAgents(_ SearchFilter) []roster.Profile {
+	return f.agents
+}
+func (f *fakeSource) BulkSetEnabled(slugs []string, enabled bool) []BulkResult {
+	out := make([]BulkResult, len(slugs))
+	for i, slug := range slugs {
+		r := BulkResult{Slug: slug, Success: true}
+		if f.setErr != nil {
+			r.Success = false
+			r.Error = f.setErr.Error()
+		}
+		out[i] = r
+	}
+	return out
+}
+func (f *fakeSource) BulkSetRetired(slugs []string, retired bool, _ string) []BulkResult {
+	out := make([]BulkResult, len(slugs))
+	for i, slug := range slugs {
+		r := BulkResult{Slug: slug, Success: true}
+		if f.setErr != nil {
+			r.Success = false
+			r.Error = f.setErr.Error()
+		}
+		out[i] = r
+	}
+	return out
+}
+func (f *fakeSource) BulkDelete(slugs []string) []BulkResult {
+	out := make([]BulkResult, len(slugs))
+	for i, slug := range slugs {
+		r := BulkResult{Slug: slug, Success: f.deleteOK}
+		if f.deleteErr != nil {
+			r.Success = false
+			r.Error = f.deleteErr.Error()
+		}
+		out[i] = r
+	}
+	return out
+}
+func (f *fakeSource) WakeAgent(ref, intent, reason string) (string, error) {
+	if f.setErr != nil {
+		return "", f.setErr
+	}
+	return "corr-" + ref, nil
 }
 func (f *fakeSource) RepairAgent(ref, _ string) (RepairResult, error) {
 	if f.setErr != nil {
@@ -364,6 +443,324 @@ func TestRepairAgent(t *testing.T) {
 	}
 	if out["action"] != "repair" || out["correlation"] != "corr-1" {
 		t.Fatalf("repair output wrong: %+v", out)
+	}
+}
+
+func TestDeleteAgent(t *testing.T) {
+	f := &fakeSource{deleteOK: true}
+	tool := newTool(f)
+
+	// Successful delete.
+	out, isErr := invoke(t, tool, map[string]any{"op": "delete", "agent": "scout"})
+	if isErr {
+		t.Fatalf("delete errored: %v", out)
+	}
+	if f.deleted != "scout" {
+		t.Errorf("deleted target = %q, want scout", f.deleted)
+	}
+	if out["action"] != "deleted" || out["removed"] != true {
+		t.Errorf("delete output wrong: %+v", out)
+	}
+}
+
+func TestDeleteNeedsAgent(t *testing.T) {
+	f := &fakeSource{deleteOK: true}
+	if _, isErr := invoke(t, newTool(f), map[string]any{"op": "delete"}); !isErr {
+		t.Error("op=delete without agent should error")
+	}
+}
+
+func TestDeleteNotFound(t *testing.T) {
+	f := &fakeSource{deleteOK: false}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "delete", "agent": "ghost"})
+	if isErr {
+		t.Fatalf("delete not-found errored: %v", out)
+	}
+	if out["removed"] != false {
+		t.Errorf("expected removed=false for unknown agent, got %v", out["removed"])
+	}
+}
+
+func TestDeleteSurfacesError(t *testing.T) {
+	f := &fakeSource{deleteErr: errors.New("cannot remove system agent")}
+	if _, isErr := invoke(t, newTool(f), map[string]any{"op": "delete", "agent": "guardian"}); !isErr {
+		t.Error("a kernel error from delete should surface as a tool error")
+	}
+}
+
+func TestGetAgent(t *testing.T) {
+	f := &fakeSource{getOK: true, getResult: roster.Profile{Slug: "scout", Name: "Scout", Model: "deepseek-chat", Enabled: true}}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "get", "agent": "scout"})
+	if isErr {
+		t.Fatalf("get errored: %v", out)
+	}
+	if f.getRef != "scout" {
+		t.Errorf("get ref = %q, want scout", f.getRef)
+	}
+	prof, ok := out["profile"].(map[string]any)
+	if !ok {
+		t.Fatalf("get output missing profile: %+v", out)
+	}
+	if prof["slug"] != "scout" || prof["name"] != "Scout" {
+		t.Errorf("profile content wrong: %+v", prof)
+	}
+}
+
+func TestGetNeedsAgent(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "get"}); !isErr {
+		t.Error("op=get without agent should error")
+	}
+}
+
+func TestGetNotFound(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{getOK: false}), map[string]any{"op": "get", "agent": "ghost"}); !isErr {
+		t.Error("op=get for unknown agent should error")
+	}
+}
+
+func TestCloneAgent(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "clone", "source": "scout",
+		"slug": "scout-copy", "name": "Scout Copy", "model": "gpt-5",
+	})
+	if isErr {
+		t.Fatalf("clone errored: %v", out)
+	}
+	if f.cloneSrc != "scout" {
+		t.Errorf("clone source = %q, want scout", f.cloneSrc)
+	}
+	if f.cloneOver.Slug != "scout-copy" || f.cloneOver.Name != "Scout Copy" || f.cloneOver.Model != "gpt-5" {
+		t.Errorf("clone overrides not applied: %+v", f.cloneOver)
+	}
+	if out["action"] != "cloned" || out["source"] != "scout" {
+		t.Errorf("clone output wrong: %+v", out)
+	}
+}
+
+func TestCloneNeedsSource(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "clone", "slug": "new-agent"}); !isErr {
+		t.Error("op=clone without source should error")
+	}
+}
+
+func TestCloneNeedsSlug(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "clone", "source": "scout"}); !isErr {
+		t.Error("op=clone without slug in profile should error")
+	}
+}
+
+func TestSearchAgents(t *testing.T) {
+	f := &fakeSource{agents: []roster.Profile{
+		{Slug: "scout", Enabled: true},
+		{Slug: "builder", Enabled: true},
+	}}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "search"})
+	if isErr {
+		t.Fatalf("search errored: %v", out)
+	}
+	if out["count"].(float64) != 2 {
+		t.Errorf("search count = %v, want 2", out["count"])
+	}
+}
+
+func TestSearchAgentsWithFilter(t *testing.T) {
+	f := &fakeSource{agents: []roster.Profile{
+		{Slug: "scout", Enabled: true},
+		{Slug: "builder", Enabled: true},
+	}}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "search",
+		"filter": map[string]any{"state": "enabled"},
+	})
+	if isErr {
+		t.Fatalf("search with filter errored: %v", out)
+	}
+	if out["count"].(float64) != 2 {
+		t.Errorf("search count = %v, want 2", out["count"])
+	}
+}
+
+func TestBulkPause(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "bulk_pause", "agents": []string{"a1", "a2"},
+	})
+	if isErr {
+		t.Fatalf("bulk_pause errored: %v", out)
+	}
+	if out["total"].(float64) != 2 {
+		t.Errorf("bulk total = %v, want 2", out["total"])
+	}
+}
+
+func TestBulkUnpause(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "bulk_unpause", "agents": []string{"a1", "a2"},
+	})
+	if isErr {
+		t.Fatalf("bulk_unpause errored: %v", out)
+	}
+	if out["total"].(float64) != 2 {
+		t.Errorf("bulk total = %v, want 2", out["total"])
+	}
+}
+
+func TestBulkRetire(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "bulk_retire", "agents": []string{"a1", "a2"}, "reason": "cleanup",
+	})
+	if isErr {
+		t.Fatalf("bulk_retire errored: %v", out)
+	}
+	if out["total"].(float64) != 2 {
+		t.Errorf("bulk total = %v, want 2", out["total"])
+	}
+}
+
+func TestBulkRevive(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "bulk_revive", "agents": []string{"a1", "a2"},
+	})
+	if isErr {
+		t.Fatalf("bulk_revive errored: %v", out)
+	}
+	if out["total"].(float64) != 2 {
+		t.Errorf("bulk total = %v, want 2", out["total"])
+	}
+}
+
+func TestBulkDelete(t *testing.T) {
+	f := &fakeSource{deleteOK: true}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "bulk_delete", "agents": []string{"a1", "a2"},
+	})
+	if isErr {
+		t.Fatalf("bulk_delete errored: %v", out)
+	}
+	if out["total"].(float64) != 2 {
+		t.Errorf("bulk total = %v, want 2", out["total"])
+	}
+}
+
+func TestWakeAgent(t *testing.T) {
+	f := &fakeSource{}
+	out, isErr := invoke(t, newTool(f), map[string]any{
+		"op": "wake", "agent": "scout", "intent": "sync catalogue", "reason": "scheduled refresh",
+	})
+	if isErr {
+		t.Fatalf("wake errored: %v", out)
+	}
+	if out["action"] != "woken" || out["correlation_id"] != "corr-scout" {
+		t.Errorf("wake output wrong: %+v", out)
+	}
+}
+
+func TestWakeNeedsAgent(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "wake", "intent": "x"}); !isErr {
+		t.Error("op=wake without agent should error")
+	}
+}
+
+func TestWakeNeedsIntentOrReason(t *testing.T) {
+	if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": "wake", "agent": "scout"}); !isErr {
+		t.Error("op=wake without intent or reason should error")
+	}
+}
+
+func TestBulkNeedsAgents(t *testing.T) {
+	for _, op := range []string{"bulk_pause", "bulk_unpause", "bulk_retire", "bulk_revive", "bulk_delete"} {
+		if _, isErr := invoke(t, newTool(&fakeSource{}), map[string]any{"op": op}); !isErr {
+			t.Errorf("op=%s without agents should error", op)
+		}
+	}
+}
+
+func TestCancelNote_HappyAndSad(t *testing.T) {
+	if cancelNote(true) == "" {
+		t.Error("cancelNote(true) should not be empty")
+	}
+	if cancelNote(false) == "" {
+		t.Error("cancelNote(false) should not be empty")
+	}
+	if cancelNote(true) == cancelNote(false) {
+		t.Error("cancelNote(true) and cancelNote(false) should differ")
+	}
+}
+
+func TestHelpView_WithAndWithoutFields(t *testing.T) {
+	// All fields zero.
+	v := helpView(board.Message{ID: "m1", Text: "hello"})
+	if v["from"] != nil {
+		t.Error("helpView should omit from when empty")
+	}
+	if v["to"] != nil {
+		t.Error("helpView should omit to when empty")
+	}
+	if v["at"] != nil {
+		t.Error("helpView should omit at when TSMS is 0")
+	}
+	// With optional fields.
+	v2 := helpView(board.Message{ID: "m2", Text: "world", From: "a", To: "b", TSMS: 1000})
+	if v2["from"] != "a" || v2["to"] != "b" || v2["at"] == nil {
+		t.Error("helpView should include non-zero optional fields")
+	}
+}
+
+func TestOkJSON_MarshalErrorOverseer(t *testing.T) {
+	res := okJSON(make(chan int))
+	if !res.IsError {
+		t.Error("okJSON(channel) should return error")
+	}
+}
+
+func TestClip_ShortAndLong(t *testing.T) {
+	if clip("short", 10) != "short" {
+		t.Error("clip should return the full string when shorter than max")
+	}
+	if clip("hello world", 5) != "hell…" {
+		t.Errorf("clip = %q, want %q", clip("hello world", 5), "hell…")
+	}
+	got := clip("ab", 1)
+	if got != "a" {
+		t.Errorf("clip(ab, 1) = %q, want %q", got, "a")
+	}
+}
+
+func TestAgentView_StateLabels(t *testing.T) {
+	enabled := agentView(roster.Profile{Slug: "s1", Enabled: true})
+	if enabled["state"] != "enabled" {
+		t.Errorf("enabled state = %q, want enabled", enabled["state"])
+	}
+	paused := agentView(roster.Profile{Slug: "s2", Enabled: false})
+	if paused["state"] != "paused" {
+		t.Errorf("paused state = %q, want paused", paused["state"])
+	}
+	retired := agentView(roster.Profile{Slug: "s3", Retired: true})
+	if retired["state"] != "retired" {
+		t.Errorf("retired state = %q, want retired", retired["state"])
+	}
+}
+
+func TestHasFlatProfileFields(t *testing.T) {
+	raw := func(v any) json.RawMessage {
+		b, _ := json.Marshal(v)
+		return json.RawMessage(b)
+	}
+	if hasFlatProfileFields(raw(map[string]any{})) {
+		t.Error("hasFlatProfileFields(empty) should return false")
+	}
+	if !hasFlatProfileFields(raw(map[string]any{"model": "gpt-5"})) {
+		t.Error("hasFlatProfileFields with model should return true")
+	}
+	if !hasFlatProfileFields(raw(map[string]any{"slug": "my-agent"})) {
+		t.Error("hasFlatProfileFields with slug should return true")
+	}
+	if hasFlatProfileFields(raw(map[string]any{"profile": map[string]any{"model": "gpt-5"}})) {
+		t.Error("hasFlatProfileFields with nested profile should return false")
 	}
 }
 

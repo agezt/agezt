@@ -5,6 +5,7 @@ package workboardtool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -170,3 +171,323 @@ func (f *fakeKernel) AddWorkboardDependency(_ string, id, dependsOn string) (wor
 func (f *fakeKernel) ReclaimStaleWorkboardTask(_ string, id, actor string, staleAfter time.Duration) (workboard.Task, error) {
 	return f.st.ReclaimStale(id, actor, staleAfter, time.Now())
 }
+
+// --- Pure helper function tests ---
+
+func TestWorkboard_Definition(t *testing.T) {
+	tl := New()
+	def := tl.Definition()
+	if def.Name != "workboard" {
+		t.Errorf("Definition().Name = %q, want %q", def.Name, "workboard")
+	}
+	if def.Description == "" {
+		t.Error("Definition().Description should not be empty")
+	}
+	if def.InputSchema == nil {
+		t.Error("Definition().InputSchema should not be nil")
+	}
+}
+
+func TestWorkboard_ErrResult(t *testing.T) {
+	res := errResult("test error")
+	if !res.IsError {
+		t.Error("errResult should return IsError=true")
+	}
+	if res.Output != "workboard: test error" {
+		t.Errorf("errResult output = %q", res.Output)
+	}
+}
+
+func TestWorkboard_OkJSON_MarshalError(t *testing.T) {
+	res := okJSON(make(chan int))
+	if !res.IsError {
+		t.Error("okJSON(channel) should return an error")
+	}
+}
+
+func TestTaskView_OmitsEmptyOptionals(t *testing.T) {
+	v := taskView(workboard.Task{ID: "t1", Title: "test", Status: "todo"})
+	if v["description"] != nil {
+		t.Error("taskView should omit description when empty")
+	}
+	if v["idempotency_key"] != nil {
+		t.Error("taskView should omit idempotency_key when empty")
+	}
+	if v["tags"] != nil {
+		t.Error("taskView should omit tags when empty")
+	}
+	if v["claim"] != nil {
+		t.Error("taskView should omit claim when nil")
+	}
+	if v["completed_ms"] != nil {
+		t.Error("taskView should omit completed_ms when 0")
+	}
+	if v["archived_ms"] != nil {
+		t.Error("taskView should omit archived_ms when 0")
+	}
+}
+
+func TestTaskView_IncludesNonZeroOptionals(t *testing.T) {
+	v := taskView(workboard.Task{
+		ID: "t1", Title: "test", Status: "todo",
+		Description:     "details",
+		IdempotencyKey:  "ik-1",
+		Tags:            []string{"urgent"},
+		Artifacts:       []string{"log.txt"},
+		RetryPolicy:     &workboard.RetryPolicy{MaxAttempts: 2},
+		Dependencies:    []workboard.Dependency{{ID: "t0"}},
+		Comments:        []workboard.Comment{{Body: "note"}},
+		Links:           []workboard.Link{{Type: "run", Target: "r-1"}},
+		BlockReason:     "blocked on t0",
+		CompletedMS:     100,
+		ArchivedMS:      200,
+	})
+	if v["description"].(string) != "details" {
+		t.Error("taskView should include description")
+	}
+	if v["idempotency_key"].(string) != "ik-1" {
+		t.Error("taskView should include idempotency_key")
+	}
+	if len(v["tags"].([]string)) != 1 {
+		t.Error("taskView should include tags")
+	}
+	if len(v["artifacts"].([]string)) != 1 {
+		t.Error("taskView should include artifacts")
+	}
+	if v["completed_ms"].(int64) != 100 {
+		t.Error("taskView should include completed_ms")
+	}
+	if v["archived_ms"].(int64) != 200 {
+		t.Error("taskView should include archived_ms")
+	}
+}
+
+func TestTaskOrError_ErrorReturnsErrResult(t *testing.T) {
+	res, err := taskOrError("action", workboard.Task{}, fmt.Errorf("kernel error"))
+	if err != nil {
+		t.Fatalf("taskOrError returned hard error: %v", err)
+	}
+	if !res.IsError {
+		t.Error("taskOrError with error should return IsError=true")
+	}
+}
+
+func TestTaskDecisionOrError_ErrorReturnsErrResult(t *testing.T) {
+	res, err := taskDecisionOrError("fail", workboard.Task{}, workboard.RetryDecision{}, fmt.Errorf("kernel error"))
+	if err != nil {
+		t.Fatalf("taskDecisionOrError returned hard error: %v", err)
+	}
+	if !res.IsError {
+		t.Error("taskDecisionOrError with error should return IsError=true")
+	}
+}
+
+func TestWorkboard_ToolUnbound(t *testing.T) {
+	tl := New()
+	res, err := tl.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))
+	if err != nil {
+		t.Fatalf("unbound Invoke returned hard error: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("unbound tool should return IsError=true")
+	}
+}
+
+func TestWorkboard_ShowNotFound(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	res, err := tl.Invoke(context.Background(), json.RawMessage(`{"op":"show","id":"nonexistent"}`))
+	if err != nil {
+		t.Fatalf("show nonexistent returned hard error: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("show nonexistent should return IsError=true")
+	}
+}
+
+func TestWorkboard_ShowNeedsID(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{"op":"show"}`)); !res.IsError {
+		t.Error("show without id should error")
+	}
+}
+
+func TestWorkboard_BlockAndUnblock(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	ctx := agent.WithAgent(context.Background(), "builder")
+	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"block-test"}`))
+	var created struct{ Task struct{ ID string } }
+	json.Unmarshal([]byte(res.Output), &created)
+
+	if res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"block","id":"`+created.Task.ID+`","reason":"waiting"}`)); res.IsError {
+		t.Fatalf("block errored: %s", res.Output)
+	}
+	if res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"unblock","id":"`+created.Task.ID+`"}`)); res.IsError {
+		t.Fatalf("unblock errored: %s", res.Output)
+	}
+}
+
+func TestWorkboard_ArchiveAndLink(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	ctx := agent.WithAgent(context.Background(), "builder")
+	// Create the dependency task first.
+	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"prereq"}`))
+	var dep struct{ Task struct{ ID string } }
+	json.Unmarshal([]byte(res.Output), &dep)
+	// Create the main task.
+	res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"archive-test"}`))
+	var created struct{ Task struct{ ID string } }
+	json.Unmarshal([]byte(res.Output), &created)
+
+	if res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"link","id":"`+created.Task.ID+`","type":"run","target":"r-123"}`)); res.IsError {
+		t.Fatalf("link errored: %s", res.Output)
+	}
+	if res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"depend","id":"`+created.Task.ID+`","depends_on":"`+dep.Task.ID+`"}`)); res.IsError {
+		t.Fatalf("depend errored: %s", res.Output)
+	}
+}
+
+func TestWorkboard_EmptyOp(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{}`)); !res.IsError {
+		t.Error("empty op should error")
+	}
+}
+
+func TestWorkboard_UnknownOp(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{"op":"frobnicate"}`)); !res.IsError {
+		t.Error("unknown op should error")
+	}
+}
+
+func TestWorkboard_List(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	ctx := agent.WithAgent(context.Background(), "builder")
+	// Create two tasks.
+	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task One","tenant":"team-a"}`))
+	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task Two","tenant":"team-a"}`))
+	// List all.
+	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"list"}`))
+	var result struct {
+		Count int           `json:"count"`
+		Tasks []map[string]any `json:"tasks"`
+	}
+	if err := json.Unmarshal([]byte(res.Output), &result); err != nil {
+		t.Fatalf("list decode error: %v", err)
+	}
+	if result.Count != 2 {
+		t.Errorf("list count = %d, want 2", result.Count)
+	}
+}
+
+func TestWorkboard_ListWithStatusFilter(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	ctx := agent.WithAgent(context.Background(), "builder")
+	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task One","status":"triage"}`))
+	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task Two","status":"ready"}`))
+	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"list","status":"triage"}`))
+	var result struct {
+		Count int `json:"count"`
+	}
+	json.Unmarshal([]byte(res.Output), &result)
+	if result.Count != 1 {
+		t.Errorf("filtered list count = %d, want 1", result.Count)
+	}
+}
+
+func TestWorkboard_ListWithBadStatus(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{"op":"list","status":"bogus"}`)); !res.IsError {
+		t.Error("list with bad status should error")
+	}
+}
+
+func TestWorkboard_ListLimits(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	ctx := agent.WithAgent(context.Background(), "builder")
+	for i := 0; i < 5; i++ {
+		tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task"}`))
+	}
+	// Limit to 2.
+	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"list","limit":2}`))
+	var result struct {
+		Count int `json:"count"`
+	}
+	json.Unmarshal([]byte(res.Output), &result)
+	if result.Count > 2 {
+		t.Errorf("limited list count = %d, want <= 2", result.Count)
+	}
+}
+
+func TestWorkboard_Policy(t *testing.T) {
+	st, err := workboard.OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl := New()
+	tl.Bind(&fakeKernel{st: st})
+	ctx := agent.WithAgent(context.Background(), "builder")
+	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"policy-test"}`))
+	var created struct{ Task struct{ ID string } }
+	json.Unmarshal([]byte(res.Output), &created)
+	// Set policy.
+	if res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"policy","id":"`+created.Task.ID+`","max_attempts":3,"escalate_to":"lead"}`)); res.IsError {
+		t.Fatalf("policy errored: %s", res.Output)
+	}
+	// Clear policy.
+	if res, _ = tl.Invoke(ctx, json.RawMessage(`{"op":"policy","id":"`+created.Task.ID+`","clear":true}`)); res.IsError {
+		t.Fatalf("policy clear errored: %s", res.Output)
+	}
+}
+
+var _ agent.Tool = New()

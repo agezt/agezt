@@ -14,8 +14,12 @@ import {
   Scale,
   Radio,
   Stethoscope,
+  Pause,
+  Play,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
 import { focusRun } from "@/lib/runfocus";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +30,7 @@ import { buildLiveRunContexts, liveWakeLabel } from "@/lib/liveruncontext";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Page } from "@/components/ui/page";
 import { Advanced } from "@/components/ui/disclosure";
+import { useUI } from "@/components/ui/feedback";
 import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
@@ -95,6 +100,37 @@ export function Overseer() {
   const [firstLoad, setFirstLoad] = useState(true);
   const { connected, events, subscribe } = useEvents();
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [busySet, setBusy] = useState<Set<string>>(new Set());
+  const ui = useUI();
+
+  async function toggleEnabled(ref: string, enabled: boolean) {
+    setBusy((prev) => new Set(prev).add(ref));
+    try {
+      await postAction("/api/agents/enable", { ref, enabled: String(enabled) });
+      await reload();
+    } catch (e) {
+      ui.toast(`Failed to ${enabled ? "resume" : "pause"} ${ref}: ${(e as Error).message}`);
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(ref); return next; });
+    }
+  }
+
+  async function toggleRetired(ref: string, retired: boolean) {
+    setBusy((prev) => new Set(prev).add(ref));
+    try {
+      if (retired) {
+        await postAction("/api/agents/retire", { ref });
+      } else {
+        await postAction("/api/agents/revive", { ref });
+      }
+      await reload();
+    } catch (e) {
+      ui.toast(`Failed to ${retired ? "retire" : "revive"} ${ref}: ${(e as Error).message}`);
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(ref); return next; });
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -311,6 +347,70 @@ export function Overseer() {
               )}
             </Panel>
         </div>
+
+        <Advanced label="Agent fleet & quick actions">
+          <Panel title="Agent fleet" icon={<Users className="size-4 text-accent" />}>
+            {data.agents.length === 0 ? (
+              <span className="text-xs text-muted">No agents configured.</span>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {data.agents.map((a) => {
+                  const slug = a.slug || "";
+                  const retired = a.retired === true;
+                  const enabled = a.enabled !== false;
+                  const busy = busySet.has(slug);
+                  return (
+                    <li key={slug} className="flex items-center gap-2 rounded-md border border-border/50 bg-panel/30 px-2.5 py-1.5">
+                      <AgentAvatar slug={slug} size={20} status={retired ? "retired" : enabled ? "running" : "paused"} />
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <span className="text-xs font-medium">{slug}</span>
+                        {a.model && <span className="ml-1.5 text-xs text-muted">{a.model}</span>}
+                        <span className={"ml-1.5 inline-flex items-center rounded px-1 text-[10px] font-medium " +
+                          (retired ? "bg-muted/20 text-muted" : enabled ? "bg-good/10 text-good" : "bg-amber-400/10 text-amber-400")}>
+                          {retired ? "retired" : enabled ? "enabled" : "paused"}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 gap-0.5">
+                        {!retired && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleEnabled(slug, !enabled)}
+                            className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground disabled:opacity-40"
+                            title={enabled ? "Pause agent" : "Resume agent"}
+                          >
+                            {enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                          </button>
+                        )}
+                        {retired ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleRetired(slug, false)}
+                            className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground disabled:opacity-40"
+                            title="Revive agent"
+                          >
+                            <ArchiveRestore className="size-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy || slug === "owner"}
+                            onClick={() => toggleRetired(slug, true)}
+                            className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground disabled:opacity-40"
+                            title="Retire agent"
+                          >
+                            <Archive className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+        </Advanced>
 
         <Advanced label="Recent activity feed">
           <Panel title="Recent activity" icon={<Radio className="size-4 text-accent" />}>

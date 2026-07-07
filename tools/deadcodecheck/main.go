@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,11 +16,24 @@ import (
 
 const deadcodeVersion = "v0.47.0"
 
-func main() {
-	cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/deadcode@"+deadcodeVersion, "./...")
-	out, err := cmd.CombinedOutput()
-	lines := findingLines(out)
+// osExit allows tests to intercept os.Exit without terminating.
+var osExit = os.Exit
 
+// newDeadcodeCmd is injectable in tests to avoid actually running the analyzer.
+var newDeadcodeCmd = func() *exec.Cmd {
+	return exec.Command("go", "run", "golang.org/x/tools/cmd/deadcode@"+deadcodeVersion, "./...")
+}
+
+func main() {
+	cmd := newDeadcodeCmd()
+	out, err := cmd.CombinedOutput()
+	osExit(runChecker(os.Stdout, os.Stderr, out, err))
+}
+
+// runChecker runs the deadcode analyzer and returns the exit code and stdout.
+// Used by tests to avoid calling os.Exit.
+func runChecker(stdout io.Writer, stderr io.Writer, cmdOut []byte, cmdErr error) int {
+	lines := findingLines(cmdOut)
 	var unexpected []string
 	var allowed int
 	for _, line := range lines {
@@ -31,21 +45,22 @@ func main() {
 	}
 
 	if len(unexpected) > 0 {
-		fmt.Fprintln(os.Stderr, "deadcodecheck: unexpected dead code findings:")
+		fmt.Fprintln(stderr, "deadcodecheck: unexpected dead code findings:")
 		for _, line := range unexpected {
-			fmt.Fprintln(os.Stderr, "  "+line)
+			fmt.Fprintln(stderr, "  "+line)
 		}
-		os.Exit(1)
+		return 1
 	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "deadcodecheck: analyzer failed: %v\n%s", err, out)
-		os.Exit(1)
+	if cmdErr != nil {
+		fmt.Fprintf(stderr, "deadcodecheck: analyzer failed: %v\n%s", cmdErr, cmdOut)
+		return 1
 	}
 	if allowed > 0 {
-		fmt.Fprintf(os.Stdout, "OK: no unexpected dead code; %d public SDK findings allowlisted.\n", allowed)
-		return
+		fmt.Fprintf(stdout, "OK: no unexpected dead code; %d public SDK findings allowlisted.\n", allowed)
+		return 0
 	}
-	fmt.Fprintln(os.Stdout, "OK: no dead code findings.")
+	fmt.Fprintln(stdout, "OK: no dead code findings.")
+	return 0
 }
 
 func findingLines(out []byte) []string {

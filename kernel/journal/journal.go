@@ -231,22 +231,19 @@ func (j *Journal) Range(fn func(*event.Event) error) error {
 		if err != nil {
 			return fmt.Errorf("journal: open %s: %w", s.path, err)
 		}
-		sc := newLineScanner(f)
-		for sc.Scan() {
-			ev, err := event.Decode(sc.Bytes())
+		err = rangeCompleteLines(s.path, f, func(line []byte) error {
+			ev, err := event.Decode(line)
 			if err != nil {
-				f.Close()
 				return fmt.Errorf("journal: decode in %s: %w", s.path, err)
 			}
 			if err := fn(ev); err != nil {
-				f.Close()
 				return err
 			}
-		}
-		err = sc.Err()
+			return nil
+		})
 		f.Close()
 		if err != nil {
-			return fmt.Errorf("journal: scan %s: %w", s.path, err)
+			return err
 		}
 	}
 	return nil
@@ -295,16 +292,16 @@ func readSegment(s segment) ([]*event.Event, error) {
 	}
 	defer f.Close()
 	var out []*event.Event
-	sc := newLineScanner(f)
-	for sc.Scan() {
-		ev, err := event.Decode(sc.Bytes())
+	err = rangeCompleteLines(s.path, f, func(line []byte) error {
+		ev, err := event.Decode(line)
 		if err != nil {
-			return nil, fmt.Errorf("journal: decode in %s: %w", s.path, err)
+			return fmt.Errorf("journal: decode in %s: %w", s.path, err)
 		}
 		out = append(out, ev)
-	}
-	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("journal: scan %s: %w", s.path, err)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -538,9 +535,8 @@ func (j *Journal) scanSegment(s segment) error {
 	}
 	defer f.Close()
 
-	sc := newLineScanner(f)
-	for sc.Scan() {
-		ev, err := event.Decode(sc.Bytes())
+	err = rangeCompleteLines(s.path, f, func(line []byte) error {
+		ev, err := event.Decode(line)
 		if err != nil {
 			return fmt.Errorf("journal: decode in %s: %w", s.path, err)
 		}
@@ -555,8 +551,12 @@ func (j *Journal) scanSegment(s segment) error {
 		}
 		j.head = ev.Hash
 		j.nextSeq++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	return sc.Err()
+	return nil
 }
 
 func (j *Journal) segmentPath(idx int) string {
@@ -596,34 +596,35 @@ func listSegments(dir string) ([]segment, error) {
 	return segs, nil
 }
 
-// newLineScanner returns a bufio.Scanner sized for events larger than the
-// default token buffer (which is too small for 32-KiB-payload events,
-// DECISIONS B5).
-func newLineScanner(r io.Reader) *bufio.Scanner {
-	sc := bufio.NewScanner(r)
-	const max = 1 << 20 // 1 MiB per line — generous headroom for attachments
-	sc.Buffer(make([]byte, 64*1024), max)
-	sc.Split(scanCompleteLines)
-	return sc
-}
-
-// scanCompleteLines is like bufio.ScanLines but DISCARDS a trailing unterminated
-// line at EOF instead of yielding it as a token. Every durably-written journal
-// line ends in '\n' (writeAndSync appends it), so the only line ever missing its
-// newline is an in-flight append observed by a concurrent Range/Tail, or a crash
-// mid-write — neither is a committed record. Discarding it makes every reader
-// (Range/Tail/Verify) and recovery tolerant of a torn final line rather than
-// failing to JSON-decode a partial record. A torn line can only ever be the LAST
-// line of the current segment (appends are serialized), so a corrupt MIDDLE line
-// still surfaces as a decode error (it precedes a real '\n').
-func scanCompleteLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if i := bytes.IndexByte(data, '\n'); i >= 0 {
-		return i + 1, data[:i], nil
+// rangeCompleteLines reads newline-terminated JSONL records without
+// bufio.Scanner's token ceiling. It still matches scanCompleteLines' important
+// recovery behavior: a trailing unterminated line is discarded because journal
+// appends only become committed records once the full line and '\n' are durable.
+func rangeCompleteLines(path string, r io.Reader, fn func([]byte) error) error {
+	br := bufio.NewReaderSize(r, 64*1024)
+	var line []byte
+	for {
+		frag, err := br.ReadSlice('\n')
+		switch {
+		case err == nil:
+			frag = frag[:len(frag)-1]
+			if line != nil {
+				line = append(line, frag...)
+				if err := fn(line); err != nil {
+					return err
+				}
+				line = nil
+				continue
+			}
+			if err := fn(frag); err != nil {
+				return err
+			}
+		case errors.Is(err, bufio.ErrBufferFull):
+			line = append(line, frag...)
+		case errors.Is(err, io.EOF):
+			return nil
+		default:
+			return fmt.Errorf("journal: read %s: %w", path, err)
+		}
 	}
-	if atEOF {
-		// Remaining bytes carry no newline → an unterminated trailing line.
-		// Advance past it and emit nothing (do not surface it as a record).
-		return len(data), nil, nil
-	}
-	return 0, nil, nil // need more data to complete a line
 }

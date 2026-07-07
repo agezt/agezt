@@ -418,3 +418,290 @@ func containsString(xs []string, want string) bool {
 	}
 	return false
 }
+
+func TestNotifySeverityRank_AllLevels(t *testing.T) {
+	tests := []struct {
+		severity string
+		want     int
+	}{
+		{"critical", 3},
+		{"  CRITICAL  ", 3},
+		{"warning", 2},
+		{"WARNING", 2},
+		{"info", 1},
+		{"INFO", 1},
+		{"", 0},
+		{"unknown", 0},
+	}
+	for _, tc := range tests {
+		got := notifySeverityRank(tc.severity)
+		if got != tc.want {
+			t.Errorf("notifySeverityRank(%q) = %d, want %d", tc.severity, got, tc.want)
+		}
+	}
+}
+
+func TestTrustRank_AllLevels(t *testing.T) {
+	tests := []struct {
+		level string
+		want  int
+	}{
+		{"L0", 0},
+		{"l0", 0},
+		{"L1", 1},
+		{"  l1  ", 1},
+		{"L2", 2},
+		{"L3", 3},
+		{"L4", 4},
+		{"", 4},
+		{"L5", 4},
+	}
+	for _, tc := range tests {
+		got := trustRank(tc.level)
+		if got != tc.want {
+			t.Errorf("trustRank(%q) = %d, want %d", tc.level, got, tc.want)
+		}
+	}
+}
+
+func TestSameEventSubjects_EdgeCases(t *testing.T) {
+	// Empty subjects list.
+	if sameEventSubjects(nil, nil) {
+		t.Error("sameEventSubjects(nil, nil) should be false")
+	}
+	if sameEventSubjects(nil, []string{}) {
+		t.Error("sameEventSubjects(nil, []) should be false")
+	}
+	// Non-event trigger shouldn't match.
+	trigs := []standing.Trigger{{Type: standing.TriggerCron, Schedule: "* * * * *"}}
+	if sameEventSubjects(trigs, []string{"a"}) {
+		t.Error("cron trigger should not match event subjects")
+	}
+	// Empty subject trigger shouldn't match.
+	trigs2 := []standing.Trigger{{Type: standing.TriggerEvent, Subject: ""}}
+	if sameEventSubjects(trigs2, []string{"a"}) {
+		t.Error("empty subject trigger should not match")
+	}
+	// Exact match.
+	trigs3 := []standing.Trigger{{Type: standing.TriggerEvent, Subject: "a"}}
+	if !sameEventSubjects(trigs3, []string{"a"}) {
+		t.Error("exact match should return true")
+	}
+	// Duplicate subject in triggers (count > 1).
+	trigs4 := []standing.Trigger{
+		{Type: standing.TriggerEvent, Subject: "a"},
+		{Type: standing.TriggerEvent, Subject: "a"},
+	}
+	if sameEventSubjects(trigs4, []string{"a"}) {
+		t.Error("duplicate subject should not match single-entry subjects")
+	}
+}
+
+func TestReconcileExistingGuardian_NonSystemSkipped(t *testing.T) {
+	h := &fakeHost{agents: []roster.Profile{{
+		Slug:   "user-agent",
+		System: false,
+	}}}
+	// Should not error (non-system agents are skipped silently).
+	p := h.agents[0]
+	if err := reconcileExistingGuardian(h, p); err != nil {
+		t.Fatalf("reconcileExistingGuardian on non-system agent: %v", err)
+	}
+}
+
+func TestReconcileExistingGuardianSchedule_NoMatchReturnsNil(t *testing.T) {
+	h := &fakeHost{}
+	// A guardian with interval but no schedule in Host → should return nil without error.
+	g := guardian{slug: "guardian-health", intervalSec: 3600, plan: "test"}
+	if err := reconcileExistingGuardianSchedule(h, g); err != nil {
+		t.Fatalf("reconcileExistingGuardianSchedule with no schedules: %v", err)
+	}
+}
+
+func TestReconcileExistingGuardianSchedule_NoneTriggerType(t *testing.T) {
+	h := &fakeHost{}
+	// A guardian with no interval and no daily trigger → early return.
+	g := guardian{slug: "guardian-nothing"}
+	if err := reconcileExistingGuardianSchedule(h, g); err != nil {
+		t.Fatalf("reconcileExistingGuardianSchedule with no trigger: %v", err)
+	}
+}
+
+func TestReconcileExistingGuardianSchedule_DailyMatch(t *testing.T) {
+	h := &fakeHost{dailies: []cadence.Entry{{
+		ID:        "sched-" + "guardian-code",
+		Agent:     "guardian-code",
+		Intent:    "Review agent-written tools and workspace code for efficiency and correctness.",
+		Mode:      cadence.ModeDaily,
+		AtMinutes: 3 * 60,
+		Enabled:   true,
+		Source:    "system",
+	}}}
+	// Find the daily guardian.
+	var g guardian
+	for _, gg := range guardians {
+		if gg.slug == "guardian-code" {
+			g = gg
+			break
+		}
+	}
+	if g.slug == "" {
+		t.Fatal("guardian-code not found in guardians list")
+	}
+	if err := reconcileExistingGuardianSchedule(h, g); err != nil {
+		t.Fatalf("reconcileExistingGuardianSchedule daily match: %v", err)
+	}
+	// Should not have changed the schedule (already matching).
+	if len(h.dailies) != 1 {
+		t.Fatalf("should not have added new schedule entries, got %d", len(h.dailies))
+	}
+	if h.dailies[0].AtMinutes != 3*60 {
+		t.Errorf("atMinutes changed to %d, want %d", h.dailies[0].AtMinutes, 3*60)
+	}
+}
+
+func TestReconcileExistingGuardianSchedule_DailyMismatch(t *testing.T) {
+	h := &fakeHost{dailies: []cadence.Entry{{
+		ID:        "sched-" + "guardian-code",
+		Agent:     "guardian-code",
+		Intent:    "Review agent-written tools and workspace code for efficiency and correctness.",
+		Mode:      cadence.ModeInterval,
+		AtMinutes: 0,
+		Enabled:   true,
+		Source:    "system",
+	}}}
+	var g guardian
+	for _, gg := range guardians {
+		if gg.slug == "guardian-code" {
+			g = gg
+			break
+		}
+	}
+	if g.slug == "" {
+		t.Fatal("guardian-code not found")
+	}
+	if err := reconcileExistingGuardianSchedule(h, g); err != nil {
+		t.Fatalf("reconcileExistingGuardianSchedule daily mismatch: %v", err)
+	}
+	// Should have rescheduled to daily.
+	if len(h.dailies) != 1 {
+		t.Fatalf("got %d dailies, want 1", len(h.dailies))
+	}
+	if h.dailies[0].Mode != cadence.ModeDaily {
+		t.Errorf("mode = %q, want daily", h.dailies[0].Mode)
+	}
+	if h.dailies[0].AtMinutes != 3*60 {
+		t.Errorf("atMinutes = %d, want %d", h.dailies[0].AtMinutes, 3*60)
+	}
+}
+
+func TestReconcileExistingGuardianSchedule_IntervalAlreadySufficient(t *testing.T) {
+	h := &fakeHost{intervals: []cadence.Entry{{
+		ID:          "sched-" + "guardian-health",
+		Agent:       "guardian-health",
+		Intent:      "Run one system-health sweep.",
+		Mode:        cadence.ModeInterval,
+		IntervalSec: 86400, // already > 43200
+		Enabled:     true,
+		Source:      "system",
+	}}}
+	// guardian-health has intervalSec = 12*3600 = 43200
+	var g guardian
+	for _, gg := range guardians {
+		if gg.slug == "guardian-health" {
+			g = gg
+			break
+		}
+	}
+	if g.slug == "" {
+		t.Fatal("guardian-health not found")
+	}
+	if err := reconcileExistingGuardianSchedule(h, g); err != nil {
+		t.Fatalf("reconcileExistingGuardianSchedule: %v", err)
+	}
+	// Should not have rescheduled — existing interval is already sufficient.
+	if len(h.intervals) != 1 {
+		t.Fatalf("got %d intervals, want 1", len(h.intervals))
+	}
+	if h.intervals[0].IntervalSec != 86400 {
+		t.Errorf("interval changed to %d, want 86400", h.intervals[0].IntervalSec)
+	}
+}
+
+func TestReconcileExistingGuardianSchedule_NonMatchingSchedulesSkipped(t *testing.T) {
+	h := &fakeHost{intervals: []cadence.Entry{{
+		ID:          "sched-other",
+		Agent:       "other-agent",
+		Intent:      "something else",
+		Mode:        cadence.ModeInterval,
+		IntervalSec: 60,
+		Enabled:     true,
+		Source:      "env",
+	}}}
+	// guardian-health has intervalSec=43200, plan="Run one system-health sweep."
+	var g guardian
+	for _, gg := range guardians {
+		if gg.slug == "guardian-health" {
+			g = gg
+			break
+		}
+	}
+	// No matching schedule found → should return nil without rescheduling.
+	if err := reconcileExistingGuardianSchedule(h, g); err != nil {
+		t.Fatalf("reconcileExistingGuardianSchedule: %v", err)
+	}
+	// Interval should remain unchanged (no matching schedule to modify).
+	if len(h.intervals) != 1 {
+		t.Fatalf("got %d intervals, want 1", len(h.intervals))
+	}
+	if h.intervals[0].IntervalSec != 60 {
+		t.Errorf("interval was unexpectedly modified to %d", h.intervals[0].IntervalSec)
+	}
+}
+
+func TestSeedTrigger_NoneCase(t *testing.T) {
+	h := &fakeHost{}
+	// A guardian with no events, no daily, no interval → returns "none".
+	g := guardian{slug: "no-trigger", name: "No Trigger", soul: "noop"}
+	trig, err := seedTrigger(h, g)
+	if err != nil {
+		t.Fatalf("seedTrigger: %v", err)
+	}
+	if trig != "none" {
+		t.Errorf("trigger = %q, want none", trig)
+	}
+}
+
+func TestDefaultGuardianNoisePolicy(t *testing.T) {
+	np := defaultGuardianNoisePolicy()
+	if np == nil {
+		t.Fatal("defaultGuardianNoisePolicy returned nil")
+	}
+	if !np.SilentOnSuccess {
+		t.Error("SilentOnSuccess should be true")
+	}
+	if !np.DisableMemoryWrites {
+		t.Error("DisableMemoryWrites should be true")
+	}
+	if np.MinNotifySeverity != defaultMinNotifySeverity {
+		t.Errorf("MinNotifySeverity = %q, want %q", np.MinNotifySeverity, defaultMinNotifySeverity)
+	}
+	if np.MinNotifyIntervalSec != minNotifyIntervalSec {
+		t.Errorf("MinNotifyIntervalSec = %d, want %d", np.MinNotifyIntervalSec, minNotifyIntervalSec)
+	}
+}
+
+func TestAppendUnique(t *testing.T) {
+	got := appendUnique([]string{"a", "b"}, "a")
+	if len(got) != 2 {
+		t.Errorf("appendUnique existing = %v, want [a b]", got)
+	}
+	got2 := appendUnique([]string{"a", "b"}, "c")
+	if len(got2) != 3 || got2[2] != "c" {
+		t.Errorf("appendUnique new = %v, want [a b c]", got2)
+	}
+	got3 := appendUnique(nil, "x")
+	if len(got3) != 1 || got3[0] != "x" {
+		t.Errorf("appendUnique nil = %v, want [x]", got3)
+	}
+}

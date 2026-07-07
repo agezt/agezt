@@ -2,7 +2,10 @@
 
 package edict
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 // TestOverlayToChanges_RoundTrip — ProjectPolicyChanges(o.ToChanges()) == o,
 // the invariant that makes snapshot-resumed replay equivalent to full replay (M95).
@@ -26,6 +29,29 @@ func TestOverlayToChanges_RoundTrip(t *testing.T) {
 	}
 	if len(got.DenyRules) != 2 || got.DenyRules[0].Name != "r1" || got.DenyRules[1].Name != "r2" {
 		t.Errorf("deny round-trip: got %v", got.DenyRules)
+	}
+}
+
+func TestSaveOverlaySnapshot_MkdirError(t *testing.T) {
+	dir := t.TempDir()
+	broken := dir + "/file/snap.json"
+	if err := os.WriteFile(dir+"/file", []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := SaveOverlaySnapshot(broken, &OverlaySnapshot{ThroughSeq: 1})
+	if err == nil {
+		t.Fatal("expected MkdirAll error")
+	}
+}
+
+func TestLoadOverlaySnapshot_CorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/snap.json"
+	if err := os.WriteFile(path, []byte("{not json}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOverlaySnapshot(path); err == nil {
+		t.Fatal("expected unmarshal error for corrupt snapshot")
 	}
 }
 

@@ -9,6 +9,11 @@ const liveEvents = vi.hoisted(() => ({ events: [] as any[] }));
 
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
+  postAction: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ toast: vi.fn() }),
 }));
 
 vi.mock("@/lib/events", () => ({

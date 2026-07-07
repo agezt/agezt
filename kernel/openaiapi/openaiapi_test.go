@@ -29,6 +29,7 @@ type fakeEngine struct {
 	ranModel    string
 	ranImages   []string
 	ranJSONMode bool
+	err         error // when non-nil, RunModel returns this error
 }
 
 func (f *fakeEngine) NewCorrelation() string        { return "test-corr" }
@@ -40,6 +41,10 @@ func (f *fakeEngine) RunModel(_ context.Context, corr, intent, model string, ima
 	f.ranModel = model
 	f.ranImages = images
 	f.ranJSONMode = jsonMode
+	// If the fake is set up to return an error, publish nothing and return it.
+	if f.err != nil {
+		return "", f.err
+	}
 	for _, rt := range f.reasoning {
 		_, _ = f.b.PublishStreaming(event.Spec{
 			Subject:       f.SubjectForRun(corr),
@@ -498,8 +503,231 @@ func TestIntentFromMessages(t *testing.T) {
 	}
 }
 
+// TestDecodeBody_InvalidJSON verifies that a POST with malformed JSON body
+// returns 400 (the JSON decode error path in decodeBody).
+func TestDecodeBody_InvalidJSON(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","messages":[{"role":"user","content":"hi"}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid JSON should yield 400, got %d", rec.Code)
+	}
+}
+
+// TestTokenText_WrongKind verifies tokenText returns "" for non-token events.
+func TestTokenText_WrongKind(t *testing.T) {
+	ev := &event.Event{Kind: event.KindLLMReasoning}
+	if got := tokenText(ev); got != "" {
+		t.Errorf("tokenText with reasoning kind = %q, want empty", got)
+	}
+}
+
+// TestReasoningText_WrongKind verifies reasoningText returns "" for non-reasoning events.
+func TestReasoningText_WrongKind(t *testing.T) {
+	ev := &event.Event{Kind: event.KindLLMToken}
+	if got := reasoningText(ev); got != "" {
+		t.Errorf("reasoningText with token kind = %q, want empty", got)
+	}
+}
+
+// TestHandleModels_EmptyDefaultAndID covers the empty-string guard in the
+// handleModels add helper and exercises the dedup/no-empty-id paths.
+func TestHandleModels_EmptyDefaultAndID(t *testing.T) {
+	eng := &fakeEngine{model: "", models: []string{"", "gpt-4o"}}
+	s := newAPIServer(t, eng, "secret")
+	r := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	var out struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	// Only non-empty model should appear.
+	if len(out.Data) != 1 || out.Data[0]["id"] != "gpt-4o" {
+		t.Errorf("data = %+v, want [gpt-4o]", out.Data)
+	}
+}
+
 // TestChat_ResponseFormatJSONMode (M314): a client's response_format:{json_object}
 // flows to the run as JSON mode; absence leaves it off.
+// TestChat_BindError exercises the /v1/chat/completions handler's bind error
+// path: X-Agezt-Tenant with an unknown tenant → writeErr with 400.
+func TestChat_BindError(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	s.SetTenantResolver(func(id string) (Engine, *bus.Bus, error) {
+		return nil, nil, errors.New("unknown tenant " + id)
+	})
+	body := `{"model":"m","messages":[{"role":"user","content":"hi"}]}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "nope")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("bind error should yield 400, got %d", rec.Code)
+	}
+}
+
+// TestModels_BindError exercises /v1/models handler's bind error path.
+func TestModels_BindError(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	s.SetTenantResolver(func(id string) (Engine, *bus.Bus, error) {
+		return nil, nil, errors.New("unknown tenant " + id)
+	})
+	r := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "nope")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("bind error should yield 400, got %d", rec.Code)
+	}
+}
+
+// TestRunCapturingReasoning_SubscribeError verifies that when bus.Subscribe
+// fails (e.g., bus is closed), runCapturingReasoning degrades gracefully —
+// runs the engine without reasoning capture and still returns the answer.
+func TestRunCapturingReasoning_SubscribeError(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "no-reasoning-answer"}
+	s := newAPIServer(t, eng, "secret")
+	// Close the bus so Subscribe fails.
+	s.bus.Close()
+
+	body := `{"model":"m","messages":[{"role":"user","content":"test"}]}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	// The answer should be present even without a subscription.
+	if !strings.Contains(rec.Body.String(), "no-reasoning-answer") {
+		t.Errorf("expected answer despite subscribe error:\n%s", rec.Body.String())
+	}
+}
+
+// TestStreamChat_NoFlusher verifies that when the ResponseWriter does not
+// implement http.Flusher, streamChat returns 500 instead of panicking.
+func TestStreamChat_NoFlusher(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "x", tokens: []string{"x"}}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}]}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	// Use a ResponseRecorder but route through a wrapper that doesn't
+	// implement http.Flusher. The handler's flusher check will reject it.
+	rec := httptest.NewRecorder()
+	w := &noFlusherResponseWriter{ResponseWriter: rec}
+	s.Handler().ServeHTTP(w, r)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("no-flusher should yield 500, got %d", rec.Code)
+	}
+}
+
+// noFlusherResponseWriter wraps an http.ResponseWriter and intentionally does
+// NOT implement http.Flusher, so the stream handlers' flusher check fires.
+type noFlusherResponseWriter struct {
+	http.ResponseWriter
+}
+
+func TestChatCompletion_EngineError(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "x"}
+	eng.err = errors.New("upstream model failure")
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","messages":[{"role":"user","content":"hi"}]}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("engine error should yield 502, got %d", rec.Code)
+	}
+}
+
+func TestChatStreaming_EngineError(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "x", tokens: []string{"hello"}}
+	eng.err = errors.New("stream error")
+	s := newAPIServer(t, eng, "secret")
+	body := `{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}]}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	out := rec.Body.String()
+	if !strings.Contains(out, `"finish_reason":"error"`) {
+		t.Errorf("stream should end with error finish reason:\n%s", out)
+	}
+}
+
+// TestRetrieveModel_BindError exercises the GET /v1/models/{id} handler's
+// bind error path (tenant resolver returns an error).
+func TestRetrieveModel_BindError(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	s.SetTenantResolver(func(id string) (Engine, *bus.Bus, error) {
+		return nil, nil, errors.New("unknown tenant " + id)
+	})
+	r := httptest.NewRequest(http.MethodGet, "/v1/models/gpt-4o", nil)
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "nope")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("bind error should yield 400, got %d", rec.Code)
+	}
+}
+
+// TestTokenText_NilEvent verifies that passing nil to tokenText returns
+// empty string (not a panic).
+func TestTokenText_NilEvent(t *testing.T) {
+	if got := tokenText(nil); got != "" {
+		t.Errorf("tokenText(nil) = %q, want empty", got)
+	}
+}
+
+// TestReasoningText_NilEvent verifies that passing nil to reasoningText
+// returns empty string (not a panic).
+func TestReasoningText_NilEvent(t *testing.T) {
+	if got := reasoningText(nil); got != "" {
+		t.Errorf("reasoningText(nil) = %q, want empty", got)
+	}
+}
+
+func TestTokenText_UnmarshalError(t *testing.T) {
+	// Payload that is valid JSON but not the expected text structure
+	// — the json.Unmarshal succeeds but Text stays "".
+	ev := &event.Event{Kind: event.KindLLMToken, Payload: json.RawMessage(`{"bytes":123}`)}
+	if got := tokenText(ev); got != "" {
+		t.Errorf("tokenText with unexpected payload = %q, want empty", got)
+	}
+	// Non-JSON payload causes json.Unmarshal to return an error.
+	ev2 := &event.Event{Kind: event.KindLLMToken, Payload: json.RawMessage(`{invalid}`)}
+	if got := tokenText(ev2); got != "" {
+		t.Errorf("tokenText with invalid payload = %q, want empty", got)
+	}
+}
+
+func TestReasoningText_UnmarshalError(t *testing.T) {
+	ev := &event.Event{Kind: event.KindLLMReasoning, Payload: json.RawMessage(`{invalid}`)}
+	if got := reasoningText(ev); got != "" {
+		t.Errorf("reasoningText with invalid payload = %q, want empty", got)
+	}
+}
+
 func TestChat_ResponseFormatJSONMode(t *testing.T) {
 	post := func(body string) *fakeEngine {
 		eng := &fakeEngine{answer: "{}", model: "m"}

@@ -25,6 +25,10 @@ func TestFleetLock_RefusesAgentEditAndCreate(t *testing.T) {
 		!strings.Contains(err.Error(), "locked") {
 		t.Fatalf("CreateAgent under lock: err = %v, want a 'locked' refusal", err)
 	}
+	if _, err := locked.DeleteAgent("some-agent"); err == nil ||
+		!strings.Contains(err.Error(), "locked") {
+		t.Fatalf("DeleteAgent under lock: err = %v, want a 'locked' refusal", err)
+	}
 }
 
 func TestFleetLockEnabled_ParsesEnv(t *testing.T) {

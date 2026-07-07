@@ -129,3 +129,177 @@ func TestObjectivesForTaskAndSetStatus(t *testing.T) {
 		t.Fatalf("after archive, ObjectivesForTask = %v", ids)
 	}
 }
+
+func TestOpenStore_InvalidDir(t *testing.T) {
+	_, err := OpenStore("")
+	if err == nil {
+		t.Error("OpenStore with empty path should error")
+	}
+}
+
+func TestCreate_EmptyTitle(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.Create(CreateSpec{Title: ""}, time.Now())
+	if err == nil {
+		t.Error("Create with empty title should error")
+	}
+}
+
+func TestGet_NotFound(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, found := st.Get("nonexistent")
+	if found {
+		t.Error("Get nonexistent should return false")
+	}
+}
+
+func TestList_Filters(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.UnixMilli(1000)
+	o1, _ := st.Create(CreateSpec{Title: "Active", Tenant: "team-a"}, now)
+	st.AddKeyResult(o1.ID, "KR 1", 1, now)
+	st.Create(CreateSpec{Title: "Archived", Tenant: "team-b"}, now)
+
+	// List all (no filter).
+	if all := st.List(Filter{}); len(all) != 2 {
+		t.Errorf("List() = %d, want 2", len(all))
+	}
+	// Filter by tenant.
+	if filtered := st.List(Filter{Tenant: "team-a"}); len(filtered) != 1 {
+		t.Errorf("List(team-a) = %d, want 1", len(filtered))
+	}
+	// Filter by status (no match).
+	if filtered := st.List(Filter{Status: StatusArchived}); len(filtered) != 0 {
+		t.Errorf("List(status=archived) = %d, want 0 (active only by default)", len(filtered))
+	}
+	// Limit.
+	if limited := st.List(Filter{Limit: 1}); len(limited) != 1 {
+		t.Errorf("List(limit=1) = %d, want 1", len(limited))
+	}
+	// Include archived.
+	st.Archive(o1.ID, now)
+	if archived := st.List(Filter{IncludeArchived: true}); len(archived) != 2 {
+		t.Errorf("List(includeArchived=true) = %d, want 2", len(archived))
+	}
+}
+
+func TestAddKeyResult_Validation(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, _ := st.Create(CreateSpec{Title: "Test"}, time.UnixMilli(1000))
+
+	// Empty title.
+	if _, err := st.AddKeyResult(obj.ID, "", 1, time.Now()); err == nil {
+		t.Error("AddKeyResult with empty title should error")
+	}
+	// Negative target.
+	if _, err := st.AddKeyResult(obj.ID, "KR", -1, time.Now()); err == nil {
+		t.Error("AddKeyResult with negative target should error")
+	}
+}
+
+func TestLinkTask_Validation(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, _ := st.Create(CreateSpec{Title: "Test"}, time.UnixMilli(1000))
+	obj, _ = st.AddKeyResult(obj.ID, "KR 1", 1, time.UnixMilli(2000))
+	krID := obj.KeyResults[0].ID
+
+	// Empty kr id.
+	if _, err := st.LinkTask(obj.ID, "", "t-1", time.Now()); err == nil {
+		t.Error("LinkTask with empty krID should error")
+	}
+	// Non-existent kr.
+	if _, err := st.LinkTask(obj.ID, "no-such-kr", "t-1", time.Now()); err != ErrKRNotFound {
+		t.Errorf("LinkTask unknown kr: err=%v, want ErrKRNotFound", err)
+	}
+	// Non-existent obj.
+	if _, err := st.LinkTask("no-such-obj", krID, "t-1", time.Now()); err == nil {
+		t.Error("LinkTask unknown obj should error")
+	}
+}
+
+func TestUnlinkTask(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, _ := st.Create(CreateSpec{Title: "Test"}, time.UnixMilli(1000))
+	st.AddKeyResult(obj.ID, "KR 1", 1, time.UnixMilli(2000))
+	obj, _ = st.Get(obj.ID)
+	krID := obj.KeyResults[0].ID
+
+	// Link then unlink.
+	st.LinkTask(obj.ID, krID, "t-1", time.Now())
+	obj, _ = st.UnlinkTask(obj.ID, krID, "t-1", time.Now())
+	kr := obj.KeyResults[0]
+	if len(kr.TaskIDs) != 0 {
+		t.Errorf("after unlink TaskIDs = %v, want empty", kr.TaskIDs)
+	}
+	// Unlink non-existent kr.
+	if _, err := st.UnlinkTask(obj.ID, "no-such-kr", "t-1", time.Now()); err != ErrKRNotFound {
+		t.Errorf("UnlinkTask unknown kr: err=%v, want ErrKRNotFound", err)
+	}
+	// Unlink non-existent obj.
+	if _, err := st.UnlinkTask("no-such-obj", krID, "t-1", time.Now()); err == nil {
+		t.Error("UnlinkTask unknown obj should error")
+	}
+}
+
+func TestProgress_Empty(t *testing.T) {
+	o := Objective{}
+	p := o.Progress(nil)
+	if p.Percent != 0 || p.Achieved {
+		t.Errorf("Progress(empty) = %+v, want Percent=0 Achieved=false", p)
+	}
+	if len(p.KeyResults) != 0 {
+		t.Errorf("Progress(empty) KeyResults = %d, want 0", len(p.KeyResults))
+	}
+}
+
+func TestSetStatus_Errors(t *testing.T) {
+	st, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SetStatus("nonexistent", StatusAchieved, time.Now()); err == nil {
+		t.Error("SetStatus nonexistent should error")
+	}
+}
+
+func TestFindKR_NotFound(t *testing.T) {
+	kr := findKR(&Objective{}, "nonexistent")
+	if kr != nil {
+		t.Error("findKR nonexistent should return nil")
+	}
+}
+
+func TestMutate_NotFound(t *testing.T) {
+	_, err := (&Store{}).mutate("nonexistent", func(o *Objective, _ int64) error { return nil }, time.Now())
+	if err == nil {
+		t.Error("mutate nonexistent should error")
+	}
+}
+
+func TestSaveLocked_InvalidPath(t *testing.T) {
+	s := &Store{path: t.TempDir() + string(rune(0))}
+	s.mu.Lock()
+	err := s.saveLocked()
+	s.mu.Unlock()
+	if err == nil {
+		t.Error("saveLocked with invalid path should error")
+	}
+}

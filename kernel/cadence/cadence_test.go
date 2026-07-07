@@ -868,6 +868,60 @@ func TestParseJobs(t *testing.T) {
 	}
 }
 
+// TestReschedule_AllModes exercises every Reschedule switch arm that the existing
+// TestStore_EditAndReschedule does not hit: ModeWindow, ModeContinuous, and the
+// validate/save error paths.
+func TestReschedule_AllModes(t *testing.T) {
+	s := mustStore(t)
+	now := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
+	e, _ := s.Add("base", time.Hour, "", SourceOperator, now)
+
+	// ModeWindow reschedule
+	ok, err := s.Reschedule(e.ID, ModeWindow, 15*time.Minute, 9*60, 17*60, AllDays, "", time.Time{}, now)
+	if !ok || err != nil {
+		t.Fatalf("Reschedule window: ok=%v err=%v", ok, err)
+	}
+	got, _ := s.Get(e.ID)
+	if got.Mode != ModeWindow || got.AtMinutes != 540 || got.EndMinutes != 1020 {
+		t.Errorf("after window reschedule: %+v", got)
+	}
+
+	// ModeContinuous reschedule
+	ok, err = s.Reschedule(e.ID, ModeContinuous, 30*time.Minute, 0, 0, 0, "", time.Time{}, now)
+	if !ok || err != nil {
+		t.Fatalf("Reschedule continuous: ok=%v err=%v", ok, err)
+	}
+	got, _ = s.Get(e.ID)
+	if got.Mode != ModeContinuous || got.IntervalSec != 1800 || got.NextRunUnix != now.Unix() {
+		t.Errorf("after continuous reschedule: %+v", got)
+	}
+
+	// Reschedule with bad timezone → error
+	if _, err := s.Reschedule(e.ID, ModeDaily, 0, 540, 0, 0, "Mars/Phobos", time.Time{}, now); err == nil {
+		t.Error("bad timezone should error in Reschedule")
+	}
+
+	// ModeWindow with bad args → validate error
+	if _, err := s.Reschedule(e.ID, ModeWindow, time.Millisecond, 540, 600, 0, "", time.Time{}, now); err == nil {
+		t.Error("sub-min window interval should error")
+	}
+
+	// ModeContinuous with bad interval → error
+	if _, err := s.Reschedule(e.ID, ModeContinuous, time.Millisecond, 0, 0, 0, "", time.Time{}, now); err == nil {
+		t.Error("sub-min continuous interval should error")
+	}
+
+	// ModeOnce with past time → error
+	if _, err := s.Reschedule(e.ID, ModeOnce, 0, 0, 0, 0, "", now.Add(-time.Hour), now); err == nil {
+		t.Error("past one-shot time should error")
+	}
+
+	// Missing entry returns false, no error
+	if ok, err := s.Reschedule("nonexistent", ModeInterval, time.Hour, 0, 0, 0, "", time.Time{}, now); ok || err != nil {
+		t.Errorf("missing entry: ok=%v err=%v", ok, err)
+	}
+}
+
 func TestDescribe(t *testing.T) {
 	out := Describe([]Entry{{Intent: "brief me", IntervalSec: 3600}})
 	if !strings.Contains(out, "every 1h0m0s") || !strings.Contains(out, "brief me") {

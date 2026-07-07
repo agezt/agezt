@@ -10,6 +10,10 @@ package brand
 
 import "runtime/debug"
 
+// debugReadBuildInfo is an indirection point for testing —
+// tests can replace it to simulate ReadBuildInfo failure.
+var debugReadBuildInfo = debug.ReadBuildInfo
+
 // Frozen identity (DECISIONS A1).
 const (
 	// Name is the user-visible project name.
@@ -75,7 +79,7 @@ var BuildTime = ""
 // Calling these at runtime from any path that lives in `main` is enough
 // to keep them in the data section.
 func BuildInfo() (revision, committed string, modified bool) {
-	bi, ok := debug.ReadBuildInfo()
+	bi, ok := debugReadBuildInfo()
 	if !ok {
 		return "", "", false
 	}

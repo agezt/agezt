@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -16,11 +18,15 @@ type fakeTranscriber struct {
 	text     string
 	gotName  string
 	gotAudio []byte
+	err      error
 }
 
 func (f *fakeTranscriber) Transcribe(_ context.Context, name string, audio []byte) (string, error) {
 	f.gotName = name
 	f.gotAudio = audio
+	if f.err != nil {
+		return "", f.err
+	}
 	return f.text, nil
 }
 
@@ -105,6 +111,38 @@ func TestTranscription_MethodAndMissingFile(t *testing.T) {
 	h.ServeHTTP(rec2, post)
 	if rec2.Code != http.StatusBadRequest {
 		t.Errorf("missing-file code = %d, want 400", rec2.Code)
+	}
+}
+
+// TestTranscription_STTError verifies that when the transcriber returns an
+// error, handleTranscription returns 502 with an stt_error type.
+func TestTranscription_STTError(t *testing.T) {
+	srv := newAPIServer(t, &fakeEngine{model: "m"}, "tok")
+	srv.SetTranscriber(&fakeTranscriber{text: "", err: errors.New("stt backend unavailable")})
+	body, ct := multipartAudio(t, "file", "a.wav", []byte("audio-data"))
+	req := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", body)
+	req.Header.Set("Content-Type", ct)
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("STT error should yield 502, got %d", rec.Code)
+	}
+}
+
+// TestTranscription_MalformedMultipart verifies handleTranscription returns 400
+// when the POST body is not valid multipart/form-data.
+func TestTranscription_MalformedMultipart(t *testing.T) {
+	srv := newAPIServer(t, &fakeEngine{model: "m"}, "tok")
+	srv.SetTranscriber(&fakeTranscriber{text: "x"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions",
+		strings.NewReader("this is not multipart data"))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("malformed multipart should yield 400, got %d", rec.Code)
 	}
 }
 

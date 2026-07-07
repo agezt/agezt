@@ -195,3 +195,125 @@ func TestVerify_FailedSignatureRefusesInstall(t *testing.T) {
 		t.Fatal("install should refuse a pack whose signature fails verification")
 	}
 }
+
+// --- Pure function tests ---
+
+func TestSkillSummary(t *testing.T) {
+	// Valid SKILL.md with description.
+	summary, err := SkillSummary(PackSkill{SkillMD: sampleSkillMD})
+	if err != nil {
+		t.Fatalf("SkillSummary: %v", err)
+	}
+	if summary != "web-research — research a topic on the web and cite sources" {
+		t.Errorf("SkillSummary = %q", summary)
+	}
+	// Only name (no description), must have a body.
+	noDesc := `---
+name: bare
+---
+Do the thing.
+`
+	summary, err = SkillSummary(PackSkill{SkillMD: noDesc})
+	if err != nil {
+		t.Fatalf("SkillSummary(no desc): %v", err)
+	}
+	if summary != "bare" {
+		t.Errorf("SkillSummary(no desc) = %q, want %q", summary, "bare")
+	}
+	// Malformed SKILL.md.
+	_, err = SkillSummary(PackSkill{SkillMD: "no front matter"})
+	if err == nil {
+		t.Error("SkillSummary(bad md) should error")
+	}
+}
+
+func TestSafeRelPath(t *testing.T) {
+	// Valid paths.
+	if err := safeRelPath("a/b/c.txt"); err != nil {
+		t.Errorf("safeRelPath valid: %v", err)
+	}
+	// Empty.
+	if err := safeRelPath(""); err == nil {
+		t.Error("safeRelPath('') should error")
+	}
+	// Absolute.
+	if err := safeRelPath("/etc/passwd"); err == nil {
+		t.Error("safeRelPath absolute should error")
+	}
+	// Backslash.
+	if err := safeRelPath("a\\b"); err == nil {
+		t.Error("safeRelPath backslash should error")
+	}
+	// Traversal.
+	if err := safeRelPath("../escape"); err == nil {
+		t.Error("safeRelPath traversal should error")
+	}
+	if err := safeRelPath("a/./b"); err == nil {
+		t.Error("safeRelPath dot segment should error")
+	}
+	if err := safeRelPath("a//b"); err == nil {
+		t.Error("safeRelPath double-slash should error")
+	}
+}
+
+func TestSortEntries(t *testing.T) {
+	entries := []MarketplaceEntry{
+		{Name: "zeta", Category: "tools"},
+		{Name: "alpha", Category: "research"},
+		{Name: "beta", Category: "research"},
+	}
+	sortEntries(entries)
+	// Category order: research then tools.
+	if entries[0].Category != "research" || entries[1].Category != "research" || entries[2].Category != "tools" {
+		t.Errorf("sort order by category wrong: %+v", entries)
+	}
+	// Within category: alpha before beta.
+	if entries[0].Name != "alpha" || entries[1].Name != "beta" {
+		t.Errorf("sort order within research wrong: %+v", entries[0:2])
+	}
+}
+
+func TestPackCounts(t *testing.T) {
+	p := samplePack()
+	skills, mcps, tools := p.Counts()
+	if skills != 1 || mcps != 1 || tools != 2 {
+		t.Errorf("Counts = %d/%d/%d, want 1/1/2", skills, mcps, tools)
+	}
+}
+
+func TestMatchesQuery(t *testing.T) {
+	e := MarketplaceEntry{Name: "web-research", Description: "research the web", Category: "research", Tags: []string{"web"}}
+	if !matchesQuery(e, "") {
+		t.Error("matchesQuery('') should return true")
+	}
+	if !matchesQuery(e, "web") {
+		t.Error("matchesQuery('web') should match name")
+	}
+	if !matchesQuery(e, "research") {
+		t.Error("matchesQuery('research') should match category")
+	}
+	if matchesQuery(e, "nope") {
+		t.Error("matchesQuery('nope') should not match")
+	}
+	// Multiple tokens: all must match.
+	if !matchesQuery(e, "web research") {
+		t.Error("matchesQuery('web research') should match both tokens")
+	}
+	if matchesQuery(e, "web nope") {
+		t.Error("matchesQuery('web nope') should not match because nope doesn't")
+	}
+}
+
+func TestPackEntry(t *testing.T) {
+	p := samplePack()
+	e := p.Entry("official")
+	if e.Name != "web-research-pack" || e.Source != "official" {
+		t.Errorf("Entry = %+v", e)
+	}
+	if e.SHA256 == "" {
+		t.Error("Entry should have a content hash")
+	}
+	if e.Signed {
+		t.Error("Entry should report Signed=false for unsigned pack")
+	}
+}

@@ -117,3 +117,21 @@ func TestRefine_RevisedPlanValidatedSameAsInitial(t *testing.T) {
 		t.Errorf("error should mention cycle: %v", err)
 	}
 }
+
+func TestRefine_RejectsMissingProvider(t *testing.T) {
+	original := planner.Plan{Nodes: []planner.Node{{ID: "x", Kind: "loop", Intent: "x"}}}
+	_, _, err := planner.Refine(context.Background(), planner.Config{}, original, "do it")
+	if err == nil || !strings.Contains(err.Error(), "Provider required") {
+		t.Errorf("err = %v, want Provider-required", err)
+	}
+}
+
+func TestRefine_LLMErrorPropagates(t *testing.T) {
+	original := planner.Plan{Nodes: []planner.Node{{ID: "x", Kind: "loop", Intent: "x"}}}
+	// Empty mock provider returns ErrExhausted on Complete.
+	prov := mock.New()
+	_, _, err := planner.Refine(context.Background(), planner.Config{Provider: prov}, original, "revise")
+	if err == nil {
+		t.Fatal("expected error from failing LLM call")
+	}
+}

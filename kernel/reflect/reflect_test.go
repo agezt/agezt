@@ -4,6 +4,7 @@ package reflect
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,6 +13,19 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/worldmodel"
 )
+
+// errStore is a worldmodel.Store that returns errAllEntities from every
+// read method, letting tests exercise the Decay-error path in Reflect.
+type errStore struct{}
+
+func (errStore) PutEntity(worldmodel.Entity) error                         { return nil }
+func (errStore) GetEntity(string) (worldmodel.Entity, bool, error)         { return worldmodel.Entity{}, false, nil }
+func (errStore) AllEntities() ([]worldmodel.Entity, error)                 { return nil, errors.New("store error") }
+func (errStore) PutRelation(worldmodel.Relation) error                     { return nil }
+func (errStore) GetRelation(string) (worldmodel.Relation, bool, error)     { return worldmodel.Relation{}, false, nil }
+func (errStore) AllRelations() ([]worldmodel.Relation, error)              { return nil, errors.New("store error") }
+func (errStore) Count() int                                                { return 0 }
+func (errStore) Close() error                                              { return nil }
 
 var fixedNow = time.Unix(1_700_000_000, 0).UTC()
 
@@ -63,6 +77,23 @@ func TestObserveFoldsCounts(t *testing.T) {
 	}
 	if o.BriefsSent != 2 || o.ApprovalsDenied != 4 || o.ApprovalsGranted != 1 || o.SkillsActivated != 2 {
 		t.Errorf("counts wrong: %+v", o)
+	}
+}
+
+func TestReflect_DecayErrorFromStore(t *testing.T) {
+	j, err := journal.Open(t.TempDir(), journal.Options{})
+	if err != nil {
+		t.Fatalf("journal.Open: %v", err)
+	}
+	b := bus.New(j)
+	w := worldmodel.NewGraph(errStore{}, b)
+	e := New(j, w, b, Config{Decay: worldmodel.DecayOptions{StaleAfterMS: -1, Factor: 0}})
+	e.now = func() time.Time { return fixedNow }
+	t.Cleanup(func() { b.Close(); j.Close() })
+
+	_, err = e.Reflect(context.Background(), "r1")
+	if err == nil {
+		t.Fatal("expected Decay error from errStore")
 	}
 }
 

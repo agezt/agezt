@@ -4,10 +4,13 @@ package openaiapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/bus"
 )
 
 func TestResponses_NonStreaming(t *testing.T) {
@@ -232,6 +235,90 @@ func TestResponses_StreamingNonStreamProviderEmitsAnswerOnce(t *testing.T) {
 	}
 	if !strings.Contains(out, `"text":"single shot"`) {
 		t.Errorf("output_text.done should carry the full answer:\n%s", out)
+	}
+}
+
+// TestResponses_BindError exercises the /v1/responses handler's bind error
+// path: X-Agezt-Tenant with an unknown tenant → writeErr with 400.
+func TestResponses_BindError(t *testing.T) {
+	eng := &fakeEngine{model: "m"}
+	s := newAPIServer(t, eng, "secret")
+	s.SetTenantResolver(func(id string) (Engine, *bus.Bus, error) {
+		return nil, nil, errors.New("unknown tenant " + id)
+	})
+	body := `{"input":"hi"}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	r.Header.Set("X-Agezt-Tenant", "nope")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("bind error should yield 400, got %d", rec.Code)
+	}
+}
+
+// TestResponses_NoFlusher verifies streamResponses returns 500 when the
+// ResponseWriter does not implement http.Flusher.
+func TestResponses_NoFlusher(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "x"}
+	s := newAPIServer(t, eng, "secret")
+	body := `{"stream":true,"input":"hi"}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	w := &noFlusherResponseWriter{ResponseWriter: rec}
+	s.Handler().ServeHTTP(w, r)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("no-flusher should yield 500, got %d", rec.Code)
+	}
+}
+
+// TestResponses_SubscribeError exercises the subscribe error path in
+// streamResponses by closing the bus before the request.
+func TestResponses_SubscribeError(t *testing.T) {
+	eng := &fakeEngine{model: "m", answer: "x"}
+	s := newAPIServer(t, eng, "secret")
+	s.bus.Close()
+	body := `{"stream":true,"input":"hi"}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("subscribe error should yield 500, got %d", rec.Code)
+	}
+}
+
+// TestResponses_Usage_RealProviderTokens exercises the UsageReporter path in
+// responsesUsageFor (the Responses variant of real provider token reporting).
+func TestResponses_Usage_RealProviderTokens(t *testing.T) {
+	fe := &fakeEngine{answer: "real usage ans", model: "m"}
+	s := newAPIServer(t, fe, "secret")
+	// Wrap the engine with usageEngine for UsageReporter support, reusing
+	// the same bus/journal from newAPIServer via the embedded fakeEngine.
+	eng := &usageEngine{fakeEngine: fe, pt: 99, ct: 33, ok: true}
+	s.eng = eng
+
+	body := `{"input":"test usage"}`
+	r := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer secret")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Usage struct {
+			InputTokens  float64 `json:"input_tokens"`
+			OutputTokens float64 `json:"output_tokens"`
+			TotalTokens  float64 `json:"total_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Usage.InputTokens != 99 || out.Usage.OutputTokens != 33 || out.Usage.TotalTokens != 132 {
+		t.Errorf("usage = %+v, want input=99 output=33 total=132", out.Usage)
 	}
 }
 

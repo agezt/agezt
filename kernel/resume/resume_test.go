@@ -230,3 +230,34 @@ func TestSafeNameStripsPathSyntax(t *testing.T) {
 		t.Fatalf("safeName leaked path syntax: %q", n)
 	}
 }
+
+func TestDir_ReturnsStorePath(t *testing.T) {
+	s := newStore(t)
+	d := s.Dir()
+	if d == "" {
+		t.Error("Dir() should return non-empty path")
+	}
+}
+
+func TestGet_NotFound(t *testing.T) {
+	s := newStore(t)
+	_, exists, _ := s.Get("nonexistent")
+	if exists {
+		t.Error("Get(nonexistent) should return exists=false")
+	}
+}
+
+func TestIncrementAttempt_NotFound(t *testing.T) {
+	s := newStore(t)
+	_, err := s.IncrementAttempt("nonexistent")
+	if err == nil {
+		t.Error("IncrementAttempt(nonexistent) should error")
+	}
+}
+
+func TestDelete_NotFound(t *testing.T) {
+	s := newStore(t)
+	if err := s.Delete("nonexistent"); err != nil {
+		t.Errorf("Delete(nonexistent) = %v, want nil (no error for missing)", err)
+	}
+}

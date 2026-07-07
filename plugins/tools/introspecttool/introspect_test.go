@@ -174,6 +174,129 @@ func TestStanding_Listed(t *testing.T) {
 	}
 }
 
+func TestDefinition_ReturnsStaticDef(t *testing.T) {
+	tl := New()
+	def := tl.Definition()
+	if def.Name != "introspect" {
+		t.Errorf("Definition().Name = %q, want %q", def.Name, "introspect")
+	}
+	if def.Description == "" {
+		t.Error("Definition().Description should not be empty")
+	}
+	if def.InputSchema == nil {
+		t.Error("Definition().InputSchema should not be nil")
+	}
+}
+
+func TestScheduleView_OmitsZeroFields(t *testing.T) {
+	// Entry with all zero optional fields — they should be absent from the map.
+	v := scheduleView(cadence.Entry{
+		ID: "s-test", Intent: "test", Mode: cadence.ModeOnce,
+		Source: "operator", Enabled: true, NextRunUnix: 1000,
+	})
+	if v["last_run_unix"] != nil {
+		t.Error("scheduleView should omit last_run_unix when it's 0")
+	}
+	if v["fires"] != nil {
+		t.Error("scheduleView should omit fires when it's 0")
+	}
+	if v["model"] != nil {
+		t.Error("scheduleView should omit model when it's empty")
+	}
+	if v["assure"] != nil {
+		t.Error("scheduleView should omit assure when it's 0")
+	}
+}
+
+func TestScheduleView_IncludesNonZeroFields(t *testing.T) {
+	v := scheduleView(cadence.Entry{
+		ID: "s-test", Intent: "test", Mode: cadence.ModeOnce,
+		Source: "operator", Enabled: true, NextRunUnix: 1000,
+		LastRunUnix: 500, Fires: 3, Model: "deepseek", Assure: 2,
+	})
+	if v["last_run_unix"].(int64) != 500 {
+		t.Error("scheduleView should include last_run_unix when > 0")
+	}
+	if v["fires"].(int64) != 3 {
+		t.Error("scheduleView should include fires when > 0")
+	}
+	if v["model"].(string) != "deepseek" {
+		t.Error("scheduleView should include model when non-empty")
+	}
+	if v["assure"].(int) != 2 {
+		t.Error("scheduleView should include assure when > 0")
+	}
+}
+
+func TestNext_ReturnsZeroForMissingKey(t *testing.T) {
+	got := next(map[string]any{"no_next": "value"})
+	if got != 0 {
+		t.Errorf("next(no next_run_unix) = %d, want 0", got)
+	}
+}
+
+func TestNext_ReturnsValue(t *testing.T) {
+	got := next(map[string]any{"next_run_unix": int64(42)})
+	if got != 42 {
+		t.Errorf("next = %d, want 42", got)
+	}
+}
+
+func TestStandingView_OmitsZeroFields(t *testing.T) {
+	o := standingView(standing.Order{
+		ID: "o1", Name: "test", Enabled: true,
+		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
+		Plan:       "do something",
+	})
+	if o["assure"] != nil {
+		t.Error("standingView should omit assure when it's 0")
+	}
+}
+
+func TestStandingView_IncludesScheduleAndSubject(t *testing.T) {
+	o := standingView(standing.Order{
+		ID: "o1", Name: "test", Enabled: true,
+		Triggers: []standing.Trigger{
+			{Type: standing.TriggerCron, Schedule: "0 * * * *"},
+			{Type: standing.TriggerEvent, Subject: "task.failed"},
+		},
+		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
+		Plan: "do something", Assure: 2,
+	})
+	if o["assure"].(int) != 2 {
+		t.Error("standingView should include assure when > 0")
+	}
+	trigs := o["triggers"].([]map[string]any)
+	if len(trigs) != 2 {
+		t.Fatalf("standingView triggers = %d, want 2", len(trigs))
+	}
+	if trigs[0]["schedule"] != "0 * * * *" {
+		t.Error("standingView trigger 0 should have schedule field")
+	}
+	if trigs[1]["subject"] != "task.failed" {
+		t.Error("standingView trigger 1 should have subject field")
+	}
+}
+
+func TestOkJSON_MarshalError(t *testing.T) {
+	// json.MarshalIndent only fails on types like channel,
+	// circular refs, or non-serializable values.
+	res := okJSON(make(chan int)) // channels can't be marshalled
+	if !res.IsError {
+		t.Error("okJSON(channel) should return an error result")
+	}
+}
+
+func TestOkJSON_Success(t *testing.T) {
+	res := okJSON(map[string]string{"hello": "world"})
+	if res.IsError {
+		t.Fatalf("okJSON(valid) returned error: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, `"hello"`) {
+		t.Errorf("okJSON output missing key: %s", res.Output)
+	}
+}
+
 func TestUnboundAndUnknownOp(t *testing.T) {
 	// Unbound: no Source wired.
 	if out, isErr := invoke(t, New(), `{"op":"overview"}`); !isErr || !strings.Contains(out, "not available") {

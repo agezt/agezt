@@ -187,6 +187,53 @@ func TestReaders_TolerateTornFinalLine(t *testing.T) {
 	}
 }
 
+func TestReaders_HandleLargeJournalLines(t *testing.T) {
+	dir := t.TempDir()
+	open := func() *Journal {
+		j, err := Open(dir, Options{
+			SegmentBytes: 8 << 20,
+			Now:          func() time.Time { return time.UnixMilli(1_700_000_000_000) },
+			IDGen:        sequentialIDs(),
+		})
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		return j
+	}
+
+	j := open()
+	large := strings.Repeat("x", 2<<20)
+	if _, err := j.Append(event.Spec{
+		Subject: "large",
+		Kind:    event.KindTaskCompleted,
+		Actor:   "kernel",
+		Payload: map[string]string{"blob": large},
+	}); err != nil {
+		t.Fatalf("Append large event: %v", err)
+	}
+	j.Close()
+
+	reopened := open()
+	defer reopened.Close()
+	if err := reopened.Verify(); err != nil {
+		t.Fatalf("Verify large event: %v", err)
+	}
+	var got int
+	if err := reopened.Range(func(*event.Event) error { got++; return nil }); err != nil {
+		t.Fatalf("Range large event: %v", err)
+	}
+	if got != 1 {
+		t.Fatalf("Range saw %d event(s), want 1", got)
+	}
+	tail, err := reopened.Tail(1)
+	if err != nil {
+		t.Fatalf("Tail large event: %v", err)
+	}
+	if len(tail) != 1 || string(tail[0].Payload) == "" {
+		t.Fatalf("Tail returned malformed large event: len=%d", len(tail))
+	}
+}
+
 // TestOpen_RecoversPastTornFinalLine — recovery must boot cleanly past a torn
 // final line (a crash mid-write), discarding it rather than refusing to start.
 func TestOpen_RecoversPastTornFinalLine(t *testing.T) {

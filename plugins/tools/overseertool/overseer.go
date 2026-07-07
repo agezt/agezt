@@ -37,7 +37,7 @@ type Source interface {
 	Halt(reason string)
 	ResumeAll(reason string)
 	SetAgentEnabled(ref string, enabled bool) (roster.Profile, error)
-	SetAgentRetired(ref string, retired bool) (roster.Profile, error)
+	SetAgentRetired(ref string, retired bool, reason string) (roster.Profile, error)
 	// EditAgent applies the mutable fields of `in` to the agent named by ref
 	// (the same set the webui's agent-edit allows, including config_overrides
 	// and governance knobs). The System flag is never touched. CreateAgent adds
@@ -45,9 +45,58 @@ type Source interface {
 	// the agent-facing half of the webui's roster admin (M961).
 	EditAgent(ref string, in roster.Profile) (roster.Profile, error)
 	CreateAgent(in roster.Profile) (roster.Profile, error)
+	// DeleteAgent permanently removes a non-System agent by slug or id.
+	// Returns true when the agent existed. System agents are refused — pause
+	// or retire them instead.
+	DeleteAgent(ref string) (bool, error)
+	// GetAgent returns the full profile for a single agent by slug or id.
+	// Returns false when the agent does not exist.
+	GetAgent(ref string) (roster.Profile, bool, error)
+	// CloneAgent creates a new agent by copying an existing profile's fields
+	// and applying the caller's overrides on top. The slug in `overrides` is
+	// required. Source must be an existing agent. System flag is never copied.
+	CloneAgent(source string, overrides roster.Profile) (roster.Profile, error)
+	// SearchAgents returns agents matching the given filter criteria. An empty
+	// filter returns all non-retired agents (same as Agents()). All filter fields
+	// are AND-ed together; empty/nil fields are ignored.
+	SearchAgents(filter SearchFilter) []roster.Profile
+	// BulkSetEnabled pauses (false) or resumes (true) multiple agents at once.
+	// Returns one result per slug, continuing past individual errors.
+	BulkSetEnabled(slugs []string, enabled bool) []BulkResult
+	// BulkSetRetired retires (true) or revives (false) multiple agents at once.
+	// Returns one result per slug, continuing past individual errors.
+	BulkSetRetired(slugs []string, retired bool, reason string) []BulkResult
+	// BulkDelete permanently removes multiple non-System agents at once.
+	// Returns one result per slug, continuing past individual errors.
+	BulkDelete(slugs []string) []BulkResult
+	// WakeAgent explicitly wakes a named agent now, asynchronously, with an
+	// intent or reason. Returns the run correlation id immediately.
+	WakeAgent(ref, intent, reason string) (string, error)
 	// RepairAgent runs a governed self-repair pass AS the target agent, optionally
 	// auto-applying a closing profile proposal from the run's final answer.
 	RepairAgent(ref, reason string) (RepairResult, error)
+}
+
+// BulkResult is one entry in a batch operation response.
+type BulkResult struct {
+	Slug    string `json:"slug"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
+}
+
+// SearchFilter is the set of optional criteria for op=search. All fields are
+// AND-ed together; empty/nil fields are ignored (no filter on that axis).
+type SearchFilter struct {
+	Query       string   `json:"query,omitempty"`        // substring match on slug, name, description
+	State       string   `json:"state,omitempty"`        // enabled | paused | retired
+	Model       string   `json:"model,omitempty"`        // exact model name
+	TaskType    string   `json:"task_type,omitempty"`    // exact task type
+	System      *bool    `json:"system,omitempty"`       // nil = all, true = only system, false = only non-system
+	HasOwner    *bool    `json:"has_owner,omitempty"`    // nil = all, true = has owner_agent, false = no owner_agent
+	HasParent   *bool    `json:"has_parent,omitempty"`   // nil = all, true = has parent_agent
+	ToolAllowed string   `json:"tool_allowed,omitempty"` // agent has this tool in its tool_allow list
+	Limit       int      `json:"limit,omitempty"`        // max results (default 100)
+	Tags        []string `json:"tags,omitempty"`         // descriptive labels (future)
 }
 
 // RepairResult is the operator/guardian-facing outcome of one self-repair pass.
