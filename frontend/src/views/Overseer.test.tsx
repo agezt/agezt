@@ -9,6 +9,11 @@ const liveEvents = vi.hoisted(() => ({ events: [] as any[] }));
 
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
+  postAction: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ toast: vi.fn() }),
 }));
 
 vi.mock("@/lib/events", () => ({
@@ -19,7 +24,8 @@ vi.mock("@/lib/events", () => ({
   }),
 }));
 
-import { Overseer, buildLiveRunContexts, liveWakeLabel, overseerShouldRefresh } from "@/views/Overseer";
+import { Overseer, overseerShouldRefresh } from "@/views/Overseer";
+import { buildLiveRunContexts, liveWakeLabel } from "@/lib/liveruncontext";
 
 const withPage = (node: ReactNode) => <div>{node}</div>;
 

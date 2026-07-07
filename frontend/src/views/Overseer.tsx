@@ -14,15 +14,23 @@ import {
   Scale,
   Radio,
   Stethoscope,
+  Pause,
+  Play,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
+import { focusRun } from "@/lib/runfocus";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useEvents, type AgentEvent } from "@/lib/events";
+import { buildLiveRunContexts, liveWakeLabel } from "@/lib/liveruncontext";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Advanced } from "@/components/ui/disclosure";
+import { useUI } from "@/components/ui/feedback";
 import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
@@ -63,18 +71,6 @@ interface OverseerData {
 
 const EMPTY: OverseerData = { runs: [], agents: [], help: [] };
 
-export interface LiveRunContext {
-  agent?: string;
-  phase?: string;
-  detail?: string;
-  tool?: string;
-  model?: string;
-  wakeSource?: string;
-  scheduleId?: string;
-  standingName?: string;
-  lastEventMs?: number;
-}
-
 // Event kinds that change what the dashboard shows — an arrival of any of these
 // triggers a debounced refetch so the panels reflect reality within ~1s instead
 // of waiting out the fallback poll.
@@ -104,6 +100,37 @@ export function Overseer() {
   const [firstLoad, setFirstLoad] = useState(true);
   const { connected, events, subscribe } = useEvents();
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [busySet, setBusy] = useState<Set<string>>(new Set());
+  const ui = useUI();
+
+  async function toggleEnabled(ref: string, enabled: boolean) {
+    setBusy((prev) => new Set(prev).add(ref));
+    try {
+      await postAction("/api/agents/enable", { ref, enabled: String(enabled) });
+      await reload();
+    } catch (e) {
+      ui.toast(`Failed to ${enabled ? "resume" : "pause"} ${ref}: ${(e as Error).message}`);
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(ref); return next; });
+    }
+  }
+
+  async function toggleRetired(ref: string, retired: boolean) {
+    setBusy((prev) => new Set(prev).add(ref));
+    try {
+      if (retired) {
+        await postAction("/api/agents/retire", { ref });
+      } else {
+        await postAction("/api/agents/revive", { ref });
+      }
+      await reload();
+    } catch (e) {
+      ui.toast(`Failed to ${retired ? "retire" : "revive"} ${ref}: ${(e as Error).message}`);
+    } finally {
+      setBusy((prev) => { const next = new Set(prev); next.delete(ref); return next; });
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -162,36 +189,35 @@ export function Overseer() {
   const recent = useMemo(() => events.filter(isSignificant).slice(0, 10), [events]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Eye}
-        title="Overseer"
-        description="The supervisory dashboard — what is running, who is on the roster, who needs help."
-        actions={
-          <>
-            <span
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
-              )}
-              title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
-            >
-              <CircleDot className={cn("size-3", connected && "animate-pulse")} />
-              {connected ? "live" : "offline"}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={reload}
-              disabled={loading}
-              title="Refresh now"
-            >
-              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-            </Button>
-          </>
-        }
-      />
-
+    <Page
+      icon={Eye}
+      title="Overseer"
+      description="The supervisory dashboard — what is running, who is on the roster, who needs help."
+      width="wide"
+      actions={
+        <>
+          <span
+            className={cn(
+              "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+              connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
+            )}
+            title={connected ? "Live event stream connected" : "Stream disconnected — polling"}
+          >
+            <CircleDot className={cn("size-3", connected && "animate-pulse")} />
+            {connected ? "live" : "offline"}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={reload}
+            disabled={loading}
+            title="Refresh now"
+          >
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    >
       {err && <ErrorText>{err}</ErrorText>}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -218,8 +244,8 @@ export function Overseer() {
       {firstLoad ? (
         <SkeletonList count={4} />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
-          <div className="flex min-h-0 flex-col gap-3">
+        <>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <Panel title="Active runs" icon={<ActivityIcon className="size-4 text-accent" />}>
               {active.length === 0 ? (
                 <span className="text-xs text-muted">Nothing running right now.</span>
@@ -233,10 +259,11 @@ export function Overseer() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (corr) focusRun(corr);
                           location.hash = "runs";
                         }}
                         className="w-full rounded-md border border-border bg-panel/50 px-2.5 py-1.5 text-left shadow-e1 transition-[background-color,border-color,box-shadow] hover:border-accent/50 hover:bg-panel hover:shadow-e2"
-                        title="Open in Runs"
+                        title="Open this run in Runs"
                       >
                         <div className="flex items-center gap-2">
                           <CircleDot className="size-3.5 shrink-0 animate-pulse text-accent" />
@@ -319,8 +346,73 @@ export function Overseer() {
                 </ul>
               )}
             </Panel>
-          </div>
+        </div>
 
+        <Advanced label="Agent fleet & quick actions">
+          <Panel title="Agent fleet" icon={<Users className="size-4 text-accent" />}>
+            {data.agents.length === 0 ? (
+              <span className="text-xs text-muted">No agents configured.</span>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {data.agents.map((a) => {
+                  const slug = a.slug || "";
+                  const retired = a.retired === true;
+                  const enabled = a.enabled !== false;
+                  const busy = busySet.has(slug);
+                  return (
+                    <li key={slug} className="flex items-center gap-2 rounded-md border border-border/50 bg-panel/30 px-2.5 py-1.5">
+                      <AgentAvatar slug={slug} size={20} status={retired ? "retired" : enabled ? "running" : "paused"} />
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <span className="text-xs font-medium">{slug}</span>
+                        {a.model && <span className="ml-1.5 text-xs text-muted">{a.model}</span>}
+                        <span className={"ml-1.5 inline-flex items-center rounded px-1 text-[10px] font-medium " +
+                          (retired ? "bg-muted/20 text-muted" : enabled ? "bg-good/10 text-good" : "bg-amber-400/10 text-amber-400")}>
+                          {retired ? "retired" : enabled ? "enabled" : "paused"}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 gap-0.5">
+                        {!retired && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleEnabled(slug, !enabled)}
+                            className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground disabled:opacity-40"
+                            title={enabled ? "Pause agent" : "Resume agent"}
+                          >
+                            {enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                          </button>
+                        )}
+                        {retired ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleRetired(slug, false)}
+                            className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground disabled:opacity-40"
+                            title="Revive agent"
+                          >
+                            <ArchiveRestore className="size-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy || slug === "owner"}
+                            onClick={() => toggleRetired(slug, true)}
+                            className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground disabled:opacity-40"
+                            title="Retire agent"
+                          >
+                            <Archive className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+        </Advanced>
+
+        <Advanced label="Recent activity feed">
           <Panel title="Recent activity" icon={<Radio className="size-4 text-accent" />}>
             {recent.length === 0 ? (
               <span className="text-xs text-muted">Waiting for events…</span>
@@ -349,74 +441,11 @@ export function Overseer() {
               </ul>
             )}
           </Panel>
-        </div>
+        </Advanced>
+        </>
       )}
-    </div>
+    </Page>
   );
-}
-
-export function buildLiveRunContexts(events: AgentEvent[]): Record<string, LiveRunContext> {
-  const out: Record<string, LiveRunContext> = {};
-  for (const e of [...events].reverse()) {
-    const corr = e.correlation_id || "";
-    if (!corr) continue;
-    const p = e.payload || {};
-    const row = out[corr] || {};
-    if (e.actor && !row.agent) row.agent = e.actor;
-    row.lastEventMs = Math.max(row.lastEventMs || 0, e.ts_unix_ms || 0) || row.lastEventMs;
-    switch (e.kind) {
-      case "task.received":
-        row.agent = firstText(row.agent, e.actor, p.agent);
-        row.phase = firstText(row.phase, "starting");
-        row.detail = firstText(row.detail, p.intent);
-        row.wakeSource = firstText(row.wakeSource, p.wake_source, p.source);
-        row.scheduleId = firstText(row.scheduleId, p.schedule_id);
-        row.standingName = firstText(row.standingName, p.standing_name, p.standing_id);
-        break;
-      case "llm.request":
-        row.phase = "thinking";
-        row.model = firstText(p.model, row.model);
-        break;
-      case "tool.invoked":
-        row.phase = "using tool";
-        row.tool = firstText(p.tool, p.name, row.tool);
-        row.detail = firstText(row.tool, row.detail);
-        break;
-      case "tool.result":
-        row.phase = "observing tool";
-        row.tool = firstText(p.tool, p.name, row.tool);
-        row.detail = firstText(row.tool, row.detail);
-        break;
-      case "task.continued":
-        row.phase = "continuing";
-        break;
-      case "task.completed":
-        row.phase = "completed";
-        break;
-      case "task.failed":
-        row.phase = "failed";
-        row.detail = firstText(p.error, row.detail);
-        break;
-    }
-    out[corr] = row;
-  }
-  return out;
-}
-
-export function liveWakeLabel(ctx: LiveRunContext): string {
-  const source = ctx.wakeSource || "wake";
-  if (ctx.standingName) return `${source} ${ctx.standingName}`;
-  if (ctx.scheduleId) return `${source} ${ctx.scheduleId}`;
-  return source;
-}
-
-function firstText(...items: unknown[]): string | undefined {
-  for (const item of items) {
-    if (typeof item !== "string") continue;
-    const v = item.trim();
-    if (v) return v;
-  }
-  return undefined;
 }
 
 // isSignificant keeps the supervisory-relevant events out of the raw feed noise.
@@ -505,7 +534,7 @@ function Stat({
       </span>
       <div className="min-w-0">
         <div className="text-lg font-semibold leading-none">{value}</div>
-        <div className="mt-1 truncate text-xs uppercase tracking-wide text-muted">{label}</div>
+        <div className="mt-1 truncate text-xs uppercase tracking-normal text-muted">{label}</div>
       </div>
     </div>
   );

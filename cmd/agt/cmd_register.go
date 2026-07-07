@@ -91,6 +91,7 @@ func registerAgentCommands() {
 	Register(&Command{Name: "journal", Run: cmdJournal})
 	Register(&Command{Name: "memory", Run: cmdMemory})
 	Register(&Command{Name: "world", Run: cmdWorld})
+	Register(&Command{Name: "compare", Run: cmdCompare})
 	Register(&Command{Name: "standing", Run: cmdStanding})
 	Register(&Command{Name: "reflect", Run: cmdReflect})
 	Register(&Command{Name: "inbox", Run: cmdInbox})
@@ -108,10 +109,15 @@ func registerConfigCommands() {
 	Register(&Command{Name: "skill", Run: cmdSkill})
 	Register(&Command{Name: "plugin", Run: cmdPlugin})
 	Register(&Command{Name: "tool", Run: cmdTool})
+	Register(&Command{Name: "exec-profile", Aliases: []string{"execution-profile"}, Run: cmdExecProfile})
 	Register(&Command{Name: "toolforge", Run: cmdToolforge})
 	Register(&Command{Name: "mcp", Run: cmdMCP})
 	Register(&Command{Name: "market", Run: cmdMarket})
 	Register(&Command{Name: "workflow", Run: cmdWorkflow})
+	Register(&Command{Name: "workboard", Run: cmdWorkboard})
+	Register(&Command{Name: "okr", Run: cmdOKR})
+	Register(&Command{Name: "taste", Run: cmdTaste})
+	Register(&Command{Name: "seats", Run: cmdSeat})
 }
 
 // registerManagementCommands registers system management commands.
@@ -126,6 +132,7 @@ func registerManagementCommands() {
 	Register(&Command{Name: "webhook", Run: cmdWebhook})
 	Register(&Command{Name: "backup", Run: cmdBackup})
 	Register(&Command{Name: "restore", Run: cmdRestore})
+	Register(&Command{Name: "rollback", Run: cmdRollback})
 	Register(&Command{Name: "shutdown", Run: cmdShutdown})
 	Register(&Command{Name: "edict", Run: cmdEdict})
 	Register(&Command{Name: "state", Run: cmdState})
@@ -133,6 +140,7 @@ func registerManagementCommands() {
 	Register(&Command{Name: "changelog", Run: cmdChangelog})
 	Register(&Command{Name: "artifact", Run: cmdArtifact})
 	Register(&Command{Name: "conductor", Run: cmdConductor})
+	Register(&Command{Name: "research", Run: cmdResearch})
 	Register(&Command{Name: "send", Run: cmdSend})
 	Register(&Command{Name: "channel", Run: cmdChannel})
 	Register(&Command{Name: "ha", Run: cmdHA})
@@ -143,6 +151,7 @@ func registerManagementCommands() {
 	Register(&Command{Name: "tenant", Run: cmdTenant})
 	Register(&Command{Name: "token", Run: cmdToken})
 	Register(&Command{Name: "acp", Run: cmdACP})
+	Register(&Command{Name: "overseer", Run: cmdOverseer})
 	Register(&Command{Name: "quickstart", Run: cmdQuickstart})
 	Register(&Command{Name: "approve", Run: func(args []string, stdout, stderr io.Writer) int {
 		return cmdDecide("grant", args, stdout, stderr)
