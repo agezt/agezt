@@ -2259,6 +2259,33 @@ function AgentDetailCommandStrip({ items, slug }: { items: AgentCommandStripItem
   );
 }
 
+// Consistent icon-led section header used across the Overview panel — replaces
+// the repeated ad-hoc "uppercase muted label" divs with one scannable pattern.
+function OverviewSectionHeader({
+  icon: Icon,
+  label,
+  tone = "muted",
+  className,
+}: {
+  icon: typeof Bot;
+  label: string;
+  tone?: "muted" | "accent";
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal",
+        tone === "accent" ? "text-accent" : "text-muted",
+        className,
+      )}
+    >
+      <Icon className="size-3.5" />
+      {label}
+    </div>
+  );
+}
+
 function Overview({
   slug,
   profile,
@@ -2425,9 +2452,7 @@ function Overview({
     <div className="space-y-3">
       {profile.retired && (
         <div className="rounded-lg bg-panel/40 p-2.5">
-          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-            <Skull className="size-3" /> lifecycle
-          </div>
+          <OverviewSectionHeader icon={Skull} label="Lifecycle" className="mb-1" />
           <div className="space-y-1 text-xs text-muted">
             <div>
               This identity is in the graveyard
@@ -2499,9 +2524,7 @@ function Overview({
         )}
         title={operationsPassport.detail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-          <IdCard className="size-3" /> Operations passport
-        </div>
+        <OverviewSectionHeader icon={IdCard} label="Operations passport" className="mb-1" />
         <div
           className={cn(
             "text-xs font-medium text-foreground",
@@ -2715,9 +2738,7 @@ function Overview({
         )}
         title={mailboxWakeContract.detail}
       >
-        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-          <Mail className="size-3" /> Mailbox wake contract
-        </div>
+        <OverviewSectionHeader icon={Mail} label="Mailbox wake contract" className="mb-1" />
         <div
           className={cn(
             "text-xs font-medium text-foreground",
@@ -2736,13 +2757,11 @@ function Overview({
 
       {/* How it runs */}
       <div className="rounded-lg bg-accent/8 p-2.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
-          <ActivityIcon className="size-3" /> How does this run?
-        </div>
+        <OverviewSectionHeader icon={ActivityIcon} label="How it runs" tone="accent" className="mb-1.5" />
         <div className="flex flex-wrap gap-2">
           {triggers.length === 0 ? (
-            <span className="text-[11px] text-muted">
-              manual / delegated only — runs when you or another agent calls it
+            <span className="inline-flex items-center gap-1 text-xs text-muted">
+              <Waypoints className="size-3.5" /> Manual / delegated only
             </span>
           ) : (
             triggers.map((t, i) => (
