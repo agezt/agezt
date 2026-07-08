@@ -4,6 +4,13 @@
 // agent loop + providers + tools) into a single Kernel that the daemon
 // hosts and the control plane drives.
 //
+// Boundary note: runtime is the composition root and thin adapter layer for
+// the running Agezt process. It may temporarily host orchestration helpers
+// while boundaries are being extracted, but long-term feature-specific logic
+// should live in narrower domain packages (delegation, workflow execution,
+// tool execution, context selection, etc.) with runtime assembling and owning
+// the services.
+//
 // One Kernel per Agezt process. Concurrent Run calls are allowed (each
 // gets its own correlation_id and ctx); Halt cancels every in-flight run
 // and prevents new ones until Resume.
