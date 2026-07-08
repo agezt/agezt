@@ -4,6 +4,13 @@
 // agent loop + providers + tools) into a single Kernel that the daemon
 // hosts and the control plane drives.
 //
+// Boundary note: runtime is the composition root and thin adapter layer for
+// the running Agezt process. It may temporarily host orchestration helpers
+// while boundaries are being extracted, but long-term feature-specific logic
+// should live in narrower domain packages (delegation, workflow execution,
+// tool execution, context selection, etc.) with runtime assembling and owning
+// the services.
+//
 // One Kernel per Agezt process. Concurrent Run calls are allowed (each
 // gets its own correlation_id and ctx); Halt cancels every in-flight run
 // and prevents new ones until Resume.
@@ -34,6 +41,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contextselect"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -3349,8 +3357,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		if topK <= 0 {
 			topK = 5
 		}
-		var candidates []contextCandidate
-		if scored, err := k.memory.SearchScoped(intent, contextSelectionCandidateLimit, memory.ScopeFrom(runCtx)); err == nil {
+		var candidates []contextselect.Candidate
+		if scored, err := k.memory.SearchScoped(intent, contextselect.CandidateLimit, memory.ScopeFrom(runCtx)); err == nil {
 			candidates = memoryContextCandidates(scored, time.Now().UnixMilli())
 		}
 		// Scoped to the run's agent identity (M786): a named agent's private
@@ -3362,13 +3370,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 			for _, h := range hits {
 				ids = append(ids, h.Record.ID)
 			}
-			chosen, rejected := splitContextCandidates(candidates, chosenIDSet(ids), "memory_recall")
-			k.publishContextSelection(corr, actor, contextSelectionManifest{
+			chosen, rejected := contextselect.SplitCandidates(candidates, contextselect.ChosenIDSet(ids), "memory_recall")
+			k.publishContextSelection(corr, actor, contextselect.Manifest{
 				Phase:    "memory",
 				Query:    intent,
 				Chosen:   chosen,
 				Rejected: rejected,
-				Summary:  candidateSummary(chosen, rejected),
+				Summary:  contextselect.Summary(chosen, rejected),
 			})
 		}
 	}
@@ -3382,8 +3390,8 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		if topK <= 0 {
 			topK = 5
 		}
-		var candidates []contextCandidate
-		if scored, err := k.world.ResolveQuiet(intent, contextSelectionCandidateLimit); err == nil {
+		var candidates []contextselect.Candidate
+		if scored, err := k.world.ResolveQuiet(intent, contextselect.CandidateLimit); err == nil {
 			candidates = worldContextCandidates(scored, time.Now().UnixMilli())
 		}
 		if hits, err := k.world.Resolve(corr, intent, topK); err == nil && len(hits) > 0 {
@@ -3392,13 +3400,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 			for _, h := range hits {
 				ids = append(ids, h.Entity.ID)
 			}
-			chosen, rejected := splitContextCandidates(candidates, chosenIDSet(ids), "world_resolve")
-			k.publishContextSelection(corr, actor, contextSelectionManifest{
+			chosen, rejected := contextselect.SplitCandidates(candidates, contextselect.ChosenIDSet(ids), "world_resolve")
+			k.publishContextSelection(corr, actor, contextselect.Manifest{
 				Phase:    "world",
 				Query:    intent,
 				Chosen:   chosen,
 				Rejected: rejected,
-				Summary:  candidateSummary(chosen, rejected),
+				Summary:  contextselect.Summary(chosen, rejected),
 			})
 		}
 	}
@@ -3429,13 +3437,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 					chosen[i].Chosen = true
 					chosen[i].Reason = "selected:skill_explicit_activation"
 				}
-				summary := candidateSummary(chosen, nil)
+				summary := contextselect.Summary(chosen, nil)
 				summary["activation"] = "explicit"
 				summary["refs"] = skillDirective.Refs
 				if len(missing) > 0 {
 					summary["missing"] = missing
 				}
-				k.publishContextSelection(corr, actor, contextSelectionManifest{
+				k.publishContextSelection(corr, actor, contextselect.Manifest{
 					Phase:   "skill",
 					Query:   intent,
 					Chosen:  chosen,
@@ -3443,7 +3451,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 				})
 			}
 		} else {
-			var candidates []contextCandidate
+			var candidates []contextselect.Candidate
 			if all, err := k.forge.List(); err == nil {
 				pool := all[:0:0]
 				for _, sk := range all {
@@ -3451,20 +3459,20 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 						pool = append(pool, sk)
 					}
 				}
-				candidates = skillContextCandidates(skill.Retrieve(pool, intent, contextSelectionCandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
+				candidates = skillContextCandidates(skill.Retrieve(pool, intent, contextselect.CandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
 			}
 			if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
 				system = injectSkills(system, hits)
 				for _, h := range hits {
 					activatedSkillIDs = append(activatedSkillIDs, h.Skill.ID)
 				}
-				chosen, rejected := splitContextCandidates(candidates, chosenIDSet(activatedSkillIDs), "skill_activation")
-				k.publishContextSelection(corr, actor, contextSelectionManifest{
+				chosen, rejected := contextselect.SplitCandidates(candidates, contextselect.ChosenIDSet(activatedSkillIDs), "skill_activation")
+				k.publishContextSelection(corr, actor, contextselect.Manifest{
 					Phase:    "skill",
 					Query:    intent,
 					Chosen:   chosen,
 					Rejected: rejected,
-					Summary:  candidateSummary(chosen, rejected),
+					Summary:  contextselect.Summary(chosen, rejected),
 				})
 			}
 		}
