@@ -166,7 +166,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(page.getByText("Runtime doctor ledger").first()).toBeVisible();
     await expect(page.getByText("Operations passport")).toBeVisible();
     await expect(page.getByText("Mailbox wake contract")).toBeVisible();
-    await page.getByRole("button", { name: /Triggers/ }).click();
+    await page.getByRole("tab", { name: /Triggers/ }).click();
     await expect(page.getByText("mailbox wake subjects")).toBeVisible();
     await expect(page.getByText(/board\.dm\./).first()).toBeVisible();
     await expect(page.getByText(/board\.help\./).first()).toBeVisible();
