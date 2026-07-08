@@ -1178,19 +1178,19 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
     // Tab-based sections replace the old "Identity & Maintenance" header.
     expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Overview/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: /Soul/ }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("tab", { name: /Overview/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: /Soul/ }).getAttribute("aria-selected")).toBe("false");
     expect(screen.getByText("More actions")).toBeTruthy();
     expect(screen.getByText("Pause wakes")).toBeTruthy();
     // The redesign shows Presence + Next wake cards + tab navigation.
     expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
     expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Overview/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Activity/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Triggers/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Comms/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Overview/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Soul/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Activity/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Triggers/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Comms/ })).toBeTruthy();
     expect(screen.getByText("wake guard")).toBeTruthy();
     expect(screen.getByTitle(/wake guard: eligible for schedule/)).toBeTruthy();
     expect(screen.getByText("Agent entity contract")).toBeTruthy();
@@ -1221,7 +1221,7 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
     expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
     // Soul tab reveals model/identity details.
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getByText("soul — identity core")).toBeTruthy();
     expect(screen.getAllByText(/1 cycle \/ 1 total \/ 1 doing \/ 1 blocked/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/persistent agent · stays alive after runs · 1 cycle \/ 1 total tasks · 1 blocked/).length).toBeGreaterThan(0);
@@ -1574,7 +1574,7 @@ describe("AgentDetail lifecycle intervention", () => {
     // The "Now" panel's Inspect (scoped by its title) opens the focused run on the Activity tab.
     fireEvent.click(screen.getByTitle("Inspect the active run in this agent"));
     expect(screen.getByText(/focused run/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Overview/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Overview/ }));
     // The Status Dashboard's active-run card lets the operator inspect the run inline,
     // which loads the run journal for the active correlation id.
     expect(screen.getAllByText(/Active run/).length).toBeGreaterThan(0);
@@ -1589,7 +1589,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getAllByText(/using tool · using tool · check disks · shell/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/started a run: check disks/).length).toBeGreaterThan(0);
   });
@@ -1662,7 +1662,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     chooseDetailOption("Agent lifecycle mode", /Cycle/);
     fireEvent.change(screen.getByLabelText("Agent max cycles"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: /Save lifecycle/ }));
@@ -1795,7 +1795,7 @@ describe("AgentDetail lifecycle intervention", () => {
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/schedule/enable", { id: "sch-fast", enabled: "false" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getByText("model route")).toBeTruthy();
     expect(screen.getAllByText("skills").length).toBeGreaterThan(0);
     expect(screen.getByText("noise budget")).toBeTruthy();
@@ -1830,7 +1830,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     await waitFor(() => expect(screen.getAllByText("guardian-health").length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getByText("silent on success · no memory writes · notify >= warning · cooldown 28800s · system enforced")).toBeTruthy();
   });
 
@@ -1858,7 +1858,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     await waitFor(() => expect(screen.getAllByText("quiet-worker").length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getByText("silent on success · notify >= warning")).toBeTruthy();
   });
 
@@ -1887,7 +1887,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     expect(screen.getAllByText("board.dm.ops").length).toBeGreaterThan(0);
     expect(screen.getByText("board.help.ops")).toBeTruthy();
     expect(screen.getByText("board.broadcast")).toBeTruthy();
@@ -1954,7 +1954,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     expect(await screen.findByText("sleeping · inbox 1 · 1 mailbox message waiting · manual or mailbox wake")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Comms/ }));
     expect(await screen.findByText("seen by researcher")).toBeTruthy();
     expect(screen.getByText("handled")).toBeTruthy();
     expect(screen.getByText("please check")).toBeTruthy();
@@ -2021,7 +2021,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Comms/ }));
     await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Reply" }));
     fireEvent.change(screen.getByLabelText("Reply to q1"), { target: { value: "ship us-east" } });
@@ -2091,7 +2091,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Comms/ }));
     fireEvent.change(await screen.findByLabelText("Agent outbox recipient"), { target: { value: "planner" } });
     fireEvent.change(screen.getByLabelText("Agent outbox topic"), { target: { value: "handoff" } });
     fireEvent.change(screen.getByLabelText("Agent outbox message"), { target: { value: "need deploy plan" } });
@@ -2125,7 +2125,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Comms/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Open Board/ }));
     expect(location.hash).toBe("#board?agent=researcher");
   });
@@ -2147,7 +2147,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     fireEvent.click(screen.getByRole("button", { name: "Arm Help mailbox wake for ops" }));
 
     await waitFor(() =>
@@ -2191,7 +2191,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
 
     expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     const arm = screen.getByRole("button", { name: "Arm DM mailbox wake for worker" }) as HTMLButtonElement;
     expect(arm.disabled).toBe(true);
     expect(screen.getAllByText("channel wake blocked; arm mailbox wake on lead").length).toBeGreaterThan(0);
@@ -2218,7 +2218,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     fireEvent.click(screen.getByRole("button", { name: "Resume schedule sch-1" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/schedule/enable", {
@@ -2245,7 +2245,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     expect(screen.getByText("runs workflow nightly-sync as ops")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove schedule sch-flow" }));
     expect(screen.getByText("Schedule sch-flow will stop: runs workflow nightly-sync as ops.")).toBeTruthy();
@@ -2268,7 +2268,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     fireEvent.click(screen.getByRole("button", { name: "Remove schedule sch-1" }));
     expect(screen.getByText("Remove this schedule binding?")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -2304,7 +2304,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Triggers/ }));
     fireEvent.click(screen.getByRole("button", { name: "Remove standing order so-1" }));
     expect(screen.getByText("Remove this standing order binding?")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -2501,7 +2501,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     expect((await screen.findAllByText(/doctor guardian-doctor/)).length).toBeGreaterThan(0);
     expect(screen.getByText("Repair operations")).toBeTruthy();
     expect(screen.getByText("repair failing")).toBeTruthy();
@@ -2530,7 +2530,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Repair now" }));
 
     await waitFor(() =>
@@ -2562,7 +2562,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Repair/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Repair/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Repair now" }));
 
     await waitFor(() =>
@@ -2591,7 +2591,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Repair/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Repair/ }));
     const repair = await screen.findByRole("button", { name: "Repair now" }) as HTMLButtonElement;
     expect(repair.disabled).toBe(true);
     expect(repair.title).toBe("managed sub-agent; request repair through its parent/owner");
@@ -2646,7 +2646,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Model/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Model/ }));
     fireEvent.click(screen.getByTitle("Choose model"));
     fireEvent.click(await screen.findByText("GPT-4.1"));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -2718,7 +2718,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     expect((await screen.findAllByText("memory")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("not in agent allowlist").length).toBeGreaterThan(0);
     expect(screen.getByText("managed authority")).toBeTruthy();
@@ -2824,7 +2824,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     expect(await screen.findByText("workflow chains ask-gated")).toBeTruthy();
     expect(screen.getAllByText("requires approval").length).toBeGreaterThan(0);
   });
@@ -2856,7 +2856,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     expect((await screen.findAllByText("shell")).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Allow shell" }));
     fireEvent.click(screen.getByRole("button", { name: "Deny fetch" }));
@@ -2901,7 +2901,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.change(await screen.findByLabelText("Tool deny"), { target: { value: "memory" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -2933,7 +2933,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.change(await screen.findByLabelText("Max/run ($)"), { target: { value: "-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -2967,7 +2967,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.change(await screen.findByLabelText("Tool allow"), { target: { value: "memory, Memory, shell" } });
     fireEvent.change(screen.getByLabelText("Tool deny"), { target: { value: "notify, NOTIFY" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -3012,7 +3012,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Quiet system preset" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -3065,7 +3065,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.click(await screen.findByRole("button", { name: "High-impact lockdown" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -3119,7 +3119,7 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Open lab preset" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
@@ -3172,7 +3172,7 @@ describe("AgentDetail capability control", () => {
     );
 
     expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Diagnostics/ }));
     expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("operator").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("schedule").length).toBeGreaterThanOrEqual(1);
@@ -3214,7 +3214,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getByText("1 todo · 1 doing · 1 blocked")).toBeTruthy();
     expect(screen.getByText("1 done")).toBeTruthy();
     expect(screen.getByText("fix deploy")).toBeTruthy();
@@ -3239,7 +3239,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     fireEvent.change(screen.getByLabelText("New agent task"), { target: { value: "check queue" } });
     chooseDetailOption("New task scope", /Every cycle/);
     fireEvent.click(screen.getByRole("button", { name: /Add task/ }));
@@ -3281,7 +3281,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     expect(screen.getByText("check queue")).toBeTruthy();
     fireEvent.click(screen.getByTitle("Mark done"));
     await waitFor(() =>
@@ -3320,7 +3320,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Soul/ }));
     fireEvent.click(screen.getByTitle("Remove task"));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/agents/task", {

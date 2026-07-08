@@ -116,10 +116,10 @@ describe("AgentPage", () => {
     expect(await screen.findByText("researcher")).toBeTruthy();
 
     // The tab list should have all the primary tabs.
-    expect(screen.getByRole("button", { name: /Overview/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Activity/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Triggers/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Comms/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Overview/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Activity/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Triggers/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Comms/ })).toBeTruthy();
 
     // The Wake button should be present (it's a direct_callable agent).
     expect(screen.getByRole("button", { name: /Wake researcher/i })).toBeTruthy();
@@ -127,10 +127,10 @@ describe("AgentPage", () => {
     // The overview tab renders the agent command center with secondary tabs
     // (soul, model, memory, skills, repair, diagnostics, files).
     expect(screen.getByRole("tablist", { name: "researcher detail sections" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Repair/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Files/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Soul/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Repair/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Diagnostics/ })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Files/ })).toBeTruthy();
   });
 
   it("shows a friendly empty state for missing agents", async () => {

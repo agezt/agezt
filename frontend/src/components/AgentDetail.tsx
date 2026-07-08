@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   X,
   Activity as ActivityIcon,
@@ -295,6 +295,18 @@ const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "triggers", "comms", 
 
 const TAB_BY_ID = new Map(TABS.map((tab) => [tab.id, tab]));
 
+// Grouped tab clusters for a cleaner, scannable segmented tab bar.
+// Every tab id from PRIMARY_TABS must appear exactly once across these groups.
+const TAB_GROUPS: { label: string; icon: typeof Bot; tabs: DetailTab[] }[] = [
+  { label: "Monitor", icon: Gauge, tabs: ["overview", "activity", "diag"] },
+  { label: "Config", icon: Cpu, tabs: ["model", "memory", "skills", "soul"] },
+  { label: "Ops", icon: Wrench, tabs: ["triggers", "comms", "repair", "files"] },
+];
+
+// Flat visual order of every tab id across all groups — drives roving-tabindex
+// arrow navigation so focus moves left→right across group boundaries.
+const TAB_ORDER: DetailTab[] = TAB_GROUPS.flatMap((g) => g.tabs);
+
 function DetailOptionPicker<T extends string>({
   label,
   value,
@@ -382,6 +394,36 @@ export function AgentDetail({
   const { subscribe } = useEvents();
   const [tab, setTab] = useState<DetailTab>("overview");
   const [bump, setBump] = useState(0);
+  // Roving-tabindex: refs to every tab button, keyed by tab id, so arrow keys
+  // can move focus across the grouped tablist.
+  const tabButtonRefs = useRef<Partial<Record<DetailTab, HTMLButtonElement | null>>>({});
+  function handleTabKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>, id: DetailTab) {
+    const idx = TAB_ORDER.indexOf(id);
+    if (idx === -1) return;
+    let nextIdx: number | null = null;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIdx = (idx + 1) % TAB_ORDER.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIdx = (idx - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+        break;
+      case "Home":
+        nextIdx = 0;
+        break;
+      case "End":
+        nextIdx = TAB_ORDER.length - 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    const nextId = TAB_ORDER[nextIdx];
+    setTab(nextId);
+    tabButtonRefs.current[nextId]?.focus();
+  }
   const [busy, setBusy] = useState(false);
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [activityFocusRun, setActivityFocusRun] = useState<string | undefined>();
@@ -928,6 +970,7 @@ export function AgentDetail({
                   {profile.description}
                 </p>
               )}
+              {/* Concise icon-led identity summary — one fact each, no restatement */}
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <AgentDetailHeroFact
                   icon={ActivityIcon}
@@ -950,20 +993,36 @@ export function AgentDetail({
                   detail={identityCard.detail}
                   tone={identityCard.tone}
                 />
-                <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border/60 bg-panel/25 p-2 sm:col-span-1">
-                  <Cpu className="size-4 shrink-0 text-muted" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium uppercase tracking-normal text-muted">Model &amp; Fallback</div>
-                    <div className={cn(
-                      "truncate text-xs font-medium",
+                <div
+                  className={cn(
+                    "flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-card/40 px-3 py-3",
+                    modelRoute.tone === "good" && "border-good/40 bg-good/10",
+                    modelRoute.tone === "warn" && "border-warn/50 bg-warn/15",
+                  )}
+                  title={modelRoute.detail || modelRoute.value}
+                >
+                  <Cpu
+                    className={cn(
+                      "size-6 shrink-0",
                       modelRoute.tone === "good" && "text-good",
                       modelRoute.tone === "warn" && "text-warn",
-                      modelRoute.tone === "muted" && "text-muted",
-                    )}>
+                      modelRoute.tone === "muted" && "text-muted/70",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium uppercase tracking-normal text-muted">Model</div>
+                    <div
+                      className={cn(
+                        "truncate text-sm font-bold tracking-normal",
+                        modelRoute.tone === "good" && "text-good",
+                        modelRoute.tone === "warn" && "text-warn",
+                        modelRoute.tone === "muted" && "text-muted",
+                      )}
+                    >
                       {modelRoute.value}
                     </div>
                     {modelRoute.detail && (
-                      <div className="truncate text-xs text-muted">{modelRoute.detail}</div>
+                      <div className="truncate text-xs text-muted/80">{modelRoute.detail}</div>
                     )}
                   </div>
                   <Button
@@ -972,6 +1031,7 @@ export function AgentDetail({
                     className="shrink-0"
                     onClick={() => setModelPickerOpen(true)}
                     title="Edit model and fallback chain"
+                    aria-label={`Edit model and fallback chain for ${slug}`}
                   >
                     <Wrench className="size-3.5" />
                   </Button>
@@ -1164,34 +1224,66 @@ export function AgentDetail({
         </div>
       </Disclosure>
 
-      {/* Tabs — all sections in one clean row */}
+      {/* Tabs — grouped into Monitor / Config / Ops clusters for scannability */}
       <div
-        className="rounded-xl border border-border bg-panel/20 px-3 py-2.5"
+        className="flex flex-wrap items-stretch gap-2 rounded-xl border border-border bg-panel/20 px-3 py-2.5"
         role="tablist"
         aria-label={`${slug} detail sections`}
       >
-        <div className="flex flex-wrap gap-1.5">
-          {PRIMARY_TABS.map((id) => (
-            <AgentDetailTabButton
-              key={id}
-              id={id}
-              active={tab === id}
-              counts={{
-                memory: myMemory,
-                skills: mySkills,
-                orders: myOrders,
-                schedules: mySchedules,
-                comms: myComms,
-                denials: myDenials,
-                toolErrors: myToolErrors,
-              }}
-              onSelect={setTab}
-            />
-          ))}
-        </div>
+        {TAB_GROUPS.map((group, gi) => (
+          <div
+            key={group.label}
+            // Presentational wrapper: keeps only role="tab" elements as the
+            // semantic children of the tablist, per ARIA APG.
+            role="presentation"
+            className={cn(
+              "flex flex-wrap items-center gap-1.5",
+              gi > 0 && "sm:border-l sm:border-border/60 sm:pl-2",
+            )}
+          >
+            <span
+              className="flex select-none items-center gap-1 pr-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted/70"
+              aria-hidden="true"
+            >
+              <group.icon className="size-3" />
+              {group.label}
+            </span>
+            {group.tabs.map((id) => (
+              <AgentDetailTabButton
+                key={id}
+                slug={slug}
+                id={id}
+                active={tab === id}
+                counts={{
+                  memory: myMemory,
+                  skills: mySkills,
+                  orders: myOrders,
+                  schedules: mySchedules,
+                  comms: myComms,
+                  denials: myDenials,
+                  toolErrors: myToolErrors,
+                }}
+                onSelect={setTab}
+                tabRef={(el) => {
+                  tabButtonRefs.current[id] = el;
+                }}
+                onKeyDown={(e) => handleTabKeyDown(e, id)}
+              />
+            ))}
+          </div>
+        ))}
       </div>
 
-      <div className="min-h-0 overflow-auto">
+      {/* Single labelled tabpanel: only the active tab's block renders, so the
+          wrapper reflects the active tab's id/labelledby. tabIndex=0 keeps the
+          scrollable panel keyboard-focusable per the ARIA tabs pattern. */}
+      <div
+        className="min-h-0 overflow-auto"
+        role="tabpanel"
+        id={agentPanelId(slug, tab)}
+        aria-labelledby={agentTabId(slug, tab)}
+        tabIndex={0}
+      >
         {tab === "overview" && (
           <Overview
             slug={slug}
@@ -1580,25 +1672,49 @@ function StatePill({
   );
 }
 
+// Stable DOM ids linking a tab to its panel (scoped by agent slug so multiple
+// AgentDetail instances never collide). Kept as pure helpers so the tabpanel
+// wrapper can reference the exact same ids.
+function agentTabId(slug: string, id: DetailTab) {
+  return `agent-tab-${slug}-${id}`;
+}
+function agentPanelId(slug: string, id: DetailTab) {
+  return `agent-tabpanel-${slug}-${id}`;
+}
+
 function AgentDetailTabButton({
+  slug,
   id,
   active,
   counts,
   onSelect,
+  tabRef,
+  onKeyDown,
 }: {
+  slug: string;
   id: DetailTab;
   active: boolean;
   counts: Parameters<typeof tabCount>[1];
   onSelect: (tab: DetailTab) => void;
+  // Roving-tabindex plumbing: the parent tablist owns focus order + arrow keys.
+  tabRef?: (el: HTMLButtonElement | null) => void;
+  onKeyDown?: (e: ReactKeyboardEvent<HTMLButtonElement>) => void;
 }) {
   const t = TAB_BY_ID.get(id);
   if (!t) return null;
   const count = tabCount(t.id, counts);
   return (
     <button
-      aria-pressed={active}
+      ref={tabRef}
+      id={agentTabId(slug, t.id)}
+      role="tab"
+      aria-selected={active}
       aria-current={active ? "page" : undefined}
+      aria-controls={agentPanelId(slug, t.id)}
+      // Roving tabindex: only the active tab is Tab-reachable; arrow keys move within.
+      tabIndex={active ? 0 : -1}
       onClick={() => onSelect(t.id)}
+      onKeyDown={onKeyDown}
       className={cn(
         "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-glow",
         active ? "bg-card text-foreground shadow-e1" : "text-muted hover:bg-card/60 hover:text-foreground",
