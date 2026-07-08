@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
@@ -23,6 +24,8 @@ import (
 // ctxKeyDepth carries the current sub-agent nesting depth so runSubAgent can
 // enforce SubAgentMaxDepth and refuse unbounded recursion. It rides the same
 // context the agent loop threads into each tool Invoke.
+// Note: delegation.DepthKey and delegation.DepthFromCtx are the canonical
+// replacements; the local type remains temporarily to limit this diff.
 type ctxKeyDepthT struct{}
 
 var ctxKeyDepth = ctxKeyDepthT{}
