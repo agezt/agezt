@@ -7,7 +7,7 @@ Generated during the 2026-06-28 surgical dead-code cleanup.
 | # | File | Line(s) | Symbol | Category | Risk | Confidence | Action |
 |---|------|---------|--------|----------|------|------------|--------|
 | 1 | `internal/generic/generic.go` | all | whole file | UNREACHABLE_DECL | HIGH | 100% | DELETE |
-| 2 | `internal/ciguard/ciguard.go` | all | production helpers only used by tests | UNREACHABLE_DECL | HIGH | 95% | DELETE |
+| 2 | `internal/ciguard/ciguard.go` | all | production helpers only used by tests | UNREACHABLE_DECL | HIGH | 100% | DELETED 2026-07-08 |
 | 3 | `kernel/agent/config.go` | all | unused grouped config API | UNREACHABLE_DECL | HIGH | 100% | DELETE |
 | 4 | `kernel/controlplane/server_config.go` | all | unused server config wrapper layer | UNREACHABLE_DECL | HIGH | 100% | DELETE |
 | 5 | `tools/jsonschemagen/file.go` | all | unused helper file | UNREACHABLE_DECL | HIGH | 100% | DELETE |
