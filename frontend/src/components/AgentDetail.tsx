@@ -2869,8 +2869,10 @@ function Overview({
       </button>
 
       {/* Headline stats */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat icon={Bot} label="runs" value={summary.runs} />
+      <div>
+        <OverviewSectionHeader icon={Gauge} label="At a glance" className="mb-1.5" />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat icon={Bot} label="runs" value={summary.runs} />
         <Stat
           icon={Coins}
           label="total spend"
@@ -2900,6 +2902,7 @@ function Overview({
           value={health.label}
           accent={health.state !== "healthy"}
         />
+        </div>
       </div>
 
       <button
