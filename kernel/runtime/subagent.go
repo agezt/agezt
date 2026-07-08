@@ -437,10 +437,10 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		}
 	}
 	if avail := k.cfg.ModelAvailable; avail != nil {
-		subModel, modelChain = keyedModelChain(subModel, modelChain, avail, k.cfg.Model)
+		subModel, modelChain = delegation.KeyedModelChain(subModel, modelChain, avail, k.cfg.Model)
 	}
 
-	depth := depthFromCtx(ctx)
+	depth := delegation.DepthFromCtx(ctx)
 	maxDepth := k.cfg.SubAgentMaxDepth
 	if maxDepth <= 0 {
 		maxDepth = 1
@@ -579,7 +579,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 
 	// A named agent's soul REPLACES the daemon default identity layer (it IS this
 	// sub-agent's identity); the sub-agent preamble always stays on top.
-	system := subAgentSystem
+	system := delegation.SystemPrompt
 	switch {
 	case prof != nil && agentProfileSystem(*prof) != "":
 		system += "\n\n" + agentProfileSystem(*prof)
@@ -697,7 +697,7 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 			toolSelector = agent.DeferredLexicalToolSelector(toolDiscoveryMax, []string{toolSearchName})
 		}
 		system, skills, task := k.subAgentInjectedSystem(p.childCtx, p.childCorr, p.actor, p.task, p.system)
-		activatedSkillIDs = appendUniqueStrings(activatedSkillIDs, skills...)
+		activatedSkillIDs = delegation.AppendUniqueStrings(activatedSkillIDs, skills...)
 		answer, err := agent.Run(p.childCtx, agent.LoopConfig{
 			Provider:             k.cfg.Provider,
 			Tools:                runTools, // forged + MCP tools reach sub-agents when their identity allows them (M794/M796)
@@ -888,12 +888,12 @@ func (k *Kernel) subAgentSpendMicrocents(parentCorr string) int64 {
 	_ = k.journal.Range(func(e *event.Event) error {
 		switch e.Kind {
 		case event.KindSubAgentSpawned:
-			if child, parent := spawnLink(e.Payload); child != "" && parent != "" {
+			if child, parent := delegation.SpawnLink(e.Payload); child != "" && parent != "" {
 				childrenOf[parent] = append(childrenOf[parent], child)
 			}
 		case event.KindBudgetConsumed:
 			if e.CorrelationID != "" {
-				spendOf[e.CorrelationID] += budgetCostMicrocents(e.Payload)
+				spendOf[e.CorrelationID] += delegation.BudgetCostMicrocents(e.Payload)
 			}
 		}
 		return nil

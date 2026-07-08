@@ -160,11 +160,11 @@ func (t *SubAgentAwaitTool) Invoke(ctx context.Context, input json.RawMessage) (
 // SpawnLink extracts child and parent correlation IDs from a subagent.spawned event payload.
 func SpawnLink(payload json.RawMessage) (child, parent string) {
 	var ev struct {
-		ChildCorr  string `json:"child_corr"`
-		ParentTask string `json:"parent_corr"`
+		Child  string `json:"child_correlation"`
+		Parent string `json:"parent"`
 	}
 	if json.Unmarshal(payload, &ev) == nil {
-		return ev.ChildCorr, ev.ParentTask
+		return ev.Child, ev.Parent
 	}
 	return "", ""
 }

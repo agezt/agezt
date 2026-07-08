@@ -30,7 +30,7 @@ func TestSpawnLink_EmptyPayload(t *testing.T) {
 }
 
 func TestSpawnLink_ValidPayload(t *testing.T) {
-	payload := []byte(`{"child_corr":"c1","parent_corr":"p1"}`)
+	payload := []byte(`{"child_correlation":"c1","parent":"p1"}`)
 	child, parent := delegation.SpawnLink(payload)
 	if child != "c1" || parent != "p1" {
 		t.Fatalf("SpawnLink = %q, %q, want c1, p1", child, parent)
