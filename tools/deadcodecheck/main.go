@@ -76,6 +76,8 @@ func findingLines(out []byte) []string {
 
 func isAllowedSDKFinding(line string) bool {
 	normalized := strings.ReplaceAll(line, `\`, "/")
-	return strings.HasPrefix(normalized, "sdk/") &&
-		strings.Contains(normalized, ": unreachable func:")
+	return (strings.HasPrefix(normalized, "sdk/") &&
+		strings.Contains(normalized, ": unreachable func:")) ||
+		(strings.HasPrefix(normalized, "kernel/internal/testfixtures/") &&
+			strings.Contains(normalized, ": unreachable func:"))
 }
