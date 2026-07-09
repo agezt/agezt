@@ -3,7 +3,6 @@
 package runtime
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -62,17 +61,6 @@ func (k *Kernel) publishContextFailureAnalysis(corr, actor string, runErr error)
 		},
 		Rejected: suspects,
 	})
-}
-
-// contextSelectionRunner returns a RunnerOption that wires per-run
-// context-selection event publishing. This is the glue between the agent loop
-// and the context-selection publishing logic.
-func contextSelectionRunner(ctx context.Context, corr, actor string) func(contextselect.Manifest) {
-	return func(manifest contextselect.Manifest) {
-		if k, ok := ctx.Value(kernelKey{}).(*Kernel); ok {
-			k.publishContextSelection(corr, actor, manifest)
-		}
-	}
 }
 
 // KernelKey is a context value key used to pass *Kernel into agent callbacks.

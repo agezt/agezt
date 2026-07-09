@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -28,13 +27,6 @@ import (
 type ctxKeyDepthT struct{}
 
 var ctxKeyDepth = ctxKeyDepthT{}
-
-func depthFromCtx(ctx context.Context) int {
-	if v, ok := ctx.Value(ctxKeyDepth).(int); ok {
-		return v
-	}
-	return 0
-}
 
 // subAgentSystem frames a delegated run: a focused worker that completes one
 // task and reports back concisely. The kernel's own System prompt follows.
@@ -866,13 +858,6 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 	return system, activatedSkillIDs, intent
 }
 
-func appendUniqueStrings(in []string, values ...string) []string {
-	for _, value := range values {
-		in = appendUniqueString(in, value)
-	}
-	return in
-}
-
 // subAgentSpendMicrocents sums the spend (budget.consumed cost_microcents, M47)
 // of every run descended from parentCorr — its sub-agents and their sub-agents,
 // transitively — excluding parentCorr's own direct spend. It backs the M48
@@ -916,75 +901,4 @@ func (k *Kernel) subAgentSpendMicrocents(parentCorr string) int64 {
 		queue = append(queue, childrenOf[corr]...)
 	}
 	return total
-}
-
-// spawnLink pulls child + parent correlation ids out of a subagent.spawned
-// payload (M48 mirror of the control plane's extractSpawnLink). Returns
-// ("","") on parse failure so an unparseable link is simply skipped.
-func spawnLink(payload json.RawMessage) (child, parent string) {
-	if len(payload) == 0 {
-		return "", ""
-	}
-	var p struct {
-		Child  string `json:"child_correlation"`
-		Parent string `json:"parent"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return "", ""
-	}
-	return p.Child, p.Parent
-}
-
-// budgetCostMicrocents pulls cost_microcents out of a budget.consumed payload
-// (M48). Returns 0 on parse failure so an unparseable spend event contributes
-// nothing. JSON numbers decode as float64; the integer microcents have no
-// fractional part to lose.
-func budgetCostMicrocents(payload json.RawMessage) int64 {
-	if len(payload) == 0 {
-		return 0
-	}
-	var p struct {
-		Cost float64 `json:"cost_microcents"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return 0
-	}
-	return int64(p.Cost)
-}
-
-// keyedModelChain restricts a delegation's effective model chain to models a
-// KEYED provider can serve (M838 bugfix). It folds subModel + the profile chain
-// into one de-duped ordered list, keeps only those for which avail() is true,
-// and — if nothing keyed survives — falls back to def (the daemon's active,
-// keyed model). Returns the chosen primary model and the chain (nil when a single
-// model, matching the pre-filter convention). A nil/empty result leaves the
-// caller's values unchanged.
-func keyedModelChain(subModel string, modelChain []string, avail func(string) bool, def string) (string, []string) {
-	chain := []string{}
-	if subModel != "" {
-		chain = append(chain, subModel)
-	}
-	for _, m := range modelChain {
-		if m != "" && !slices.Contains(chain, m) {
-			chain = append(chain, m)
-		}
-	}
-	kept := make([]string, 0, len(chain))
-	for _, m := range chain {
-		if avail(m) {
-			kept = append(kept, m)
-		}
-	}
-	if len(kept) == 0 {
-		if d := strings.TrimSpace(def); d != "" {
-			kept = append(kept, d)
-		}
-	}
-	if len(kept) == 0 {
-		return subModel, modelChain // nothing to do; keep originals
-	}
-	if len(kept) == 1 {
-		return kept[0], nil
-	}
-	return kept[0], kept
 }
