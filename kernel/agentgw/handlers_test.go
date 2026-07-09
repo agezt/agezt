@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -465,18 +466,14 @@ func TestGateway_HandleLogWrite_InvalidJSON(t *testing.T) {
 
 // --- handleLogRead ---
 
-func TestGateway_HandleLogRead_OK(t *testing.T) {
+func TestGateway_HandleLogRead_NotImplemented(t *testing.T) {
 	ts := newTestServer(t)
 	resp, respBody := ts.doRequest("GET", "/v1/log/read", nil)
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("log read: got %d, want 200: %s", resp.StatusCode, respBody)
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Errorf("log read: got %d, want 501: %s", resp.StatusCode, respBody)
 	}
-	var r map[string]interface{}
-	if err := json.Unmarshal([]byte(respBody), &r); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if msg, ok := r["message"].(string); !ok || msg == "" {
-		t.Error("message field missing or empty")
+	if !strings.Contains(respBody, "eventbus.subscribe") {
+		t.Errorf("response should point callers at eventbus.subscribe: %s", respBody)
 	}
 }
 

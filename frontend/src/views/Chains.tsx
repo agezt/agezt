@@ -36,7 +36,7 @@ interface ChainsResp {
 }
 
 export function Chains() {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, prompt } = useUI();
   const [chains, setChains] = useState<Record<string, string[]>>({});
   const [savedChains, setSavedChains] = useState<Record<string, string[]>>({});
   const [def, setDef] = useState("");
@@ -113,8 +113,14 @@ export function Chains() {
     setChains((c) => ({ ...c, [n]: [] }));
   }
 
-  function rename(from: string) {
-    const to = window.prompt(`Rename chain “${from}” to:`, from)?.trim();
+  async function rename(from: string) {
+    const raw = await prompt({
+      title: `Rename chain “${from}”`,
+      placeholder: "chain name",
+      initial: from,
+      confirmLabel: "Rename",
+    });
+    const to = raw?.trim();
     if (!to || to === from) return;
     const bad = validateChainName(to);
     if (bad) {

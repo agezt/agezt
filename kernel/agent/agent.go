@@ -1282,13 +1282,13 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				return nil
 			})
 			if err != nil {
-				return "", apperrors.Wrapf(ctx, "agent: provider %s (stream): %w", err, cfg.Provider.Name())
+				return "", apperrors.Wrapf(ctx, "agent: provider %s (stream)", err, cfg.Provider.Name())
 			}
 			resp = r
 		} else {
 			r, err := cfg.Provider.Complete(ctx, req)
 			if err != nil {
-				return "", apperrors.Wrapf(ctx, "agent: provider %s: %w", err, cfg.Provider.Name())
+				return "", apperrors.Wrapf(ctx, "agent: provider %s", err, cfg.Provider.Name())
 			}
 			resp = r
 			// A non-streaming provider returns the reasoning whole, with no deltas

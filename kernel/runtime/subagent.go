@@ -21,20 +21,6 @@ import (
 	"github.com/agezt/agezt/internal/apperrors"
 )
 
-// ctxKeyDepth carries the current sub-agent nesting depth so runSubAgent can
-// enforce SubAgentMaxDepth and refuse unbounded recursion. It rides the same
-// context the agent loop threads into each tool Invoke.
-type ctxKeyDepthT struct{}
-
-var ctxKeyDepth = ctxKeyDepthT{}
-
-// subAgentSystem frames a delegated run: a focused worker that completes one
-// task and reports back concisely. The kernel's own System prompt follows.
-const subAgentSystem = "You are a focused sub-agent spawned to complete ONE delegated task. " +
-	"Work autonomously with the tools available, then report a concise, self-contained " +
-	"result the lead agent can use directly. Do not ask clarifying questions; make a " +
-	"reasonable assumption and state it."
-
 // subAgentTool is the in-process `delegate` tool (P6-MULTI-01). Its runners
 // are wired to k.runSubAgent / k.runSubAgentAsync after the kernel is
 // constructed (the tool is built during Open before *Kernel exists).
@@ -552,7 +538,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 
 	// Child context: bump depth, retarget actor/correlation so the policy hook
 	// and approval audit attribute the sub-agent's actions correctly.
-	childCtx := context.WithValue(ctx, ctxKeyDepth, depth+1)
+	childCtx := delegation.WithDepth(ctx, depth+1)
 	childCtx = context.WithValue(childCtx, ctxKeyActor, actor)
 	childCtx = context.WithValue(childCtx, ctxKeyCorrelation, childCorr)
 	// Carry the tree root to every descendant so the M629 total cap is attributed
@@ -764,7 +750,7 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		k.forge.RecordOutcome(p.childCorr, activatedSkillIDs, err == nil)
 	}
 	if err != nil {
-		return "", apperrors.WrapSimplef("sub-agent %s: %%w", err, p.childCorr)
+		return "", apperrors.WrapSimplef("sub-agent %s", err, p.childCorr)
 	}
 	k.completeAgentLifecycle(p.childCtx, p.childCorr)
 	return answer, nil

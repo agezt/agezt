@@ -234,6 +234,12 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 		_ = tmp.Close()
 		return err
 	}
+	// Flush to disk before rename: without it a crash right after the rename
+	// can leave a zero-length/stale file on some filesystems.
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}

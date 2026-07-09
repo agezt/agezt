@@ -3,6 +3,7 @@ import { Plug, ExternalLink, Check, RefreshCw, Sparkles, X, type LucideIcon } fr
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -107,12 +108,7 @@ export function QuickConnect() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
-          <Plug className="size-5" />
-        </span>
-        <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Quick Connect</h2>
-      </div>
+      <PageHeader icon={Plug} title="Quick Connect" />
 
       <Section title="Coding & token plans">
         {coding.map((p) => (

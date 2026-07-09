@@ -23,6 +23,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Advanced, Calm } from "@/components/ui/advanced";
 import { TabNav } from "@/components/ui/tab-nav";
+import { PageHeader } from "@/components/ui/page-header";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 
@@ -296,25 +297,23 @@ export function Status() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
-            <Activity className="size-5" />
+      <PageHeader
+        icon={Activity}
+        title="System health"
+        description={
+          <span className={cn(
+            "inline-flex items-center gap-1 text-xs font-medium",
+            connected ? "text-good" : "text-bad",
+          )}>
+            ● {connected ? "live" : "disconnected"}
           </span>
-          <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">System health</h2>
-            <span className={cn(
-              "inline-flex items-center gap-1 text-xs font-medium",
-              connected ? "text-good" : "text-bad",
-            )}>
-              ● {connected ? "live" : "disconnected"}
-            </span>
-          </div>
-        </div>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-        </Button>
-      </div>
+        }
+        actions={
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        }
+      />
 
       <TabNav tabs={tabs} />
     </div>

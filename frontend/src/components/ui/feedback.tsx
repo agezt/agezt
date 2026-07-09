@@ -3,8 +3,9 @@ import { CheckCircle2, XCircle, Info, AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // A small, self-contained feedback layer so the app never falls back to the
-// browser's alert()/confirm() — every transient message is a toast and every
-// "are you sure?" is a styled modal. One provider exposes both via useUI().
+// browser's alert()/confirm()/prompt() — every transient message is a toast,
+// every "are you sure?" is a styled modal, and every one-line text ask is a
+// styled input modal. One provider exposes all three via useUI().
 
 type ToastKind = "success" | "error" | "info";
 interface Toast {
@@ -21,11 +22,22 @@ export interface ConfirmOptions {
   danger?: boolean;
 }
 
+export interface PromptOptions {
+  title: string;
+  message?: string;
+  placeholder?: string;
+  initial?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+}
+
 interface UI {
   /** Show a transient toast (auto-dismisses). */
   toast: (text: string, kind?: ToastKind) => void;
   /** Ask the user to confirm; resolves true if they confirm, false otherwise. */
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  /** Ask the user for one line of text; resolves the value, or null if cancelled. */
+  prompt: (opts: PromptOptions) => Promise<string | null>;
 }
 
 const UICtx = createContext<UI | null>(null);
@@ -43,6 +55,7 @@ const TOAST_MS = 4200;
 export function UIProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pending, setPending] = useState<{ opts: ConfirmOptions; resolve: (v: boolean) => void } | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<{ opts: PromptOptions; resolve: (v: string | null) => void } | null>(null);
   const seq = useRef(0);
 
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
@@ -69,11 +82,25 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     [pending],
   );
 
+  const prompt = useCallback(
+    (opts: PromptOptions) => new Promise<string | null>((resolve) => setPendingPrompt({ opts, resolve })),
+    [],
+  );
+
+  const settlePrompt = useCallback(
+    (v: string | null) => {
+      pendingPrompt?.resolve(v);
+      setPendingPrompt(null);
+    },
+    [pendingPrompt],
+  );
+
   return (
-    <UICtx.Provider value={{ toast, confirm }}>
+    <UICtx.Provider value={{ toast, confirm, prompt }}>
       {children}
       <Toaster toasts={toasts} onClose={dismiss} />
       {pending && <ConfirmModal opts={pending.opts} onResult={settle} />}
+      {pendingPrompt && <PromptModal opts={pendingPrompt.opts} onResult={settlePrompt} />}
     </UICtx.Provider>
   );
 }
@@ -112,6 +139,64 @@ function Toaster({ toasts, onClose }: { toasts: Toast[]; onClose: (id: number) =
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PromptModal({ opts, onResult }: { opts: PromptOptions; onResult: (v: string | null) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [value, setValue] = useState(opts.initial ?? "");
+
+  // Focus (and select) the input on open; Escape cancels. Enter submits via
+  // the input's own key handler so it never fights the global listener.
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onResult(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onResult]);
+
+  return (
+    <div
+      className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      onClick={() => onResult(null)}
+    >
+      <div
+        className="modal-in w-full max-w-sm rounded-xl bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h3 className="text-sm font-semibold text-foreground">{opts.title}</h3>
+        {opts.message && <p className="mt-1 text-sm text-muted">{opts.message}</p>}
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onResult(value);
+          }}
+          placeholder={opts.placeholder}
+          className="mt-3 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-accent"
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            onClick={() => onResult(null)}
+            className="rounded-md border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:text-foreground"
+          >
+            {opts.cancelLabel || "Cancel"}
+          </button>
+          <button
+            onClick={() => onResult(value)}
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent/85"
+          >
+            {opts.confirmLabel || "OK"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

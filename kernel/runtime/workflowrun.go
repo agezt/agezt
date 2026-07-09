@@ -286,7 +286,7 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 			Payload:       nodePayload,
 		})
 		if err != nil && !handled {
-			return res, apperrors.WrapSimplef("node %s: %%w", err, id)
+			return res, apperrors.WrapSimplef("node %s", err, id)
 		}
 
 		data[id] = map[string]any{"output": output}
@@ -680,7 +680,7 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		subCtx := context.WithValue(ctx, wfDepthKey{}, depth+1)
 		subRes, err := k.RunWorkflow(subCtx, corr, c.Workflow, subPayload)
 		if err != nil {
-			return nil, "", apperrors.WrapSimplef("subworkflow %s: %%w", err, c.Workflow)
+			return nil, "", apperrors.WrapSimplef("subworkflow %s", err, c.Workflow)
 		}
 		return map[string]any{"executed": subRes.Executed, "outputs": subRes.Outputs}, "", nil
 

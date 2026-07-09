@@ -5,6 +5,7 @@ package configcenter
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -89,29 +90,38 @@ func (a *AuditLogger) previewValue(value string, rating Rating) string {
 	return value[:8] + "..." + HashValue(value)[:8]
 }
 
-// writeToFile writes an audit entry to disk.
+// writeToFile writes an audit entry to disk. Failures are logged rather than
+// silently dropped so a broken audit trail is at least visible in the daemon log.
 func (a *AuditLogger) writeToFile(entry *AuditEntry) {
 	if a.dir == "" {
 		return
 	}
 
+	data, err := json.Marshal(entry)
+	if err != nil {
+		slog.Warn("config center: audit entry marshal failed", "error", err)
+		return
+	}
+
 	filename := filepath.Join(a.dir, fmt.Sprintf("audit_%s.jsonl", time.Now().Format("2006-01-02")))
 
-	os.MkdirAll(a.dir, 0755)
+	if err := os.MkdirAll(a.dir, 0o755); err != nil {
+		slog.Warn("config center: audit dir create failed", "dir", a.dir, "error", err)
+		return
+	}
 
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
+		slog.Warn("config center: audit log open failed", "file", filename, "error", err)
 		return
 	}
 	defer f.Close()
 
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return
+	// One Write for entry+newline: an interleaved second write can't corrupt
+	// the JSONL line, and a partial-write error is surfaced.
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		slog.Warn("config center: audit log write failed", "file", filename, "error", err)
 	}
-
-	f.Write(data)
-	f.WriteString("\n")
 }
 
 // Query searches audit logs with filters.

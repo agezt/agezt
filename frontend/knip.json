@@ -1,4 +1,3 @@
 {
-  "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["src/views/Chat/index.tsx"]
+  "$schema": "https://unpkg.com/knip@6/schema.json"
 }
