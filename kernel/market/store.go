@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Store is the marketplace's durable state under <base>/market/:
@@ -121,35 +123,11 @@ func (s *Store) saveInstalled(list []InstalledPack) error {
 	return atomicWrite(s.installedPath(), data, 0o644)
 }
 
-// atomicWrite writes data to a unique temp file in the same dir and renames it
-// over the target, so a crash mid-write leaves the prior file intact and
-// concurrent writers never race on a shared temp name (mirrors catalog.Store).
+// atomicWrite ensures the parent dir exists, then writes via a unique temp +
+// fsync + rename (see internal/atomicfile).
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".market-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	// Flush to disk before rename: without it a crash right after the rename
-	// can leave a zero-length/stale file on some filesystems.
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmpName, mode); err != nil {
-		return err
-	}
-	return os.Rename(tmpName, path)
+	return atomicfile.WriteFile(path, data, mode)
 }

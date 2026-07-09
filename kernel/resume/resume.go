@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/agent"
 )
 
@@ -313,28 +314,9 @@ func (s *Store) Quarantine(corr string) error {
 	return err
 }
 
-// writeAtomic writes b to path via a temp file that is fsynced before the
-// rename, so a crash never yields a torn or unsynced ticket. os.Rename is atomic
-// on POSIX and (via MoveFileEx replace-existing) on Windows.
+// writeAtomic writes b to path via a unique temp file that is fsynced before
+// the rename, so a crash never yields a torn or unsynced ticket (see
+// internal/atomicfile).
 func writeAtomic(path string, b []byte) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(b); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.WriteFile(path, b, 0o600)
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
@@ -919,20 +920,10 @@ func autoRepairFailedPhase(cand autoRepairCandidate) string {
 }
 
 func firstNonEmptyStrings(primary, fallback []string) []string {
-	if len(primary) > 0 {
-		return primary
-	}
-	return fallback
+	return strutil.FirstNonEmptySlice(primary, fallback)
 }
 
-func firstNonEmpty(items ...string) string {
-	for _, item := range items {
-		if item = strings.TrimSpace(item); item != "" {
-			return item
-		}
-	}
-	return ""
-}
+func firstNonEmpty(items ...string) string { return strutil.FirstNonEmpty(items...) }
 
 func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox autoRepairMailbox, postNotify func(board.Message, string), cand autoRepairCandidate) {
 	defer c.release(cand.Slug)

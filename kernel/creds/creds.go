@@ -41,6 +41,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // FileName is the canonical filename under <BaseDir>.
@@ -207,30 +209,9 @@ func (s *Store) Save() error {
 // corrupt each other's write (M471). 0600 is re-applied because rename can widen
 // perms (Windows ignores Unix mode bits).
 func atomicWriteVault(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".creds-*.tmp")
-	if err != nil {
-		return fmt.Errorf("creds: write tmp: %w", err)
+	if err := atomicfile.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("creds: %w", err)
 	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op once the rename has moved it
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("creds: write tmp: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("creds: sync tmp: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("creds: close tmp: %w", err)
-	}
-	if err := os.Chmod(tmpName, 0600); err != nil {
-		return fmt.Errorf("creds: chmod tmp: %w", err)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("creds: rename: %w", err)
-	}
-	_ = os.Chmod(path, 0600)
 	return nil
 }
 

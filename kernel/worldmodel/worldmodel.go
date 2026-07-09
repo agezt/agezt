@@ -41,6 +41,8 @@ import (
 	"sync"
 
 	"lukechampine.com/blake3"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Kind classifies an entity (SPEC-05 §3.2). It is an open string — the set
@@ -363,32 +365,10 @@ func sortRelations(rs []Relation) {
 	})
 }
 
-// atomicWrite writes data to a temp file and renames it over the target.
-// os.Rename replaces atomically on POSIX and on Windows (MoveFileEx). Mirrors
-// kernel/state's and kernel/memory's helpers (kept local to avoid coupling).
+// atomicWrite writes via a unique temp + fsync + rename (see internal/atomicfile).
 func atomicWrite(path string, data []byte) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("worldmodel: open temp %s: %w", tmp, err)
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("worldmodel: write temp: %w", err)
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("worldmodel: fsync temp: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("worldmodel: close temp: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("worldmodel: rename %s: %w", path, err)
+	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("worldmodel: %w", err)
 	}
 	return nil
 }

@@ -23,6 +23,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Store is the namespaced key/value interface. The contract exposes this as
@@ -215,31 +217,10 @@ func (s *FileStore) pathFor(ns string) string {
 	return filepath.Join(s.dir, ns+".json")
 }
 
-// atomicWrite writes data to a temp file and renames it over the target.
-// os.Rename replaces atomically on POSIX and on Windows (MoveFileEx).
+// atomicWrite writes via a unique temp + fsync + rename (see internal/atomicfile).
 func atomicWrite(path string, data []byte) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("state: open temp %s: %w", tmp, err)
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("state: write temp: %w", err)
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("state: fsync temp: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("state: close temp: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("state: rename %s: %w", path, err)
+	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("state: %w", err)
 	}
 	return nil
 }

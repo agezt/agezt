@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // FileNames under <BaseDir>/catalog/.
@@ -219,32 +221,7 @@ func (s *Store) ensureDir() error {
 	return os.MkdirAll(s.Dir, 0o755)
 }
 
-// atomicWrite writes via a UNIQUE temp + rename so a crash mid-write leaves the
-// previous file intact, and two concurrent writes to the same target can't race on
-// a shared "<path>.tmp" (one renaming a half-written temp the other is still
-// writing). (M478)
+// atomicWrite writes via a unique temp + fsync + rename (see internal/atomicfile).
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op once renamed
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	// Flush to disk before rename: without it a crash right after the rename
-	// can leave a zero-length/stale file on some filesystems.
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmpName, mode); err != nil {
-		return err
-	}
-	return os.Rename(tmpName, path)
+	return atomicfile.WriteFile(path, data, mode)
 }

@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // utf8BOM is the byte-order mark some Windows editors (and PowerShell's
@@ -174,29 +176,8 @@ func (s *Store) Save() error {
 // (rename can widen perms; Windows ignores Unix mode bits). Mirrors the vault's
 // atomic write so two concurrent Saves can't corrupt each other.
 func atomicWrite(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".config-*.tmp")
-	if err != nil {
-		return fmt.Errorf("settings: write tmp: %w", err)
+	if err := atomicfile.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("settings: %w", err)
 	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("settings: write tmp: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("settings: sync tmp: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("settings: close tmp: %w", err)
-	}
-	if err := os.Chmod(tmpName, 0600); err != nil {
-		return fmt.Errorf("settings: chmod tmp: %w", err)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("settings: rename: %w", err)
-	}
-	_ = os.Chmod(path, 0600)
 	return nil
 }
