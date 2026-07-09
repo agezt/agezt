@@ -64,7 +64,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
       page.getByRole("heading", { level: 2, name: "Talk to your agent" }),
     ).toBeVisible();
 
-    // --- Cockpit (System → Overview): live status pulled from the daemon ---
+    // --- Dashboard (System → Overview): live status pulled from the daemon ---
     // The seeded run shows up in the completed counter; the vitals strip and
     // widgets are real daemon state, not placeholders.
     await openView("System", "Overview");
@@ -73,7 +73,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // Same rationale as the data-connection-state live-or-stale tolerance in
     // the connection-state assertion above.
     await expect(
-      page.getByRole("heading", { level: 2, name: "Cockpit" }),
+      page.getByRole("heading", { level: 2, name: "Dashboard" }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/success rate/i)).toBeVisible();
     await expect(page.getByText(/active skills/i)).toBeVisible();
@@ -130,17 +130,26 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await page.getByRole("button", { name: /New schedule/ }).click();
     await expect(page.getByText("Daemon cron presets")).toBeVisible();
     await page.getByRole("button", { name: /Catalog sync.*every 24 hours/ }).click();
-    await expect(page.getByLabel("System task", { exact: true })).toHaveValue("catalog_sync");
+    // "System task" is a ScheduleChoicePicker (role=group of aria-pressed
+    // buttons), not a <select> — assert the Catalog sync choice is pressed.
+    await expect(
+      page.getByRole("group", { name: "System task", exact: true }).getByRole("button", { name: /Catalog sync/ }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText(/Recommended cadence: every 24 hours/)).toBeVisible();
     await expect(page.getByText(/cron runs system task Catalog sync/).first()).toBeVisible();
     await expect(page.getByText(/no LLM/).first()).toBeVisible();
+    // Close the New-schedule modal before navigating on — its overlay would
+    // otherwise swallow the nav clicks.
+    await page.getByRole("button", { name: "Close schedule modal" }).click();
 
     // --- Policy: the decision + secret-redaction testers mount ----------
     // (M753 policy dry-run, M754 redaction check).
     await openView("System", "Policy");
     await expect(page.getByRole("heading", { level: 2, name: "Capability policy" })).toBeVisible();
-    await expect(page.getByText("test a decision")).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: "Secret redaction" })).toBeVisible();
+    // The dry-run testers live behind compact affordances now: a "Test
+    // decision" button in the capabilities panel and a "Secret redaction" card.
+    await expect(page.getByRole("button", { name: /Test decision/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Secret redaction" }).first()).toBeVisible();
 
     // --- Search: the journal's tamper-evident hash chain verifies clean -
     // (M759 integrity verify). The seeded run wrote hash-linked events.
@@ -161,7 +170,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(agentCard).toBeVisible();
     await agentCard.click();
     await expect(page.getByText("Agent identity card")).toBeVisible();
-    await expect(page.getByText("Control center").first()).toBeVisible();
+    await expect(page.getByText("Live presence").first()).toBeVisible();
     await expect(page.getByText("Lifecycle ledger").first()).toBeVisible();
     await expect(page.getByText("Runtime doctor ledger").first()).toBeVisible();
     await expect(page.getByText("Operations passport")).toBeVisible();

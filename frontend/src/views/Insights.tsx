@@ -16,6 +16,10 @@ import { computeInsights, type RunRow as InsightsRunRow } from "@/lib/insights";
 
 type RunRow = InsightsRunRow & { intent?: string };
 
+// INSIGHTS_RUN_LIMIT bounds the /api/runs fetch — analytics cover the most
+// recent window of runs rather than the entire journal.
+const INSIGHTS_RUN_LIMIT = 300;
+
 function dur(ms: number): string {
   if (ms <= 0) return "—";
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -35,7 +39,9 @@ export function Insights() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ runs?: RunRow[] }>("/api/runs");
+      // Bounded fetch: analytics derive from the most recent window of runs so
+      // the page stays fast on daemons with a long run history.
+      const d = await getJSON<{ runs?: RunRow[] }>("/api/runs", { limit: String(INSIGHTS_RUN_LIMIT) });
       setRuns(d.runs || []);
       setErr(null);
     } catch (e) {
@@ -63,6 +69,7 @@ export function Insights() {
     <Page
       icon={BarChart3}
       title="Insights"
+      description={`derived from the last ${INSIGHTS_RUN_LIMIT} runs`}
       width="wide"
       actions={
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>

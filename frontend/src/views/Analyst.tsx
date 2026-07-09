@@ -21,7 +21,9 @@ async function gatherSnapshot(): Promise<string> {
     getJSON<any>("/api/stats"),
     getJSON<any>("/api/tools"),
     getJSON<any>("/api/cache"),
-    getJSON<any>("/api/runs"),
+    // Only the newest handful of runs feed the prompt — a bounded fetch keeps
+    // the snapshot cheap on daemons with a long run history.
+    getJSON<any>("/api/runs", { limit: "50" }),
   ]);
   const lines: string[] = [];
   if (stats.status === "fulfilled") {

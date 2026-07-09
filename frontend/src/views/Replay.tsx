@@ -18,6 +18,12 @@ interface Run {
   started_unix_ms?: number;
 }
 
+// REPLAY_RUN_LIMIT bounds the /api/runs fetch (newest first); REPLAY_CHIP_WINDOW
+// is how many run chips render at once — the strip grows on demand so a long
+// history doesn't balloon the DOM.
+const REPLAY_RUN_LIMIT = 300;
+const REPLAY_CHIP_WINDOW = 60;
+
 // Replay is the flight recorder: pick any run and scrub/play through exactly
 // what the agent did, step by step — LLM rounds, tool calls and results, policy
 // decisions, operator steering, spend — with the cumulative state at each point.
@@ -30,12 +36,13 @@ export function Replay() {
   const [arc, setArc] = useState<AgentEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [chipWin, setChipWin] = useState(REPLAY_CHIP_WINDOW);
   const fetchedFor = useRef<string>("");
 
   // Load the run list (newest first); default-select the newest.
   async function loadRuns() {
     try {
-      const d = await getJSON<{ runs?: Run[] }>("/api/runs");
+      const d = await getJSON<{ runs?: Run[] }>("/api/runs", { limit: String(REPLAY_RUN_LIMIT) });
       const list = d.runs || [];
       setRuns(list);
       setErr(null);
@@ -89,7 +96,7 @@ export function Replay() {
     >
       {runs.length > 0 ? (
         <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Replay run">
-          {runs.map((r) => {
+          {runs.slice(0, chipWin).map((r) => {
             const id = r.correlation_id || "";
             const selected = sel === id;
             return (
@@ -110,6 +117,15 @@ export function Replay() {
               </button>
             );
           })}
+          {runs.length > chipWin && (
+            <button
+              type="button"
+              onClick={() => setChipWin((w) => w + REPLAY_CHIP_WINDOW)}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-panel px-2 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+            >
+              Load {Math.min(REPLAY_CHIP_WINDOW, runs.length - chipWin)} more ({runs.length - chipWin} hidden)
+            </button>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-panel/60 px-3 py-2 text-xs text-muted">no runs yet</div>

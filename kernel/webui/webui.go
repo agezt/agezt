@@ -450,6 +450,9 @@ var writeRoutes = map[string]writeRoute{
 	"/api/run/steer":     {controlplane.CmdRunSteer, []string{"correlation", "directive", "mode"}},
 	"/api/decide":        {controlplane.CmdDecide, []string{"id", "decision", "reason"}},
 	"/api/memory/forget": {controlplane.CmdMemoryForget, []string{"id"}},
+	// Bulk soft-delete: the Memory view's multi-select "forget N records" path.
+	// ids is a JSON array; idempotent (already-tombstoned ids count as forgotten).
+	"/api/memory/bulk_forget": {controlplane.CmdMemoryBulkForget, []string{"ids"}},
 	// Marketplace install/uninstall stream per-item progress, so they have their
 	// own SSE proxies below (marketStreamProxy) rather than going through jsonProxy.
 	// Remote marketplace sources (Phase 2): add/remove a source, then sync its

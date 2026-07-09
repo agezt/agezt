@@ -7,6 +7,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Page } from "@/components/ui/page";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -153,6 +154,11 @@ function hasUnpinnedInstall(lower: string): boolean {
   return false;
 }
 
+// SKILL_CARD_WINDOW is how many skill cards render at once. /api/skills has no
+// cursor, so the whole library arrives in one fetch — the window keeps a big
+// library from ballooning the DOM; a Load-more footer grows it client-side.
+const SKILL_CARD_WINDOW = 60;
+
 function severityRank(s: SkillScanReport["maxSeverity"]): number {
   if (s === "high") return 3;
   if (s === "medium") return 2;
@@ -224,6 +230,13 @@ export function Skills() {
   const [authoring, setAuthoring] = useState<Skill | "new" | null>(null);
   const [q, setQ] = useState("");
   const [idle, setIdle] = useState<Skill[]>([]);
+  const [win, setWin] = useState(SKILL_CARD_WINDOW);
+
+  // Reset the render window whenever the filter changes so a new query always
+  // starts from the top of its result set.
+  useEffect(() => {
+    setWin(SKILL_CARD_WINDOW);
+  }, [q]);
 
   async function reload() {
     setLoading(true);
@@ -430,7 +443,7 @@ export function Skills() {
             const query = q.trim().toLowerCase();
             const shown = query ? skills.filter((s) => skillMatches(s, query)) : skills;
             if (shown.length === 0) return <p className="px-1 py-2 text-xs text-muted">no skills match "{q.trim()}"</p>;
-            return shown.map((s, i) => {
+            const cards = shown.slice(0, win).map((s, i) => {
             const m = s.metrics || {};
             const isOpen = open === (s.id || String(i));
             const scan = scanSkill(s);
@@ -598,6 +611,20 @@ export function Skills() {
               </div>
             );
             });
+            return (
+              <>
+                {cards}
+                {shown.length > SKILL_CARD_WINDOW && (
+                  <LoadMoreFooter
+                    hasMore={win < shown.length}
+                    loadingMore={false}
+                    onLoadMore={() => setWin((w) => w + SKILL_CARD_WINDOW)}
+                    pageSize={Math.min(SKILL_CARD_WINDOW, Math.max(1, shown.length - win))}
+                    label="skills"
+                  />
+                )}
+              </>
+            );
           })()}
         </div>
       )}

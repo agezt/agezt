@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Globe, Plus, RefreshCw, Pencil, Save, X, Download, Upload, Search, Tags, SlidersHorizontal, History, type LucideIcon } from "lucide-react";
 import { Row, Count } from "@/components/Panel";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,13 @@ import { useUI } from "@/components/ui/feedback";
 import { Disclosure } from "@/components/ui/disclosure";
 import { useWorldLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// WORLD_ROW_WINDOW caps how many entity rows / relation rows render at once.
+// /api/world has no cursor, so the whole graph arrives in one fetch — the
+// windows keep a big world model from ballooning the DOM and grow client-side
+// via Load-more footers. Counts, chips and the graph keep the full data.
+const WORLD_ROW_WINDOW = 60;
 
 // The entity kinds the world model recognises — offered when teaching it one.
 const WORLD_KINDS = ["person", "project", "repo", "org", "account", "device", "channel", "topic", "task"];
@@ -136,7 +143,15 @@ export function World() {
   const [kindFilter, setKindFilter] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [relateOpen, setRelateOpen] = useState(false);
+  const [entWin, setEntWin] = useState(WORLD_ROW_WINDOW);
+  const [edgeWin, setEdgeWin] = useState(WORLD_ROW_WINDOW);
   const { data, error, loading, reload } = usePanel<Record<string, any>>("/api/world");
+
+  // Reset the entity render window whenever the filters change so a new query
+  // always starts from the top of its result set.
+  useEffect(() => {
+    setEntWin(WORLD_ROW_WINDOW);
+  }, [q, kindFilter]);
 
   // Cursor-paginated world-model ops log (the journal-backed /api/world_log).
   const {
@@ -301,7 +316,7 @@ export function World() {
             {edges.length > 0 && (
               <div className="space-y-1">
                 <div className="text-[11px] font-semibold uppercase tracking-normal text-muted">Relations ({edges.length})</div>
-                {edges.map((r: any, i: number) => {
+                {edges.slice(0, edgeWin).map((r: any, i: number) => {
                   const from = nameById[r.from] || r.from;
                   const to = nameById[r.to] || r.to;
                   return (
@@ -328,6 +343,15 @@ export function World() {
                     </div>
                   );
                 })}
+                {edges.length > WORLD_ROW_WINDOW && (
+                  <LoadMoreFooter
+                    hasMore={edgeWin < edges.length}
+                    loadingMore={false}
+                    onLoadMore={() => setEdgeWin((w) => w + WORLD_ROW_WINDOW)}
+                    pageSize={Math.min(WORLD_ROW_WINDOW, Math.max(1, edges.length - edgeWin))}
+                    label="relations"
+                  />
+                )}
               </div>
             )}
             {/* Find an entity in a large graph by name, kind, or alias (M774). */}
@@ -360,7 +384,20 @@ export function World() {
                 {kindFilter ? ` in ${kindFilter}` : ""}
               </Muted>
             ) : (
-              shown.map((e: any, i: number) => <EntityRow key={e.id || i} entity={e} onChanged={reload} />)
+              <>
+                {shown.slice(0, entWin).map((e: any, i: number) => (
+                  <EntityRow key={e.id || i} entity={e} onChanged={reload} />
+                ))}
+                {shown.length > WORLD_ROW_WINDOW && (
+                  <LoadMoreFooter
+                    hasMore={entWin < shown.length}
+                    loadingMore={false}
+                    onLoadMore={() => setEntWin((w) => w + WORLD_ROW_WINDOW)}
+                    pageSize={Math.min(WORLD_ROW_WINDOW, Math.max(1, shown.length - entWin))}
+                    label="entities"
+                  />
+                )}
+              </>
             )}
           </>
         );
