@@ -5,6 +5,8 @@ package runtime
 import (
 	"slices"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/delegation"
 )
 
 func TestKeyedModelChain(t *testing.T) {
@@ -49,7 +51,7 @@ func TestKeyedModelChain(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotModel, gotChain := keyedModelChain(c.subModel, c.chain, c.avail, c.def)
+			gotModel, gotChain := delegation.KeyedModelChain(c.subModel, c.chain, c.avail, c.def)
 			if gotModel != c.wantModel {
 				t.Errorf("model = %q, want %q", gotModel, c.wantModel)
 			}
