@@ -10,6 +10,7 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
@@ -181,6 +182,13 @@ export { agentControlCenterLedger, agentModelRoutePassport, agentResiliencePassp
 export type { AgentCommandStripItem, AgentControlCenterEntry } from "./roster/passports";
 export { profileFields } from "./roster/form";
 
+// ROSTER_CARD_WINDOW is how many fleet cards render at once. /api/agents has no
+// cursor, so the whole roster arrives in one fetch — the window keeps a big
+// fleet from ballooning the DOM; a Load-more footer grows it client-side.
+// Cross-agent rollups (census metrics, mailbox/schedule pressure) always use
+// the FULL list, never the window.
+const ROSTER_CARD_WINDOW = 60;
+
 // Roster is the agent-identity console (M785): the durable, named agents
 // (M783) — each with its own soul, model, cost ceiling, and memory scope —
 // with create/edit/pause/resume/remove governance. Run one from chat or the
@@ -197,6 +205,13 @@ export function Roster() {
   const [activityFor, setActivityFor] = useState<string | null>(null);
   const [activityFocus, setActivityFocus] = useState<Record<string, string>>({});
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("all");
+  const [cardWin, setCardWin] = useState(ROSTER_CARD_WINDOW);
+
+  // Reset the render window whenever the roster tab changes so a new filter
+  // always starts from the top of its result set.
+  useEffect(() => {
+    setCardWin(ROSTER_CARD_WINDOW);
+  }, [rosterFilter]);
   const [retiring, setRetiring] = useState<{
     slug: string;
     reason: string;
@@ -593,6 +608,7 @@ export function Roster() {
 
   const list = useMemo(() => sortAgentRoster(applyAgentLivePatches(profiles || [], livePatches)), [profiles, livePatches]);
   const shownList = useMemo(() => filterAgentRoster(list, rosterFilter, mailboxCounts, schedulePressure), [list, mailboxCounts, rosterFilter, schedulePressure]);
+  const visibleList = useMemo(() => shownList.slice(0, cardWin), [shownList, cardWin]);
   const enabled = list.filter((p) => p.enabled && !p.retired).length;
   const paused = list.filter((p) => !p.enabled && !p.retired).length;
   const graveyard = list.filter((p) => p.retired).length;
@@ -1237,7 +1253,7 @@ export function Roster() {
       )}
 
       <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-        {shownList.map((p) => {
+        {visibleList.map((p) => {
           const open = editing === p.slug || activityFor === p.slug;
           const lifecycle = p.lifecycle?.mode || (p.lifecycle?.retire_on_complete ? "retire_on_complete" : "persistent");
           const cycleTasks = (p.tasklist || []).filter((t) => (t.scope || "total") === "cycle" && t.status !== "retired").length;
@@ -1901,6 +1917,15 @@ export function Roster() {
           );
         })}
       </ul>
+      {shownList.length > ROSTER_CARD_WINDOW && (
+        <LoadMoreFooter
+          hasMore={cardWin < shownList.length}
+          loadingMore={false}
+          onLoadMore={() => setCardWin((w) => w + ROSTER_CARD_WINDOW)}
+          pageSize={Math.min(ROSTER_CARD_WINDOW, Math.max(1, shownList.length - cardWin))}
+          label="agents"
+        />
+      )}
     </Page>
   );
 }

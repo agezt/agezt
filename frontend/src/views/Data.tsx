@@ -32,6 +32,23 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// DATA_RECORD_WINDOW caps how many records each renderer lists at once. The
+// /api/data/records fetch is bounded at 500, but rendering all of them at
+// once balloons the DOM — the window grows client-side via the Load-more
+// footer below the active renderer. Aggregates (expense totals, task counts,
+// section headers) keep the FULL record set; only the listed rows are
+// windowed.
+const DATA_RECORD_WINDOW = 60;
+
+// windowSplit budgets a render window across two sections (pending/done,
+// upcoming/past): the first section draws from the window first, the second
+// gets whatever budget remains, so the total rendered never exceeds `limit`.
+function windowSplit<T>(first: T[], second: T[], limit: number): [T[], T[]] {
+  const a = first.slice(0, limit);
+  return [a, second.slice(0, Math.max(0, limit - a.length))];
+}
 
 // Data view (M836): the human window onto the Personal Data Lake (kernel/datalake,
 // M834/M835) — the structured collections agents build and fill via the `db` tool.
@@ -114,6 +131,13 @@ export function Data() {
   const [loadingCols, setLoadingCols] = useState(false);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [editing, setEditing] = useState<DataRecord | "new" | null>(null);
+  const [win, setWin] = useState(DATA_RECORD_WINDOW);
+
+  // Reset the render window whenever the collection, search query, or writer
+  // filter changes so the list starts from the top of the new result set.
+  useEffect(() => {
+    setWin(DATA_RECORD_WINDOW);
+  }, [active, search, agentFilter]);
 
   const activeCol = useMemo(() => cols.find((c) => c.name === active) ?? null, [cols, active]);
   const agentOptions = useMemo(() => dataLakeAgents(records), [records]);
@@ -307,19 +331,19 @@ export function Data() {
                 hint="Clear the writer filter or pick another agent."
               />
             ) : activeCol.view === "expense" ? (
-              <ExpenseView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <ExpenseView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "tasks" ? (
-              <TasksView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} onToggle={(r) => saveRecord({ done: !truthy(r.fields?.done) }, r.id)} />
+              <TasksView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} onToggle={(r) => saveRecord({ done: !truthy(r.fields?.done) }, r.id)} />
             ) : activeCol.view === "calendar" ? (
-              <CalendarView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <CalendarView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "habits" ? (
-              <HabitsView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <HabitsView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "notes" ? (
-              <NotesView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <NotesView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "bookmarks" ? (
-              <BookmarksView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <BookmarksView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : activeCol.view === "contacts" ? (
-              <ContactsView records={visibleRecords} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
+              <ContactsView records={visibleRecords} limit={win} onEdit={(r) => setEditing(r)} onDelete={delRecord} />
             ) : (
               <div className="min-h-0 flex-1 overflow-auto glass rounded-xl">
                 <table className="w-full border-collapse text-sm">
@@ -334,7 +358,7 @@ export function Data() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleRecords.map((r) => (
+                    {visibleRecords.slice(0, win).map((r) => (
                       <tr key={r.id} className="group hover:bg-panel/50">
                         {fieldDefs.map((f) => (
                           <td
@@ -377,6 +401,15 @@ export function Data() {
                 </table>
               </div>
             )}
+            {visibleRecords.length > DATA_RECORD_WINDOW && (
+              <LoadMoreFooter
+                hasMore={win < visibleRecords.length}
+                loadingMore={false}
+                onLoadMore={() => setWin((w) => w + DATA_RECORD_WINDOW)}
+                pageSize={Math.min(DATA_RECORD_WINDOW, Math.max(1, visibleRecords.length - win))}
+                label="records"
+              />
+            )}
           </>
         ) : (
           !loadingCols && <EmptyState icon={Database} title="No collections" hint="Built-in collections seed at startup; agents can create more with the db tool." />
@@ -417,6 +450,8 @@ function fmtMoney(n: number): string {
 
 interface BespokeProps {
   records: DataRecord[];
+  /** Render window: list at most this many records (aggregates use all). */
+  limit: number;
   onEdit: (r: DataRecord) => void;
   onDelete: (r: DataRecord) => void;
 }
@@ -424,7 +459,7 @@ interface BespokeProps {
 // ExpenseView is the app-like layout for the "expense" collection (M856): summary
 // cards (total / this month / count), a by-category breakdown, and the recent
 // expenses list — instead of a raw table.
-function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
+function ExpenseView({ records, limit, onEdit, onDelete }: BespokeProps) {
   const total = records.reduce((s, r) => s + num(r.fields?.amount), 0);
   const ym = new Date().toISOString().slice(0, 7); // YYYY-MM (local-ish; dates are stored as YYYY-MM-DD)
   const thisMonth = records
@@ -466,7 +501,7 @@ function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
       )}
 
       <ul className="space-y-1">
-        {recent.map((r) => (
+        {recent.slice(0, limit).map((r) => (
           <li key={r.id} className="group flex items-center gap-3 glass rounded-xl px-3 py-2 text-sm">
             <span className="w-24 shrink-0 font-mono text-[11px] text-muted">{String(r.fields?.date ?? "")}</span>
             <span className="min-w-0 flex-1 truncate">{String(r.fields?.item ?? "—")}</span>
@@ -484,9 +519,10 @@ function ExpenseView({ records, onEdit, onDelete }: BespokeProps) {
 
 // TasksView is the app-like checklist for the "tasks" collection (M856): toggle a
 // task done by clicking its check, pending above done.
-function TasksView({ records, onEdit, onDelete, onToggle }: BespokeProps & { onToggle: (r: DataRecord) => void }) {
+function TasksView({ records, limit, onEdit, onDelete, onToggle }: BespokeProps & { onToggle: (r: DataRecord) => void }) {
   const pending = records.filter((r) => !truthy(r.fields?.done));
   const done = records.filter((r) => truthy(r.fields?.done));
+  const [shownPending, shownDone] = windowSplit(pending, done, limit);
 
   const Row = (r: DataRecord) => {
     const isDone = truthy(r.fields?.done);
@@ -507,12 +543,12 @@ function TasksView({ records, onEdit, onDelete, onToggle }: BespokeProps & { onT
     <div className="min-h-0 flex-1 space-y-3 overflow-auto">
       <div>
         <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">To do · {pending.length}</div>
-        <ul className="space-y-1">{pending.map(Row)}</ul>
+        <ul className="space-y-1">{shownPending.map(Row)}</ul>
       </div>
       {done.length > 0 && (
         <div>
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">Done · {done.length}</div>
-          <ul className="space-y-1 opacity-80">{done.map(Row)}</ul>
+          <ul className="space-y-1 opacity-80">{shownDone.map(Row)}</ul>
         </div>
       )}
     </div>
@@ -528,11 +564,12 @@ function tagList(v: unknown): string[] {
 
 // CalendarView (M860): an agenda grouped by date, soonest first — upcoming events
 // above past ones.
-function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
+function CalendarView({ records, limit, onEdit, onDelete }: BespokeProps) {
   const sorted = [...records].sort((a, b) => str(a.fields?.date).localeCompare(str(b.fields?.date)));
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = sorted.filter((r) => str(r.fields?.date) >= today);
   const past = sorted.filter((r) => str(r.fields?.date) < today).reverse();
+  const [shownUpcoming, shownPast] = windowSplit(upcoming, past, limit);
   const Item = (r: DataRecord) => (
     <li key={r.id} className="group flex items-start gap-3 glass rounded-xl px-3 py-2 text-sm">
       <div className="flex w-16 shrink-0 flex-col items-center rounded-md bg-panel py-1">
@@ -553,12 +590,12 @@ function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
     <div className="min-h-0 flex-1 space-y-3 overflow-auto">
       <div>
         <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">Upcoming · {upcoming.length}</div>
-        <ul className="space-y-1">{upcoming.map(Item)}</ul>
+        <ul className="space-y-1">{shownUpcoming.map(Item)}</ul>
       </div>
       {past.length > 0 && (
         <div>
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-muted">Past · {past.length}</div>
-          <ul className="space-y-1 opacity-70">{past.map(Item)}</ul>
+          <ul className="space-y-1 opacity-70">{shownPast.map(Item)}</ul>
         </div>
       )}
     </div>
@@ -566,11 +603,11 @@ function CalendarView({ records, onEdit, onDelete }: BespokeProps) {
 }
 
 // HabitsView (M860): streak cards — biggest streak first.
-function HabitsView({ records, onEdit, onDelete }: BespokeProps) {
+function HabitsView({ records, limit, onEdit, onDelete }: BespokeProps) {
   const sorted = [...records].sort((a, b) => num(b.fields?.streak) - num(a.fields?.streak));
   return (
     <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto md:grid-cols-3">
-      {sorted.map((r) => (
+      {sorted.slice(0, limit).map((r) => (
         <div key={r.id} className="group flex flex-col glass rounded-xl p-3">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate font-medium">{str(r.fields?.name) || "—"}</span>
@@ -592,10 +629,10 @@ function HabitsView({ records, onEdit, onDelete }: BespokeProps) {
 }
 
 // NotesView (M860): a card grid (title + body + tags).
-function NotesView({ records, onEdit, onDelete }: BespokeProps) {
+function NotesView({ records, limit, onEdit, onDelete }: BespokeProps) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-3">
-      {records.map((r) => (
+      {records.slice(0, limit).map((r) => (
         <div key={r.id} className="group flex flex-col glass rounded-xl p-3">
           <div className="flex items-center gap-2">
             <StickyNote className="size-3.5 shrink-0 text-accent" />
@@ -615,10 +652,10 @@ function NotesView({ records, onEdit, onDelete }: BespokeProps) {
 }
 
 // BookmarksView (M860): a list of links you can open, with tags.
-function BookmarksView({ records, onEdit, onDelete }: BespokeProps) {
+function BookmarksView({ records, limit, onEdit, onDelete }: BespokeProps) {
   return (
     <ul className="min-h-0 flex-1 space-y-1 overflow-auto">
-      {records.map((r) => {
+      {records.slice(0, limit).map((r) => {
         const url = str(r.fields?.url);
         // Only link when the scheme is navigable (http/https/mailto/…); a stored
         // url like "javascript:alert(1)" would otherwise execute on click (XSS).
@@ -654,11 +691,11 @@ function BookmarksView({ records, onEdit, onDelete }: BespokeProps) {
 }
 
 // ContactsView (M860): a card grid (name + email + phone + company).
-function ContactsView({ records, onEdit, onDelete }: BespokeProps) {
+function ContactsView({ records, limit, onEdit, onDelete }: BespokeProps) {
   const sorted = [...records].sort((a, b) => str(a.fields?.name).localeCompare(str(b.fields?.name)));
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-auto md:grid-cols-2 xl:grid-cols-3">
-      {sorted.map((r) => (
+      {sorted.slice(0, limit).map((r) => (
         <div key={r.id} className="group flex flex-col glass rounded-xl p-3">
           <div className="flex items-center gap-2">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-panel text-accent">

@@ -100,7 +100,7 @@ export function AgentDetail({
   useEffect(() => {
     let alive = true;
     Promise.allSettled([
-      getJSON<{ records?: MemoryRecord[] }>("/api/memory"),
+      getJSON<{ records?: MemoryRecord[] }>("/api/memory", { limit: "200" }),
       getJSON<{ skills?: SkillLite[] }>("/api/skills"),
       getJSON<{ decisions?: PolicyDecision[] }>("/api/policy_log", {
         limit: "200",
@@ -115,7 +115,7 @@ export function AgentDetail({
       getJSON<{ ask_policy?: string; levels?: Record<string, string> }>("/api/edict_show"),
       getJSON<{ tools?: ToolCatalogRow[] }>("/api/tools_catalog"),
       getJSON<AgentPermissionsSnapshot>("/api/agents/permissions", { ref: slug }),
-      getJSON<{ messages?: BoardMessage[] }>("/api/board"),
+      getJSON<{ messages?: BoardMessage[] }>("/api/board", { limit: "200" }),
       getJSON<RoutingInfo>("/api/routing"),
       getJSON<{ events?: ProviderRoutingRow[] }>("/api/provider_log", {
         limit: "200",

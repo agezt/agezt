@@ -1,10 +1,17 @@
+import { useState } from "react";
 import { Sparkles, ArrowUpRight, Share2 } from "lucide-react";
 import { clip } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { type SkillLite } from "@/lib/agentdetail";
+
+// SKILL_ROW_WINDOW is how many private-skill rows render at once — the skills
+// prop is filtered per-agent upstream (/api/skills has no cursor); the window
+// keeps a prolific author from ballooning the DOM, grown via Load-more.
+const SKILL_ROW_WINDOW = 60;
 
 export function SkillsTab({
   skills,
@@ -21,6 +28,7 @@ export function SkillsTab({
   ) => void;
   onManage: (view: string) => void;
 }) {
+  const [win, setWin] = useState(SKILL_ROW_WINDOW);
   if (!skills) return <SkeletonList count={3} lines={2} />;
   if (skills.length === 0)
     return (
@@ -33,7 +41,7 @@ export function SkillsTab({
   return (
     <div className="space-y-2">
       <ul className="space-y-2">
-        {skills.map((s) => (
+        {skills.slice(0, win).map((s) => (
           <li
             key={s.id}
             className="rounded-lg border border-border bg-panel/30 p-2.5"
@@ -77,6 +85,15 @@ export function SkillsTab({
           </li>
         ))}
       </ul>
+      {skills.length > SKILL_ROW_WINDOW && (
+        <LoadMoreFooter
+          hasMore={win < skills.length}
+          loadingMore={false}
+          onLoadMore={() => setWin((w) => w + SKILL_ROW_WINDOW)}
+          pageSize={Math.min(SKILL_ROW_WINDOW, Math.max(1, skills.length - win))}
+          label="skills"
+        />
+      )}
       <Button variant="ghost" size="sm" onClick={() => onManage("skills")}>
         Open Skills <ArrowUpRight className="size-3.5" />
       </Button>

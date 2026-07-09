@@ -1039,6 +1039,12 @@ export function scheduleFireMeta(f: Pick<ScheduleFire, "target" | "agent" | "mod
   ].filter(Boolean);
 }
 
+// SCHEDULE_ROW_WINDOW is how many schedule rows render at once. /api/schedules
+// has no cursor, so the whole list arrives in one fetch — the window keeps a
+// big fleet of schedules from ballooning the DOM; a Load-more footer grows it
+// client-side. Attention counts and rollups always use the FULL list.
+const SCHEDULE_ROW_WINDOW = 60;
+
 // Schedules is the autonomy cockpit: every cron-like job — whether it wakes an
 // agent, runs a workflow, invokes a tool, or performs a system task — with its
 // cadence, next fire, last outcome and origin, plus run-now / pause-resume /
@@ -1069,6 +1075,13 @@ export function Schedules() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [targetFilter, setTargetFilter] = useState<ScheduleTargetFilter>("all");
+  const [rowWin, setRowWin] = useState(SCHEDULE_ROW_WINDOW);
+
+  // Reset the render window whenever the target filter changes so a new
+  // filter always starts from the top of its result set.
+  useEffect(() => {
+    setRowWin(SCHEDULE_ROW_WINDOW);
+  }, [targetFilter]);
   // Fire-time preview (M744): the schedule id whose next fires are shown + the times.
   const [forecast, setForecast] = useState<{ id: string; times: number[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1205,6 +1218,7 @@ export function Schedules() {
     () => (items ? filterScheduleItems(items, targetFilter, profiles, workflows, tools, systemTaskInfo) : []),
     [items, profiles, targetFilter, tools, workflows, systemTaskInfo],
   );
+  const visibleItems = useMemo(() => shownItems.slice(0, rowWin), [shownItems, rowWin]);
   const editingSchedule = useMemo(
     () => (editingId ? (items || []).find((s) => s.id === editingId) || null : null),
     [editingId, items],
@@ -1353,7 +1367,7 @@ export function Schedules() {
             <EmptyState icon={CalendarClock} title="No matching schedules" hint="Try a different target filter." />
           ) : (
           <ul className="space-y-2">
-            {shownItems.map((s) => {
+            {visibleItems.map((s) => {
               const resumeIssue = scheduleResumeIssue(s, profiles);
               const targetLabel = scheduleTargetLabel(s);
               const actionTitle = scheduleActionTitle(s);
@@ -1676,6 +1690,15 @@ export function Schedules() {
               );
             })}
           </ul>
+          )}
+          {shownItems.length > SCHEDULE_ROW_WINDOW && (
+            <LoadMoreFooter
+              hasMore={rowWin < shownItems.length}
+              loadingMore={false}
+              onLoadMore={() => setRowWin((w) => w + SCHEDULE_ROW_WINDOW)}
+              pageSize={Math.min(SCHEDULE_ROW_WINDOW, Math.max(1, shownItems.length - rowWin))}
+              label="schedules"
+            />
           )}
         </div>
       )}

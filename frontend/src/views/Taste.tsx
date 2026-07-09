@@ -8,6 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// TASTE_WINDOW is how many exemplar cards render at once. /api/taste has no
+// cursor, so the whole list arrives in one fetch — the window keeps a large
+// exemplar library from ballooning the DOM; a Load-more footer grows it
+// client-side. The metrics up top stay computed over the FULL list.
+const TASTE_WINDOW = 60;
 
 export interface TasteExemplar {
   id: string;
@@ -36,6 +43,7 @@ export function Taste() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [scope, setScope] = useState("");
+  const [win, setWin] = useState(TASTE_WINDOW);
 
   const globalCount = useMemo(() => exemplars.filter((e) => !e.scope?.trim()).length, [exemplars]);
 
@@ -138,7 +146,7 @@ export function Taste() {
         <EmptyState icon={Sparkles} title="No exemplars yet" hint="Add a “what good looks like” example. Global ones shape every run; scoped ones apply to a named agent." />
       ) : (
         <div className="grid gap-3">
-          {exemplars.map((e) => (
+          {exemplars.slice(0, win).map((e) => (
             <article key={e.id} className="rounded-lg border border-border bg-card/75 p-3">
               <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -164,6 +172,15 @@ export function Taste() {
               )}
             </article>
           ))}
+          {exemplars.length > TASTE_WINDOW && (
+            <LoadMoreFooter
+              hasMore={win < exemplars.length}
+              loadingMore={false}
+              onLoadMore={() => setWin((w) => w + TASTE_WINDOW)}
+              pageSize={Math.min(TASTE_WINDOW, Math.max(1, exemplars.length - win))}
+              label="exemplars"
+            />
+          )}
         </div>
       )}
     </Page>

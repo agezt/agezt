@@ -11,6 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { useUI } from "@/components/ui/feedback";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// PACK_WINDOW is how many pack cards render at once. /api/market has no
+// cursor, so the whole catalogue arrives in one fetch — the window keeps a
+// big catalogue from ballooning the DOM; a Load-more footer grows it
+// client-side and the window resets on every search/category/filter change.
+// Category chips and the header counts stay computed over the FULL list.
+const PACK_WINDOW = 60;
 
 // A marketplace catalogue row joined with install state (see kernel/market.Listing).
 interface Pack {
@@ -82,7 +90,14 @@ export function Market() {
   const [newURL, setNewURL] = useState("");
   const [newName, setNewName] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [win, setWin] = useState(PACK_WINDOW);
   const ui = useUI();
+
+  // Reset the render window whenever a filter changes so a new query always
+  // starts from the top of its result set.
+  useEffect(() => {
+    setWin(PACK_WINDOW);
+  }, [query, cat, installedOnly]);
 
   async function load() {
     try {
@@ -375,8 +390,9 @@ export function Market() {
       ) : shown.length === 0 ? (
         <EmptyState icon={Store} title="No packs match" hint="Try a different search or category." />
       ) : (
+        <>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {shown.map((p) => (
+          {shown.slice(0, win).map((p) => (
             <Card key={p.name} glass className="p-3">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
@@ -481,6 +497,16 @@ export function Market() {
             </Card>
           ))}
         </div>
+        {shown.length > PACK_WINDOW && (
+          <LoadMoreFooter
+            hasMore={win < shown.length}
+            loadingMore={false}
+            onLoadMore={() => setWin((w) => w + PACK_WINDOW)}
+            pageSize={Math.min(PACK_WINDOW, Math.max(1, shown.length - win))}
+            label="packs"
+          />
+        )}
+        </>
       )}
     </Page>
   );

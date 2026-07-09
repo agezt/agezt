@@ -167,6 +167,12 @@ interface WorkboardWatchData {
 
 const STATUS_ORDER = ["triage", "todo", "ready", "running", "blocked", "review", "done", "archived"];
 
+// LANE_CARD_WINDOW caps how many task cards each lane renders at once. The
+// lanes fetch is bounded at 500, but rendering every card balloons the DOM —
+// each lane windows its own cards and grows via a compact per-lane Load-more
+// button. Lane headers and status chips keep the FULL counts.
+const LANE_CARD_WINDOW = 30;
+
 export function workboardTaskFromHash(hash: string): string {
   const raw = hash.replace(/^#\/?/, "");
   const [, query = ""] = raw.split("?");
@@ -451,6 +457,11 @@ function Metric({ label, value, tone }: { label: string; value: number; tone: "a
 
 function LaneColumn({ lane, selectedID, onSelect }: { lane: WorkboardLane; selectedID: string; onSelect: (id: string) => void }) {
   const laneTasks = lane.tasks || [];
+  // Per-lane render window (consistent with LoadMoreFooter, but compact so it
+  // fits inside a lane). The lane header Badge keeps the FULL count.
+  const [win, setWin] = useState(LANE_CARD_WINDOW);
+  const shownTasks = laneTasks.slice(0, win);
+  const hidden = laneTasks.length - shownTasks.length;
   return (
     <div className="rounded-md border border-border bg-panel/45 p-2">
       <div className="mb-1.5 flex min-w-0 items-center gap-2">
@@ -467,7 +478,7 @@ function LaneColumn({ lane, selectedID, onSelect }: { lane: WorkboardLane; selec
         ))}
       </div>
       <ul className="space-y-1">
-        {laneTasks.map((task) => (
+        {shownTasks.map((task) => (
           <li key={task.id}>
             <button
               onClick={() => onSelect(task.id)}
@@ -501,6 +512,15 @@ function LaneColumn({ lane, selectedID, onSelect }: { lane: WorkboardLane; selec
           </li>
         ))}
       </ul>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setWin((w) => w + LANE_CARD_WINDOW)}
+          className="mt-1.5 w-full rounded-md border border-border bg-card px-2 py-1 text-[11px] text-muted transition-colors hover:border-accent hover:text-foreground"
+        >
+          Load {Math.min(LANE_CARD_WINDOW, hidden)} more ({hidden} hidden)
+        </button>
+      )}
     </div>
   );
 }

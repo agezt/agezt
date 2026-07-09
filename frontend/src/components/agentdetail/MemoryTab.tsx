@@ -1,9 +1,16 @@
+import { useState } from "react";
 import { Brain, ArrowUpRight, Share2 } from "lucide-react";
 import { fmtAgo, clip } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { type MemoryRecord } from "@/lib/agentdetail";
+
+// MEMORY_ROW_WINDOW is how many memory records render at once — the records
+// prop is already bounded and filtered per-agent upstream; the window keeps a
+// dense scope from ballooning the DOM, grown client-side via Load-more.
+const MEMORY_ROW_WINDOW = 60;
 
 export function MemoryTab({
   records,
@@ -22,6 +29,7 @@ export function MemoryTab({
   ) => void;
   onManage: (view: string) => void;
 }) {
+  const [win, setWin] = useState(MEMORY_ROW_WINDOW);
   if (!records) return <SkeletonList count={4} lines={2} />;
   if (records.length === 0)
     return (
@@ -39,7 +47,7 @@ export function MemoryTab({
         {records.length} record(s)
       </div>
       <ul className="space-y-2">
-        {records.map((r) => (
+        {records.slice(0, win).map((r) => (
           <li
             key={r.id}
             className="rounded-lg border border-border bg-panel/30 p-2.5"
@@ -88,6 +96,15 @@ export function MemoryTab({
           </li>
         ))}
       </ul>
+      {records.length > MEMORY_ROW_WINDOW && (
+        <LoadMoreFooter
+          hasMore={win < records.length}
+          loadingMore={false}
+          onLoadMore={() => setWin((w) => w + MEMORY_ROW_WINDOW)}
+          pageSize={Math.min(MEMORY_ROW_WINDOW, Math.max(1, records.length - win))}
+          label="memory records"
+        />
+      )}
       <Button variant="ghost" size="sm" onClick={() => onManage("memory")}>
         Open Memory <ArrowUpRight className="size-3.5" />
       </Button>

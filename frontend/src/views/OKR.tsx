@@ -8,6 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// OKR_WINDOW is how many objective cards render at once. /api/okr has no
+// cursor, so the whole list arrives in one fetch — the window keeps a large
+// objective set from ballooning the DOM; a Load-more footer grows it
+// client-side. Metrics up top stay computed over the FULL list.
+const OKR_WINDOW = 60;
+
+// PICKER_WINDOW caps the linkable-task <select> options per objective —
+// /api/workboard takes no limit arg, so the fetch is unbounded and the picker
+// is bounded client-side instead (a truncation marker notes the remainder).
+const PICKER_WINDOW = 60;
 
 export interface OKRKeyResultProgress {
   id?: string;
@@ -60,6 +72,7 @@ export function OKR() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [win, setWin] = useState(OKR_WINDOW);
 
   const avg = useMemo(() => okrAveragePercent(objectives), [objectives]);
   const achieved = useMemo(() => okrAchievedCount(objectives), [objectives]);
@@ -146,9 +159,18 @@ export function OKR() {
         <EmptyState icon={Target} title="No objectives yet" hint="Create an objective, add key results, and link workboard tasks — proven tasks roll their progress up here." />
       ) : (
         <div className="grid gap-3">
-          {objectives.map((o) => (
+          {objectives.slice(0, win).map((o) => (
             <ObjectiveCard key={o.id} obj={o} tasks={tasks} busy={busy} mutate={mutate} />
           ))}
+          {objectives.length > OKR_WINDOW && (
+            <LoadMoreFooter
+              hasMore={win < objectives.length}
+              loadingMore={false}
+              onLoadMore={() => setWin((w) => w + OKR_WINDOW)}
+              pageSize={Math.min(OKR_WINDOW, Math.max(1, objectives.length - win))}
+              label="objectives"
+            />
+          )}
         </div>
       )}
     </Page>
@@ -172,6 +194,8 @@ function ObjectiveCard({
   const [linkTask, setLinkTask] = useState("");
   const krs = obj.progress?.key_results || [];
   const linkable = tasks.filter((t) => t.status !== "archived");
+  // Bound the picker's rendered options client-side (see PICKER_WINDOW).
+  const pickerTasks = linkable.slice(0, PICKER_WINDOW);
   const percent = obj.percent || 0;
   const done = obj.status === "achieved" || !!obj.achieved;
 
@@ -276,9 +300,14 @@ function ObjectiveCard({
               className="h-8 min-w-0 flex-1 rounded-md border border-border bg-panel px-2 text-xs outline-none focus-visible:border-accent"
             >
               <option value="">{linkable.length ? "task…" : "no tasks"}</option>
-              {linkable.map((t) => (
+              {pickerTasks.map((t) => (
                 <option key={t.id} value={t.id}>{t.title || t.id} · {t.status}</option>
               ))}
+              {linkable.length > PICKER_WINDOW && (
+                <option value="" disabled>
+                  …and {linkable.length - PICKER_WINDOW} more — manage on Workboard
+                </option>
+              )}
             </select>
             <Button
               size="sm"

@@ -12,6 +12,14 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// STANDING_ORDER_WINDOW caps how many standing-order cards render at once.
+// /api/standing has no pagination (the list arrives whole), so the window
+// keeps a big roster from ballooning the DOM and grows client-side via the
+// Load-more footer. Stats and filter chips keep the FULL counts; only the
+// rendered cards are windowed.
+const STANDING_ORDER_WINDOW = 60;
 
 interface Trigger {
   type?: string;
@@ -122,6 +130,13 @@ export function Standing() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StandingFilter>("all");
+  const [win, setWin] = useState(STANDING_ORDER_WINDOW);
+
+  // Reset the render window whenever the filter changes so the list starts
+  // from the top of the newly-filtered set.
+  useEffect(() => {
+    setWin(STANDING_ORDER_WINDOW);
+  }, [filter]);
   // Order life-story (M746): the order id whose journal history is shown + events.
   const [history, setHistory] = useState<{ id: string; events: WhyEvent[] } | null>(null);
 
@@ -343,7 +358,7 @@ export function Standing() {
             ))}
           </div>
           <ul className="space-y-2">
-            {shownOrders.map((o) => {
+            {shownOrders.slice(0, win).map((o) => {
               const resumeIssue = standingResumeIssue(o, agentBySlug);
               const frequencyIssue = standingFrequencyIssue(o);
               const attentionReasons = standingAttentionReasons(o, agentBySlug);
@@ -501,6 +516,15 @@ export function Standing() {
               );
             })}
           </ul>
+          {shownOrders.length > STANDING_ORDER_WINDOW && (
+            <LoadMoreFooter
+              hasMore={win < shownOrders.length}
+              loadingMore={false}
+              onLoadMore={() => setWin((w) => w + STANDING_ORDER_WINDOW)}
+              pageSize={Math.min(STANDING_ORDER_WINDOW, Math.max(1, shownOrders.length - win))}
+              label="standing orders"
+            />
+          )}
         </div>
       )}
 
