@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
 import { downloadText } from "@/lib/export";
@@ -229,24 +230,13 @@ export function Routing() {
   }
 
   return (
-    <div className="space-y-4">
-      <input
-        ref={fileRef}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        aria-hidden="true"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void onImportFile(f);
-          e.target.value = "";
-        }}
-      />
-      <PageHeader
-        icon={Route}
-        title="Routing"
-        description="per-task model chains"
-        actions={
+    <Page
+      icon={Route}
+      title="Routing"
+      description="Per-task model chains — primary first, fallbacks in order"
+      width="readable"
+      mode="scroll"
+      actions={
           <>
             <Button
               variant="ghost"
@@ -271,13 +261,26 @@ export function Routing() {
             </Button>
           </>
         }
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        aria-hidden="true"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onImportFile(f);
+          e.target.value = "";
+        }}
       />
-
-      <p className="text-xs text-muted">
-        Give each agentic job its own ordered model chain: the <span className="text-foreground/80">primary</span> model
-        is tried first, then each <span className="text-foreground/80">fallback</span> in turn (each routes to its keyed
-        provider). Leave a task empty to use the daemon default. Changes apply live and persist.
-      </p>
+      <Disclosure summary={<span className="text-xs text-muted">How task routing works</span>}>
+        <p className="px-2 text-xs text-muted">
+          Give each agentic job its own ordered model chain: the <span className="text-foreground/80">primary</span> model
+          is tried first, then each <span className="text-foreground/80">fallback</span> in turn (each routes to its keyed
+          provider). Leave a task empty to use the daemon default. Changes apply live and persist.
+        </p>
+      </Disclosure>
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -300,7 +303,7 @@ export function Routing() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

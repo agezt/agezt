@@ -3,7 +3,7 @@ import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, Chec
 import { cn } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Sparkline, BarRow } from "@/components/Widgets";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
@@ -184,23 +184,23 @@ export function Health() {
   const maxFb = Math.max(1, ...fallbacks.map(([, c]) => c));
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        icon={HeartPulse}
-        title="Health"
-        actions={
-          <>
-            {st?.halted && (
-              <Badge variant="bad">
-                <Pause className="size-3" /> Halted
-              </Badge>
-            )}
-            <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={HeartPulse}
+      title="Health"
+      width="wide"
+      actions={
+        <>
+          {st?.halted && (
+            <Badge variant="bad">
+              <Pause className="size-3" /> Halted
+            </Badge>
+          )}
+          <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        </>
+      }
+    >
 
       {/* Doctor — active diagnostics with remedies (M921) */}
       <DoctorCard diags={runDiagnostics(st, stats, journalOk)} loaded={st !== null} />
@@ -291,7 +291,7 @@ export function Health() {
           )}
         </HealthPanel>
       )}
-    </div>
+    </Page>
   );
 }
 

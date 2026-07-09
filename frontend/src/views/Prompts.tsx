@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty";
 import { downloadText } from "@/lib/export";
 
 // parsePromptsJSON normalises an imported prompt file into clean {title,text} rows,
@@ -137,7 +138,30 @@ export function Prompts() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <Page
+      icon={MessageSquarePlus}
+      title="Prompts"
+      description="Reusable chat prompts, saved daemon-side and launched from Chat's empty state."
+      width="readable"
+      mode="scroll"
+      className="max-w-3xl"
+      actions={
+        <>
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import prompts from a JSON file">
+            <Upload className="size-3.5" /> Import
+          </Button>
+          <Button variant="ghost" size="sm" onClick={exportPrompts} disabled={items.length === 0} title="Export prompts to a JSON file">
+            <Download className="size-3.5" /> Export
+          </Button>
+          <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save prompts">
+            {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
+            <RefreshCw className={loading ? "size-3.5 animate-spin" : "size-3.5"} />
+          </Button>
+        </>
+      }
+    >
       <input
         ref={fileRef}
         type="file"
@@ -150,26 +174,6 @@ export function Prompts() {
           e.target.value = ""; // allow re-importing the same file
         }}
       />
-      <PageHeader
-        icon={MessageSquarePlus}
-        title="Prompts"
-        actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import prompts from a JSON file">
-              <Upload className="size-3.5" /> Import
-            </Button>
-            <Button variant="ghost" size="sm" onClick={exportPrompts} disabled={items.length === 0} title="Export prompts to a JSON file">
-              <Download className="size-3.5" /> Export
-            </Button>
-            <Button size="sm" onClick={save} disabled={!dirty || saving} title="Save prompts">
-              {saving ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save
-            </Button>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
-              <RefreshCw className={loading ? "size-3.5 animate-spin" : "size-3.5"} />
-            </Button>
-          </>
-        }
-      />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -179,9 +183,11 @@ export function Prompts() {
         <PromptLibraryPanel title="Prompt library" count={items.length}>
           <div className="space-y-2">
             {items.length === 0 && (
-              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
-                No prompts yet
-              </div>
+              <EmptyState
+                icon={MessageSquarePlus}
+                title="No prompts yet"
+                hint="Add a reusable prompt below, or import a JSON library — then Save."
+              />
             )}
             {items.map((p, i) => (
               <div key={i} className="glass rounded-xl p-3">
@@ -241,7 +247,7 @@ export function Prompts() {
           </div>
         </PromptModal>
       )}
-    </div>
+    </Page>
   );
 }
 

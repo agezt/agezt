@@ -6,7 +6,7 @@ import { cn, clip, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Ring } from "@/components/Widgets";
 import { useToolLogPager } from "@/lib/cursorPager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
@@ -218,17 +218,19 @@ export function Tools() {
   const shownTools = useMemo(() => filterTools(views, query, capFilter), [views, query, capFilter]);
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Wrench}
-        title="Tools"
-        description="Tool usage monitor — capabilities, call volume, and a live invocation log."
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-        }
-      />
+    <Page
+      icon={Wrench}
+      title="Tools"
+      description="Tool usage monitor — capabilities, call volume, and a live invocation log."
+      width="wide"
+      mode="scroll"
+      className="gap-4"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      }
+    >
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -412,7 +414,7 @@ export function Tools() {
           </Card>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 

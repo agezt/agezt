@@ -3,7 +3,7 @@ import { Store, RefreshCw, Search, Download, Trash2, ShieldCheck, ShieldAlert, C
 import { getJSON, postJSON } from "@/lib/api";
 import { streamMarket, stepFromFrame, fetchPackDetails, type MarketStep, type PackDetails } from "@/lib/market";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,32 +256,33 @@ export function Market() {
   const installedCount = (packs || []).filter((p) => p.installed).length;
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Store}
-        title="Marketplace"
-        description={packs ? `${packs.length} packs · ${installedCount} installed` : "Install capability packs — skills, MCP servers, and tools"}
-        actions={
-          <>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search packs…"
-                className="h-8 w-44 pl-7 sm:w-56"
-                aria-label="Search packs"
-              />
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowSources(true)}>
-              <Globe className="size-3.5" /> Sources{sources.length > 0 ? ` (${sources.length})` : ""}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={load} disabled={packs === null}>
-              <RefreshCw className={cn("size-3.5", packs === null && "animate-spin")} /> Refresh
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Store}
+      title="Marketplace"
+      description={packs ? `${packs.length} packs · ${installedCount} installed` : "Install capability packs — skills, MCP servers, and tools"}
+      width="wide"
+      mode="scroll"
+      actions={
+        <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search packs…"
+              className="h-8 w-44 pl-7 sm:w-56"
+              aria-label="Search packs"
+            />
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setShowSources(true)}>
+            <Globe className="size-3.5" /> Sources{sources.length > 0 ? ` (${sources.length})` : ""}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={load} disabled={packs === null}>
+            <RefreshCw className={cn("size-3.5", packs === null && "animate-spin")} /> Refresh
+          </Button>
+        </>
+      }
+    >
 
       {showSources && (
         <MarketModal title="Remote marketplaces" icon={Globe} onClose={() => setShowSources(false)}>
@@ -481,6 +482,6 @@ export function Market() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

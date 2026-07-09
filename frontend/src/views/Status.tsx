@@ -23,7 +23,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Advanced, Calm } from "@/components/ui/advanced";
 import { TabNav } from "@/components/ui/tab-nav";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 
@@ -296,27 +296,26 @@ export function Status() {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        icon={Activity}
-        title="System health"
-        description={
-          <span className={cn(
-            "inline-flex items-center gap-1 text-xs font-medium",
-            connected ? "text-good" : "text-bad",
-          )}>
-            ● {connected ? "live" : "disconnected"}
-          </span>
-        }
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-        }
-      />
-
+    <Page
+      icon={Activity}
+      title="System health"
+      width="wide"
+      description={
+        <span className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium",
+          connected ? "text-good" : "text-bad",
+        )}>
+          ● {connected ? "live" : "disconnected"}
+        </span>
+      }
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      }
+    >
       <TabNav tabs={tabs} />
-    </div>
+    </Page>
   );
 }
 

@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import {
   filterTools, census, categoriesPresent, CATEGORY_LABELS, streamInstall,
   type Inventory, type ToolStatus, type ToolFilter, type ToolCategory, type InstallProgress,
@@ -105,23 +105,23 @@ export function Toolbox() {
     tools.filter((t) => t.category === cat && !t.installed && t.installable).map((t) => t.name);
 
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <PageHeader
-        icon={Wrench}
-        title="Toolbox"
-        description="Host CLI-tool library — install missing tools via the host package manager."
-        actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={checkUpdates} disabled={checkingUpd || !inv} title="Ask the package managers what's upgradable">
-              <ArrowUpCircle className={cn("size-3.5", checkingUpd && "animate-pulse")} /> Check updates
-            </Button>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-scan host">
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Wrench}
+      title="Toolbox"
+      description="Host CLI-tool library — install missing tools via the host package manager."
+      width="wide"
+      mode="scroll"
+      actions={
+        <>
+          <Button variant="ghost" size="sm" onClick={checkUpdates} disabled={checkingUpd || !inv} title="Ask the package managers what's upgradable">
+            <ArrowUpCircle className={cn("size-3.5", checkingUpd && "animate-pulse")} /> Check updates
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-scan host">
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    >
 
       {/* Host / package-manager chips */}
       {inv && (
@@ -237,7 +237,7 @@ export function Toolbox() {
           <InstallLog log={log} />
         </ToolboxModal>
       )}
-    </div>
+    </Page>
   );
 }
 

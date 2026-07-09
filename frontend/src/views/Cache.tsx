@@ -5,9 +5,10 @@ import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Ring } from "@/components/Widgets";
 
@@ -54,18 +55,18 @@ export function Cache() {
   const total = reads + writes;
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Database}
-        title="Prompt cache"
-        description="Prompt-cache savings, read vs write token split, and priced-call count."
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-        }
-      />
-
+    <Page
+      icon={Database}
+      title="Prompt cache"
+      description="Prompt-cache savings, read vs write token split, and priced-call count."
+      width="readable"
+      mode="scroll"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      }
+    >
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !d ? (
@@ -114,10 +115,14 @@ export function Cache() {
               </div>
             </div>
           ) : (
-            <Muted>no prompt-cache usage recorded yet</Muted>
+            <EmptyState
+              icon={Database}
+              title="No prompt-cache usage recorded yet"
+              hint="Cache reads and writes appear here once priced calls start hitting the prompt cache."
+            />
           )}
         </>
       )}
-    </div>
+    </Page>
   );
 }

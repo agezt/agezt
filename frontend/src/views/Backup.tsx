@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Download, Upload, Palette, Server, Info, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/lib/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
@@ -124,13 +124,13 @@ export function Backup() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Archive}
-        title="Backup & Restore"
-
-      />
-
+    <Page
+      icon={Archive}
+      title="Backup & Restore"
+      description="Carry your console appearance, daemon config, or a full snapshot between machines."
+      width="readable"
+      mode="scroll"
+    >
       <input
         ref={appearanceRef}
         type="file"
@@ -234,7 +234,6 @@ export function Backup() {
           </div>
         </div>
       </div>
-
-    </div>
+    </Page>
   );
 }

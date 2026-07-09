@@ -8,7 +8,6 @@ import {
   KeyRound,
   Laptop,
   Cloud,
-  ChevronDown,
   Sliders,
   ExternalLink,
 } from "lucide-react";
@@ -17,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useUI } from "@/components/ui/feedback";
+import { Disclosure } from "@/components/ui/disclosure";
 import { cn } from "@/lib/utils";
 import { FieldRow, type Field, type ValueEntry } from "@/views/ConfigCenter";
 import {
@@ -519,17 +519,18 @@ function CustomEndpoint({
 }) {
   return (
     <div className="mt-3 border-t border-border/60 pt-2">
-      <button type="button" onClick={onToggle} className="flex w-full items-center gap-1.5 text-xs text-muted hover:text-foreground">
-        <ChevronDown className={cn("size-3.5 transition-transform", open ? "rotate-0" : "-rotate-90")} />
-        Advanced · custom endpoint
-      </button>
-      {open && (
-        <div className="mt-2 space-y-3">
+      <Disclosure
+        open={open}
+        onOpenChange={onToggle}
+        summary={<span className="text-xs font-normal text-muted">Advanced · custom endpoint</span>}
+        summaryClassName="px-0 py-1"
+      >
+        <div className="mt-1 space-y-3">
           {fields.map((f) => (
             <FieldRow key={f.env} field={f} entry={values[f.env]} onSaved={loadValues} toast={toast} />
           ))}
         </div>
-      )}
+      </Disclosure>
     </div>
   );
 }

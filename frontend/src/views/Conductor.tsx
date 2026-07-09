@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Network, Send, Loader2, CheckCircle2, XCircle, ChevronRight, Play, X } from "lucide-react";
+import { Network, Send, Loader2, CheckCircle2, XCircle, Play, X } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Disclosure } from "@/components/ui/disclosure";
 import { ModelPicker } from "@/components/ModelPicker";
 import { useConductorStore, startConductorRun, applyConductorResult, genConductorCorr } from "@/lib/conductorStore";
 import { type ConductorRun, type ConductorStep, progressLabel } from "@/lib/conductor";
@@ -47,7 +48,6 @@ export function Conductor() {
   const [verifier, setVerifier] = useState("");
   const [maxRounds, setMaxRounds] = useState(2);
   const [plan, setPlan] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
@@ -102,17 +102,17 @@ export function Conductor() {
   const noModels = roles && !roles.thinker && !roles.worker && !roles.verifier;
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        icon={Network}
-        title="Conductor"
-        description="Thinker → Worker → Verifier on different models — solve a hard task and verify it (running the code when it can)."
-        actions={
-          <Button size="sm" onClick={() => setTaskOpen(true)}>
-            <Send className="size-3.5" /> New task
-          </Button>
-        }
-      />
+    <Page
+      icon={Network}
+      title="Conductor"
+      description="Thinker → Worker → Verifier on different models — solve a hard task and verify it (running the code when it can)."
+      className="gap-4"
+      actions={
+        <Button size="sm" onClick={() => setTaskOpen(true)}>
+          <Send className="size-3.5" /> New task
+        </Button>
+      }
+    >
 
       {noModels && (
         <Card glass className="p-3 text-sm text-muted">
@@ -141,14 +141,6 @@ export function Conductor() {
             <input type="checkbox" checked={plan} onChange={(e) => setPlan(e.target.checked)} />
             <span>Tailor role instructions first</span>
           </label>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="flex items-center gap-1 text-muted hover:text-foreground"
-          >
-            <ChevronRight className={cn("size-3.5 transition-transform", showAdvanced && "rotate-90")} />
-            Role models
-          </button>
           <div className="ml-auto">
             <Button onClick={go} disabled={running || !task.trim()}>
               {running ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
@@ -157,20 +149,20 @@ export function Conductor() {
           </div>
         </div>
 
-        {showAdvanced && (
+        <Disclosure summary={<span className="text-xs font-semibold uppercase tracking-normal text-muted">Role models</span>}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <RolePicker label="Thinker" value={thinker} onChange={setThinker} auto={roles?.thinker} tint={ROLE_META.thinker.tint} />
             <RolePicker label="Worker" value={worker} onChange={setWorker} auto={roles?.worker} tint={ROLE_META.worker.tint} />
             <RolePicker label="Verifier" value={verifier} onChange={setVerifier} auto={roles?.verifier} tint={ROLE_META.verifier.tint} />
           </div>
-        )}
+        </Disclosure>
       </ConductorModal>
       )}
 
       {error && <ErrorText>{error}</ErrorText>}
 
       {run && <RunView run={run} />}
-    </div>
+    </Page>
   );
 }
 

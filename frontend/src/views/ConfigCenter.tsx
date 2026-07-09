@@ -29,7 +29,8 @@ import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Disclosure } from "@/components/ui/disclosure";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -252,28 +253,30 @@ export function ConfigCenter() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        icon={SlidersHorizontal}
-        title="Config Center"
-        actions={
-          <>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search settings…"
-                className="h-8 w-44 pl-7 sm:w-56"
-                aria-label="Search settings"
-              />
-            </div>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={SlidersHorizontal}
+      title="Config Center"
+      width="readable"
+      mode="scroll"
+      className="gap-4"
+      actions={
+        <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search settings…"
+              className="h-8 w-44 pl-7 sm:w-56"
+              aria-label="Search settings"
+            />
+          </div>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+          </Button>
+        </>
+      }
+    >
 
       {sections && <ReloadBoundarySummary boundaries={boundarySummary} setCount={setCount} />}
 
@@ -334,7 +337,7 @@ export function ConfigCenter() {
           </div>
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -554,11 +557,24 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
 
   return (
     <section className="rounded-lg border border-border bg-card p-3">
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="flex items-center gap-2">
-          <Shield className="size-4 text-accent" />
-          <h3 className="text-xs font-semibold text-foreground">Agent Runtime Config</h3>
-        </div>
+      {/* Power-user panel: a calm one-line summary leads; the badge breakdown,
+          actions, and per-key table fold underneath (humane progressive disclosure). */}
+      <Disclosure
+        summary={
+          <span className="flex min-w-0 items-center gap-2">
+            <Shield className="size-4 shrink-0 text-accent" />
+            <h3 className="text-xs font-semibold text-foreground">Agent Runtime Config</h3>
+            <span className="ml-auto truncate text-[11px] font-normal text-muted">
+              {entries
+                ? summary.total === 0
+                  ? "no runtime keys yet"
+                  : `${summary.total} runtime key${summary.total === 1 ? "" : "s"}${summary.secret > 0 ? ` · ${summary.secret} secret` : ""}`
+                : "loading…"}
+            </span>
+          </span>
+        }
+      >
+      <div className="flex flex-wrap items-center gap-3 pt-1">
         {entries && (
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="default">{summary.total} total</Badge>
@@ -568,12 +584,14 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
             <Badge variant="bad">{summary.secret} secret</Badge>
           </div>
         )}
-        <Button size="sm" variant="ghost" onClick={() => load()} disabled={busy}>
-          <RefreshCw className={cn("size-3.5", busy && "animate-spin")} /> Refresh
-        </Button>
-        <Button size="sm" onClick={() => setOpen(true)} disabled={busy}>
-          <Save className="size-3.5" /> Add runtime key
-        </Button>
+        <span className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={() => load()} disabled={busy}>
+            <RefreshCw className={cn("size-3.5", busy && "animate-spin")} /> Refresh
+          </Button>
+          <Button size="sm" onClick={() => setOpen(true)} disabled={busy}>
+            <Save className="size-3.5" /> Add runtime key
+          </Button>
+        </span>
       </div>
 
       <div className="mt-3 overflow-hidden rounded-lg border border-border">
@@ -609,6 +627,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
           </div>
         )}
       </div>
+      </Disclosure>
       {open && (
         <ConfigModal title="Agent runtime key" icon={Shield} onClose={() => setOpen(false)}>
           <div className="grid gap-2">

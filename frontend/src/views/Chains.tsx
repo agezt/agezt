@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
+import { ModelChip } from "@/components/ModelChip";
 import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
-import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
+import { modelHealth, type ModelCatalog } from "@/lib/models";
 
 // Chains is the registry of named, reusable fallback ladders (M963). A chain is
 // an ordered model list; anywhere a model is picked (agent, routing, chat) you
@@ -76,8 +78,6 @@ export function Chains() {
         /* health is best-effort — a missing catalog just hides the dots */
       });
   }, []);
-
-  const health = useCallback((id: string): ModelHealth => modelHealth(cat, id), [cat]);
 
   const names = useMemo(() => Object.keys(chains).sort((a, b) => a.localeCompare(b)), [chains]);
   const dangling = useMemo(() => (Array.isArray(usage.__dangling__) ? (usage.__dangling__ as string[]) : []), [usage]);
@@ -192,11 +192,13 @@ export function Chains() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Waypoints}
-        title="Fallback Chains"
-        actions={
+    <Page
+      icon={Waypoints}
+      title="Fallback Chains"
+      description="Named model ladders — pick @name anywhere a model is chosen, edit it here once"
+      width="readable"
+      mode="scroll"
+      actions={
           <>
             <Button variant="ghost" size="sm" onClick={addChain} title="Create a new fallback chain">
               <Plus className="size-3.5" /> New chain
@@ -209,8 +211,7 @@ export function Chains() {
             </Button>
           </>
         }
-      />
-
+    >
       {dangling.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
@@ -228,13 +229,16 @@ export function Chains() {
       ) : loading && !names.length ? (
         <SkeletonList count={3} lines={3} />
       ) : names.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card/40 px-3 py-8 text-center text-sm text-muted">
-          No fallback chains yet.{" "}
-          <button onClick={addChain} className="text-accent underline-offset-2 hover:underline">
-            Create one
-          </button>{" "}
-          to reuse the same model ladder everywhere.
-        </div>
+        <EmptyState
+          icon={Waypoints}
+          title="No fallback chains yet"
+          hint="A chain is a reusable model ladder — define it once, pick @name anywhere a model is chosen."
+          action={
+            <Button variant="ghost" size="sm" onClick={addChain}>
+              <Plus className="size-3.5" /> Create a chain
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-2">
           {names.map((name) => (
@@ -244,7 +248,7 @@ export function Chains() {
               models={chains[name] || []}
               isDefault={def === name}
               usage={usageFor(name)}
-              health={cat ? health : undefined}
+              cat={cat}
               onAdd={(id) => addModel(name, id)}
               onRemove={(i) => setChainModels(name, removeAt(chains[name] || [], i))}
               onMove={(i, d) => setChainModels(name, moveItem(chains[name] || [], i, d))}
@@ -255,7 +259,7 @@ export function Chains() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -264,7 +268,7 @@ function ChainCard({
   models,
   isDefault,
   usage,
-  health,
+  cat,
   onAdd,
   onRemove,
   onMove,
@@ -276,7 +280,7 @@ function ChainCard({
   models: string[];
   isDefault: boolean;
   usage: ChainUsage;
-  health?: (id: string) => ModelHealth; // undefined until the catalog loads
+  cat?: ModelCatalog | null; // null until the catalog loads (hides health dots)
   onAdd: (id: string) => void;
   onRemove: (i: number) => void;
   onMove: (i: number, dir: -1 | 1) => void;
@@ -287,6 +291,7 @@ function ChainCard({
   const agentN = usage.agents?.length ?? 0;
   const taskN = usage.tasks?.length ?? 0;
   // A chain is unhealthy if its primary can't run, or if NO model in it can run.
+  const health = cat ? (id: string) => modelHealth(cat, id) : undefined;
   const primaryBad = health && models.length > 0 && health(models[0]) !== "ok";
   const allBad = health && models.length > 0 && models.every((m) => health(m) !== "ok");
   return (
@@ -349,8 +354,9 @@ function ChainCard({
                   {i}
                 </Badge>
               )}
-              {health && <HealthDot status={health(m)} />}
-              <span className="min-w-0 flex-1 truncate font-mono text-foreground/90">{m}</span>
+              <span className="min-w-0 flex-1 truncate">
+                <ModelChip id={m} cat={cat} />
+              </span>
               <button onClick={() => onMove(i, -1)} disabled={i === 0} className="text-muted transition-colors hover:text-foreground disabled:opacity-30" title="Move up">
                 <ArrowUp className="size-3.5" />
               </button>
@@ -392,17 +398,4 @@ function ChainCard({
       </div>
     </div>
   );
-}
-
-// HealthDot renders a model's run-readiness as a colored dot: green = a keyed
-// provider serves it, amber = exists but needs an API key, red = unknown to the
-// catalog (typo / removed). Title carries the explanation.
-function HealthDot({ status }: { status: ModelHealth }) {
-  const meta: Record<ModelHealth, { cls: string; title: string }> = {
-    ok: { cls: "bg-good", title: "A keyed provider can run this model" },
-    nokey: { cls: "bg-warn", title: "No keyed provider — add an API key under Models to run this" },
-    unknown: { cls: "bg-bad", title: "Not in the catalog — check the model id (typo or removed)" },
-  };
-  const m = meta[status];
-  return <span className={cn("size-2 shrink-0 rounded-full", m.cls)} title={m.title} aria-label={`model health: ${status}`} />;
 }

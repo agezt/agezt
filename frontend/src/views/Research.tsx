@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Telescope, Send, Loader2, ChevronDown, CheckCircle2, XCircle, HelpCircle, ExternalLink } from "lucide-react";
+import { Telescope, Send, Loader2, CheckCircle2, XCircle, HelpCircle, ExternalLink } from "lucide-react";
 import { postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Advanced } from "@/components/ui/disclosure";
 
 // Research view (M1001): the operator's seat at the deep-research harness
 // (kernel/runtime). One question fans out into sub-questions, each gathers
@@ -55,7 +56,6 @@ export function Research() {
   const [maxSubQ, setMaxSubQ] = useState(3);
   const [maxVerify, setMaxVerify] = useState(6);
   const [verify, setVerify] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [report, setReport] = useState<ResearchReport | null>(null);
@@ -84,12 +84,12 @@ export function Research() {
   const confPct = report ? Math.round((report.confidence || 0) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        icon={Telescope}
-        title="Research"
-        description="Deep research: decompose a question, gather independent web sources, synthesize a cited answer, and adversarially verify every claim."
-      />
+    <Page
+      icon={Telescope}
+      title="Research"
+      description="Deep research: decompose a question, gather independent web sources, synthesize a cited answer, and adversarially verify every claim."
+      className="gap-4"
+    >
 
       {/* Ask */}
       <Card glass className="gap-3 p-4">
@@ -114,23 +114,15 @@ export function Research() {
             <input type="checkbox" checked={verify} onChange={(e) => setVerify(e.target.checked)} />
             Adversarial verification
           </label>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((v) => !v)}
-            className="ml-auto flex items-center gap-1 text-xs text-muted hover:text-foreground"
-          >
-            <ChevronDown className={cn("size-3.5 transition-transform", showAdvanced && "rotate-180")} />
-            Advanced
-          </button>
         </div>
 
-        {showAdvanced && (
-          <div className="grid grid-cols-1 gap-3 border-t border-border/60 pt-3 sm:grid-cols-3">
+        <Advanced className="border-t border-border/60 pt-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <NumField label="Max sources" value={maxSources} onChange={setMaxSources} min={1} max={20} />
             <NumField label="Max sub-questions" value={maxSubQ} onChange={setMaxSubQ} min={1} max={8} />
             <NumField label="Max verify claims" value={maxVerify} onChange={setMaxVerify} min={0} max={12} disabled={!verify} />
           </div>
-        )}
+        </Advanced>
       </Card>
 
       {error && <ErrorText>{error}</ErrorText>}
@@ -243,7 +235,7 @@ export function Research() {
           )}
         </>
       )}
-    </div>
+    </Page>
   );
 }
 

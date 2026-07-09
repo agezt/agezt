@@ -11,7 +11,7 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ErrorText } from "@/components/JsonView";
@@ -3274,35 +3274,35 @@ export function Roster() {
   );
 
   return (
-    <div className="space-y-3">
-      <PageHeader
-        icon={Users}
-        title="Agent roster"
-        actions={
-          <>
-            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+    <Page
+      icon={Users}
+      title="Agent roster"
+      width="wide"
+      actions={
+        <>
+          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </Button>
+          {guardianQuieting.tone === "warn" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={quietNoisyGuardians}
+              disabled={busy === "guardians"}
+              title="Apply quiet policy and pause frequent system guardian schedules"
+              aria-label="Quiet noisy guardians"
+            >
+              <Megaphone className="h-3.5 w-3.5" />
+              Quiet guardians
             </Button>
-            {guardianQuieting.tone === "warn" && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={quietNoisyGuardians}
-                disabled={busy === "guardians"}
-                title="Apply quiet policy and pause frequent system guardian schedules"
-                aria-label="Quiet noisy guardians"
-              >
-                <Megaphone className="h-3.5 w-3.5" />
-                Quiet guardians
-              </Button>
-            )}
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              New agent
-            </Button>
-          </>
-        }
-      />
+          )}
+          <Button size="sm" onClick={() => setShowForm(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            New agent
+          </Button>
+        </>
+      }
+    >
 
       {showForm && (
         <RosterModal title="New agent" icon={Plus} onClose={() => setShowForm(false)}>
@@ -4534,7 +4534,7 @@ export function Roster() {
           );
         })}
       </ul>
-    </div>
+    </Page>
   );
 }
 

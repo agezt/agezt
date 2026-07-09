@@ -16,7 +16,7 @@ import {
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -403,22 +403,24 @@ export function Toolforge() {
   const live = (tools || []).filter((t) => t.status === "active").length;
 
   return (
-    <div className="space-y-3">
-      <PageHeader
-        icon={Hammer}
-        title="Tool Forge"
-        actions={
-          <>
-            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            </Button>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-              <Plus className="h-3.5 w-3.5" />
-              New tool
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Hammer}
+      title="Tool Forge"
+      description="Draft, sandbox-test, and promote script tools into callable forge_<name> tools."
+      width="readable"
+      mode="scroll"
+      actions={
+        <>
+          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </Button>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Plus className="h-3.5 w-3.5" />
+            New tool
+          </Button>
+        </>
+      }
+    >
 
       {showForm && (
         <ForgeModal title="Draft script tool" icon={Hammer} onClose={() => setShowForm(false)}>
@@ -552,7 +554,7 @@ export function Toolforge() {
           />
         </ForgeModal>
       )}
-    </div>
+    </Page>
   );
 }
 

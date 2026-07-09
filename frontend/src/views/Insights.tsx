@@ -5,9 +5,11 @@ import { useEvents } from "@/lib/events";
 import { money, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Muted, ErrorText } from "@/components/JsonView";
+import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty";
+import { Disclosure } from "@/components/ui/disclosure";
+import { Page } from "@/components/ui/page";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
 import { computeInsights, type RunRow as InsightsRunRow } from "@/lib/insights";
@@ -58,23 +60,26 @@ export function Insights() {
   const ins = runs ? computeInsights(runs) : null;
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={BarChart3}
-        title="Insights"
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-        }
-      />
-
+    <Page
+      icon={BarChart3}
+      title="Insights"
+      width="wide"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      }
+    >
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !ins ? (
         <SkeletonList count={3} lines={2} />
       ) : ins.total === 0 ? (
-        <Muted>no runs yet — start one from Chat or the CLI</Muted>
+        <EmptyState
+          icon={BarChart3}
+          title="No runs yet"
+          hint="Analytics appear once there are runs — start one from Chat or the CLI."
+        />
       ) : (
         <>
           <MetricGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -123,15 +128,20 @@ export function Insights() {
               }))}
             />
             {ins.byModel.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 gap-1.5 text-[11px] text-muted sm:grid-cols-3">
-                {ins.byModel.slice(0, 6).map((m) => (
-                  <div key={m.model} className="rounded-md border border-border/60 bg-card/40 px-2 py-1.5">
-                    <div className="truncate font-medium text-foreground/80">{m.model}</div>
-                    <div>avg {money(m.avgSpentMc)}/run</div>
-                    <div>{m.avgIters ? `${m.avgIters.toFixed(1)} iters/run` : "no iters"}</div>
-                  </div>
-                ))}
-              </div>
+              <Disclosure
+                className="mt-2"
+                summary={<span className="text-xs text-muted">Per-model averages</span>}
+              >
+                <div className="grid grid-cols-2 gap-1.5 text-[11px] text-muted sm:grid-cols-3">
+                  {ins.byModel.slice(0, 6).map((m) => (
+                    <div key={m.model} className="rounded-md border border-border/60 bg-card/40 px-2 py-1.5">
+                      <div className="truncate font-medium text-foreground/80">{m.model}</div>
+                      <div>avg {money(m.avgSpentMc)}/run</div>
+                      <div>{m.avgIters ? `${m.avgIters.toFixed(1)} iters/run` : "no iters"}</div>
+                    </div>
+                  ))}
+                </div>
+              </Disclosure>
             )}
           </InsightPanel>
 
@@ -156,7 +166,7 @@ export function Insights() {
           </InsightPanel>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 

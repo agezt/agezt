@@ -52,7 +52,9 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges, incidentPhaseBadgeClass } from "@/components/IncidentBadges";
+import { Page } from "@/components/ui/page";
 import { PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
 import { AgentRepair } from "@/components/AgentRepair";
 import { useUI } from "@/components/ui/feedback";
 import { fmtTime } from "@/lib/utils";
@@ -600,7 +602,9 @@ export function IncidentPage({
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    // Headerless Page scaffold (scroll-safe min-h-full root); this route keeps
+    // its own back-button + PageHeader pattern, so Page renders no header.
+    <Page width="wide">
       {back}
       <PageHeader
         icon={LifeBuoy}
@@ -1321,19 +1325,24 @@ export function IncidentPage({
                 <IncidentBadges item={focus} mono />
               </div>
               {focus?.detail && <div className="text-muted">{focus.detail}</div>}
-              <div className="font-mono text-muted">
-                incident {focus ? incidentMetaFromAutonomy(focus).incidentId || rootId : rootId}
-              </div>
-              {focus?.root_agent && (
-                <div className="text-muted">root {focus.root_agent}</div>
-              )}
-              {typeof focus?.chain_depth === "number" && (
-                <div className="text-muted">hop {focus.chain_depth}</div>
-              )}
+              {/* Raw identifiers are diagnostic fine print — folded until asked. */}
+              <Disclosure summary={<span className="text-[11px] font-medium text-muted">Identifiers</span>}>
+                <div className="space-y-1 text-[11px]">
+                  <div className="font-mono text-muted">
+                    incident {focus ? incidentMetaFromAutonomy(focus).incidentId || rootId : rootId}
+                  </div>
+                  {focus?.root_agent && (
+                    <div className="text-muted">root {focus.root_agent}</div>
+                  )}
+                  {typeof focus?.chain_depth === "number" && (
+                    <div className="text-muted">hop {focus.chain_depth}</div>
+                  )}
+                </div>
+              </Disclosure>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

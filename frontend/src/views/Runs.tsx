@@ -16,7 +16,7 @@ import { useUI } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
@@ -299,32 +299,32 @@ export function Runs() {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        icon={ListTree}
-        title="Runs"
-        actions={
-          <>
-            <span
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
-              )}
-              title={
-                connected
-                  ? "Live event stream connected — runs update automatically"
-                  : "Stream disconnected — polling every 10s"
-              }
-            >
-              <CircleDot className={cn("size-3", connected && "animate-pulse")} />
-              {connected ? "live" : "offline"}
-            </span>
-            <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
-              <RefreshCw className={loading ? "animate-spin" : ""} />
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={ListTree}
+      title="Runs"
+      width="wide"
+      actions={
+        <>
+          <span
+            className={cn(
+              "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+              connected ? "bg-good/10 text-good" : "bg-muted/20 text-muted",
+            )}
+            title={
+              connected
+                ? "Live event stream connected — runs update automatically"
+                : "Stream disconnected — polling every 10s"
+            }
+          >
+            <CircleDot className={cn("size-3", connected && "animate-pulse")} />
+            {connected ? "live" : "offline"}
+          </span>
+          <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
+            <RefreshCw className={loading ? "animate-spin" : ""} />
+          </Button>
+        </>
+      }
+    >
 
       <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
         <MetricWidget
@@ -355,7 +355,7 @@ export function Runs() {
       </MetricGrid>
 
       <TabNav tabs={tabs} />
-    </div>
+    </Page>
   );
 }
 
