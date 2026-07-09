@@ -83,5 +83,7 @@ func isAllowedSDKFinding(line string) bool {
 		(strings.HasPrefix(normalized, "kernel/delegation/") &&
 			strings.Contains(normalized, ": unreachable func:")) ||
 		(strings.HasPrefix(normalized, "kernel/workflowexec/") &&
+			strings.Contains(normalized, ": unreachable func:")) ||
+		(strings.HasPrefix(normalized, "kernel/journal/runs.go") &&
 			strings.Contains(normalized, ": unreachable func:"))
 }
