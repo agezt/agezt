@@ -3,26 +3,18 @@
 package agent_test
 
 import (
-	"encoding/json"
-
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 )
 
+// testWithUsage sets the usage on a CompletionResponse.
+// Delegates to kernel/internal/testfixtures for the canonical implementation.
 func testWithUsage(resp agent.CompletionResponse, usage agent.Usage) agent.CompletionResponse {
-	resp.Usage = usage
-	return resp
+	return testfixtures.WithUsage(resp, usage)
 }
 
+// testToolUse constructs a tool-use CompletionResponse.
+// Delegates to kernel/internal/testfixtures for the canonical implementation.
 func testToolUse(callID, toolName string, input any) agent.CompletionResponse {
-	raw, err := json.Marshal(input)
-	if err != nil {
-		panic("testToolUse: marshal input: " + err.Error())
-	}
-	return agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
-			ToolCalls: []agent.ToolCall{{ID: callID, Name: toolName, Input: raw}},
-		},
-		StopReason: agent.StopToolUse,
-	}
+	return testfixtures.ToolUse(callID, toolName, input)
 }
