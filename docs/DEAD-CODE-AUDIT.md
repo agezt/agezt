@@ -17,6 +17,7 @@ Generated during the 2026-06-28 surgical dead-code cleanup.
 | 9 | `kernel/netguard/netguard.go` | option block | `AllowLinkLocal` | UNREACHABLE_DECL | HIGH | 95% | DELETED — VERIFIED |
 | 10 | `sdk/approvals.go`, `sdk/events.go`, `sdk/mailbox.go`, `sdk/sdk.go` | multiple | public SDK methods reported by `deadcode` | UNREACHABLE_DECL | LOW | 55% | ALLOWLISTED in CI gate |
 
+
 ## 2. Cleanup Roadmap
 
 ### Batch 1: High-risk cleanup, already applied

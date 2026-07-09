@@ -14,6 +14,7 @@ dependency graph to sequence implementation.
 | [REFACTOR-A2-LOG-PAGINATION-PLAN.md](REFACTOR-A2-LOG-PAGINATION-PLAN.md) | A2 | c​ursor pagination for 11 log endpoints | low |
 | [REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md](REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md) | A3+B5 | `kernel/auth` (domain) + `kernel/httpserver` (transport) | high |
 | [REFACTOR-A3-HTTPSERVER-PLAN.md](REFACTOR-A3-HTTPSERVER-PLAN.md) | A3 | *superseded by A3+B5 for auth phases*; transport detail still valid | — |
+| [REFACTOR-B1-RUNTIME-API-PLAN.md](REFACTOR-B1-RUNTIME-API-PLAN.md) | B1+D2+E1 | `kernel/runtime` decomposition + daemon boot split + stable SDK client boundary | high |
 | [REFACTOR-C2-LIB-CLASSIFICATION.md](REFACTOR-C2-LIB-CLASSIFICATION.md) | C2 | 68-module `lib/` keep/colocate/merge | low |
 | [REFACTOR-C4-CHAT-DECOMPOSITION.md](REFACTOR-C4-CHAT-DECOMPOSITION.md) | C4 | 1,973-line `Chat.tsx` decomposition | med |
 
@@ -77,8 +78,9 @@ dependency graph to sequence implementation.
 4. A3+B5 P5 (webui)    → BEFORE A1 P6
 5. A1 P2–P6            → domain package moves + route split (rides on Router)
 6. A3+B5 P4,P6,P7      → tenant/oauth relocation, agentgw, token-file (security PRs)
-7. C2 + C4             → frontend cleanup (independent; C2-voice ↔ C4-useVoice sequenced)
-8. A2 P3 + C3          → frontend pagers across all list views (converged)
+7. B1+D2+E1           → runtime decomposition + daemon boot split + stable SDK client boundary
+8. C2 + C4             → frontend cleanup (independent; C2-voice ↔ C4-useVoice sequenced)
+9. A2 P3 + C3          → frontend pagers across all list views (converged)
 ```
 
 ## Conventions for all plans
