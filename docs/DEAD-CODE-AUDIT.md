@@ -6,22 +6,17 @@ Generated during the 2026-06-28 surgical dead-code cleanup.
 
 | # | File | Line(s) | Symbol | Category | Risk | Confidence | Action |
 |---|------|---------|--------|----------|------|------------|--------|
-<<<<<<< Updated upstream
-| 1 | `internal/generic/generic.go` | all | whole file | UNREACHABLE_DECL | HIGH | 100% | DELETE |
-| 2 | `internal/ciguard/ciguard.go` | all | production helpers only used by tests | UNREACHABLE_DECL | HIGH | 100% | DELETED 2026-07-08 |
-| 3 | `kernel/agent/config.go` | all | unused grouped config API | UNREACHABLE_DECL | HIGH | 100% | DELETE |
-=======
 | 1 | `internal/generic/generic.go` | all | whole file | UNREACHABLE_DECL | HIGH | 100% | DELETED (prior sweep) |
 | 2 | `internal/ciguard/ciguard.go` | all | production helpers only used by tests | UNREACHABLE_DECL | HIGH | 100% | DELETED 2026-07-08 |
 | 3 | `kernel/agent/config.go` | all | unused grouped config API | UNREACHABLE_DECL | HIGH | 100% | DELETED — VERIFIED |
->>>>>>> Stashed changes
-| 4 | `kernel/controlplane/server_config.go` | all | unused server config wrapper layer | UNREACHABLE_DECL | HIGH | 100% | DELETE |
-| 5 | `tools/jsonschemagen/file.go` | all | unused helper file | UNREACHABLE_DECL | HIGH | 100% | DELETE |
-| 6 | `frontend/package.json` | deps | `@radix-ui/react-dropdown-menu`, `@radix-ui/react-scroll-area` | PHANTOM_DEP | HIGH | 100% | DELETE |
-| 7 | `cmd/agezt/main.go`, `cmd/agt/commands.go`, `kernel/agent`, `kernel/runtime`, `kernel/controlplane`, plugins | multiple | test-only constructors/helpers in production code | UNREACHABLE_DECL | HIGH | 95% | DELETE |
-| 8 | `frontend/src/**` | multiple | unused exports and imported symbols | PHANTOM_DEP | HIGH | 100% | DELETE |
-| 9 | `kernel/netguard/netguard.go` | option block | `AllowLinkLocal` | UNREACHABLE_DECL | HIGH | 95% | DELETE |
-| 10 | `sdk/approvals.go`, `sdk/events.go`, `sdk/mailbox.go`, `sdk/sdk.go` | multiple | public SDK methods reported by `deadcode` | UNREACHABLE_DECL | LOW | 55% | MANUAL_VERIFY |
+| 4 | `kernel/controlplane/server_config.go` | all | unused server config wrapper layer | UNREACHABLE_DECL | HIGH | 100% | DELETED — VERIFIED |
+| 5 | `tools/jsonschemagen/file.go` | all | unused helper file | UNREACHABLE_DECL | HIGH | 100% | DELETED — VERIFIED |
+| 6 | `frontend/package.json` | deps | `@radix-ui/react-dropdown-menu`, `@radix-ui/react-scroll-area` | PHANTOM_DEP | HIGH | 100% | DELETED — VERIFIED |
+| 7 | `cmd/agezt/main.go`, `cmd/agt/commands.go`, `kernel/agent`, `kernel/runtime`, `kernel/controlplane`, plugins | multiple | test-only constructors/helpers in production code | UNREACHABLE_DECL | HIGH | 95% | COVERED by deadcodecheck CI gate |
+| 8 | `frontend/src/**` | multiple | unused exports and imported symbols | PHANTOM_DEP | HIGH | 100% | COVERED by knip CI gate; clean |
+| 9 | `kernel/netguard/netguard.go` | option block | `AllowLinkLocal` | UNREACHABLE_DECL | HIGH | 95% | DELETED — VERIFIED |
+| 10 | `sdk/approvals.go`, `sdk/events.go`, `sdk/mailbox.go`, `sdk/sdk.go` | multiple | public SDK methods reported by `deadcode` | UNREACHABLE_DECL | LOW | 55% | ALLOWLISTED in CI gate |
+
 
 ## 2. Cleanup Roadmap
 

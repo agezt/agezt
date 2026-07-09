@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contextselect"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
@@ -24,8 +25,6 @@ import (
 // ctxKeyDepth carries the current sub-agent nesting depth so runSubAgent can
 // enforce SubAgentMaxDepth and refuse unbounded recursion. It rides the same
 // context the agent loop threads into each tool Invoke.
-// Note: delegation.DepthKey and delegation.DepthFromCtx are the canonical
-// replacements; the local type remains temporarily to limit this diff.
 type ctxKeyDepthT struct{}
 
 var ctxKeyDepth = ctxKeyDepthT{}
@@ -798,10 +797,10 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 			for _, h := range hits {
 				ids = append(ids, h.Record.ID)
 			}
-			chosen, rejected := splitContextCandidates(memoryContextCandidates(hits, time.Now().UnixMilli()), chosenIDSet(ids), "subagent_memory_injection")
-			summary := candidateSummary(chosen, rejected)
+			chosen, rejected := contextselect.SplitCandidates(memoryContextCandidates(hits, time.Now().UnixMilli()), contextselect.ChosenIDSet(ids), "subagent_memory_injection")
+			summary := contextselect.Summary(chosen, rejected)
 			summary["source"] = "subagent_memory_injection"
-			k.publishContextSelection(corr, actor, contextSelectionManifest{
+			k.publishContextSelection(corr, actor, contextselect.Manifest{
 				Phase:    "memory",
 				Query:    intent,
 				Chosen:   chosen,
@@ -831,14 +830,14 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 					chosen[i].Chosen = true
 					chosen[i].Reason = "selected:subagent_skill_explicit_activation"
 				}
-				summary := candidateSummary(chosen, nil)
+				summary := contextselect.Summary(chosen, nil)
 				summary["source"] = "subagent_skill_explicit_activation"
 				summary["activation"] = "explicit"
 				summary["refs"] = directive.Refs
 				if len(missing) > 0 {
 					summary["missing"] = missing
 				}
-				k.publishContextSelection(corr, actor, contextSelectionManifest{
+				k.publishContextSelection(corr, actor, contextselect.Manifest{
 					Phase:   "skill",
 					Query:   intent,
 					Chosen:  chosen,
@@ -851,10 +850,10 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 				for _, h := range hits {
 					activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
 				}
-				chosen, rejected := splitContextCandidates(skillContextCandidates(hits, time.Now().UnixMilli()), chosenIDSet(activatedSkillIDs), "subagent_skill_injection")
-				summary := candidateSummary(chosen, rejected)
+				chosen, rejected := contextselect.SplitCandidates(skillContextCandidates(hits, time.Now().UnixMilli()), contextselect.ChosenIDSet(activatedSkillIDs), "subagent_skill_injection")
+				summary := contextselect.Summary(chosen, rejected)
 				summary["source"] = "subagent_skill_injection"
-				k.publishContextSelection(corr, actor, contextSelectionManifest{
+				k.publishContextSelection(corr, actor, contextselect.Manifest{
 					Phase:    "skill",
 					Query:    intent,
 					Chosen:   chosen,
