@@ -70,9 +70,12 @@ export function CommandPalette({ open, onClose, items }: { open: boolean; onClos
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]" onClick={onClose}>
+    <div
+      className="modal-overlay fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh] backdrop-blur-[2px]"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-xl bg-card shadow-2xl"
+        className="modal-in glass w-full max-w-xl overflow-hidden rounded-xl shadow-e3"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-3">

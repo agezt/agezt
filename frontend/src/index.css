@@ -11,10 +11,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.985 0 0);
+  /* Light theme joins the command-center identity (modernization pass): a
+     faintly cool-tinted canvas instead of flat near-white, so light mode reads
+     as the same product as the dark cockpit — just daylit. */
+  --background: oklch(0.978 0.004 260);
   --foreground: oklch(0.2 0.01 260);
   --card: oklch(1 0 0);
-  --panel: oklch(0.965 0.002 260);
+  --panel: oklch(0.962 0.004 260);
   --muted: oklch(0.5 0.012 260);
   /* Softer light-theme border (M979) — less grid, more air. */
   --border: oklch(0.925 0.004 260);
@@ -75,6 +78,10 @@
      Inter Variable, loaded in main.tsx) drives all UI chrome and body (M951). */
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Display face for the console's voice — page titles, brand wordmark, hero
+     numbers. Space Grotesk's squared terminals echo the near-square radius
+     scale (M984), so headings and chrome share one geometry. */
+  --font-display: "Space Grotesk Variable", "Inter Variable", system-ui, sans-serif;
   /* Elevation utilities (shadow-e1/e2/e3) resolve the per-theme --elev-* vars. */
   --shadow-e1: var(--elev-1);
   --shadow-e2: var(--elev-2);
@@ -120,13 +127,23 @@ body {
    rhythm. All sizes use the same line-height ratio (~1.6 for text, tight for
    headings) so the page has a clear hierarchy without hardcoding sizes everywhere. */
 
-/* Card/panel headings: small, bold, uppercase — keep it tight. */
-h2, h3, h4, h5, h6 {
-  letter-spacing: 0.02em;
+/* Card/panel headings: the display face carries the console's voice on every
+   heading — geometric, technical, unmistakably this product. Weights sit a
+   step lighter than Inter needed because Space Grotesk reads bolder. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: 0.015em;
 }
-h2 { font-weight: 650; }
+h2 { font-weight: 640; }
 h3 { font-weight: 600; }
 h4 { font-weight: 550; }
+
+/* Keyboard shortcut chips — a real keycap, not a bare bordered box. */
+kbd {
+  font-family: var(--font-mono);
+  background: var(--panel);
+  box-shadow: inset 0 -1.5px 0 var(--border);
+}
 
 /* Labels, metadata, secondary text — slightly lighter weight for visual
    hierarchy. The --muted color already handles the colour part; the weight
@@ -145,13 +162,40 @@ h4 { font-weight: 550; }
 
 /* Command-center depth (M977): a soft indigo/violet aurora bled into the top of
    the dark canvas so the backdrop has life instead of one flat grey. Fixed so it
-   doesn't scroll; light theme stays clean and flat. */
+   doesn't scroll. The light theme gets the same aurora at a whisper — enough to
+   share the identity without losing its daylight clarity. */
 .dark body {
   background:
     radial-gradient(1100px 560px at 78% -12%, oklch(0.5 0.16 305 / 0.16), transparent 60%),
     radial-gradient(1000px 520px at 12% -8%, oklch(0.5 0.14 265 / 0.18), transparent 58%),
     var(--background);
   background-attachment: fixed;
+}
+body {
+  background:
+    radial-gradient(1100px 560px at 78% -12%, oklch(0.75 0.07 305 / 0.07), transparent 60%),
+    radial-gradient(1000px 520px at 12% -8%, oklch(0.72 0.07 260 / 0.09), transparent 58%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+/* Fine film grain over the dark canvas — breaks up aurora banding and gives the
+   cockpit a tactile, screen-glass texture. Static (motion-safe by nature),
+   pure data-URI SVG noise, and pointer-transparent. Light theme stays clean. */
+.dark body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Text selection carries the accent — a small touch that makes the whole
+   console feel intentionally themed down to the last interaction. */
+::selection {
+  background: color-mix(in oklch, var(--accent) 28%, transparent);
 }
 
 /* Reusable "command center" surface + accent treatments ------------------- */
@@ -335,6 +379,26 @@ h4 { font-weight: 550; }
 .view-enter {
   animation: view-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Staggered entrance for card grids and dashboards: direct children rise in one
+   after another (first dozen), so a data-dense page assembles itself instead of
+   slamming in as one block. Both animations fill backwards so late children
+   don't flash before their turn. */
+.stagger-in > * {
+  opacity: 0;
+  animation: view-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-in > *:nth-child(2) { animation-delay: 30ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 60ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 90ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 120ms; }
+.stagger-in > *:nth-child(6) { animation-delay: 150ms; }
+.stagger-in > *:nth-child(7) { animation-delay: 180ms; }
+.stagger-in > *:nth-child(8) { animation-delay: 210ms; }
+.stagger-in > *:nth-child(9) { animation-delay: 240ms; }
+.stagger-in > *:nth-child(10) { animation-delay: 270ms; }
+.stagger-in > *:nth-child(n + 11) { animation-delay: 300ms; }
 
 /* Chat messages ease in as they arrive. */
 @keyframes msg-in {
@@ -523,7 +587,11 @@ h4 { font-weight: 550; }
   .nav-drawer-in,
   .skeleton,
   .breathe,
-  .now-in {
+  .now-in,
+  .stagger-in > * {
     animation: none;
+  }
+  .stagger-in > * {
+    opacity: 1;
   }
 }

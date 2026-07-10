@@ -224,7 +224,7 @@ export function Header({
     }
   }
   return (
-    <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-panel px-3 py-2 shadow-e1 sm:gap-3 sm:px-4">
+    <header className="relative z-10 flex flex-wrap items-center gap-2 border-b border-border bg-panel/75 px-3 py-2 shadow-e1 backdrop-blur-md sm:gap-3 sm:px-4">
       {/* Lit accent edge under the header (M977 command-center). */}
       <div className="accent-rule pointer-events-none absolute inset-x-0 bottom-0 h-px" />
       {/* Hamburger — opens the nav drawer below lg, where the sidebar is hidden. */}
@@ -252,7 +252,7 @@ export function Header({
           className={cn(
             "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
             chatActive
-              ? "bg-accent text-white shadow-e1"
+              ? "bg-gradient-to-br from-accent to-accent2 text-white shadow-e1"
               : "border border-accent/40 text-accent hover:bg-accent hover:text-white",
           )}
           title="Go to Chat"

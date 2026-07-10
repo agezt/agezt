@@ -23,12 +23,12 @@ export function PageHeader({
   return (
     <div className={cn("flex flex-wrap items-center gap-3", className)}>
       {Icon && (
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent shadow-[0_0_18px_-6px_var(--accent)] ring-1 ring-inset ring-accent/30">
           <Icon className="size-5" />
         </span>
       )}
       <div className="min-w-0">
-        <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">{title}</h2>
+        <h2 className="text-gradient text-lg font-bold leading-tight tracking-normal">{title}</h2>
         {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
