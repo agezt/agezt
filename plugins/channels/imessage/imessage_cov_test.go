@@ -100,8 +100,7 @@ func TestHandleInboundBadSecret(t *testing.T) {
 func TestHandleInboundDispatchesAndReplies(t *testing.T) {
 	secret := "sek"
 	var replyHit bool
-	var apiSrv *httptest.Server
-	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/message/text") {
 			replyHit = true
 		}
@@ -200,8 +199,7 @@ func TestDispatchEmptyReplyNoSend(t *testing.T) {
 
 func TestDispatchFetchesImageAttachment(t *testing.T) {
 	var gotImage bool
-	var apiSrv *httptest.Server
-	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/download") {
 			_, _ = w.Write([]byte("IMGDATA"))
 			return
@@ -231,8 +229,7 @@ func TestDispatchFetchesImageAttachment(t *testing.T) {
 
 func TestDispatchFetchesAudioAttachment(t *testing.T) {
 	var gotAudio bool
-	var apiSrv *httptest.Server
-	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/download") {
 			_, _ = w.Write([]byte("AUDDATA"))
 			return

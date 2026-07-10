@@ -86,8 +86,8 @@ func TestPrintAgentPolicy(t *testing.T) {
 	// Populated map with a mix of empty + present keys -> renders present ones.
 	b.Reset()
 	printAgentPolicy(&b, "retry", map[string]any{
-		"max_attempts": float64(3),
-		"backoff":      "exponential",
+		"max_attempts":   float64(3),
+		"backoff":        "exponential",
 		"base_delay_sec": float64(0), // empty -> skipped
 	})
 	out := b.String()

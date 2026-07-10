@@ -27,6 +27,8 @@ var osExit = os.Exit
 // real toolchain ("exec: node: not found") — pinning to runtime.GOROOT() makes
 // the subprocess immune to PATH ordering.
 func goBinary() string {
+	//lint:ignore SA1019 deadcodecheck always runs in-repo via `go run`, never as
+	// a copied binary — the building toolchain's GOROOT is exactly the pin we want.
 	if root := runtime.GOROOT(); root != "" {
 		bin := filepath.Join(root, "bin", "go")
 		if runtime.GOOS == "windows" {

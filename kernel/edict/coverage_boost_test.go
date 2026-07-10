@@ -17,6 +17,9 @@ func TestHardDenyRulesAccessor(t *testing.T) {
 	// Returned slice must be a copy: mutating it must not affect the engine.
 	orig := len(rules)
 	rules = append(rules, HardDenyRule{})
+	if len(rules) != orig+1 {
+		t.Fatalf("append on the returned copy = %d rules, want %d", len(rules), orig+1)
+	}
 	if len(e.HardDenyRules()) != orig {
 		t.Fatalf("HardDenyRules() returned an aliased slice, want a copy")
 	}

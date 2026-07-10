@@ -53,4 +53,3 @@ func TestLatest_SkipsMalformedPayload(t *testing.T) {
 		t.Fatalf("Latest() should report not-found when the only report is malformed")
 	}
 }
-

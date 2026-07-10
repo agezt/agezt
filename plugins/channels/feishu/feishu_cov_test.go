@@ -159,8 +159,7 @@ func TestHandleInboundEventTokenMismatch(t *testing.T) {
 
 func TestHandleInboundDispatchesEvent(t *testing.T) {
 	var handled bool
-	var apiSrv *httptest.Server
-	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "tenant_access_token") {
 			_ = json.NewEncoder(w).Encode(map[string]any{"code": 0, "tenant_access_token": "T", "expire": 7200})
 			return
@@ -171,8 +170,8 @@ func TestHandleInboundDispatchesEvent(t *testing.T) {
 
 	done := make(chan struct{}, 1)
 	c := New(Config{
-		Allowlist: channel.NewAllowlist([]string{"ou_1"}),
-		APIBase:   apiSrv.URL,
+		Allowlist:  channel.NewAllowlist([]string{"ou_1"}),
+		APIBase:    apiSrv.URL,
 		HTTPClient: apiSrv.Client(),
 		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
 			handled = true
@@ -498,8 +497,7 @@ func TestSendPublishesToBusAndChunks(t *testing.T) {
 
 func TestSendOneRequestError(t *testing.T) {
 	// sendOne returns error when the message API is unreachable.
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "tenant_access_token") {
 			_ = json.NewEncoder(w).Encode(map[string]any{"code": 0, "tenant_access_token": "T", "expire": 7200})
 			return

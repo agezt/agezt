@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	CandidateLimit   = 12
-	rejectedLimit    = 5
+	CandidateLimit = 12
+	rejectedLimit  = 5
 )
 
 // Candidate describes one item considered for context inclusion.
@@ -40,11 +40,11 @@ type Candidate struct {
 
 // Manifest is the full selection result published as a context.selection event.
 type Manifest struct {
-	Phase       string       `json:"phase"`
-	Query       string       `json:"query,omitempty"`
-	BudgetChars int          `json:"budget_chars,omitempty"`
-	Chosen      []Candidate  `json:"chosen,omitempty"`
-	Rejected    []Candidate  `json:"rejected,omitempty"`
+	Phase       string         `json:"phase"`
+	Query       string         `json:"query,omitempty"`
+	BudgetChars int            `json:"budget_chars,omitempty"`
+	Chosen      []Candidate    `json:"chosen,omitempty"`
+	Rejected    []Candidate    `json:"rejected,omitempty"`
 	Summary     map[string]any `json:"summary,omitempty"`
 }
 

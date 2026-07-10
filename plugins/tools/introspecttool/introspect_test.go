@@ -261,7 +261,7 @@ func TestStandingView_IncludesScheduleAndSubject(t *testing.T) {
 			{Type: standing.TriggerEvent, Subject: "task.failed"},
 		},
 		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
-		Plan: "do something", Assure: 2,
+		Plan:       "do something", Assure: 2,
 	})
 	if o["assure"].(int) != 2 {
 		t.Error("standingView should include assure when > 0")

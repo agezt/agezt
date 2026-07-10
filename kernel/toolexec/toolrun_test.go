@@ -19,7 +19,7 @@ type fakeTool struct {
 	invoke func(ctx context.Context, input json.RawMessage) (agent.Result, error)
 }
 
-func (f *fakeTool) Definition() agent.ToolDef       { return f.def }
+func (f *fakeTool) Definition() agent.ToolDef { return f.def }
 func (f *fakeTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	return f.invoke(ctx, input)
 }
@@ -59,8 +59,6 @@ type mockNoise struct {
 func (m *mockNoise) NotifyNoise(_ context.Context, _ agent.ToolCall, _ agent.Result) {
 	m.calls++
 }
-
-func ptr[T any](v T) *T { return &v }
 
 func TestRun_KnownTool_Allowed_Success(t *testing.T) {
 	ctx := context.Background()

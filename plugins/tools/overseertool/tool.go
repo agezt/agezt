@@ -68,16 +68,16 @@ func (t *Tool) Definition() agent.ToolDef {
 }
 
 type input struct {
-	Op      string           `json:"op"`
-	Agent   string           `json:"agent"`
-	Run     string           `json:"run"`
-	Source  string           `json:"source"`
-	Reason  string           `json:"reason"`
-	Intent  string           `json:"intent"`
-	Limit   int              `json:"limit"`
-	Profile json.RawMessage  `json:"profile"`
-	Filter  *SearchFilter    `json:"filter,omitempty"`
-	Agents  []string         `json:"agents,omitempty"`
+	Op      string          `json:"op"`
+	Agent   string          `json:"agent"`
+	Run     string          `json:"run"`
+	Source  string          `json:"source"`
+	Reason  string          `json:"reason"`
+	Intent  string          `json:"intent"`
+	Limit   int             `json:"limit"`
+	Profile json.RawMessage `json:"profile"`
+	Filter  *SearchFilter   `json:"filter,omitempty"`
+	Agents  []string        `json:"agents,omitempty"`
 }
 
 // Invoke implements agent.Tool.

@@ -127,8 +127,7 @@ func TestHandleInboundDispatchesAndRepliesViaSessionWebhook(t *testing.T) {
 	// The reply session webhook (must be a *.dingtalk.com host to be trusted,
 	// so we can't point it at httptest). Instead assert the handler runs and
 	// the reply is attempted to the configured (trusted) robot webhook.
-	var robotSrv *httptest.Server
-	robotSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	robotSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		replyHit = true
 		_, _ = w.Write([]byte("{}"))
 	}))

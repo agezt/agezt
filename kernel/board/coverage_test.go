@@ -107,4 +107,3 @@ func TestSave_WriteError(t *testing.T) {
 		t.Fatalf("Post: expected save write error")
 	}
 }
-
