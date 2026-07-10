@@ -2037,7 +2037,7 @@ describe("Roster", () => {
     expect(screen.getByText(/deny: notify/)).toBeTruthy();
     expect(screen.getByText(/cfg: AGEZT_X_MODE/)).toBeTruthy();
     expect(screen.getByText("You dig deep.")).toBeTruthy();
-    expect(getJSON).toHaveBeenCalledWith("/api/agents");
+    expect(getJSON).toHaveBeenCalledWith("/api/agents", undefined, expect.objectContaining({ timeoutMs: expect.any(Number) }));
   });
 
   it("pause posts /api/agents/enable with ref + enabled=false", async () => {

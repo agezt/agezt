@@ -269,17 +269,40 @@ export function Roster() {
   // Keep the interval handle so a refresh-on-event nudge can coexist with the
   // poll without leaking timers (preserves the original useRef import).
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Per-poll AbortController. We cancel any in-flight reload the next time
+  // reload runs so an over-budget request can't accumulate (the original
+  // 8-second setInterval would stack up aborted-but-unmounted fetches if
+  // the backend ever took longer than the poll period; on a large journal
+  // the 11× journal.Range walk in `agentStatusViews` could realistically
+  // trip the kernel's 10-minute per-connection read deadline, leading to a
+  // hung reload that prevented the next poll from doing anything useful).
+  const reloadAbortRef = useRef<AbortController | null>(null);
 
   async function reload() {
+    // Cancel any in-flight previous reload before starting the next one.
+    if (reloadAbortRef.current) {
+      try { reloadAbortRef.current.abort(); } catch { /* noop */ }
+    }
+    const ac = new AbortController();
+    reloadAbortRef.current = ac;
+    // Soft client-side cap so a stuck `/api/agents` (which itself can drive
+    // up to O(11N) journal work) can't freeze the page. We treat any abort
+    // as "this tick had no fresh data", keeping the previous rendered list
+    // and merely bumping `err` so the operator sees a non-fatal warning.
+    // Five seconds covers a worst-case healthy journal; the polling cadence
+    // (8s) means we don't even visibly flicker.
+    const timeoutMs = 5000;
     setLoading(true);
     try {
       const [d, sk, bd, sch, st] = await Promise.all([
-        getJSON<{ profiles?: AgentProfile[] }>("/api/agents"),
-        getJSON<{ skills?: { agent?: string }[] }>("/api/skills").catch(() => ({ skills: [] })),
-        getJSON<{ messages?: RosterBoardMessage[] }>("/api/board").catch(() => ({ messages: [] })),
-        getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules").catch(() => ({ schedules: [] })),
-        getJSON<{ orders?: ApiOrder[] }>("/api/standing").catch(() => ({ orders: [] })),
+        getJSON<{ profiles?: AgentProfile[] }>("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
+        getJSON<{ skills?: { agent?: string }[] }>("/api/skills", undefined, { signal: ac.signal }).catch(() => ({ skills: [] })),
+        getJSON<{ messages?: RosterBoardMessage[] }>("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
+        getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules", undefined, { signal: ac.signal }).catch(() => ({ schedules: [] })),
+        getJSON<{ orders?: ApiOrder[] }>("/api/standing", undefined, { signal: ac.signal }).catch(() => ({ orders: [] })),
       ]);
+      // If the user navigated or another reload fired, drop this tick's data.
+      if (reloadAbortRef.current !== ac) return;
       const nextProfiles = d.profiles || [];
       setProfiles(nextProfiles);
       const counts: Record<string, number> = {};
@@ -292,9 +315,18 @@ export function Roster() {
       setSchedulePressure(Object.fromEntries(nextProfiles.map((p) => [p.slug, agentSchedulePressurePassport(p, sch?.schedules || [])])));
       setErr(null);
     } catch (e) {
-      setErr((e as Error).message);
+      // Aborted (timeout or superseded poll) is a soft "no fresh data" — the
+      // previous list stays on screen and we don't surface it as a hard error.
+      const err2 = e as (Error & { status?: number });
+      const aborted = err2?.name === "AbortError" || ac.signal.aborted || err2?.status === 0;
+      if (aborted) return;
+      if (reloadAbortRef.current !== ac) return;
+      setErr(err2.message);
     } finally {
-      setLoading(false);
+      if (reloadAbortRef.current === ac) {
+        reloadAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }
 
