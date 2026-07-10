@@ -138,7 +138,7 @@ function Toaster({ toasts, onClose }: { toasts: Toast[]; onClose: (id: number) =
           <div
             key={t.id}
             className={cn(
-              "toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-card px-3 py-2.5 text-sm shadow-lg shadow-black/20",
+              "toast-in glass pointer-events-auto flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm",
               s.ring,
             )}
             role="status"
@@ -177,11 +177,11 @@ function PromptModal({ opts, onResult }: { opts: PromptOptions; onResult: (v: st
 
   return (
     <div
-      className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
       onClick={() => onResult(null)}
     >
       <div
-        className="modal-in w-full max-w-sm rounded-xl bg-card p-4 shadow-xl shadow-black/30"
+        className="modal-in glass w-full max-w-sm rounded-xl p-4 shadow-e3"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -207,7 +207,7 @@ function PromptModal({ opts, onResult }: { opts: PromptOptions; onResult: (v: st
           </button>
           <button
             onClick={() => onResult(value)}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent/85"
+            className="rounded-md bg-gradient-to-br from-accent to-accent2 px-3 py-1.5 text-sm font-medium text-white transition-[filter] hover:brightness-110"
           >
             {opts.confirmLabel || "OK"}
           </button>
@@ -233,11 +233,11 @@ function ConfirmModal({ opts, onResult }: { opts: ConfirmOptions; onResult: (v: 
 
   return (
     <div
-      className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4"
+      className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
       onClick={() => onResult(false)}
     >
       <div
-        className="modal-in w-full max-w-sm rounded-xl bg-card p-4 shadow-xl shadow-black/30"
+        className="modal-in glass w-full max-w-sm rounded-xl p-4 shadow-e3"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -260,8 +260,10 @@ function ConfirmModal({ opts, onResult }: { opts: ConfirmOptions; onResult: (v: 
             ref={confirmRef}
             onClick={() => onResult(true)}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors",
-              opts.danger ? "bg-bad hover:bg-bad/85" : "bg-accent hover:bg-accent/85",
+              "rounded-md px-3 py-1.5 text-sm font-medium text-white",
+              opts.danger
+                ? "bg-bad transition-colors hover:bg-bad/85"
+                : "bg-gradient-to-br from-accent to-accent2 transition-[filter] hover:brightness-110",
             )}
           >
             {opts.confirmLabel || "Confirm"}
