@@ -60,11 +60,27 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
 
+  // Auto-dismiss timers must be cleared on unmount: a timer surviving the
+  // provider fires setState against a torn-down tree (flaked vitest under CI
+  // load via exactly that path).
+  const timers = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const t of pending) window.clearTimeout(t);
+      pending.clear();
+    };
+  }, []);
+
   const toast = useCallback(
     (text: string, kind: ToastKind = "info") => {
       const id = ++seq.current;
       setToasts((t) => [...t, { id, kind, text }]);
-      window.setTimeout(() => dismiss(id), TOAST_MS);
+      const timer = window.setTimeout(() => {
+        timers.current.delete(timer);
+        dismiss(id);
+      }, TOAST_MS);
+      timers.current.add(timer);
     },
     [dismiss],
   );
