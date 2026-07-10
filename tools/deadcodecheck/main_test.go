@@ -6,8 +6,26 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"testing"
 )
+
+// stubCmd returns a platform-appropriate command that prints the given output
+// (empty string → no output). The original stubs hardcoded Windows `cmd /c`,
+// which cannot run on Linux CI — and on the WSL runners even resolved to a
+// stray npm shim named `cmd` from the appended Windows PATH.
+func stubCmd(output string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		if output == "" {
+			return exec.Command("cmd", "/c", "echo.")
+		}
+		return exec.Command("cmd", "/c", "echo", output)
+	}
+	if output == "" {
+		return exec.Command("true")
+	}
+	return exec.Command("echo", output)
+}
 
 func TestFindingLines(t *testing.T) {
 	out := []byte("\n sdk\\approvals.go:35:18: unreachable func: Client.Approve \n\nkernel/foo.go:1:1: unreachable func: unused\n")
@@ -120,7 +138,7 @@ func TestMain_AnalyzerError(t *testing.T) {
 	var exitCode int
 	osExit = func(code int) { exitCode = code; panic("osExit called") }
 	newDeadcodeCmd = func() *exec.Cmd {
-		return exec.Command("cmd", "/c", "echo", "error output")
+		return stubCmd("error output")
 	}
 
 	func() {
@@ -141,7 +159,7 @@ func TestMain_Success(t *testing.T) {
 	var exitCode int
 	osExit = func(code int) { exitCode = code; panic("osExit called") }
 	newDeadcodeCmd = func() *exec.Cmd {
-		return exec.Command("cmd", "/c", "echo.")
+		return stubCmd("")
 	}
 
 	func() {

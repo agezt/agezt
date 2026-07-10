@@ -49,7 +49,7 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/lib/events";
@@ -1336,7 +1336,7 @@ export function Workflows() {
   // ---- editor mode ----
   if (editing) {
     return (
-      <div className="flex h-[calc(100vh-160px)] min-h-[480px] flex-col gap-2">
+      <Page mode="fill" width="full" className="gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="ghost" aria-label="Back to list" onClick={() => setEditing(null)}>
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -1399,7 +1399,7 @@ export function Workflows() {
             onError={(msg) => ui.toast(msg, "error")}
           />
         )}
-        <div className="flex min-h-0 flex-1 rounded-lg border border-border">
+        <div className="flex min-h-[360px] flex-1 rounded-lg border border-border">
           <div className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-card p-2">
             <div className="mb-1 text-xs font-semibold tracking-normal text-muted uppercase">Nodes</div>
             {Object.entries(NODE_META)
@@ -1482,29 +1482,29 @@ export function Workflows() {
             />
           )}
         </div>
-      </div>
+      </Page>
     );
   }
 
   // ---- list mode ----
   return (
-    <div className="space-y-3">
-      <PageHeader
-        icon={Network}
-        title="Workflows"
-        actions={
-          <>
-            {list && <span className="text-xs text-muted">{list.length} workflow(s)</span>}
-            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            </Button>
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              New workflow
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Network}
+      title="Workflows"
+      width="wide"
+      actions={
+        <>
+          {list && <span className="text-xs text-muted">{list.length} workflow(s)</span>}
+          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </Button>
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            New workflow
+          </Button>
+        </>
+      }
+    >
 
       {creating && (
         <WorkflowModal title="New workflow" icon={Plus} onClose={() => setCreating(false)}>
@@ -1634,41 +1634,51 @@ export function Workflows() {
               <span className="font-semibold text-foreground/70">{runContract.label}</span>
               <span className="truncate">{contract}</span>
             </div>
-            <div
-              className={cn(
-                "mt-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
-                invocation.tone === "good"
-                  ? "border-good/25 bg-good/5"
-                  : invocation.tone === "warn"
-                    ? "border-warn/30 bg-warn/5"
-                    : "border-border/60 bg-card/35",
-              )}
-              title={invocation.detail}
-            >
-              <Play className={cn("size-3 shrink-0", invocation.tone === "good" ? "text-good" : invocation.tone === "warn" ? "text-warn" : "text-accent")} />
-              <span className="font-semibold text-foreground/70">{invocation.label}</span>
-              <span className="truncate">{invocation.detail}</span>
-            </div>
-            <div
-              className={cn(
-                "mt-1.5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
-                identity.tone === "good"
-                  ? "border-good/25 bg-good/5"
-                  : identity.tone === "warn"
-                    ? "border-warn/30 bg-warn/5"
-                    : "border-border/60 bg-panel/35",
-              )}
-              title={identity.detail}
-            >
-              <ShieldCheck className={cn("size-3 shrink-0", identity.tone === "good" ? "text-good" : identity.tone === "warn" ? "text-warn" : "text-accent")} />
-              <span className="font-semibold text-foreground/70">{identity.label}</span>
-              <span className="truncate">{identity.detail}</span>
-            </div>
             {w.description && <div className="mt-1 text-xs text-muted">{w.description}</div>}
+            {/* Invocation passport + identity boundary are contract fine print —
+                folded until asked (progressive disclosure); the run-contract line
+                above stays as the humane summary. */}
+            <Disclosure
+              className="mt-1"
+              summary={<span className="text-[11px] font-medium text-muted">Invocation & identity boundary</span>}
+            >
+              <div className="space-y-1.5">
+                <div
+                  className={cn(
+                    "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                    invocation.tone === "good"
+                      ? "border-good/25 bg-good/5"
+                      : invocation.tone === "warn"
+                        ? "border-warn/30 bg-warn/5"
+                        : "border-border/60 bg-card/35",
+                  )}
+                  title={invocation.detail}
+                >
+                  <Play className={cn("size-3 shrink-0", invocation.tone === "good" ? "text-good" : invocation.tone === "warn" ? "text-warn" : "text-accent")} />
+                  <span className="font-semibold text-foreground/70">{invocation.label}</span>
+                  <span className="min-w-0">{invocation.detail}</span>
+                </div>
+                <div
+                  className={cn(
+                    "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
+                    identity.tone === "good"
+                      ? "border-good/25 bg-good/5"
+                      : identity.tone === "warn"
+                        ? "border-warn/30 bg-warn/5"
+                        : "border-border/60 bg-panel/35",
+                  )}
+                  title={identity.detail}
+                >
+                  <ShieldCheck className={cn("size-3 shrink-0", identity.tone === "good" ? "text-good" : identity.tone === "warn" ? "text-warn" : "text-accent")} />
+                  <span className="font-semibold text-foreground/70">{identity.label}</span>
+                  <span className="min-w-0">{identity.detail}</span>
+                </div>
+              </div>
+            </Disclosure>
           </li>
           );
         })}
       </ul>
-    </div>
+    </Page>
   );
 }

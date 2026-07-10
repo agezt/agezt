@@ -18,7 +18,10 @@ import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { Disclosure } from "@/components/ui/disclosure";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
@@ -132,29 +135,28 @@ export function Activity() {
   }, [running]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader
-        icon={ActivityIcon}
-        title="Live activity"
-        actions={
-          <>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 text-xs",
-                connected ? "text-good" : "text-bad",
-              )}
-            >
-              ● {connected ? "live" : "disconnected"}
-            </span>
-            <Button variant="ghost" size="sm" onClick={seed} disabled={seeding}>
-              <RefreshCw
-                className={cn("size-3.5", seeding && "animate-spin")}
-              />{" "}
-              Refresh
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={ActivityIcon}
+      title="Live activity"
+      description={
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 text-xs font-medium",
+            connected ? "text-good" : "text-bad",
+          )}
+        >
+          ● {connected ? "live" : "disconnected"}
+        </span>
+      }
+      actions={
+        <Button variant="ghost" size="sm" onClick={seed} disabled={seeding}>
+          <RefreshCw
+            className={cn("size-3.5", seeding && "animate-spin")}
+          />{" "}
+          Refresh
+        </Button>
+      }
+    >
 
       <MetricGrid cols="grid-cols-3 sm:grid-cols-4">
         <MetricWidget
@@ -213,24 +215,34 @@ export function Activity() {
           </ul>
           {doctorIncidents.length > 0 && (
             <div className="mt-3 border-t border-border pt-2">
-              <div className="mb-1.5 inline-flex items-center gap-1.5 text-xs text-muted">
-                <LifeBuoy className="size-3.5" /> Incident trees
-              </div>
-              <DoctorIncidentTrees
-                trees={doctorIncidents}
-                compact
-                onOpenIncident={openIncident}
-              />
+              <Disclosure
+                summary={
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                    <LifeBuoy className="size-3.5" /> Incident trees ({doctorIncidents.length})
+                  </span>
+                }
+              >
+                <DoctorIncidentTrees
+                  trees={doctorIncidents}
+                  compact
+                  onOpenIncident={openIncident}
+                />
+              </Disclosure>
             </div>
           )}
         </div>
       )}
 
       {tree.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16 text-center">
-          <Cpu className="size-7 text-muted" />
-          <p className="text-sm font-medium text-muted">Nothing running</p>
-        </div>
+        seeding ? (
+          <SkeletonList count={3} lines={2} />
+        ) : (
+          <EmptyState
+            icon={Cpu}
+            title="Nothing running"
+            hint="In-flight runs and their sub-agents appear here the moment work starts."
+          />
+        )
       ) : (
         <div className="space-y-2">
           {tree.map((node) => (
@@ -259,7 +271,7 @@ export function Activity() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

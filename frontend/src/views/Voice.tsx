@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Mic, Square, Radio, Loader2, Volume2, Ear, Sparkles, Settings2, X, type LucideIcon } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { getJSON } from "@/lib/api";
@@ -45,10 +46,10 @@ function VoiceModal({
 // stateLabel + stateHue describe the orb for each phase of the loop.
 const STATE_META: Record<VoiceState, { label: string; hue: string; pulse: boolean }> = {
   idle: { label: "Idle", hue: "var(--muted)", pulse: false },
-  waking: { label: `Listening for "${WAKE_WORDS[0]}"…`, hue: "#f59e0b", pulse: true },
+  waking: { label: `Listening for "${WAKE_WORDS[0]}"…`, hue: "var(--warn)", pulse: true },
   listening: { label: "Listening…", hue: "var(--accent)", pulse: true },
-  thinking: { label: "Thinking…", hue: "var(--accent2)", pulse: true },
-  speaking: { label: "Speaking…", hue: "#22d3ee", pulse: true },
+  thinking: { label: "Thinking…", hue: "var(--accent-2)", pulse: true },
+  speaking: { label: "Speaking…", hue: "var(--good)", pulse: true },
 };
 
 // Voice is the hands-free conversational mode — the "talk to Jarvis" surface. You
@@ -141,28 +142,28 @@ export function Voice() {
   }, [state]);
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        icon={Radio}
-        title="Voice"
-        description="Hands-free conversation — speak, and AGEZT listens, thinks, and talks back. Interrupt any time."
-        actions={
-          <>
-            <Button variant="ghost" onClick={() => setSetupOpen(true)}>
-              <Settings2 className="size-4" /> Setup
+    <Page
+      icon={Radio}
+      title="Voice"
+      description="Hands-free conversation — speak, and AGEZT listens, thinks, and talks back. Interrupt any time."
+      className="gap-5"
+      actions={
+        <>
+          <Button variant="ghost" onClick={() => setSetupOpen(true)}>
+            <Settings2 className="size-4" /> Setup
+          </Button>
+          {on ? (
+            <Button variant="danger" onClick={stopSession}>
+              <Square className="size-4" /> Stop
             </Button>
-            {on ? (
-              <Button variant="danger" onClick={stopSession}>
-                <Square className="size-4" /> Stop
-              </Button>
-            ) : (
-              <Button variant="accent" onClick={startSession}>
-                <Mic className="size-4" /> Start talking
-              </Button>
-            )}
-          </>
-        }
-      />
+          ) : (
+            <Button variant="accent" onClick={startSession}>
+              <Mic className="size-4" /> Start talking
+            </Button>
+          )}
+        </>
+      }
+    >
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         {/* Orb + controls */}
@@ -245,12 +246,11 @@ export function Voice() {
           <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-normal text-muted">Conversation</div>
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
             {lines.length === 0 ? (
-              <div className="grid h-full place-items-center text-center text-sm text-muted">
-                <div>
-                  <Mic className="mx-auto mb-2 size-6 opacity-50" />
-                  Your conversation will appear here.
-                </div>
-              </div>
+              <EmptyState
+                icon={Mic}
+                title="Your conversation will appear here"
+                hint="Press Start talking, then just speak — AGEZT answers out loud and in text."
+              />
             ) : (
               lines.map((l, i) => (
                 <div key={i} className={l.role === "you" ? "text-right" : "text-left"}>
@@ -274,6 +274,6 @@ export function Voice() {
           <VoiceSetup />
         </VoiceModal>
       )}
-    </div>
+    </Page>
   );
 }

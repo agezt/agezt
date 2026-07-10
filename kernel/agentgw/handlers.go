@@ -351,11 +351,11 @@ func (g *Gateway) handleLogRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For now, just return a message about using eventbus.subscribe
-	// Full implementation would require a journal reader
-	responseJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "use eventbus.subscribe to receive log events in real-time",
-	})
+	// No journal reader is wired into the gateway yet. Answer honestly with
+	// 501 instead of a placeholder 200 that callers could mistake for data —
+	// eventbus.subscribe is the supported way to receive log events live.
+	responseError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED",
+		"log read is not implemented; use eventbus.subscribe to receive log events in real-time")
 }
 
 // handleAgentList handles listing agents.

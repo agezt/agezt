@@ -37,6 +37,8 @@ import (
 	"sync"
 
 	"lukechampine.com/blake3"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Status is the lifecycle state of a skill (SPEC-05 §5.2).
@@ -312,33 +314,10 @@ func sortSkills(sk []Skill) {
 	})
 }
 
-// atomicWrite writes data to a temp file and renames it over the target.
-// os.Rename replaces atomically on POSIX and on Windows (MoveFileEx). Mirrors
-// the kernel/state, kernel/memory and kernel/worldmodel helpers (kept local to
-// avoid coupling the packages).
+// atomicWrite writes via a unique temp + fsync + rename (see internal/atomicfile).
 func atomicWrite(path string, data []byte) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("skill: open temp %s: %w", tmp, err)
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("skill: write temp: %w", err)
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("skill: fsync temp: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("skill: close temp: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("skill: rename %s: %w", path, err)
+	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("skill: %w", err)
 	}
 	return nil
 }

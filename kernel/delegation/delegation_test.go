@@ -55,8 +55,8 @@ func TestKeyedModelChain_ExplicitOverride(t *testing.T) {
 	if model != "gpt-4" {
 		t.Fatalf("model = %q, want gpt-4", model)
 	}
-	if len(rest) != 1 || rest[0] != "claude" {
-		t.Fatalf("rest = %v, want [claude]", rest)
+	if len(rest) != 2 || rest[0] != "gpt-4" || rest[1] != "claude" {
+		t.Fatalf("rest = %v, want [gpt-4 claude]", rest)
 	}
 }
 

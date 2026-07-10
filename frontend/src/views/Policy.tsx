@@ -5,7 +5,9 @@ import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { byDescValue, pct } from "@/lib/format";
@@ -134,58 +136,66 @@ export function Policy() {
   const denies = show?.hard_deny ?? [];
 
   return (
-    <div className="space-y-4">
-      {/* Control center */}
-      <div className="glass rounded-xl p-3">
-        <PageHeader
-          className="mb-3"
-          icon={ShieldCheck}
-          title="Capability policy"
-          actions={
-            <>
-              <label className="flex items-center gap-1.5 text-xs text-muted">
-                ask mode <Badge variant={show?.ask_policy === "deny" ? "bad" : show?.ask_policy === "prompt" ? "warn" : "good"}>{show?.ask_policy || "allow"}</Badge>
-              </label>
-              <Button variant="ghost" size="sm" onClick={() => setModeOpen(true)} disabled={!show || busy === "mode"}>
-                <SlidersHorizontal className="size-3.5" /> Policy mode
-              </Button>
-              <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-                <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-              </Button>
-            </>
-          }
-        />
+    <Page
+      icon={ShieldCheck}
+      title="Capability policy"
+      description="Grant or restrict what agents may do — each capability's trust level, editable at runtime."
+      width="readable"
+      mode="scroll"
+      actions={
+        <>
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            ask mode <Badge variant={show?.ask_policy === "deny" ? "bad" : show?.ask_policy === "prompt" ? "warn" : "good"}>{show?.ask_policy || "allow"}</Badge>
+          </label>
+          <Button variant="ghost" size="sm" onClick={() => setModeOpen(true)} disabled={!show || busy === "mode"}>
+            <SlidersHorizontal className="size-3.5" /> Policy mode
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </Button>
+        </>
+      }
+    >
+      {err && <div className="text-xs text-bad">{err}</div>}
 
-        {err && <div className="mb-2 text-xs text-bad">{err}</div>}
-
-        {levels.length === 0 ? (
-          <div className="text-xs text-muted">{loading ? "loading…" : "no governed capabilities"}</div>
+      {levels.length === 0 ? (
+        loading && !show ? (
+          <SkeletonList count={3} lines={2} />
         ) : (
-          <PolicyPanel icon={ShieldCheck} title="Capabilities" status={`${levels.length} governed`} tone="accent">
-            <LevelSummary levels={levels} />
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {levels.map(([cap, lvl]) => (
-                <div
-                  key={cap}
-                  className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
+          <EmptyState icon={ShieldCheck} title="No governed capabilities" hint="Capabilities appear here once the edict engine governs tools at runtime." />
+        )
+      ) : (
+        <PolicyPanel icon={ShieldCheck} title="Capabilities" status={`${levels.length} governed`} tone="accent">
+          <LevelSummary levels={levels} />
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {levels.map(([cap, lvl]) => (
+              <div
+                key={cap}
+                className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
+              >
+                <span className="truncate font-mono text-xs">{cap}</span>
+                <button
+                  className={cn("ml-auto rounded-md border bg-card px-2 py-1 text-xs tabular-nums transition-colors hover:border-accent disabled:opacity-50", levelTone(lvl))}
+                  disabled={busy === cap}
+                  onClick={() => setEditingCap({ capability: cap, level: lvl })}
+                  title={`Edit ${cap} trust level`}
                 >
-                  <span className="truncate font-mono text-xs">{cap}</span>
-                  <button
-                    className={cn("ml-auto rounded-md border bg-card px-2 py-1 text-xs tabular-nums transition-colors hover:border-accent disabled:opacity-50", levelTone(lvl))}
-                    disabled={busy === cap}
-                    onClick={() => setEditingCap({ capability: cap, level: lvl })}
-                    title={`Edit ${cap} trust level`}
-                  >
-                    {lvl}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </PolicyPanel>
-        )}
+                  {lvl}
+                </button>
+              </div>
+            ))}
+          </div>
+          {/* Dry-run a decision (M753) */}
+          <div className="mt-2 border-t border-border pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setTestOpen(true)}>
+              <FlaskConical className="size-3.5" /> Test decision
+            </Button>
+          </div>
+        </PolicyPanel>
+      )}
 
-        {/* Hard-deny rules */}
-        <PolicyPanel icon={ShieldAlert} title="Hard-deny rules" status={`${denies.length} active`} tone="bad">
+      {/* Hard-deny rules */}
+      <PolicyPanel icon={ShieldAlert} title="Hard-deny rules" status={`${denies.length} active`} tone="bad">
           {denies.length === 0 ? (
             <div className="text-xs text-muted">none</div>
           ) : (
@@ -228,34 +238,20 @@ export function Policy() {
               <Plus className="size-3.5" /> Add deny rule
             </Button>
           </div>
-        </PolicyPanel>
+      </PolicyPanel>
 
-        {/* Dry-run a decision (M753) */}
-        {levels.length > 0 && (
-          <div className="mt-3 border-t border-border pt-2">
-            <Button size="sm" variant="ghost" onClick={() => setTestOpen(true)}>
-              <FlaskConical className="size-3.5" /> Test decision
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Secret redaction check (M754) */}
-      <div className="glass rounded-xl p-3">
-        <PageHeader
-          className="mb-2"
-          icon={EyeOff}
-          title="Secret redaction"
-          description="check what the scrubber catches before it leaves the daemon"
-          actions={
-            <Button size="sm" variant="ghost" onClick={() => setRedactOpen(true)}>
-              <EyeOff className="size-3.5" /> Probe
-            </Button>
-          }
-        />
-        <div className="text-xs text-muted">
-          Paste-and-probe runs in a focused modal; this surface only shows the redaction control.
+      {/* Secret redaction check (M754) — paste-and-probe runs in a focused modal. */}
+      <div className="glass flex flex-wrap items-center gap-2 rounded-xl p-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+          <EyeOff className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold">Secret redaction</h2>
+          <p className="text-xs text-muted">Check what the scrubber catches before it leaves the daemon.</p>
         </div>
+        <Button size="sm" variant="ghost" onClick={() => setRedactOpen(true)}>
+          <EyeOff className="size-3.5" /> Probe
+        </Button>
       </div>
 
       {/* Decision stats + log (existing read-only view) */}
@@ -386,7 +382,7 @@ export function Policy() {
           <RedactionCheckForm compact />
         </PolicyModal>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -409,7 +405,7 @@ function PolicyPanel({
     muted: "border-border bg-panel text-muted",
   };
   return (
-    <section className="mb-3 rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
       <div className="mb-2 flex items-center gap-2">
         <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
           <Icon className="size-4" />
@@ -720,12 +716,15 @@ export function RedactionCheckForm({ compact = false }: { compact?: boolean } = 
   return (
     <div className={compact ? "space-y-2" : "glass rounded-xl p-3"}>
       {!compact && (
-        <PageHeader
-          className="mb-2"
-          icon={EyeOff}
-          title="Secret redaction"
-          description="check what the scrubber catches before it leaves the daemon"
-        />
+        <div className="mb-2 flex items-center gap-2">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+            <EyeOff className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">Secret redaction</h3>
+            <p className="text-xs text-muted">check what the scrubber catches before it leaves the daemon</p>
+          </div>
+        </div>
       )}
       <textarea
         value={text}

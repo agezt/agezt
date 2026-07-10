@@ -111,5 +111,5 @@ func TestValidate_InvalidEnvKey(t *testing.T) {
 }
 
 func itoa(i int) string {
-	return string(rune('a' + (i % 26))) + string(rune('0' + (i % 10)))
+	return string(rune('a'+(i%26))) + string(rune('0'+(i%10)))
 }

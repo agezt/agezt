@@ -7,7 +7,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 
@@ -500,55 +500,57 @@ export function Mcp() {
   const attached = (servers || []).filter((s) => s.attached).length;
 
   return (
-    <div className="space-y-3">
-      <PageHeader
-        icon={Plug}
-        title={
-          <span className="inline-flex items-center gap-2">
-            MCP servers
-            {servers && (
-              <span className="text-xs font-normal text-muted">
-                {servers.length} server(s) · {attached} attached
-              </span>
-            )}
-          </span>
-        }
-        description="self-install Model Context Protocol servers"
-        actions={
-          <>
-            <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            </Button>
-            <Button
-              size="sm"
-              variant={showCatalog ? "default" : "ghost"}
-              onClick={() => {
-                setShowCatalog((v) => !v);
-                setShowForm(false);
-              }}
-            >
-              <Boxes className="h-3.5 w-3.5" /> Popular servers
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setShowForm(true);
-                setShowCatalog(false);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Register server
-            </Button>
-          </>
-        }
-      />
-
-      <p className="text-xs text-muted">
-        Attach a Model Context Protocol server and its tools go live for every run as{" "}
-        <span className="font-mono">mcp_&lt;name&gt;_&lt;tool&gt;</span> — no restart. The spawned process gets a
-        scrubbed environment (no secrets), calls are policy-gated, and detach is the kill switch. Enabled servers
-        auto-attach when the daemon starts.
-      </p>
+    <Page
+      icon={Plug}
+      title={
+        <span className="inline-flex items-center gap-2">
+          MCP servers
+          {servers && (
+            <span className="text-xs font-normal text-muted">
+              {servers.length} server(s) · {attached} attached
+            </span>
+          )}
+        </span>
+      }
+      description="self-install Model Context Protocol servers"
+      width="wide"
+      mode="scroll"
+      actions={
+        <>
+          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </Button>
+          <Button
+            size="sm"
+            variant={showCatalog ? "default" : "ghost"}
+            onClick={() => {
+              setShowCatalog((v) => !v);
+              setShowForm(false);
+            }}
+          >
+            <Boxes className="h-3.5 w-3.5" /> Popular servers
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowForm(true);
+              setShowCatalog(false);
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Register server
+          </Button>
+        </>
+      }
+    >
+      <Disclosure summary={<span className="text-xs font-medium text-muted">How MCP attach works</span>}>
+        <p className="px-2 text-xs text-muted">
+          Attach a Model Context Protocol server and its tools go live for every run as{" "}
+          <span className="font-mono">mcp_&lt;name&gt;_&lt;tool&gt;</span> — no restart. The spawned process gets a
+          scrubbed environment (no secrets), calls are policy-gated, and detach is the kill switch. Enabled servers
+          auto-attach when the daemon starts.
+        </p>
+      </Disclosure>
 
       {showCatalog && (
         <div className="rounded-lg border border-accent/30 bg-card p-3">
@@ -612,7 +614,7 @@ export function Mcp() {
                     {e.url || `${e.command} ${e.args}`}
                   </p>
                   {e.needs && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-amber-500/90">
+                    <p className="mt-1 flex items-center gap-1 text-xs text-warn/90">
                       <KeyRound className="h-3 w-3" /> needs: {e.needs}
                     </p>
                   )}
@@ -794,7 +796,7 @@ export function Mcp() {
           </li>
         ))}
       </ul>
-    </div>
+    </Page>
   );
 }
 

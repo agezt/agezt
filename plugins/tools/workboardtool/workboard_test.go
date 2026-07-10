@@ -230,17 +230,17 @@ func TestTaskView_OmitsEmptyOptionals(t *testing.T) {
 func TestTaskView_IncludesNonZeroOptionals(t *testing.T) {
 	v := taskView(workboard.Task{
 		ID: "t1", Title: "test", Status: "todo",
-		Description:     "details",
-		IdempotencyKey:  "ik-1",
-		Tags:            []string{"urgent"},
-		Artifacts:       []string{"log.txt"},
-		RetryPolicy:     &workboard.RetryPolicy{MaxAttempts: 2},
-		Dependencies:    []workboard.Dependency{{ID: "t0"}},
-		Comments:        []workboard.Comment{{Body: "note"}},
-		Links:           []workboard.Link{{Type: "run", Target: "r-1"}},
-		BlockReason:     "blocked on t0",
-		CompletedMS:     100,
-		ArchivedMS:      200,
+		Description:    "details",
+		IdempotencyKey: "ik-1",
+		Tags:           []string{"urgent"},
+		Artifacts:      []string{"log.txt"},
+		RetryPolicy:    &workboard.RetryPolicy{MaxAttempts: 2},
+		Dependencies:   []workboard.Dependency{{ID: "t0"}},
+		Comments:       []workboard.Comment{{Body: "note"}},
+		Links:          []workboard.Link{{Type: "run", Target: "r-1"}},
+		BlockReason:    "blocked on t0",
+		CompletedMS:    100,
+		ArchivedMS:     200,
 	})
 	if v["description"].(string) != "details" {
 		t.Error("taskView should include description")
@@ -404,7 +404,7 @@ func TestWorkboard_List(t *testing.T) {
 	// List all.
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"list"}`))
 	var result struct {
-		Count int           `json:"count"`
+		Count int              `json:"count"`
 		Tasks []map[string]any `json:"tasks"`
 	}
 	if err := json.Unmarshal([]byte(res.Output), &result); err != nil {

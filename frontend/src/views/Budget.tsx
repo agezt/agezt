@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Ring, BarRow } from "@/components/Widgets";
 import { useRateLimitLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
@@ -90,22 +91,23 @@ export function Budget() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Wallet}
-        title="Budget"
-        description="Track today's spend against the daily ceiling and adjust the cap at runtime."
-        actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setAdjustOpen(true)} title="Adjust daily ceiling">
-              <SlidersHorizontal className="size-3.5" /> Adjust
-            </Button>
-            <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
-              <RefreshCw className={loading ? "animate-spin" : ""} />
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Wallet}
+      title="Budget"
+      description="Track today's spend against the daily ceiling and adjust the cap at runtime."
+      width="readable"
+      mode="scroll"
+      actions={
+        <>
+          <Button variant="ghost" size="sm" onClick={() => setAdjustOpen(true)} title="Adjust daily ceiling">
+            <SlidersHorizontal className="size-3.5" /> Adjust
+          </Button>
+          <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
+            <RefreshCw className={loading ? "animate-spin" : ""} />
+          </Button>
+        </>
+      }
+    >
       <div className="glass rounded-xl p-4 space-y-5">
         {error ? (
           <ErrorText>{error}</ErrorText>
@@ -256,25 +258,35 @@ export function Budget() {
         )}
       </div>
 
-      <LogHistoryPanel
-        icon={Gauge}
-        title="Rate limit events"
-        rows={rateLimitRows}
-        loading={rateLimitLoading}
-        loadMore={loadMoreRateLimit}
-        loadingMore={loadingMoreRateLimit}
-        moreError={rateLimitError}
-        hasMore={hasMoreRateLimit}
-        pageSize={50}
-        renderRow={(r) => (
-          <>
-            <span className="font-mono text-foreground">{String(r.agent || "")}</span>
-            <span className="shrink-0 text-muted">{String(r.model || "")}</span>
-            <span className="min-w-0 flex-1 truncate text-muted">{String(r.reason || "")}</span>
-          </>
-        )}
-      />
-    </div>
+      {/* Diagnostic history folded away — the spend gauge is the story here. */}
+      <Disclosure
+        summary={
+          <span className="inline-flex items-center gap-1.5">
+            <Gauge className="size-3.5 text-muted" /> Rate limit events
+            {rateLimitRows.length > 0 && <span className="text-xs text-muted">({rateLimitRows.length})</span>}
+          </span>
+        }
+      >
+        <LogHistoryPanel
+          icon={Gauge}
+          title="Rate limit events"
+          rows={rateLimitRows}
+          loading={rateLimitLoading}
+          loadMore={loadMoreRateLimit}
+          loadingMore={loadingMoreRateLimit}
+          moreError={rateLimitError}
+          hasMore={hasMoreRateLimit}
+          pageSize={50}
+          renderRow={(r) => (
+            <>
+              <span className="font-mono text-foreground">{String(r.agent || "")}</span>
+              <span className="shrink-0 text-muted">{String(r.model || "")}</span>
+              <span className="min-w-0 flex-1 truncate text-muted">{String(r.reason || "")}</span>
+            </>
+          )}
+        />
+      </Disclosure>
+    </Page>
   );
 }
 

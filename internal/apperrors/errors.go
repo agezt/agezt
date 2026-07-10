@@ -77,9 +77,10 @@ func WrapSimple(prefix string, err error) error {
 //
 // Usage:
 //
-//	Wrapf(ctx, "agent: provider %s: %w", providerName, err)
+//	Wrapf(ctx, "agent: provider %s", err, providerName)
 //
-// Note: unlike fmt.Errorf, the error (%w) must be the LAST argument.
+// Note: unlike fmt.Errorf, the format must NOT contain %w — the error is
+// passed separately (right after the format) and appended as ": <err>".
 func Wrapf(ctx context.Context, format string, err error, args ...any) error {
 	if err == nil {
 		return nil
@@ -92,7 +93,10 @@ func Wrapf(ctx context.Context, format string, err error, args ...any) error {
 //
 // Usage:
 //
-//	WrapSimplef("agent: provider %s: %w", providerName, err)
+//	WrapSimplef("agent: provider %s", err, providerName)
+//
+// Note: like Wrapf, the format must NOT contain %w — the error is passed
+// separately and appended as ": <err>".
 func WrapSimplef(format string, err error, args ...any) error {
 	if err == nil {
 		return nil

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Network, Plug, Radio, Boxes, ArrowRight, RefreshCw, CheckCircle2, AlertTriangle, Circle } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,17 +66,18 @@ export function Connections() {
   const unreachableNodes = useMemo(() => (nodes || []).filter((n) => !n.reachable), [nodes]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={Network}
-        title="Connections"
-        actions={
-          <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
-          </Button>
-        }
-      />
-
+    <Page
+      icon={Network}
+      title="Connections"
+      description="What's actually wired up — providers, channels, MCP servers, and peer nodes"
+      width="wide"
+      mode="scroll"
+      actions={
+        <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
+        </Button>
+      }
+    >
       {err && <p className="text-sm text-bad">{err}</p>}
       {loading && !providers ? (
         <SkeletonList count={3} />
@@ -137,7 +138,7 @@ export function Connections() {
           />
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

@@ -25,7 +25,7 @@ func TestStandingView_TriggerWithEmptySubjectAndSchedule(t *testing.T) {
 		ID: "o1", Name: "trigger-test", Enabled: true,
 		Triggers: []standing.Trigger{
 			{Type: standing.TriggerEvent}, // no Subject
-			{Type: standing.TriggerCron},   // no Schedule
+			{Type: standing.TriggerCron},  // no Schedule
 		},
 		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
 		Plan:       "react",

@@ -11,6 +11,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -19,9 +21,29 @@ const deadcodeVersion = "v0.47.0"
 // osExit allows tests to intercept os.Exit without terminating.
 var osExit = os.Exit
 
+// goBinary resolves the `go` executable of the toolchain this binary was built
+// with, falling back to PATH lookup. On the WSL CI runners the Windows PATH is
+// appended to the Linux one, and a stray npm shim named `go` there shadowed the
+// real toolchain ("exec: node: not found") — pinning to runtime.GOROOT() makes
+// the subprocess immune to PATH ordering.
+func goBinary() string {
+	//lint:ignore SA1019 deadcodecheck always runs in-repo via `go run`, never as
+	// a copied binary — the building toolchain's GOROOT is exactly the pin we want.
+	if root := runtime.GOROOT(); root != "" {
+		bin := filepath.Join(root, "bin", "go")
+		if runtime.GOOS == "windows" {
+			bin += ".exe"
+		}
+		if _, err := os.Stat(bin); err == nil {
+			return bin
+		}
+	}
+	return "go"
+}
+
 // newDeadcodeCmd is injectable in tests to avoid actually running the analyzer.
 var newDeadcodeCmd = func() *exec.Cmd {
-	return exec.Command("go", "run", "golang.org/x/tools/cmd/deadcode@"+deadcodeVersion, "./...")
+	return exec.Command(goBinary(), "run", "golang.org/x/tools/cmd/deadcode@"+deadcodeVersion, "./...")
 }
 
 func main() {

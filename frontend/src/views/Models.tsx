@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 
@@ -163,11 +163,13 @@ export function Models() {
   }, [providers, q]);
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Layers}
-        title="Models"
-        actions={
+    <Page
+      icon={Layers}
+      title="Models"
+      description="Every provider and model the daemon knows, synced from models.dev"
+      width="wide"
+      mode="scroll"
+      actions={
           <>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
@@ -187,8 +189,7 @@ export function Models() {
             </Button>
           </>
         }
-      />
-
+    >
       <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
         <MetricWidget icon={Layers} label="Providers" value={providers.length} tone="muted" />
         <MetricWidget icon={Brain} label="Models" value={totalModels} tone="muted" />
@@ -225,7 +226,7 @@ export function Models() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }
 

@@ -13,7 +13,8 @@ import { Page } from "@/components/ui/page";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
-import { useMemoryLogPager } from "@/lib/cursorPager";
+import { useMemoryLogPager, useMemoryPager } from "@/lib/cursorPager";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 interface MemRecord {
@@ -80,13 +81,34 @@ export function parseMemoryJSON(text: string): Record<string, unknown>[] {
 // ordinary PREFERENCE records the daemon injects into every run.
 const PROFILE_PREFIX = "operator profile: ";
 
+// MEM_PAGE_SIZE is the cursor-pager page size: a busy store no longer ships
+// every record on first paint — the view loads a page at a time.
+const MEM_PAGE_SIZE = 100;
+
 export function Memory() {
   const ui = useUI();
-  const [records, setRecords] = useState<MemRecord[] | null>(null);
+  // Cursor-paginated record list: /api/memory pages on (CreatedMS, ID) with
+  // limit+cursor; the pager pulls MEM_PAGE_SIZE at a time and LoadMoreFooter
+  // extends. Client-side search/scope filters apply over the loaded pages.
+  const {
+    paged,
+    error: err,
+    loading,
+    loadMore,
+    loadingMore,
+    moreError,
+    hasMore,
+    reload: reloadList,
+  } = useMemoryPager(MEM_PAGE_SIZE);
+  const records = paged as unknown as MemRecord[];
+  // Store-wide active-record count from the list envelope ("N of TOTAL loaded").
+  const [total, setTotal] = useState<number | null>(null);
   const [q, setQ] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Bulk-cleanup selection: ids of currently loaded records ticked for a
+  // one-shot soft-delete via /api/memory/bulk_forget.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [audit, setAudit] = useState<MemoryAudit | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -106,8 +128,36 @@ export function Memory() {
     hasMore: hasMoreWriteLog,
   } = useMemoryLogPager(50);
 
-  function exportMemory() {
-    downloadText("agezt-memory.json", JSON.stringify({ version: 1, memory: records ?? [] }, null, 2), "application/json");
+  // loadedOnce discriminates boot (skeleton) from a genuinely empty store:
+  // the pager starts with an empty page for one pre-fetch frame, so track the
+  // first list load's completion explicitly.
+  const sawLoad = useRef(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  useEffect(() => {
+    if (loading) sawLoad.current = true;
+    else if (sawLoad.current) setLoadedOnce(true);
+  }, [loading]);
+
+  // Selection survives load-more but drops ids that left the loaded set
+  // (forgotten elsewhere, or a reload shrank the pages).
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(paged.map((r) => r.id));
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [paged]);
+
+  // Export fetches its own snapshot (up to the server's 1000-record page cap)
+  // so a backup isn't silently truncated to the pages loaded on screen.
+  async function exportMemory() {
+    try {
+      const d = await getJSON<{ records?: MemRecord[] }>("/api/memory", { limit: "1000" });
+      downloadText("agezt-memory.json", JSON.stringify({ version: 1, memory: d.records ?? [] }, null, 2), "application/json");
+    } catch (e) {
+      ui.toast(`export failed: ${(e as Error).message}`, "error");
+    }
   }
 
   // Restore memories from a file: re-add each via memory_add. Memory is
@@ -132,21 +182,23 @@ export function Memory() {
     }
   }
 
+  // reloadMeta refreshes the sidecar reads: the hygiene audit plus the store's
+  // total active-record count. The list itself is cursor-paged, so the header's
+  // "N of TOTAL loaded" needs the envelope total from a cheap limit=1 probe
+  // (the pager hook doesn't surface it).
+  async function reloadMeta() {
+    const [a, t] = await Promise.all([
+      getJSON<MemoryAudit>("/api/memory/audit").catch(() => null),
+      getJSON<{ total?: number }>("/api/memory", { limit: "1" }).catch(() => null),
+    ]);
+    setAudit(a && typeof a.usable === "number" ? a : null);
+    setTotal(t && typeof t.total === "number" ? t.total : null);
+  }
+
+  // reload refreshes both the paged list (back to page 1) and the meta reads.
   async function reload() {
-    setLoading(true);
-    try {
-      const [d, a] = await Promise.all([
-        getJSON<{ records?: MemRecord[] }>("/api/memory"),
-        getJSON<MemoryAudit>("/api/memory/audit").catch(() => null),
-      ]);
-      setRecords(d.records || []);
-      setAudit(a && typeof a.usable === "number" ? a : null);
-      setErr(null);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    reloadList();
+    await reloadMeta();
   }
   // rebuildProfile (M1000) synthesizes the operator profile from accumulated
   // memory on demand — the daemon also does this on a daily timer.
@@ -162,7 +214,10 @@ export function Memory() {
     }
   }
   useEffect(() => {
-    reload();
+    // The pager fetches the list on mount by itself; only the meta reads
+    // need a kick here.
+    void reloadMeta();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function forget(id: string, subject?: string) {
@@ -280,10 +335,10 @@ export function Memory() {
     }
   }
 
-  // byType drives the breakdown bar (over ALL records, not the filtered view).
+  // byType drives the breakdown bar (over all LOADED records, not the filtered view).
   const byType = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const r of records || []) c[(r.type || "FACT").toUpperCase()] = (c[(r.type || "FACT").toUpperCase()] || 0) + 1;
+    for (const r of records) c[(r.type || "FACT").toUpperCase()] = (c[(r.type || "FACT").toUpperCase()] || 0) + 1;
     return Object.entries(c).map(([label, count]) => ({ label, count }));
   }, [records]);
 
@@ -292,7 +347,7 @@ export function Memory() {
   const scopes = useMemo(() => {
     const c = new Map<string, number>();
     let shared = 0;
-    for (const r of records || []) {
+    for (const r of records) {
       const s = r.tags?.scope || "";
       if (s) c.set(s, (c.get(s) || 0) + 1);
       else shared++;
@@ -304,7 +359,7 @@ export function Memory() {
   const shown = useMemo(() => {
     // Operator-profile facets (M1000) have their own card — keep them out of the
     // general record list so they aren't shown twice.
-    let list = [...(records || [])]
+    let list = [...records]
       .filter((r) => !(r.subject || "").startsWith(PROFILE_PREFIX))
       .sort((a, b) => (b.created_ms || 0) - (a.created_ms || 0));
     if (scopeFilter !== null) list = list.filter((r) => (r.tags?.scope || "") === scopeFilter);
@@ -316,13 +371,63 @@ export function Memory() {
 
   // The learned operator profile (M1000): PREFERENCE facets on reserved subjects.
   const profile = useMemo(
-    () => (records || []).filter((r) => (r.subject || "").startsWith(PROFILE_PREFIX)),
+    () => records.filter((r) => (r.subject || "").startsWith(PROFILE_PREFIX)),
     [records],
   );
   const editingRecord = useMemo(
-    () => (editingId ? (records || []).find((r) => r.id === editingId) || null : null),
+    () => (editingId ? records.find((r) => r.id === editingId) || null : null),
     [editingId, records],
   );
+
+  // ─────────────── bulk select + cleanup (over loaded/filtered records) ───────────────
+  const shownIds = useMemo(() => shown.map((r) => r.id).filter((id): id is string => !!id), [shown]);
+  const allSelected = shownIds.length > 0 && shownIds.every((id) => selected.has(id));
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Select-all covers the records currently shown (loaded pages after
+  // search/scope filtering); toggling off removes only those.
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) for (const id of shownIds) next.delete(id);
+      else for (const id of shownIds) next.add(id);
+      return next;
+    });
+  }
+
+  // bulkForget soft-deletes every selected record in one call (idempotent
+  // server-side; tombstones stay recoverable until prune).
+  async function bulkForget() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const ok = await ui.confirm({
+      title: `Forget ${ids.length} memory record${ids.length === 1 ? "" : "s"}?`,
+      message: "Soft-delete — the records stay recoverable until the next prune.",
+      confirmLabel: "Forget",
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const res = await postJSON<{ forgotten?: number; not_found?: number }>("/api/memory/bulk_forget", { ids });
+      const n = res.forgotten ?? ids.length;
+      ui.toast(`Forgot ${n} record${n === 1 ? "" : "s"}`, "success");
+      setSelected(new Set());
+      await reload();
+    } catch (e) {
+      ui.toast(`bulk forget failed: ${(e as Error).message}`, "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   return (
     <Page
@@ -331,7 +436,12 @@ export function Memory() {
       width="wide"
       actions={
         <>
-          {records && <span className="text-xs text-muted">{shown.length}/{records.length}</span>}
+          {loadedOnce && (
+            <span className="text-xs text-muted">
+              {shown.length}/{records.length}
+              {total != null && total !== records.length ? ` · ${records.length} of ${total} loaded` : ""}
+            </span>
+          )}
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
               <input
@@ -359,7 +469,7 @@ export function Memory() {
             <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} title="Import memories from a file">
               <Upload className="size-3.5" /> Import
             </Button>
-            <Button variant="ghost" size="sm" onClick={exportMemory} disabled={!records || records.length === 0} title="Export memories to a file">
+            <Button variant="ghost" size="sm" onClick={exportMemory} disabled={records.length === 0} title="Export memories to a file">
               <Download className="size-3.5" /> Export
             </Button>
             <Button variant="ghost" size="sm" onClick={tidy} title="Collapse near-duplicate auto-distilled notes — keep the strongest per subject">
@@ -443,7 +553,7 @@ export function Memory() {
 
       {scopes.scoped.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Memory scope filter">
-          <ScopeChip active={scopeFilter === null} onClick={() => setScopeFilter(null)} label="All" count={(records || []).length} />
+          <ScopeChip active={scopeFilter === null} onClick={() => setScopeFilter(null)} label="All" count={records.length} />
           <ScopeChip
             active={scopeFilter === ""}
             onClick={() => setScopeFilter((cur) => (cur === "" ? null : ""))}
@@ -466,7 +576,7 @@ export function Memory() {
 
       {err ? (
         <ErrorText>{err}</ErrorText>
-      ) : !records ? (
+      ) : !loadedOnce ? (
         <SkeletonGrid count={6} />
       ) : shown.length === 0 ? (
         records.length === 0 ? (
@@ -481,12 +591,44 @@ export function Memory() {
       ) : (
         <div className="space-y-2">
           {byType.length > 0 && <BreakdownBar segments={byType} />}
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-panel/45 px-3 py-1.5">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                className="size-3.5 accent-accent"
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                aria-label="Select all loaded records"
+              />
+              Select all ({shownIds.length})
+            </label>
+            {selected.size > 0 && (
+              <div className="ml-auto flex items-center gap-2" role="toolbar" aria-label="Bulk memory actions">
+                <span className="text-xs font-semibold text-foreground">{selected.size} selected</span>
+                <Button size="sm" variant="danger" onClick={bulkForget} disabled={bulkBusy} title="Soft-delete every selected record">
+                  <Trash2 className="size-3.5" /> Forget selected
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} disabled={bulkBusy}>
+                  <X className="size-3.5" /> Clear selection
+                </Button>
+              </div>
+            )}
+          </div>
           <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {shown.map((r, i) => {
               const scope = r.tags?.scope || "";
               return (
               <li key={r.id || i} className="glass rounded-xl p-3">
                 <div className="mb-1 flex items-center gap-2">
+                  {r.id && (
+                    <input
+                      type="checkbox"
+                      className="size-3.5 shrink-0 accent-accent"
+                      checked={selected.has(r.id)}
+                      onChange={() => toggleSelect(r.id!)}
+                      aria-label={`Select memory ${r.subject || r.id}`}
+                    />
+                  )}
                   {r.type && (
                     <span className="rounded bg-accent/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-normal text-accent">
                       {r.type}
@@ -563,6 +705,14 @@ export function Memory() {
               );
             })}
           </ul>
+          <LoadMoreFooter
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            moreError={moreError}
+            onLoadMore={loadMore}
+            pageSize={MEM_PAGE_SIZE}
+            label="memory"
+          />
         </div>
       )}
 

@@ -10,7 +10,8 @@ import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Disclosure } from "@/components/ui/disclosure";
 import { acpCensus, acpUsageHint, type ACPInventory, type ACPAgentStatus } from "@/lib/acp";
 
 // ACP Agents — discovery of the Agent Client Protocol coding agents installed on
@@ -44,36 +45,17 @@ export function ACPAgents() {
   const cen = useMemo(() => acpCensus(inv), [inv]);
 
   return (
-    <div className="space-y-3">
-      <PageHeader
-        icon={Plug}
-        title="ACP Agents"
-        description="External coding agents that speak the Agent Client Protocol. Delegate work to any installed one via the acp_agent tool."
-        actions={
-          <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-scan host">
-            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-          </Button>
-        }
-      />
-
-      {inv && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-            <Cpu className="size-3" /> {inv.os}
-          </span>
-          {inv.active_command ? (
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-              default:{" "}
-              <code className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">{inv.active_command}</code>
-            </span>
-          ) : (
-            <span className="text-[11px] text-muted">
-              no default configured (set AGEZT_ACP_AGENT_CMD, or pick an installed agent per call)
-            </span>
-          )}
-        </div>
-      )}
-
+    <Page
+      icon={Plug}
+      title="ACP Agents"
+      description="External coding agents that speak the Agent Client Protocol. Delegate work to any installed one via the acp_agent tool."
+      width="wide"
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-scan host">
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+        </Button>
+      }
+    >
       {inv && (
         <div className="grid grid-cols-3 gap-2">
           <BigStat icon={Boxes} label="catalog" value={cen.total} tone="muted" />
@@ -99,12 +81,39 @@ export function ACPAgents() {
         </div>
       )}
 
-      <p className="text-[11px] text-muted">
-        Any ACP-speaking binary works even if it's not in this catalog — set{" "}
-        <code className="font-mono">AGEZT_ACP_AGENT_CMD</code> to its launch command. Installed catalog agents can be
-        selected per call with <code className="font-mono">acp_agent agent="&lt;slug&gt;"</code>.
-      </p>
-    </div>
+      <Disclosure
+        summary={
+          <span className="text-xs font-semibold uppercase tracking-normal text-muted">
+            Host & usage{inv && !inv.active_command ? " · no default agent configured" : ""}
+          </span>
+        }
+      >
+        <div className="flex flex-col gap-2 px-2 pb-1">
+          {inv && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                <Cpu className="size-3" /> {inv.os}
+              </span>
+              {inv.active_command ? (
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                  default:{" "}
+                  <code className="rounded bg-card px-1.5 py-0.5 font-mono text-xs text-accent">{inv.active_command}</code>
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted">
+                  no default configured (set AGEZT_ACP_AGENT_CMD, or pick an installed agent per call)
+                </span>
+              )}
+            </div>
+          )}
+          <p className="text-[11px] text-muted">
+            Any ACP-speaking binary works even if it's not in this catalog — set{" "}
+            <code className="font-mono">AGEZT_ACP_AGENT_CMD</code> to its launch command. Installed catalog agents can be
+            selected per call with <code className="font-mono">acp_agent agent="&lt;slug&gt;"</code>.
+          </p>
+        </div>
+      </Disclosure>
+    </Page>
   );
 }
 

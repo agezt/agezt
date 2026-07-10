@@ -102,6 +102,75 @@ describe("parseMemoryJSON (M750)", () => {
   });
 });
 
+describe("Memory pagination + bulk cleanup", () => {
+  const page1 = {
+    records: [
+      { id: "m1", subject: "alpha", content: "first fact", type: "FACT" },
+      { id: "m2", subject: "beta", content: "second fact", type: "FACT" },
+    ],
+    count: 2,
+    total: 4,
+    next_cursor: "1000:m2",
+  };
+
+  it("pages the list: Load more appears with a next_cursor and fetches the next page with it", async () => {
+    getJSON.mockImplementation((path: string, params?: Record<string, string>) => {
+      if (path === "/api/memory/audit") return Promise.resolve(null);
+      if (params?.cursor === "1000:m2")
+        return Promise.resolve({ records: [{ id: "m3", subject: "gamma", content: "third fact", type: "FACT" }], total: 4 });
+      return Promise.resolve(page1);
+    });
+    render(<Memory />);
+    await screen.findByText("alpha");
+
+    // Pager's first page rendered + footer offers the next page.
+    fireEvent.click(screen.getByRole("button", { name: /Load 100 more/i }));
+    await waitFor(() =>
+      expect(getJSON).toHaveBeenCalledWith("/api/memory", expect.objectContaining({ cursor: "1000:m2", limit: "100" })),
+    );
+    await screen.findByText("gamma");
+    // Second page carried no next_cursor → footer settles into the end marker.
+    await screen.findByText(/end of memory/i);
+  });
+
+  it("selecting two records shows the bulk toolbar with the count", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/memory/audit" ? Promise.resolve(null) : Promise.resolve({ records: page1.records, total: 2 }),
+    );
+    render(<Memory />);
+    await screen.findByText("alpha");
+
+    fireEvent.click(screen.getByLabelText("Select memory alpha"));
+    fireEvent.click(screen.getByLabelText("Select memory beta"));
+    expect(screen.getByText("2 selected")).toBeTruthy();
+
+    // Clear selection dismisses the toolbar.
+    fireEvent.click(screen.getByRole("button", { name: /Clear selection/i }));
+    expect(screen.queryByText("2 selected")).toBeNull();
+  });
+
+  it("bulk-forgets the selected ids after a danger confirm and toasts the count", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/memory/audit" ? Promise.resolve(null) : Promise.resolve({ records: page1.records, total: 2 }),
+    );
+    confirm.mockResolvedValue(true);
+    postJSON.mockResolvedValue({ forgotten: 2, not_found: 0 });
+    render(<Memory />);
+    await screen.findByText("alpha");
+
+    // Header select-all selects every loaded/filtered record.
+    fireEvent.click(screen.getByLabelText("Select all loaded records"));
+    expect(screen.getByText("2 selected")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Forget selected/i }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/memory/bulk_forget", { ids: ["m1", "m2"] }));
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ danger: true, title: expect.stringMatching(/Forget 2 memory records/) }),
+    );
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringMatching(/Forgot 2/), "success"));
+  });
+});
+
 describe("Memory scopes (M915)", () => {
   const records = [
     { id: "m-shared", subject: "deploy-url", content: "example.com", type: "FACT", tags: { source: "operator" } },

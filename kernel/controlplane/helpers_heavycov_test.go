@@ -26,7 +26,7 @@ func TestArgTruthy_AllForms(t *testing.T) {
 		false,
 		"off", "false", "no", "0", "", "maybe",
 		nil,
-		42,        // non-string number
+		42,         // non-string number
 		float64(1), // float is not accepted (only bool/string)
 		[]string{"1"},
 		map[string]any{"x": 1},
@@ -42,13 +42,13 @@ func TestArgTruthy_AllForms(t *testing.T) {
 // trailing ".0", fractional floats keep their JSON form.
 func TestTrimFloat(t *testing.T) {
 	cases := map[float64]string{
-		0:      "0",
-		1:      "1",
-		-5:     "-5",
-		1000:   "1000",
-		1.5:    "1.5",
-		-2.25:  "-2.25",
-		0.5:    "0.5",
+		0:     "0",
+		1:     "1",
+		-5:    "-5",
+		1000:  "1000",
+		1.5:   "1.5",
+		-2.25: "-2.25",
+		0.5:   "0.5",
 	}
 	for in, want := range cases {
 		if got := trimFloat(in); got != want {
@@ -60,11 +60,11 @@ func TestTrimFloat(t *testing.T) {
 // TestItoa checks the int64 → decimal-string helper.
 func TestItoa(t *testing.T) {
 	cases := map[int64]string{
-		0:            "0",
-		1:            "1",
-		-1:           "-1",
-		1234567890:   "1234567890",
-		-9876543210:  "-9876543210",
+		0:           "0",
+		1:           "1",
+		-1:          "-1",
+		1234567890:  "1234567890",
+		-9876543210: "-9876543210",
 	}
 	for in, want := range cases {
 		if got := itoa(in); got != want {

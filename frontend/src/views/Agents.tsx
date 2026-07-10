@@ -41,6 +41,8 @@ import { FleetCard, FleetDetail } from "@/components/Fleet";
 import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
 import { Page } from "@/components/ui/page";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { useAgentsPager } from "@/lib/cursorPager";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import type { AgentProfile } from "@/views/Roster";
@@ -178,6 +180,14 @@ const KIND_DOT: Record<StatusKind, string> = {
 type Tab = "fleet" | "live";
 type FleetFilter = FleetEntityFilter;
 
+// AGENTS_RUN_LIMIT bounds the /api/runs fetch (newest first) that feeds both
+// tabs; AGENTS_CARD_WINDOW caps how many live run cards render at once — the
+// grid grows client-side via the Load-more footer. The roster itself pages
+// server-side through useAgentsPager (100 profiles per page).
+const AGENTS_RUN_LIMIT = 300;
+const AGENTS_CARD_WINDOW = 60;
+const ROSTER_PAGE_SIZE = 100;
+
 const FLEET_FILTERS: { id: FleetFilter; label: string; icon: typeof Bot }[] = [
   { id: "all", label: "All", icon: Network },
   { id: "guardians", label: "Guardians", icon: ShieldCheck },
@@ -203,7 +213,6 @@ export function Agents() {
   const { events, subscribe } = useEvents();
   const [tab, setTab] = useState<Tab>("fleet");
   const [runs, setRuns] = useState<ApiRun[] | null>(null);
-  const [profiles, setProfiles] = useState<ApiProfile[]>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [schedules, setSchedules] = useState<ApiSchedule[]>([]);
   const [workflows, setWorkflows] = useState<ApiWorkflow[]>([]);
@@ -218,11 +227,30 @@ export function Agents() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [livePatches, setLivePatches] = useState<AgentLivePatchMap>({});
+  const [liveWin, setLiveWin] = useState(AGENTS_CARD_WINDOW);
+
+  // The roster pages server-side ((CreatedMS, slug) cursor): the first 100
+  // profiles arrive with the view; the fleet grid's Load-more footer pulls the
+  // next page on demand instead of fetching every agent up front.
+  const {
+    paged: pagedProfiles,
+    loadMore: loadMoreProfiles,
+    loadingMore: loadingMoreProfiles,
+    moreError: profilesMoreError,
+    hasMore: hasMoreProfiles,
+    reload: reloadProfiles,
+  } = useAgentsPager(ROSTER_PAGE_SIZE);
+  const profiles = pagedProfiles as unknown as ApiProfile[];
+
+  // Reset the live-run render window when the status filter changes.
+  useEffect(() => {
+    setLiveWin(AGENTS_CARD_WINDOW);
+  }, [filter]);
 
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ runs?: ApiRun[] }>("/api/runs");
+      const d = await getJSON<{ runs?: ApiRun[] }>("/api/runs", { limit: String(AGENTS_RUN_LIMIT) });
       setRuns(d.runs || []);
       setErr(null);
     } catch (e) {
@@ -234,15 +262,14 @@ export function Agents() {
   // The catalogue inputs change rarely (operator edits), so they load once + on
   // the slower poll, while runs stay on the fast 6s cycle. Each fetch is
   // best-effort: one endpoint failing must not blank the rest of the census.
+  // (The roster itself is fetched by useAgentsPager above.)
   async function reloadCatalog() {
-    const [a, o, s, w, p] = await Promise.allSettled([
-      getJSON<{ profiles?: ApiProfile[] }>("/api/agents"),
+    const [o, s, w, p] = await Promise.allSettled([
       getJSON<{ orders?: ApiOrder[] }>("/api/standing"),
       getJSON<{ schedules?: ApiSchedule[] }>("/api/schedules"),
       getJSON<{ workflows?: ApiWorkflow[] }>("/api/workflows"),
       getJSON<ApiPulse>("/api/pulse"),
     ]);
-    if (a.status === "fulfilled") setProfiles(a.value.profiles || []);
     if (o.status === "fulfilled") setOrders(o.value.orders || []);
     if (s.status === "fulfilled") setSchedules(s.value.schedules || []);
     if (w.status === "fulfilled") setWorkflows(w.value.workflows || []);
@@ -253,13 +280,17 @@ export function Agents() {
   function reloadAll() {
     reload();
     reloadCatalog();
+    reloadProfiles();
   }
 
   useEffect(() => {
     reload();
     reloadCatalog();
     const id = setInterval(reload, 6000);
-    const catId = setInterval(reloadCatalog, 30000);
+    const catId = setInterval(() => {
+      reloadCatalog();
+      reloadProfiles();
+    }, 30000);
     return () => {
       clearInterval(id);
       clearInterval(catId);
@@ -273,12 +304,16 @@ export function Agents() {
       setLivePatches((prev) => reduceAgentLivePatchMap(prev, ev));
       if (!shouldReloadAgentCatalog(ev)) return;
       if (t) clearTimeout(t);
-      t = setTimeout(() => void reloadCatalog(), 1200);
+      t = setTimeout(() => {
+        void reloadCatalog();
+        reloadProfiles();
+      }, 1200);
     });
     return () => {
       if (t) clearTimeout(t);
       off();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscribe]);
 
   // Nudge on run lifecycle + delegation events.
@@ -388,6 +423,35 @@ export function Agents() {
     );
   }
 
+  // renderRootGrid renders a windowed run-card grid: only the first
+  // AGENTS_CARD_WINDOW cards mount, with a Load-more footer growing the
+  // window client-side (the data is already fetched — this bounds the DOM).
+  const renderRootGrid = (list: RootSummary[]) => (
+    <>
+      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        {list.slice(0, liveWin).map((r) => (
+          <RunCard
+            key={r.id}
+            r={r}
+            onOpen={() => {
+              setSel(r.id);
+              setPicked(null);
+            }}
+          />
+        ))}
+      </div>
+      {list.length > AGENTS_CARD_WINDOW && (
+        <LoadMoreFooter
+          hasMore={liveWin < list.length}
+          loadingMore={false}
+          onLoadMore={() => setLiveWin((w) => w + AGENTS_CARD_WINDOW)}
+          pageSize={Math.min(AGENTS_CARD_WINDOW, Math.max(1, list.length - liveWin))}
+          label="runs"
+        />
+      )}
+    </>
+  );
+
   // ───────────────────────── Live tab: run gallery ─────────────────────────
   if (tab === "live") {
     return (
@@ -422,18 +486,7 @@ export function Agents() {
                     }
                   />
                 ) : (
-                  <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                    {roots.map((r) => (
-                      <RunCard
-                        key={r.id}
-                        r={r}
-                        onOpen={() => {
-                          setSel(r.id);
-                          setPicked(null);
-                        }}
-                      />
-                    ))}
-                  </div>
+                  renderRootGrid(roots)
                 ),
               },
               {
@@ -446,18 +499,7 @@ export function Agents() {
                   return runningRoots.length === 0 ? (
                     <EmptyState icon={Radio} title="No running agents" hint="No agents are currently executing." />
                   ) : (
-                    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                      {runningRoots.map((r) => (
-                        <RunCard
-                          key={r.id}
-                          r={r}
-                          onOpen={() => {
-                            setSel(r.id);
-                            setPicked(null);
-                          }}
-                        />
-                      ))}
-                    </div>
+                    renderRootGrid(runningRoots)
                   );
                 })(),
               },
@@ -471,18 +513,7 @@ export function Agents() {
                   return doneRoots.length === 0 ? (
                     <EmptyState icon={CheckCircle2} title="No completed runs" hint="No runs have completed successfully." />
                   ) : (
-                    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                      {doneRoots.map((r) => (
-                        <RunCard
-                          key={r.id}
-                          r={r}
-                          onOpen={() => {
-                            setSel(r.id);
-                            setPicked(null);
-                          }}
-                        />
-                      ))}
-                    </div>
+                    renderRootGrid(doneRoots)
                   );
                 })(),
               },
@@ -496,18 +527,7 @@ export function Agents() {
                   return failedRoots.length === 0 ? (
                     <EmptyState icon={XCircle} title="No failed runs" hint="No runs have failed." />
                   ) : (
-                    <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                      {failedRoots.map((r) => (
-                        <RunCard
-                          key={r.id}
-                          r={r}
-                          onOpen={() => {
-                            setSel(r.id);
-                            setPicked(null);
-                          }}
-                        />
-                      ))}
-                    </div>
+                    renderRootGrid(failedRoots)
                   );
                 })(),
               },
@@ -591,22 +611,37 @@ export function Agents() {
         />
       ) : (
         <div className="flex min-h-0 flex-col gap-3 lg:flex-row">
-          <div
-            className={cn(
-              "grid min-w-0 flex-1 gap-2.5",
-              selEntity ? "sm:grid-cols-1 xl:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3",
-            )}
-          >
-            {shownFleet.length === 0 ? (
-              <EmptyState icon={Search} title="No matches" hint="Try a different filter or search term." />
-            ) : (
-              // A roster agent (created or guardian) opens its full, deep-linkable
-              // identity PAGE (#agent/<slug>) — what the owner expects when clicking
-              // an agent. Automations (standing/schedule/workflow) have no page, so
-              // they open the inline "how does this run?" panel.
-              shownFleet.map((e) => (
-                <FleetCard key={e.key} e={e} onOpen={() => (e.kind === "roster" ? openAgent(e.slug) : setSelKey(e.key))} onAction={reloadAll} />
-              ))
+          <div className="min-w-0 flex-1">
+            <div
+              className={cn(
+                "grid min-w-0 gap-2.5",
+                selEntity ? "sm:grid-cols-1 xl:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3",
+              )}
+            >
+              {shownFleet.length === 0 ? (
+                <EmptyState icon={Search} title="No matches" hint="Try a different filter or search term." />
+              ) : (
+                // A roster agent (created or guardian) opens its full, deep-linkable
+                // identity PAGE (#agent/<slug>) — what the owner expects when clicking
+                // an agent. Automations (standing/schedule/workflow) have no page, so
+                // they open the inline "how does this run?" panel.
+                shownFleet.map((e) => (
+                  <FleetCard key={e.key} e={e} onOpen={() => (e.kind === "roster" ? openAgent(e.slug) : setSelKey(e.key))} onAction={reloadAll} />
+                ))
+              )}
+            </div>
+            {/* Server-side roster paging: pull the next 100 profiles on demand.
+                The footer only shows while more pages exist, so small fleets
+                render exactly as before. */}
+            {hasMoreProfiles && (
+              <LoadMoreFooter
+                hasMore={hasMoreProfiles}
+                loadingMore={loadingMoreProfiles}
+                moreError={profilesMoreError}
+                onLoadMore={loadMoreProfiles}
+                pageSize={ROSTER_PAGE_SIZE}
+                label="roster"
+              />
             )}
           </div>
           {selEntity && (

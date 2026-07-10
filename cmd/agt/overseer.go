@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -95,7 +96,7 @@ func overseerStatus(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdStatus, nil)
+	res, err := c.Call(context.TODO(), controlplane.CmdStatus, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -110,7 +111,7 @@ func overseerAgents(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentList, map[string]any{})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentList, map[string]any{})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -125,7 +126,7 @@ func overseerRuns(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdStatus, nil)
+	res, err := c.Call(context.TODO(), controlplane.CmdStatus, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -140,7 +141,7 @@ func overseerHalt(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdHalt, nil)
+	res, err := c.Call(context.TODO(), controlplane.CmdHalt, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -154,7 +155,7 @@ func overseerResume(stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdResume, nil)
+	res, err := c.Call(context.TODO(), controlplane.CmdResume, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -172,7 +173,7 @@ func overseerCancel(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdCancelRun, map[string]any{"correlation": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), controlplane.CmdCancelRun, map[string]any{"correlation": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -190,7 +191,7 @@ func overseerPauseResume(args []string, stdout, stderr io.Writer, enabled bool) 
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentSetEnabled, map[string]any{"ref": strings.TrimSpace(args[0]), "enabled": enabled})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentSetEnabled, map[string]any{"ref": strings.TrimSpace(args[0]), "enabled": enabled})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -210,7 +211,7 @@ func overseerAgentImpact(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentImpact, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentImpact, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -231,7 +232,7 @@ func overseerRetire(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentRetire, map[string]any{"ref": ref, "reason": reason})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentRetire, map[string]any{"ref": ref, "reason": reason})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -251,7 +252,7 @@ func overseerRevive(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentRevive, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentRevive, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -271,7 +272,7 @@ func overseerGet(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentList, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentList, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -290,7 +291,7 @@ func overseerDelete(args []string, stdout, stderr io.Writer) int {
 	if c == nil {
 		return 1
 	}
-	res, err := c.Call(nil, controlplane.CmdAgentRemove, map[string]any{"ref": strings.TrimSpace(args[0])})
+	res, err := c.Call(context.TODO(), controlplane.CmdAgentRemove, map[string]any{"ref": strings.TrimSpace(args[0])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1
@@ -341,7 +342,7 @@ func overseerBulk(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer bulk: unknown action %q (pause|unpause|retire|revive|delete)\n", brand.CLI, action)
 		return 2
 	}
-	res, err := c.Call(nil, cpCmd, payload)
+	res, err := c.Call(context.TODO(), cpCmd, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
 		return 1

@@ -457,6 +457,8 @@ var writeAll = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
 // is created with O_EXCL (never a pre-existing symlink); rename does not follow a
 // symlink at path (it replaces the entry), so the write cannot escape the
 // directory. perm is applied to the result.
+// Kept local (not internal/atomicfile) so the writeAll seam above can inject
+// mid-write failures in tests.
 func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".agezt-write-*")

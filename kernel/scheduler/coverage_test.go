@@ -206,7 +206,7 @@ func TestRun_PickReadySeesInvalidated(t *testing.T) {
 	childA := &fakeNode{NodeID: "childA", Deps: []string{"root"}, ResultOutput: "a"}
 	childB := &fakeNode{NodeID: "childB", Deps: []string{"root"}, ResultOutput: "b"}
 	plan := scheduler.Plan{
-		Name: "invalidated",
+		Name:  "invalidated",
 		Nodes: []scheduler.Node{slow, root, childA, childB},
 	}
 	_, err := e.Run(context.Background(), plan, "")

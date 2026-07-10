@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -1046,14 +1047,7 @@ func workboardWatchTerminal(res map[string]any) bool {
 	}
 }
 
-func firstNonEmptyCLI(items ...string) string {
-	for _, item := range items {
-		if strings.TrimSpace(item) != "" {
-			return strings.TrimSpace(item)
-		}
-	}
-	return ""
-}
+func firstNonEmptyCLI(items ...string) string { return strutil.FirstNonEmpty(items...) }
 
 func mapAny(v any) map[string]any {
 	m, _ := v.(map[string]any)

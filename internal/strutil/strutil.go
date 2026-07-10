@@ -6,7 +6,10 @@
 // re-broken — per package.
 package strutil
 
-import "unicode/utf8"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // Ellipsis returns s unchanged when it fits within maxBytes, otherwise a prefix
 // cut on a UTF-8 rune boundary (never splitting a multi-byte rune) with marker
@@ -30,4 +33,23 @@ func Ellipsis(s string, maxBytes int, marker string) string {
 		cut--
 	}
 	return s[:cut] + marker
+}
+
+// FirstNonEmpty returns the first item that is non-empty after trimming
+// whitespace, trimmed. Empty string when none qualifies.
+func FirstNonEmpty(items ...string) string {
+	for _, item := range items {
+		if item = strings.TrimSpace(item); item != "" {
+			return item
+		}
+	}
+	return ""
+}
+
+// FirstNonEmptySlice returns primary when it has any elements, else fallback.
+func FirstNonEmptySlice(primary, fallback []string) []string {
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
 }

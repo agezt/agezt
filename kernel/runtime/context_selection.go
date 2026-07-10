@@ -63,11 +63,6 @@ func (k *Kernel) publishContextFailureAnalysis(corr, actor string, runErr error)
 	})
 }
 
-// KernelKey is a context value key used to pass *Kernel into agent callbacks.
-// This is the same pattern as kernelKey{} but exported for use by agent
-// middleware that needs to access the kernel from context.
-type kernelKey struct{}
-
 // Note: the types Candidate, Manifest, and pure helper functions
 // (SplitCandidates, TokenCost, Freshness, Risk, etc.) have been moved to
 // kernel/contextselect. Import that package directly when only the data

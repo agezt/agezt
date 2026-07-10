@@ -8,6 +8,7 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
 import { Page } from "@/components/ui/page";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { TabNav } from "@/components/ui/tab-nav";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -32,6 +33,11 @@ interface HelpData {
 }
 
 export type BoardMessageFilter = "all" | "awaiting" | "dm" | "broadcast" | "acked" | "help";
+
+// BOARD_MSG_WINDOW is how many message cards render at once. The fetch is
+// already bounded (limit=200), but rendering a couple hundred markdown cards
+// is what makes the page slow — the window grows client-side on demand.
+const BOARD_MSG_WINDOW = 60;
 
 interface BoardAgent {
   slug: string;
@@ -342,6 +348,13 @@ export function Board() {
   const [topic, setTopic] = useState<string | null>(null);
   const [messageFilter, setMessageFilter] = useState<BoardMessageFilter>("all");
   const [agentFilter, setAgentFilter] = useState(() => boardAgentFilterFromHash(location.hash));
+  const [msgWin, setMsgWin] = useState(BOARD_MSG_WINDOW);
+
+  // Reset the render window whenever any message filter changes so the list
+  // starts from the top of the newly-filtered set.
+  useEffect(() => {
+    setMsgWin(BOARD_MSG_WINDOW);
+  }, [topic, messageFilter, agentFilter]);
 
   async function reload() {
     setLoading(true);
@@ -644,7 +657,7 @@ export function Board() {
               icon: Inbox,
               count: messages.length,
               content: (
-                <BoardMessageGroups messages={messages} agentFilter={agentFilter} waiting={waiting} />
+                <BoardMessageGroups messages={messages.slice(0, msgWin)} agentFilter={agentFilter} waiting={waiting} />
               ),
             },
             ...(["decisions", "briefings", "board", "tool_calls"] as const).map((t) => {
@@ -656,7 +669,7 @@ export function Board() {
                 icon: t === "decisions" ? Zap : t === "briefings" ? MessageSquare : t === "board" ? Inbox : Terminal,
                 count: tabMessages.length,
                 content: (
-                  <BoardMessageGroups messages={tabMessages} agentFilter={agentFilter} waiting={waiting} />
+                  <BoardMessageGroups messages={tabMessages.slice(0, msgWin)} agentFilter={agentFilter} waiting={waiting} />
                 ),
               };
             }).filter(Boolean) as { id: string; label: string; icon: ComponentType<{ className?: string }>; count: number; content: React.ReactNode }[],
@@ -741,7 +754,7 @@ export function Board() {
       ) : (
         <div className="min-h-0 flex-1 overflow-auto" data-testid="board-message-list">
           <ul className="space-y-2">
-            {messages.map((m, i) => {
+            {messages.slice(0, msgWin).map((m, i) => {
               const ackedBy = messageAckedBy(m);
               const selectedAgent = agentFilter.trim().toLowerCase();
               const selectedAcked = !!selectedAgent && (m.acked_by || []).some((by) => by.trim().toLowerCase() === selectedAgent);
@@ -844,6 +857,15 @@ export function Board() {
               );
             })}
           </ul>
+          {messages.length > BOARD_MSG_WINDOW && (
+            <LoadMoreFooter
+              hasMore={msgWin < messages.length}
+              loadingMore={false}
+              onLoadMore={() => setMsgWin((w) => w + BOARD_MSG_WINDOW)}
+              pageSize={Math.min(BOARD_MSG_WINDOW, Math.max(1, messages.length - msgWin))}
+              label="board messages"
+            />
+          )}
         </div>
       )}
     </Page>

@@ -2,11 +2,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X, Search, ListTree, AtSign } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { useInboxPager } from "@/lib/cursorPager";
 import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { BlobArtifact, type ArtifactEntry } from "@/views/Files";
@@ -54,45 +56,50 @@ export function threadMatches(th: Thread, q: string): boolean {
 export function Inbox() {
   const { events } = useEvents();
   const ui = useUI();
-  const [threads, setThreads] = useState<Thread[] | null>(null);
+  // Cursor-paginated thread list (SPEC-07 → /api/inbox limit+cursor): the first
+  // page loads on mount and "Load 50 more" walks older conversations, so thread
+  // #51+ is reachable instead of the list silently stopping at 50.
+  const {
+    paged,
+    error: err,
+    loading,
+    loadMore,
+    loadingMore,
+    moreError,
+    hasMore,
+    reload: reloadThreads,
+  } = useInboxPager(undefined, 50);
+  const threads = paged as unknown as Thread[];
   // Inbound images persisted as artifacts (M822/M828), grouped by the run
   // correlation that brought them — the SAME key the inbox threads are grouped by
   // (the channel handler runs under that corr), so a thread's images render inline.
   const [imagesByCorr, setImagesByCorr] = useState<Record<string, ArtifactEntry[]>>({});
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [showSend, setShowSend] = useState(false);
   const [q, setQ] = useState("");
   // Prefill the composer with a thread's channel+id when you click "reply".
   const [prefill, setPrefill] = useState<{ channel: string; to: string } | null>(null);
 
-  async function reload() {
-    setLoading(true);
+  // Pull the inbound images and bucket them by correlation for inline display.
+  async function reloadImages() {
     try {
-      const d = await getJSON<{ threads?: Thread[] }>("/api/inbox", { limit: "50" });
-      setThreads(d.threads || []);
-      setErr(null);
-      // Pull the inbound images and bucket them by correlation for inline display.
-      try {
-        const imgs = await getJSON<{ entries?: ArtifactEntry[] }>("/api/artifacts", { kind: "image" });
-        const byCorr: Record<string, ArtifactEntry[]> = {};
-        for (const e of imgs.entries || []) {
-          if (!e.corr) continue;
-          (byCorr[e.corr] ||= []).push(e);
-        }
-        setImagesByCorr(byCorr);
-      } catch {
-        /* images are a nicety — a failure here never breaks the inbox */
+      const imgs = await getJSON<{ entries?: ArtifactEntry[] }>("/api/artifacts", { kind: "image" });
+      const byCorr: Record<string, ArtifactEntry[]> = {};
+      for (const e of imgs.entries || []) {
+        if (!e.corr) continue;
+        (byCorr[e.corr] ||= []).push(e);
       }
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setLoading(false);
+      setImagesByCorr(byCorr);
+    } catch {
+      /* images are a nicety — a failure here never breaks the inbox */
     }
   }
+
+  function reload() {
+    reloadThreads();
+    void reloadImages();
+  }
   useEffect(() => {
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void reloadImages();
   }, []);
 
   // Nudge on channel traffic.
@@ -106,7 +113,7 @@ export function Inbox() {
     <Page
       icon={InboxIcon}
       title="Inbox"
-      description={threads ? `${threads.length} conversation(s)` : "Unified conversation view across every channel."}
+      description={threads.length > 0 ? `${threads.length}${hasMore ? "+" : ""} conversation(s)` : "Unified conversation view across every channel."}
       mode="fill"
       width="wide"
       actions={
@@ -144,7 +151,7 @@ export function Inbox() {
       )}
 
       {/* Find a conversation by channel, contact, or something that was said. */}
-      {threads && threads.length > 4 && (
+      {threads.length > 4 && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
           <input
@@ -164,7 +171,7 @@ export function Inbox() {
 
       {err ? (
         <ErrorText>{err}</ErrorText>
-      ) : !threads ? (
+      ) : loading && threads.length === 0 ? (
         <SkeletonList count={4} lines={1} />
       ) : threads.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
@@ -243,6 +250,14 @@ export function Inbox() {
             </div>
             ));
           })()}
+          <LoadMoreFooter
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            moreError={moreError}
+            onLoadMore={loadMore}
+            pageSize={50}
+            label="conversations"
+          />
         </div>
       )}
     </Page>

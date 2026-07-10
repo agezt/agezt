@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
+import { Disclosure } from "@/components/ui/disclosure";
 
 // Persona is the legacy API name for the daemon's default identity instructions.
 // They apply only to runs that are not bound to a roster agent. Editing here
@@ -99,21 +100,14 @@ export function Persona() {
   }, [saved]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader
-        icon={Bot}
-        title="Default Identity"
-        description="daemon fallback instructions for runs without a roster agent"
-        actions={<span className={`text-xs ${status.tone}`}>● {status.label}</span>}
-      />
-
-      <p className="text-xs text-muted">
-        These are the daemon's default <span className="text-foreground/80">identity instructions</span> for runs
-        that are not bound to a roster agent. Changes apply <span className="text-foreground/80">live</span> to the
-        next default-identity run and persist across restarts. Roster agents keep their own soul, model, memory,
-        skills, and budget.
-      </p>
-
+    <Page
+      icon={Bot}
+      title="Default Identity"
+      description="daemon fallback instructions for runs without a roster agent"
+      width="readable"
+      mode="scroll"
+      className="max-w-3xl"
+    >
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : loading ? (
@@ -190,9 +184,18 @@ export function Persona() {
               ))}
             </div>
           </div>
+
+          <Disclosure summary="How the default identity works">
+            <p className="px-2 text-xs text-muted">
+              These are the daemon's default <span className="text-foreground/80">identity instructions</span> for runs
+              that are not bound to a roster agent. Changes apply <span className="text-foreground/80">live</span> to the
+              next default-identity run and persist across restarts. Roster agents keep their own soul, model, memory,
+              skills, and budget.
+            </p>
+          </Disclosure>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 

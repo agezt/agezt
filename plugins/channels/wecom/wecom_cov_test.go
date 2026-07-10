@@ -258,8 +258,7 @@ func TestHandlerPostReceiveIDMismatch(t *testing.T) {
 
 func TestHandlerPostDispatches(t *testing.T) {
 	token := "tok"
-	var apiSrv *httptest.Server
-	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/cgi-bin/gettoken" {
 			_ = json.NewEncoder(w).Encode(map[string]any{"errcode": 0, "access_token": "T", "expires_in": 7200})
 			return

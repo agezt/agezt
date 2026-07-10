@@ -4,7 +4,7 @@ import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SpendArea } from "@/components/Charts";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { MetricWidget } from "@/components/ui/metric-widget";
 import { emptyBucket, addEvent, summarize, type Bucket } from "@/lib/telemetry";
 
@@ -46,17 +46,18 @@ export function Mission() {
   const now = arr[arr.length - 2] || emptyBucket();
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Radar}
-        title="Mission control"
-        description={`rolling ${WINDOW}s · ${t.totalEvents} events`}
-        actions={
-          <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
-            ● {connected ? "live" : "offline"}
-          </span>
-        }
-      />
+    <Page
+      icon={Radar}
+      title="Mission control"
+      description={`rolling ${WINDOW}s · ${t.totalEvents} events`}
+      width="wide"
+      className="gap-4"
+      actions={
+        <span className={cn("inline-flex items-center gap-1 text-xs", connected ? "text-good" : "text-bad")}>
+          ● {connected ? "live" : "offline"}
+        </span>
+      }
+    >
 
       {/* Activity hero waveform */}
       <div className="glass rounded-xl p-3">
@@ -116,6 +117,6 @@ export function Mission() {
           trend={arr.map((b) => b.subagents)}
         />
       </div>
-    </div>
+    </Page>
   );
 }

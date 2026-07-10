@@ -570,7 +570,7 @@ func TestSearchAgentsWithFilter(t *testing.T) {
 		{Slug: "builder", Enabled: true},
 	}}
 	out, isErr := invoke(t, newTool(f), map[string]any{
-		"op": "search",
+		"op":     "search",
 		"filter": map[string]any{"state": "enabled"},
 	})
 	if isErr {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Bot } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
+import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
@@ -122,7 +123,9 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    // Headerless Page scaffold (scroll-safe min-h-full root); this route keeps
+    // its own back button and AgentDetail renders the identity header itself.
+    <Page width="full">
       <div>
         {back}
       </div>
@@ -138,6 +141,6 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
         onClose={() => onNavigate("agents")}
         onManage={onNavigate}
       />
-    </div>
+    </Page>
   );
 }

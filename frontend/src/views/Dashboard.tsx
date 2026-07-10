@@ -40,6 +40,8 @@ import { fmtTime, clip } from "@/lib/utils";
 import { Sparkline, BarRow } from "@/components/Widgets";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { TabNav } from "@/components/ui/tab-nav";
+import { Page } from "@/components/ui/page";
+import { EmptyState } from "@/components/ui/empty";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { JarvisPresenceCard } from "@/components/JarvisPresenceCard";
 
@@ -237,29 +239,26 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
-            <Activity className="size-5" />
-          </span>
-          <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Dashboard</h2>
-            <span className={cn(
-              "inline-flex items-center gap-1 text-xs font-medium",
-              connected ? "text-good" : "text-bad",
-            )}>
-              ● {connected ? "live" : "disconnected"}
-            </span>
-          </div>
-        </div>
+    <Page
+      icon={Activity}
+      title="Dashboard"
+      width="wide"
+      description={
+        <span className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium",
+          connected ? "text-good" : "text-bad",
+        )}>
+          ● {connected ? "live" : "disconnected"}
+        </span>
+      }
+      actions={
         <Button variant="ghost" size="sm" onClick={refresh} disabled={loading}>
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
         </Button>
-      </div>
-
+      }
+    >
       <TabNav tabs={tabs} />
-    </div>
+    </Page>
   );
 }
 
@@ -495,19 +494,17 @@ function ActivityTab({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <DashboardPanel
-          icon={Gauge}
-          title="Activity pulse"
-          tone="accent"
-          status={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting"}
-        >
-          <Sparkline data={series} tone="accent" height={48} />
-          <p className="mt-1 text-xs text-muted">
-            {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
-          </p>
-        </DashboardPanel>
-      </div>
+      <DashboardPanel
+        icon={Gauge}
+        title="Activity pulse"
+        tone="accent"
+        status={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting"}
+      >
+        <Sparkline data={series} tone="accent" height={48} />
+        <p className="mt-1 text-xs text-muted">
+          {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
+        </p>
+      </DashboardPanel>
 
       <Advanced>
         <div className="rounded-xl bg-card shadow-e1">
@@ -521,7 +518,7 @@ function ActivityTab({
           </div>
           <div className="max-h-80 overflow-auto border-t border-border/50">
             {events.length === 0 ? (
-              <div className="px-3 py-4 text-xs text-muted">waiting for activity…</div>
+              <EmptyState icon={Radio} title="Waiting for activity" hint="Live events stream here as agents work." />
             ) : (
               <ul className="divide-y divide-border/40 text-xs">
                 {events.slice(0, 40).map((e, i) => (

@@ -18,14 +18,18 @@ import (
 // read method, letting tests exercise the Decay-error path in Reflect.
 type errStore struct{}
 
-func (errStore) PutEntity(worldmodel.Entity) error                         { return nil }
-func (errStore) GetEntity(string) (worldmodel.Entity, bool, error)         { return worldmodel.Entity{}, false, nil }
-func (errStore) AllEntities() ([]worldmodel.Entity, error)                 { return nil, errors.New("store error") }
-func (errStore) PutRelation(worldmodel.Relation) error                     { return nil }
-func (errStore) GetRelation(string) (worldmodel.Relation, bool, error)     { return worldmodel.Relation{}, false, nil }
-func (errStore) AllRelations() ([]worldmodel.Relation, error)              { return nil, errors.New("store error") }
-func (errStore) Count() int                                                { return 0 }
-func (errStore) Close() error                                              { return nil }
+func (errStore) PutEntity(worldmodel.Entity) error { return nil }
+func (errStore) GetEntity(string) (worldmodel.Entity, bool, error) {
+	return worldmodel.Entity{}, false, nil
+}
+func (errStore) AllEntities() ([]worldmodel.Entity, error) { return nil, errors.New("store error") }
+func (errStore) PutRelation(worldmodel.Relation) error     { return nil }
+func (errStore) GetRelation(string) (worldmodel.Relation, bool, error) {
+	return worldmodel.Relation{}, false, nil
+}
+func (errStore) AllRelations() ([]worldmodel.Relation, error) { return nil, errors.New("store error") }
+func (errStore) Count() int                                   { return 0 }
+func (errStore) Close() error                                 { return nil }
 
 var fixedNow = time.Unix(1_700_000_000, 0).UTC()
 

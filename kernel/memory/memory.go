@@ -41,6 +41,8 @@ import (
 	"unicode"
 
 	"lukechampine.com/blake3"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Type is the canonical memory-record discriminator. The set mirrors
@@ -432,28 +434,8 @@ func tokenize(s string) []string {
 // os.Rename replaces atomically on POSIX and on Windows (MoveFileEx). Mirrors
 // kernel/state's helper (kept local to avoid coupling the two packages).
 func atomicWrite(path string, data []byte) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("memory: open temp %s: %w", tmp, err)
-	}
-	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("memory: write temp: %w", err)
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("memory: fsync temp: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("memory: close temp: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("memory: rename %s: %w", path, err)
+	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("memory: %w", err)
 	}
 	return nil
 }

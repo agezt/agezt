@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,27 +40,27 @@ const SystemPrompt = "You are a focused sub-agent spawned to complete ONE delega
 
 // SpawnHandle is the bookkeeping record for an async sub-agent spawn.
 type SpawnHandle struct {
-	SpawnID  string `json:"spawn_id"`
-	ChildCorr string `json:"child_corr"`
+	SpawnID    string `json:"spawn_id"`
+	ChildCorr  string `json:"child_corr"`
 	ParentTask string `json:"parent_corr"`
-	CreatedMS int64  `json:"created_ms"`
-	ToolName  string `json:"tool_name,omitempty"`
-	AgentRef  string `json:"agent_ref,omitempty"`
+	CreatedMS  int64  `json:"created_ms"`
+	ToolName   string `json:"tool_name,omitempty"`
+	AgentRef   string `json:"agent_ref,omitempty"`
 }
 
 // Prep holds the prepared execution context for a sub-agent run.
 type Prep struct {
-	Ctx       context.Context
-	Corr      string
-	Task      string
-	Model     string
-	TaskType  string
-	AgentRef  string
-	System    string
-	Depth     int
+	Ctx        context.Context
+	Corr       string
+	Task       string
+	Model      string
+	TaskType   string
+	AgentRef   string
+	System     string
+	Depth      int
 	ParentCorr string
-	CreatedMS int64
-	Async     bool
+	CreatedMS  int64
+	Async      bool
 }
 
 // DefaultSubAgentMaxDepth is the maximum allowed sub-agent nesting.
@@ -180,27 +181,40 @@ func BudgetCostMicrocents(payload json.RawMessage) int64 {
 	return 0
 }
 
-// KeyedModelChain resolves a sub-agent's model from an optional override, a
-// model chain, an availability function, and a default. Returns the resolved
-// model and the remaining chain.
+// KeyedModelChain merges a sub-agent's explicit model override and model chain
+// into one de-duped ordered list, keeps only those for which avail() is true,
+// and — if nothing keyed survives — falls back to def (the daemon's active,
+// keyed model). Returns the chosen primary model and the chain (nil when a single
+// model, matching the pre-filter convention). A nil/empty result leaves the
+// caller's values unchanged.
 func KeyedModelChain(subModel string, modelChain []string, avail func(string) bool, def string) (string, []string) {
+	chain := []string{}
 	if subModel != "" {
-		// Explicit override — use as-is, shift chain.
-		rest := modelChain
-		if len(rest) > 0 && rest[0] == subModel {
-			rest = rest[1:]
+		chain = append(chain, subModel)
+	}
+	for _, m := range modelChain {
+		if m != "" && !slices.Contains(chain, m) {
+			chain = append(chain, m)
 		}
-		return subModel, rest
 	}
-	if len(modelChain) == 0 {
-		return def, nil
-	}
-	for i, m := range modelChain {
+	kept := make([]string, 0, len(chain))
+	for _, m := range chain {
 		if avail(m) {
-			return m, modelChain[i+1:]
+			kept = append(kept, m)
 		}
 	}
-	return def, nil
+	if len(kept) == 0 {
+		if d := strings.TrimSpace(def); d != "" {
+			kept = append(kept, d)
+		}
+	}
+	if len(kept) == 0 {
+		return subModel, modelChain // nothing to do; keep originals
+	}
+	if len(kept) == 1 {
+		return kept[0], nil
+	}
+	return kept[0], kept
 }
 
 // AppendUniqueStrings appends values that are not already present in the slice.
@@ -213,10 +227,8 @@ func AppendUniqueStrings(in []string, values ...string) []string {
 
 // AppendUniqueString appends a value if not already present.
 func AppendUniqueString(in []string, value string) []string {
-	for _, existing := range in {
-		if existing == value {
-			return in
-		}
+	if slices.Contains(in, value) {
+		return in
 	}
 	return append(in, value)
 }

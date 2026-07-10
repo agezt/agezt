@@ -3228,9 +3228,14 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	k.runWG.Add(1)
 	// Live-steering control surface (M608): registered for the run's whole
 	// lifetime so an operator can pause/step/inject from another goroutine. Wired
-	// into the agent loop via LoopConfig.Steer below.
+	// into the agent loop via LoopConfig.Steer below. k.steers is guarded by
+	// steersMu everywhere else (controlFor, the deregistration paths, resume's
+	// shutdown broadcast) — taking only runsMu here raced with them (caught by
+	// -race under concurrent Runs). Lock order runsMu → steersMu is respected.
 	rc := newRunControl()
+	k.steersMu.Lock()
 	k.steers[corr] = rc
+	k.steersMu.Unlock()
 	k.runsMu.Unlock()
 
 	defer k.runWG.Done()

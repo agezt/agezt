@@ -3,7 +3,7 @@ import { Store, RefreshCw, Search, Download, Trash2, ShieldCheck, ShieldAlert, C
 import { getJSON, postJSON } from "@/lib/api";
 import { streamMarket, stepFromFrame, fetchPackDetails, type MarketStep, type PackDetails } from "@/lib/market";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { useUI } from "@/components/ui/feedback";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// PACK_WINDOW is how many pack cards render at once. /api/market has no
+// cursor, so the whole catalogue arrives in one fetch — the window keeps a
+// big catalogue from ballooning the DOM; a Load-more footer grows it
+// client-side and the window resets on every search/category/filter change.
+// Category chips and the header counts stay computed over the FULL list.
+const PACK_WINDOW = 60;
 
 // A marketplace catalogue row joined with install state (see kernel/market.Listing).
 interface Pack {
@@ -82,7 +90,14 @@ export function Market() {
   const [newURL, setNewURL] = useState("");
   const [newName, setNewName] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [win, setWin] = useState(PACK_WINDOW);
   const ui = useUI();
+
+  // Reset the render window whenever a filter changes so a new query always
+  // starts from the top of its result set.
+  useEffect(() => {
+    setWin(PACK_WINDOW);
+  }, [query, cat, installedOnly]);
 
   async function load() {
     try {
@@ -256,32 +271,33 @@ export function Market() {
   const installedCount = (packs || []).filter((p) => p.installed).length;
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Store}
-        title="Marketplace"
-        description={packs ? `${packs.length} packs · ${installedCount} installed` : "Install capability packs — skills, MCP servers, and tools"}
-        actions={
-          <>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search packs…"
-                className="h-8 w-44 pl-7 sm:w-56"
-                aria-label="Search packs"
-              />
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowSources(true)}>
-              <Globe className="size-3.5" /> Sources{sources.length > 0 ? ` (${sources.length})` : ""}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={load} disabled={packs === null}>
-              <RefreshCw className={cn("size-3.5", packs === null && "animate-spin")} /> Refresh
-            </Button>
-          </>
-        }
-      />
+    <Page
+      icon={Store}
+      title="Marketplace"
+      description={packs ? `${packs.length} packs · ${installedCount} installed` : "Install capability packs — skills, MCP servers, and tools"}
+      width="wide"
+      mode="scroll"
+      actions={
+        <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search packs…"
+              className="h-8 w-44 pl-7 sm:w-56"
+              aria-label="Search packs"
+            />
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setShowSources(true)}>
+            <Globe className="size-3.5" /> Sources{sources.length > 0 ? ` (${sources.length})` : ""}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={load} disabled={packs === null}>
+            <RefreshCw className={cn("size-3.5", packs === null && "animate-spin")} /> Refresh
+          </Button>
+        </>
+      }
+    >
 
       {showSources && (
         <MarketModal title="Remote marketplaces" icon={Globe} onClose={() => setShowSources(false)}>
@@ -374,8 +390,9 @@ export function Market() {
       ) : shown.length === 0 ? (
         <EmptyState icon={Store} title="No packs match" hint="Try a different search or category." />
       ) : (
+        <>
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {shown.map((p) => (
+          {shown.slice(0, win).map((p) => (
             <Card key={p.name} glass className="p-3">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
@@ -480,7 +497,17 @@ export function Market() {
             </Card>
           ))}
         </div>
+        {shown.length > PACK_WINDOW && (
+          <LoadMoreFooter
+            hasMore={win < shown.length}
+            loadingMore={false}
+            onLoadMore={() => setWin((w) => w + PACK_WINDOW)}
+            pageSize={Math.min(PACK_WINDOW, Math.max(1, shown.length - win))}
+            label="packs"
+          />
+        )}
+        </>
       )}
-    </div>
+    </Page>
   );
 }

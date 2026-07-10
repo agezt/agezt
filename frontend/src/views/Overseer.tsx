@@ -31,6 +31,7 @@ import { AgentAvatar } from "@/components/AgentAvatar";
 import { Page } from "@/components/ui/page";
 import { Advanced } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
@@ -71,6 +72,13 @@ interface OverseerData {
 
 const EMPTY: OverseerData = { runs: [], agents: [], help: [] };
 
+// FLEET_WINDOW is how many fleet rows render at once inside the Advanced
+// disclosure. The /api/agents fetch is bounded at 200; the window keeps the
+// disclosure from ballooning the DOM on a big roster — a Load-more footer
+// grows it client-side. The roster counters up top stay computed over the
+// FULL fetched set.
+const FLEET_WINDOW = 60;
+
 // Event kinds that change what the dashboard shows — an arrival of any of these
 // triggers a debounced refetch so the panels reflect reality within ~1s instead
 // of waiting out the fallback poll.
@@ -102,6 +110,7 @@ export function Overseer() {
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [busySet, setBusy] = useState<Set<string>>(new Set());
+  const [fleetWin, setFleetWin] = useState(FLEET_WINDOW);
   const ui = useUI();
 
   async function toggleEnabled(ref: string, enabled: boolean) {
@@ -137,7 +146,7 @@ export function Overseer() {
     try {
       const [runsRes, agentsRes, helpRes] = await Promise.all([
         getJSON<{ runs?: Run[] }>("/api/runs", { limit: "200" }).catch(() => ({ runs: [] })),
-        getJSON<{ profiles?: AgentProfile[] }>("/api/agents").catch(() => ({ profiles: [] })),
+        getJSON<{ profiles?: AgentProfile[] }>("/api/agents", { limit: "200" }).catch(() => ({ profiles: [] })),
         getJSON<{ open_help?: HelpMsg[] }>("/api/board/help").catch(() => ({ open_help: [] })),
       ]);
       setData({
@@ -354,7 +363,7 @@ export function Overseer() {
               <span className="text-xs text-muted">No agents configured.</span>
             ) : (
               <ul className="flex flex-col gap-1">
-                {data.agents.map((a) => {
+                {data.agents.slice(0, fleetWin).map((a) => {
                   const slug = a.slug || "";
                   const retired = a.retired === true;
                   const enabled = a.enabled !== false;
@@ -407,6 +416,17 @@ export function Overseer() {
                     </li>
                   );
                 })}
+                {data.agents.length > FLEET_WINDOW && (
+                  <li>
+                    <LoadMoreFooter
+                      hasMore={fleetWin < data.agents.length}
+                      loadingMore={false}
+                      onLoadMore={() => setFleetWin((w) => w + FLEET_WINDOW)}
+                      pageSize={Math.min(FLEET_WINDOW, Math.max(1, data.agents.length - fleetWin))}
+                      label="fleet"
+                    />
+                  </li>
+                )}
               </ul>
             )}
           </Panel>

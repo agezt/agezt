@@ -12,6 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Page } from "@/components/ui/page";
 import { useWardenLogPager, useNetguardLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// PROJECT_WINDOW is how many project cards render at once. /api/sandbox has no
+// cursor, so every project arrives in one fetch — the window keeps a big
+// sandbox from ballooning the DOM; a Load-more footer grows it client-side.
+// The header count stays computed over the FULL list.
+const PROJECT_WINDOW = 60;
 
 // downloadText saves text content to a file via a transient object URL — lets the
 // operator grab an artifact an agent built without leaving the browser.
@@ -55,6 +62,7 @@ export function Sandbox() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [win, setWin] = useState(PROJECT_WINDOW);
 
   // Cursor-paginated sandbox-execution log (the journal-backed /api/warden_log).
   const {
@@ -127,11 +135,22 @@ export function Sandbox() {
           hint="When an agent runs code_exec with a project name, its files appear here."
         />
       ) : (
-        <MetricGrid cols="repeat(auto-fill, minmax(200px, 1fr))">
-          {projects.map((p) => (
-            <ProjectCard key={p.name} p={p} onChanged={reload} />
-          ))}
-        </MetricGrid>
+        <>
+          <MetricGrid cols="repeat(auto-fill, minmax(200px, 1fr))">
+            {projects.slice(0, win).map((p) => (
+              <ProjectCard key={p.name} p={p} onChanged={reload} />
+            ))}
+          </MetricGrid>
+          {projects.length > PROJECT_WINDOW && (
+            <LoadMoreFooter
+              hasMore={win < projects.length}
+              loadingMore={false}
+              onLoadMore={() => setWin((w) => w + PROJECT_WINDOW)}
+              pageSize={Math.min(PROJECT_WINDOW, Math.max(1, projects.length - win))}
+              label="projects"
+            />
+          )}
+        </>
       )}
 
       <LogHistoryPanel

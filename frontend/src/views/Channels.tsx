@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -631,23 +631,17 @@ export function Channels() {
   );
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <PageHeader
-        icon={Radio}
-        title="Channels"
-        actions={
-          <Button variant="ghost" size="sm" onClick={load} disabled={rows === null}>
-            <RefreshCw className={cn("size-3.5", rows === null && "animate-spin")} /> Refresh
-          </Button>
-        }
-      />
-
-      {rows && (
-        <p className="text-xs text-muted">
-          {rows.length} channels · {liveCount} live · {configuredCount} configured
-        </p>
-      )}
-
+    <Page
+      icon={Radio}
+      title="Channels"
+      description={rows ? `${rows.length} channels · ${liveCount} live · ${configuredCount} configured` : undefined}
+      actions={
+        <Button variant="ghost" size="sm" onClick={load} disabled={rows === null}>
+          <RefreshCw className={cn("size-3.5", rows === null && "animate-spin")} /> Refresh
+        </Button>
+      }
+      width="wide"
+    >
       {rows && (
         <MetricGrid>
           <MetricWidget icon={Radio} label="Total" value={rows.length} tone="muted" />
@@ -757,6 +751,6 @@ export function Channels() {
           );
         }}
       />
-    </div>
+    </Page>
   );
 }

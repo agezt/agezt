@@ -93,21 +93,21 @@ func TestCmdAgentLifecycle(t *testing.T) {
 func TestCmdAgentErrorPaths(t *testing.T) {
 	startCoverageServer(t)
 	cases := [][]string{
-		{"show"},                     // missing ref
-		{"show", "does-not-exist"},   // unknown agent
-		{"set"},                      // missing ref
-		{"set", "does-not-exist"},    // unknown agent, no flags
-		{"impact"},                   // missing ref
-		{"impact", "does-not-exist"}, // unknown agent
-		{"pause"},                    // missing ref
-		{"resume"},                   // missing ref
-		{"retire"},                   // missing ref
-		{"revive"},                   // missing ref
-		{"remove"},                   // missing ref
-		{"authority"},                // missing ref
-		{"task"},                     // missing args
-		{"task", "add"},              // missing slug/title
-		{"repair-status"},            // missing ref
+		{"show"},                                 // missing ref
+		{"show", "does-not-exist"},               // unknown agent
+		{"set"},                                  // missing ref
+		{"set", "does-not-exist"},                // unknown agent, no flags
+		{"impact"},                               // missing ref
+		{"impact", "does-not-exist"},             // unknown agent
+		{"pause"},                                // missing ref
+		{"resume"},                               // missing ref
+		{"retire"},                               // missing ref
+		{"revive"},                               // missing ref
+		{"remove"},                               // missing ref
+		{"authority"},                            // missing ref
+		{"task"},                                 // missing args
+		{"task", "add"},                          // missing slug/title
+		{"repair-status"},                        // missing ref
 		{"repair-status", "x", "--limit", "0"},   // invalid limit
 		{"repair-status", "x", "--limit", "abc"}, // invalid limit
 	}

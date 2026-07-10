@@ -3,6 +3,7 @@ import { Plug, ExternalLink, Check, RefreshCw, Sparkles, X, type LucideIcon } fr
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -106,14 +107,14 @@ export function QuickConnect() {
   const local = useMemo(() => PROVIDER_PRESETS.filter((p) => p.category === "local"), []);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
-          <Plug className="size-5" />
-        </span>
-        <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Quick Connect</h2>
-      </div>
-
+    <Page
+      icon={Plug}
+      title="Quick Connect"
+      description="Connect an AI provider in one step — pick a card, paste a key"
+      width="readable"
+      mode="scroll"
+      className="gap-6"
+    >
       <Section title="Coding & token plans">
         {coding.map((p) => (
           <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
@@ -135,7 +136,7 @@ export function QuickConnect() {
       <Section title="Anything else">
         <CustomCard onConnected={refresh} ui={ui} />
       </Section>
-    </div>
+    </Page>
   );
 }
 

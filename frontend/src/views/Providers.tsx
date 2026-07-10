@@ -7,7 +7,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { PageHeader } from "@/components/ui/page-header";
+import { Page } from "@/components/ui/page";
 import { BarList } from "@/components/Charts";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { useProviderLogPager } from "@/lib/cursorPager";
@@ -116,12 +116,13 @@ export function Providers() {
     }));
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={Cpu}
-        title="Providers"
-
-        actions={
+    <Page
+      icon={Cpu}
+      title="Providers"
+      description="How calls are routed across your providers, and when fallbacks kick in"
+      width="readable"
+      mode="scroll"
+      actions={
           <>
             <Button variant="ghost" size="sm" onClick={reloadProviders} disabled={reloading} title="Re-read credentials & catalog without restarting the daemon">
               <RotateCw className={cn("size-3.5", reloading && "animate-spin")} /> Reload
@@ -131,8 +132,7 @@ export function Providers() {
             </Button>
           </>
         }
-      />
-
+    >
       {err ? (
         <ErrorText>{err}</ErrorText>
       ) : !stats ? (
@@ -204,7 +204,7 @@ export function Providers() {
           </ProviderPanel>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 

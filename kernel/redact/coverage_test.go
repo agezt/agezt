@@ -15,11 +15,11 @@ func TestSetSecrets_DropsShortAndDuplicates(t *testing.T) {
 	// "short" (< 8 chars) is dropped; the duplicate long value is deduped; the
 	// two equal-length values exercise the `out[i] < out[j]` tie-break.
 	r.SetSecrets([]string{
-		"short",                 // len 5 < minLiteralLen(8): dropped
-		"literal-secret-aaaa",   // kept
-		"literal-secret-aaaa",   // duplicate: dropped
-		"bbbbbbbb",              // len 8: kept
-		"cccccccc",              // len 8: kept (equal length → tie-break by value)
+		"short",               // len 5 < minLiteralLen(8): dropped
+		"literal-secret-aaaa", // kept
+		"literal-secret-aaaa", // duplicate: dropped
+		"bbbbbbbb",            // len 8: kept
+		"cccccccc",            // len 8: kept (equal length → tie-break by value)
 	})
 
 	got := r.Redact("here is literal-secret-aaaa and bbbbbbbb and cccccccc and short")

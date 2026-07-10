@@ -43,15 +43,15 @@ func TestCodeexecCoverageSmallHelpers(t *testing.T) {
 	if err == nil || !found || string(clean) != "BEGIN data" {
 		t.Fatalf("no end = %+v err %v", clean, err)
 	}
-	clean, payload, found, err = splitArtifactEnvelope([]byte("a BEGIN payload END b"), "BEGIN", "END")
+	_, payload, found, err = splitArtifactEnvelope([]byte("a BEGIN payload END b"), "BEGIN", "END")
 	if err != nil || !found || payload != "payload" {
 		t.Fatalf("both ends err=%v found=%v payload=%q", err, found, payload)
 	}
-	clean, payload, found, err = splitArtifactEnvelope([]byte("a BEGIN payload END"), "BEGIN", "END")
+	_, payload, found, err = splitArtifactEnvelope([]byte("a BEGIN payload END"), "BEGIN", "END")
 	if err != nil || !found || payload != "payload" {
 		t.Fatalf("only left err=%v found=%v payload=%q", err, found, payload)
 	}
-	clean, payload, found, err = splitArtifactEnvelope([]byte("BEGIN payload END b"), "BEGIN", "END")
+	_, payload, found, err = splitArtifactEnvelope([]byte("BEGIN payload END b"), "BEGIN", "END")
 	if err != nil || !found || payload != "payload" {
 		t.Fatalf("only right err=%v found=%v payload=%q", err, found, payload)
 	}

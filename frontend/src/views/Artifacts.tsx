@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Page } from "@/components/ui/page";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { ErrorText } from "@/components/JsonView";
 import { Markdown } from "@/components/Markdown";
 import { Modal } from "@/components/ui/Modal";
@@ -88,6 +89,30 @@ export function matchesQuery(e: ArtifactEntry, q: string): boolean {
   return [e.name, e.caption, e.source, e.sender].some((f) => (f ?? "").toLowerCase().includes(needle));
 }
 
+// ARTIFACT_CARD_WINDOW caps how many artifact tiles render at once.
+// /api/artifacts has no cursor (kind/source/corr filters only), so the list
+// arrives whole — the window keeps a big gallery from ballooning the DOM and
+// grows client-side via the Load-more footer. Section headers and category
+// chips keep the FULL counts; only the rendered tiles are windowed.
+const ARTIFACT_CARD_WINDOW = 60;
+
+// windowGroups slices grouped entries down to a total budget of `limit` cards,
+// preserving group order, and drops groups that end up empty.
+function windowGroups(
+  groups: { key: ArtifactCategory; entries: ArtifactEntry[] }[],
+  limit: number,
+): { key: ArtifactCategory; entries: ArtifactEntry[]; total: number }[] {
+  let budget = limit;
+  const out: { key: ArtifactCategory; entries: ArtifactEntry[]; total: number }[] = [];
+  for (const g of groups) {
+    if (budget <= 0) break;
+    const take = Math.min(g.entries.length, budget);
+    budget -= take;
+    out.push({ key: g.key, entries: g.entries.slice(0, take), total: g.entries.length });
+  }
+  return out;
+}
+
 function humanSize(n?: number): string {
   if (!n || n <= 0) return "—";
   if (n < 1024) return `${n} B`;
@@ -102,6 +127,13 @@ export function Artifacts() {
   const [query, setQuery] = useState("");
   const [showRuns, setShowRuns] = useState(false);
   const [viewing, setViewing] = useState<ArtifactEntry | null>(null);
+  const [win, setWin] = useState(ARTIFACT_CARD_WINDOW);
+
+  // Reset the render window whenever a filter changes so the gallery starts
+  // from the top of the newly-filtered set.
+  useEffect(() => {
+    setWin(ARTIFACT_CARD_WINDOW);
+  }, [cat, query, showRuns]);
 
   const allEntries = useMemo(() => data?.entries ?? [], [data]);
   const runCount = useMemo(() => allEntries.filter(isRunInternal).length, [allEntries]);
@@ -200,13 +232,13 @@ export function Artifacts() {
       )}
 
       <div className="space-y-5 pr-1">
-        {shownGroups.map((g) => {
+        {windowGroups(shownGroups, win).map((g) => {
           const meta = CATEGORY_META.find((m) => m.key === g.key)!;
           const Icon = meta.icon;
           return (
             <section key={g.key}>
               <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
-                <Icon className="size-3" /> {meta.label} ({g.entries.length})
+                <Icon className="size-3" /> {meta.label} ({g.total})
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
                 {g.entries.map((e) => (
@@ -216,6 +248,18 @@ export function Artifacts() {
             </section>
           );
         })}
+        {(() => {
+          const totalCards = shownGroups.reduce((s, g) => s + g.entries.length, 0);
+          return totalCards > ARTIFACT_CARD_WINDOW ? (
+            <LoadMoreFooter
+              hasMore={win < totalCards}
+              loadingMore={false}
+              onLoadMore={() => setWin((w) => w + ARTIFACT_CARD_WINDOW)}
+              pageSize={Math.min(ARTIFACT_CARD_WINDOW, Math.max(1, totalCards - win))}
+              label="artifacts"
+            />
+          ) : null;
+        })()}
         {!loading && entries.length > 0 && shownGroups.length === 0 && (
           <p className="py-10 text-center text-sm text-muted">Nothing matches the search.</p>
         )}

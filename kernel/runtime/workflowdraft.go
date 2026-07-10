@@ -113,7 +113,7 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 			Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 		})
 		if err != nil {
-			return workflow.Workflow{}, apperrors.WrapSimplef("workflow %s: %%w", err, mode)
+			return workflow.Workflow{}, apperrors.WrapSimplef("workflow %s", err, mode)
 		}
 		w, err := parseWorkflowDraft(resp.Message.Content, name)
 		if err == nil {
@@ -135,7 +135,7 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 			"\n\nPrevious answer:\n" + resp.Message.Content +
 			"\n\nReturn a corrected JSON object."
 	}
-	return workflow.Workflow{}, apperrors.WrapSimplef("workflow %s: %%w", lastErr, mode)
+	return workflow.Workflow{}, apperrors.WrapSimplef("workflow %s", lastErr, mode)
 }
 
 // parseWorkflowDraft extracts the JSON object from a model answer, decodes

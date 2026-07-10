@@ -13,6 +13,14 @@ import { Modal } from "@/components/ui/Modal";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { FileManagerWorkspace } from "@/components/FileManagerWorkspace";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+
+// FILE_CARD_WINDOW caps how many gallery thumbnails / file rows render at
+// once. /api/artifacts has no limit arg (kind/source/corr filters only), so
+// the list arrives whole and run byproducts pile up fast — the window keeps
+// the DOM bounded and grows client-side via the Load-more footers. Section
+// headers keep the FULL counts; only the rendered entries are windowed.
+const FILE_CARD_WINDOW = 60;
 
 // File manager (M823): browse/preview/download/delete the stored artifacts the
 // daemon indexed (M822) — inbound channel images as a gallery, everything else
@@ -180,6 +188,15 @@ export function Files() {
   // /api/files/{tree,raw,…} (Slice 5). Off by default so existing gallery
   // users see no change; toggle in the page actions switches modes.
   const [mode, setMode] = useState<"gallery" | "workspace">("gallery");
+  const [imgWin, setImgWin] = useState(FILE_CARD_WINDOW);
+  const [fileWin, setFileWin] = useState(FILE_CARD_WINDOW);
+
+  // Reset both render windows whenever a filter/tab changes so each section
+  // starts from the top of the newly-filtered set.
+  useEffect(() => {
+    setImgWin(FILE_CARD_WINDOW);
+    setFileWin(FILE_CARD_WINDOW);
+  }, [filter, showRuns, mode]);
 
   const allEntries = useMemo(() => data?.entries ?? [], [data]);
   const runCount = useMemo(() => allEntries.filter(isRunInternal).length, [allEntries]);
@@ -341,7 +358,7 @@ export function Files() {
               <ImageIcon className="size-3" /> Images ({images.length})
             </div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
-              {images.map((e) => (
+              {images.slice(0, imgWin).map((e) => (
                 <button
                   key={e.id}
                   onClick={() => setPreview(e)}
@@ -355,6 +372,15 @@ export function Files() {
                 </button>
               ))}
             </div>
+            {images.length > FILE_CARD_WINDOW && (
+              <LoadMoreFooter
+                hasMore={imgWin < images.length}
+                loadingMore={false}
+                onLoadMore={() => setImgWin((w) => w + FILE_CARD_WINDOW)}
+                pageSize={Math.min(FILE_CARD_WINDOW, Math.max(1, images.length - imgWin))}
+                label="images"
+              />
+            )}
           </div>
         )}
 
@@ -364,7 +390,7 @@ export function Files() {
               <FileText className="size-3" /> Files ({files.length})
             </div>
             <ul className="space-y-1">
-              {files.map((e) => (
+              {files.slice(0, fileWin).map((e) => (
                 <li
                   key={e.id}
                   onClick={() => setPreview(e)}
@@ -402,6 +428,15 @@ export function Files() {
                 </li>
               ))}
             </ul>
+            {files.length > FILE_CARD_WINDOW && (
+              <LoadMoreFooter
+                hasMore={fileWin < files.length}
+                loadingMore={false}
+                onLoadMore={() => setFileWin((w) => w + FILE_CARD_WINDOW)}
+                pageSize={Math.min(FILE_CARD_WINDOW, Math.max(1, files.length - fileWin))}
+                label="files"
+              />
+            )}
           </div>
         )}
       </div>
