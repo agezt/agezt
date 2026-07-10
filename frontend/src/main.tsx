@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 // Self-hosted variable sans for all UI chrome (M951). Vite emits the woff2 as a
 // hashed same-origin asset, so it loads under the strict CSP (font-src 'self').
 // JetBrains Mono Variable for code, IDs, and numbers — crisper than system mono.
+// Space Grotesk Variable is the display face: page titles, brand, big numbers.
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
+import "@fontsource-variable/space-grotesk";
 import "./index.css";
 import App from "./App";
 import { applyAccentHue, loadAccentHue } from "@/lib/accent";

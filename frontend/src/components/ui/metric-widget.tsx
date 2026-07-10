@@ -73,8 +73,8 @@ export function MetricWidget({
         )}
       </div>
 
-      {/* Big number */}
-      <div className={cn("text-3xl font-bold tabular-nums tracking-normal", toneCls)}>
+      {/* Big number — display face, so hero metrics share the headings' voice. */}
+      <div className={cn("font-display text-3xl font-bold tabular-nums tracking-normal", toneCls)}>
         {value}
       </div>
     </div>
@@ -142,7 +142,7 @@ export function MetricGrid({
 }) {
   return (
     <div
-      className={cn("grid gap-3", className)}
+      className={cn("stagger-in grid gap-3", className)}
       style={{
         gridTemplateColumns: cols === "auto-fill"
           ? "repeat(auto-fill, minmax(160px, 1fr))"

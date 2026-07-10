@@ -43,7 +43,7 @@ type mcpRemover interface {
 // Event is a progress frame emitted during install/uninstall (streamed to the UI
 // and journaled), mirroring the toolbox install stream.
 type Event struct {
-	Stage  string `json:"stage"` // skill | mcp | tool | done
+	Stage  string `json:"stage"` // vet | skill | mcp | tool | done
 	Name   string `json:"name,omitempty"`
 	OK     bool   `json:"ok"`
 	Detail string `json:"detail,omitempty"`
@@ -233,12 +233,18 @@ func (m *Manager) Install(corr, marketplace, name, version string, emit func(Eve
 		unsigned = !signed
 	}
 
+	// Security review — informational, never a wall (default-allow): the report
+	// streams to the operator and its verdict is recorded in provenance.
+	vet := VetPack(p)
+	send(Event{Stage: "vet", Name: p.Name, OK: vet.Verdict != VerdictDanger, Detail: vet.Summary()})
+
 	rec := InstalledPack{
 		Name:        p.Name,
 		Version:     p.Version,
 		Marketplace: marketplace,
 		InstalledMS: m.now(),
 		Unsigned:    unsigned,
+		VetVerdict:  vet.Verdict,
 	}
 
 	// Skills → Forge.Create + promote to active (reuses the seed path's logic).

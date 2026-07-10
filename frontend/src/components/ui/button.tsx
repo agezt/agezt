@@ -8,10 +8,12 @@ const buttonVariants = cva(
     variants: {
       variant: {
         // Subtle elevation on bordered/filled buttons makes them feel tactile;
-        // ghost stays flat. Accent gets a brightness lift instead of an opacity
-        // wash so its colour stays true on hover (M951).
+        // ghost stays flat. Accent wears the brand gradient (accent→accent-2,
+        // same axis as .text-gradient) with a brightness lift on hover so the
+        // primary action is unmistakably the console's own color voice.
         default: "border border-border bg-panel shadow-e1 hover:border-accent hover:bg-card",
-        accent: "bg-accent text-white shadow-e1 hover:shadow-e2 hover:brightness-110 active:brightness-95",
+        accent:
+          "bg-gradient-to-br from-accent to-accent2 text-white shadow-e1 hover:shadow-e2 hover:brightness-110 active:brightness-95",
         good: "border border-good text-good hover:bg-good hover:text-white",
         danger: "border border-bad text-bad hover:bg-bad hover:text-white",
         ghost: "hover:bg-panel hover:text-foreground",

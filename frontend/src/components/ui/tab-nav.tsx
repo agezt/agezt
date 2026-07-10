@@ -66,8 +66,8 @@ function TabTrigger({
         "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium",
         "transition-all duration-150",
         "outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
-        "data-[state=active]:bg-accent/15 data-[state=active]:text-accent",
-        "data-[state=active]:shadow-sm",
+        "data-[state=active]:bg-gradient-to-br data-[state=active]:from-accent/20 data-[state=active]:to-accent2/10 data-[state=active]:text-accent",
+        "data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-inset data-[state=active]:ring-accent/25",
         "data-[state=inactive]:text-muted data-[state=inactive]:hover:text-foreground",
       )}
     >

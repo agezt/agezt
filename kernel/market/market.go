@@ -87,6 +87,12 @@ type MarketplaceEntry struct {
 	Source      string   `json:"source,omitempty"` // relative pack path within the marketplace
 	SHA256      string   `json:"sha256,omitempty"`
 	Signed      bool     `json:"signed,omitempty"`
+	// Featured marks curated/editor's-pick packs a marketplace wants surfaced
+	// first (the built-in catalogue stars its flagship combos; remotes may set it
+	// in their index). Downloads is a registry-supplied popularity signal —
+	// zero/absent when a registry doesn't track installs.
+	Featured  bool  `json:"featured,omitempty"`
+	Downloads int64 `json:"downloads,omitempty"`
 	// Content counts for at-a-glance gallery cards (no per-pack fetch needed).
 	SkillCount int `json:"skill_count"`
 	MCPCount   int `json:"mcp_count"`
@@ -117,6 +123,9 @@ type InstalledPack struct {
 	MCPServers  []string `json:"mcp_servers,omitempty"` // server names this pack added
 	ToolReqs    []string `json:"tool_reqs,omitempty"`
 	Unsigned    bool     `json:"unsigned,omitempty"`
+	// VetVerdict records the security review's verdict at install time
+	// (clean|caution|danger) — provenance for "what did I let in, knowing what?".
+	VetVerdict string `json:"vet_verdict,omitempty"`
 }
 
 // Counts summarizes a pack's contents for at-a-glance UI ("3 skills · 1 MCP · 2 tools").
