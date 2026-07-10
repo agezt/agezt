@@ -143,4 +143,45 @@ describe("Market", () => {
     await waitFor(() => expect(screen.queryByText("web-research-pro")).toBeNull());
     expect(screen.getByText("git-workshop")).toBeTruthy(); // the installed one stays
   });
+
+  it("surfaces a Featured strip on the unfiltered gallery", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/market/sources") return Promise.resolve({ sources: [] });
+      return Promise.resolve({
+        packs: [
+          { name: "flagship-pack", version: "1.0.0", description: "the pick", featured: true, downloads: 4200, skill_count: 2, mcp_count: 1, tool_count: 0 },
+          { name: "plain-pack", version: "1.0.0", description: "ordinary", skill_count: 1, mcp_count: 0, tool_count: 0 },
+        ],
+      });
+    });
+    render(withUI(<Market />));
+    // Featured heading appears, and the featured pack renders in the strip (as a
+    // span) plus the grid (as a button) → its name appears more than once.
+    expect(await screen.findByText("Featured")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByText("flagship-pack").length).toBeGreaterThan(1));
+    // The compact download signal is shown.
+    expect(screen.getAllByText(/4\.2k/).length).toBeGreaterThan(0);
+  });
+
+  it("opens the detail modal with the security review and README", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/market/sources") return Promise.resolve({ sources: [] });
+      if (path.startsWith("/api/market/show"))
+        return Promise.resolve({
+          skills: [{ name: "risky", description: "does things", skill_md: "---\nname: risky\n---\n\n# Risky\n\nBody text here." }],
+          mcp_servers: [],
+          tools: [],
+          vet: { verdict: "caution", findings: [{ severity: "warn", where: "skill:risky", rule: "cred-path-read", detail: "reads ~/.ssh" }] },
+        });
+      return Promise.resolve({ packs: [{ name: "solo-pack", version: "1.0.0", description: "d", skill_count: 1, mcp_count: 0, tool_count: 0 }] });
+    });
+    render(withUI(<Market />));
+    // Open detail by clicking the pack name button.
+    fireEvent.click(await screen.findByRole("button", { name: "solo-pack" }));
+    // Security review section + finding detail render from the vet report.
+    expect(await screen.findByText("Security review")).toBeTruthy();
+    expect(screen.getByText(/reads ~\/.ssh/)).toBeTruthy();
+    // The README body renders (frontmatter stripped).
+    expect(await screen.findByText("Body text here.")).toBeTruthy();
+  });
 });

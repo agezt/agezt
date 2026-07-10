@@ -63,6 +63,9 @@ func (s *Server) handleMarketShow(conn net.Conn, req Request) {
 			row["name"] = name
 			row["description"] = desc
 		}
+		// Full SKILL.md so the UI's detail view can render the pack's README —
+		// the operator reads exactly what the agent will be instructed with.
+		row["skill_md"] = ps.SkillMD
 		skillRows = append(skillRows, row)
 	}
 	mcpNames := make([]string, 0, len(pack.MCPServers))
@@ -79,6 +82,9 @@ func (s *Server) handleMarketShow(conn net.Conn, req Request) {
 		"tools":        pack.ToolRequirements,
 		"installed":    isInstalled,
 		"installed_at": installed.InstalledMS,
+		// Pre-install security review (informational, default-allow): verdict +
+		// findings so the operator can decide with eyes open before installing.
+		"vet": structToMap(market.VetPack(pack)),
 	}})
 }
 

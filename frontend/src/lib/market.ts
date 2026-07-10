@@ -1,20 +1,41 @@
 import { authHeaders, getJSON } from "@/lib/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
 
-// A pack's readable contents, for the gallery's "What's inside" panel.
+// One security-review finding from the pre-install vet (kernel/market.VetFinding).
+export interface VetFinding {
+  severity: "info" | "warn" | "danger" | string;
+  where: string;
+  rule: string;
+  detail: string;
+}
+
+// The pack's pre-install security review (kernel/market.VetReport). Purely
+// informational — installs are never blocked on it (default-allow posture).
+export interface VetReport {
+  verdict: "clean" | "caution" | "danger" | string;
+  findings?: VetFinding[];
+}
+
+// A pack's readable contents, for the gallery's "What's inside" panel and the
+// full detail view.
 export interface PackDetails {
-  skills: { name?: string; description?: string }[];
+  skills: { name?: string; description?: string; skill_md?: string }[];
   mcp_servers: string[];
   tools: string[];
+  vet?: VetReport;
 }
 
 // fetchPackDetails resolves one pack's contents (skills + MCP servers + CLI
-// tools) from the read-only show endpoint, for lazy on-expand loading.
+// tools) plus its security review from the read-only show endpoint, for lazy
+// on-expand loading.
 export async function fetchPackDetails(name: string, marketplace?: string): Promise<PackDetails> {
-  const res = await getJSON<{ skills?: PackDetails["skills"]; mcp_servers?: string[]; tools?: string[] }>(
-    `/api/market/show?name=${encodeURIComponent(name)}&marketplace=${encodeURIComponent(marketplace || "")}`,
-  );
-  return { skills: res.skills || [], mcp_servers: res.mcp_servers || [], tools: res.tools || [] };
+  const res = await getJSON<{
+    skills?: PackDetails["skills"];
+    mcp_servers?: string[];
+    tools?: string[];
+    vet?: VetReport;
+  }>(`/api/market/show?name=${encodeURIComponent(name)}&marketplace=${encodeURIComponent(marketplace || "")}`);
+  return { skills: res.skills || [], mcp_servers: res.mcp_servers || [], tools: res.tools || [], vet: res.vet };
 }
 
 // One marketplace install/uninstall progress step (kernel/market.Event).

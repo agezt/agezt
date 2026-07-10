@@ -158,7 +158,7 @@ func TestLibrary_MarketplacePacksHaveValidCategories(t *testing.T) {
 	validCategories := map[string]bool{
 		"web": true, "desktop": true, "data": true, "dev": true,
 		"docs": true, "media": true, "files": true, "comms": true,
-		"security": true, "skills": true,
+		"security": true, "skills": true, "knowledge": true,
 	}
 	for _, mp := range mps {
 		for _, entry := range mp.Packs {
@@ -216,6 +216,46 @@ func TestLibrary_New_PacksHaveTags(t *testing.T) {
 	for _, p := range l.packs {
 		if len(p.Tags) == 0 {
 			t.Errorf("pack %q has no tags", p.Name)
+		}
+	}
+}
+
+func TestLibrary_FeaturedCombosSurfaceInEntries(t *testing.T) {
+	l := New()
+	mp := l.Marketplaces()[0]
+	featured := map[string]bool{}
+	for _, e := range mp.Packs {
+		if e.Featured {
+			featured[e.Name] = true
+		}
+	}
+	for _, want := range []string{"web-research-pro", "github-automation", "data-analyst-pro", "second-brain", "browser-automation-pro"} {
+		if !featured[want] {
+			t.Errorf("expected %q to be featured", want)
+		}
+	}
+	if featured["git-workshop"] {
+		t.Error("git-workshop should not be featured")
+	}
+}
+
+func TestLibrary_MultiSkillCombosCarryAllBundles(t *testing.T) {
+	l := New()
+	for name, wantSkills := range map[string]int{
+		"github-automation": 2, // gitops + httpapi
+		"data-analyst-pro":  2, // dataanalysis + sqldb
+		"document-suite":    2, // officedocs + pdftools
+		"secops-toolkit":    2, // cryptotools + sshremote
+	} {
+		p, err := l.ResolvePack("", name, "")
+		if err != nil {
+			t.Fatalf("ResolvePack(%q): %v", name, err)
+		}
+		if len(p.Skills) != wantSkills {
+			t.Errorf("%q has %d skills, want %d", name, len(p.Skills), wantSkills)
+		}
+		if err := p.Validate(); err != nil {
+			t.Errorf("%q does not validate: %v", name, err)
 		}
 	}
 }

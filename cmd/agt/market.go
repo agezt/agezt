@@ -173,6 +173,19 @@ func cmdMarketShow(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "  contents: %d skill(s) · %d MCP server(s) · %d tool requirement(s)\n", int(sk), int(mc), int(tl))
 	fmt.Fprintf(stdout, "  installed: %v\n", installed)
+	// Pre-install security review (informational, default-allow).
+	if vet, ok := res["vet"].(map[string]any); ok {
+		verdict, _ := vet["verdict"].(string)
+		findings, _ := vet["findings"].([]any)
+		fmt.Fprintf(stdout, "  security review: %s\n", verdict)
+		for _, f := range findings {
+			row, _ := f.(map[string]any)
+			if row == nil {
+				continue
+			}
+			fmt.Fprintf(stdout, "    [%v] %v: %v\n", row["severity"], row["where"], row["detail"])
+		}
+	}
 	return 0
 }
 
