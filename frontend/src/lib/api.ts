@@ -81,19 +81,57 @@ export class HTTPError extends Error {
   }
 }
 
-export async function getJSON<T = any>(path: string, params?: Record<string, string>): Promise<T> {
+export async function getJSON<T = any>(path: string, params?: Record<string, string>, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<T> {
   const query = new URLSearchParams(params || {}).toString();
   const url = query ? `${path}?${query}` : path;
-  const res = await fetch(url, { headers: authHeaders({ Accept: "application/json" }) });
-  if (!res.ok) throw new HTTPError(res.status, url, await errMsg(res));
-  return res.json() as Promise<T>;
+  // Compose a request-scoped AbortSignal so callers can pass their own AND/OR a timeout. When either
+  // signal aborts (caller-driven cancellation or timeout), the underlying fetch rejects with a
+  // DOMException + the user's catch handler renders the existing error path. `timeoutMs` is opt-in;
+  // leaving it undefined keeps the original "no client-side cap" behavior for the long-poll / SSE-
+  // adjacent code that already manages its own cancellation.
+  const externalSignal = options?.signal;
+  let timeoutController: AbortController | null = null;
+  let signals: AbortSignal[] = [];
+  if (externalSignal) signals.push(externalSignal);
+  if (typeof options?.timeoutMs === "number" && options.timeoutMs > 0) {
+    timeoutController = new AbortController();
+    const t = setTimeout(() => timeoutController!.abort(), options.timeoutMs);
+    // tie the timeout out to the external signal so an early abort clears the timer (no stray abort).
+    externalSignal?.addEventListener("abort", () => {
+      clearTimeout(t);
+      try { timeoutController?.abort(); } catch { /* already aborted */ }
+    });
+    signals.push(timeoutController.signal);
+  }
+  let composed: AbortSignal | undefined;
+  if (signals.length === 1) {
+    composed = signals[0];
+  } else if (signals.length > 1) {
+    composed = AbortSignal.any(signals);
+  }
+  try {
+    const res = await fetch(url, {
+      headers: authHeaders({ Accept: "application/json" }),
+      ...(composed ? { signal: composed } : {}),
+    });
+    if (!res.ok) throw new HTTPError(res.status, url, await errMsg(res));
+    return res.json() as Promise<T>;
+  } catch (err) {
+    if ((err as { name?: string }).name === "AbortError") {
+      // Surface as a regular HTTP-shaped error so the caller's existing `if (!res.ok) throw` path
+      // can treat it like any other failure (Roster's catch already handles it).
+      throw new HTTPError(0, url, `request aborted${timeoutController?.signal.aborted ? " (timeout)" : ""}`);
+    }
+    throw err;
+  }
 }
 
-export async function postJSON<T = any>(path: string, body: unknown): Promise<T> {
+export async function postJSON<T = any>(path: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body ?? {}),
+    signal: options?.signal,
   });
   if (!res.ok) throw new HTTPError(res.status, path, await errMsg(res));
   return res.json() as Promise<T>;
