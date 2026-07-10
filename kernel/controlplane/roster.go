@@ -3766,11 +3766,7 @@ func plStrings(pl map[string]any, key string) []string {
 }
 
 func truncate(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
+	return strutil.Ellipsis(strings.TrimSpace(s), n, "…")
 }
 
 func firstNonEmpty(items ...string) string { return strutil.FirstNonEmpty(items...) }

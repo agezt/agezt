@@ -27,8 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/meshctx"
 	"github.com/agezt/agezt/kernel/tenantctx"
@@ -394,11 +394,8 @@ func truncate(s string, max int) string {
 	// Back up to a UTF-8 rune boundary so a multi-byte rune straddling the cut
 	// (common in non-ASCII peer answers) is never split into invalid UTF-8 — the
 	// same fix the browser and coding tools already carry. (M468)
-	cut := max
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-cut)
+	prefix := strutil.Ellipsis(s, max, "")
+	return prefix + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-len(prefix))
 }
 
 // httpPost is the default poster: a JSON POST with a Bearer token.

@@ -28,6 +28,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/agezt/agezt/internal/strutil"
 	"time"
 
 	btcec "github.com/btcsuite/btcd/btcec/v2"
@@ -332,10 +334,7 @@ func (c *Channel) signAndBroadcast(ev nostrEvent, journalText, corr string) erro
 }
 
 func truncate(s string) string {
-	if len(s) > maxChars {
-		return s[:maxChars]
-	}
-	return s
+	return strutil.Ellipsis(s, maxChars, "")
 }
 
 // parseXOnly turns a 32-byte hex x-only pubkey into a btcec public key.

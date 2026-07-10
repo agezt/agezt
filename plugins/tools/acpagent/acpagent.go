@@ -28,6 +28,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/strutil"
+
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/agent"
@@ -215,7 +217,8 @@ func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	return s[:max] + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-max)
+	prefix := strutil.Ellipsis(s, max, "")
+	return prefix + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-len(prefix))
 }
 
 func platformShell() (string, string) {
