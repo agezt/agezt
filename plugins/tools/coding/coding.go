@@ -25,8 +25,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/envscrub"
 )
@@ -190,13 +190,8 @@ func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	// Back up to a UTF-8 rune boundary so a multi-byte rune straddling the cut
-	// (common in non-ASCII diffs) is never split into invalid UTF-8.
-	cut := max
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-cut)
+	prefix := strutil.Ellipsis(s, max, "") // rune-safe cut
+	return prefix + fmt.Sprintf("\n… [truncated %d bytes]", len(s)-len(prefix))
 }
 
 func platformShell() (string, string) {

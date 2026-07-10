@@ -17,8 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/envscrub"
@@ -1006,14 +1006,7 @@ func isBrowserActionTempPath(path string) bool {
 }
 
 func truncateUTF8(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	cut := max
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
+	return strutil.Ellipsis(s, max, "")
 }
 
 func truncateActionOutput(s string) string {
