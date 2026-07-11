@@ -228,6 +228,11 @@ describe("ExecutionProfiles view", () => {
     expect(screen.getByText("selectable")).toBeTruthy();
     expect(screen.getAllByText("local runtime profile").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/docker is on PATH/).length).toBeGreaterThan(0);
+    // Declutter law: each row folds one raw "details" KeyValue — no
+    // "not declared" filler cells, empty fields are simply skipped.
+    expect(screen.getAllByText("details").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("isolation").length).toBeGreaterThan(0);
+    expect(screen.queryByText("not declared")).toBeNull();
   });
 
   it("saves live allow/deny policy through config set", async () => {
