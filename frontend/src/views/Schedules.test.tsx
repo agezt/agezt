@@ -31,25 +31,11 @@ import {
   scheduleToolAgentIssue,
   systemTaskExecutionLabel,
   systemTaskDisplayName,
-  scheduleExecutionContract,
-  scheduleRowExecutionContract,
-  scheduleRowIntentContract,
-  scheduleRowIntentLabel,
-  scheduleRowPayloadContract,
-  scheduleRuntimePassport,
-  scheduleExecutorPassport,
-  scheduleCronJobPassport,
-  scheduleCronjobLedger,
-  scheduleCronPassport,
-  scheduleCommandStrip,
   scheduleTargetHealthPassport,
   scheduleFrequencyIssue,
   scheduleIntentFieldHint,
   schedulePayloadContract,
-  scheduleIdentityBoundary,
   scheduleFormCadenceLabel,
-  scheduleContractSummary,
-  scheduleExecutionManifest,
   scheduleSystemTaskPresetLabel,
   DUE_SOON_MS,
 } from "@/views/Schedules";
@@ -142,40 +128,6 @@ describe("schedule target/action labels", () => {
     expect(scheduleTargetMixLabel({ agent: 0, workflow: 0, systemTask: 0, tool: 0 })).toBe("none");
   });
 
-  it("keeps schedule ledgers as cron metadata instead of embedded agent prompts", () => {
-    expect(scheduleCronjobLedger({ target: "", agent: "ops", cadence: "every 2h" }).map((item) => [item.label, item.value])).toEqual([
-      ["timing", "every 2h"],
-      ["target", "ops"],
-      ["runner", "agent ops"],
-      ["payload", "task text only"],
-      ["identity", "agent ops owns soul"],
-    ]);
-    expect(scheduleCronjobLedger({ target: "workflow", workflow: "nightly-sync", cadence: "daily" }).map((item) => [item.label, item.value])).toEqual([
-      ["timing", "daily"],
-      ["target", "nightly-sync"],
-      ["runner", "system identity"],
-      ["payload", "cron passes no workflow payload"],
-      ["identity", "system identity"],
-    ]);
-    expect(scheduleCronjobLedger(
-      { target: "system_task", system_task: "catalog_sync", cadence: "daily" },
-      [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", uses_llm: false }],
-    ).map((item) => [item.label, item.value])).toEqual([
-      ["timing", "daily"],
-      ["target", "Catalog sync"],
-      ["runner", "daemon authority"],
-      ["payload", "payload not accepted"],
-      ["identity", "no agent identity"],
-    ]);
-    expect(scheduleCronjobLedger({ target: "tool", tool: "shell", agent: "builder", payload: { command: "date" }, cadence: "every 5m" }).map((item) => [item.label, item.value])).toEqual([
-      ["timing", "every 5m"],
-      ["target", "shell"],
-      ["runner", "agent builder"],
-      ["payload", "cron passes object JSON tool payload"],
-      ["identity", "agent builder tool policy"],
-    ]);
-  });
-
   it("filters schedule rows by concrete cron target", () => {
     const rows: Parameters<typeof filterScheduleItems>[0] = [
       { id: "agent", target: "", intent: "wake" },
@@ -199,256 +151,6 @@ describe("schedule target/action labels", () => {
       [],
       [{ name: "nightly" }],
     ).map((s) => s.id)).toEqual(["missing", "daemon-blocked", "fast"]);
-  });
-
-  it("describes the concrete cron execution contract for each target type", () => {
-    expect(scheduleExecutionContract({ target: "agent", agent: "ops" })).toBe("cron wakes agent ops with this task");
-    expect(scheduleExecutionContract({ target: "workflow", workflow: "nightly-sync" })).toBe("cron triggers workflow nightly-sync under system identity");
-    expect(scheduleExecutionContract({ target: "tool", tool: "shell", agent: "builder" })).toBe("cron invokes tool shell as builder");
-    expect(
-      scheduleExecutionContract({
-        target: "system_task",
-        systemTask: "catalog_sync",
-        systemTaskInfo: { name: "catalog_sync", label: "Catalog sync", executor: "daemon", effect_class: "config_update", uses_llm: false },
-      }),
-    ).toBe("cron runs system task Catalog sync · daemon · config_update · no LLM");
-    expect(
-      scheduleRowExecutionContract(
-        { target: "system_task", system_task: "catalog_sync" },
-        [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", effect_class: "config_update", uses_llm: false }],
-      ),
-    ).toBe("cron runs system task Catalog sync · daemon · config_update · no LLM");
-    expect(scheduleRowExecutionContract({
-      target: "tool",
-      tool: "shell",
-      agent: "ops",
-      execution_contract: "cron invokes tool shell as ops",
-    })).toBe("cron invokes tool shell as ops");
-    expect(scheduleRowExecutionContract({ target: "tool", tool: "shell", agent: "builder" })).toBe("cron invokes tool shell as builder");
-  });
-
-  it("separates row intent and payload contracts from execution", () => {
-    expect(scheduleRowIntentContract({ target: "agent" })).toBe("intent is agent task");
-    expect(scheduleRowIntentContract({ target: "workflow" })).toBe("intent is label only");
-    expect(scheduleRowIntentContract({ target: "system_task" })).toBe("typed system call");
-    expect(scheduleRowIntentContract({ target: "tool" })).toBe("tool + payload define call");
-    expect(scheduleRowIntentLabel({ target: "agent" })).toBe("intent");
-    expect(scheduleRowIntentLabel({ target: "workflow" })).toBe("label");
-    expect(scheduleRowIntentLabel({ target: "system_task" })).toBe("label");
-    expect(scheduleRowIntentLabel({ target: "tool" })).toBe("label");
-    expect(scheduleRowPayloadContract({ target: "agent", payload: { ignored: true } })).toBe("task text only");
-    expect(scheduleRowPayloadContract({ target: "system_task" })).toBe("payload not accepted");
-    expect(scheduleRowPayloadContract({ target: "workflow" })).toBe("cron passes no workflow payload");
-    expect(scheduleRowPayloadContract({ target: "tool", payload: { command: "echo hi" } })).toBe("cron passes object JSON tool payload");
-    expect(scheduleCronJobPassport({ target: "agent", agent: "ops" })).toEqual({
-      value: "agent wake cronjob",
-      detail: "wakes ops; the agent owns identity, memory, tools, model route, retry, and repair",
-      tone: "muted",
-    });
-    expect(scheduleCronJobPassport({ target: "workflow", workflow: "nightly-sync" })).toEqual({
-      value: "workflow cronjob",
-      detail: "fires workflow nightly-sync under system identity; schedule stores cadence, workflow, and optional payload",
-      tone: "good",
-    });
-    expect(
-      scheduleCronJobPassport(
-        { target: "system_task", system_task: "catalog_sync" },
-        [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", uses_llm: false }],
-      ),
-    ).toEqual({
-      value: "daemon cronjob",
-      detail: "fires Catalog sync as a typed system task with no LLM; schedule stores cadence and target, not identity instructions",
-      tone: "good",
-    });
-    expect(scheduleCronJobPassport({ target: "tool", tool: "shell", agent: "builder" })).toEqual({
-      value: "tool cronjob",
-      detail: "fires tool shell as builder; schedule stores cadence, tool, and JSON payload",
-      tone: "warn",
-    });
-    expect(
-      scheduleCronPassport(
-        { target: "system_task", system_task: "catalog_sync", cadence: "every 24h" },
-        [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", effect_class: "config_update", uses_llm: false }],
-      ),
-    ).toBe("cron every 24h · cron runs system task Catalog sync · daemon · config_update · no LLM · typed system call · payload not accepted");
-    expect(scheduleCronPassport({ target: "tool", tool: "shell", agent: "builder", mode: "interval", payload: { command: "date" } })).toBe(
-      "cron interval · cron invokes tool shell as builder · tool + payload define call · cron passes object JSON tool payload",
-    );
-    expect(scheduleCronPassport({ target: "tool", tool: "shell", agent: "ops", cadence: "every 1h", execution_contract: "cron invokes tool shell as ops" })).toBe(
-      "cron every 1h · cron invokes tool shell as ops · tool + payload define call · cron passes no tool payload",
-    );
-    expect(scheduleContractSummary({ target: "agent", agent: "ops", cadence: "every 1h" })).toEqual({
-      label: "agent wake contract",
-      detail: "cron every 1h · cron wakes agent ops with this task · intent is agent task · task text only",
-      tone: "muted",
-    });
-    expect(scheduleContractSummary({ target: "workflow", workflow: "nightly-sync", agent: "ops", cadence: "every 1h" })).toEqual({
-      label: "agent workflow contract",
-      detail: "cron every 1h · cron triggers workflow nightly-sync as ops · intent is label only · cron passes no workflow payload",
-      tone: "warn",
-    });
-    expect(
-      scheduleContractSummary(
-        { target: "system_task", system_task: "catalog_sync", cadence: "daily" },
-        [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", effect_class: "config_update", uses_llm: false }],
-      ),
-    ).toEqual({
-      label: "daemon maintenance contract",
-      detail: "cron daily · cron runs system task Catalog sync · daemon · config_update · no LLM · typed system call · payload not accepted",
-      tone: "good",
-    });
-    expect(
-      scheduleExecutionManifest(
-        { target: "system_task", system_task: "catalog_sync", cadence: "daily", uses_llm: false },
-        [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", effect_class: "config_update", uses_llm: false }],
-      ),
-    ).toEqual({
-      label: "typed daemon cronjob",
-      detail: "trigger daily · target system task Catalog sync · executor daemon authority · identity no agent identity · payload not accepted · no LLM",
-      tone: "good",
-      fields: {
-        trigger: "daily",
-        target: "system task Catalog sync",
-        executor: "daemon authority",
-        identity: "no agent identity",
-        payload: "payload not accepted",
-        llm: "no LLM",
-      },
-    });
-    expect(scheduleExecutionManifest({ target: "tool", tool: "shell", agent: "builder", mode: "interval", payload: { command: "date" } })).toMatchObject({
-      label: "tool cronjob",
-      tone: "warn",
-      fields: {
-        trigger: "interval",
-        target: "tool shell",
-        executor: "agent builder",
-        identity: "agent builder tool policy",
-        payload: "cron passes object JSON tool payload",
-        llm: "tool-defined",
-      },
-    });
-  });
-
-  it("summarizes the concrete runtime class separately from prompt text", () => {
-    expect(scheduleRuntimePassport({ target: "agent", agent: "ops" })).toEqual({
-      value: "LLM wake · ops",
-      detail: "cron wakes agent ops with task text",
-      tone: "muted",
-    });
-    expect(scheduleRuntimePassport({ target: "workflow", workflow: "nightly-sync" })).toEqual({
-      value: "workflow via daemon",
-      detail: "cron starts workflow nightly-sync under system identity",
-      tone: "good",
-    });
-    expect(scheduleRuntimePassport({ target: "tool", tool: "shell", agent: "builder" })).toEqual({
-      value: "tool as builder",
-      detail: "cron invokes registered tool shell under builder",
-      tone: "warn",
-    });
-    expect(scheduleRuntimePassport(
-      { target: "system_task", system_task: "catalog_sync" },
-      [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", uses_llm: false, effect: "Refresh models.dev/api.json." }],
-    )).toEqual({
-      value: "daemon · no LLM",
-      detail: "Catalog sync: Refresh models.dev/api.json.",
-      tone: "good",
-    });
-  });
-
-  it("summarizes which identity or daemon authority executes the cron target", () => {
-    expect(scheduleExecutorPassport({ target: "agent", agent: "ops" })).toEqual({
-      value: "agent ops",
-      detail: "cron wakes ops; that agent owns the task, memory, tools, and model route",
-      tone: "muted",
-    });
-    expect(scheduleExecutorPassport({ target: "workflow", workflow: "nightly-sync" })).toEqual({
-      value: "system identity",
-      detail: "workflow nightly-sync runs under daemon/system identity",
-      tone: "good",
-    });
-    expect(scheduleExecutorPassport({ target: "workflow", workflow: "nightly-sync", agent: "ops" })).toEqual({
-      value: "agent ops",
-      detail: "workflow nightly-sync runs under ops's identity and permissions",
-      tone: "warn",
-    });
-    expect(scheduleExecutorPassport({ target: "tool", tool: "shell", agent: "builder" })).toEqual({
-      value: "agent builder",
-      detail: "tool shell runs under builder's tool policy",
-      tone: "warn",
-    });
-    expect(scheduleExecutorPassport({
-      target: "tool",
-      tool: "shell",
-      agent: "ops",
-      executor: "tool",
-      uses_llm: false,
-      execution_contract: "cron invokes tool shell as ops",
-    })).toEqual({
-      value: "tool authority",
-      detail: "cron invokes tool shell as ops",
-      tone: "warn",
-    });
-    expect(scheduleExecutorPassport(
-      { target: "system_task", system_task: "catalog_sync" },
-      [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon" }],
-    )).toEqual({
-      value: "daemon authority",
-      detail: "Catalog sync runs as a system maintenance job; no agent identity is woken",
-      tone: "good",
-    });
-  });
-
-  it("keeps cadence, target, executor, payload, frequency, and status in a stable command strip", () => {
-    const now = Date.UTC(2026, 0, 1, 12, 0, 0);
-    const items = scheduleCommandStrip(
-      {
-        id: "sch-tool",
-        target: "tool",
-        tool: "shell",
-        agent: "builder",
-        cadence: "every 5m",
-        mode: "interval",
-        interval_sec: 300,
-        next_run_unix: (now + 5 * 60_000) / 1000,
-        payload: { command: "date" },
-        last_status: "ok",
-      } as any,
-      now,
-      [],
-      [{ slug: "builder", kind: "custom" }],
-      [],
-      [{ name: "shell" }],
-    );
-    expect(items.map((item) => item.label)).toEqual(["cadence", "target", "executor", "payload", "frequency", "health", "status"]);
-    expect(items.map((item) => item.value)).toEqual([
-      "in 5m",
-      "tool cronjob",
-      "agent builder",
-      "cron passes object JSON tool payload",
-      "cadence ok",
-      "target ready",
-      "ok",
-    ]);
-    expect(items.map((item) => item.tone)).toEqual(["accent", "warn", "warn", "warn", "good", "warn", "good"]);
-
-    expect(scheduleCommandStrip(
-      {
-        target: "system_task",
-        system_task: "catalog_sync",
-        enabled: false,
-        interval_sec: 3600,
-      },
-      now,
-      [{ name: "catalog_sync", label: "Catalog sync", executor: "daemon", uses_llm: false, recommended_interval_sec: 86400 }],
-    ).map((item) => item.value)).toEqual([
-      "paused",
-      "daemon cronjob",
-      "daemon authority",
-      "payload not accepted",
-      "Catalog sync is scheduled more often than its recommended cadence",
-      "target ready",
-      "not fired",
-    ]);
   });
 
   it("reports whether the concrete cron target is still runnable", () => {
@@ -542,24 +244,6 @@ describe("schedule target/action labels", () => {
     expect(schedulePayloadContract("tool", '{"command":"echo hi"}')).toBe("cron passes object JSON tool payload");
     expect(schedulePayloadContract("workflow", "[1,2]")).toBe("cron passes array JSON workflow payload");
     expect(schedulePayloadContract("tool", "{")).toBe("invalid tool payload JSON");
-  });
-
-  it("states the identity boundary for each schedule target", () => {
-    expect(scheduleIdentityBoundary("agent", "ops")).toEqual({
-      label: "agent owns identity",
-      detail: "schedule only wakes ops; soul, memory, tools, model route, retry, and repair stay on the agent",
-      tone: "muted",
-    });
-    expect(scheduleIdentityBoundary("system_task")).toEqual({
-      label: "no agent identity",
-      detail: "schedule runs a typed daemon system task; no agent is woken and no LLM prompt is created",
-      tone: "good",
-    });
-    expect(scheduleIdentityBoundary("tool", "builder")).toEqual({
-      label: "tool uses agent policy",
-      detail: "schedule invokes the tool as builder; payload defines the call and the agent policy gates access",
-      tone: "warn",
-    });
   });
 
   it("summarizes form cadence as a cron phrase before the schedule is saved", () => {
@@ -708,18 +392,8 @@ describe("NewScheduleForm", () => {
     chooseScheduleOption("Schedule target", /System task/);
     expect(screen.getByLabelText("Schedule label")).toBeTruthy();
     expect(screen.getByText("Optional label only; the daemon runs the selected system task as a typed cron call.")).toBeTruthy();
-    expect(screen.getByText("Cron contract")).toBeTruthy();
-    expect(screen.getByText("daemon maintenance contract")).toBeTruthy();
-    expect(screen.getByLabelText("Schedule target manifest")).toBeTruthy();
-    expect(screen.getByText("Target manifest · typed daemon cronjob")).toBeTruthy();
-    expect(screen.getAllByText("system task Catalog sync").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("daemon authority").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("payload not accepted").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("no LLM").length).toBeGreaterThan(0);
-    expect(screen.getByText("Identity boundary")).toBeTruthy();
-    expect(screen.getAllByText("no agent identity").length).toBeGreaterThan(0);
-    expect(screen.getByText(/schedule runs a typed daemon system task/)).toBeTruthy();
-    expect(screen.getByText(/cron every 24 hours .* typed system call .* payload not accepted/)).toBeTruthy();
+    // The single cadence confirmation line reflects the recommended cadence.
+    await waitFor(() => expect(screen.getByText("every 24 hours")).toBeTruthy());
     chooseScheduleUnit("Interval unit", "minutes");
     fireEvent.change(screen.getByLabelText("Interval amount"), { target: { value: "60" } });
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
@@ -865,12 +539,9 @@ describe("NewScheduleForm", () => {
   it("posts a tool schedule with structured payload JSON", async () => {
     render(<NewScheduleForm tools={[{ name: "shell", description: "Run a command" }]} onCreated={() => {}} onError={() => {}} />);
     chooseScheduleOption("Schedule target", /Tool/);
-    expect(screen.getByText("cron invokes tool shell under system identity")).toBeTruthy();
-    expect(screen.getByText("daemon tool contract")).toBeTruthy();
-    expect(screen.getByText("tool uses system policy")).toBeTruthy();
-    expect(screen.getByText(/payload defines the call, not an LLM prompt/)).toBeTruthy();
     expect(screen.queryByLabelText("Model override")).toBeNull();
-    expect(screen.getByText(/cron every 30 minutes .* tool \+ payload define call .* cron passes no tool payload/)).toBeTruthy();
+    // One cadence confirmation line, plus the typed payload contract under the payload field.
+    expect(screen.getByText("every 30 minutes")).toBeTruthy();
     expect(screen.getAllByText("cron passes no tool payload").length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("Tool payload JSON"), { target: { value: '{"command":"echo scheduled"}' } });
     expect(screen.getAllByText(/cron passes object JSON tool payload/).length).toBeGreaterThan(0);
@@ -897,8 +568,6 @@ describe("NewScheduleForm", () => {
     );
     chooseScheduleOption("Schedule target", /Tool/);
     chooseScheduleOption("Run as agent", /Ops/);
-    expect(screen.getByText("tool uses agent policy")).toBeTruthy();
-    expect(screen.getByText(/payload defines the call and the agent policy gates access/)).toBeTruthy();
     expect(screen.getByText("agent ops cannot schedule tool shell: agent tool denylist")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith("agent ops cannot schedule tool shell: agent tool denylist"));
@@ -911,7 +580,6 @@ describe("NewScheduleForm", () => {
     chooseScheduleOption("Schedule target", /Tool/);
     fireEvent.change(screen.getByLabelText("Tool payload JSON"), { target: { value: "{" } });
     expect(screen.getAllByText("invalid tool payload JSON").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("Schedule target manifest")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringContaining("Invalid tool payload JSON")));
     expect(postJSON).not.toHaveBeenCalled();
@@ -925,6 +593,17 @@ describe("NewScheduleForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /Create schedule/ }));
     await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringContaining("Invalid workflow payload JSON")));
     expect(postJSON).not.toHaveBeenCalled();
+  });
+
+  it("shows the invalid payload JSON contract inline while typing and clears it once valid", () => {
+    render(<NewScheduleForm workflows={[{ name: "nightly-sync", enabled: true }]} onCreated={() => {}} onError={() => {}} />);
+    chooseScheduleOption("Schedule target", /Workflow/);
+    fireEvent.change(screen.getByLabelText("Workflow payload JSON"), { target: { value: "{oops" } });
+    // schedulePayloadContract renders inline: next to the cadence line and under the payload field.
+    expect(screen.getAllByText("invalid workflow payload JSON").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("Workflow payload JSON"), { target: { value: '{"force":true}' } });
+    expect(screen.queryByText("invalid workflow payload JSON")).toBeNull();
+    expect(screen.getByText("cron passes object JSON workflow payload")).toBeTruthy();
   });
 
   it("posts a daily schedule (HH:MM → at_minutes, every day)", async () => {
@@ -1332,7 +1011,8 @@ describe("Schedules job cards", () => {
     expect(screen.getByText("Run workflow gone-flow")).toBeTruthy();
     expect(screen.getByText("ping")).toBeTruthy();
     expect(screen.getByText("workflow gone-flow is not registered")).toBeTruthy();
-    expect(screen.getAllByText("target missing").length).toBeGreaterThan(0);
+    // The bad-target chip carries the health detail as its title.
+    expect(screen.getByTitle("workflow gone-flow is not registered")).toBeTruthy();
     expect(screen.getAllByText("agent wake schedule is very frequent").length).toBeGreaterThan(0);
   });
 
@@ -1394,37 +1074,27 @@ describe("Schedules job cards", () => {
 
     render(withUI(<Schedules />));
     await waitFor(() => expect(screen.getByText("Run workflow nightly-sync")).toBeTruthy());
-    expect(screen.getByText("workflow")).toBeTruthy();
+    // Badge strip: target chip, workflow chip, model chip; the label stays secondary.
+    expect(screen.getByTitle("job target: workflow")).toBeTruthy();
+    expect(screen.getByTitle("runs workflow nightly-sync")).toBeTruthy();
     expect(screen.getByText("targets")).toBeTruthy();
     expect(screen.getByText("1 workflow")).toBeTruthy();
-    expect(screen.getByText("system workflow contract")).toBeTruthy();
-    expect(screen.getByText("cron every 1h · cron triggers workflow nightly-sync under system identity · intent is label only · cron passes no workflow payload")).toBeTruthy();
-    expect(screen.getByLabelText("sch-workflow execution manifest")).toBeTruthy();
-    expect(screen.getByText("Execution manifest · workflow cronjob")).toBeTruthy();
-    expect(screen.getAllByText("trigger").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("every 1h").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("target").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("workflow nightly-sync").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("identity").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("may use LLM").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("sch-workflow schedule command strip")).toBeTruthy();
-    expect(screen.getAllByText("cadence").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("executor").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("frequency").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("cadence ok").length).toBeGreaterThan(0);
-    expect(screen.getByText("Cronjob")).toBeTruthy();
-    expect(screen.getAllByText("workflow cronjob").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("sch-workflow cronjob ledger")).toBeTruthy();
-    expect(screen.getByText("Cronjob ledger")).toBeTruthy();
-    expect(screen.getAllByText("timing").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("runner").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("system identity").length).toBeGreaterThan(0);
-    expect(screen.getByText("cron triggers workflow nightly-sync under system identity")).toBeTruthy();
-    expect(screen.getAllByText("label").length).toBeGreaterThan(0);
-    expect(screen.getByText("intent is label only")).toBeTruthy();
-    expect(screen.getAllByText("cron passes no workflow payload").length).toBeGreaterThan(0);
     expect(screen.getByText("model gpt-5")).toBeTruthy();
     expect(screen.getByText("label: Nightly label")).toBeTruthy();
+    // The old narration blocks are gone.
+    expect(screen.queryByText(/Execution manifest/)).toBeNull();
+    expect(screen.queryByLabelText(/execution manifest/)).toBeNull();
+    expect(screen.queryByLabelText(/schedule command strip/)).toBeNull();
+    expect(screen.queryByText("Cronjob ledger")).toBeNull();
+    expect(screen.queryByLabelText(/cronjob ledger/)).toBeNull();
+    expect(screen.queryByText("Cronjob")).toBeNull();
+    expect(screen.queryByText(/workflow contract/)).toBeNull();
+    expect(screen.queryByText(/cron triggers workflow nightly-sync/)).toBeNull();
+    expect(screen.queryByText("intent is label only")).toBeNull();
+    // The row keeps one "details" disclosure whose KeyValue list carries the raw id
+    // (Disclosure children stay mounted while collapsed).
+    expect(screen.getByText("details")).toBeTruthy();
+    expect(screen.getByText("sch-workflow")).toBeTruthy();
     fireEvent.click(screen.getByTitle("Edit"));
     expect((screen.getByLabelText("Model override") as HTMLInputElement).value).toBe("gpt-5");
   });

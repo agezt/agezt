@@ -136,7 +136,9 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
       page.getByRole("group", { name: "System task", exact: true }).getByRole("button", { name: /Catalog sync/ }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText(/Recommended cadence: every 24 hours/)).toBeVisible();
-    await expect(page.getByText(/cron runs system task Catalog sync/).first()).toBeVisible();
+    // Declutter law: the prose execution-contract block is gone; the form shows
+    // one cadence confirmation line and the typed task's executor facts instead.
+    await expect(page.getByText(/every 24 hours/).first()).toBeVisible();
     await expect(page.getByText(/no LLM/).first()).toBeVisible();
     // Close the New-schedule modal before navigating on — its overlay would
     // otherwise swallow the nav clicks.

@@ -29,7 +29,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
-import { ErrorText } from "@/components/JsonView";
+import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
@@ -470,314 +470,10 @@ export function scheduleActionTitle(s: Pick<Sched, "id" | "intent" | "target" | 
   return s.id;
 }
 
-export function scheduleRowExecutionContract(
-  s: Pick<Sched, "target" | "agent" | "workflow" | "system_task" | "tool" | "execution_contract">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): string {
-  const contract = s.execution_contract?.trim();
-  if (contract) return contract;
-  const target: ScheduleTarget =
-    s.target === "workflow" || s.target === "system_task" || s.target === "tool" ? s.target : "agent";
-  const systemTaskInfo = s.system_task ? systemTasks.find((task) => task.name === s.system_task) : undefined;
-  return scheduleExecutionContract({
-    target,
-    agent: s.agent,
-    workflow: s.workflow,
-    systemTask: s.system_task,
-    tool: s.tool,
-    systemTaskInfo,
-  });
-}
 
-export function scheduleRowIntentContract(s: Pick<Sched, "target">): string {
-  if (s.target === "workflow") return "intent is label only";
-  if (s.target === "system_task") return "typed system call";
-  if (s.target === "tool") return "tool + payload define call";
-  return "intent is agent task";
-}
 
-export function scheduleRowIntentLabel(s: Pick<Sched, "target">): string {
-  if (s.target === "workflow" || s.target === "system_task" || s.target === "tool") return "label";
-  return "intent";
-}
 
-export function scheduleRowPayloadContract(s: Pick<Sched, "target" | "payload">): string {
-  if (s.target === "system_task") return "payload not accepted";
-  if (s.target !== "workflow" && s.target !== "tool") return "task text only";
-  const kind = s.target === "workflow" ? "workflow" : "tool";
-  if (s.payload === undefined || s.payload === null) return `cron passes no ${kind} payload`;
-  const shape = Array.isArray(s.payload) ? "array" : typeof s.payload === "object" ? "object" : typeof s.payload;
-  return `cron passes ${shape} JSON ${kind} payload`;
-}
 
-export function scheduleRuntimePassport(
-  s: Pick<Sched, "target" | "agent" | "system_task" | "tool" | "workflow" | "executor" | "uses_llm" | "execution_contract">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): { value: string; detail: string; tone: "good" | "warn" | "muted" } {
-  const apiExecutor = s.executor?.trim();
-  const apiLLM = s.uses_llm === true ? "LLM" : s.uses_llm === false ? "no LLM" : "";
-  const apiContract = s.execution_contract?.trim();
-  if (s.target === "system_task") {
-    const info = s.system_task ? systemTasks.find((task) => task.name === s.system_task) : undefined;
-    const label = systemTaskDisplayName(s.system_task, systemTasks);
-    return {
-      value: `${apiExecutor || info?.executor || "daemon"} · ${apiLLM || (info?.uses_llm ? "LLM" : "no LLM")}`,
-      detail: apiContract || `${label}: ${info?.effect || info?.description || "system maintenance task"}`,
-      tone: "good",
-    };
-  }
-  if (s.target === "tool") {
-    return {
-      value: apiExecutor ? `${apiExecutor} · ${apiLLM || "no LLM"}` : s.agent ? `tool as ${s.agent}` : "tool via daemon",
-      detail: apiContract || (s.tool ? `cron invokes registered tool ${s.tool}${s.agent ? ` under ${s.agent}` : ""}` : "cron invokes a registered tool"),
-      tone: "warn",
-    };
-  }
-  if (s.target === "workflow") {
-    return {
-      value: apiExecutor ? `${apiExecutor} · ${apiLLM || "LLM"}` : s.agent ? `workflow as ${s.agent}` : "workflow via daemon",
-      detail: apiContract || (s.workflow ? `cron starts workflow ${s.workflow}${s.agent ? ` under ${s.agent}` : " under system identity"}` : "cron starts a workflow chain"),
-      tone: "good",
-    };
-  }
-  return {
-    value: apiExecutor ? `${apiExecutor} · ${apiLLM || "LLM"}` : s.agent ? `LLM wake · ${s.agent}` : "LLM task",
-    detail: apiContract || (s.agent ? `cron wakes agent ${s.agent} with task text` : "cron runs an agent task from schedule intent text"),
-    tone: "muted",
-  };
-}
-
-export function scheduleExecutorPassport(
-  s: Pick<Sched, "target" | "agent" | "system_task" | "tool" | "workflow" | "executor" | "uses_llm" | "execution_contract">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): { value: string; detail: string; tone: "good" | "warn" | "muted" } {
-  const apiExecutor = s.executor?.trim();
-  if (apiExecutor) {
-    return {
-      value: `${apiExecutor} authority`,
-      detail: s.execution_contract?.trim() || `${apiExecutor} executor${s.uses_llm === false ? " without LLM" : s.uses_llm === true ? " with LLM" : ""}`,
-      tone: s.target === "system_task" || (s.target === "workflow" && !s.agent) ? "good" : s.target === "tool" || s.agent ? "warn" : "muted",
-    };
-  }
-  if (s.target === "system_task") {
-    const info = s.system_task ? systemTasks.find((task) => task.name === s.system_task) : undefined;
-    return {
-      value: `${info?.executor || "daemon"} authority`,
-      detail: `${systemTaskDisplayName(s.system_task, systemTasks)} runs as a system maintenance job; no agent identity is woken`,
-      tone: "good",
-    };
-  }
-  if (s.target === "workflow") {
-    return s.agent
-      ? {
-          value: `agent ${s.agent}`,
-          detail: `workflow ${s.workflow || "selected workflow"} runs under ${s.agent}'s identity and permissions`,
-          tone: "warn",
-        }
-      : {
-          value: "system identity",
-          detail: `workflow ${s.workflow || "selected workflow"} runs under daemon/system identity`,
-          tone: "good",
-        };
-  }
-  if (s.target === "tool") {
-    return s.agent
-      ? {
-          value: `agent ${s.agent}`,
-          detail: `tool ${s.tool || "selected tool"} runs under ${s.agent}'s tool policy`,
-          tone: "warn",
-        }
-      : {
-          value: "system identity",
-          detail: `tool ${s.tool || "selected tool"} runs under daemon/system tool policy`,
-          tone: "warn",
-        };
-  }
-  return s.agent
-    ? {
-        value: `agent ${s.agent}`,
-        detail: `cron wakes ${s.agent}; that agent owns the task, memory, tools, and model route`,
-        tone: "muted",
-      }
-    : {
-        value: "daemon default",
-        detail: "cron runs the task with default agent/runtime context",
-        tone: "muted",
-      };
-}
-
-export function scheduleCronJobPassport(
-  s: Pick<Sched, "target" | "agent" | "workflow" | "system_task" | "tool" | "payload">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): { value: string; detail: string; tone: "good" | "warn" | "muted" } {
-  if (s.target === "system_task") {
-    const info = s.system_task ? systemTasks.find((task) => task.name === s.system_task) : undefined;
-    const label = systemTaskDisplayName(s.system_task, systemTasks);
-    return {
-      value: "daemon cronjob",
-      detail: `fires ${label} as a typed system task${info?.uses_llm ? " with LLM" : " with no LLM"}; schedule stores cadence and target, not identity instructions`,
-      tone: "good",
-    };
-  }
-  if (s.target === "workflow") {
-    return {
-      value: "workflow cronjob",
-      detail: `fires workflow ${s.workflow || "selected workflow"}${s.agent ? ` as ${s.agent}` : " under system identity"}; schedule stores cadence, workflow, and optional payload`,
-      tone: s.agent ? "warn" : "good",
-    };
-  }
-  if (s.target === "tool") {
-    return {
-      value: "tool cronjob",
-      detail: `fires tool ${s.tool || "selected tool"}${s.agent ? ` as ${s.agent}` : " under system identity"}; schedule stores cadence, tool, and JSON payload`,
-      tone: "warn",
-    };
-  }
-  return {
-    value: "agent wake cronjob",
-    detail: s.agent
-      ? `wakes ${s.agent}; the agent owns identity, memory, tools, model route, retry, and repair`
-      : "fires an agent task; the runtime owns memory, tools, model route, retry, and repair",
-    tone: "muted",
-  };
-}
-
-export function scheduleCronPassport(
-  s: Pick<Sched, "target" | "agent" | "workflow" | "system_task" | "tool" | "payload" | "cadence" | "mode" | "execution_contract">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): string {
-  const cadence = s.cadence || s.mode || "schedule";
-  return [
-    `cron ${cadence}`,
-    scheduleRowExecutionContract(s, systemTasks),
-    scheduleRowIntentContract(s),
-    scheduleRowPayloadContract(s),
-  ].filter(Boolean).join(" · ");
-}
-
-export interface ScheduleContractSummary {
-  label: string;
-  detail: string;
-  tone: "good" | "warn" | "muted";
-}
-
-export function scheduleContractSummary(
-  s: Pick<Sched, "target" | "agent" | "workflow" | "system_task" | "tool" | "payload" | "cadence" | "mode">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): ScheduleContractSummary {
-  const detail = scheduleCronPassport(s, systemTasks);
-  if (s.target === "system_task") {
-    return {
-      label: "daemon maintenance contract",
-      detail,
-      tone: "good",
-    };
-  }
-  if (s.target === "workflow") {
-    return {
-      label: s.agent ? "agent workflow contract" : "system workflow contract",
-      detail,
-      tone: s.agent ? "warn" : "good",
-    };
-  }
-  if (s.target === "tool") {
-    return {
-      label: s.agent ? "agent tool contract" : "daemon tool contract",
-      detail,
-      tone: "warn",
-    };
-  }
-  return {
-    label: "agent wake contract",
-    detail,
-    tone: "muted",
-  };
-}
-
-export interface ScheduleExecutionManifest {
-  label: string;
-  detail: string;
-  tone: "good" | "warn" | "bad" | "muted";
-  fields: {
-    trigger: string;
-    target: string;
-    executor: string;
-    identity: string;
-    payload: string;
-    llm: string;
-  };
-}
-
-export function scheduleExecutionManifest(
-  s: Pick<Sched, "target" | "agent" | "workflow" | "system_task" | "tool" | "payload" | "cadence" | "mode" | "execution_contract" | "executor" | "uses_llm">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): ScheduleExecutionManifest {
-  const target =
-    s.target === "workflow"
-      ? `workflow ${s.workflow || "selected workflow"}`
-      : s.target === "system_task"
-        ? `system task ${systemTaskDisplayName(s.system_task, systemTasks)}`
-        : s.target === "tool"
-          ? `tool ${s.tool || "selected tool"}`
-          : `agent ${s.agent || "default"}`;
-  const executor = scheduleExecutorPassport(s, systemTasks);
-  const payload = scheduleRowPayloadContract(s);
-  const trigger = s.cadence || s.mode || "schedule";
-  const identity =
-    s.target === "system_task"
-      ? "no agent identity"
-      : s.target === "workflow"
-        ? s.agent
-          ? `agent ${s.agent}`
-          : "system identity"
-        : s.target === "tool"
-          ? s.agent
-            ? `agent ${s.agent} tool policy`
-            : "system tool policy"
-          : s.agent
-            ? `agent ${s.agent}`
-            : "daemon default";
-  const llm =
-    s.uses_llm === true
-      ? "uses LLM"
-      : s.uses_llm === false
-        ? "no LLM"
-        : s.target === "system_task"
-          ? "no LLM"
-          : s.target === "tool"
-            ? "tool-defined"
-            : "may use LLM";
-  const tone =
-    payload.includes("invalid")
-      ? "bad"
-      : s.target === "system_task" || (s.target === "workflow" && !s.agent)
-        ? "good"
-        : s.target === "workflow" || s.target === "tool"
-          ? "warn"
-          : "muted";
-  const label =
-    s.target === "system_task"
-      ? "typed daemon cronjob"
-      : s.target === "workflow"
-        ? "workflow cronjob"
-        : s.target === "tool"
-          ? "tool cronjob"
-          : "agent wake cronjob";
-  const fields = {
-    trigger,
-    target,
-    executor: executor.value,
-    identity,
-    payload,
-    llm,
-  };
-  return {
-    label,
-    detail: `trigger ${fields.trigger} · target ${fields.target} · executor ${fields.executor} · identity ${fields.identity} · ${fields.payload} · ${fields.llm}`,
-    tone,
-    fields,
-  };
-}
 
 export function scheduleTargetHealthPassport(
   s: Pick<Sched, "target" | "agent" | "workflow" | "system_task" | "tool" | "target_status" | "target_error">,
@@ -847,147 +543,6 @@ export function scheduleTargetHealthPassport(
   };
 }
 
-export interface ScheduleCommandStripItem {
-  label: string;
-  value: string;
-  detail?: string;
-  tone: "good" | "warn" | "bad" | "accent" | "muted";
-}
-
-export function scheduleCronjobLedger(
-  s: Pick<Sched, "enabled" | "target" | "agent" | "workflow" | "system_task" | "tool" | "payload" | "cadence" | "mode" | "execution_contract" | "executor" | "uses_llm">,
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-): ScheduleCommandStripItem[] {
-  const cron = scheduleCronJobPassport(s, systemTasks);
-  const executor = scheduleExecutorPassport(s, systemTasks);
-  const payload = scheduleRowPayloadContract(s);
-  const cadence = s.cadence || s.mode || "schedule";
-  const target =
-    s.target === "workflow"
-      ? s.workflow || "selected workflow"
-      : s.target === "system_task"
-        ? systemTaskDisplayName(s.system_task, systemTasks)
-        : s.target === "tool"
-          ? s.tool || "selected tool"
-          : s.agent || "default agent";
-  const identity =
-    s.target === "workflow"
-      ? s.agent
-        ? `agent ${s.agent} identity`
-        : "system identity"
-      : s.target === "system_task"
-        ? "no agent identity"
-        : s.target === "tool"
-          ? s.agent
-            ? `agent ${s.agent} tool policy`
-            : "system tool policy"
-          : s.agent
-            ? `agent ${s.agent} owns soul`
-            : "runtime default agent";
-  const identityDetail =
-    s.target === "agent" || !s.target
-      ? "schedule wakes an agent; the agent record owns identity, memory, skills, settings, retry, and repair"
-      : "schedule does not define soul, memory, skills, provider route, or instructions for this target";
-  return [
-    {
-      label: "timing",
-      value: s.enabled === false ? "paused" : cadence,
-      detail: `schedule owns cadence only: ${cadence}`,
-      tone: s.enabled === false ? "muted" : "accent",
-    },
-    {
-      label: "target",
-      value: target,
-      detail: cron.detail,
-      tone: cron.tone,
-    },
-    {
-      label: "runner",
-      value: executor.value,
-      detail: executor.detail,
-      tone: executor.tone,
-    },
-    {
-      label: "payload",
-      value: payload,
-      detail: payload,
-      tone: payload.includes("invalid") ? "bad" : s.target === "workflow" || s.target === "tool" ? "warn" : "muted",
-    },
-    {
-      label: "identity",
-      value: identity,
-      detail: identityDetail,
-      tone: s.target === "system_task" || (s.target === "workflow" && !s.agent) ? "good" : s.target === "tool" || s.agent ? "warn" : "muted",
-    },
-  ];
-}
-
-export function scheduleCommandStrip(
-  s: Pick<Sched, "enabled" | "target" | "agent" | "workflow" | "system_task" | "tool" | "payload" | "cadence" | "mode" | "next_run_unix" | "last_status" | "fires" | "frequency_warning" | "interval_sec" | "execution_contract" | "executor" | "uses_llm" | "target_status" | "target_error">,
-  nowMs = Date.now(),
-  systemTasks: ScheduleSystemTaskInfo[] = FALLBACK_SYSTEM_TASK_INFO,
-  agents: ScheduleAgent[] = [],
-  workflows: ScheduleWorkflow[] = [],
-  tools: ScheduleTool[] = [],
-): ScheduleCommandStripItem[] {
-  const cron = scheduleCronJobPassport(s, systemTasks);
-  const executor = scheduleExecutorPassport(s, systemTasks);
-  const payload = scheduleRowPayloadContract(s);
-  const frequencyIssue = scheduleFrequencyIssue(s, systemTasks, agents);
-  const health = scheduleTargetHealthPassport(s, agents, workflows, tools, systemTasks);
-  const next = s.enabled === false
-    ? "paused"
-    : s.next_run_unix
-      ? untilLabel(s.next_run_unix * 1000, nowMs)
-      : s.mode === "continuous"
-        ? "resident cycle"
-        : "armed";
-  const cadence = s.cadence || s.mode || "schedule";
-  return [
-    {
-      label: "cadence",
-      value: next,
-      detail: `cron ${cadence}${s.next_run_unix ? ` · next ${fmtDateTime(s.next_run_unix * 1000)}` : ""}`,
-      tone: s.enabled === false ? "muted" : s.next_run_unix && s.next_run_unix * 1000 - nowMs <= DUE_SOON_MS ? "accent" : "good",
-    },
-    {
-      label: "target",
-      value: cron.value,
-      detail: cron.detail,
-      tone: cron.tone,
-    },
-    {
-      label: "executor",
-      value: executor.value,
-      detail: executor.detail,
-      tone: executor.tone,
-    },
-    {
-      label: "payload",
-      value: payload,
-      detail: payload,
-      tone: payload.includes("invalid") ? "bad" : s.target === "workflow" || s.target === "tool" ? "warn" : "muted",
-    },
-    {
-      label: "frequency",
-      value: frequencyIssue || "cadence ok",
-      detail: frequencyIssue || "cadence is within the schedule's expected operating envelope",
-      tone: frequencyIssue ? "warn" : "good",
-    },
-    {
-      label: "health",
-      value: health.value,
-      detail: health.detail,
-      tone: health.tone,
-    },
-    {
-      label: "status",
-      value: s.last_status || ((s.fires ?? 0) > 0 ? `${s.fires} fire${s.fires === 1 ? "" : "s"}` : "not fired"),
-      detail: s.last_status ? `last status ${s.last_status}` : `${s.fires ?? 0} completed fire${s.fires === 1 ? "" : "s"}`,
-      tone: s.last_status === "failed" || s.last_status === "error" ? "bad" : s.last_status ? "good" : "muted",
-    },
-  ];
-}
 
 export function scheduleFrequencyIssue(
   s: Pick<Sched, "mode" | "interval_sec" | "target" | "system_task" | "agent" | "frequency_warning">,
@@ -1371,18 +926,6 @@ export function Schedules() {
               const resumeIssue = scheduleResumeIssue(s, profiles);
               const targetLabel = scheduleTargetLabel(s);
               const actionTitle = scheduleActionTitle(s);
-              const executionContract = scheduleRowExecutionContract(s, systemTaskInfo);
-              const intentContract = scheduleRowIntentContract(s);
-              const intentLabel = scheduleRowIntentLabel(s);
-              const payloadContract = scheduleRowPayloadContract(s);
-              const runtimePassport = scheduleRuntimePassport(s, systemTaskInfo);
-              const executorPassport = scheduleExecutorPassport(s, systemTaskInfo);
-              const cronJobPassport = scheduleCronJobPassport(s, systemTaskInfo);
-              const cronPassport = scheduleCronPassport(s, systemTaskInfo);
-              const contractSummary = scheduleContractSummary(s, systemTaskInfo);
-              const executionManifest = scheduleExecutionManifest(s, systemTaskInfo);
-              const commandStrip = scheduleCommandStrip(s, now, systemTaskInfo, profiles, workflows, tools);
-              const cronjobLedger = scheduleCronjobLedger(s, systemTaskInfo);
               const frequencyIssue = scheduleFrequencyIssue(s, systemTaskInfo, profiles);
               const targetHealth = scheduleTargetHealthPassport(s, profiles, workflows, tools, systemTaskInfo);
               const attentionReasons = scheduleAttentionReasons(s, profiles, workflows, tools, systemTaskInfo);
@@ -1534,111 +1077,6 @@ export function Schedules() {
                   </div>
                 </div>
                 <div className="mt-1.5 text-sm font-medium">{actionTitle}</div>
-                <div
-                  className={cn(
-                    "mt-1 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-sm text-muted",
-                    contractSummary.tone === "good"
-                      ? "border-good/25 bg-good/5"
-                      : contractSummary.tone === "warn"
-                        ? "border-warn/25 bg-warn/5"
-                        : "border-accent/20 bg-accent/5",
-                  )}
-                  title={contractSummary.detail}
-                >
-                  <CalendarClock className={cn("size-3 shrink-0", contractSummary.tone === "good" ? "text-good" : contractSummary.tone === "warn" ? "text-warn" : "text-accent")} />
-                  <span className="font-semibold text-foreground/70">{contractSummary.label}</span>
-                  <span className="min-w-0 truncate">{cronPassport}</span>
-                </div>
-                <div
-                  className={cn(
-                    "mt-1 rounded-md border px-2 py-1.5 text-sm",
-                    executionManifest.tone === "good"
-                      ? "border-good/25 bg-good/5"
-                      : executionManifest.tone === "warn"
-                        ? "border-warn/25 bg-warn/5"
-                        : executionManifest.tone === "bad"
-                          ? "border-bad/30 bg-bad/5"
-                          : "border-border bg-panel/40",
-                  )}
-                  title={executionManifest.detail}
-                  aria-label={`${s.id} execution manifest`}
-                >
-                  <div
-                    className={cn(
-                      "mb-1 flex items-center gap-1.5 font-semibold uppercase tracking-normal",
-                      executionManifest.tone === "good"
-                        ? "text-good"
-                        : executionManifest.tone === "warn"
-                          ? "text-warn"
-                          : executionManifest.tone === "bad"
-                            ? "text-bad"
-                            : "text-muted",
-                    )}
-                  >
-                    <CalendarClock className="size-3" /> Execution manifest · {executionManifest.label}
-                  </div>
-                  <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-6">
-                    {Object.entries(executionManifest.fields).map(([label, value]) => (
-                      <div key={label} className="min-w-0 rounded bg-background/35 px-1.5 py-1">
-                        <div className="truncate text-xs font-semibold uppercase tracking-normal text-muted/75">{label}</div>
-                        <div className="truncate text-sm font-medium text-foreground/85">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <ScheduleCommandStrip items={commandStrip} id={s.id} />
-                <div
-                  className={cn(
-                    "mt-1 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-sm text-muted",
-                    cronJobPassport.tone === "good"
-                      ? "border-good/25 bg-good/5"
-                      : cronJobPassport.tone === "warn"
-                        ? "border-warn/25 bg-warn/5"
-                        : "border-accent/20 bg-accent/5",
-                  )}
-                  title={cronJobPassport.detail}
-                >
-                  <Clock3 className={cn("size-3 shrink-0", cronJobPassport.tone === "good" ? "text-good" : cronJobPassport.tone === "warn" ? "text-warn" : "text-accent")} />
-                  <span className="font-semibold text-foreground/70">Cronjob</span>
-                  <span className="min-w-0 truncate">{cronJobPassport.value}</span>
-                </div>
-                <ScheduleCronjobLedger items={cronjobLedger} id={s.id} />
-                <div className="mt-1 grid gap-1 rounded-md border border-border/60 bg-panel/40 p-1.5 text-sm text-muted md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                  <div className="flex min-w-0 items-center gap-1.5 rounded bg-background/35 px-1.5 py-1" title={executionContract}>
-                  <CalendarClock className="size-3 shrink-0 text-accent" />
-                  <span className="truncate">{executionContract}</span>
-                  </div>
-                  <div
-                    className={cn(
-                      "min-w-0 rounded bg-background/35 px-1.5 py-1",
-                      runtimePassport.tone === "good" && "text-good",
-                      runtimePassport.tone === "warn" && "text-warn",
-                    )}
-                    title={runtimePassport.detail}
-                  >
-                    <span className="mr-1 font-semibold text-foreground/65">runtime</span>
-                    <span className="truncate align-bottom">{runtimePassport.value}</span>
-                  </div>
-                  <div
-                    className={cn(
-                      "min-w-0 rounded bg-background/35 px-1.5 py-1",
-                      executorPassport.tone === "good" && "text-good",
-                      executorPassport.tone === "warn" && "text-warn",
-                    )}
-                    title={executorPassport.detail}
-                  >
-                    <span className="mr-1 font-semibold text-foreground/65">executor</span>
-                    <span className="truncate align-bottom">{executorPassport.value}</span>
-                  </div>
-                  <div className="min-w-0 rounded bg-background/35 px-1.5 py-1" title={intentContract}>
-                    <span className="mr-1 font-semibold text-foreground/65">{intentLabel}</span>
-                    <span className="truncate align-bottom">{intentContract}</span>
-                  </div>
-                  <div className="min-w-0 rounded bg-background/35 px-1.5 py-1" title={payloadContract}>
-                    <span className="mr-1 font-semibold text-foreground/65">payload</span>
-                    <span className="truncate align-bottom">{payloadContract}</span>
-                  </div>
-                </div>
                 {s.intent && actionTitle !== s.intent && (
                   <div className="mt-0.5 text-sm text-muted">label: {s.intent}</div>
                 )}
@@ -1670,7 +1108,6 @@ export function Schedules() {
                       {forecast?.id === s.id ? "hide fires" : "next fires"}
                     </button>
                   )}
-                  <span className="font-mono opacity-70">{s.id}</span>
                 </div>
                 {forecast?.id === s.id && (
                   <ol className="mt-1.5 space-y-0.5 rounded-md border border-border/60 bg-panel/40 p-2 text-sm">
@@ -1686,6 +1123,34 @@ export function Schedules() {
                     )}
                   </ol>
                 )}
+                {/* The row's single raw escape hatch — stored fields once, no narration. */}
+                <Disclosure
+                  className="mt-1"
+                  summary={<span className="text-xs text-muted">details</span>}
+                >
+                  <div className="rounded-md border border-border/60 bg-panel/40 p-2 text-xs">
+                    <KeyValue
+                      pairs={(
+                        [
+                          ["id", <span key="id" className="font-mono">{s.id}</span>],
+                          ["cadence", s.cadence || s.mode || "—"],
+                          ["source", s.source || "—"],
+                          s.executor ? ["executor", s.executor] : null,
+                          s.uses_llm !== undefined ? ["LLM", s.uses_llm ? "yes" : "no"] : null,
+                          s.model ? ["model", <span key="model" className="font-mono">{s.model}</span>] : null,
+                          s.payload !== undefined && s.payload !== null
+                            ? [
+                                "payload",
+                                <span key="payload" className="break-all font-mono">
+                                  {JSON.stringify(s.payload)}
+                                </span>,
+                              ]
+                            : null,
+                        ] as ([string, React.ReactNode] | null)[]
+                      ).filter((p): p is [string, React.ReactNode] => p !== null)}
+                    />
+                  </div>
+                </Disclosure>
               </li>
               );
             })}
@@ -1817,77 +1282,6 @@ function ScheduleModal({ title, onClose, children }: { title: string; onClose: (
   );
 }
 
-function ScheduleCommandStrip({ items, id }: { items: ScheduleCommandStripItem[]; id: string }) {
-  return (
-    <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3" aria-label={`${id} schedule command strip`}>
-      {items.map((item) => (
-        <div
-          key={item.label}
-          title={item.detail || item.value}
-          className={cn(
-            "min-w-0 rounded-md border border-border/60 bg-panel/40 px-2 py-1.5",
-            item.tone === "good" && "border-good/25 bg-good/5",
-            item.tone === "bad" && "border-bad/35 bg-bad/5",
-            item.tone === "warn" && "border-warn/35 bg-warn/10",
-            item.tone === "accent" && "border-accent/30 bg-accent/10",
-          )}
-        >
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full bg-muted/60",
-                item.tone === "good" && "bg-good",
-                item.tone === "bad" && "bg-bad",
-                item.tone === "warn" && "bg-warn",
-                item.tone === "accent" && "bg-accent",
-              )}
-            />
-            <span className="truncate text-xs font-semibold uppercase tracking-normal text-muted/80">{item.label}</span>
-          </div>
-          <div
-            className={cn(
-              "mt-0.5 truncate text-sm font-medium text-foreground/90",
-              item.tone === "good" && "text-good",
-              item.tone === "bad" && "text-bad",
-              item.tone === "warn" && "text-warn",
-              item.tone === "accent" && "text-accent",
-              item.tone === "muted" && "text-muted",
-            )}
-          >
-            {item.value}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ScheduleCronjobLedger({ items, id }: { items: ScheduleCommandStripItem[]; id: string }) {
-  return (
-    <div className="mt-1.5 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${id} cronjob ledger`}>
-      <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted/80">Cronjob ledger</div>
-      <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-5">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            title={item.detail || item.value}
-            className={cn(
-              "min-w-0 rounded bg-background/40 px-1.5 py-1",
-              item.tone === "good" && "text-good",
-              item.tone === "bad" && "text-bad",
-              item.tone === "warn" && "text-warn",
-              item.tone === "accent" && "text-accent",
-              item.tone === "muted" && "text-muted",
-            )}
-          >
-            <div className="truncate text-xs font-semibold uppercase tracking-normal text-muted/75">{item.label}</div>
-            <div className="truncate text-sm font-medium">{item.value}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function agentLabel(agents: ScheduleAgent[], slug: string): string {
   const a = agents.find((p) => p.slug === slug);
@@ -2044,37 +1438,6 @@ function ScheduleUnitPicker({
   );
 }
 
-export function scheduleExecutionContract(input: {
-  target: ScheduleTarget;
-  agent?: string;
-  workflow?: string;
-  systemTask?: string;
-  tool?: string;
-  systemTaskInfo?: ScheduleSystemTaskInfo;
-}): string {
-  const agent = input.agent?.trim();
-  if (input.target === "workflow") {
-    const workflow = input.workflow?.trim() || "selected workflow";
-    return `cron triggers workflow ${workflow}${agent ? ` as ${agent}` : " under system identity"}`;
-  }
-  if (input.target === "system_task") {
-    const name = input.systemTaskInfo
-      ? systemTaskDisplayName(input.systemTask || "", [input.systemTaskInfo])
-      : systemTaskDisplayName(input.systemTask || "");
-    const meta = [
-      input.systemTaskInfo?.executor || "daemon",
-      input.systemTaskInfo?.effect_class || "",
-      input.systemTaskInfo?.uses_llm === false ? "no LLM" : "",
-    ].filter(Boolean);
-    return `cron runs system task ${name}${meta.length ? ` · ${meta.join(" · ")}` : ""}`;
-  }
-  if (input.target === "tool") {
-    const tool = input.tool?.trim() || "selected tool";
-    return `cron invokes tool ${tool}${agent ? ` as ${agent}` : " under system identity"}`;
-  }
-  return agent ? `cron wakes agent ${agent} with this task` : "cron runs this agent task with daemon defaults";
-}
-
 export function scheduleIntentFieldHint(target: ScheduleTarget): string {
   if (target === "agent") return "This is the task handed to the selected agent when cron wakes it.";
   if (target === "workflow") return "Optional label only; the workflow definition supplies the actual steps.";
@@ -2104,41 +1467,6 @@ function safeParsePayloadShape(payloadText: string): unknown {
   }
 }
 
-export function scheduleIdentityBoundary(target: ScheduleTarget, agent?: string): { label: string; detail: string; tone: "good" | "warn" | "muted" } {
-  const actor = agent?.trim();
-  if (target === "agent") {
-    return {
-      label: "agent owns identity",
-      detail: actor
-        ? `schedule only wakes ${actor}; soul, memory, tools, model route, retry, and repair stay on the agent`
-        : "schedule only stores cadence and task text; runtime/default agent owns identity, memory, tools, model route, retry, and repair",
-      tone: "muted",
-    };
-  }
-  if (target === "workflow") {
-    return {
-      label: actor ? "workflow uses agent authority" : "workflow uses system identity",
-      detail: actor
-        ? `schedule triggers the workflow as ${actor}; the workflow definition owns steps, the agent owns permissions`
-        : "schedule triggers the workflow under system identity; it does not define agent soul, memory, skills, or instructions",
-      tone: actor ? "warn" : "good",
-    };
-  }
-  if (target === "tool") {
-    return {
-      label: actor ? "tool uses agent policy" : "tool uses system policy",
-      detail: actor
-        ? `schedule invokes the tool as ${actor}; payload defines the call and the agent policy gates access`
-        : "schedule invokes the tool under system tool policy; payload defines the call, not an LLM prompt",
-      tone: "warn",
-    };
-  }
-  return {
-    label: "no agent identity",
-    detail: "schedule runs a typed daemon system task; no agent is woken and no LLM prompt is created",
-    tone: "good",
-  };
-}
 
 export function scheduleFormCadenceLabel(
   mode: ScheduleMode,
@@ -2324,41 +1652,9 @@ export function NewScheduleForm({
   const taskHint = scheduleIntentFieldHint(target);
   const selectedAgentIssue = scheduleSelectedAgentIssue(agentRef, agents);
   const selectedToolAgentIssue = target === "tool" ? scheduleToolAgentIssue(toolRef, agentRef, agents) : "";
-  const executionContract = scheduleExecutionContract({
-    target,
-    agent: agentRef,
-    workflow: workflowRef,
-    systemTask,
-    tool: toolRef,
-    systemTaskInfo: selectedSystemTaskInfo,
-  });
   const payloadContract = schedulePayloadContract(target, payloadText);
-  const identityBoundary = scheduleIdentityBoundary(target, agentRef);
+  const payloadInvalid = payloadContract.includes("invalid");
   const formCadence = scheduleFormCadenceLabel(mode, everyN, everyUnit, dailyAt, windowStart, windowEnd, onceAt);
-  const formContract = scheduleContractSummary({
-    target,
-    agent: agentRef,
-    workflow: workflowRef,
-    system_task: systemTask,
-    tool: toolRef,
-    cadence: formCadence,
-  }, effectiveSystemTaskInfo);
-  const formManifest = scheduleExecutionManifest({
-    target,
-    agent: agentRef,
-    workflow: workflowRef,
-    system_task: systemTask,
-    tool: toolRef,
-    payload: payloadText.trim() ? safeParsePayloadShape(payloadText) : undefined,
-    cadence: formCadence,
-    mode,
-  }, effectiveSystemTaskInfo);
-  const formManifestFields = {
-    ...formManifest.fields,
-    payload: payloadContract || formManifest.fields.payload,
-  };
-  const formManifestTone = payloadContract.includes("invalid") ? "bad" : formManifest.tone;
-  const formManifestDetail = `trigger ${formManifestFields.trigger} · target ${formManifestFields.target} · executor ${formManifestFields.executor} · identity ${formManifestFields.identity} · ${formManifestFields.payload} · ${formManifestFields.llm}`;
   const agentOptions: ScheduleChoice[] = [
     { value: "", label: "No roster agent", detail: "Run without binding a roster identity", icon: <Bot className="size-3.5" /> },
     ...agents.map((a) => ({
@@ -2617,83 +1913,13 @@ export function NewScheduleForm({
         </div>
       )}
 
-      <Disclosure
-        className="mt-2"
-        summary={<span className="text-sm font-medium text-foreground/80">Details — manifest &amp; contract</span>}
-      >
-      <div className="mt-1 rounded-md border border-border bg-panel/35 px-2 py-1.5 text-sm text-muted">
-        <span className="font-semibold uppercase tracking-normal text-foreground/70">Execution</span>{" "}
-        <span>{executionContract}</span>
-        {payloadContract && <span> · {payloadContract}</span>}
-      </div>
-
-      <div
-        className={cn(
-          "mt-2 rounded-md border p-2 text-sm",
-          formManifestTone === "good"
-            ? "border-good/25 bg-good/5"
-            : formManifestTone === "warn"
-              ? "border-warn/25 bg-warn/5"
-              : formManifestTone === "bad"
-                ? "border-bad/30 bg-bad/5"
-                : "border-border bg-panel/35",
-        )}
-        aria-label="Schedule target manifest"
-        title={formManifestDetail}
-      >
-        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-          <ShieldCheck className="size-3" /> Target manifest · {formManifest.label}
-        </div>
-        <div className="grid gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
-          {Object.entries(formManifestFields).map(([key, value]) => (
-            <div key={key} className="min-w-0 rounded border border-border/55 bg-panel/45 px-2 py-1">
-              <div className="truncate text-xs font-semibold uppercase tracking-normal text-muted/80">
-                {key}
-              </div>
-              <div className="mt-0.5 truncate text-xs text-foreground/85" title={value}>
-                {value}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "mt-2 rounded-md border px-2 py-1.5 text-sm text-muted",
-          formContract.tone === "good"
-            ? "border-good/25 bg-good/5"
-            : formContract.tone === "warn"
-              ? "border-warn/25 bg-warn/5"
-              : "border-accent/20 bg-accent/5",
-        )}
-        title={formContract.detail}
-      >
-        <span className="font-semibold uppercase tracking-normal text-foreground/70">Cron contract</span>{" "}
-        <span className={cn(formContract.tone === "good" && "text-good", formContract.tone === "warn" && "text-warn")}>
-          {formContract.label}
+      {/* One cadence confirmation line + payload validation — no prose manifests. */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarClock className="size-3.5 text-accent" /> {formCadence}
         </span>
-        <span> · {formContract.detail}</span>
+        {payloadInvalid && <span className="text-bad">{payloadContract}</span>}
       </div>
-
-      <div
-        className={cn(
-          "mt-2 rounded-md border px-2 py-1.5 text-sm text-muted",
-          identityBoundary.tone === "good"
-            ? "border-good/25 bg-good/5"
-            : identityBoundary.tone === "warn"
-              ? "border-warn/25 bg-warn/5"
-              : "border-border bg-panel/35",
-        )}
-        title={identityBoundary.detail}
-      >
-        <span className="font-semibold uppercase tracking-normal text-foreground/70">Identity boundary</span>{" "}
-        <span className={cn(identityBoundary.tone === "good" && "text-good", identityBoundary.tone === "warn" && "text-warn")}>
-          {identityBoundary.label}
-        </span>
-        <span> · {identityBoundary.detail}</span>
-      </div>
-      </Disclosure>
 
       {showRunAsAgent && (
         <div className={cn("mt-2 grid gap-2", target === "workflow" && "sm:grid-cols-2")}>
