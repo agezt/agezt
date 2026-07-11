@@ -730,6 +730,25 @@ export function summarizeAgent(runs: RunLite[], slug: string): AgentSummary {
   return { runs: count, totalSpentMc, lastStartedMs };
 }
 
+// agentRunTrend folds an agent's runs into a runs-per-day series over the last
+// `days` days (oldest → newest) — the header MetricWidget's trend sparkline.
+export function agentRunTrend(
+  runs: RunLite[],
+  slug: string,
+  days = 14,
+  nowMs = Date.now(),
+): number[] {
+  const dayMs = 86_400_000;
+  const out = new Array<number>(days).fill(0);
+  const start = nowMs - (days - 1) * dayMs;
+  for (const r of runs) {
+    if (r.agent !== slug || !r.started_unix_ms) continue;
+    const idx = Math.floor((r.started_unix_ms - start) / dayMs);
+    if (idx >= 0 && idx < days) out[idx]++;
+  }
+  return out;
+}
+
 // lastFailure returns the most recent failed run for the agent (the "ne bok
 // yedi" headline), or undefined when the agent has no failures.
 export function lastFailure(
