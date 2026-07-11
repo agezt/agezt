@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Skull, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,17 @@ export function LifecycleInterventionPanel({
     subagents: false,
   });
   const [working, setWorking] = useState(false);
+  // Once the operator touches a cleanup toggle or preset, late impact refetches
+  // (the aux memory/skills/mailbox fetches settle after mount) must not clobber
+  // their selection back to the defaults.
+  const cascadeTouched = useRef(false);
+  const touchCascade: typeof setCascade = (next) => {
+    cascadeTouched.current = true;
+    setCascade(next);
+  };
+  useEffect(() => {
+    cascadeTouched.current = false;
+  }, [slug]);
 
   useEffect(() => {
     let alive = true;
@@ -61,6 +72,7 @@ export function LifecycleInterventionPanel({
       .then((next) => {
         if (!alive) return;
         setImpact({ ...fallbackImpact, ...next });
+        if (cascadeTouched.current) return;
         const nextSubagents = (next.subagents || []).length > 0;
         setCascade({
           standing: (next.standing_orders || []).length > 0,
@@ -76,6 +88,7 @@ export function LifecycleInterventionPanel({
       .catch(() => {
         if (!alive) return;
         setImpact(fallbackImpact);
+        if (cascadeTouched.current) return;
         setCascade({
           standing: false,
           schedules: (fallbackImpact.schedules || []).length > 0,
@@ -326,15 +339,15 @@ export function LifecycleInterventionPanel({
               <div className="mb-2 text-xs font-medium text-bad">Remove identity and cleanup</div>
               <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-card/55 p-2 text-xs text-muted">
                 <span className="mr-auto">Cleanup preset</span>
-                <Button size="sm" variant="ghost" onClick={() => setCascade(agentDetailRemovalCascadePreset("clean_all"))}>
+                <Button size="sm" variant="ghost" onClick={() => touchCascade(agentDetailRemovalCascadePreset("clean_all"))}>
                   Clean all
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setCascade(agentDetailRemovalCascadePreset("keep_all"))}>
+                <Button size="sm" variant="ghost" onClick={() => touchCascade(agentDetailRemovalCascadePreset("keep_all"))}>
                   Keep all
                 </Button>
               </div>
               <div className="grid gap-1.5 sm:grid-cols-2">
-                <CleanupToggle label="Standing orders" count={toggleItems.standing.length} checked={cascade.standing} onChange={(v) => setCascade((c) => ({ ...c, standing: v }))} />
+                <CleanupToggle label="Standing orders" count={toggleItems.standing.length} checked={cascade.standing} onChange={(v) => touchCascade((c) => ({ ...c, standing: v }))} />
                 <CleanupToggle label="Schedules" count={toggleItems.schedules.length} checked={cascade.schedules} onChange={(v) => setCascade((c) => ({ ...c, schedules: v }))} />
                 <CleanupToggle label="Private memory" count={toggleItems.memory.length} checked={cascade.memory} onChange={(v) => setCascade((c) => ({ ...c, memory: v }))} />
                 <CleanupToggle label="Authored shared memory" count={toggleItems.authoredMemory.length} checked={cascade.authored_memory} onChange={(v) => setCascade((c) => ({ ...c, authored_memory: v }))} />
