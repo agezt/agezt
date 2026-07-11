@@ -311,21 +311,17 @@ func parseSeqCursor(raw string) (int64, bool) {
 // durable event, with JSON-unmarshal + map lookups per event). The
 // single-pass dispatch below is behavior-preserving: each accumulator's
 // key-set and "latest wins" semantics match the original per-helper
-// implementations. Per-helper public functions (agentLastActivityViews,
-// agentMailboxWakeViews, agentPolicyDenialViews, agentLastAutonomyRunbookViews,
-// agentLiveStatusViews) remain for backward compatibility with any callers
-// that depended on them; they are no longer used by this orchestrator and
-// are kept as thin wrappers that delegate to a default pass (the existing
-// 11-Range call sites in tests/sibling code path stay green).
+// implementations (the retired per-helper methods have been deleted; this
+// dispatch is now the only journal-derived roster-status path).
 type agentStatusAccums struct {
-	liveStatuses        map[string]agentLiveStatus
-	lastActivities      map[string]agentLastActivity
-	autonomyRunbooks    map[string]map[string]any
-	mailboxWakes        map[string]map[string]any
-	policyDenials       map[string]agentPolicyDenials
-	routingCounts       map[string]agentRoutingPressure
-	retryCounts         map[string]agentRetryPressure
-	routingCut          int64
+	liveStatuses     map[string]agentLiveStatus
+	lastActivities   map[string]agentLastActivity
+	autonomyRunbooks map[string]map[string]any
+	mailboxWakes     map[string]map[string]any
+	policyDenials    map[string]agentPolicyDenials
+	routingCounts    map[string]agentRoutingPressure
+	retryCounts      map[string]agentRetryPressure
+	routingCut       int64
 }
 
 // fillAgentStatusAccumsFromJournal walks the journal ONCE, dispatching every
@@ -333,9 +329,9 @@ type agentStatusAccums struct {
 // later see the same final maps the previous 11-Range implementation
 // produced; only the number of journal walks is reduced (11 → 1).
 //
-// Trade-offs: liveStatuses requires a precomputed runAgent map (see
-// agentLiveStatusViews); for the roster path we keep the small lookup inside
-// the same Range by threading runAgent through the closure. Repair summaries
+// Trade-offs: liveStatuses requires a precomputed runAgent map; for the
+// roster path we keep the small lookup inside the same Range by threading
+// runAgent through the closure. Repair summaries
 // (agentRepairSummaries) and wake/escalation views use external stores, so
 // they remain separate helpers and don't participate in this single pass.
 func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, routingCut int64) agentStatusAccums {
@@ -361,7 +357,7 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 
 	// Latest per-correlation → slug for agent.retry attribution (since
 	// agent.retry payloads don't always carry an agent slug). Same
-	// semantics as agentRetryPressureViews.
+	// semantics as the retired agentRetryPressureViews helper.
 	runAgent := map[string]string{}
 
 	// LiveStatus: only consider currently-running rows so the runAgent
@@ -418,7 +414,8 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			}
 		}
 
-		// autonomyRunbooks — same key/subject conditions as agentLastAutonomyRunbookViews.
+		// autonomyRunbooks — same key/subject conditions as the retired
+		// agentLastAutonomyRunbookViews helper.
 		if (e.Subject == "agent.wake" && e.Kind == event.KindInfo) || e.Kind == event.KindScheduleFired || e.Kind == event.KindStandingFired || e.Kind == event.KindSubAgentSpawned || (e.Subject == "doctor.auto_repair" && e.Kind == event.KindInfo) {
 			var pl map[string]any
 			if json.Unmarshal(e.Payload, &pl) == nil {
@@ -514,7 +511,7 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			}
 		}
 
-		// mailboxWakes — same condition as agentMailboxWakeViews.
+		// mailboxWakes — same condition as the retired agentMailboxWakeViews helper.
 		if e.Kind == event.KindStandingFired {
 			var pl map[string]any
 			if json.Unmarshal(e.Payload, &pl) == nil {
@@ -539,7 +536,8 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			}
 		}
 
-		// policyDenials — mirrored from agentPolicyDenialViews. task.received
+		// policyDenials — mirrored from the retired agentPolicyDenialViews
+		// helper. task.received
 		// also feeds the retry runAgent below.
 		if e.Kind == event.KindTaskReceived {
 			var pl map[string]any
@@ -567,7 +565,7 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			}
 		}
 
-		// routingCounts — mirrored from agentRoutingPressureViews.
+		// routingCounts — mirrored from the retired agentRoutingPressureViews helper.
 		if e.Kind == event.KindProviderFallback && e.TSUnixMS >= routingCut {
 			var pl struct {
 				FailedModel string `json:"failed_model"`
@@ -594,7 +592,8 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			}
 		}
 
-		// retryCounts — mirrored from agentRetryPressureViews. task.received
+		// retryCounts — mirrored from the retired agentRetryPressureViews
+		// helper. task.received
 		// is handled above; this branch only fires on agent.retry.
 		if e.Kind == event.KindAgentRetry {
 			var pl map[string]any
@@ -900,227 +899,6 @@ func isMailboxWakeSubject(subject string) bool {
 	return subject == "board" || strings.HasPrefix(subject, "board.")
 }
 
-func (s *Server) agentLastAutonomyRunbookViews(profiles []roster.Profile) map[string]map[string]any {
-	if len(profiles) == 0 {
-		return nil
-	}
-	known := make(map[string]bool, len(profiles))
-	for _, p := range profiles {
-		known[p.Slug] = true
-	}
-	out := map[string]map[string]any{}
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		isDoctorWake := e.Subject == "doctor.auto_repair" && e.Kind == event.KindInfo
-		if !((e.Subject == "agent.wake" && e.Kind == event.KindInfo) || e.Kind == event.KindScheduleFired || e.Kind == event.KindStandingFired || e.Kind == event.KindSubAgentSpawned || isDoctorWake) {
-			return nil
-		}
-		var pl map[string]any
-		if json.Unmarshal(e.Payload, &pl) != nil {
-			return nil
-		}
-		// A doctor escalation/delegation wakes the OWNER/delegate named in
-		// target_agent (the "agent" field is the escalating agent whose incident
-		// triggered the wake). Only the escalation_woke/delegation_woke phases carry
-		// an autonomy_runbook, so the runbook guard below filters the other phases.
-		slug := plString(pl, "agent")
-		if isDoctorWake {
-			slug = plString(pl, "target_agent")
-		}
-		if !known[slug] {
-			return nil
-		}
-		raw, ok := pl["autonomy_runbook"].(map[string]any)
-		if !ok || len(raw) == 0 {
-			return nil
-		}
-		cp := map[string]any{}
-		for k, v := range raw {
-			cp[k] = v
-		}
-		phase := plString(pl, "phase")
-		switch {
-		case phase == "" && e.Kind == event.KindScheduleFired:
-			phase = "schedule_fired"
-		case phase == "" && e.Kind == event.KindStandingFired:
-			phase = "standing_fired"
-		case phase == "" && e.Kind == event.KindSubAgentSpawned:
-			phase = "delegated_wake"
-		}
-		cp["phase"] = phase
-		switch {
-		case e.Kind == event.KindScheduleFired:
-			cp["source"] = "schedule"
-			cp["schedule_id"] = plString(pl, "schedule_id")
-		case e.Kind == event.KindStandingFired:
-			// standing.fired payloads address the order by "id"/"name" (not the
-			// schedule's "standing_id"/"standing_name"); accept either form.
-			cp["source"] = "standing"
-			cp["standing_id"] = firstNonEmpty(plString(pl, "standing_id"), plString(pl, "id"))
-			if name := firstNonEmpty(plString(pl, "standing_name"), plString(pl, "name")); name != "" {
-				cp["standing_name"] = name
-			}
-			subj := plString(pl, "trigger_subject")
-			if subj != "" {
-				cp["trigger_subject"] = subj
-			}
-			// A standing order whose event trigger matched a board subject IS the
-			// mailbox-wake route (board.dm.<slug> / board.help / board.broadcast /
-			// board.<topic>). Enrich the runbook with which message woke the agent
-			// and from whom, so message -> wake event -> run correlation is
-			// traceable (the event's CorrelationID is the run correlation).
-			if isMailboxWakeSubject(subj) {
-				cp["wake_via"] = "mailbox"
-				tp, _ := pl["trigger_payload"].(map[string]any)
-				if id := plString(tp, "id"); id != "" {
-					cp["mailbox_message_id"] = id
-				}
-				if from := plString(tp, "from"); from != "" {
-					cp["mailbox_from"] = from
-				}
-				if to := plString(tp, "to"); to != "" {
-					cp["mailbox_to"] = to
-				}
-				if rt := plString(tp, "reply_to"); rt != "" {
-					cp["mailbox_reply_to"] = rt
-				}
-				if help, ok := tp["help"].(bool); ok && help {
-					cp["mailbox_help"] = true
-				}
-			}
-		case e.Kind == event.KindSubAgentSpawned:
-			// A delegated sub-agent spawn is journaled under the PARENT/lead
-			// correlation; the child run is in child_correlation. Surface who
-			// delegated it and the parent run so the wake is attributable up to the
-			// leader, while correlation_id (below) points at the child run to drill
-			// into.
-			cp["source"] = "delegated"
-			if by := plString(pl, "delegated_by"); by != "" {
-				cp["delegated_by"] = by
-			}
-			if pc := firstNonEmpty(plString(pl, "parent_correlation_id"), plString(pl, "parent")); pc != "" {
-				cp["parent_correlation_id"] = pc
-			}
-		case isDoctorWake:
-			// Doctor woke this agent to handle another agent's incident: "agent" is
-			// the agent being repaired (doctor_for); the event's CorrelationID is
-			// this agent's own run. delegated_by is set on the delegation_woke hop.
-			cp["source"] = "doctor"
-			if forAgent := plString(pl, "agent"); forAgent != "" {
-				cp["doctor_for"] = forAgent
-			}
-			if mode := plString(pl, "mode"); mode != "" {
-				cp["doctor_mode"] = mode
-			}
-			if inc := plString(pl, "incident_id"); inc != "" {
-				cp["incident_id"] = inc
-			}
-			if by := plString(pl, "delegated_by"); by != "" {
-				cp["delegated_by"] = by
-			}
-		}
-		corrID := e.CorrelationID
-		if e.Kind == event.KindSubAgentSpawned {
-			if child := plString(pl, "child_correlation"); child != "" {
-				corrID = child
-			}
-		}
-		cp["correlation_id"] = corrID
-		cp["ts_unix_ms"] = e.TSUnixMS
-		out[slug] = cp
-		return nil
-	})
-	return out
-}
-
-// agentMailboxWakeViews maps, per agent, each board message id that actually woke
-// the agent to the wake's run correlation and timestamp. It is the causality layer
-// over the mailbox-wake route (a standing order matched on a board.* subject): the
-// comms tab can then mark "this message woke the agent" and link the message to the
-// run it triggered, instead of leaving the operator to infer it. Read-only and
-// derived from the journal — stored board messages are never mutated. Latest wake
-// per message id wins.
-func (s *Server) agentMailboxWakeViews(profiles []roster.Profile) map[string]map[string]any {
-	if len(profiles) == 0 {
-		return nil
-	}
-	known := make(map[string]bool, len(profiles))
-	for _, p := range profiles {
-		known[p.Slug] = true
-	}
-	out := map[string]map[string]any{}
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		if e.Kind != event.KindStandingFired {
-			return nil
-		}
-		var pl map[string]any
-		if json.Unmarshal(e.Payload, &pl) != nil {
-			return nil
-		}
-		slug := plString(pl, "agent")
-		if !known[slug] || !isMailboxWakeSubject(plString(pl, "trigger_subject")) {
-			return nil
-		}
-		tp, _ := pl["trigger_payload"].(map[string]any)
-		msgID := plString(tp, "id")
-		if msgID == "" {
-			return nil
-		}
-		byMsg := out[slug]
-		if byMsg == nil {
-			byMsg = map[string]any{}
-			out[slug] = byMsg
-		}
-		// Journal Range is chronological, so a later fire overwrites an earlier one
-		// for the same message id — the most recent wake wins.
-		byMsg[msgID] = map[string]any{
-			"correlation_id":  e.CorrelationID,
-			"ts_unix_ms":      e.TSUnixMS,
-			"trigger_subject": plString(pl, "trigger_subject"),
-		}
-		return nil
-	})
-	return out
-}
-
-func (s *Server) agentLastActivityViews(profiles []roster.Profile) map[string]agentLastActivity {
-	if len(profiles) == 0 {
-		return nil
-	}
-	known := make(map[string]bool, len(profiles))
-	runCorr := make(map[string]map[string]bool, len(profiles))
-	out := make(map[string]agentLastActivity, len(profiles))
-	for _, p := range profiles {
-		known[p.Slug] = true
-		runCorr[p.Slug] = map[string]bool{}
-	}
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		var pl map[string]any
-		_ = json.Unmarshal(e.Payload, &pl)
-		if e.Kind == event.KindTaskReceived {
-			if slug := plString(pl, "agent"); slug != "" && known[slug] && e.CorrelationID != "" {
-				runCorr[slug][e.CorrelationID] = true
-			}
-		}
-		for slug := range known {
-			summary, ok := agentActivitySummary(e, pl, slug, runCorr[slug])
-			if !ok {
-				continue
-			}
-			cur := out[slug]
-			if e.TSUnixMS >= cur.TSUnixMS {
-				out[slug] = agentLastActivity{
-					TSUnixMS:      e.TSUnixMS,
-					Kind:          string(e.Kind),
-					CorrelationID: e.CorrelationID,
-					Summary:       summary,
-				}
-			}
-		}
-		return nil
-	})
-	return out
-}
-
 type agentPolicyDenials struct {
 	Count          int
 	LastTool       string
@@ -1128,129 +906,6 @@ type agentPolicyDenials struct {
 	LastCapability string
 	LastHard       bool
 	LastTSMS       int64
-}
-
-// agentPolicyDenialViews folds the journal's policy.decision evidence into a
-// per-agent denial summary so the console can show that the runtime actually
-// ENFORCED policy (tool refused), not merely that the UI displays a tool_deny.
-// policy.decision events carry no agent slug, so denials are attributed by run
-// correlation: a KindTaskReceived names the agent for a correlation, and any
-// allow==false policy.decision under that correlation counts against it. Single
-// chronological pass — task.received precedes its run's policy decisions.
-func (s *Server) agentPolicyDenialViews(profiles []roster.Profile) map[string]agentPolicyDenials {
-	if len(profiles) == 0 {
-		return nil
-	}
-	known := make(map[string]bool, len(profiles))
-	for _, p := range profiles {
-		known[p.Slug] = true
-	}
-	corrToSlug := map[string]string{}
-	out := map[string]agentPolicyDenials{}
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		switch e.Kind {
-		case event.KindTaskReceived:
-			var pl map[string]any
-			if json.Unmarshal(e.Payload, &pl) != nil {
-				return nil
-			}
-			if slug := plString(pl, "agent"); slug != "" && known[slug] && e.CorrelationID != "" {
-				corrToSlug[e.CorrelationID] = slug
-			}
-		case event.KindPolicyDecision:
-			slug := corrToSlug[e.CorrelationID]
-			if slug == "" {
-				return nil
-			}
-			var pl map[string]any
-			if json.Unmarshal(e.Payload, &pl) != nil {
-				return nil
-			}
-			if allow, ok := pl["allow"].(bool); !ok || allow {
-				return nil
-			}
-			d := out[slug]
-			d.Count++
-			d.LastTool = plString(pl, "tool")
-			d.LastReason = plString(pl, "reason")
-			d.LastCapability = plString(pl, "capability")
-			d.LastHard, _ = pl["hard_denied"].(bool)
-			d.LastTSMS = e.TSUnixMS
-			out[slug] = d
-		}
-		return nil
-	})
-	return out
-}
-
-func (s *Server) agentLiveStatusViews(profiles []roster.Profile) map[string]agentLiveStatus {
-	if len(profiles) == 0 {
-		return nil
-	}
-	known := make(map[string]bool, len(profiles))
-	for _, p := range profiles {
-		known[p.Slug] = true
-	}
-	runs, err := s.collectRuns(s.k)
-	if err != nil {
-		return nil
-	}
-	out := make(map[string]agentLiveStatus)
-	runAgent := make(map[string]string)
-	for _, r := range runs {
-		if runEntryStatus(r) != "running" || strings.TrimSpace(r.Agent) == "" || !known[r.Agent] {
-			continue
-		}
-		runAgent[r.CorrelationID] = r.Agent
-		row := out[r.Agent]
-		row.ActiveRuns++
-		if row.ActiveStartedMS == 0 || r.StartedUnixMS > row.ActiveStartedMS {
-			row.ActiveCorrelationID = r.CorrelationID
-			row.ActiveIntent = r.Intent
-			row.ActiveStartedMS = r.StartedUnixMS
-			row.ActiveModel = r.Model
-			row.ActiveSpentMc = r.SpentMicrocents
-			row.ActivePhase = "starting"
-			row.ActiveLastEventMS = r.StartedUnixMS
-			row.ActiveLastEventKind = string(event.KindTaskReceived)
-			row.ActiveParentCorrelation = r.ParentCorrelation
-		}
-		out[r.Agent] = row
-	}
-	if len(runAgent) == 0 {
-		return out
-	}
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		agentSlug, ok := runAgent[e.CorrelationID]
-		if !ok {
-			return nil
-		}
-		row := out[agentSlug]
-		if row.ActiveCorrelationID != e.CorrelationID {
-			return nil
-		}
-		var pl map[string]any
-		_ = json.Unmarshal(e.Payload, &pl)
-		row = applyActiveWakeContext(row, e.Kind, pl)
-		if e.TSUnixMS < row.ActiveLastEventMS {
-			out[agentSlug] = row
-			return nil
-		}
-		phase, detail, tool, iter := liveEventSummary(e.Kind, pl)
-		if phase == "" {
-			out[agentSlug] = row
-			return nil
-		}
-		row.ActivePhase = phase
-		row.ActiveDetail = detail
-		row.ActiveTool = tool
-		row.ActiveIter = iter
-		row.ActiveLastEventMS = e.TSUnixMS
-		row.ActiveLastEventKind = string(e.Kind)
-		out[agentSlug] = row
-		return nil
-	})
-	return out
 }
 
 func applyActiveWakeContext(row agentLiveStatus, kind event.Kind, pl map[string]any) agentLiveStatus {
@@ -1480,90 +1135,6 @@ func (s *Server) agentEscalationLoadViews(profiles []roster.Profile) map[string]
 		}
 		out[to] = row
 	}
-	return out
-}
-
-func (s *Server) agentRoutingPressureViews(profiles []roster.Profile, cutoffMS int64) map[string]agentRoutingPressure {
-	if len(profiles) == 0 {
-		return nil
-	}
-	out := make(map[string]agentRoutingPressure, len(profiles))
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		if e.Kind != event.KindProviderFallback || e.TSUnixMS < cutoffMS {
-			return nil
-		}
-		var pl struct {
-			FailedModel string `json:"failed_model"`
-			NextModel   string `json:"next_model"`
-			Reason      string `json:"reason"`
-			Scope       string `json:"scope"`
-			TaskType    string `json:"task_type"`
-		}
-		if json.Unmarshal(e.Payload, &pl) != nil || strings.TrimSpace(pl.Scope) != "model-chain" {
-			return nil
-		}
-		for _, p := range profiles {
-			if !agentRoutingMatchesProfile(p, pl.TaskType, pl.FailedModel, pl.NextModel) {
-				continue
-			}
-			row := out[p.Slug]
-			row.Count++
-			if e.TSUnixMS >= row.LastTSMS {
-				row.LastReason = strings.TrimSpace(pl.Reason)
-				row.LastFailed = strings.TrimSpace(pl.FailedModel)
-				row.LastNext = strings.TrimSpace(pl.NextModel)
-				row.LastTSMS = e.TSUnixMS
-			}
-			out[p.Slug] = row
-		}
-		return nil
-	})
-	return out
-}
-
-func (s *Server) agentRetryPressureViews(profiles []roster.Profile, cutoffMS int64) map[string]agentRetryPressure {
-	if len(profiles) == 0 {
-		return nil
-	}
-	known := make(map[string]bool, len(profiles))
-	for _, p := range profiles {
-		known[p.Slug] = true
-	}
-	runAgent := map[string]string{}
-	out := make(map[string]agentRetryPressure, len(profiles))
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		if e.TSUnixMS < cutoffMS {
-			return nil
-		}
-		var pl map[string]any
-		_ = json.Unmarshal(e.Payload, &pl)
-		if e.Kind == event.KindTaskReceived {
-			if slug := plString(pl, "agent"); slug != "" && known[slug] && e.CorrelationID != "" {
-				runAgent[e.CorrelationID] = slug
-			}
-			return nil
-		}
-		if e.Kind != event.KindAgentRetry {
-			return nil
-		}
-		slug := plString(pl, "agent")
-		if slug == "" {
-			slug = runAgent[e.CorrelationID]
-		}
-		if !known[slug] {
-			return nil
-		}
-		row := out[slug]
-		row.Count++
-		if e.TSUnixMS >= row.LastTSMS {
-			row.LastReason = firstNonEmpty(plString(pl, "reason"), plString(pl, "error"))
-			row.LastTSMS = e.TSUnixMS
-			row.NextAttempt = plInt(pl, "next_attempt")
-			row.MaxAttempts = plInt(pl, "max_attempts")
-		}
-		out[slug] = row
-		return nil
-	})
 	return out
 }
 
