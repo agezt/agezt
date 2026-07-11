@@ -145,9 +145,6 @@ export function trustRank(level?: string): number {
   return match ? Number(match[1]) : 4;
 }
 
-export function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : many;
-}
 
 // slugOk mirrors the kernel's roster slug rule (lowercase, digit/letter first,
 // then letters/digits/dot/dash/underscore, ≤64) so the form can validate before
