@@ -66,6 +66,20 @@ type Server struct {
 	// the pulse handlers report "disabled" rather than dereferencing it.
 	pulse PulseController
 
+	// agentListCache memoises the expensive (11× journal.Range) result of
+	// /api/agents. The Roster, Agents, AgentPage and Roster.tsx all poll the
+	// endpoint on a 6–8s cadence; without this, every poll re-walks the
+	// entire journal. TTL is short (1.5s) so profile edits still surface
+	// quickly while collapsing 5+ in-flight polls of a single tab to one
+	// underlying walk. Read-heavy (RWMutex); invalidated on agent mutations
+	// so writes bypass the cache. See invalidateAgentListCache().
+	agentListCacheMu     sync.RWMutex
+	agentListCacheKey    uint64 // content hash of the roster at the time of caching
+	agentListCacheResult []any
+	agentListCacheTotal  int
+	agentListCacheEnabled int
+	agentListCacheAt     time.Time
+
 	// standingFire fires a standing order on demand (M765), injected by the
 	// daemon via SetStandingFire (it closes over the daemon's fire path + ctx,
 	// so this package stays decoupled from the run launcher). Returns false if
