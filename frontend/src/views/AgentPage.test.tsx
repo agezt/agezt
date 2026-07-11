@@ -115,22 +115,23 @@ describe("AgentPage", () => {
     // AgentDetail renders the slug as a font-mono heading.
     expect(await screen.findByText("researcher")).toBeTruthy();
 
-    // The tab list should have all the primary tabs.
+    // The tab list should have exactly the six grouped tabs.
+    expect(screen.getByRole("tablist", { name: "researcher detail sections" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Overview/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Activity/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Triggers/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Comms/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Wiring/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Mind/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Model$/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeTruthy();
 
     // The Wake button should be present (it's a direct_callable agent).
     expect(screen.getByRole("button", { name: /Wake researcher/i })).toBeTruthy();
 
-    // The overview tab renders the agent command center with secondary tabs
-    // (soul, model, memory, skills, repair, diagnostics, files).
-    expect(screen.getByRole("tablist", { name: "researcher detail sections" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Repair/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Files/ })).toBeTruthy();
+    // The header is a metric glance layer: Presence / Next wake / Runs /
+    // Spend today / Health widgets plus the inline Model card.
+    for (const label of ["Presence", "Next wake", "Runs", "Spend today", "Health"]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
   });
 
   it("shows a friendly empty state for missing agents", async () => {

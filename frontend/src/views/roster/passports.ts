@@ -241,7 +241,7 @@ export function agentDelegationPassport(
   return { detail: `operator/schedule/channel wake${lineage}`, tone: "good" };
 }
 
-export function agentWakeRoutePassport(
+function agentWakeRoutePassport(
   profile: Pick<AgentProfile, "enabled" | "retired" | "kind" | "direct_callable" | "managed" | "owner_agent" | "parent_agent">,
 ): { value: string; detail: string; tone: "good" | "warn" | "bad" | "muted" } {
   const owner = profile.owner_agent?.trim();
@@ -313,81 +313,6 @@ export function agentCapabilityPassportSummary(profile: Pick<AgentProfile, "syst
   return "open high-impact · L4";
 }
 
-export interface AgentControlCenterEntry {
-  label: string;
-  value: string;
-  detail: string;
-  tone: "good" | "warn" | "bad" | "accent" | "muted";
-}
-
-export function agentControlCenterLedger(
-  profile: Pick<AgentProfile, "system" | "slug" | "trust_ceiling" | "tool_allow" | "tool_deny" | "memory_scope" | "workdir" | "config_overrides" | "noise_policy">,
-  invalidRuntimeOverrides = 0,
-): AgentControlCenterEntry[] {
-  const allow = (profile.tool_allow || []).map((x) => x.trim()).filter(Boolean);
-  const deny = (profile.tool_deny || []).map((x) => x.trim()).filter(Boolean);
-  const allowLower = allow.map((x) => x.toLowerCase());
-  const denyLower = deny.map((x) => x.toLowerCase());
-  const highAllow = highImpactToolNames(allow);
-  const highDeny = highImpactToolNames(deny);
-  const ceiling = (profile.trust_ceiling || "L4").trim() || "L4";
-  const dataDenied = denyLower.includes("db") || denyLower.includes("data") || denyLower.includes("datalake");
-  const dataAllowed = allow.length === 0 || allowLower.includes("db") || allowLower.includes("data") || allowLower.includes("datalake");
-  const memoryDenied = denyLower.includes("memory") || !!profile.noise_policy?.disable_memory_writes;
-  const cfgCount = Object.keys(profile.config_overrides || {}).length;
-  const quietBits = [
-    profile.noise_policy?.silent_on_success ? "silent success" : "",
-    profile.noise_policy?.disable_memory_writes ? "memory off" : "",
-    profile.noise_policy?.min_notify_severity ? `notify >= ${profile.noise_policy.min_notify_severity}` : "",
-    profile.noise_policy?.min_notify_interval_sec ? `cooldown ${profile.noise_policy.min_notify_interval_sec}s` : "",
-  ].filter(Boolean);
-  return [
-    {
-      label: "tools",
-      value: allow.length > 0
-        ? `allow ${allow.length}${highAllow.length ? ` · ${highAllow.join(", ")}` : ""}`
-        : deny.length > 0
-          ? `broad minus ${deny.length}`
-          : "broad tools",
-      detail: [
-        allow.length > 0 ? `allow: ${allow.join(", ")}` : "allow: all registered tools",
-        deny.length > 0 ? `deny: ${deny.join(", ")}${highDeny.length ? ` (high-impact: ${highDeny.join(", ")})` : ""}` : "deny: none",
-      ].join(" · "),
-      tone: allow.length > 0 || deny.length > 0 || profile.system ? "good" : "warn",
-    },
-    {
-      label: "trust",
-      value: ceiling,
-      detail: ceiling === "L4" ? "high-impact actions can run under normal policy" : `trust ceiling ${ceiling}; higher-risk actions must be denied or escalated`,
-      tone: ceiling === "L4" ? "warn" : trustRank(ceiling) <= trustRank("L2") ? "good" : "accent",
-    },
-    {
-      label: "data lake",
-      value: dataDenied ? "blocked" : dataAllowed ? "available" : "not allowlisted",
-      detail: dataDenied ? "db/data/datalake access is denied" : dataAllowed ? "agent can use data-lake style tools when registered" : "allowlist omits db/data/datalake tools",
-      tone: dataDenied || !dataAllowed ? "warn" : "good",
-    },
-    {
-      label: "memory",
-      value: memoryDenied ? "writes off" : `scope ${profile.memory_scope || profile.slug || "own"}`,
-      detail: memoryDenied ? `memory writes disabled · scope ${profile.memory_scope || profile.slug || "own"}` : `memory scope ${profile.memory_scope || profile.slug || "own"}`,
-      tone: memoryDenied ? "warn" : "good",
-    },
-    {
-      label: "config",
-      value: cfgCount > 0 ? `${cfgCount} override${cfgCount === 1 ? "" : "s"}${invalidRuntimeOverrides ? ` · !${invalidRuntimeOverrides}` : ""}` : "default",
-      detail: cfgCount > 0 ? `agent-local config: ${Object.keys(profile.config_overrides || {}).sort().join(", ")}` : "uses daemon/default config center values",
-      tone: invalidRuntimeOverrides > 0 ? "warn" : cfgCount > 0 ? "good" : "muted",
-    },
-    {
-      label: "noise",
-      value: quietBits.length > 0 ? quietBits.join(" · ") : "default",
-      detail: quietBits.length > 0 ? quietBits.join(" · ") : "no agent-specific notification or memory quieting policy",
-      tone: quietBits.length > 0 ? "good" : profile.system ? "warn" : "muted",
-    },
-  ];
-}
-
 export function agentResourcePassportSummary(
   profile: Pick<AgentProfile, "slug" | "workdir" | "memory_scope" | "tool_allow" | "tool_deny" | "config_overrides">,
 ): { detail: string; tone: "good" | "warn" | "muted" } {
@@ -420,7 +345,7 @@ export function agentConfigPassportSummary(
   return parts.join(" · ");
 }
 
-export function agentResiliencePassportSummary(profile: Pick<AgentProfile, "retry_policy" | "health_policy" | "self_repair">): string {
+function agentResiliencePassportSummary(profile: Pick<AgentProfile, "retry_policy" | "health_policy" | "self_repair">): string {
   const parts: string[] = [];
   if (profile.retry_policy?.max_attempts) parts.push(`retry ${profile.retry_policy.max_attempts}x`);
   if (profile.health_policy?.doctor_agent) parts.push(`doctor ${profile.health_policy.doctor_agent}`);
@@ -511,7 +436,7 @@ export function agentRepairOperationsPassport(
   };
 }
 
-export function agentModelRoutePassport(
+function agentModelRoutePassport(
   profile: Pick<AgentProfile, "model" | "fallbacks" | "task_type">,
 ): { value: string; detail: string; tone: "good" | "warn" | "muted" } {
   const model = (profile.model || "").trim();

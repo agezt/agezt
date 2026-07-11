@@ -6,6 +6,7 @@ import {
   filterAgentMemory,
   filterAgentSkills,
   summarizeAgent,
+  agentRunTrend,
   lastFailure,
   healthSnapshot,
   summarizeConfigOverrides,
@@ -1284,5 +1285,49 @@ describe("fleetCardIssueSummary", () => {
     const got = fleetCardIssueSummary(rs);
     expect(got.count).toBe(1);
     expect(got.tone).toBe("accent");
+  });
+});
+
+describe("agentRunTrend", () => {
+  const dayMs = 86_400_000;
+  // A fixed anchor so the buckets are deterministic — never Date.now().
+  const nowMs = 1_800_000_000_000;
+
+  it("returns a days-length array of zeros when the agent has no runs", () => {
+    expect(agentRunTrend([], "ops", 14, nowMs)).toEqual(new Array(14).fill(0));
+    expect(agentRunTrend([], "ops", 7, nowMs)).toEqual(new Array(7).fill(0));
+  });
+
+  it("buckets an agent's runs into the correct day slots (oldest → newest)", () => {
+    const runs: RunLite[] = [
+      // Today (last bucket).
+      { correlation_id: "r1", agent: "ops", started_unix_ms: nowMs },
+      // Two days ago.
+      { correlation_id: "r2", agent: "ops", started_unix_ms: nowMs - 2 * dayMs },
+      // Oldest day still inside a 7-day window.
+      { correlation_id: "r3", agent: "ops", started_unix_ms: nowMs - 6 * dayMs },
+    ];
+    expect(agentRunTrend(runs, "ops", 7, nowMs)).toEqual([1, 0, 0, 0, 1, 0, 1]);
+  });
+
+  it("ignores other agents' runs, runs outside the window, and runs without a start time", () => {
+    const runs: RunLite[] = [
+      { correlation_id: "mine", agent: "ops", started_unix_ms: nowMs },
+      { correlation_id: "other", agent: "researcher", started_unix_ms: nowMs },
+      { correlation_id: "ancient", agent: "ops", started_unix_ms: nowMs - 7 * dayMs },
+      { correlation_id: "future", agent: "ops", started_unix_ms: nowMs + dayMs },
+      { correlation_id: "unstarted", agent: "ops" },
+    ];
+    expect(agentRunTrend(runs, "ops", 7, nowMs)).toEqual([0, 0, 0, 0, 0, 0, 1]);
+  });
+
+  it("counts multiple runs landing on the same day", () => {
+    const runs: RunLite[] = [
+      { correlation_id: "a", agent: "ops", started_unix_ms: nowMs - dayMs },
+      { correlation_id: "b", agent: "ops", started_unix_ms: nowMs - dayMs + 3_600_000 },
+      { correlation_id: "c", agent: "ops", started_unix_ms: nowMs - dayMs + 7_200_000 },
+    ];
+    const trend = agentRunTrend(runs, "ops", 3, nowMs);
+    expect(trend).toEqual([0, 3, 0]);
   });
 });

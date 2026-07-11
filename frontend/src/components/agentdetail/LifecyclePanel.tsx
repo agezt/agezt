@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Waypoints, Skull, Archive, ArchiveRestore, Trash2, Repeat } from "lucide-react";
+import { Skull, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,6 @@ import { useUI } from "@/components/ui/feedback";
 import { agentRemoveToast, agentRetireToast, agentReviveToast, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
 import { type ApiSchedule } from "@/lib/fleet";
 import { type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
-import { AgentAutonomyRunbookEntry, AgentEntityContractEntry, AgentRuntimeDoctorLedgerEntry } from "@/components/agentdetail/capability";
 import { AgentImpactSummary, AgentLifecycleActionResultSummary, AgentLifecycleLedgerEntry, agentDetailRemovalCascadePreset, agentLifecycleActionResultSummary, agentLifecycleDecisionLedger, agentLifecycleInterventionSummary, agentRemovalImpactPlan, agentRemovalRiskLabel } from "@/components/agentdetail/lifecycle";
 import { BoardMessage } from "@/components/agentdetail/shared";
 
@@ -408,123 +407,6 @@ function LifecycleDecisionLedger({ entries, slug }: { entries: AgentLifecycleLed
             >
               {entry.value}
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function RuntimeDoctorLedger({ entries, slug }: { entries: AgentRuntimeDoctorLedgerEntry[]; slug: string }) {
-  return (
-    <div className="mt-2 rounded-md border border-border/70 bg-card/45 p-1.5" aria-label={`${slug} runtime doctor ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Runtime doctor ledger</div>
-      <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-4">
-        {entries.map((entry) => (
-          <div
-            key={entry.label}
-            title={entry.detail}
-            className={cn(
-              "min-h-[44px] min-w-0 rounded-md border border-border/50 bg-panel/45 px-2 py-1.5",
-              entry.tone === "good" && "border-good/25 bg-good/5",
-              entry.tone === "bad" && "border-bad/30 bg-bad/5",
-              entry.tone === "warn" && "border-warn/35 bg-warn/10",
-              entry.tone === "accent" && "border-accent/30 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                entry.tone === "good" && "text-good",
-                entry.tone === "bad" && "text-bad",
-                entry.tone === "warn" && "text-warn",
-                entry.tone === "accent" && "text-accent",
-                entry.tone === "muted" && "text-muted",
-              )}
-            >
-              {entry.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function AutonomyRunbook({ entries, slug }: { entries: AgentAutonomyRunbookEntry[]; slug: string }) {
-  return (
-    <div className="rounded-lg bg-panel/40 p-2.5" aria-label={`${slug} autonomy runbook`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-        <Repeat className="size-3" /> Autonomy runbook
-      </div>
-      <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.label}
-            title={entry.detail}
-            className={cn(
-              "min-h-[54px] min-w-0 rounded-md border border-border/60 bg-card/50 px-2 py-1.5",
-              entry.tone === "good" && "border-good/25 bg-good/5",
-              entry.tone === "bad" && "border-bad/30 bg-bad/5",
-              entry.tone === "warn" && "border-warn/35 bg-warn/10",
-              entry.tone === "accent" && "border-accent/30 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                entry.tone === "good" && "text-good",
-                entry.tone === "bad" && "text-bad",
-                entry.tone === "warn" && "text-warn",
-                entry.tone === "accent" && "text-accent",
-                entry.tone === "muted" && "text-muted",
-              )}
-            >
-              {entry.value}
-            </div>
-            <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted">{entry.detail}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function AgentEntityContract({ entries, slug }: { entries: AgentEntityContractEntry[]; slug: string }) {
-  return (
-    <div className="rounded-lg bg-panel/40 p-2.5" aria-label={`${slug} entity contract`}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-muted">
-        <Waypoints className="size-3" /> Agent entity contract
-      </div>
-      <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.label}
-            title={entry.detail}
-            className={cn(
-              "min-h-[58px] min-w-0 rounded-md border border-border/60 bg-card/50 px-2 py-1.5",
-              entry.tone === "good" && "border-good/25 bg-good/5",
-              entry.tone === "bad" && "border-bad/30 bg-bad/5",
-              entry.tone === "warn" && "border-warn/35 bg-warn/10",
-              entry.tone === "accent" && "border-accent/30 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                entry.tone === "good" && "text-good",
-                entry.tone === "bad" && "text-bad",
-                entry.tone === "warn" && "text-warn",
-                entry.tone === "accent" && "text-accent",
-                entry.tone === "muted" && "text-muted",
-              )}
-            >
-              {entry.value}
-            </div>
-            <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted">{entry.detail}</div>
           </div>
         ))}
       </div>
