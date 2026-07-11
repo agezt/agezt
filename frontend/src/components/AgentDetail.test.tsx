@@ -15,46 +15,31 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
+import { AgentDetail } from "@/components/AgentDetail";
 import {
-  AgentDetail,
-  agentBoardMessages,
-  agentControlInterventionSummary,
-  agentLifecycleDecisionLedger,
   agentLifecycleActionResultSummary,
-  agentRepairCommandSummary,
-  agentRepairDecisionSummary,
-  agentAutonomyRunbook,
-  agentEntityContractLedger,
-  agentHealthContractLedger,
-  agentOperationsPassport,
-  agentRuntimeDoctorLedger,
-  agentSystemGuardianContract,
-  agentMailboxSubjects,
-  agentMailboxWakeContract,
-  agentMailboxPassport,
-  agentInboxPrioritySummary,
+  agentLifecycleDecisionLedger,
   agentLifecycleInterventionSummary,
-  agentAuthorityContractSummary,
-  agentAuthorityManifest,
-  agentAuthorityLedger,
-  agentCapabilityRiskPassport,
-  agentConfigAuthorityContract,
   agentRemovalImpactPlan,
   agentRemovalRiskLabel,
-  agentRetryPolicyDetail,
+  agentRepairCommandSummary,
+  agentRepairDecisionSummary,
   agentRepairOperationsSummary,
-  agentResourcePassportDetail,
+  agentRetryPolicyDetail,
   agentScheduleBindingTitle,
-  agentDelegationPassportDetail,
-  workflowToolAccessSummary,
-  mailboxWakeArmIssue,
+} from "@/components/agentdetail/lifecycle";
+import {
+  agentBoardMessages,
+  agentInboxPrioritySummary,
+  agentMailboxSubjects,
   mailboxSubjectBinding,
+  mailboxWakeArmIssue,
   messageAckedBy,
   messageAckedByLabel,
-  normalizeNoiseToolPolicy,
   operatorWakeIssue,
   waitingForAgent,
-} from "@/components/AgentDetail";
+} from "@/components/agentdetail/comms";
+import { normalizeNoiseToolPolicy, workflowToolAccessSummary } from "@/components/agentdetail/capability";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -239,74 +224,11 @@ describe("agentRetryPolicyDetail", () => {
   });
 });
 
-describe("agentResourcePassportDetail", () => {
-  it("summarizes workspace, memory, data lake access, and config overlays", () => {
-    expect(agentResourcePassportDetail({ workdir: "agents/ops", memory_scope: "private", tool_allow: ["db", "memory"], config_overrides: { AGEZT_MAX_ITER: "4" } }, "ops")).toBe(
-      "workspace agents/ops · memory private · data lake via db · 1 config override",
-    );
-    expect(agentResourcePassportDetail({ tool_allow: ["memory"], tool_deny: ["db"] }, "ops")).toBe(
-      "shared workspace · memory ops · data lake blocked · default config",
-    );
-    expect(agentResourcePassportDetail({ tool_allow: ["memory"] }, "ops")).toContain("data lake not allowlisted");
-  });
-});
-
-describe("agentControlInterventionSummary", () => {
-  it("turns control center cell tones into an operator intervention verdict", () => {
-    expect(agentControlInterventionSummary([
-      { label: "tools", value: "broad tools", detail: "allow all", tone: "warn" },
-      { label: "trust", value: "L4", detail: "open", tone: "warn" },
-      { label: "config", value: "default", detail: "defaults", tone: "muted" },
-    ])).toEqual({
-      label: "control review",
-      detail: "tools, trust need review; open capability control to adjust tool allow/deny, trust, memory, config, or noise policy",
-      tone: "warn",
-    });
-    expect(agentControlInterventionSummary([
-      { label: "tools", value: "blocked", detail: "bad", tone: "bad" },
-    ])).toEqual({
-      label: "control blocked",
-      detail: "tools require intervention; open capability control to repair access, trust, memory, config, or noise policy",
-      tone: "bad",
-    });
-    expect(agentControlInterventionSummary([
-      { label: "tools", value: "allow 1", detail: "ok", tone: "good" },
-      { label: "trust", value: "L2", detail: "ok", tone: "good" },
-    ])).toMatchObject({ label: "control ready", tone: "good" });
-  });
-});
-
 describe("agentScheduleBindingTitle", () => {
   it("distinguishes agent wake schedules from workflow/tool schedules running as an agent", () => {
     expect(agentScheduleBindingTitle({ intent: "check disks" }, "ops")).toBe("wakes ops: check disks");
     expect(agentScheduleBindingTitle({ target: "workflow", workflow: "nightly-sync" }, "ops")).toBe("runs workflow nightly-sync as ops");
     expect(agentScheduleBindingTitle({ target: "tool", tool: "shell" }, "ops")).toBe("invokes tool shell as ops");
-  });
-});
-
-describe("agentDelegationPassportDetail", () => {
-  it("summarizes direct and manager-only wake authority", () => {
-    expect(agentDelegationPassportDetail({}).value).toBe("operator/schedule/channel");
-    expect(agentDelegationPassportDetail({ direct_callable: false, parent_agent: "lead" })).toEqual({
-      value: "manager-only · lead",
-      detail: "direct operator, schedule, and channel wake are blocked; delegation is accepted from lead",
-      tone: "warn",
-    });
-    expect(agentDelegationPassportDetail({ kind: "subagent" })).toEqual({
-      value: "manager-only · no manager",
-      detail: "direct wake is blocked and no parent/owner delegation source is configured",
-      tone: "bad",
-    });
-    expect(agentDelegationPassportDetail({ direct_callable: true }, { schedule_allowed: false, channel_allowed: false, operator_allowed: true, delegation_allowed: true })).toEqual({
-      value: "allowed operator, delegation",
-      detail: "blocked schedule, channel; allowed operator, delegation",
-      tone: "warn",
-    });
-    expect(agentDelegationPassportDetail({ retired: true, parent_agent: "lead", direct_callable: false })).toEqual({
-      value: "graveyard · blocked",
-      detail: "graveyard agent cannot be woken until revived",
-      tone: "muted",
-    });
   });
 });
 
@@ -331,80 +253,6 @@ describe("workflowToolAccessSummary", () => {
       label: "workflow chains blocked",
       detail: "not in agent allowlist",
       tone: "bad",
-    });
-  });
-});
-
-describe("agentAuthorityContractSummary", () => {
-  it("summarizes an agent's tool, workflow, config, and data authority contract", () => {
-    expect(
-      agentAuthorityContractSummary(
-        { trust_ceiling: "L2", tool_allow: ["memory"], tool_deny: ["shell"] },
-        [
-          { name: "memory", description: "", capability: "memory", allowed: true, ask: false, label: "allowed", reason: "" },
-          { name: "workflow", description: "", capability: "workflow", allowed: true, ask: true, label: "L2", reason: "" },
-          { name: "db", description: "", capability: "data", allowed: false, ask: false, label: "hidden", reason: "" },
-        ],
-        [{ visible: true }, { visible: false }],
-      ),
-    ).toEqual({
-      label: "managed authority",
-      detail: "1 direct · 1 ask · 1 blocked · workflow ask · data lake blocked · config 1/2 · trust L2",
-      tone: "good",
-    });
-    expect(agentAuthorityContractSummary({}, [], [])).toEqual({
-      label: "authority unknown",
-      detail: "0 explicit rules · config unknown · trust L4",
-      tone: "muted",
-    });
-  });
-});
-
-describe("agentAuthorityManifest", () => {
-  it("builds a durable authority manifest from tool, config, memory, and backend governance", () => {
-    expect(
-      agentAuthorityManifest(
-        {
-          trust_ceiling: "L2",
-          tool_allow: ["memory", "workflow"],
-          tool_deny: ["shell"],
-          memory_scope: "agent/ops",
-          noise_policy: { disable_memory_writes: false },
-        },
-        [
-          { name: "memory", description: "", capability: "memory", allowed: true, ask: false, label: "allowed", reason: "" },
-          { name: "workflow", description: "", capability: "workflow", allowed: true, ask: true, label: "L2", reason: "" },
-          { name: "db", description: "", capability: "data", allowed: false, ask: false, label: "hidden", reason: "" },
-        ],
-        {
-          config_entries: [
-            { key: "agent/ops/runtime", visible: true, owned: true },
-            { key: "secret:value", visible: false },
-          ],
-          governance: {
-            risk: "restricted",
-            authority_boundary: "agent identity boundary",
-            execution_boundary: "wakes and workflows invoke through ops policy",
-            tool_policy: "1 direct · 1 ask · 1 blocked · trust L2",
-            memory_policy: "agent/ops · writes enabled",
-            memory_writes: "writes enabled",
-          },
-        },
-        "ops",
-      ),
-    ).toEqual({
-      label: "managed authority manifest",
-      tone: "good",
-      fields: {
-        boundary: "agent identity boundary",
-        tools: "1 direct · 1 ask · 1 blocked · trust L2",
-        workflow: "workflow ask",
-        data: "data lake blocked",
-        config: "1/2 visible · 1 owned · 1 blocked",
-        memory: "agent/ops · writes enabled",
-        execution: "wakes and workflows invoke through ops policy",
-      },
-      detail: "agent identity boundary · 1 direct · 1 ask · 1 blocked · trust L2 · workflow ask · data lake blocked · 1/2 visible · 1 owned · 1 blocked · agent/ops · writes enabled · wakes and workflows invoke through ops policy",
     });
   });
 });
@@ -490,362 +338,6 @@ describe("agentRepairDecisionSummary", () => {
   });
 });
 
-describe("agentHealthContractLedger", () => {
-  it("turns retry, doctor, self-repair, and wake guard into an agent health contract", () => {
-    const ledger = agentHealthContractLedger(
-      {
-        enabled: true,
-        retry_policy: { max_attempts: 3, retry_on: ["error", "timeout"] },
-        health_policy: { doctor_agent: "guardian-doctor", failure_threshold: 2, failure_window: 5 },
-        self_repair: { enabled: true, max_attempts: 2, escalate_to: "lead" },
-      },
-      {
-        state: "degraded",
-        label: "degraded",
-        detail: "2 failures in window",
-        doctorAgent: "guardian-doctor",
-        selfRepairEnabled: true,
-      },
-      {
-        inflight_count: 1,
-        latest: { phase: "queued", reason: "provider timeout" },
-      },
-      { retryCount: 2, retryText: "2 retries", retryDetail: "last timeout", repairInflight: 1 },
-    );
-    expect(ledger.map((entry) => `${entry.label}:${entry.value}`)).toEqual([
-      "retry:3 attempts",
-      "doctor:guardian-doctor",
-      "self-repair:armed",
-      "wake guard:active",
-    ]);
-    expect(ledger.find((entry) => entry.label === "doctor")?.detail).toContain("threshold 2");
-    expect(ledger.find((entry) => entry.label === "self-repair")).toMatchObject({ tone: "warn" });
-    expect(ledger.find((entry) => entry.label === "wake guard")?.detail).toContain("repair loop owns");
-  });
-});
-
-describe("agentOperationsPassport", () => {
-  it("collapses wake, mailbox, repair, authority, and config into one operating verdict", () => {
-    expect(agentOperationsPassport(
-      { enabled: true },
-      { activeRunCount: 0, operationalText: "sleeping", wakeText: "scheduled", wakeDetail: "next hourly" },
-      { value: "mailbox armed · DM", detail: "armed DM", tone: "good" },
-      { detail: "1 direct · 1 ask · trust L2", level: "scoped" },
-      { value: "1 local override · 2/2 visible", detail: "config ok", tone: "good" },
-      { label: "repair guarded", detail: "self-repair on 2x", tone: "good" },
-    )).toEqual({
-      value: "autonomous ready",
-      detail: "sleeping · direct callable · scheduled · next hourly · mailbox armed · DM · repair guarded · 1 direct · 1 ask · trust L2 · 1 local override · 2/2 visible",
-      tone: "good",
-    });
-    expect(agentOperationsPassport(
-      { enabled: true, direct_callable: false, parent_agent: "lead" },
-      { activeRunCount: 0, operationalText: "sleeping" },
-      { value: "mailbox blocked", detail: "managed sub-agent", tone: "warn" },
-      { detail: "high authority", level: "open" },
-      { value: "0 local overrides", detail: "config ok", tone: "muted" },
-      { label: "repair exhausted", detail: "attempt 2/2", tone: "bad" },
-    )).toMatchObject({
-      value: "operator attention",
-      tone: "bad",
-    });
-  });
-});
-
-describe("agentEntityContractLedger", () => {
-  it("turns an agent into durable identity, wake, authority, resource, and recovery cells", () => {
-    const ledger = agentEntityContractLedger(
-      "ops",
-      {
-        enabled: true,
-        kind: "subagent",
-        direct_callable: false,
-        parent_agent: "lead",
-        memory_scope: "agent",
-        tool_allow: ["db"],
-        config_overrides: { AGEZT_MODE: "watch" },
-        tasklist: [{ id: "cycle-1", title: "check queue", scope: "cycle" }],
-      },
-      { activeRunCount: 0, operationalText: "sleeping", wakeText: "mailbox", wakeDetail: "lead only" },
-      { value: "mailbox gated", detail: "managed sub-agent", tone: "warn" },
-      { detail: "1 direct · trust L2", level: "scoped" },
-      { value: "1 local override", detail: "AGEZT_MODE visible", tone: "good" },
-      { label: "repair guarded", detail: "self-repair on 2x", tone: "good" },
-    );
-
-    expect(ledger.map((entry) => entry.label)).toEqual([
-      "identity",
-      "wake",
-      "authority",
-      "ownership",
-      "resources",
-      "recovery",
-    ]);
-    expect(ledger.find((entry) => entry.label === "identity")).toMatchObject({
-      value: "subagent · managed",
-      tone: "accent",
-    });
-    expect(ledger.find((entry) => entry.label === "ownership")?.detail).toBe("sub-agent wake is routed through lead");
-    expect(ledger.find((entry) => entry.label === "resources")?.detail).toContain("memory agent");
-    expect(ledger.find((entry) => entry.label === "recovery")?.detail).toContain("1 local override");
-  });
-});
-
-describe("agentAutonomyRunbook", () => {
-  it("spells out trigger, route, mailbox, execution, recovery, and sleep behavior", () => {
-    const runbook = agentAutonomyRunbook(
-      {
-        enabled: true,
-        kind: "subagent",
-        direct_callable: false,
-        parent_agent: "lead",
-        retry_policy: { max_attempts: 3 },
-        health_policy: { doctor_agent: "guardian-doctor" },
-        self_repair: { enabled: true, max_attempts: 2 },
-        lifecycle: { mode: "cycle", completed_cycles: 1 },
-      },
-      { activeRunCount: 1, activePhase: "tool", operationalText: "running", wakeText: "mailbox", wakeDetail: "lead only" },
-      { value: "mailbox armed · DM", detail: "1 waiting · wake subjects armed: DM", tone: "good" },
-      {
-        status: "managed",
-        passport: "managed by lead",
-        detail: "Direct wake is blocked; delegation is accepted from manager: lead.",
-        operatorAllowed: false,
-        scheduleAllowed: false,
-        channelAllowed: false,
-        delegationAllowed: true,
-        delegationDetail: "manager: lead",
-        tone: "warn",
-      },
-      { label: "repair guarded", detail: "self-repair on 2x", tone: "good" },
-    );
-
-    expect(runbook.map((entry) => entry.label)).toEqual(["trigger", "route", "mailbox", "execution", "recovery", "sleep"]);
-    expect(runbook.find((entry) => entry.label === "trigger")).toMatchObject({
-      value: "delegation only",
-      tone: "warn",
-    });
-    expect(runbook.find((entry) => entry.label === "route")?.detail).toBe(
-      "sub-agent receives wake through lead; direct schedule/operator/channel wake stays blocked",
-    );
-    expect(runbook.find((entry) => entry.label === "execution")).toMatchObject({
-      value: "awake · tool",
-      tone: "accent",
-    });
-    expect(runbook.find((entry) => entry.label === "recovery")?.detail).toContain("doctor guardian-doctor");
-    expect(runbook.find((entry) => entry.label === "sleep")).toMatchObject({
-      value: "cycle",
-      tone: "good",
-    });
-  });
-});
-
-describe("agentRuntimeDoctorLedger", () => {
-  it("splits live, retry, repair, and escalation pressure into operational cells", () => {
-    const ledger = agentRuntimeDoctorLedger(
-      {
-        activeRunCount: 1,
-        activePhase: "using tool",
-        liveDetail: "using tool · model gpt-5",
-        retryText: "retry 2",
-        retryDetail: "attempt 2/3 · timeout",
-        retryTone: "bad",
-        escalationText: "esc 1",
-        repairIncidentDetail: "incident inc-1",
-      },
-      { label: "repair failing", detail: "doctor failed", tone: "bad" },
-      { value: "self-repair ready", detail: "doctor configured", tone: "good" },
-      { openCount: 1, ackedCount: 0, doctorOpenCount: 1, delegatedOpenCount: 0 },
-    );
-    expect(ledger.map((entry) => entry.label)).toEqual(["live", "retry", "repair", "escalation"]);
-    expect(ledger.map((entry) => entry.value)).toEqual(["1 awake · using tool", "retry 2", "repair failing", "1 open"]);
-    expect(ledger.find((entry) => entry.label === "repair")?.detail).toContain("incident inc-1");
-    expect(ledger.find((entry) => entry.label === "escalation")?.tone).toBe("bad");
-  });
-});
-
-describe("agentSystemGuardianContract", () => {
-  it("only reports durable system guardian noise and authority posture", () => {
-    expect(agentSystemGuardianContract({ system: false, slug: "ops" })).toBeNull();
-    expect(agentSystemGuardianContract({
-      system: true,
-      slug: "guardian-health",
-      memory_scope: "system/guardian-health",
-      max_cost_mc: 50_000_000,
-      max_daily_mc: 50_000_000,
-      trust_ceiling: "L2",
-      tool_deny: ["memory"],
-      noise_policy: {
-        silent_on_success: true,
-        disable_memory_writes: true,
-        min_notify_severity: "warning",
-        min_notify_interval_sec: 28800,
-      },
-      status: { wake_schedule_count: 1 },
-    })).toEqual({
-      value: "quiet guardian",
-      detail: "quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2 · 1 wake schedule",
-      tone: "good",
-    });
-    expect(agentSystemGuardianContract({
-      kind: "system",
-      slug: "guardian-routing",
-      max_cost_mc: 250_000_000,
-      max_daily_mc: 250_000_000,
-      trust_ceiling: "L3",
-      noise_policy: { min_notify_severity: "info", min_notify_interval_sec: 60 },
-      status: { wake_schedule_count: 3 },
-    })).toEqual({
-      value: "guardian intervention",
-      detail: "success notifications enabled, memory writes enabled, notify below warning, notify cooldown <8h, daily cap too high, run cap too high, trust above L2, memory scope not isolated · 3 wake schedules",
-      tone: "bad",
-    });
-  });
-});
-
-describe("agentCapabilityRiskPassport", () => {
-  it("summarizes authority risk from tools, config, and governance", () => {
-    expect(
-      agentCapabilityRiskPassport(
-        { trust_ceiling: "L2", tool_allow: ["memory"], tool_deny: ["shell"] },
-        [
-          { name: "memory", description: "", capability: "memory", allowed: true, ask: false, label: "allowed", reason: "" },
-          { name: "workflow", description: "", capability: "workflow", allowed: true, ask: true, label: "L2", reason: "" },
-          { name: "shell", description: "", capability: "code.exec", allowed: false, ask: false, label: "hidden", reason: "" },
-        ],
-        {
-          config_entries: [{ key: "agent/ops/runtime", visible: true }, { key: "secret:value", visible: false }],
-          governance: { risk: "restricted" },
-        },
-      ),
-    ).toEqual({
-      label: "guarded high authority",
-      detail: "ask-gated high-impact: workflow · direct memory · ask workflow · config 1/2 · trust L2",
-      tone: "warn",
-    });
-    expect(
-      agentCapabilityRiskPassport(
-        { trust_ceiling: "L4" },
-        [{ name: "shell", description: "", capability: "code.exec", allowed: true, ask: false, label: "allowed", reason: "" }],
-        { config_entries: [] },
-      ),
-    ).toEqual({
-      label: "high authority",
-      detail: "direct high-impact: shell · direct shell · ask none · config unknown · trust L4",
-      tone: "warn",
-    });
-  });
-});
-
-describe("agentAuthorityLedger", () => {
-  it("collapses tools, config, memory, workspace, budget, noise, and trust into an agent ledger", () => {
-    const ledger = agentAuthorityLedger(
-      {
-        trust_ceiling: "L2",
-        tool_allow: ["memory", "workflow"],
-        tool_deny: ["shell"],
-        memory_scope: "private",
-        workdir: "agents/ops",
-        max_cost_mc: 50_000_000,
-        max_daily_mc: 100_000_000,
-        noise_policy: {
-          silent_on_success: true,
-          disable_memory_writes: true,
-          min_notify_severity: "warning",
-          min_notify_interval_sec: 7200,
-        },
-      },
-      [
-        { name: "memory", description: "", capability: "memory", allowed: true, ask: false, label: "allowed", reason: "" },
-        { name: "workflow", description: "", capability: "workflow", allowed: true, ask: true, label: "L2", reason: "" },
-        { name: "shell", description: "", capability: "code.exec", allowed: false, ask: false, label: "hidden", reason: "" },
-      ],
-      {
-        config_entries: [
-          { key: "agent/ops/runtime", visible: true, owned: true },
-          { key: "secret:value", visible: false },
-        ],
-        governance: { summary: "tools 1/3 allowed, 1 ask, 1 blocked, config 1/2 visible, trust L2" },
-      },
-      "ops",
-    );
-
-    expect(ledger.map((entry) => entry.label)).toEqual(["tools", "config", "memory", "workspace", "budget", "noise", "trust"]);
-    expect(ledger.find((entry) => entry.label === "tools")).toMatchObject({
-      value: "ask high-impact 1",
-      tone: "good",
-    });
-    expect(ledger.find((entry) => entry.label === "memory")).toMatchObject({
-      value: "writes blocked",
-      detail: "scope private · memory writes disabled or tool denied",
-      tone: "warn",
-    });
-    expect(ledger.find((entry) => entry.label === "budget")).toMatchObject({
-      value: "$0.0500 / $0.1000",
-      tone: "good",
-    });
-    expect(ledger.find((entry) => entry.label === "trust")).toMatchObject({
-      value: "L2",
-      detail: "tools 1/3 allowed, 1 ask, 1 blocked, config 1/2 visible, trust L2",
-      tone: "good",
-    });
-  });
-
-  it("flags open uncapped agents as broad authority", () => {
-    const ledger = agentAuthorityLedger(
-      { trust_ceiling: "L4", tool_allow: [], tool_deny: [] },
-      [
-        { name: "memory", description: "", capability: "memory", allowed: true, ask: false, label: "allowed", reason: "" },
-        { name: "shell", description: "", capability: "code.exec", allowed: true, ask: false, label: "allowed", reason: "" },
-      ],
-      { config_entries: [] },
-      "ops",
-    );
-
-    expect(ledger.find((entry) => entry.label === "tools")).toMatchObject({
-      value: "direct high-impact 1",
-      tone: "warn",
-    });
-    expect(ledger.find((entry) => entry.label === "workspace")).toMatchObject({
-      value: "shared workspace",
-      tone: "warn",
-    });
-    expect(ledger.find((entry) => entry.label === "budget")).toMatchObject({
-      value: "uncapped",
-      tone: "warn",
-    });
-  });
-});
-
-describe("agentConfigAuthorityContract", () => {
-  it("summarizes local overrides, visible/owned config, and hidden config risk", () => {
-    expect(agentConfigAuthorityContract({ config_overrides: { AGEZT_MODE: "watch" } }, null)).toEqual({
-      value: "1 local override · config loading",
-      detail: "config center access has not loaded yet",
-      tone: "muted",
-    });
-    expect(agentConfigAuthorityContract(
-      { config_overrides: { AGEZT_MODE: "watch", AGEZT_PROVIDER: "openai" } },
-      {
-        config_entries: [
-          { key: "agent/ops/runtime", rating: "internal", visible: true, owned: true, source: "config_allowed" },
-          { key: "public:value", rating: "internal", visible: true, source: "config_global" },
-          { key: "secret:value", rating: "secret", visible: false, source: "config_excluded" },
-        ],
-      },
-    )).toEqual({
-      value: "2 local overrides · 2/3 visible · 1 owned · 1 blocked",
-      detail: "agent-local runtime config is set on the identity · 2 visible config center entries · 1 owned by this agent · 1 allowlisted · 1 excluded · 1 hidden secret",
-      tone: "warn",
-    });
-    expect(agentConfigAuthorityContract({}, { config_entries: [] })).toEqual({
-      value: "0 local overrides · 0 center entries",
-      detail: "no agent-local runtime overrides · no config center entries reported · no owned entries",
-      tone: "muted",
-    });
-  });
-});
-
 describe("agent mailbox helpers", () => {
   it("derives stable mailbox wake subjects from the agent slug", () => {
     expect(agentMailboxSubjects("ops")).toEqual([
@@ -866,24 +358,6 @@ describe("agent mailbox helpers", () => {
         "board.dm.ops",
       )?.name,
     ).toBe("ops mailbox");
-    expect(agentMailboxWakeContract("ops", [
-      { id: "dm", name: "ops dm", enabled: true, triggers: [{ type: "event", subject: "board.dm.ops" }] },
-      { id: "help", name: "ops help", enabled: false, triggers: [{ type: "event", subject: "board.help.ops" }] },
-    ], { enabled: true })).toEqual({
-      value: "mailbox armed · DM",
-      detail: "armed DM · paused Help · idle Broadcast · channel wake allowed",
-      tone: "good",
-    });
-    expect(agentMailboxWakeContract("worker", [], { enabled: true, direct_callable: false, parent_agent: "lead" })).toEqual({
-      value: "mailbox blocked",
-      detail: "idle DM, Help, Broadcast · blocked: managed sub-agent; arm mailbox wake on lead",
-      tone: "warn",
-    });
-    expect(agentMailboxWakeContract("ops", [], { enabled: false })).toEqual({
-      value: "mailbox blocked",
-      detail: "idle DM, Help, Broadcast · blocked: resume this agent before arming mailbox wake",
-      tone: "bad",
-    });
   });
 
   it("explains why unmanaged mailbox wake cannot be armed directly", () => {
@@ -966,25 +440,192 @@ describe("agent mailbox helpers", () => {
       tone: "warn",
     });
   });
+});
 
-  it("summarizes mailbox backlog and armed wake subjects for the identity passport", () => {
-    expect(agentMailboxPassport("researcher", [
-      { id: "q1", from: "ops", to: "researcher", text: "still waiting" },
-      { id: "b1", from: "ops", to: "*", text: "broadcast waiting" },
-      { id: "sent", from: "researcher", to: "ops", text: "sent" },
-    ], [
-      { id: "so-1", name: "researcher dm", enabled: true, triggers: [{ type: "event", subject: "board.dm.researcher" }] },
-      { id: "so-2", name: "researcher broadcast", enabled: true, triggers: [{ type: "event", subject: "board.broadcast" }] },
-    ])).toEqual({
-      value: "inbox 2 waiting",
-      detail: "2 waiting · 2 received · 1 sent · wake subjects armed: DM, Broadcast",
-      tone: "warn",
-    });
-    expect(agentMailboxPassport("idle", [], [])).toEqual({
-      value: "no mailbox traffic",
-      detail: "0 waiting · 0 received · 0 sent · no mailbox wake subjects armed",
-      tone: "muted",
-    });
+describe("AgentDetail shell", () => {
+  it("renders exactly the six grouped detail tabs", () => {
+    render(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate." }}
+          runs={[]}
+          orders={[]}
+          triggers={[]}
+          state="manual"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+        />,
+      ),
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "ops detail sections" });
+    const tabs = within(tablist).getAllByRole("button");
+    expect(tabs.map((b) => b.textContent)).toEqual([
+      "Overview",
+      "Activity",
+      "Wiring",
+      "Mind",
+      "Model",
+      "Diagnostics",
+    ]);
+    // The old top-level tabs were folded into the six groups.
+    expect(within(tablist).queryByRole("button", { name: /Soul|Triggers|Comms|Memory|Skills|Repair|Files/ })).toBeNull();
+    expect(within(tablist).getByRole("button", { name: /Overview/ }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows the glance metrics, model card, identity card, and lifecycle disclosure", () => {
+    render(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate.", model: "gpt-5", fallbacks: ["gpt-4.1"] }}
+          runs={[]}
+          orders={[]}
+          triggers={[]}
+          state="manual"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+        />,
+      ),
+    );
+
+    // Glance layer: one MetricWidget per fact.
+    expect(screen.getByText("Presence")).toBeTruthy();
+    expect(screen.getByText("Next wake")).toBeTruthy();
+    expect(screen.getByText("Runs")).toBeTruthy();
+    expect(screen.getByText("Spend today")).toBeTruthy();
+    expect(screen.getByText("Health")).toBeTruthy();
+    // Model card with the in-place editor.
+    expect(screen.getByTitle("Edit model and fallback chain")).toBeTruthy();
+    // Overview holds the single identity card and the lifecycle disclosure.
+    expect(screen.getByText("identity")).toBeTruthy();
+    expect(screen.getByText("How does this run?")).toBeTruthy();
+    expect(screen.getByText("today's spend")).toBeTruthy();
+    expect(screen.getByText("per-run ceiling")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Lifecycle intervention" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Manage in Roster/ })).toBeTruthy();
+    // The old prose walls are gone.
+    expect(screen.queryByText("All details")).toBeNull();
+    expect(screen.queryByText("More actions")).toBeNull();
+    expect(screen.queryByText("Operations passport")).toBeNull();
+    expect(screen.queryByText("Agent entity contract")).toBeNull();
+    expect(screen.queryByText("Autonomy runbook")).toBeNull();
+  });
+
+  it("clicking the failure headline focuses the run on the Activity tab", async () => {
+    render(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate." }}
+          runs={[{ correlation_id: "run-bad", agent: "ops", status: "failed", started_unix_ms: Date.now() - 60_000 }]}
+          orders={[]}
+          triggers={[]}
+          state="manual"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Most recent failure/ }));
+    const tablist = screen.getByRole("tablist", { name: "ops detail sections" });
+    expect(within(tablist).getByRole("button", { name: /Activity/ }).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(screen.getByText(/focused run/)).toBeTruthy());
+    expect(screen.getAllByText(/run-bad/).length).toBeGreaterThan(0);
+  });
+
+  it("pauses and resumes the agent from the header action rail", async () => {
+    const onChanged = vi.fn();
+    const { rerender } = render(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate." }}
+          runs={[]}
+          orders={[]}
+          triggers={[]}
+          state="manual"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+          onChanged={onChanged}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/agents/enable", {
+        ref: "ops",
+        enabled: "false",
+      }),
+    );
+    expect(onChanged).toHaveBeenCalled();
+
+    postAction.mockClear();
+    rerender(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: false, soul: "Operate." }}
+          runs={[]}
+          orders={[]}
+          triggers={[]}
+          state="paused"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+          onChanged={onChanged}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/agents/enable", {
+        ref: "ops",
+        enabled: "true",
+      }),
+    );
+  });
+
+  it("edits the model from the header model card", async () => {
+    const onChanged = vi.fn();
+    render(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate.", model: "gpt-5" }}
+          runs={[]}
+          orders={[]}
+          triggers={[]}
+          state="manual"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+          onChanged={onChanged}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByTitle("Edit model and fallback chain"));
+    fireEvent.click(screen.getByTitle("Choose model"));
+    fireEvent.click(await screen.findByText("GPT-4.1"));
+
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith("/api/agents/edit", {
+        ref: "ops",
+        profile: expect.objectContaining({
+          model: "gpt-4.1",
+          soul: "Operate.",
+        }),
+      }),
+    );
+    expect(onChanged).toHaveBeenCalled();
   });
 });
 
@@ -1126,111 +767,29 @@ describe("AgentDetail lifecycle intervention", () => {
       withUI(
         <AgentDetail
           slug="ops"
-          profile={{
-            id: "01",
-            slug: "ops",
-            enabled: true,
-            soul: "Operate.",
-            model: "@ops-chain",
-            task_type: "operations",
-            trust_ceiling: "L2",
-            tool_allow: ["memory", "shell", "db"],
-            tool_deny: ["notify"],
-            noise_policy: {
-              silent_on_success: true,
-              disable_memory_writes: true,
-              min_notify_severity: "warning",
-              min_notify_interval_sec: 28800,
-            },
-            config_overrides: { AGEZT_MODE: "watch" },
-            status: {
-              wake_schedule_count: 1,
-              next_wake_ms: Date.now() + 10 * 60_000,
-              next_wake_label: "night watch",
-              last_autonomy_runbook: {
-                trigger_contract: "operator_schedule_channel",
-                route_contract: "self_owned",
-                recovery_contract: "self_repair",
-                sleep_contract: "persistent",
-                phase: "completed",
-                correlation_id: "wake-prev",
-              },
-            },
-            tasklist: [
-              { id: "task-1", title: "check queue", scope: "cycle", status: "doing" },
-              { id: "task-2", title: "ship migration", scope: "total", status: "blocked" },
-            ],
-          }}
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate." }}
           runs={[]}
           orders={[]}
           triggers={[]}
           state="manual"
-          schedules={[{ id: "sch-1", agent: "ops", enabled: true, mode: "interval", interval_sec: 3600 }]}
+          schedules={[]}
           onClose={() => {}}
           onManage={() => {}}
         />,
       ),
     );
 
-    expect(await screen.findByText("Agent identity card")).toBeTruthy();
-    expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
-    // The redesign surfaces schedule info as a MiniMetric card next to Presence.
-    expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
-    // Tab-based sections replace the old "Identity & Maintenance" header.
-    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Overview/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: /Soul/ }).getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByText("More actions")).toBeTruthy();
-    expect(screen.getByText("Pause wakes")).toBeTruthy();
-    // The redesign shows Presence + Next wake cards + tab navigation.
-    expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
-    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Overview/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Soul/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Activity/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Triggers/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Comms/ })).toBeTruthy();
-    expect(screen.getByText("wake guard")).toBeTruthy();
-    expect(screen.getByTitle(/wake guard: eligible for schedule/)).toBeTruthy();
-    expect(screen.getByText("Agent entity contract")).toBeTruthy();
-    const entityContract = screen.getByLabelText("ops entity contract");
-    expect(entityContract.textContent).toContain("identity");
-    expect(entityContract.textContent).toContain("agent · direct");
-    expect(entityContract.textContent).toContain("operator callable");
-    expect(entityContract.textContent).toContain("shared workspace · memory ops");
-    expect(screen.getByText("Autonomy runbook")).toBeTruthy();
-    const autonomyRunbook = screen.getByLabelText("ops autonomy runbook");
-    expect(autonomyRunbook.textContent).toContain("trigger");
-    expect(autonomyRunbook.textContent).toContain("3 direct routes");
-    expect(autonomyRunbook.textContent).toContain("self-owned");
-    expect(autonomyRunbook.textContent).toContain("sleeps between wake events");
-    expect(autonomyRunbook.textContent).toContain("last contract completed");
-    expect(autonomyRunbook.textContent).toContain("corr wake-prev");
-    expect(autonomyRunbook.textContent).toContain("journal self_repair");
-    expect(autonomyRunbook.textContent).toContain("persistent");
-    expect(screen.getByText("Operations passport")).toBeTruthy();
-    expect(screen.getByText("guarded standby")).toBeTruthy();
-    const runtimeDoctorLedger = screen.getByLabelText("ops runtime doctor ledger");
-    expect(runtimeDoctorLedger).toBeTruthy();
-    expect(screen.getByText("Runtime doctor ledger")).toBeTruthy();
-    expect(runtimeDoctorLedger.textContent).toContain("sleeping");
-    expect(runtimeDoctorLedger.textContent).toContain("manual repair");
-    // Overview tab shows Presence + Next wake cards and tab navigation.
-    expect(screen.getAllByText("Presence").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Next wake").length).toBeGreaterThan(0);
-    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
-    // Soul tab reveals model/identity details.
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
-    expect(screen.getByText("soul — identity core")).toBeTruthy();
-    expect(screen.getAllByText(/1 cycle \/ 1 total \/ 1 doing \/ 1 blocked/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/persistent agent · stays alive after runs · 1 cycle \/ 1 total tasks · 1 blocked/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Wake ops" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/agents/wake", {
         ref: "ops",
         reason: "manual operator wake",
       }),
+    );
+    // The wake's correlation id is focused on the Activity tab.
+    const tablist = screen.getByRole("tablist", { name: "ops detail sections" });
+    await waitFor(() =>
+      expect(within(tablist).getByRole("button", { name: /Activity/ }).getAttribute("aria-pressed")).toBe("true"),
     );
     await waitFor(() => expect(screen.getByText(/focused run/)).toBeTruthy());
     expect(getJSON).toHaveBeenCalledWith("/api/journal", {
@@ -1239,8 +798,8 @@ describe("AgentDetail lifecycle intervention", () => {
     });
   });
 
-  it("shows the system guardian contract on system agent details", async () => {
-    render(
+  it("offers the quiet-guardian action only for system agents", async () => {
+    const { unmount } = render(
       withUI(
         <AgentDetail
           slug="guardian-health"
@@ -1250,18 +809,7 @@ describe("AgentDetail lifecycle intervention", () => {
             enabled: true,
             system: true,
             kind: "system",
-            memory_scope: "system/guardian-health",
-            max_cost_mc: 50_000_000,
-            max_daily_mc: 50_000_000,
-            trust_ceiling: "L2",
-            tool_deny: ["memory"],
-            noise_policy: {
-              silent_on_success: true,
-              disable_memory_writes: true,
-              min_notify_severity: "warning",
-              min_notify_interval_sec: 28800,
-            },
-            status: { wake_schedule_count: 1 },
+            soul: "Guard health.",
           }}
           runs={[]}
           orders={[]}
@@ -1274,12 +822,29 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    expect(await screen.findByText("System guardian contract")).toBeTruthy();
-    expect(screen.getByText("quiet guardian")).toBeTruthy();
-    expect(screen.getByText("quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2 · 1 wake schedule")).toBeTruthy();
+    const quiet = screen.getByRole("button", { name: "Quiet guardian guardian-health" });
+    expect(quiet.title).toBe("Apply quiet system guardian policy to this agent");
+    unmount();
+
+    render(
+      withUI(
+        <AgentDetail
+          slug="ops"
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate." }}
+          runs={[]}
+          orders={[]}
+          triggers={[]}
+          state="manual"
+          schedules={[]}
+          onClose={() => {}}
+          onManage={() => {}}
+        />,
+      ),
+    );
+    expect(screen.queryByRole("button", { name: "Quiet guardian ops" })).toBeNull();
   });
 
-  it("can quiet a noisy system guardian from the detail contract", async () => {
+  it("can quiet a noisy system guardian from the header action rail", async () => {
     const onChanged = vi.fn();
     render(
       withUI(
@@ -1313,8 +878,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    expect(await screen.findByText("guardian intervention")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Quiet guardian" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quiet guardian guardian-routing" }));
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/agents/capabilities", {
@@ -1391,7 +955,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
   });
 
-  it("keeps lifecycle removal impact reachable from the agent header", async () => {
+  it("keeps lifecycle removal impact reachable from the overview disclosure", async () => {
     render(
       withUI(
         <AgentDetail
@@ -1408,8 +972,9 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Lifecycle ops" }));
-    await waitFor(() => expect(screen.getByText("Lifecycle intervention")).toBeTruthy());
+    // The panel lives inside the Overview "Lifecycle intervention" disclosure;
+    // children stay mounted, and the summary button expands it.
+    fireEvent.click(screen.getByRole("button", { name: "Lifecycle intervention" }));
     expect(screen.getByLabelText("ops lifecycle ledger")).toBeTruthy();
     expect(screen.getByText("Lifecycle ledger")).toBeTruthy();
     expect(screen.getByText("alive · persistent")).toBeTruthy();
@@ -1420,6 +985,14 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getByText(/retire moves the identity to the graveyard/)).toBeTruthy();
     expect(screen.getByText(/remove deletes the identity, cleans/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Clean all" })).toBeTruthy();
+    // The panel refetches impact (and resets cascade defaults) once the aux
+    // memory/skills fetches settle — wait for that before overriding cascade.
+    await waitFor(() =>
+      expect(getJSON.mock.calls.filter((c) => c[0] === "/api/agents/impact").length).toBeGreaterThanOrEqual(2),
+    );
+    await waitFor(() =>
+      expect((screen.getByLabelText(/Dependent sub-agents/) as HTMLInputElement).checked).toBe(true),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Keep all" }));
     await waitFor(() => expect(screen.getByText("blocked: dependent sub-agents would be orphaned")).toBeTruthy());
     expect(screen.getByText(/remove blocked until dependent sub-agents are included/)).toBeTruthy();
@@ -1451,7 +1024,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Lifecycle guardian-health" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lifecycle intervention" }));
     fireEvent.click(screen.getByRole("button", { name: "Manage" }));
     expect(await screen.findByText("protected system identity")).toBeTruthy();
     expect(screen.getByText("hard remove is blocked for system identities; pause or retire instead")).toBeTruthy();
@@ -1489,14 +1062,13 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(wake.disabled).toBe(true);
     expect(wake.title).toBe("managed sub-agent; wake lead instead");
     expect(screen.getByText("managed sub-agent; wake lead instead")).toBeTruthy();
-    expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(screen.getByRole("button", { name: "Open wake owner lead" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open wake owner lead" }));
     expect(location.hash).toBe("#agent/lead");
     fireEvent.click(wake);
     expect(postAction).not.toHaveBeenCalledWith("/api/agents/wake", expect.anything());
   });
 
-  it("surfaces operational state and last activity in the identity page", async () => {
+  it("surfaces the active run in the Now panel and focuses it on Activity", async () => {
     render(
       withUI(
         <AgentDetail
@@ -1543,55 +1115,23 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    expect(screen.getAllByText("using tool").length).toBeGreaterThan(0);
     expect(screen.getByText("Now")).toBeTruthy();
+    expect(screen.getAllByText("using tool").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/check disks/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/source: schedule/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/schedule: sched-ops/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("shell.exec").length).toBeGreaterThan(0);
     expect(screen.getAllByText("gpt-5").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
-    // The redesign surfaces the live run via the "Now" panel on the overview; the
-    // last-activity summary moved to the Soul tab's last-activity row (asserted below).
-    expect(screen.getAllByText(/using tool · using tool · check disks · shell/).length).toBeGreaterThan(0);
-    // The wake source moved into the Status Dashboard: a "Wake source" cell showing "none".
-    expect(screen.getByText("Wake source")).toBeTruthy();
-    expect(screen.getAllByText("none").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/cycle 1\/3/).length).toBeGreaterThan(0);
+    // Identity card on the overview reflects the cycle lifecycle contract.
     expect(screen.getAllByText(/1\/3 cycles complete; retires at max cycles/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("managed by lead").length).toBeGreaterThan(0);
-    expect(screen.getByText("Agent identity card")).toBeTruthy();
-    expect(screen.getByText("subagent · running")).toBeTruthy();
-    // The redesign uses tabs instead of passport sections.
-    expect(screen.getByRole("tablist", { name: "ops detail sections" })).toBeTruthy();
-    expect(screen.getAllByText("manager repair").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("request repair through lead").length).toBeGreaterThan(0);
-    expect(screen.getByText("Run retry policy")).toBeTruthy();
-    expect(screen.getAllByText("up to 3 attempts · backoff none · no delay · retry on error, timeout").length).toBeGreaterThan(0);
-    expect(screen.getByText("Resource passport")).toBeTruthy();
-    expect(screen.getAllByText("workspace agents/ops · memory private · data lake via db · 1 config override").length).toBeGreaterThan(0);
-    await waitFor(() => expect(screen.getByText("2/3 visible · 1 owned · 1 blocked")).toBeTruthy());
-    // The "Now" panel's Inspect (scoped by its title) opens the focused run on the Activity tab.
+    // The Now panel's Inspect opens the focused run on the Activity tab.
     fireEvent.click(screen.getByTitle("Inspect the active run in this agent"));
     expect(screen.getByText(/focused run/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Overview/ }));
-    // The Status Dashboard's active-run card lets the operator inspect the run inline,
-    // which loads the run journal for the active correlation id.
-    expect(screen.getAllByText(/Active run/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
-    const inspectToggles = screen.getAllByRole("button", { name: "Inspect" });
-    fireEvent.click(inspectToggles[inspectToggles.length - 1]);
     await waitFor(() =>
       expect(getJSON).toHaveBeenCalledWith("/api/journal", {
         correlation_id: "corr-1",
         limit: "500",
       }),
     );
-    expect(screen.getAllByText(/corr-1/).length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
-    expect(screen.getAllByText(/using tool · using tool · check disks · shell/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/started a run: check disks/).length).toBeGreaterThan(0);
   });
 
   it("shows one-shot lifecycle retirement behavior in the identity page", () => {
@@ -1621,7 +1161,7 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(screen.getAllByText(/retires after the next successful completion/).length).toBeGreaterThan(0);
   });
 
-  it("edits lifecycle contract from the identity page without dropping agent fields", async () => {
+  it("edits lifecycle contract from the mind tab without dropping agent fields", async () => {
     const onChanged = vi.fn();
     render(
       withUI(
@@ -1662,7 +1202,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mind/ }));
     chooseDetailOption("Agent lifecycle mode", /Cycle/);
     fireEvent.change(screen.getByLabelText("Agent max cycles"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: /Save lifecycle/ }));
@@ -1695,174 +1235,32 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("summarizes the agent capability passport on the overview", async () => {
-    getJSON.mockImplementation((path: string, params?: { ref?: string }) => {
-      if (path === "/api/agents/impact") return Promise.resolve({ standing_orders: [], schedules: [], memories: [], authored_shared_memories: [], skills: [], configs: [], subagents: [] });
-      if (path === "/api/memory") return Promise.resolve({ records: [] });
-      if (path === "/api/skills") return Promise.resolve({ skills: [{ id: "sk-ops", name: "Ops Probe", agent: "ops", triggers: ["manual", "schedule"] }] });
-      if (path === "/api/policy_log") return Promise.resolve({ decisions: [] });
-      if (path === "/api/tool_log") return Promise.resolve({ invocations: [] });
-      if (path === "/api/policy") return Promise.resolve({});
-      if (path === "/api/edict_show") return Promise.resolve({ levels: { "code.exec": "L0", "memory": "L4", "net.fetch": "L2" } });
-      if (path === "/api/tools_catalog")
-        return Promise.resolve({
-          tools: [
-            { name: "memory", description: "remember", capability: "memory" },
-            { name: "shell", description: "run commands", capability: "code.exec" },
-            { name: "fetch", description: "fetch urls", capability: "net.fetch" },
-          ],
-        });
-      if (path === "/api/agents/permissions" && params?.ref === "ops")
-        return Promise.resolve({
-          wake_access: {
-            status: "direct",
-            reason: "directly callable",
-            direct_callable: true,
-            direct_allowed: true,
-            schedule_allowed: true,
-            channel_allowed: true,
-            operator_allowed: true,
-            delegation_allowed: true,
-            delegation_scope: "any",
-          },
-          permissions: [
-            { name: "memory", capability: "memory", allowed: true, ask: false, status: "allowed", source: "edict", reason: "capability set to L4 (allow)" },
-            { name: "shell", capability: "code.exec", allowed: false, ask: false, status: "hidden", source: "agent_allow", reason: "not in agent tool allowlist" },
-            { name: "fetch", capability: "net.fetch", allowed: true, ask: true, status: "L2", source: "edict", reason: "capability set to L2 (ask)" },
-          ],
-          config_entries: [
-            { key: "public:value", rating: "internal", visible: true, source: "config_global", reason: "visible to all eligible agents" },
-            { key: "agent/ops/runtime", rating: "internal", visible: true, owned: true, source: "config_allowed", reason: "agent is in config allowed_agents", allowed_agents: ["ops"] },
-            { key: "secret:value", rating: "secret", visible: false, source: "config_excluded", reason: "agent is in config excluded_agents", excluded_agents: ["ops"] },
-          ],
-          governance: {
-            summary: "tools 1/3 allowed, 1 ask, 1 blocked, config 2/3 visible, trust L2",
-            risk: "restricted",
-            trust_ceiling: "L2",
-          },
-        });
-      return Promise.resolve({});
-    });
-
+  it("pauses frequent schedules from the header action rail", async () => {
     render(
       withUI(
         <AgentDetail
           slug="ops"
-          profile={{
-            id: "01",
-            slug: "ops",
-            enabled: true,
-            soul: "Operate.",
-            model: "gpt-5",
-            task_type: "ops",
-            fallbacks: ["gpt-4.1"],
-            trust_ceiling: "L2",
-            tool_allow: ["memory", "fetch"],
-            tool_deny: ["shell"],
-            system: true,
-            status: { wake_schedule_count: 2 },
-            noise_policy: { disable_memory_writes: true, min_notify_severity: "warning" },
-            config_overrides: { AGEZT_MAX_ITER: "4" },
-          }}
+          profile={{ id: "01", slug: "ops", enabled: true, soul: "Operate." }}
           runs={[]}
           orders={[]}
           triggers={[]}
           state="manual"
-          schedules={[{ id: "sch-fast", agent: "ops", enabled: true, mode: "interval", interval_sec: 3600, cadence: "every 1h" }]}
+          schedules={[{ id: "sch-fast", agent: "ops", enabled: true, mode: "interval", interval_sec: 600, cadence: "every 10m" }]}
           onClose={() => {}}
           onManage={() => {}}
         />,
       ),
     );
 
-    await waitFor(() =>
-      expect(screen.getByText("Capability passport")).toBeTruthy(),
-    );
-    expect(screen.getAllByText("high-impact ask-gated: fetch · 1 allowed, 1 ask-gated, 1 blocked or hidden out of 3 tools").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("tools 1/3 allowed, 1 ask, 1 blocked, config 2/3 visible, trust L2").length).toBeGreaterThan(0);
-    expect(screen.getByText("trust L2")).toBeTruthy();
-    expect(screen.getByText("allow 2")).toBeTruthy();
-    expect(screen.getByText("deny 1")).toBeTruthy();
-    expect(screen.getByText("memory writes off")).toBeTruthy();
-    expect(screen.getByText("notify >= warning")).toBeTruthy();
-    expect(screen.getByText("1 config override")).toBeTruthy();
-    expect(screen.getByText("model gpt-5 · task ops · 1 fallback")).toBeTruthy();
-    expect(screen.getByText("1 private skill · 2 triggers")).toBeTruthy();
-    expect(screen.getByText("noise review: success notifications enabled, notify cooldown <8h, no daily cap, no run cap, memory scope not isolated · 2 scheduled wakes")).toBeTruthy();
-    expect(screen.getAllByText("schedule pressure: 1/1 frequent · fastest 1h").length).toBeGreaterThan(0);
+    expect(screen.getByText("Pause wakes")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Pause frequent schedules for ops"));
     fireEvent.click(await screen.findByRole("button", { name: "Pause schedules" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/schedule/enable", { id: "sch-fast", enabled: "false" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
-    expect(screen.getByText("model route")).toBeTruthy();
-    expect(screen.getAllByText("skills").length).toBeGreaterThan(0);
-    expect(screen.getByText("noise budget")).toBeTruthy();
-    expect(screen.getByText("schedule pressure")).toBeTruthy();
-    expect(screen.getAllByText("model gpt-5 · task ops · 1 fallback").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1 private skill · 2 triggers").length).toBeGreaterThan(0);
   });
 
-  it("shows effective runtime noise guardrails for system agents", async () => {
-    render(
-      withUI(
-        <AgentDetail
-          slug="guardian-health"
-          profile={{
-            id: "01G",
-            slug: "guardian-health",
-            enabled: true,
-            system: true,
-            kind: "system",
-            soul: "Guard the system.",
-            noise_policy: { min_notify_severity: "info", min_notify_interval_sec: 0 },
-          }}
-          runs={[]}
-          orders={[]}
-          triggers={[]}
-          state="manual"
-          schedules={[]}
-          onClose={() => {}}
-          onManage={() => {}}
-        />,
-      ),
-    );
-
-    await waitFor(() => expect(screen.getAllByText("guardian-health").length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
-    expect(screen.getByText("silent on success · no memory writes · notify >= warning · cooldown 28800s · system enforced")).toBeTruthy();
-  });
-
-  it("shows silent-on-success as an effective warning notify floor for custom agents", async () => {
-    render(
-      withUI(
-        <AgentDetail
-          slug="quiet-worker"
-          profile={{
-            id: "01Q",
-            slug: "quiet-worker",
-            enabled: true,
-            soul: "Work quietly.",
-            noise_policy: { silent_on_success: true },
-          }}
-          runs={[]}
-          orders={[]}
-          triggers={[]}
-          state="manual"
-          schedules={[]}
-          onClose={() => {}}
-          onManage={() => {}}
-        />,
-      ),
-    );
-
-    await waitFor(() => expect(screen.getAllByText("quiet-worker").length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
-    expect(screen.getByText("silent on success · notify >= warning")).toBeTruthy();
-  });
-
-  it("shows mailbox wake subjects on the trigger tab", () => {
+  it("shows mailbox wake subjects on the wiring tab", () => {
     render(
       withUI(
         <AgentDetail
@@ -1887,14 +1285,14 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     expect(screen.getAllByText("board.dm.ops").length).toBeGreaterThan(0);
     expect(screen.getByText("board.help.ops")).toBeTruthy();
     expect(screen.getByText("board.broadcast")).toBeTruthy();
     expect(screen.getAllByText("ops mailbox").length).toBeGreaterThan(0);
   });
 
-  it("shows acknowledged messages on the agent comms tab", async () => {
+  it("shows acknowledged messages on the agent wiring tab", async () => {
     getJSON.mockImplementation((path: string, params?: { ref?: string }) => {
       if (path === "/api/agents/permissions")
         return Promise.resolve({
@@ -1953,8 +1351,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    expect(await screen.findByText("sleeping · inbox 1 · 1 mailbox message waiting · manual or mailbox wake")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     expect(await screen.findByText("seen by researcher")).toBeTruthy();
     expect(screen.getByText("handled")).toBeTruthy();
     expect(screen.getByText("please check")).toBeTruthy();
@@ -2021,7 +1418,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     await waitFor(() => expect(screen.getByText("deploy target?")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Reply" }));
     fireEvent.change(screen.getByLabelText("Reply to q1"), { target: { value: "ship us-east" } });
@@ -2037,7 +1434,7 @@ describe("AgentDetail lifecycle intervention", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("starts an agent-to-agent mailbox message from the comms tab", async () => {
+  it("starts an agent-to-agent mailbox message from the wiring tab", async () => {
     const onChanged = vi.fn();
     getJSON.mockImplementation((path: string, params?: { ref?: string }) => {
       if (path === "/api/agents/permissions")
@@ -2091,7 +1488,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     fireEvent.change(await screen.findByLabelText("Agent outbox recipient"), { target: { value: "planner" } });
     fireEvent.change(screen.getByLabelText("Agent outbox topic"), { target: { value: "handoff" } });
     fireEvent.change(screen.getByLabelText("Agent outbox message"), { target: { value: "need deploy plan" } });
@@ -2125,12 +1522,12 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Comms/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Open Board/ }));
     expect(location.hash).toBe("#board?agent=researcher");
   });
 
-  it("arms an idle mailbox wake from the trigger tab", async () => {
+  it("arms an idle mailbox wake from the wiring tab", async () => {
     render(
       withUI(
         <AgentDetail
@@ -2147,7 +1544,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     fireEvent.click(screen.getByRole("button", { name: "Arm Help mailbox wake for ops" }));
 
     await waitFor(() =>
@@ -2190,18 +1587,17 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
+    expect((await screen.findAllByText("channel wake blocked; arm mailbox wake on lead")).length).toBeGreaterThan(0);
     const arm = screen.getByRole("button", { name: "Arm DM mailbox wake for worker" }) as HTMLButtonElement;
     expect(arm.disabled).toBe(true);
-    expect(screen.getAllByText("channel wake blocked; arm mailbox wake on lead").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: "Open parent agent lead" })[0]);
     expect(location.hash).toBe("#agent/lead");
     fireEvent.click(arm);
     expect(postJSON).not.toHaveBeenCalledWith("/api/standing/add", expect.anything());
   });
 
-  it("can re-arm a paused bound schedule from the trigger tab", async () => {
+  it("can re-arm a paused bound schedule from the wiring tab", async () => {
     render(
       withUI(
         <AgentDetail
@@ -2218,7 +1614,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     fireEvent.click(screen.getByRole("button", { name: "Resume schedule sch-1" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/schedule/enable", {
@@ -2245,13 +1641,13 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
-    expect(screen.getByText("runs workflow nightly-sync as ops")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
+    expect(screen.getAllByText("runs workflow nightly-sync as ops").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Remove schedule sch-flow" }));
     expect(screen.getByText("Schedule sch-flow will stop: runs workflow nightly-sync as ops.")).toBeTruthy();
   });
 
-  it("can remove a bound schedule from the trigger tab", async () => {
+  it("can remove a bound schedule from the wiring tab", async () => {
     render(
       withUI(
         <AgentDetail
@@ -2268,7 +1664,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     fireEvent.click(screen.getByRole("button", { name: "Remove schedule sch-1" }));
     expect(screen.getByText("Remove this schedule binding?")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -2279,7 +1675,7 @@ describe("AgentDetail lifecycle intervention", () => {
     );
   });
 
-  it("can remove a bound standing order from the trigger tab", async () => {
+  it("can remove a bound standing order from the wiring tab", async () => {
     render(
       withUI(
         <AgentDetail
@@ -2304,7 +1700,7 @@ describe("AgentDetail lifecycle intervention", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Triggers/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Wiring/ }));
     fireEvent.click(screen.getByRole("button", { name: "Remove standing order so-1" }));
     expect(screen.getByText("Remove this standing order binding?")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -2427,6 +1823,11 @@ describe("AgentDetail lifecycle intervention", () => {
     await waitFor(() => expect(screen.getByText("ops-worker [parent]")).toBeTruthy());
     expect(screen.getByText(/Remove plan: delete identity; clean 1 standing, 1 schedule, 1 private memory, 1 skill, 1 config, shared config access refs, 1 workspace, 1 sub-agent, 1 sub-agent standing, 1 sub-agent schedule, 1 sub-agent private memory, 1 sub-agent skill, 1 sub-agent config, 1 sub-agent workspace; keep 1 authored shared memory, 1 workflow reference, 1 sub-agent authored shared memory, 1 sub-agent workflow reference/)).toBeTruthy();
 
+    // Wait for the post-aux impact refetch so the cascade toggle below is not
+    // reset back to defaults after we uncheck it.
+    await waitFor(() =>
+      expect(getJSON.mock.calls.filter((c) => c[0] === "/api/agents/impact").length).toBeGreaterThanOrEqual(2),
+    );
     fireEvent.click(screen.getByLabelText(/Dependent sub-agents/));
     expect(screen.getByLabelText(/Private memory/).closest("label")?.textContent).toContain("1");
     expect(screen.getByText("blocked: dependent sub-agents would be orphaned")).toBeTruthy();
@@ -2504,7 +1905,7 @@ describe("AgentDetail capability control", () => {
     fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
     expect((await screen.findAllByText(/doctor guardian-doctor/)).length).toBeGreaterThan(0);
     expect(screen.getByText("Repair operations")).toBeTruthy();
-    expect(screen.getByText("repair failing")).toBeTruthy();
+    expect(screen.getAllByText("repair failing").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle(/up to 3 attempts/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("failed · doctor · tool denied").length).toBeGreaterThan(0);
     expect(screen.getAllByText("cooldown 90s").length).toBeGreaterThan(0);
@@ -2531,7 +1932,11 @@ describe("AgentDetail capability control", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Repair now" }));
+    // The Diagnostics tab renders DiagTab's repair center first, then the
+    // AgentRepair workbench stacked below — two "Repair now" entry points.
+    const repairButtons = await screen.findAllByRole("button", { name: "Repair now" });
+    expect(repairButtons.length).toBe(2);
+    fireEvent.click(repairButtons[0]);
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/agents/repair", {
@@ -2542,7 +1947,7 @@ describe("AgentDetail capability control", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("requests a governed repair run from the repair tab", async () => {
+  it("requests a governed repair run from the repair workbench under diagnostics", async () => {
     const onChanged = vi.fn();
     postJSON.mockResolvedValueOnce({ correlation_id: "repair-2" });
     render(
@@ -2562,8 +1967,9 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Repair/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Repair now" }));
+    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    const repairButtons = await screen.findAllByRole("button", { name: "Repair now" });
+    fireEvent.click(repairButtons[repairButtons.length - 1]);
 
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/agents/repair", {
@@ -2574,7 +1980,7 @@ describe("AgentDetail capability control", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("blocks governed repair from the repair tab for managed sub-agents", async () => {
+  it("blocks governed repair for managed sub-agents", async () => {
     render(
       withUI(
         <AgentDetail
@@ -2591,11 +1997,13 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Repair/ }));
-    const repair = await screen.findByRole("button", { name: "Repair now" }) as HTMLButtonElement;
-    expect(repair.disabled).toBe(true);
-    expect(repair.title).toBe("managed sub-agent; request repair through its parent/owner");
-    fireEvent.click(repair);
+    fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
+    const repairButtons = await screen.findAllByRole("button", { name: "Repair now" }) as HTMLButtonElement[];
+    for (const btn of repairButtons) {
+      expect(btn.disabled).toBe(true);
+      expect(btn.title).toContain("managed sub-agent; request repair through its parent/owner");
+      fireEvent.click(btn);
+    }
     expect(postJSON).not.toHaveBeenCalledWith("/api/agents/repair", expect.anything());
   });
 
@@ -2721,26 +2129,6 @@ describe("AgentDetail capability control", () => {
     fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
     expect((await screen.findAllByText("memory")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("not in agent allowlist").length).toBeGreaterThan(0);
-    expect(screen.getByText("managed authority")).toBeTruthy();
-    expect(screen.getByText("1 direct · 0 ask · 2 blocked · workflow absent · data lake absent · config 2/3 · trust L2")).toBeTruthy();
-    expect(screen.getByText("Authority manifest")).toBeTruthy();
-    expect(screen.getByText("managed authority manifest")).toBeTruthy();
-    expect(screen.getAllByText("agent identity boundary").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("wakes and workflows invoke through ops policy").length).toBeGreaterThan(0);
-    expect(screen.getByText("workflow absent")).toBeTruthy();
-    expect(screen.getByText("Risk passport")).toBeTruthy();
-    expect(screen.getByText("governed authority")).toBeTruthy();
-    expect(screen.getByText(/direct memory · ask none · blocked (shell, fetch|fetch, shell) · config 2\/3 · trust L2/)).toBeTruthy();
-    expect(screen.getByText("Authority snapshot")).toBeTruthy();
-    expect(screen.getByText("high-impact tools blocked")).toBeTruthy();
-    expect(screen.getByText("fetch, shell · 2 blocked/hidden · trust L2")).toBeTruthy();
-    expect(screen.getByText("Authority ledger")).toBeTruthy();
-    expect(screen.getByText("governed tools")).toBeTruthy();
-    expect(screen.getAllByText("$0.0500 / $0.5000").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("shared workspace").length).toBeGreaterThan(0);
-    expect(screen.getByText("Config center")).toBeTruthy();
-    expect(screen.getAllByText("2/3 visible · 1 owned · 1 blocked").length).toBeGreaterThan(0);
-    expect(screen.getByText("1 runtime override")).toBeTruthy();
     expect(screen.getByText("Config center access")).toBeTruthy();
     expect(screen.getByText("agent/ops/runtime")).toBeTruthy();
     expect(screen.getByText("owned · allowlisted")).toBeTruthy();
@@ -3171,7 +2559,6 @@ describe("AgentDetail capability control", () => {
       ),
     );
 
-    expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /Diagnostics/ }));
     expect((await screen.findAllByText("managed by lead")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("operator").length).toBeGreaterThanOrEqual(1);
@@ -3186,7 +2573,7 @@ describe("AgentDetail capability control", () => {
 });
 
 describe("AgentDetail tasklist controls", () => {
-  it("summarizes durable task status inside the identity task board", () => {
+  it("summarizes durable task status inside the mind tab task board", () => {
     render(
       withUI(
         <AgentDetail
@@ -3214,13 +2601,13 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mind/ }));
     expect(screen.getByText("1 todo · 1 doing · 1 blocked")).toBeTruthy();
     expect(screen.getByText("1 done")).toBeTruthy();
     expect(screen.getByText("fix deploy")).toBeTruthy();
   });
 
-  it("adds a new cycle task from the identity page", async () => {
+  it("adds a new cycle task from the mind tab", async () => {
     const onChanged = vi.fn();
     render(
       withUI(
@@ -3239,7 +2626,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mind/ }));
     fireEvent.change(screen.getByLabelText("New agent task"), { target: { value: "check queue" } });
     chooseDetailOption("New task scope", /Every cycle/);
     fireEvent.click(screen.getByRole("button", { name: /Add task/ }));
@@ -3281,7 +2668,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mind/ }));
     expect(screen.getByText("check queue")).toBeTruthy();
     fireEvent.click(screen.getByTitle("Mark done"));
     await waitFor(() =>
@@ -3295,7 +2682,7 @@ describe("AgentDetail tasklist controls", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("removes one durable agent task from the identity page", async () => {
+  it("removes one durable agent task from the mind tab", async () => {
     const onChanged = vi.fn();
     render(
       withUI(
@@ -3320,7 +2707,7 @@ describe("AgentDetail tasklist controls", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Soul/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mind/ }));
     fireEvent.click(screen.getByTitle("Remove task"));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/agents/task", {

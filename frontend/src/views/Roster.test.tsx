@@ -15,7 +15,7 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
-import { Roster, NewAgentForm, profileFields, slugOk, usdToMc, agentHue, initials, sortAgentRoster, agentIdentityKind, agentNeedsRepair, agentNeedsAttention, filterAgentRoster, agentEnableToast, agentRemoveToast, agentRetireToast, agentReviveToast, agentNoisePolicySummary, agentNoiseBudgetPassport, agentSchedulePressurePassport, systemGuardianSafetySummary, systemGuardianNoiseContract, systemGuardianRiskSummary, noisySystemGuardians, guardianQuietPolicyPayload, guardianQuietingSummary, agentLifecycleSummary, agentLifecycleDispositionPassport, agentGraveyardSummary, agentGraveyardStats, agentGraveyardCleanupPassport, agentTaskContractSummary, agentTaskProgressSummary, agentHierarchySummary, agentHierarchyTreePassport, agentDelegationPassport, agentWakeRoutePassport, agentIdentityDossier, agentIdentityCardSummary, agentRosterIdentityManifest, agentIdentityLedger, agentCommandStrip, agentCapabilityPassportSummary, agentControlCenterLedger, agentResourcePassportSummary, agentConfigPassportSummary, agentResiliencePassportSummary, agentRepairGovernancePassport, agentRepairOperationsPassport, agentModelRoutePassport, agentModelPassportSummary, agentSkillPassportSummary, agentLifecycleRail, agentLifeSummary, agentLivePresencePassport, rosterWaitingMailboxCounts, rosterMailboxPassport, agentRemovalCascadePreset, agentRemovalCustodySummary, agentRemovalDeathCertificate, agentRemovalDecisionSummary, agentRemovalImpactSummary, agentRemovalLifecycleSummary, agentRemovalLedger, agentRemovalPlan, rosterWakeIssue, rosterRepairIssue, agentHealthIssueSummary, formatWakeDue } from "@/views/Roster";
+import { Roster, NewAgentForm, profileFields, slugOk, usdToMc, agentHue, initials, sortAgentRoster, agentIdentityKind, agentNeedsRepair, agentNeedsAttention, filterAgentRoster, agentEnableToast, agentRemoveToast, agentRetireToast, agentReviveToast, agentNoisePolicySummary, agentNoiseBudgetPassport, agentSchedulePressurePassport, systemGuardianSafetySummary, systemGuardianNoiseContract, systemGuardianRiskSummary, noisySystemGuardians, guardianQuietPolicyPayload, guardianQuietingSummary, agentLifecycleSummary, agentLifecycleDispositionPassport, agentGraveyardSummary, agentGraveyardStats, agentGraveyardCleanupPassport, agentTaskContractSummary, agentTaskProgressSummary, agentHierarchySummary, agentHierarchyTreePassport, agentDelegationPassport, agentIdentityDossier, agentIdentityCardSummary, agentRosterIdentityManifest, agentIdentityLedger, agentCommandStrip, agentCapabilityPassportSummary, agentResourcePassportSummary, agentConfigPassportSummary, agentRepairGovernancePassport, agentRepairOperationsPassport, agentModelPassportSummary, agentSkillPassportSummary, agentLifecycleRail, agentLifeSummary, agentLivePresencePassport, rosterWaitingMailboxCounts, rosterMailboxPassport, agentRemovalCascadePreset, agentRemovalCustodySummary, agentRemovalDeathCertificate, agentRemovalDecisionSummary, agentRemovalImpactSummary, agentRemovalLifecycleSummary, agentRemovalLedger, agentRemovalPlan, rosterWakeIssue, rosterRepairIssue, agentHealthIssueSummary, formatWakeDue } from "@/views/Roster";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -983,36 +983,6 @@ describe("agentDelegationPassport", () => {
   });
 });
 
-describe("agentWakeRoutePassport", () => {
-  it("spells out which wake routes are open for direct agents and managed sub-agents", () => {
-    expect(agentWakeRoutePassport({})).toEqual({
-      value: "direct wake",
-      detail: "operator allowed · schedule allowed · channel allowed · delegation allowed",
-      tone: "good",
-    });
-    expect(agentWakeRoutePassport({ parent_agent: "lead", direct_callable: false })).toEqual({
-      value: "manager-only · lead",
-      detail: "operator blocked · schedule blocked · channel blocked · delegation allowed from lead",
-      tone: "warn",
-    });
-    expect(agentWakeRoutePassport({ kind: "subagent" })).toEqual({
-      value: "manager-only · no manager",
-      detail: "operator blocked · schedule blocked · channel blocked · delegation blocked · parent/owner missing",
-      tone: "bad",
-    });
-    expect(agentWakeRoutePassport({ enabled: false, parent_agent: "lead", direct_callable: false })).toEqual({
-      value: "wake blocked",
-      detail: "operator blocked · schedule blocked · channel blocked · delegation blocked · agent paused",
-      tone: "bad",
-    });
-    expect(agentWakeRoutePassport({ retired: true, parent_agent: "lead", direct_callable: false })).toEqual({
-      value: "wake blocked",
-      detail: "operator blocked · schedule blocked · channel blocked · delegation blocked · revive required",
-      tone: "muted",
-    });
-  });
-});
-
 describe("agentIdentityDossier", () => {
   it("combines identity class, command chain, lifecycle, and durable task contract", () => {
     expect(agentIdentityDossier({
@@ -1035,36 +1005,6 @@ describe("agentCapabilityPassportSummary", () => {
     expect(agentCapabilityPassportSummary({ tool_allow: ["memory", "shell"], trust_ceiling: "L3" })).toBe("high-impact allow · shell · L3");
     expect(agentCapabilityPassportSummary({ tool_deny: ["notify"] })).toBe("broad minus · notify · L4");
     expect(agentCapabilityPassportSummary({ tool_allow: ["memory"], tool_deny: ["shell", "notify"], trust_ceiling: "L2" })).toBe("limited · 1 allow · 2 denies · L2");
-  });
-});
-
-describe("agentControlCenterLedger", () => {
-  it("breaks tool, trust, memory, config, data and noise controls into card cells", () => {
-    const ledger = agentControlCenterLedger({
-      slug: "ops",
-      trust_ceiling: "L2",
-      tool_allow: ["memory", "shell", "db"],
-      tool_deny: ["notify"],
-      memory_scope: "private",
-      config_overrides: { AGEZT_PROVIDER: "openai", AGEZT_MODE: "quiet" },
-      noise_policy: {
-        silent_on_success: true,
-        disable_memory_writes: true,
-        min_notify_severity: "warning",
-        min_notify_interval_sec: 28800,
-      },
-    }, 1);
-    expect(ledger.map((entry) => entry.label)).toEqual(["tools", "trust", "data lake", "memory", "config", "noise"]);
-    expect(ledger.map((entry) => entry.value)).toEqual([
-      "allow 3 · shell, db",
-      "L2",
-      "available",
-      "writes off",
-      "2 overrides · !1",
-      "silent success · memory off · notify >= warning · cooldown 28800s",
-    ]);
-    expect(ledger.find((entry) => entry.label === "tools")?.detail).toContain("deny: notify");
-    expect(ledger.find((entry) => entry.label === "trust")?.tone).toBe("good");
   });
 });
 
@@ -1109,21 +1049,6 @@ describe("agentModelPassportSummary", () => {
       "model gpt-5 · task research · 1 fallback",
     );
     expect(agentModelPassportSummary({ model: "@code-chain", fallbacks: ["ignored"] })).toBe("chain @code-chain · chain-owned fallback");
-    expect(agentModelRoutePassport({ model: "@code-chain", task_type: "code", fallbacks: ["ignored"] })).toEqual({
-      value: "chain @code-chain",
-      detail: "task code · named chain owns fallback order · per-agent fallbacks ignored",
-      tone: "good",
-    });
-    expect(agentModelRoutePassport({ model: "gpt-5", fallbacks: ["gpt-4.1", "gpt-4o"] })).toEqual({
-      value: "model gpt-5",
-      detail: "default task · 2 fallbacks: gpt-4.1 → gpt-4o",
-      tone: "good",
-    });
-    expect(agentModelRoutePassport({ task_type: "research" })).toEqual({
-      value: "daemon default model",
-      detail: "task research · uses daemon/provider routing; no agent-owned fallback",
-      tone: "muted",
-    });
   });
 });
 
@@ -1174,17 +1099,6 @@ describe("agentIdentityLedger", () => {
       value: "soul missing",
       tone: "warn",
     });
-  });
-});
-
-describe("agentResiliencePassportSummary", () => {
-  it("summarizes retry, doctor, self-repair, and escalation policy", () => {
-    expect(agentResiliencePassportSummary({})).toBe("manual recovery");
-    expect(agentResiliencePassportSummary({
-      retry_policy: { max_attempts: 3 },
-      health_policy: { doctor_agent: "guardian-doctor" },
-      self_repair: { enabled: true, max_attempts: 2, escalate_to: "lead" },
-    })).toBe("retry 3x · doctor guardian-doctor · self-repair 2x · escalate lead");
   });
 });
 

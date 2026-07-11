@@ -169,13 +169,14 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     const agentCard = page.getByRole("button", { name: /Guardian · Health[\s\S]*guardian-health/ });
     await expect(agentCard).toBeVisible();
     await agentCard.click();
-    await expect(page.getByText("Agent identity card")).toBeVisible();
-    await expect(page.getByText("Live presence").first()).toBeVisible();
-    await expect(page.getByText("Lifecycle ledger").first()).toBeVisible();
-    await expect(page.getByText("Runtime doctor ledger").first()).toBeVisible();
-    await expect(page.getByText("Operations passport")).toBeVisible();
-    await expect(page.getByText("Mailbox wake contract")).toBeVisible();
-    await page.getByRole("button", { name: /Triggers/ }).click();
+    // Declutter law: the header is a glance layer of MetricWidgets, the six
+    // grouped tabs carry everything else (no passport/ledger prose cards).
+    await expect(page.getByText("Presence").first()).toBeVisible();
+    await expect(page.getByText("Next wake").first()).toBeVisible();
+    await expect(page.getByText("Spend today").first()).toBeVisible();
+    await expect(page.getByText("How does this run?")).toBeVisible();
+    await expect(page.getByText("Operations passport")).toHaveCount(0);
+    await page.getByRole("button", { name: /Wiring/ }).click();
     await expect(page.getByText("mailbox wake subjects")).toBeVisible();
     await expect(page.getByText(/board\.dm\./).first()).toBeVisible();
     await expect(page.getByText(/board\.help\./).first()).toBeVisible();

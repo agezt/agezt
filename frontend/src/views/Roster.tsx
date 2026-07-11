@@ -178,8 +178,7 @@ export {
 export type { AgentEnableResult, AgentProfile, AgentRemoveResult, AgentRetireResult, AgentReviveResult };
 export { slugOk, usdToMc } from "./roster/shared";
 export { systemGuardianSafetyIssues } from "./roster/guardians";
-export { agentControlCenterLedger, agentModelRoutePassport, agentResiliencePassportSummary, agentWakeRoutePassport } from "./roster/passports";
-export type { AgentCommandStripItem, AgentControlCenterEntry } from "./roster/passports";
+export type { AgentCommandStripItem } from "./roster/passports";
 export { profileFields } from "./roster/form";
 
 // ROSTER_CARD_WINDOW is how many fleet cards render at once. /api/agents has no
