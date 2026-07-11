@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CCIEwYL0.js";import{E as t}from"./index-Mv3ETPq0.js";var n=e();function r({children:e}){let{advanced:r}=t();return r?(0,n.jsx)(n.Fragment,{children:e}):null}function i({children:e}){let{advanced:r}=t();return r?null:(0,n.jsx)(n.Fragment,{children:e})}export{i as n,r as t};
