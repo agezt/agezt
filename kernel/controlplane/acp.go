@@ -20,6 +20,6 @@ import (
 // the acp_agent bridge's agent selection.
 func (s *Server) handleACPAgents(ctx context.Context, conn net.Conn, req Request) {
 	active := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ACP_AGENT_CMD"))
-	inv := acpcatalog.Detect(ctx, active)
+	inv := acpcatalog.Discover(ctx, active, false)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: structToMap(inv)})
 }

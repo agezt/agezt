@@ -97,21 +97,57 @@ type AgentStatus struct {
 	Install     string `json:"install,omitempty"`
 	Docs        string `json:"docs,omitempty"`
 	Installed   bool   `json:"installed"`
-	Version     string `json:"version,omitempty"`
-	Path        string `json:"path,omitempty"`
+	Version          string `json:"version,omitempty"`
+	InstalledVersion string `json:"installed_version,omitempty"`
+	Path             string `json:"path,omitempty"`
 	// Active is true when this agent's command is the configured default
 	// (AGEZT_ACP_AGENT_CMD) — the one the acp_agent tool uses without an explicit
 	// agent argument.
 	Active bool `json:"active"`
+
+	// Registry-fed metadata.
+	Repository      string   `json:"repository,omitempty"`
+	Website         string   `json:"website,omitempty"`
+	Icon            string   `json:"icon,omitempty"`
+	License         string   `json:"license,omitempty"`
+	Authors         []string `json:"authors,omitempty"`
+	RegistryVersion string   `json:"registry_version,omitempty"`
+	Registered      bool     `json:"registered,omitempty"`
+	Compatible      bool     `json:"compatible,omitempty"`
+	Runnable        bool     `json:"runnable,omitempty"`
+	Runner          string   `json:"runner,omitempty"`
+	Archive         string   `json:"archive,omitempty"`
+	Distributions   []string `json:"distributions,omitempty"`
 }
 
 // Inventory is the full discovery snapshot.
 type Inventory struct {
 	OS             string        `json:"os"`
+	Arch           string        `json:"arch,omitempty"`
+	Platform       string        `json:"platform,omitempty"`
 	ActiveCommand  string        `json:"active_command,omitempty"`
 	Agents         []AgentStatus `json:"agents"`
 	InstalledCount int           `json:"installed_count"`
 	MissingCount   int           `json:"missing_count"`
+
+	// Registry fields — populated by DiscoverWith.
+	RegistryURL       string `json:"registry_url,omitempty"`
+	RegistryVersion   string `json:"registry_version,omitempty"`
+	RegistryFetchedAt string `json:"registry_fetched_at,omitempty"`
+	RegistryCached    bool   `json:"registry_cached,omitempty"`
+	RegistryError     string `json:"registry_error,omitempty"`
+	RegisteredCount   int    `json:"registered_count,omitempty"`
+	CompatibleCount   int    `json:"compatible_count,omitempty"`
+	RunnableCount     int    `json:"runnable_count,omitempty"`
+
+	// Clients fields — populated by FetchClients / attachClientsResult.
+	ClientsSource  string        `json:"clients_source,omitempty"`
+	ClientsRevision string       `json:"clients_revision,omitempty"`
+	ClientsFetchedAt string      `json:"clients_fetched_at,omitempty"`
+	ClientsCached    bool        `json:"clients_cached,omitempty"`
+	ClientsError     string      `json:"clients_error,omitempty"`
+	Clients         []ClientEntry `json:"clients,omitempty"`
+	ClientCount     int           `json:"client_count,omitempty"`
 }
 
 const versionTimeout = 3 * time.Second
