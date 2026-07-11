@@ -37,8 +37,8 @@ import {
   incidentMetaFromEvent,
   incidentRootId,
   validateIncidentDelegateTarget,
+  type IncidentResolutionRow,
 } from "@/lib/incidents";
-import { incidentEventSummary } from "@/lib/incidentevents";
 import { openAgent } from "@/lib/agentnav";
 import {
   summarizeAgentRuntimeStatus,
@@ -49,7 +49,7 @@ import type { AgentProfile } from "@/views/Roster";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
-import { ErrorText } from "@/components/JsonView";
+import { ErrorText, KeyValue } from "@/components/JsonView";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges, incidentPhaseBadgeClass } from "@/components/IncidentBadges";
 import { Page } from "@/components/ui/page";
@@ -60,6 +60,18 @@ import { useUI } from "@/components/ui/feedback";
 import { fmtTime } from "@/lib/utils";
 
 interface IncidentAlert extends RankedAlert {}
+
+// Tone for the operator-resolution chip: what the operator decided, as color.
+function resolutionTone(resolution: IncidentResolutionRow["resolution"]) {
+  switch (resolution) {
+    case "retired":
+      return "bad" as const;
+    case "paused":
+      return "warn" as const;
+    default:
+      return "accent" as const;
+  }
+}
 
 function IncidentModal({
   title,
@@ -614,29 +626,59 @@ export function IncidentPage({
             {focus?.detail || `incident ${incidentId}`}
           </span>
         }
-        actions={
-          <span className="font-mono text-[11px] text-muted">
-            {rootId}
-          </span>
-        }
       />
 
-      {treeOps && (
-        <div className="glass rounded-xl p-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-semibold uppercase tracking-normal text-muted">
-              repair ops
-            </span>
-            <span className={incidentPhaseBadgeClass(treeOps.tone, true)}>
+      <div className="glass rounded-xl p-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {treeOps && (
+            <span className={incidentPhaseBadgeClass(treeOps.tone, true)} title={treeOps.detail}>
               {treeOps.label}
             </span>
-            <span className="text-muted">{treeOps.detail}</span>
+          )}
+          <IncidentBadges item={focus} mono />
+          {!!focus?.ts_unix_ms && (
             <span className="ml-auto font-mono text-xs text-muted opacity-70">
-              {rootId}
+              {fmtTime(focus.ts_unix_ms)}
             </span>
-          </div>
+          )}
         </div>
-      )}
+        {/* The surface's single raw escape hatch — stored fields once, no narration. */}
+        <Disclosure
+          className="mt-1"
+          summary={<span className="text-xs text-muted">details</span>}
+        >
+          <div className="rounded-md border border-border/60 bg-panel/40 p-2 text-xs">
+            <KeyValue
+              pairs={(
+                [
+                  focus?.incident_id
+                    ? ["incident", <span key="incident" className="font-mono">{focus.incident_id}</span>]
+                    : null,
+                  ["root incident", <span key="root" className="font-mono">{rootId}</span>],
+                  focus?.parent_incident_id
+                    ? ["parent incident", <span key="parent" className="font-mono">{focus.parent_incident_id}</span>]
+                    : null,
+                  focus?.agent ? ["agent", <span key="agent" className="font-mono">{focus.agent}</span>] : null,
+                  focus?.root_agent
+                    ? ["root agent", <span key="root-agent" className="font-mono">{focus.root_agent}</span>]
+                    : null,
+                  typeof focus?.chain_depth === "number" ? ["hop", String(focus.chain_depth)] : null,
+                  focus?.phase ? ["phase", focus.phase] : null,
+                  focus?.mode ? ["mode", focus.mode] : null,
+                  focus?.correlation_id
+                    ? ["correlation", <span key="correlation" className="font-mono">{focus.correlation_id}</span>]
+                    : null,
+                  ops.routingTaskType ? ["task", ops.routingTaskType] : null,
+                  exhaustedChain
+                    ? ["chain", <span key="chain" className="font-mono">{exhaustedChain}</span>]
+                    : null,
+                  ops.routingForceGeneration ? ["generation", String(ops.routingForceGeneration)] : null,
+                ] as ([string, ReactNode] | null)[]
+              ).filter((p): p is [string, ReactNode] => p !== null)}
+            />
+          </div>
+        </Disclosure>
+      </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div className="space-y-3">
@@ -683,24 +725,16 @@ export function IncidentPage({
                     <div className="flex items-center gap-2">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <IncidentBadges item={row} mono />
+                        {row.resolution && (
+                          <span className={incidentPhaseBadgeClass(resolutionTone(row.resolution), true)}>
+                            {row.resolution}
+                          </span>
+                        )}
                       </div>
                       <span className="ml-auto font-mono text-xs text-muted opacity-70">
                         {fmtTime(row.tsMs)}
                       </span>
                     </div>
-                    <div className="mt-1 text-[11px] text-foreground/90">
-                      {incidentEventSummary({
-                        subject: row.subject,
-                        payload: row.payload,
-                      })}
-                    </div>
-                    {(row.resolutionSummary || row.delegateTo) && (
-                      <div className="mt-1 text-[11px] text-muted">
-                        {[row.resolutionSummary, row.delegateTo ? `delegate ${row.delegateTo}` : ""]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    )}
                     <div className="mt-2 flex flex-wrap gap-2">
                       {ops.rootSlug && (
                         <Button size="sm" variant="ghost" onClick={() => openAgent(ops.rootSlug!)}>
@@ -729,6 +763,37 @@ export function IncidentPage({
                           </Button>
                         )}
                     </div>
+                    {/* The row's single raw escape hatch — stored fields once, no narration. */}
+                    <Disclosure
+                      className="mt-1"
+                      summary={<span className="text-xs text-muted">details</span>}
+                    >
+                      <div className="rounded-md border border-border/60 bg-panel/40 p-2 text-xs">
+                        <KeyValue
+                          pairs={(
+                            [
+                              row.resolution ? ["resolution", <span key="resolution" className="font-mono">{row.resolution}</span>] : null,
+                              row.phase ? ["phase", row.phase] : null,
+                              row.mode ? ["mode", row.mode] : null,
+                              row.resolutionSummary ? ["summary", row.resolutionSummary] : null,
+                              row.delegateTo
+                                ? ["delegate", <span key="delegate" className="font-mono">{row.delegateTo}</span>]
+                                : null,
+                              row.routingTaskType ? ["task", row.routingTaskType] : null,
+                              (row.routingTaskModelChain?.length || 0) > 0
+                                ? [
+                                    "chain",
+                                    <span key="chain" className="font-mono">
+                                      {row.routingTaskModelChain!.join(" → ")}
+                                    </span>,
+                                  ]
+                                : null,
+                              row.routingForceGeneration ? ["generation", String(row.routingForceGeneration)] : null,
+                            ] as ([string, ReactNode] | null)[]
+                          ).filter((p): p is [string, ReactNode] => p !== null)}
+                        />
+                      </div>
+                    </Disclosure>
                   </li>
                 ))}
               </ul>
@@ -747,46 +812,39 @@ export function IncidentPage({
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-lg border border-border bg-panel/35 p-2.5 text-[11px]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => openAgent(rootProfile.slug)}
-                      className="font-mono font-semibold text-foreground hover:text-accent"
-                    >
-                      {rootProfile.slug}
-                    </button>
-                    <span className="text-muted">
-                      {rootProfile.retired
-                        ? "graveyard"
-                        : rootProfile.enabled
-                          ? "enabled"
-                          : "paused"}
-                    </span>
-                    {ops.ownerSlug && (
-                      <span className="text-muted">
-                        owner <span className="font-mono text-foreground/85">{ops.ownerSlug}</span>
-                      </span>
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-panel/35 p-2.5 text-[11px]">
+                  <button
+                    onClick={() => openAgent(rootProfile.slug)}
+                    className="font-mono font-semibold text-foreground hover:text-accent"
+                  >
+                    {rootProfile.slug}
+                  </button>
+                  <span
+                    className={incidentPhaseBadgeClass(
+                      rootProfile.retired ? "bad" : rootProfile.enabled ? "good" : "warn",
+                      true,
                     )}
-                  </div>
-                  <div className="mt-1 text-muted">
-                    {rootProfile.name && rootProfile.name !== rootProfile.slug
-                      ? rootProfile.name
-                      : "incident root agent"}
-                    {ops.configIssues.length > 0
-                      ? ` · ${ops.configIssues.length} current config issue(s)`
-                      : ""}
-                  </div>
+                  >
+                    {rootProfile.retired ? "graveyard" : rootProfile.enabled ? "enabled" : "paused"}
+                  </span>
+                  {ops.configIssues.length > 0 && (
+                    <span
+                      className={incidentPhaseBadgeClass("warn", true)}
+                      title={ops.configIssues.slice(0, 3).join("\n")}
+                    >
+                      {ops.configIssues.length} config issue{ops.configIssues.length === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
 
                 {ops.humanRequired && (
-                  <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-2.5 text-[11px]">
+                  <div
+                    className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-2.5 text-[11px]"
+                    title={ops.policySummary}
+                  >
                     <div className="flex flex-wrap items-center gap-2 font-medium text-amber-200">
                       <ShieldAlert className="size-3.5" />
                       {ops.policyLabel || "Human-required routing incident"}
-                    </div>
-                    <div className="mt-1 text-amber-100/85">
-                      {ops.policySummary ||
-                        "This incident should be handled as an ownership decision, not a routine doctor retry."}
                     </div>
                     {ops.allowedResolutions.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -917,12 +975,12 @@ export function IncidentPage({
                 </div>
 
                 {ops.humanRequired && resolutionPresets.length > 0 && (
-                  <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+                  <div
+                    className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5"
+                    title="Presets keep the mailbox thread aligned to the allowed outcomes for this exhausted routing policy."
+                  >
                     <div className="text-[11px] font-medium text-amber-100">
                       Owner resolution shortcuts
-                    </div>
-                    <div className="text-[11px] text-amber-100/80">
-                      These presets keep the mailbox thread aligned to the only allowed outcomes for this exhausted routing policy.
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {resolutionPresets.map((preset) => (
@@ -942,16 +1000,12 @@ export function IncidentPage({
                 {resolutionOpen && ops.humanRequired && !rootProfile.retired && (
                   <IncidentModal title="Resolve incident" icon={Send} onClose={() => setResolutionOpen(false)}>
                     <div className="space-y-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-medium text-amber-100">
-                            Direct incident resolution
-                          </div>
-                          <div className="mt-0.5 text-[11px] text-amber-100/70">
-                            Pick one controlled resolution path; the other controls stay out of the way.
-                          </div>
-                        </div>
-                        <div className="flex rounded-lg border border-amber-400/20 bg-black/10 p-1" aria-label="Resolution action">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div
+                          className="flex rounded-lg border border-amber-400/20 bg-black/10 p-1"
+                          aria-label="Resolution action"
+                          title="Pick one controlled resolution path; the other controls stay out of the way."
+                        >
                           <button
                             type="button"
                             onClick={() => setResolutionMode("delegate")}
@@ -976,9 +1030,6 @@ export function IncidentPage({
                       </div>
                     {resolutionMode === "delegate" && (
                     <div className="space-y-2">
-                      <div className="text-[11px] text-amber-100/80">
-                        Delegate this exhausted routing incident to a concrete owner.
-                      </div>
                       <div className="flex flex-wrap gap-2">
                         <input
                           list="incident-delegate-candidates"
@@ -1041,76 +1092,70 @@ export function IncidentPage({
                       )}
                       {selectedDelegateCandidate?.valid && (
                         <div className="space-y-1">
-                          <div className="text-[11px] text-amber-100/65">
-                            target{" "}
-                            <span className="font-mono text-amber-50/90">
-                              {selectedDelegateCandidate.slug}
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                              {selectedDelegateCandidate.enabled ? "enabled" : "paused"}
                             </span>
-                            {" · "}
-                            {selectedDelegateCandidate.enabled ? "enabled" : "paused"}
-                            {selectedDelegateCandidate.preferred ? " · incident-adjacent" : ""}
-                            {selectedDelegateCandidate.parentAgent
-                              ? ` · parent ${selectedDelegateCandidate.parentAgent}`
-                              : selectedDelegateCandidate.ownerAgent
-                                ? ` · owner ${selectedDelegateCandidate.ownerAgent}`
-                                : ""}
-                          </div>
-                          {(selectedDelegateStatus.healthText ||
-                            selectedDelegateStatus.repairKindText ||
-                            selectedDelegateStatus.repairText ||
-                            selectedDelegateStatus.routingText ||
-                            selectedDelegateEscalationSummary.openCount > 0 ||
-                            selectedDelegateEscalationSummary.ackedCount > 0) && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {selectedDelegateStatus.healthText && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
-                                  {selectedDelegateStatus.healthText}
-                                </span>
-                              )}
-                              {selectedDelegateStatus.repairKindText && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
-                                  {selectedDelegateStatus.repairKindText}
-                                </span>
-                              )}
-                              {selectedDelegateStatus.repairText && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
-                                  {selectedDelegateStatus.repairText}
-                                </span>
-                              )}
-                              {selectedDelegateStatus.routingText && (
-                                <span
-                                  className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90"
-                                  title={selectedDelegateStatus.routingDetail}
-                                >
-                                  {selectedDelegateStatus.routingText}
-                                </span>
-                              )}
-                              {selectedDelegateEscalationSummary.openCount > 0 && (
-                                <span
-                                  className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90"
-                                  title={`${selectedDelegateEscalationSummary.doctorOpenCount} doctor, ${selectedDelegateEscalationSummary.delegatedOpenCount} delegated`}
-                                >
-                                  open esc {selectedDelegateEscalationSummary.openCount}
-                                </span>
-                              )}
-                              {selectedDelegateEscalationSummary.ackedCount > 0 && (
-                                <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
-                                  acked {selectedDelegateEscalationSummary.ackedCount}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {selectedDelegateEscalationSummary.latest && (
-                            <div className="text-[11px] text-amber-100/55">
-                              latest escalation{" "}
-                              <span className="font-mono text-amber-50/80">
-                                {selectedDelegateEscalationSummary.latest.source_agent || "unknown"}
+                            {selectedDelegateCandidate.preferred && (
+                              <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                                incident-adjacent
                               </span>
-                              {selectedDelegateEscalationSummary.latest.status
-                                ? ` · ${selectedDelegateEscalationSummary.latest.status}`
-                                : ""}
-                            </div>
-                          )}
+                            )}
+                            {(selectedDelegateCandidate.parentAgent || selectedDelegateCandidate.ownerAgent) && (
+                              <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                                {selectedDelegateCandidate.parentAgent
+                                  ? `parent ${selectedDelegateCandidate.parentAgent}`
+                                  : `owner ${selectedDelegateCandidate.ownerAgent}`}
+                              </span>
+                            )}
+                            {selectedDelegateStatus.healthText && (
+                              <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                                {selectedDelegateStatus.healthText}
+                              </span>
+                            )}
+                            {selectedDelegateStatus.repairKindText && (
+                              <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                                {selectedDelegateStatus.repairKindText}
+                              </span>
+                            )}
+                            {selectedDelegateStatus.repairText && (
+                              <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                                {selectedDelegateStatus.repairText}
+                              </span>
+                            )}
+                            {selectedDelegateStatus.routingText && (
+                              <span
+                                className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90"
+                                title={selectedDelegateStatus.routingDetail}
+                              >
+                                {selectedDelegateStatus.routingText}
+                              </span>
+                            )}
+                            {selectedDelegateEscalationSummary.openCount > 0 && (
+                              <span
+                                className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90"
+                                title={[
+                                  `${selectedDelegateEscalationSummary.doctorOpenCount} doctor, ${selectedDelegateEscalationSummary.delegatedOpenCount} delegated`,
+                                  selectedDelegateEscalationSummary.latest
+                                    ? `latest ${selectedDelegateEscalationSummary.latest.source_agent || "unknown"}${
+                                        selectedDelegateEscalationSummary.latest.status
+                                          ? ` ${selectedDelegateEscalationSummary.latest.status}`
+                                          : ""
+                                      }`
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join("; ")}
+                              >
+                                open esc {selectedDelegateEscalationSummary.openCount}
+                              </span>
+                            )}
+                            {selectedDelegateEscalationSummary.ackedCount > 0 && (
+                              <span className="rounded-full border border-border/70 bg-panel/50 px-2 py-0.5 text-xs text-amber-50/90">
+                                acked {selectedDelegateEscalationSummary.ackedCount}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
                       {invalidDelegateCandidates.length > 0 && (
@@ -1125,10 +1170,6 @@ export function IncidentPage({
                     )}
                     {resolutionMode === "force" && (
                     <div className="space-y-2">
-                      <div className="text-[11px] text-amber-100/80">
-                        Force a new chain only when you have a concrete replacement. Current exhausted chain:{" "}
-                        <span className="font-mono text-amber-50/90">{exhaustedChain || "(unknown)"}</span>
-                      </div>
                       <input
                         value={forceTaskType}
                         onChange={(e) => setForceTaskType(e.target.value)}
@@ -1240,12 +1281,8 @@ export function IncidentPage({
                 {noteOpen && (
                   <IncidentModal title="Operator note" icon={Send} onClose={() => setNoteOpen(false)}>
                     <div className="space-y-2">
-                      <div className="text-[11px] text-muted">
-                        {ops.humanRequired
-                          ? "Send an in-band operator note to the current owner chain. Exhausted routing incidents should stay inside mailbox/escalation rather than drifting into ad hoc chat."
-                          : "Send a help-thread note to the current owner chain. This keeps the incident inside the mailbox/escalation path instead of becoming an out-of-band comment."}
-                      </div>
                       <textarea
+                        title="Notes ride the mailbox/escalation thread of the owner chain, not ad hoc chat."
                         value={noteText}
                         onChange={(e) => setNoteText(e.target.value)}
                         placeholder={
@@ -1313,32 +1350,6 @@ export function IncidentPage({
                     : agent.slug}
                 </button>
               ))}
-            </div>
-          </div>
-          <div className="glass rounded-xl p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted">
-              Selected node
-            </div>
-            <div className="space-y-1.5 text-[11px]">
-              <div className="text-foreground/90">{focus?.title}</div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <IncidentBadges item={focus} mono />
-              </div>
-              {focus?.detail && <div className="text-muted">{focus.detail}</div>}
-              {/* Raw identifiers are diagnostic fine print — folded until asked. */}
-              <Disclosure summary={<span className="text-[11px] font-medium text-muted">Identifiers</span>}>
-                <div className="space-y-1 text-[11px]">
-                  <div className="font-mono text-muted">
-                    incident {focus ? incidentMetaFromAutonomy(focus).incidentId || rootId : rootId}
-                  </div>
-                  {focus?.root_agent && (
-                    <div className="text-muted">root {focus.root_agent}</div>
-                  )}
-                  {typeof focus?.chain_depth === "number" && (
-                    <div className="text-muted">hop {focus.chain_depth}</div>
-                  )}
-                </div>
-              </Disclosure>
             </div>
           </div>
         </div>
