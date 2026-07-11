@@ -19,8 +19,6 @@ import {
   standingAttentionCount,
   standingFrequencyIssue,
   standingResumeIssue,
-  standingTriggerSummary,
-  standingWakeLedger,
   initiativeEnforcement,
 } from "@/views/Standing";
 import { UIProvider } from "@/components/ui/feedback";
@@ -57,52 +55,6 @@ describe("standingFrequencyIssue", () => {
     );
     expect(standingFrequencyIssue({ triggers: [{ type: "event", subject: "run.failed" }], cooldown_sec: 3600 })).toBe("");
     expect(standingFrequencyIssue({ triggers: [{ type: "cron", schedule: "0 8 * * *" }] })).toBe("");
-  });
-});
-
-describe("standing wake rule ledger", () => {
-  it("summarizes triggers as typed wake rules rather than agent identities", () => {
-    expect(standingTriggerSummary([{ type: "event", subject: "board.dm.ops" }])).toEqual({
-      value: "mailbox event board.dm.ops",
-      detail: "journal event wakes this standing rule; the rule is not an agent identity",
-      tone: "accent",
-    });
-    expect(standingTriggerSummary([{ type: "event", subject: "run.failed" }])).toMatchObject({
-      value: "event run.failed",
-      tone: "good",
-    });
-    expect(standingTriggerSummary([{ type: "cron", schedule: "0 8 * * *" }])).toMatchObject({
-      value: "cron 0 8 * * *",
-      tone: "good",
-    });
-  });
-
-  it("keeps trigger, runner, cooldown, plan, and guard in a stable order", () => {
-    const agents = new Map([["ops", { slug: "ops", enabled: true }]]);
-    expect(standingWakeLedger({
-      id: "so-mailbox",
-      agent: "ops",
-      plan: "Read mailbox.",
-      cooldown_sec: 3600,
-      triggers: [{ type: "event", subject: "board.dm.ops" }],
-    }, agents).map((item) => [item.label, item.value])).toEqual([
-      ["trigger", "mailbox event board.dm.ops"],
-      ["runner", "agent ops"],
-      ["cooldown", "1h"],
-      ["plan", "wake task set"],
-      ["guard", "armed"],
-    ]);
-    expect(standingWakeLedger({
-      id: "so-blocked",
-      agent: "worker",
-      triggers: [{ type: "event", subject: "board.dm.worker" }],
-      target_status: "blocked",
-      target_error: "standing agent worker is a managed sub-agent",
-    }, agents).at(-1)).toMatchObject({
-      label: "guard",
-      value: "target blocked",
-      tone: "bad",
-    });
   });
 });
 
@@ -330,7 +282,8 @@ describe("Standing order history (M746)", () => {
     render(withUI(<Standing />));
     await waitFor(() => expect(screen.getByText("Chatty watcher")).toBeTruthy());
     expect(screen.getByText("frequent")).toBeTruthy();
-    expect(screen.getByText("event cooldown is below the default 15m guard")).toBeTruthy();
+    // Once in the attention banner, once as the raw stored field in the details fold.
+    expect(screen.getAllByText("event cooldown is below the default 15m guard").length).toBeGreaterThan(0);
   });
 });
 
@@ -405,12 +358,11 @@ describe("Standing order agent state", () => {
     render(withUI(<Standing />));
     await waitFor(() => expect(screen.getByText("Ops mailbox")).toBeTruthy());
     expect(screen.getByText("runs as ops")).toBeTruthy();
-    expect(screen.getByLabelText("so-paused wake rule ledger")).toBeTruthy();
-    expect(screen.getByText("Wake rule ledger")).toBeTruthy();
-    expect(screen.getByText("mailbox event board.dm.ops")).toBeTruthy();
-    expect(screen.getByText("agent ops")).toBeTruthy();
-    expect(screen.getByText("target blocked")).toBeTruthy();
     expect(screen.getByText("is paused")).toBeTruthy();
+    // Raw stored fields live once, inside the card's single "details" fold.
+    expect(screen.getByText("details")).toBeTruthy();
+    expect(screen.getByText("so-paused")).toBeTruthy();
+    expect(screen.getByText(JSON.stringify([{ type: "event", subject: "board.dm.ops" }]))).toBeTruthy();
     const resume = screen.getAllByTitle("agent ops is paused")[0] as HTMLButtonElement;
     expect(resume.disabled).toBe(true);
     fireEvent.click(resume);
