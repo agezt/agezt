@@ -85,8 +85,8 @@ var combos = []combo{
 	},
 	{
 		name: "second-brain", skills: []string{"webresearch"}, category: "knowledge", featured: true,
-		desc:  "Research that remembers: persistent knowledge-graph memory plus a structured reasoning scratchpad.",
-		tags:  []string{"memory", "knowledge", "reasoning", "mcp"},
+		desc: "Research that remembers: persistent knowledge-graph memory plus a structured reasoning scratchpad.",
+		tags: []string{"memory", "knowledge", "reasoning", "mcp"},
 		mcp: []mcp.Server{
 			{Name: "memory", Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-memory"}, Description: "Persistent knowledge-graph memory", Lazy: true},
 			{Name: "thinking", Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-sequential-thinking"}, Description: "Step-by-step reasoning scratchpad", Lazy: true},
@@ -94,9 +94,9 @@ var combos = []combo{
 	},
 	{
 		name: "browser-automation-pro", skills: []string{"browseruse"}, category: "web", featured: true,
-		desc:  "Drive a real browser: navigate, click, fill forms and screenshot via the official Playwright MCP.",
-		tags:  []string{"browser", "automation", "playwright", "mcp"},
-		mcp:   []mcp.Server{{Name: "playwright", Command: "npx", Args: []string{"-y", "@playwright/mcp@latest"}, Description: "Browser automation via Playwright", Lazy: true}},
+		desc: "Drive a real browser: navigate, click, fill forms and screenshot via the official Playwright MCP.",
+		tags: []string{"browser", "automation", "playwright", "mcp"},
+		mcp:  []mcp.Server{{Name: "playwright", Command: "npx", Args: []string{"-y", "@playwright/mcp@latest"}, Description: "Browser automation via Playwright", Lazy: true}},
 	},
 	{
 		name: "deep-search", skills: []string{"webresearch"}, category: "web",
@@ -114,9 +114,9 @@ var combos = []combo{
 	},
 	{
 		name: "personal-organizer", skills: []string{"emailtools", "calendartools"}, category: "comms",
-		desc:  "Inbox and calendar in one pack, with timezone-aware scheduling via the time MCP.",
-		tags:  []string{"email", "calendar", "assistant"},
-		mcp:   []mcp.Server{{Name: "time", Command: "uvx", Args: []string{"mcp-server-time"}, Description: "Current time and timezone conversions", Lazy: true}},
+		desc: "Inbox and calendar in one pack, with timezone-aware scheduling via the time MCP.",
+		tags: []string{"email", "calendar", "assistant"},
+		mcp:  []mcp.Server{{Name: "time", Command: "uvx", Args: []string{"mcp-server-time"}, Description: "Current time and timezone conversions", Lazy: true}},
 	},
 	{
 		name: "container-ops", skills: []string{"dockerservices"}, category: "dev",

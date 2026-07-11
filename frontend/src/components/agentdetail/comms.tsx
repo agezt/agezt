@@ -37,48 +37,6 @@ export function mailboxSubjectBinding(
   );
 }
 
-export function agentMailboxWakeContract(
-  slug: string,
-  orders: ApiOrder[],
-  profile: Pick<AgentProfile, "enabled" | "retired" | "kind" | "managed" | "direct_callable" | "parent_agent" | "owner_agent">,
-  access?: Pick<AgentWakeAccess, "channel_allowed" | "manager" | "reason">,
-): { value: string; detail: string; tone: "good" | "warn" | "bad" | "muted" } {
-  const subjects = agentMailboxSubjects(slug);
-  const rows = subjects.map((subject) => ({
-    ...subject,
-    binding: mailboxSubjectBinding(orders, subject.subject),
-  }));
-  const armed = rows.filter((row) => row.binding?.enabled).map((row) => row.label);
-  const paused = rows.filter((row) => row.binding && !row.binding.enabled).map((row) => row.label);
-  const idle = rows.filter((row) => !row.binding).map((row) => row.label);
-  const armIssue = mailboxWakeArmIssue(profile, access);
-  const value = armIssue
-    ? "mailbox blocked"
-    : armed.length > 0
-      ? `mailbox armed · ${armed.join(", ")}`
-      : paused.length > 0
-        ? `mailbox paused · ${paused.join(", ")}`
-        : "mailbox manual";
-  const detail = [
-    armed.length > 0 ? `armed ${armed.join(", ")}` : "",
-    paused.length > 0 ? `paused ${paused.join(", ")}` : "",
-    idle.length > 0 ? `idle ${idle.join(", ")}` : "",
-    armIssue ? `blocked: ${armIssue}` : "channel wake allowed",
-  ].filter(Boolean).join(" · ");
-  return {
-    value,
-    detail,
-    tone: armIssue
-      ? profile.retired || profile.enabled === false
-        ? "bad"
-        : "warn"
-      : armed.length > 0
-        ? "good"
-        : paused.length > 0
-          ? "warn"
-          : "muted",
-  };
-}
 
 export function mailboxWakeArmIssue(
   profile: Pick<AgentProfile, "enabled" | "retired" | "kind" | "managed" | "direct_callable" | "parent_agent" | "owner_agent">,
@@ -212,39 +170,6 @@ export function agentInboxPrioritySummary(
   };
 }
 
-export function agentMailboxPassport(
-  slug: string,
-  messages: BoardMessage[] = [],
-  orders: ApiOrder[] = [],
-): { value: string; detail: string; tone: "good" | "warn" | "muted" } {
-  const waiting = waitingForAgent(messages, slug);
-  const involved = agentBoardMessages(messages, slug);
-  const s = slug.trim().toLowerCase();
-  const sent = involved.filter((m) => (m.from || "").trim().toLowerCase() === s).length;
-  const received = involved.filter((m) => {
-    const to = (m.to || "").trim().toLowerCase();
-    const from = (m.from || "").trim().toLowerCase();
-    return to === s || (m.to === "*" && from !== s);
-  }).length;
-  const subjects = agentMailboxSubjects(slug);
-  const armed = subjects.filter((row) => mailboxSubjectBinding(orders, row.subject)).map((row) => row.label);
-  return {
-    value: waiting.length > 0
-      ? `inbox ${waiting.length} waiting`
-      : armed.length > 0
-        ? `armed ${armed.join(", ")}`
-        : involved.length > 0
-          ? "inbox clear"
-          : "no mailbox traffic",
-    detail: [
-      `${waiting.length} waiting`,
-      `${received} received`,
-      `${sent} sent`,
-      armed.length > 0 ? `wake subjects armed: ${armed.join(", ")}` : "no mailbox wake subjects armed",
-    ].join(" · "),
-    tone: waiting.length > 0 ? "warn" : armed.length > 0 ? "good" : "muted",
-  };
-}
 
 // CommsCausalityLineage renders the delegated/doctor comms causality lineage for
 // one escalation message: the wake run this agent's run that the message caused
