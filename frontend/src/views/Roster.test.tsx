@@ -15,7 +15,7 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
-import { Roster, NewAgentForm, profileFields, slugOk, usdToMc, agentHue, initials, sortAgentRoster, agentIdentityKind, agentNeedsRepair, agentNeedsAttention, filterAgentRoster, agentEnableToast, agentRemoveToast, agentRetireToast, agentReviveToast, agentNoisePolicySummary, agentNoiseBudgetPassport, agentSchedulePressurePassport, systemGuardianSafetySummary, systemGuardianNoiseContract, systemGuardianRiskSummary, noisySystemGuardians, guardianQuietPolicyPayload, guardianQuietingSummary, agentLifecycleSummary, agentLifecycleDispositionPassport, agentGraveyardSummary, agentGraveyardStats, agentGraveyardCleanupPassport, agentTaskContractSummary, agentTaskProgressSummary, agentHierarchySummary, agentHierarchyTreePassport, agentDelegationPassport, agentIdentityDossier, agentIdentityCardSummary, agentRosterIdentityManifest, agentIdentityLedger, agentCommandStrip, agentCapabilityPassportSummary, agentResourcePassportSummary, agentConfigPassportSummary, agentRepairGovernancePassport, agentRepairOperationsPassport, agentModelPassportSummary, agentSkillPassportSummary, agentLifecycleRail, agentLifeSummary, agentLivePresencePassport, rosterWaitingMailboxCounts, rosterMailboxPassport, agentRemovalCascadePreset, agentRemovalCustodySummary, agentRemovalDeathCertificate, agentRemovalDecisionSummary, agentRemovalImpactSummary, agentRemovalLifecycleSummary, agentRemovalLedger, agentRemovalPlan, rosterWakeIssue, rosterRepairIssue, agentHealthIssueSummary, formatWakeDue } from "@/views/Roster";
+import { Roster, NewAgentForm, profileFields, slugOk, usdToMc, agentHue, initials, sortAgentRoster, agentIdentityKind, agentNeedsRepair, agentNeedsAttention, filterAgentRoster, agentEnableToast, agentRemoveToast, agentRetireToast, agentReviveToast, agentNoisePolicySummary, agentNoiseBudgetPassport, agentSchedulePressurePassport, systemGuardianSafetySummary, systemGuardianNoiseContract, systemGuardianRiskSummary, noisySystemGuardians, guardianQuietPolicyPayload, guardianQuietingSummary, agentLifecycleSummary, agentGraveyardStats, agentGraveyardCleanupPassport, agentTaskContractSummary, agentTaskProgressSummary, agentHierarchySummary, rosterWaitingMailboxCounts, agentRemovalCascadePreset, agentRemovalDecisionSummary, agentRemovalImpactSummary, agentRemovalPlan, rosterWakeIssue, rosterRepairIssue, agentHealthIssueSummary, formatWakeDue } from "@/views/Roster";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;
@@ -493,40 +493,8 @@ describe("agentLifecycleSummary", () => {
   });
 });
 
-describe("agentLifecycleDispositionPassport", () => {
-  it("states whether an identity is alive, cyclic, one-shot, or in the graveyard", () => {
-    expect(agentLifecycleDispositionPassport({})).toEqual({
-      value: "persistent · alive",
-      detail: "this identity stays available across runs until an operator, doctor, or lifecycle rule retires it",
-      tone: "good",
-    });
-    expect(agentLifecycleDispositionPassport({ lifecycle: { mode: "cycle", completed_cycles: 2, max_cycles: 5 } })).toEqual({
-      value: "cycle · 2/5",
-      detail: "this identity wakes repeatedly and retires when the configured cycle count is reached",
-      tone: "good",
-    });
-    expect(agentLifecycleDispositionPassport({ lifecycle: { mode: "retire_on_complete", retire_on_complete: true } })).toEqual({
-      value: "one-shot · retires on completion",
-      detail: "this identity is expected to finish its assigned total task contract, then move to the graveyard",
-      tone: "warn",
-    });
-    const retired = agentLifecycleDispositionPassport({
-      retired: true,
-      retired_ms: Date.UTC(2026, 0, 2, 3, 4, 5),
-      retired_reason: "mission complete",
-    });
-    expect(retired.value).toBe("graveyard · revive/remove");
-    expect(retired.detail).toContain("soul, logs, memory, skills, config, and workspace remain inspectable");
-    expect(retired.detail).toContain("reason: mission complete");
-    expect(retired.tone).toBe("muted");
-  });
-});
-
-describe("agentGraveyardSummary", () => {
-  it("shows graveyard state only for retired identities", () => {
-    expect(agentGraveyardSummary({ retired: false })).toBe("");
-    expect(agentGraveyardSummary({ retired: true })).toBe("graveyard");
-    expect(agentGraveyardSummary({ retired: true, retired_ms: Date.UTC(2026, 0, 2, 3, 4, 5) })).toContain("graveyard since");
+describe("agentGraveyardStats", () => {
+  it("summarizes graveyard composition and cleanup posture", () => {
     const stats = agentGraveyardStats([
       { id: "1", slug: "old-custom", retired: true, retired_ms: 200, retired_reason: "superseded" },
       { id: "2", slug: "system-old", retired: true, retired_ms: 100, system: true },
@@ -545,7 +513,7 @@ describe("agentGraveyardSummary", () => {
       { retired: false },
     ])).toEqual({
       label: "1 removable",
-      detail: "2 retired · 1 can be removed · 1 system protected · 1 without reason",
+      detail: "2 retired \u00b7 1 can be removed \u00b7 1 system protected \u00b7 1 without reason",
       tone: "warn",
     });
     expect(agentGraveyardCleanupPassport([])).toEqual({
@@ -591,285 +559,6 @@ describe("agentTaskContractSummary", () => {
   });
 });
 
-describe("agentLifecycleRail", () => {
-  it("maps roster state into a stable sleep/wake/work/repair strip", () => {
-    const running = agentLifecycleRail(
-      {
-        enabled: true,
-        self_repair: { enabled: true },
-        tasklist: [{ title: "sync", scope: "cycle", status: "todo" }],
-      },
-      {
-        activeRunCount: 1,
-        activePhase: "using tool",
-        liveDetail: "models.dev/api.json",
-        nextWakeMs: Date.UTC(2026, 0, 1, 13, 0, 0),
-        repairTone: "muted",
-        repairInflight: 0,
-      },
-      "",
-      Date.UTC(2026, 0, 1, 12, 0, 0),
-    );
-    expect(running.map((s) => s.label)).toEqual(["Sleep", "Wake", "Work", "Repair"]);
-    expect(running.map((s) => s.value)).toEqual(["awake", "in 1h 0m", "using tool", "self-ready"]);
-    expect(running.map((s) => s.tone)).toEqual(["accent", "accent", "accent", "good"]);
-
-    const blocked = agentLifecycleRail(
-      { enabled: true, retired: true, health_policy: { doctor_agent: "guardian-doctor" } },
-      { activeRunCount: 0, repairTone: "muted", repairInflight: 0 },
-      "revive this agent before waking it",
-    );
-    expect(blocked.map((s) => s.value)).toEqual(["graveyard", "blocked", "idle", "doctor"]);
-    expect(blocked[1].tone).toBe("warn");
-
-    const retrying = agentLifecycleRail(
-      { enabled: true, self_repair: { enabled: true } },
-      {
-        activeRunCount: 0,
-        repairTone: "muted",
-        repairInflight: 0,
-        retryText: "retry 2",
-        retryDetail: "attempt 3/4 · provider timeout",
-      },
-    );
-    expect(retrying[3]).toMatchObject({
-      id: "repair",
-      value: "retry 2",
-      detail: "attempt 3/4 · provider timeout",
-      tone: "bad",
-    });
-  });
-});
-
-describe("agentLifeSummary", () => {
-  it("summarizes sleep, wake route, and current work pressure", () => {
-    expect(agentLifeSummary(
-      { enabled: true, tasklist: [{ title: "sync", scope: "cycle", status: "todo" }] },
-      { activeRunCount: 0, operationalText: "sleeping", nextWakeMs: Date.UTC(2026, 0, 1, 13, 0, 0) },
-      "",
-      0,
-      Date.UTC(2026, 0, 1, 12, 0, 0),
-    )).toBe("sleeping · next in 1h 0m · 1 task queued");
-    expect(agentLifeSummary(
-      { enabled: true, kind: "subagent", parent_agent: "lead", tasklist: [] },
-      { activeRunCount: 0, operationalText: "sleeping" },
-      "managed sub-agent; wake lead instead",
-      2,
-    )).toBe("sleeping · manager wake: lead · 2 mailbox waiting");
-    expect(agentLifeSummary(
-      { enabled: true, tasklist: [] },
-      { activeRunCount: 1, activePhase: "using tool", activeContextDetail: "source: schedule" },
-    )).toBe("awake · using tool · manual wake · source: schedule");
-  });
-});
-
-describe("agentLivePresencePassport", () => {
-  it("turns runtime status into an always-visible live presence", () => {
-    const now = Date.UTC(2026, 0, 1, 12, 0, 0);
-    expect(agentLivePresencePassport(
-      { enabled: true },
-      {
-        activeRunCount: 1,
-        activePhase: "using tool",
-        liveDetail: "using tool · source: schedule · model: gpt-5",
-        activeStartedMs: now - 10 * 60_000,
-        activeLastEventMs: now - 2 * 60_000,
-      },
-      0,
-      now,
-    )).toEqual({
-      value: "awake · using tool",
-      detail: "using tool · source: schedule · model: gpt-5 · running for 10m · last event 2m ago",
-      tone: "good",
-    });
-    expect(agentLivePresencePassport(
-      { enabled: true },
-      { activeRunCount: 0, operationalText: "sleeping", nextWakeMs: now + 60 * 60_000, wakeDetail: "1 schedule" },
-      0,
-      now,
-    )).toEqual({
-      value: "sleeping · wakes in 1h 0m",
-      detail: "1 schedule",
-      tone: "good",
-    });
-    expect(agentLivePresencePassport(
-      { enabled: true },
-      { activeRunCount: 0, operationalText: "sleeping", wakeText: "wake 1" },
-      3,
-      now,
-    )).toEqual({
-      value: "sleeping · inbox 3",
-      detail: "3 mailbox messages waiting · wake 1",
-      tone: "warn",
-    });
-    expect(agentLivePresencePassport(
-      { enabled: false },
-      { activeRunCount: 0, operationalState: "paused", operationalText: "paused" },
-      1,
-      now,
-    )).toEqual({
-      value: "paused",
-      detail: "paused · 1 inbox waiting",
-      tone: "warn",
-    });
-    expect(agentLivePresencePassport(
-      { enabled: true, retired: true },
-      { activeRunCount: 0, lastActivitySummary: "completed final task" },
-      0,
-      now,
-    )).toEqual({
-      value: "graveyard",
-      detail: "retired · last completed final task",
-      tone: "muted",
-    });
-  });
-});
-
-describe("agentIdentityCardSummary", () => {
-  it("collapses identity, delegation, lifecycle, mailbox, and runtime into a card header", () => {
-    expect(agentIdentityCardSummary(
-      {
-        kind: "subagent",
-        parent_agent: "lead",
-        direct_callable: false,
-        enabled: true,
-        lifecycle: { mode: "cycle", completed_cycles: 1, max_cycles: 3 },
-        tasklist: [{ title: "scan", scope: "cycle", status: "doing" }],
-      },
-      {
-        activeRunCount: 1,
-        activePhase: "using tool",
-        liveDetail: "models.dev/api.json",
-      },
-      "",
-      2,
-      Date.now(),
-      "limited · shell · L3",
-    )).toEqual({
-      label: "subagent · running",
-      detail: "models.dev/api.json · manager-only wake · lead · limited · shell · L3 · 2 inbox waiting · 1 cycle / 0 total / 1 doing",
-      tone: "accent",
-    });
-    expect(agentIdentityCardSummary({ retired: true, system: true }, {}, "", 0)).toEqual({
-      label: "system · graveyard",
-      detail: "graveyard · will not wake until revived · revive/remove · no tasks",
-      tone: "muted",
-    });
-    expect(agentIdentityCardSummary(
-      { enabled: true, tasklist: [] },
-      { operationalText: "sleeping", nextWakeMs: Date.UTC(2026, 0, 1, 13, 0, 0) },
-      "",
-      1,
-      Date.UTC(2026, 0, 1, 12, 0, 0),
-      "open high-impact · L4",
-    )).toEqual({
-      label: "custom · sleeping",
-      detail: "persistent · alive · next in 1h 0m · open high-impact · L4 · 1 inbox waiting · no tasks",
-      tone: "warn",
-    });
-    expect(agentIdentityCardSummary(
-      { enabled: false, tool_allow: ["shell"], tasklist: [] } as any,
-      { operationalText: "paused", operationalState: "paused" },
-      "resume this agent before waking it",
-      0,
-      Date.now(),
-      "high-impact allow · shell · L4",
-    )).toEqual({
-      label: "custom · paused",
-      detail: "paused · paused · wake blocked · high-impact allow · shell · L4 · no tasks",
-      tone: "warn",
-    });
-  });
-});
-
-describe("agentRosterIdentityManifest", () => {
-  it("keeps identity-card manifest fields stable across class, owner, wake, soul, contract, and authority", () => {
-    const manifest = agentRosterIdentityManifest(
-      {
-        slug: "researcher",
-        name: "Researcher",
-        soul: "Investigate and report.",
-        enabled: true,
-        kind: "subagent",
-        parent_agent: "lead",
-        direct_callable: false,
-        lifecycle: { mode: "cycle", completed_cycles: 2, max_cycles: 5 },
-        tasklist: [
-          { title: "scan", scope: "cycle", status: "doing" },
-          { title: "report", scope: "total", status: "todo" },
-        ],
-        tool_allow: ["memory", "shell"],
-        trust_ceiling: "L2",
-      },
-      { nextWakeMs: Date.UTC(2026, 0, 1, 13, 0, 0), wakeDetail: "schedule wake" },
-      "",
-      1,
-      2,
-      "high-impact allow · shell · L2",
-      Date.UTC(2026, 0, 1, 12, 0, 0),
-    );
-
-    expect(manifest.map((entry) => entry.label)).toEqual(["class", "owner", "wake", "soul", "contract", "authority"]);
-    expect(manifest.map((entry) => entry.value)).toEqual([
-      "subagent · sleeping",
-      "managed by lead",
-      "in 1h 0m",
-      "soul set",
-      "cycle · 2/5",
-      "high-impact allow · shell · L2",
-    ]);
-    expect(manifest.find((entry) => entry.label === "wake")?.detail).toBe("schedule wake · 1 mailbox waiting");
-    expect(manifest.find((entry) => entry.label === "authority")?.detail).toBe("high-impact allow · shell · L2 · 2 private skills");
-  });
-});
-
-describe("agentCommandStrip", () => {
-  it("keeps wake, mailbox, schedule, authority, resources, and repair visible in one stable strip", () => {
-    const items = agentCommandStrip(
-      {
-        slug: "researcher",
-        enabled: true,
-        kind: "subagent",
-        parent_agent: "lead",
-        direct_callable: false,
-        memory_scope: "researcher",
-        workdir: "agents/researcher",
-        tool_allow: ["memory", "shell"],
-        tool_deny: ["notify"],
-        trust_ceiling: "L2",
-        model: "@research-chain",
-        task_type: "research",
-        retry_policy: { max_attempts: 3 },
-        health_policy: { doctor_agent: "guardian-doctor" },
-        self_repair: { enabled: true, max_attempts: 2 },
-      },
-      {
-        activeRunCount: 0,
-        wakeText: "scheduled sync",
-        wakeDetail: "source: schedule",
-        nextWakeMs: Date.UTC(2026, 0, 1, 13, 0, 0),
-      },
-      { value: "inbox 2 waiting", detail: "2 waiting messages · wake subjects armed: DM", tone: "warn" },
-      { detail: "schedule pressure: 1/2 frequent · fastest 5m", tone: "warn" },
-      "high-impact allow · shell · L2",
-      { detail: "memory researcher · workdir agents/researcher · allow 2 · deny 1", tone: "good" },
-      "managed sub-agent; wake lead instead",
-      Date.UTC(2026, 0, 1, 12, 0, 0),
-    );
-    expect(items.map((item) => item.label)).toEqual(["wake", "mailbox", "schedule", "route", "authority", "resources", "repair"]);
-    expect(items.map((item) => item.value)).toEqual([
-      "in 1h 0m",
-      "inbox 2 waiting",
-      "schedule pressure: 1/2 frequent · fastest 5m",
-      "chain @research-chain",
-      "high-impact allow · shell · L2",
-      "memory researcher · workdir agents/researcher · allow 2 · deny 1",
-      "retry 3x · doctor guardian-doctor · self-repair 2x",
-    ]);
-    expect(items.map((item) => item.tone)).toEqual(["warn", "warn", "warn", "good", "good", "good", "good"]);
-  });
-});
-
 describe("rosterWaitingMailboxCounts", () => {
   it("counts direct and broadcast unanswered mailbox messages per agent", () => {
     expect(rosterWaitingMailboxCounts([
@@ -885,37 +574,6 @@ describe("rosterWaitingMailboxCounts", () => {
   });
 });
 
-describe("rosterMailboxPassport", () => {
-  it("combines inbox backlog with armed mailbox wake subjects", () => {
-    expect(rosterMailboxPassport("researcher", 2, [
-      { enabled: true, triggers: [{ type: "event", subject: "board.dm.researcher" }] },
-      { enabled: false, triggers: [{ type: "event", subject: "board.help.researcher" }] },
-      { enabled: true, triggers: [{ type: "event", subject: "board.broadcast" }] },
-    ])).toEqual({
-      value: "inbox 2 waiting",
-      detail: "2 waiting messages · wake subjects armed: DM, Broadcast",
-      tone: "warn",
-    });
-    expect(rosterMailboxPassport("ops", 0, [
-      { enabled: true, triggers: [{ type: "event", subject: "board.help.ops" }] },
-    ])).toEqual({
-      value: "mailbox armed · Help",
-      detail: "0 waiting messages · wake subjects armed: Help",
-      tone: "good",
-    });
-    expect(rosterMailboxPassport("idle", 0, [])).toEqual({
-      value: "mailbox manual",
-      detail: "0 waiting messages · no mailbox wake subjects armed",
-      tone: "muted",
-    });
-    expect(rosterMailboxPassport("idle", 2, [])).toEqual({
-      value: "inbox 2 waiting",
-      detail: "2 waiting messages · no mailbox wake subjects armed; manual wake required",
-      tone: "warn",
-    });
-  });
-});
-
 describe("agentHierarchySummary", () => {
   it("separates directly callable agents from managed sub-agents", () => {
     expect(agentHierarchySummary({})).toBe("direct");
@@ -923,256 +581,6 @@ describe("agentHierarchySummary", () => {
     expect(agentHierarchySummary({ parent_agent: "lead", direct_callable: false })).toBe("managed by lead");
     expect(agentHierarchySummary({ kind: "subagent", parent_agent: "lead" })).toBe("managed by lead");
     expect(agentHierarchySummary({ managed: true, owner_agent: "owner" })).toBe("managed by owner");
-  });
-});
-
-describe("agentHierarchyTreePassport", () => {
-  it("summarizes parent ownership and active dependent counts", () => {
-    const profiles = [
-      { slug: "lead" },
-      { slug: "worker", parent_agent: "lead" },
-      { slug: "scout", owner_agent: "lead" },
-      { slug: "old", parent_agent: "lead", retired: true },
-    ];
-    expect(agentHierarchyTreePassport({ slug: "lead" }, profiles)).toEqual({
-      value: "leader · 2 dependents",
-      detail: "root callable · 2 dependents · children: worker, scout · 1 retired",
-      tone: "good",
-    });
-    expect(agentHierarchyTreePassport({ slug: "worker", parent_agent: "lead", direct_callable: false }, profiles)).toEqual({
-      value: "managed by lead",
-      detail: "parent/owner lead · no dependents · no active children",
-      tone: "warn",
-    });
-    expect(agentHierarchyTreePassport({ slug: "orphan", kind: "subagent" }, profiles)).toEqual({
-      value: "managed · no manager",
-      detail: "manager missing · no dependents · no active children",
-      tone: "bad",
-    });
-    expect(agentHierarchyTreePassport({ slug: "solo" }, profiles)).toEqual({
-      value: "direct · no dependents",
-      detail: "root callable · no dependents · no active children",
-      tone: "muted",
-    });
-  });
-});
-
-describe("agentDelegationPassport", () => {
-  it("summarizes who may wake an agent and blocks managed sub-agent direct paths", () => {
-    expect(agentDelegationPassport({}).detail).toBe("operator/schedule/channel wake");
-    expect(agentDelegationPassport({ parent_agent: "lead" })).toEqual({
-      detail: "operator/schedule/channel wake · parent lead",
-      tone: "good",
-    });
-    expect(agentDelegationPassport({ parent_agent: "lead", direct_callable: false })).toEqual({
-      detail: "manager-only wake · lead",
-      tone: "warn",
-    });
-    expect(agentDelegationPassport({ kind: "subagent" })).toEqual({
-      detail: "manager-only wake · no manager",
-      tone: "bad",
-    });
-    expect(agentDelegationPassport({ enabled: false })).toEqual({
-      detail: "paused · wake blocked",
-      tone: "bad",
-    });
-    expect(agentDelegationPassport({ retired: true, parent_agent: "lead", direct_callable: false })).toEqual({
-      detail: "graveyard · wake blocked",
-      tone: "muted",
-    });
-  });
-});
-
-describe("agentIdentityDossier", () => {
-  it("combines identity class, command chain, lifecycle, and durable task contract", () => {
-    expect(agentIdentityDossier({
-      kind: "subagent",
-      parent_agent: "lead",
-      lifecycle: { mode: "cycle", completed_cycles: 1, max_cycles: 3 },
-      tasklist: [{ title: "scan", scope: "cycle", status: "todo" }],
-    })).toBe("subagent identity · managed by lead · cycle agent · repeats on each wake · 1/3 cycles · retires at max cycles · 1 cycle / 0 total tasks");
-    expect(agentIdentityDossier({ retired: true, system: true })).toBe(
-      "system identity · direct · graveyard · will not wake until revived",
-    );
-  });
-});
-
-describe("agentCapabilityPassportSummary", () => {
-  it("summarizes open, capped, allowlisted, and denied tool posture", () => {
-    expect(agentCapabilityPassportSummary({})).toBe("open high-impact · L4");
-    expect(agentCapabilityPassportSummary({ trust_ceiling: "L2" })).toBe("trust-gated high-impact · L2");
-    expect(agentCapabilityPassportSummary({ system: true, tool_deny: ["memory"], trust_ceiling: "L4" })).toBe("system-governed · notify gated · L4");
-    expect(agentCapabilityPassportSummary({ tool_allow: ["memory", "shell"], trust_ceiling: "L3" })).toBe("high-impact allow · shell · L3");
-    expect(agentCapabilityPassportSummary({ tool_deny: ["notify"] })).toBe("broad minus · notify · L4");
-    expect(agentCapabilityPassportSummary({ tool_allow: ["memory"], tool_deny: ["shell", "notify"], trust_ceiling: "L2" })).toBe("limited · 1 allow · 2 denies · L2");
-  });
-});
-
-describe("agentResourcePassportSummary", () => {
-  it("summarizes workspace, memory, data lake, and config ownership for roster cards", () => {
-    expect(agentResourcePassportSummary({
-      slug: "ops",
-      workdir: "agents/ops",
-      memory_scope: "private",
-      tool_allow: ["db", "memory"],
-      config_overrides: { AGEZT_MAX_ITER: "4" },
-    })).toEqual({
-      detail: "workspace agents/ops · memory private · data lake via db · 1 cfg",
-      tone: "good",
-    });
-    expect(agentResourcePassportSummary({ slug: "ops", tool_allow: ["memory"], tool_deny: ["db"] })).toEqual({
-      detail: "shared workspace · memory ops · data lake blocked · default config",
-      tone: "warn",
-    });
-    expect(agentResourcePassportSummary({ slug: "ops", tool_allow: ["memory"] })).toEqual({
-      detail: "shared workspace · memory ops · data lake not allowlisted · default config",
-      tone: "warn",
-    });
-  });
-});
-
-describe("agentConfigPassportSummary", () => {
-  it("summarizes agent-local config and quiet memory policy", () => {
-    expect(agentConfigPassportSummary({})).toBe("default config");
-    expect(agentConfigPassportSummary({ config_overrides: { AGEZT_PROVIDER: "openai" } })).toBe("1 cfg");
-    expect(agentConfigPassportSummary({ config_overrides: { AGEZT_PROVIDER: "openai" } }, 1)).toBe("1 cfg · !1");
-    expect(agentConfigPassportSummary({
-      noise_policy: { silent_on_success: true, disable_memory_writes: true, min_notify_severity: "warning" },
-    })).toBe("default config · quiet policy · memory off");
-  });
-});
-
-describe("agentModelPassportSummary", () => {
-  it("summarizes primary model, task type, fallback chain, and @chain routing", () => {
-    expect(agentModelPassportSummary({})).toBe("daemon default model · no fallback");
-    expect(agentModelPassportSummary({ model: "gpt-5", task_type: "research", fallbacks: ["gpt-4.1"] })).toBe(
-      "model gpt-5 · task research · 1 fallback",
-    );
-    expect(agentModelPassportSummary({ model: "@code-chain", fallbacks: ["ignored"] })).toBe("chain @code-chain · chain-owned fallback");
-  });
-});
-
-describe("agentSkillPassportSummary", () => {
-  it("summarizes private skill ownership for agent identity cards", () => {
-    expect(agentSkillPassportSummary(0)).toBe("no private skills");
-    expect(agentSkillPassportSummary(1)).toBe("1 private skill");
-    expect(agentSkillPassportSummary(3)).toBe("3 private skills");
-  });
-});
-
-describe("agentIdentityLedger", () => {
-  it("keeps the roster card identity passport in a stable order", () => {
-    const ledger = agentIdentityLedger({
-      slug: "researcher",
-      name: "Research Agent",
-      soul: "Investigate changes and report only actionable findings.",
-      kind: "subagent",
-      parent_agent: "lead",
-      direct_callable: false,
-      enabled: true,
-      model: "@research-chain",
-      task_type: "research",
-      memory_scope: "researcher",
-      workdir: "agents/researcher",
-      tool_allow: ["memory", "shell"],
-      tool_deny: ["notify"],
-      trust_ceiling: "L2",
-      config_overrides: { AGEZT_MODE: "quiet" },
-      lifecycle: { mode: "cycle", completed_cycles: 1, max_cycles: 3 },
-      tasklist: [{ title: "scan", scope: "cycle", status: "doing" }],
-    }, 2);
-    expect(ledger.map((entry) => entry.label)).toEqual(["identity", "soul", "model", "memory", "authority", "lifecycle"]);
-    expect(ledger.map((entry) => entry.value)).toEqual([
-      "subagent · alive",
-      "soul set",
-      "chain @research-chain · task research · chain-owned fallback",
-      "memory researcher",
-      "high-impact allow · shell · L2",
-      "cycle · 1/3",
-    ]);
-    expect(ledger.find((entry) => entry.label === "authority")?.detail).toContain("2 private skills");
-  });
-
-  it("flags missing souls as a roster-card identity gap", () => {
-    const ledger = agentIdentityLedger({ slug: "ops", enabled: true });
-    expect(ledger.find((entry) => entry.label === "soul")).toMatchObject({
-      value: "soul missing",
-      tone: "warn",
-    });
-  });
-});
-
-describe("agentRepairGovernancePassport", () => {
-  it("adds retry, doctor, and self-repair detail for roster governance", () => {
-    expect(agentRepairGovernancePassport({})).toEqual({
-      value: "manual recovery",
-      detail: "single attempt · no doctor · self-repair off",
-      tone: "warn",
-    });
-    expect(agentRepairGovernancePassport({
-      retry_policy: { max_attempts: 3, backoff: "exponential", retry_on: ["error", "timeout"] },
-      health_policy: { doctor_agent: "guardian-doctor", failure_threshold: 5 },
-      self_repair: { enabled: true, max_attempts: 2, escalate_to: "lead" },
-    })).toEqual({
-      value: "retry 3x · doctor guardian-doctor · self-repair 2x · escalate lead",
-      detail: "run retry 3x exponential on error, timeout · doctor guardian-doctor after 5 failures · self-repair 2x then lead",
-      tone: "good",
-    });
-  });
-});
-
-describe("agentRepairOperationsPassport", () => {
-  it("prioritizes live repair state over the static repair policy", () => {
-    expect(agentRepairOperationsPassport({ retired: true }, {})).toEqual({
-      value: "graveyard",
-      detail: "repair blocked until the agent is revived",
-      tone: "muted",
-    });
-    expect(agentRepairOperationsPassport({}, {})).toEqual({
-      value: "manual repair",
-      detail: "no retry, doctor, or self-repair policy configured",
-      tone: "warn",
-    });
-    expect(agentRepairOperationsPassport({
-      retry_policy: { max_attempts: 3 },
-      health_policy: { doctor_agent: "guardian-doctor" },
-      self_repair: { enabled: true, max_attempts: 2 },
-    }, {})).toEqual({
-      value: "repair guarded",
-      detail: "run retry 3x · doctor guardian-doctor · self-repair 2x",
-      tone: "good",
-    });
-    expect(agentRepairOperationsPassport({
-      self_repair: { enabled: true },
-    }, {
-      repairInflight: 1,
-      repairText: "doctor 1",
-      repairKindText: "doctor",
-      repairDetail: "attempt 1/2",
-    })).toEqual({
-      value: "doctor 1",
-      detail: "doctor · attempt 1/2",
-      tone: "accent",
-    });
-    expect(agentRepairOperationsPassport({}, {
-      repairText: "repair exhausted",
-      repairTone: "bad",
-      repairKindText: "repair",
-      repairDetail: "attempt 2/2",
-      repairIncidentDetail: "root lead · incident abc123",
-    })).toEqual({
-      value: "repair exhausted",
-      detail: "repair · attempt 2/2 · root lead · incident abc123",
-      tone: "bad",
-    });
-    expect(agentRepairOperationsPassport({}, {
-      retryText: "retry 2",
-      retryDetail: "attempt 2/3 · timeout",
-    })).toEqual({
-      value: "retry 2",
-      detail: "attempt 2/3 · timeout",
-      tone: "bad",
-    });
   });
 });
 
@@ -1248,139 +656,6 @@ describe("agentRemovalPlan", () => {
       detail: "delete identity · clean 10 groups · keep 1 private memory, 1 authored shared memory, 1 mailbox/audit messages, 1 sub-agent private memory, 1 sub-agent authored shared memory, 1 sub-agent mailbox/audit messages",
       tone: "warn",
     });
-    expect(agentRemovalLifecycleSummary({
-      standing: [],
-      schedules: [],
-      memories: [],
-      authoredMemories: [],
-      skills: [],
-      configs: [],
-      mailboxMessages: ["dm received"],
-      subagents: ["ops-worker"],
-      subagentStanding: [],
-      subagentSchedules: [],
-      subagentMemories: [],
-      subagentAuthoredMemories: [],
-      subagentSkills: [],
-      subagentConfigs: [],
-      subagentMailboxMessages: ["ops-worker: dm received"],
-      cascade: { standing: false, schedules: false, memory: false, authored_memory: false, skills: false, config: false, workspace: false, subagents: true },
-    })).toEqual({
-      label: "identity death plan",
-      detail: "profile deleted · 1 dependent sub-agent retired, not deleted · 2 mailbox/audit records retained",
-      tone: "warn",
-    });
-    expect(agentRemovalLifecycleSummary({
-      standing: [],
-      schedules: [],
-      memories: [],
-      authoredMemories: [],
-      skills: [],
-      configs: [],
-      subagents: ["ops-worker", "ops-helper"],
-      subagentStanding: [],
-      subagentSchedules: [],
-      subagentMemories: [],
-      subagentAuthoredMemories: [],
-      subagentSkills: [],
-      subagentConfigs: [],
-      cascade: { standing: false, schedules: false, memory: false, authored_memory: false, skills: false, config: false, workspace: false, subagents: false },
-    })).toEqual({
-      label: "orphan guard",
-      detail: "2 dependent sub-agents would lose their owner; removal is blocked until they are retired with the parent",
-      tone: "bad",
-    });
-    expect(agentRemovalCustodySummary(planInput)).toEqual({
-      deletedGroups: 10,
-      retainedGroups: 4,
-      hardRetainedGroups: 2,
-      subagentsRetired: 1,
-      label: "custody split",
-      detail: "10 cleanup groups · 4 operator-retained groups · 2 audit/workflow groups retained by design · 1 sub-agent retired",
-      tone: "warn",
-    });
-    expect(agentRemovalCustodySummary({ ...planInput, cascade: { ...planInput.cascade, subagents: false } })).toMatchObject({
-      label: "custody blocked",
-      tone: "bad",
-    });
-    expect(agentRemovalDeathCertificate(planInput)).toEqual({
-      label: "retire dependent tree",
-      detail: "profile deleted; soul, settings, lifecycle removed · 1 retired to graveyard · 10 cleanup groups · 4 owned retained · 2 mailbox/audit records retained · ready",
-      tone: "warn",
-      fields: {
-        identity: "profile deleted; soul, settings, lifecycle removed",
-        dependents: "1 retired to graveyard",
-        cleanup: "10 cleanup groups",
-        retained: "4 owned retained",
-        audit: "2 mailbox/audit records retained",
-        guard: "ready",
-      },
-    });
-    expect(agentRemovalDeathCertificate({ ...planInput, cascade: { ...planInput.cascade, subagents: false } })).toMatchObject({
-      label: "death blocked",
-      tone: "bad",
-      fields: {
-        dependents: "1 would be orphaned",
-        guard: "blocked by dependent sub-agents",
-      },
-    });
-    expect(agentRemovalLedger({
-      standing: ["check logs"],
-      schedules: ["refresh"],
-      memories: ["note"],
-      authoredMemories: ["shared note"],
-      skills: ["skill"],
-      configs: ["agent/ops/runtime"],
-      workspaces: ["agents/ops"],
-      mailboxMessages: ["dm received"],
-      subagents: ["ops-worker"],
-      subagentStanding: ["ops-worker: watch"],
-      subagentSchedules: [],
-      subagentMemories: ["ops-worker: note"],
-      subagentAuthoredMemories: [],
-      subagentSkills: [],
-      subagentConfigs: ["ops-worker: config"],
-      subagentWorkspaces: ["agents/ops-worker"],
-      subagentMailboxMessages: ["ops-worker: dm received"],
-      cascade: { standing: true, schedules: false, memory: true, authored_memory: false, skills: true, config: true, workspace: true, subagents: true },
-    })).toEqual([
-      {
-        label: "identity",
-        value: "delete profile",
-        detail: "soul, settings, lifecycle, and direct identity record are removed",
-        tone: "bad",
-      },
-      {
-        label: "sub-agents",
-        value: "1 retire",
-        detail: "dependent identities are retired to the graveyard, not deleted",
-        tone: "warn",
-      },
-      {
-        label: "owned cleanup",
-        value: "11 groups",
-        detail: "1 standing, 1 private memory, 1 skill, 1 config, shared config access refs, 1 workspace, 1 sub-agent, 1 sub-agent standing, 1 sub-agent private memory, 1 sub-agent config, 1 sub-agent workspace",
-        tone: "good",
-      },
-      {
-        label: "retained owned",
-        value: "2 groups",
-        detail: "1 schedule, 1 authored shared memory",
-        tone: "warn",
-      },
-      {
-        label: "audit trail",
-        value: "2 retained",
-        detail: "mailbox/audit records are retained for inspection",
-        tone: "muted",
-      },
-      {
-        label: "guard",
-        value: "ready",
-        detail: "hard removal can proceed with the selected cascade",
-        tone: "good",
-      },
-    ]);
     expect(agentRemovalImpactSummary({ cleanupPlan: [], keepPlan: ["1 schedule"], blockedBySubagents: true })).toBe(
       "no cleanup selected · 1 retained group · blocked by dependent sub-agent tree",
     );
@@ -1785,17 +1060,9 @@ describe("NewAgentForm", () => {
 });
 
 describe("Roster", () => {
-  it("renders profiles from /api/agents with state, model, and budget", async () => {
+  it("renders profiles from /api/agents with pills, a details disclosure, and no prose surfaces", async () => {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/skills") return Promise.resolve({ skills: [{ id: "sk-1", name: "Web Scan", agent: "researcher" }] });
-      if (path === "/api/standing") {
-        return Promise.resolve({
-          orders: [
-            { id: "stand-dm", enabled: true, agent: "researcher", triggers: [{ type: "event", subject: "board.dm.researcher" }] },
-            { id: "stand-broadcast", enabled: true, agent: "researcher", triggers: [{ type: "event", subject: "board.broadcast" }] },
-          ],
-        });
-      }
       if (path === "/api/board") {
         return Promise.resolve({
           messages: [
@@ -1820,7 +1087,7 @@ describe("Roster", () => {
             id: "01A", slug: "researcher", name: "The Researcher", enabled: true,
             model: "m-1", task_type: "research", max_cost_mc: 500_000_000,
             soul: "You dig deep.", fallbacks: ["m2"], parent_agent: "lead", direct_callable: false,
-            kind: "subagent", managed: true,
+            kind: "subagent", managed: true, memory_scope: "researcher",
             retry_policy: { max_attempts: 3 },
             health_policy: { doctor_agent: "guardian-doctor" },
             self_repair: { enabled: true },
@@ -1860,97 +1127,81 @@ describe("Roster", () => {
       });
     });
     render(withUI(<Roster />));
-    await waitFor(() => expect(screen.getByText("researcher")).toBeTruthy());
+    // "researcher" appears as the card slug and as the raw memory-scope value
+    // inside the details disclosure.
+    await waitFor(() => expect(screen.getAllByText("researcher").length).toBeGreaterThan(0));
     expect(screen.getByText("ops")).toBeTruthy();
+    expect(screen.getByText("The Researcher")).toBeTruthy();
+    expect(screen.getByText("enabled")).toBeTruthy();
     // "paused" appears both as the ops badge and the summary-band stat label.
     expect(screen.getAllByText("paused").length).toBeGreaterThan(0);
-    expect(screen.getByText("m-1")).toBeTruthy();
-    expect(screen.getByText("$0.5000")).toBeTruthy();
-    expect(screen.getByText("lead")).toBeTruthy();
-    expect(screen.getAllByText("Identity").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Authority").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Operations").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("researcher identity card passports")).toBeTruthy();
-    expect(screen.getByLabelText("ops identity card passports")).toBeTruthy();
-    expect(screen.getByLabelText("researcher identity manifest")).toBeTruthy();
-    expect(screen.getByLabelText("ops identity manifest")).toBeTruthy();
-    expect(screen.getByLabelText("researcher identity ledger")).toBeTruthy();
-    expect(screen.getByLabelText("ops identity ledger")).toBeTruthy();
-    expect(screen.getAllByText("soul set").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("memory researcher").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("researcher command strip")).toBeTruthy();
-    expect(screen.getByLabelText("ops command strip")).toBeTruthy();
-    expect(screen.getAllByLabelText("Agent lifecycle rail").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("high-impact allow · shell · L2").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/memory off/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/1 cfg/).length).toBeGreaterThan(0);
+
+    // Glance pills on the card header.
+    expect(screen.getByText("managed sub-agent")).toBeTruthy();
+    expect(screen.getByText("custom")).toBeTruthy();
+    expect(screen.getByText("1 skill")).toBeTruthy();
+    expect(screen.getByText("quiet policy")).toBeTruthy();
+    expect(screen.getByText("quiet policy").getAttribute("title")).toBe(
+      "silent on success \u00b7 no memory writes \u00b7 notify >= warning \u00b7 cooldown 28800s",
+    );
+    expect(screen.getByText("self-repair")).toBeTruthy();
+    expect(screen.getByText("ceiling L2")).toBeTruthy();
+    expect(screen.getByText("cfg/links !2")).toBeTruthy();
+    expect(screen.getByText("repair 1")).toBeTruthy();
+    expect(screen.getByText("wake 1")).toBeTruthy();
+    expect(screen.getByText("cfg 1")).toBeTruthy();
+    expect(screen.getByText("cycle 2/5")).toBeTruthy();
+    expect(screen.getAllByText("inbox 1").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("sleeping").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("You dig deep.")).toBeTruthy();
-    expect(screen.getByLabelText("researcher command strip")).toBeTruthy();
-    expect(screen.getByLabelText("ops command strip")).toBeTruthy();
-    expect(screen.getAllByText("Identity").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("subagent · sleeping").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("class").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("owner").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("contract").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("managed by lead").length).toBeGreaterThan(0);
-    expect(screen.getByText("subagent identity · managed by lead · cycle agent · repeats on each wake · 2/5 cycles · retires at max cycles · 1 cycle / 1 total tasks · 1 blocked")).toBeTruthy();
-    expect(screen.getByText("sleeping · manager wake: lead · 1 mailbox waiting")).toBeTruthy();
-    expect(screen.getByText("paused · wake blocked · 1 mailbox waiting")).toBeTruthy();
-    // The roster summary band + filter segments expose the inbox/attention indicators
-    // (capitalized labels in the redesign's MetricWidget + segment row).
+
+    // The prose identity surfaces are gone.
+    expect(screen.queryByLabelText(/identity manifest/)).toBeNull();
+    expect(screen.queryByLabelText(/identity ledger/)).toBeNull();
+    expect(screen.queryByLabelText(/identity card passports/)).toBeNull();
+    expect(screen.queryByLabelText(/lifecycle rail/i)).toBeNull();
+    expect(screen.queryByLabelText(/command strip/)).toBeNull();
+    expect(screen.queryByText("Now")).toBeNull();
+    expect(screen.queryByText(/subagent identity \u00b7 managed by lead/)).toBeNull();
+
+    // One "details" disclosure per card holding the raw facts. Disclosure
+    // children stay mounted while collapsed, so plain getByText finds them.
+    expect(screen.getAllByText("details").length).toBe(2);
+    expect(screen.getByText("model")).toBeTruthy();
+    expect(screen.getByText("m-1")).toBeTruthy();
+    expect(screen.getByText("fallbacks")).toBeTruthy();
+    expect(screen.getByText("m2")).toBeTruthy();
+    expect(screen.getByText("task type")).toBeTruthy();
+    expect(screen.getByText("research")).toBeTruthy();
+    expect(screen.getByText("per-run cap")).toBeTruthy();
+    expect(screen.getByText("$0.5000")).toBeTruthy();
+    expect(screen.getByText("parent")).toBeTruthy();
+    expect(screen.getByText("lead")).toBeTruthy();
+    expect(screen.getByText("memory scope")).toBeTruthy();
+    expect(screen.getAllByText("researcher").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("tools")).toBeTruthy();
+    expect(screen.getByText("2 allow \u00b7 1 deny")).toBeTruthy();
+    expect(screen.getByText("config overrides")).toBeTruthy();
+    expect(screen.getByText("trust ceiling")).toBeTruthy();
+    expect(screen.getByText("L2")).toBeTruthy();
+
+    // Summary band + filter tabs still expose inbox/attention rollups; counts
+    // depend on async board + schedule data.
     expect(screen.getAllByText("Inbox").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Attention").length).toBeGreaterThan(0);
-    // The roster filter segments are now Radix tabs (role="tab"); their counts depend
-    // on async board + schedule data.
     expect(await screen.findByRole("tab", { name: /Attention2/ })).toBeTruthy();
     expect(await screen.findByRole("tab", { name: /Inbox2/ })).toBeTruthy();
-    expect(screen.getAllByText("inbox 1").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("custom · paused").length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(screen.getByRole("tab", { name: /Attention2/ }));
-    expect(screen.getByText("researcher")).toBeTruthy();
-    expect(screen.getByText("ops")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Inbox2/ }));
-    expect(screen.getByText("researcher")).toBeTruthy();
-    expect(screen.getByText("ops")).toBeTruthy();
-    expect(screen.getAllByText("wake").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("high-impact allow · shell · L2").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("authority").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("model").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("model m-1 · task research · 1 fallback").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("skills").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1 private skill").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("noise").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("silent on success · no memory writes · notify >= warning · cooldown 28800s · 1 schedule").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("schedule").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("schedule pressure: 1/1 frequent · fastest 5m").length).toBeGreaterThan(0);
+
+    // The repair-incident pill still deep-links to the root incident.
+    fireEvent.click(screen.getByRole("button", { name: "incident" }));
+    expect(location.hash).toBe("#incident/inc-root-1");
+
+    // Pause-frequent-schedules stays wired from the card footer.
     fireEvent.click(screen.getByLabelText("Pause frequent schedules for researcher"));
     fireEvent.click(await screen.findByRole("button", { name: "Pause schedules" }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/schedule/enable", { id: "sched-fast", enabled: "false" }),
     );
-    expect(screen.getAllByText("config").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1 cfg · quiet policy · memory off").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("resilience").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("retry 3x · doctor guardian-doctor · self-repair").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("wake / health").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("cfg/links !2").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("in 10m").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("managed by lead").length).toBeGreaterThan(0);
-    expect(screen.getByText("custom")).toBeTruthy();
-    expect(screen.getByText("managed sub-agent")).toBeTruthy();
-    expect(screen.getByText("retry: 3x")).toBeTruthy();
-    expect(screen.getByText("guardian-doctor")).toBeTruthy();
-    expect(screen.getByText("self-repair")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "incident" }));
-    expect(location.hash).toBe("#incident/inc-root-1");
-    expect(screen.getByText("quiet policy")).toBeTruthy();
-    expect(screen.getAllByText(/silent on success · no memory writes · notify >= warning · cooldown 28800s/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("cycle 2/5").length).toBeGreaterThan(0);
-    expect(screen.getByText("ceiling L2")).toBeTruthy();
-    expect(screen.getByText(/allow: memory, shell/)).toBeTruthy();
-    expect(screen.getByText(/deny: notify/)).toBeTruthy();
-    expect(screen.getByText(/cfg: AGEZT_X_MODE/)).toBeTruthy();
-    expect(screen.getByText("You dig deep.")).toBeTruthy();
     expect(getJSON).toHaveBeenCalledWith("/api/agents", undefined, expect.objectContaining({ timeoutMs: expect.any(Number) }));
   });
 
@@ -2081,12 +1332,14 @@ describe("Roster", () => {
     render(withUI(<Roster />));
 
     await waitFor(() => expect(screen.getByText("runner")).toBeTruthy());
-    expect(screen.getByText("custom · running")).toBeTruthy();
-    expect(screen.getByText("Now")).toBeTruthy();
-    expect(screen.getAllByText("using tool").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/sync catalog/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/models.dev\/api.json/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/source: schedule/).length).toBeGreaterThan(0);
+    // The live pill carries the run context (phase, intent, wake source) in
+    // its title now that the prose Now band is gone.
+    const live = screen.getByText("running 1");
+    expect(live.getAttribute("title")).toContain("using tool");
+    expect(live.getAttribute("title")).toContain("sync catalog");
+    expect(live.getAttribute("title")).toContain("models.dev/api.json");
+    expect(live.getAttribute("title")).toContain("source: schedule");
+    expect(screen.queryByText("Now")).toBeNull();
   });
 
   it("keeps system agents retireable but hides hard remove", async () => {
@@ -2122,7 +1375,7 @@ describe("Roster", () => {
     expect(screen.getByText("Guardian noise")).toBeTruthy();
     expect(screen.getByText("1 active guardian · memory off · notify >= warning · cooldown >=8h")).toBeTruthy();
     expect(screen.getByText("system safety")).toBeTruthy();
-    expect(screen.getByText("quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2")).toBeTruthy();
+    expect(screen.getByText("system safety").getAttribute("title")).toBe("quiet, memory off, notify >= warning, cooldown >=8h, capped, trust <= L2");
   });
 
   it("can quiet noisy system guardians in bulk from the roster", async () => {
@@ -2400,26 +1653,6 @@ describe("Roster", () => {
     expect(screen.getAllByText("ops-worker: dm received (msg-2)").length).toBeGreaterThan(0);
     expect(screen.getByText("remove with retained resources")).toBeTruthy();
     expect(screen.getByText("delete identity · clean 12 groups · keep 1 authored shared memory, 1 workflow reference, 1 mailbox/audit messages, 1 sub-agent authored shared memory, 1 sub-agent workflow reference, 1 sub-agent mailbox/audit messages")).toBeTruthy();
-    expect(screen.getByText("identity death plan")).toBeTruthy();
-    expect(screen.getByText("profile deleted · 1 dependent sub-agent retired, not deleted · 2 mailbox/audit records retained")).toBeTruthy();
-    expect(screen.getByText("custody split")).toBeTruthy();
-    expect(screen.getByText("12 cleanup groups · 2 operator-retained groups · 4 audit/workflow groups retained by design · 1 sub-agent retired")).toBeTruthy();
-    expect(screen.getByText("12 delete groups")).toBeTruthy();
-    expect(screen.getByText("2 operator retained")).toBeTruthy();
-    expect(screen.getByText("4 audit/workflow retained")).toBeTruthy();
-    expect(screen.getByText("1 sub-agent retire")).toBeTruthy();
-    expect(screen.getByLabelText("ops death certificate")).toBeTruthy();
-    expect(screen.getByText("Death certificate")).toBeTruthy();
-    expect(screen.getByText("retire dependent tree")).toBeTruthy();
-    expect(screen.getAllByText("profile deleted; soul, settings, lifecycle removed").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("1 retired to graveyard").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/2 workflow refs retained/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("ready").length).toBeGreaterThan(0);
-    expect(screen.getByText("Removal ledger")).toBeTruthy();
-    expect(screen.getByText("delete profile")).toBeTruthy();
-    expect(screen.getByText("1 retire")).toBeTruthy();
-    expect(screen.getByText("mailbox/audit records are retained for inspection")).toBeTruthy();
-    expect(screen.getByText("hard removal can proceed with the selected cascade")).toBeTruthy();
     expect(screen.getByText("12 cleanup groups · 6 retained groups")).toBeTruthy();
     expect(screen.getByText(/Remove plan: delete identity; clean 1 standing, 1 schedule, 1 private memory, 1 skill, 1 config, shared config access refs, 1 sub-agent, 1 sub-agent standing, 1 sub-agent schedule, 1 sub-agent private memory, 1 sub-agent skill, 1 sub-agent config; keep 1 authored shared memory, 1 workflow reference, 1 mailbox\/audit messages, 1 sub-agent authored shared memory, 1 sub-agent workflow reference, 1 sub-agent mailbox\/audit messages/)).toBeTruthy();
     expect(screen.getByLabelText(/Standing orders/).closest("label")?.textContent).toContain("2");
@@ -2431,13 +1664,7 @@ describe("Roster", () => {
     fireEvent.click(screen.getByLabelText(/Dependent sub-agent tree/));
     expect(screen.getByLabelText(/Private memory/).closest("label")?.textContent).toContain("1");
     expect(screen.getByText("removal blocked")).toBeTruthy();
-    expect(screen.getByText("orphan guard")).toBeTruthy();
-    expect(screen.getByText("1 dependent sub-agent would lose their owner; removal is blocked until they are retired with the parent")).toBeTruthy();
     expect(screen.getByText("dependent sub-agent tree would be orphaned; include it so every descendant retires before this identity is deleted")).toBeTruthy();
-    expect(screen.getByText("death blocked")).toBeTruthy();
-    expect(screen.getAllByText("1 would be orphaned").length).toBeGreaterThan(0);
-    expect(screen.getByText("blocked by dependent sub-agents")).toBeTruthy();
-    expect(screen.getByText("select dependent sub-agent tree before hard removal")).toBeTruthy();
     expect(screen.getByText("6 cleanup groups · 11 retained groups · blocked by dependent sub-agent tree")).toBeTruthy();
     expect(screen.getByText(/Dependent sub-agent tree must be retired with this removal/)).toBeTruthy();
     expect((screen.getAllByRole("button", { name: "Remove" }).at(-1)! as HTMLButtonElement).disabled).toBe(true);
@@ -2462,8 +1689,10 @@ describe("Roster", () => {
       enabled_count: 0,
     });
     render(withUI(<Roster />));
-    await waitFor(() => expect(screen.getByText(/graveyard since/)).toBeTruthy());
-    await waitFor(() => expect(screen.getByText("reason: replaced by guardian")).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText("ops").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("graveyard").length).toBeGreaterThan(0);
+    expect(screen.getByText("retired reason")).toBeTruthy();
+    expect(screen.getAllByText("replaced by guardian").length).toBeGreaterThan(0);
   });
 
   it("surfaces a graveyard operations band for retired identities", async () => {
@@ -2503,7 +1732,7 @@ describe("Roster", () => {
     expect(screen.getByText("Cleanup")).toBeTruthy();
     expect(screen.getByText("1 removable")).toBeTruthy();
     expect(screen.getByText("2 retired · 1 can be removed · 1 system protected · 1 without reason")).toBeTruthy();
-    expect(screen.getByText("replaced by guardian")).toBeTruthy();
+    expect(screen.getAllByText("replaced by guardian").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Remove from graveyard guardian-old" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Revive from graveyard old-ops" }));

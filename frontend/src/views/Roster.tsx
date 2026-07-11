@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, ListTree, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
@@ -14,10 +14,10 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { ErrorText } from "@/components/JsonView";
+import { ErrorText, KeyValue } from "@/components/JsonView";
+import { Disclosure } from "@/components/ui/disclosure";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
-import { type ApiOrder } from "@/lib/fleet";
 import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
 import { useEvents } from "@/lib/events";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/lib/agentlive";
@@ -49,45 +49,21 @@ import {
   systemGuardianSafetySummary,
 } from "./roster/guardians";
 import {
-  agentCapabilityPassportSummary,
-  agentCommandStrip,
-  agentConfigPassportSummary,
-  agentDelegationPassport,
   agentGraveyardCleanupPassport,
   agentGraveyardStats,
-  agentGraveyardSummary,
   agentHealthIssueSummary,
   agentHierarchySummary,
-  agentHierarchyTreePassport,
-  agentIdentityCardSummary,
-  agentIdentityDossier,
-  agentIdentityLedger,
-  agentLifecycleDispositionPassport,
-  agentLifecycleRail,
   agentLifecycleSummary,
-  agentLifeSummary,
-  agentLivePresencePassport,
-  agentModelPassportSummary,
-  agentRepairGovernancePassport,
-  agentRepairOperationsPassport,
-  agentResourcePassportSummary,
-  agentRosterIdentityManifest,
-  agentSkillPassportSummary,
   agentTaskContractSummary,
   agentTaskProgressSummary,
-  rosterMailboxPassport,
   rosterRepairIssue,
   rosterWaitingMailboxCounts,
   rosterWakeIssue,
 } from "./roster/passports";
 import {
   agentRemovalCascadePreset,
-  agentRemovalCustodySummary,
-  agentRemovalDeathCertificate,
   agentRemovalDecisionSummary,
   agentRemovalImpactSummary,
-  agentRemovalLedger,
-  agentRemovalLifecycleSummary,
   agentRemovalPlan,
   type AgentRemovalPlanInput,
 } from "./roster/removal";
@@ -97,11 +73,6 @@ import {
   CascadeOption,
   IdentityPill,
   ImpactList,
-  RosterCommandStrip,
-  RosterLifecycleRail,
-  RosterNowBand,
-  RosterPassportCell,
-  RosterPassportSection,
   RosterSignalPanel,
 } from "./roster/cards";
 
@@ -134,43 +105,19 @@ export {
   systemGuardianNoiseContract,
   systemGuardianRiskSummary,
   systemGuardianSafetySummary,
-  agentCapabilityPassportSummary,
-  agentCommandStrip,
-  agentConfigPassportSummary,
-  agentDelegationPassport,
   agentGraveyardCleanupPassport,
   agentGraveyardStats,
-  agentGraveyardSummary,
   agentHealthIssueSummary,
   agentHierarchySummary,
-  agentHierarchyTreePassport,
-  agentIdentityCardSummary,
-  agentIdentityDossier,
-  agentIdentityLedger,
-  agentLifecycleDispositionPassport,
-  agentLifecycleRail,
   agentLifecycleSummary,
-  agentLifeSummary,
-  agentLivePresencePassport,
-  agentModelPassportSummary,
-  agentRepairGovernancePassport,
-  agentRepairOperationsPassport,
-  agentResourcePassportSummary,
-  agentRosterIdentityManifest,
-  agentSkillPassportSummary,
   agentTaskContractSummary,
   agentTaskProgressSummary,
-  rosterMailboxPassport,
   rosterRepairIssue,
   rosterWaitingMailboxCounts,
   rosterWakeIssue,
   agentRemovalCascadePreset,
-  agentRemovalCustodySummary,
-  agentRemovalDeathCertificate,
   agentRemovalDecisionSummary,
   agentRemovalImpactSummary,
-  agentRemovalLedger,
-  agentRemovalLifecycleSummary,
   agentRemovalPlan,
   EditAgentForm,
   NewAgentForm,
@@ -178,7 +125,6 @@ export {
 export type { AgentEnableResult, AgentProfile, AgentRemoveResult, AgentRetireResult, AgentReviveResult };
 export { slugOk, usdToMc } from "./roster/shared";
 export { systemGuardianSafetyIssues } from "./roster/guardians";
-export type { AgentCommandStripItem } from "./roster/passports";
 export { profileFields } from "./roster/form";
 
 // ROSTER_CARD_WINDOW is how many fleet cards render at once. /api/agents has no
@@ -262,7 +208,6 @@ export function Roster() {
   // sharing/reassigning (M942) or exporting (`agt skill export --all --agent`).
   const [skillCounts, setSkillCounts] = useState<Record<string, number>>({});
   const [mailboxCounts, setMailboxCounts] = useState<Record<string, number>>({});
-  const [standingOrders, setStandingOrders] = useState<ApiOrder[]>([]);
   const [schedulePressure, setSchedulePressure] = useState<Record<string, ReturnType<typeof agentSchedulePressurePassport>>>({});
   const [livePatches, setLivePatches] = useState<AgentLivePatchMap>({});
   // Keep the interval handle so a refresh-on-event nudge can coexist with the
@@ -293,12 +238,11 @@ export function Roster() {
     const timeoutMs = 5000;
     setLoading(true);
     try {
-      const [d, sk, bd, sch, st] = await Promise.all([
+      const [d, sk, bd, sch] = await Promise.all([
         getJSON<{ profiles?: AgentProfile[] }>("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
         getJSON<{ skills?: { agent?: string }[] }>("/api/skills", undefined, { signal: ac.signal }).catch(() => ({ skills: [] })),
         getJSON<{ messages?: RosterBoardMessage[] }>("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
         getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules", undefined, { signal: ac.signal }).catch(() => ({ schedules: [] })),
-        getJSON<{ orders?: ApiOrder[] }>("/api/standing", undefined, { signal: ac.signal }).catch(() => ({ orders: [] })),
       ]);
       // If the user navigated or another reload fired, drop this tick's data.
       if (reloadAbortRef.current !== ac) return;
@@ -310,7 +254,6 @@ export function Roster() {
       }
       setSkillCounts(counts);
       setMailboxCounts(rosterWaitingMailboxCounts(bd?.messages || [], nextProfiles.map((p) => p.slug)));
-      setStandingOrders(st?.orders || []);
       setSchedulePressure(Object.fromEntries(nextProfiles.map((p) => [p.slug, agentSchedulePressurePassport(p, sch?.schedules || [])])));
       setErr(null);
     } catch (e) {
@@ -655,10 +598,6 @@ export function Roster() {
   const guardianQuieting = guardianQuietingSummary(list, schedulePressure);
   const removalPlan = removing ? agentRemovalPlan(removing) : null;
   const removalDecision = removalPlan ? agentRemovalDecisionSummary(removalPlan) : null;
-  const removalLifecycle = removing ? agentRemovalLifecycleSummary(removing) : null;
-  const removalCustody = removing ? agentRemovalCustodySummary(removing) : null;
-  const removalDeathCertificate = removing ? agentRemovalDeathCertificate(removing) : null;
-  const removalLedger = removing ? agentRemovalLedger(removing) : [];
   const removalIncludesSubagents = !!removing?.cascade.subagents;
   const removalToggleItems = removing
     ? {
@@ -839,9 +778,11 @@ export function Roster() {
                     >
                       {p.slug}
                     </button>
-                    <div className="mt-0.5 truncate text-[11px] text-muted">
-                      {p.retired_reason?.trim() || agentGraveyardSummary(p)}
-                    </div>
+                    {p.retired_reason?.trim() && (
+                      <div className="mt-0.5 truncate text-[11px] text-muted" title={p.retired_reason.trim()}>
+                        {p.retired_reason.trim()}
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-muted">
                       {agentIdentityKind(p)}{p.retired_ms ? ` · ${fmtDateTime(p.retired_ms)}` : ""}
                     </div>
@@ -987,160 +928,6 @@ export function Roster() {
                   <div className="mt-0.5 text-muted">{removalDecision.detail}</div>
                 </div>
               )}
-              {removalLifecycle && (
-                <div
-                  className={cn(
-                    "mt-2 rounded-lg border px-2 py-1.5 text-xs",
-                    removalLifecycle.tone === "bad"
-                      ? "border-bad/40 bg-bad/10"
-                      : removalLifecycle.tone === "warn"
-                        ? "border-warn/40 bg-warn/10"
-                        : removalLifecycle.tone === "good"
-                          ? "border-good/35 bg-good/5"
-                          : "border-border bg-card/55",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "font-medium",
-                      removalLifecycle.tone === "bad"
-                        ? "text-bad"
-                        : removalLifecycle.tone === "warn"
-                          ? "text-warn"
-                          : removalLifecycle.tone === "good"
-                            ? "text-good"
-                            : "text-muted",
-                    )}
-                  >
-                    {removalLifecycle.label}
-                  </div>
-                  <div className="mt-0.5 text-muted">{removalLifecycle.detail}</div>
-                </div>
-              )}
-              {removalCustody && (
-                <div
-                  className={cn(
-                    "mt-2 rounded-lg border px-2 py-1.5 text-xs",
-                    removalCustody.tone === "bad"
-                      ? "border-bad/40 bg-bad/10"
-                      : removalCustody.tone === "warn"
-                        ? "border-warn/40 bg-warn/10"
-                        : removalCustody.tone === "good"
-                          ? "border-good/35 bg-good/5"
-                          : "border-border bg-card/55",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "font-medium",
-                      removalCustody.tone === "bad"
-                        ? "text-bad"
-                        : removalCustody.tone === "warn"
-                          ? "text-warn"
-                          : removalCustody.tone === "good"
-                            ? "text-good"
-                            : "text-muted",
-                    )}
-                  >
-                    {removalCustody.label}
-                  </div>
-                  <div className="mt-0.5 text-muted">{removalCustody.detail}</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Badge variant={removalCustody.deletedGroups > 0 ? "good" : "default"}>
-                      {removalCustody.deletedGroups} delete group{removalCustody.deletedGroups === 1 ? "" : "s"}
-                    </Badge>
-                    <Badge variant={removalCustody.retainedGroups > 0 ? "warn" : "default"}>
-                      {removalCustody.retainedGroups} operator retained
-                    </Badge>
-                    <Badge variant="default">
-                      {removalCustody.hardRetainedGroups} audit/workflow retained
-                    </Badge>
-                    <Badge variant={removalCustody.subagentsRetired > 0 ? "warn" : "default"}>
-                      {removalCustody.subagentsRetired} sub-agent retire{removalCustody.subagentsRetired === 1 ? "" : "s"}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-              {removalDeathCertificate && (
-                <div
-                  aria-label={`${removing.slug} death certificate`}
-                  className={cn(
-                    "mt-2 rounded-lg border px-2 py-1.5 text-xs",
-                    removalDeathCertificate.tone === "bad"
-                      ? "border-bad/40 bg-bad/10"
-                      : removalDeathCertificate.tone === "warn"
-                        ? "border-warn/40 bg-warn/10"
-                        : removalDeathCertificate.tone === "good"
-                          ? "border-good/35 bg-good/5"
-                          : "border-border bg-card/55",
-                  )}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-xs font-semibold uppercase tracking-normal text-muted">Death certificate</div>
-                    <div
-                      className={cn(
-                        "font-medium",
-                        removalDeathCertificate.tone === "bad"
-                          ? "text-bad"
-                          : removalDeathCertificate.tone === "warn"
-                            ? "text-warn"
-                            : removalDeathCertificate.tone === "good"
-                              ? "text-good"
-                              : "text-muted",
-                      )}
-                    >
-                      {removalDeathCertificate.label}
-                    </div>
-                  </div>
-                  <div className="mt-1 text-muted">{removalDeathCertificate.detail}</div>
-                  <div className="mt-2 grid gap-1.5 md:grid-cols-3">
-                    {Object.entries(removalDeathCertificate.fields).map(([label, value]) => (
-                      <div key={label} className="min-w-0 rounded-md border border-border bg-panel/35 px-2 py-1">
-                        <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">{label}</div>
-                        <div className="mt-0.5 truncate text-[11px] text-foreground" title={value}>
-                          {value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="mt-3 rounded-lg border border-border bg-card/45 p-2">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-muted">Removal ledger</div>
-                <div className="grid gap-1.5 md:grid-cols-3">
-                  {removalLedger.map((entry) => (
-                    <div
-                      key={entry.label}
-                      className={cn(
-                        "min-w-0 rounded-md border px-2 py-1.5 text-[11px]",
-                        entry.tone === "bad"
-                          ? "border-bad/35 bg-bad/5"
-                          : entry.tone === "warn"
-                            ? "border-warn/35 bg-warn/10"
-                            : entry.tone === "good"
-                              ? "border-good/30 bg-good/5"
-                              : "border-border bg-panel/35",
-                      )}
-                    >
-                      <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">{entry.label}</div>
-                      <div
-                        className={cn(
-                          "mt-0.5 truncate font-medium",
-                          entry.tone === "bad" && "text-bad",
-                          entry.tone === "warn" && "text-warn",
-                          entry.tone === "good" && "text-good",
-                        )}
-                        title={entry.detail}
-                      >
-                        {entry.value}
-                      </div>
-                      <div className="mt-0.5 truncate text-muted" title={entry.detail}>
-                        {entry.detail}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 <div className="md:col-span-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/50 p-2 text-xs text-muted">
                   <span className="mr-auto">Cleanup preset</span>
@@ -1287,9 +1074,6 @@ export function Roster() {
         {visibleList.map((p) => {
           const open = editing === p.slug || activityFor === p.slug;
           const lifecycle = p.lifecycle?.mode || (p.lifecycle?.retire_on_complete ? "retire_on_complete" : "persistent");
-          const cycleTasks = (p.tasklist || []).filter((t) => (t.scope || "total") === "cycle" && t.status !== "retired").length;
-          const totalTasks = (p.tasklist || []).filter((t) => (t.scope || "total") === "total" && t.status !== "retired").length;
-          const taskSummary = agentTaskProgressSummary(p.tasklist);
           const cfgSummary = summarizeConfigOverrides(p.config_overrides);
           const invalidRuntimeOverrides = cfgSummary.runtime.filter((r) => !r.valid).length;
           const runtimeStatus = summarizeAgentRuntimeStatus(p.status);
@@ -1297,23 +1081,7 @@ export function Roster() {
           const noiseSummary = agentNoisePolicySummary(p);
           const guardianSafety = systemGuardianSafetySummary(p);
           const lifecycleSummary = agentLifecycleSummary(p);
-          const lifecycleDisposition = agentLifecycleDispositionPassport(p);
-          const graveyardSummary = agentGraveyardSummary(p);
-          const taskContractSummary = agentTaskContractSummary(p);
-          const hierarchySummary = agentHierarchySummary(p);
-          const hierarchyTreePassport = agentHierarchyTreePassport(p, list);
-          const delegationPassport = agentDelegationPassport(p);
-          const identityDossier = agentIdentityDossier(p);
-          const capabilitySummary = agentCapabilityPassportSummary(p);
-          const resourcePassport = agentResourcePassportSummary(p);
-          const configPassportSummary = agentConfigPassportSummary(p, invalidRuntimeOverrides);
-          const repairGovernance = agentRepairGovernancePassport(p);
-          const repairOperations = agentRepairOperationsPassport(p, runtimeStatus);
-          const modelPassportSummary = agentModelPassportSummary(p);
           const privateSkillCount = skillCounts[p.slug] || 0;
-          const skillPassportSummary = agentSkillPassportSummary(privateSkillCount);
-          const identityLedger = agentIdentityLedger(p, privateSkillCount);
-          const noiseBudgetPassport = agentNoiseBudgetPassport(p);
           const schedulePassport = schedulePressure[p.slug] || agentSchedulePressurePassport(p, []);
           const guardianNoiseContract = systemGuardianNoiseContract(p, schedulePassport);
           const wakeIssue = rosterWakeIssue(p);
@@ -1325,23 +1093,11 @@ export function Roster() {
               : runtimeStatus.operationalState === "paused" || !p.enabled
                 ? "paused"
                 : "sleeping";
-          const lifecycleRail = agentLifecycleRail(p, runtimeStatus, wakeIssue);
           const waitingMailboxCount = mailboxCounts[p.slug.toLowerCase()] || mailboxCounts[p.slug] || 0;
-          const mailboxPassport = rosterMailboxPassport(p.slug, waitingMailboxCount, standingOrders);
-          const lifeSummary = agentLifeSummary(p, runtimeStatus, wakeIssue, waitingMailboxCount);
-          const livePresence = agentLivePresencePassport(p, runtimeStatus, waitingMailboxCount);
-          const identityCardSummary = agentIdentityCardSummary(p, runtimeStatus, wakeIssue, waitingMailboxCount, Date.now(), capabilitySummary);
-          const identityManifest = agentRosterIdentityManifest(p, runtimeStatus, wakeIssue, waitingMailboxCount, privateSkillCount, capabilitySummary, Date.now());
-          const commandStrip = agentCommandStrip(
-            p,
-            runtimeStatus,
-            mailboxPassport,
-            schedulePassport,
-            capabilitySummary,
-            resourcePassport,
-            wakeIssue,
-            Date.now(),
-          );
+          const fallbacks = (p.fallbacks || []).map((m) => m.trim()).filter(Boolean);
+          const toolAllowCount = (p.tool_allow || []).filter((x) => x.trim()).length;
+          const toolDenyCount = (p.tool_deny || []).filter((x) => x.trim()).length;
+          const configOverrideCount = Object.keys(p.config_overrides || {}).length;
           return (
           <li
             key={p.id}
@@ -1379,131 +1135,6 @@ export function Roster() {
                   </div>
                 </div>
               </div>
-              <div
-                className={cn(
-                  "mt-2 flex min-w-0 items-start gap-1.5 rounded-md border border-border/60 bg-card/55 px-2 py-1.5 text-[11px]",
-                  identityCardSummary.tone === "good" && "border-good/25 bg-good/5",
-                  identityCardSummary.tone === "bad" && "border-bad/30 bg-bad/5",
-                  identityCardSummary.tone === "warn" && "border-warn/35 bg-warn/10",
-                  identityCardSummary.tone === "accent" && "border-accent/30 bg-accent/10",
-                  identityCardSummary.tone === "muted" && "text-muted",
-                )}
-                title={identityCardSummary.detail}
-              >
-                <IdCard
-                  className={cn(
-                    "mt-0.5 h-3 w-3 shrink-0",
-                    identityCardSummary.tone === "good" && "text-good",
-                    identityCardSummary.tone === "bad" && "text-bad",
-                    identityCardSummary.tone === "warn" && "text-warn",
-                    identityCardSummary.tone === "accent" && "text-accent",
-                    identityCardSummary.tone === "muted" && "text-muted",
-                  )}
-                />
-                <span
-                  className={cn(
-                    "shrink-0 font-semibold",
-                    identityCardSummary.tone === "good" && "text-good",
-                    identityCardSummary.tone === "bad" && "text-bad",
-                    identityCardSummary.tone === "warn" && "text-warn",
-                    identityCardSummary.tone === "accent" && "text-accent",
-                    identityCardSummary.tone === "muted" && "text-foreground/80",
-                  )}
-                >
-                  {identityCardSummary.label}
-                </span>
-                <span className="min-w-0 truncate text-muted">{identityCardSummary.detail}</span>
-              </div>
-              <div
-                className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3"
-                aria-label={`${p.slug} identity manifest`}
-              >
-                {identityManifest.map((entry) => (
-                  <div
-                    key={entry.label}
-                    title={entry.detail}
-                    className={cn(
-                      "min-w-0 rounded-md border border-border/55 bg-panel/40 px-2 py-1.5 text-[11px]",
-                      entry.tone === "good" && "border-good/25 bg-good/5",
-                      entry.tone === "bad" && "border-bad/30 bg-bad/5",
-                      entry.tone === "warn" && "border-warn/35 bg-warn/10",
-                      entry.tone === "accent" && "border-accent/30 bg-accent/10",
-                    )}
-                  >
-                    <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">
-                      {entry.label}
-                    </div>
-                    <div
-                      className={cn(
-                        "mt-0.5 truncate font-medium text-foreground/90",
-                        entry.tone === "good" && "text-good",
-                        entry.tone === "bad" && "text-bad",
-                        entry.tone === "warn" && "text-warn",
-                        entry.tone === "accent" && "text-accent",
-                        entry.tone === "muted" && "text-muted",
-                      )}
-                    >
-                      {entry.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-2 flex min-w-0 items-start gap-1.5 rounded-md border border-border/60 bg-panel/45 px-2 py-1.5 text-[11px] text-muted" title={identityDossier}>
-                <ListTree className="mt-0.5 h-3 w-3 shrink-0 text-accent" />
-                <span className="min-w-0 truncate">{identityDossier}</span>
-              </div>
-              <div
-                className="mt-2 grid grid-cols-2 gap-1.5 lg:grid-cols-3"
-                aria-label={`${p.slug} identity ledger`}
-              >
-                {identityLedger.map((entry) => (
-                  <div
-                    key={entry.label}
-                    title={entry.detail}
-                    className={cn(
-                      "min-w-0 rounded-md border px-2 py-1.5 text-[11px]",
-                      entry.tone === "accent" && "border-accent/30 bg-accent/10",
-                      entry.tone === "bad" && "border-bad/35 bg-bad/10",
-                      entry.tone === "warn" && "border-warn/35 bg-warn/10",
-                      entry.tone === "good" && "border-good/30 bg-good/5",
-                      entry.tone === "muted" && "border-border bg-card/45",
-                    )}
-                  >
-                    <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted">
-                      {entry.label}
-                    </div>
-                    <div
-                      className={cn(
-                        "mt-0.5 truncate font-medium",
-                        entry.tone === "accent" && "text-accent",
-                        entry.tone === "bad" && "text-bad",
-                        entry.tone === "warn" && "text-warn",
-                        entry.tone === "good" && "text-good",
-                        entry.tone === "muted" && "text-foreground/80",
-                      )}
-                    >
-                      {entry.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <RosterCommandStrip items={commandStrip} slug={p.slug} />
-              <RosterLifecycleRail steps={lifecycleRail} />
-              <div
-                className="mt-2 flex min-w-0 items-start gap-1.5 rounded-md border border-border/60 bg-card/45 px-2 py-1.5 text-[11px] text-muted"
-                title={lifeSummary}
-              >
-                <Activity className="mt-0.5 h-3 w-3 shrink-0 text-accent" />
-                <span className="min-w-0 truncate">{lifeSummary}</span>
-              </div>
-              {runtimeStatus.activeRunCount > 0 && (
-                <RosterNowBand
-                  phase={runtimeStatus.activePhase || runtimeStatus.liveText || "running"}
-                  detail={runtimeStatus.liveDetail || runtimeStatus.activeContextDetail || "active run"}
-                  since={runtimeStatus.activeStartedMs}
-                  last={runtimeStatus.activeLastEventMs}
-                />
-              )}
               {p.system && (
                 <div
                   className={cn(
@@ -1647,177 +1278,43 @@ export function Roster() {
                 )}
                 {lifecycle !== "persistent" && <IdentityPill>{lifecycleSummary}</IdentityPill>}
               </div>
-              <div className="mt-2 grid gap-2 lg:grid-cols-3" aria-label={`${p.slug} identity card passports`}>
-                <RosterPassportSection label="Identity">
-                  <RosterPassportCell
-                    label="presence"
-                    value={livePresence.value}
-                    title={livePresence.detail}
-                    tone={livePresence.tone}
-                  />
-                  <RosterPassportCell
-                    label="lifecycle"
-                    value={lifecycleDisposition.value}
-                    title={lifecycleDisposition.detail}
-                    tone={lifecycleDisposition.tone}
-                  />
-                  <RosterPassportCell
-                    label="contract"
-                    value={taskContractSummary}
-                    title={taskContractSummary}
-                  />
-                  <RosterPassportCell
-                    label="model"
-                    value={modelPassportSummary}
-                    title={modelPassportSummary}
-                    tone={p.model ? "good" : "muted"}
-                  />
-                  <RosterPassportCell
-                    label="skills"
-                    value={skillPassportSummary}
-                    title={skillPassportSummary}
-                    tone={privateSkillCount > 0 ? "good" : "warn"}
-                  />
-                </RosterPassportSection>
-                <RosterPassportSection label="Authority">
-                  <RosterPassportCell
-                    label="authority"
-                    value={capabilitySummary}
-                    title={capabilitySummary}
-                    tone={(p.tool_allow || []).length > 0 || (p.tool_deny || []).length > 0 || (p.trust_ceiling && p.trust_ceiling !== "L4") ? "good" : "warn"}
-                  />
-                  <RosterPassportCell
-                    label="resources"
-                    value={resourcePassport.detail}
-                    title={resourcePassport.detail}
-                    tone={resourcePassport.tone}
-                  />
-                  <RosterPassportCell
-                    label="config"
-                    value={configPassportSummary}
-                    title={[configPassportSummary, noiseSummary].filter(Boolean).join(" · ")}
-                    tone={invalidRuntimeOverrides > 0 ? "bad" : configPassportSummary === "default config" ? "muted" : "good"}
-                  />
-                  <RosterPassportCell
-                    label="noise"
-                    value={noiseBudgetPassport.detail}
-                    title={noiseBudgetPassport.detail}
-                    tone={noiseBudgetPassport.tone}
-                  />
-                  <RosterPassportCell
-                    label="schedule"
-                    value={schedulePassport.detail}
-                    title={schedulePassport.detail}
-                    tone={schedulePassport.tone}
-                  />
-                </RosterPassportSection>
-                <RosterPassportSection label="Operations">
-                  <RosterPassportCell
-                    label="mailbox"
-                    value={mailboxPassport.value}
-                    title={mailboxPassport.detail}
-                    tone={mailboxPassport.tone}
-                  />
-                  <RosterPassportCell
-                    label="lineage"
-                    value={hierarchyTreePassport.value}
-                    title={hierarchyTreePassport.detail}
-                    tone={hierarchyTreePassport.tone}
-                  />
-                  <RosterPassportCell
-                    label="delegation"
-                    value={delegationPassport.detail}
-                    title={[hierarchySummary, hierarchyTreePassport.detail, delegationPassport.detail].join(" · ")}
-                    tone={delegationPassport.tone}
-                  />
-                  <RosterPassportCell
-                    label="resilience"
-                    value={repairGovernance.value}
-                    title={repairGovernance.detail}
-                    tone={repairGovernance.tone}
-                  />
-                  <RosterPassportCell
-                    label="repair ops"
-                    value={repairOperations.value}
-                    title={repairOperations.detail}
-                    tone={repairOperations.tone}
-                  />
-                  <RosterPassportCell
-                    label="wake / health"
-                    value={[
-                      runtimeStatus.nextWakeMs ? formatWakeDue(runtimeStatus.nextWakeMs) : runtimeStatus.wakeText || "manual",
-                      runtimeStatus.healthText || (p.retired ? "graveyard" : "nominal"),
-                    ].join(" · ")}
-                    title={[
-                      runtimeStatus.wakeDetail || "",
-                      healthIssueSummary || "",
-                    ].filter(Boolean).join(" · ") || undefined}
-                    tone={runtimeStatus.healthTone === "bad" ? "bad" : runtimeStatus.healthTone === "muted" ? "muted" : "good"}
-                  />
-                </RosterPassportSection>
-              </div>
             </div>
 
             <div className="flex flex-1 flex-col p-3">
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
-                {p.model && <span className="font-mono text-foreground/80">{p.model}</span>}
-                {(p.max_cost_mc || 0) > 0 && <span>{money(p.max_cost_mc)}</span>}
-                {(p.max_daily_mc || 0) > 0 && <span>{money(p.max_daily_mc)}</span>}
-                {p.owner_agent && <span>owner: <span className="font-mono text-foreground/80">{p.owner_agent}</span></span>}
-                {p.parent_agent && <span>parent: <span className="font-mono text-foreground/80">{p.parent_agent}</span></span>}
-                {p.retry_policy?.max_attempts ? <span>retry: {p.retry_policy.max_attempts}x</span> : null}
-                {p.health_policy?.doctor_agent && <span>doctor: <span className="font-mono text-foreground/80">{p.health_policy.doctor_agent}</span></span>}
-                {(p.tool_allow || []).length > 0 && <span>allow: {(p.tool_allow || []).slice(0, 3).join(", ")}{(p.tool_allow || []).length > 3 ? "…" : ""}</span>}
-                {(p.tool_deny || []).length > 0 && <span>deny: {(p.tool_deny || []).slice(0, 3).join(", ")}{(p.tool_deny || []).length > 3 ? "…" : ""}</span>}
-                {(p.config_overrides && Object.keys(p.config_overrides).length > 0) && (
-                  <span>
-                    cfg: {Object.keys(p.config_overrides).slice(0, 2).join(", ")}{Object.keys(p.config_overrides).length > 2 ? "…" : ""}{invalidRuntimeOverrides > 0 ? ` · invalid ${invalidRuntimeOverrides}` : ""}
-                  </span>
-                )}
-                {graveyardSummary && <span>{graveyardSummary}</span>}
-                {guardianSafety && <span>{guardianSafety}</span>}
-                {noiseSummary && <span>noise: {noiseSummary}</span>}
-                {runtimeStatus.routingText && (
-                  <span>
-                    route: {runtimeStatus.routingText}{runtimeStatus.routingDetail ? ` · ${runtimeStatus.routingDetail}` : ""}
-                  </span>
-                )}
-                {runtimeStatus.retryText && (
-                  <span>
-                    retry: {runtimeStatus.retryText}{runtimeStatus.retryDetail ? ` · ${runtimeStatus.retryDetail}` : ""}
-                  </span>
-                )}
-                {runtimeStatus.escalationText && (
-                  <span>
-                    load: {runtimeStatus.escalationText}
-                  </span>
-                )}
-                {runtimeStatus.liveDetail && (
-                  <span>
-                    live: {runtimeStatus.liveDetail}
-                  </span>
-                )}
-                {runtimeStatus.lastActivitySummary && (
-                  <span>
-                    last: {runtimeStatus.lastActivitySummary}{runtimeStatus.lastActivityMs ? ` · ${new Date(runtimeStatus.lastActivityMs).toLocaleString()}` : ""}
-                  </span>
-                )}
-                {runtimeStatus.wakeDetail && (
-                  <span>
-                    wake: {runtimeStatus.wakeDetail}
-                  </span>
-                )}
-                {(cycleTasks > 0 || totalTasks > 0) && <span>tasks: {taskSummary}</span>}
-                {(p.fallbacks || []).length > 0 && <span className="truncate">fallbacks: {(p.fallbacks || []).join(" -> ")}</span>}
-                {p.retired && p.retired_reason && <span>reason: {p.retired_reason}</span>}
-              </div>
-
-              {p.description && p.name && p.name !== p.slug && <div className="mt-2 text-xs text-muted">{p.description}</div>}
+              {p.description && p.name && p.name !== p.slug && <div className="text-xs text-muted">{p.description}</div>}
               {p.soul && (
                 <div className={cn("mt-2 rounded-md bg-panel px-2 py-1.5 text-xs text-muted whitespace-pre-wrap", !open && "line-clamp-3")}>
                   {p.soul}
                 </div>
               )}
+              <Disclosure className="mt-2" summary={<span className="text-xs text-muted">details</span>}>
+                <div className="rounded-md border border-border/60 bg-panel/40 p-2 text-xs">
+                  <KeyValue
+                    pairs={([
+                      p.model ? ["model", <span key="model" className="font-mono">{p.model}</span>] : null,
+                      fallbacks.length > 0
+                        ? ["fallbacks", <span key="fallbacks" className="font-mono">{fallbacks.join(" → ")}</span>]
+                        : null,
+                      p.task_type?.trim() ? ["task type", p.task_type.trim()] : null,
+                      (p.max_cost_mc || 0) > 0 ? ["per-run cap", money(p.max_cost_mc)] : null,
+                      (p.max_daily_mc || 0) > 0 ? ["daily cap", money(p.max_daily_mc)] : null,
+                      p.owner_agent?.trim() ? ["owner", <span key="owner" className="font-mono">{p.owner_agent.trim()}</span>] : null,
+                      p.parent_agent?.trim() ? ["parent", <span key="parent" className="font-mono">{p.parent_agent.trim()}</span>] : null,
+                      p.memory_scope?.trim() ? ["memory scope", <span key="scope" className="font-mono">{p.memory_scope.trim()}</span>] : null,
+                      p.workdir?.trim() ? ["workdir", <span key="workdir" className="font-mono">{p.workdir.trim()}</span>] : null,
+                      toolAllowCount > 0 || toolDenyCount > 0
+                        ? ["tools", [
+                            toolAllowCount > 0 ? `${toolAllowCount} allow` : "",
+                            toolDenyCount > 0 ? `${toolDenyCount} deny` : "",
+                          ].filter(Boolean).join(" · ")]
+                        : null,
+                      configOverrideCount > 0 ? ["config overrides", String(configOverrideCount)] : null,
+                      p.trust_ceiling?.trim() ? ["trust ceiling", p.trust_ceiling.trim()] : null,
+                      p.retired && p.retired_reason?.trim() ? ["retired reason", p.retired_reason.trim()] : null,
+                    ] as ([string, ReactNode] | null)[]).filter((pair): pair is [string, ReactNode] => pair !== null)}
+                  />
+                </div>
+              </Disclosure>
             </div>
 
             <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 bg-panel/30 px-3 py-2">
