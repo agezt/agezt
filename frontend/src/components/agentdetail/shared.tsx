@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity as ActivityIcon, ScrollText, Anchor, Brain, Sparkles, Bot, Coins, Mail, Cpu, Wrench, Skull, Archive, Repeat, Heart, Gauge, FileCode } from "lucide-react";
+import { Activity as ActivityIcon, ScrollText, Anchor, Brain, Bot, Coins, Cpu, Wrench, Skull, Archive, Repeat, Gauge } from "lucide-react";
 import { postJSON } from "@/lib/api";
 import { cn, fmtAgo } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
-import { agentSkillPassportSummary, type AgentCommandStripItem, type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/views/Roster";
 import { type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
 
@@ -157,34 +157,26 @@ export const EMPTY_BOARD_MESSAGES: BoardMessage[] = [];
 export interface RoutingInfo {
   chains?: Record<string, string[]>;
 }
+// Six grouped tabs (declutter law): Wiring absorbs triggers+comms, Mind absorbs
+// soul+memory+skills+files, Diagnostics absorbs diag+repair.
 export type DetailTab =
   | "overview"
-  | "soul"
-  | "triggers"
-  | "model"
   | "activity"
-  | "comms"
-  | "memory"
-  | "skills"
-  | "diag"
-  | "files"
-  | "repair";
+  | "wiring"
+  | "mind"
+  | "model"
+  | "diag";
 
 const TABS: { id: DetailTab; label: string; icon: typeof Bot }[] = [
   { id: "overview", label: "Overview", icon: Bot },
   { id: "activity", label: "Activity", icon: ActivityIcon },
-  { id: "triggers", label: "Triggers", icon: Anchor },
-  { id: "comms", label: "Comms", icon: Mail },
-  { id: "soul", label: "Soul", icon: Heart },
+  { id: "wiring", label: "Wiring", icon: Anchor },
+  { id: "mind", label: "Mind", icon: Brain },
   { id: "model", label: "Model", icon: Cpu },
-  { id: "memory", label: "Memory", icon: Brain },
-  { id: "skills", label: "Skills", icon: Sparkles },
-  { id: "repair", label: "Repair", icon: Wrench },
   { id: "diag", label: "Diagnostics", icon: Gauge },
-  { id: "files", label: "Files", icon: FileCode },
 ];
 
-export const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "triggers", "comms", "soul", "model", "memory", "skills", "repair", "diag", "files"];
+export const PRIMARY_TABS: DetailTab[] = ["overview", "activity", "wiring", "mind", "model", "diag"];
 
 const TAB_BY_ID = new Map(TABS.map((tab) => [tab.id, tab]));
 
@@ -305,57 +297,6 @@ export function AgentDetailTabButton({
   );
 }
 
-export function AgentDetailHeroFact({
-  icon: Icon,
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  icon: typeof Bot;
-  label: string;
-  value: string;
-  detail?: string;
-  tone?: "good" | "warn" | "bad" | "accent" | "muted";
-}) {
-  return (
-    <div
-      className={cn(
-        "min-w-0 rounded-xl border border-border/60 bg-card/40 px-3 py-3",
-        tone === "good" && "border-good/40 bg-good/10 shadow-sm shadow-good/20",
-        tone === "warn" && "border-warn/50 bg-warn/15 shadow-sm shadow-warn/20",
-        tone === "bad" && "border-bad/45 bg-bad/10 shadow-sm shadow-bad/20",
-        tone === "accent" && "border-accent/45 bg-accent/15 shadow-sm shadow-accent/20",
-        tone === "muted" && "border-border/40 bg-panel/30",
-      )}
-      title={detail || value}
-    >
-      <div className="flex items-center gap-2">
-        <Icon className={cn(
-          "size-6 shrink-0",
-          tone === "good" && "text-good",
-          tone === "warn" && "text-warn",
-          tone === "bad" && "text-bad",
-          tone === "accent" && "text-accent",
-          tone === "muted" && "text-muted/70",
-        )} />
-        <span className="truncate text-xs font-medium uppercase tracking-normal text-muted">{label}</span>
-      </div>
-      <div className={cn(
-        "mt-2 truncate text-lg font-bold tracking-normal",
-        tone === "good" && "text-good",
-        tone === "warn" && "text-warn",
-        tone === "bad" && "text-bad",
-        tone === "accent" && "text-accent",
-        tone === "muted" && "text-muted",
-      )}>
-        {value}
-      </div>
-      {detail && <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted/80">{detail}</div>}
-    </div>
-  );
-}
-
 export function AgentNowPanel({
   phase,
   detail,
@@ -429,34 +370,6 @@ export function AgentNowPanel({
   );
 }
 
-/* CompactChip — a single inline metric for the "All details" strip.
-   Replaces the old passport-grid + command-strip + control-center trio
-   with one compact, scannable row of chips. */
-export function CompactChip({
-  label,
-  value,
-  tone = "muted",
-}: {
-  label: string;
-  value: string;
-  tone?: "good" | "bad" | "warn" | "accent" | "muted";
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-baseline gap-1 rounded-md border border-border/60 bg-card/50 px-2 py-1 text-xs",
-        tone === "good" && "border-good/30 bg-good/5 text-good",
-        tone === "bad" && "border-bad/30 bg-bad/5 text-bad",
-        tone === "warn" && "border-warn/30 bg-warn/8 text-warn",
-        tone === "accent" && "border-accent/25 bg-accent/8 text-accent",
-      )}
-    >
-      <span className="font-medium text-muted">{label}</span>
-      <span>{value}</span>
-    </span>
-  );
-}
-
 export function Row({ label, value }: { label: string; value: React.ReactNode }) {
   if (value == null || value === "") return null;
   return (
@@ -465,16 +378,6 @@ export function Row({ label, value }: { label: string; value: React.ReactNode })
       <span className="min-w-0 flex-1 break-words">{value}</span>
     </div>
   );
-}
-
-export function agentDetailSkillPassport(skills: SkillLite[] | null): { value: string; tone: "good" | "warn" | "muted" } {
-  if (!skills) return { value: "skills loading", tone: "muted" };
-  const triggerCount = skills.reduce((sum, skill) => sum + (skill.triggers || []).length, 0);
-  const base = agentSkillPassportSummary(skills.length);
-  return {
-    value: triggerCount > 0 ? `${base} · ${triggerCount} trigger${triggerCount === 1 ? "" : "s"}` : base,
-    tone: skills.length > 0 ? "good" : "warn",
-  };
 }
 
 export function LifecycleConfigEditor({
@@ -785,53 +688,6 @@ export function BudgetBar({
   );
 }
 
-export function AgentDetailCommandStrip({ items, slug }: { items: AgentCommandStripItem[]; slug: string }) {
-  return (
-    <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3" aria-label={`${slug} detail command strip`}>
-      {items.map((item) => (
-        <div
-          key={item.label}
-          title={item.detail || item.value}
-          className={cn(
-            "min-w-0 rounded-md border border-border/60 bg-card/55 px-2 py-1.5",
-            item.tone === "good" && "border-good/25 bg-good/5",
-            item.tone === "bad" && "border-bad/30 bg-bad/5",
-            item.tone === "warn" && "border-warn/35 bg-warn/10",
-            item.tone === "accent" && "border-accent/30 bg-accent/10",
-            item.tone === "muted" && "bg-panel/45",
-          )}
-        >
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full bg-muted/60",
-                item.tone === "good" && "bg-good",
-                item.tone === "bad" && "bg-bad",
-                item.tone === "warn" && "bg-warn",
-                item.tone === "accent" && "bg-accent",
-              )}
-            />
-            <span className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{item.label}</span>
-          </div>
-          <div
-            className={cn(
-              "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-              item.tone === "good" && "text-good",
-              item.tone === "bad" && "text-bad",
-              item.tone === "warn" && "text-warn",
-              item.tone === "accent" && "text-accent",
-              item.tone === "muted" && "text-muted",
-            )}
-          >
-            {item.value}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-
 export function editableAgentProfile(profile: AgentProfile, patch: Partial<AgentProfile> = {}) {
   return {
     name: profile.name || "",
@@ -878,14 +734,8 @@ function tabCount(
   },
 ): number | undefined {
   switch (id) {
-    case "triggers":
-      return data.orders.length + data.schedules.length;
-    case "comms":
-      return data.comms?.length;
-    case "memory":
-      return data.memory?.length;
-    case "skills":
-      return data.skills?.length;
+    case "wiring":
+      return data.orders.length + data.schedules.length + (data.comms?.length || 0);
     case "diag":
       return (data.denials?.length || 0) + (data.toolErrors?.length || 0);
     default:

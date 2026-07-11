@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Page } from "@/components/ui/page";
 import { Advanced, Disclosure } from "@/components/ui/disclosure";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { ErrorText, Muted } from "@/components/JsonView";
+import { ErrorText, KeyValue, Muted } from "@/components/JsonView";
 
 export interface ExecutionProfile {
   id?: string;
@@ -746,6 +746,42 @@ function backendConfigValue(values: ExecutionProfileBackendValues, env: string):
   return backendConfigPayloads(values).find(([name]) => name === env)?.[1] || "";
 }
 
+// BackendPanel — one backend's editor folded behind its title. Follows the
+// backend's enabled state until the operator toggles the fold themselves, so
+// enabled backends open once their config values arrive and disabled ones stay
+// a one-line header. Fields stay mounted while collapsed (Disclosure contract).
+function BackendPanel({
+  icon: Icon,
+  title,
+  badge,
+  open,
+  children,
+}: {
+  icon: typeof Wrench;
+  title: string;
+  badge?: React.ReactNode;
+  open: boolean;
+  children: React.ReactNode;
+}) {
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  return (
+    <Disclosure
+      className="rounded-md border border-border/65 bg-panel/35 px-2 py-1.5"
+      open={userOpen ?? open}
+      onOpenChange={setUserOpen}
+      summary={
+        <span className="flex min-w-0 items-center gap-2">
+          <Icon className="size-3.5 shrink-0 text-accent" />
+          <span className="text-xs font-semibold text-foreground">{title}</span>
+          {badge}
+        </span>
+      }
+    >
+      <div className="grid gap-2 p-1 md:grid-cols-2">{children}</div>
+    </Disclosure>
+  );
+}
+
 function ExecutionBackendPanel({
   backend,
   draft,
@@ -774,14 +810,8 @@ function ExecutionBackendPanel({
         <Badge variant="accent">env live</Badge>
         <Badge variant={draft.remoteSecretPolicy === "metadata" ? "warn" : "good"}>remote secrets {draft.remoteSecretPolicy || "deny"}</Badge>
       </div>
-      <div className="mt-2 grid gap-3 xl:grid-cols-4">
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Terminal className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">SSH Remote</span>
-            <Badge variant="accent">live</Badge>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
+      <div className="mt-2 grid gap-3 xl:grid-cols-2">
+        <BackendPanel icon={Terminal} title="SSH Remote" badge={<Badge variant="accent">live</Badge>} open={draft.sshEnabled}>
             <ToggleField
               label="Enable SSH"
               checked={draft.sshEnabled}
@@ -823,16 +853,9 @@ function ExecutionBackendPanel({
               onChange={(sshStrictHostKey) => onDraft({ ...draft, sshStrictHostKey })}
               placeholder="accept-new"
             />
-          </div>
-        </div>
+        </BackendPanel>
 
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Server className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">Kubernetes Pod</span>
-            <Badge variant="accent">live</Badge>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
+        <BackendPanel icon={Server} title="Kubernetes Pod" badge={<Badge variant="accent">live</Badge>} open={draft.k8sEnabled}>
             <ToggleField
               label="Enable K8s"
               checked={draft.k8sEnabled}
@@ -874,16 +897,9 @@ function ExecutionBackendPanel({
               onChange={(k8sWorkDir) => onDraft({ ...draft, k8sWorkDir })}
               placeholder="/workspace"
             />
-          </div>
-        </div>
+        </BackendPanel>
 
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Globe className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">Modal Shell</span>
-            <Badge variant="accent">live</Badge>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
+        <BackendPanel icon={Globe} title="Modal Shell" badge={<Badge variant="accent">live</Badge>} open={draft.modalEnabled}>
             <ToggleField
               label="Enable Modal"
               checked={draft.modalEnabled}
@@ -925,16 +941,9 @@ function ExecutionBackendPanel({
               onChange={(modalWorkDir) => onDraft({ ...draft, modalWorkDir })}
               placeholder="/workspace"
             />
-          </div>
-        </div>
+        </BackendPanel>
 
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Server className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">Daytona Sandbox</span>
-            <Badge variant="accent">live</Badge>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
+        <BackendPanel icon={Server} title="Daytona Sandbox" badge={<Badge variant="accent">live</Badge>} open={draft.daytonaEnabled}>
             <ToggleField
               label="Enable Daytona"
               checked={draft.daytonaEnabled}
@@ -955,16 +964,9 @@ function ExecutionBackendPanel({
               onChange={(daytonaWorkDir) => onDraft({ ...draft, daytonaWorkDir })}
               placeholder="/workspace"
             />
-          </div>
-        </div>
+        </BackendPanel>
 
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Boxes className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">Docker/OCI</span>
-            <Badge variant="warn">restart</Badge>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
+        <BackendPanel icon={Boxes} title="Docker/OCI" badge={<Badge variant="warn">restart</Badge>} open={draft.dockerEnabled}>
             <ToggleField
               label="Enable Docker"
               checked={draft.dockerEnabled}
@@ -992,16 +994,9 @@ function ExecutionBackendPanel({
               onChange={(dockerNetwork) => onDraft({ ...draft, dockerNetwork })}
               placeholder="none"
             />
-          </div>
-        </div>
+        </BackendPanel>
 
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Globe className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">Env Passthrough</span>
-            <Badge variant="accent">live</Badge>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
+        <BackendPanel icon={Globe} title="Env Passthrough" badge={<Badge variant="accent">live</Badge>} open={false}>
             <BackendInput
               label="Local Env"
               value={draft.envLocal}
@@ -1065,16 +1060,9 @@ function ExecutionBackendPanel({
               onChange={(secretFilesDocker) => onDraft({ ...draft, secretFilesDocker })}
               placeholder="OPENAI_API_KEY:openai.key"
             />
-          </div>
-        </div>
+        </BackendPanel>
 
-        <div className="rounded-md border border-border/65 bg-panel/35 p-2">
-          <div className="mb-2 flex items-center gap-2">
-            <Server className="size-3.5 text-accent" />
-            <span className="text-xs font-semibold text-foreground">Remote AGEZT</span>
-            <Badge variant="accent">live</Badge>
-          </div>
-          <div className="grid gap-2">
+        <BackendPanel icon={Server} title="Remote AGEZT" badge={<Badge variant="accent">live</Badge>} open={false}>
             <BackendSelect
               label="Remote Secret Policy"
               value={draft.remoteSecretPolicy}
@@ -1096,8 +1084,7 @@ function ExecutionBackendPanel({
               options={["", "off", "allow"]}
               onChange={(remoteArtifactBytes) => onDraft({ ...draft, remoteArtifactBytes })}
             />
-          </div>
-        </div>
+        </BackendPanel>
       </div>
       <div className="mt-2 flex justify-end">
         <Button
@@ -1259,40 +1246,39 @@ function ProfileRow({
         </div>
       </div>
 
-      {/* The full 8-field spec is a wall of text across ~10 profiles; fold it per
-          row so the inventory reads as a scannable list (name + status + warnings)
-          and the operator expands the one profile they care about. */}
+      {/* The row's single raw escape hatch — stored fields once, empty ones skipped. */}
       <Disclosure
         className="mt-2"
-        summary={<span className="text-[11px] font-semibold uppercase tracking-normal text-muted">Details</span>}
+        summary={<span className="text-xs text-muted">details</span>}
       >
-        <div className="grid gap-2 lg:grid-cols-2">
-          <Fact icon={Shield} label="Isolation">
-            <span className={cn("font-mono", isolationChanged && "text-warn")}>{profile.requested_isolation || "unknown"}</span>
-            <span className="mx-1 text-muted">-&gt;</span>
-            <span className={cn("font-mono", profile.degraded && "text-warn")}>{profile.effective_isolation || "unknown"}</span>
-          </Fact>
-          <Fact icon={Wrench} label="Tools">
-            <ChipList items={profile.tools || []} empty="none" />
-          </Fact>
-          <Fact icon={Boxes} label="Backends">
-            <ChipList items={profile.backends || []} empty="none" />
-          </Fact>
-          <Fact icon={Timer} label="Limits">
-            <ChipList items={profile.limits || []} empty="tool defaults" />
-          </Fact>
-          <Fact icon={HardDrive} label="Filesystem">
-            {profile.filesystem || "not declared"}
-          </Fact>
-          <Fact icon={Globe} label="Network">
-            {profile.network || "not declared"}
-          </Fact>
-          <Fact icon={Lock} label="Secrets">
-            {profile.secrets || "not declared"}
-          </Fact>
-          <Fact icon={Terminal} label="Cleanup">
-            {profile.cleanup || "not declared"}
-          </Fact>
+        <div className="rounded-md border border-border/60 bg-panel/40 p-2 text-xs">
+          <KeyValue
+            pairs={(
+              [
+                [
+                  "isolation",
+                  <span key="iso">
+                    <span className={cn("font-mono", isolationChanged && "text-warn")}>{profile.requested_isolation || "unknown"}</span>
+                    <span className="mx-1 text-muted">-&gt;</span>
+                    <span className={cn("font-mono", profile.degraded && "text-warn")}>{profile.effective_isolation || "unknown"}</span>
+                  </span>,
+                ],
+                (profile.tools || []).length > 0
+                  ? ["tools", <ChipList key="tools" items={profile.tools || []} empty="none" />]
+                  : null,
+                (profile.backends || []).length > 0
+                  ? ["backends", <ChipList key="backends" items={profile.backends || []} empty="none" />]
+                  : null,
+                (profile.limits || []).length > 0
+                  ? ["limits", <ChipList key="limits" items={profile.limits || []} empty="tool defaults" />]
+                  : null,
+                profile.filesystem ? ["filesystem", profile.filesystem] : null,
+                profile.network ? ["network", profile.network] : null,
+                profile.secrets ? ["secrets", profile.secrets] : null,
+                profile.cleanup ? ["cleanup", profile.cleanup] : null,
+              ] as ([string, React.ReactNode] | null)[]
+            ).filter((p): p is [string, React.ReactNode] => p !== null)}
+          />
         </div>
       </Disclosure>
 
@@ -1323,17 +1309,6 @@ function ProfileRow({
   );
 }
 
-function Fact({ icon: Icon, label, children }: { icon: typeof Shield; label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border/65 bg-panel/35 px-2.5 py-2 text-xs">
-      <div className="mb-1 flex items-center gap-1.5 font-semibold uppercase tracking-normal text-muted">
-        <Icon className="size-3" />
-        {label}
-      </div>
-      <div className="min-w-0 break-words text-foreground/85">{children}</div>
-    </div>
-  );
-}
 
 function ChipList({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) return <span className="text-muted">{empty}</span>;

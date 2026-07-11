@@ -1,38 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Activity as ActivityIcon, ArrowUpRight, Play, Pause, CalendarClock, Zap, Cpu, Wrench, Skull, Archive, ArchiveRestore, IdCard } from "lucide-react";
+import { X, Activity as ActivityIcon, ArrowUpRight, Play, Pause, Bot, CalendarClock, Coins, Cpu, HeartPulse, Megaphone, Wrench, Zap, Archive, ArchiveRestore } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
 import { cn, fmtAgo, fmtDue } from "@/lib/utils";
+import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Disclosure } from "@/components/ui/disclosure";
+import { MetricGrid, MetricWidget } from "@/components/ui/metric-widget";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
-import { AgentRepair, repairReadinessPassport } from "@/components/AgentRepair";
+import { AgentRepair } from "@/components/AgentRepair";
+import { ModelChip } from "@/components/ModelChip";
 import { ModelPicker } from "@/components/ModelPicker";
 import { openAgent } from "@/lib/agentnav";
-import { agentCommandStrip, agentControlCenterLedger, agentEnableToast, agentHierarchySummary, agentIdentityCardSummary, agentLifecycleDispositionPassport, agentLifecycleSummary, agentLivePresencePassport, agentModelPassportSummary, agentModelRoutePassport, agentNoiseBudgetPassport, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, agentTaskContractSummary, guardianQuietPolicyPayload, type AgentEnableResult, type AgentProfile, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
+import { agentEnableToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, guardianQuietPolicyPayload, type AgentEnableResult, type AgentProfile, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
 import { scheduleAgentSlug, type FleetTrigger, type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
-import { agentScope, agentCorrelations, filterByCorrelation, filterAgentMemory, filterAgentSkills, summarizeAgent, lastFailure, healthSnapshot, summarizeConfigOverrides, summarizeAutoRepair, summarizeAgentRuntimeStatus, summarizeEscalations, escalationOperationalTasks, summarizeAgentPolicyDenials, type ReaperReport, type AgentEscalation, type AgentRepairStatus, type MemoryRecord, type SkillLite, type RunLite, type ProviderRoutingRow } from "@/lib/agentdetail";
-import { AgentDetailHeroFact, AgentDetailTabButton, AgentNowPanel, AgentPermissionsSnapshot, AgentWakeResult, ApprovalDecision, BoardMessage, CompactChip, ConfigOverrideBox, DetailTab, EMPTY_BOARD_MESSAGES, LifecycleConfigEditor, PRIMARY_TABS, PolicyDecision, PolicyStats, RoutingInfo, Row, StatePill, ToolCatalogRow, ToolInvocation, agentDetailSkillPassport, editableAgentProfile } from "@/components/agentdetail/shared";
-import { AgentTaskList, OperationalTaskList, ToolPolicyBox } from "@/components/agentdetail/tasks";
-import { CommsTab, agentBoardMessages, agentMailboxPassport, operatorWakeIssue, waitingForAgent } from "@/components/agentdetail/comms";
+import { agentCorrelations, agentRunTrend, filterByCorrelation, filterAgentMemory, filterAgentSkills, summarizeAgent, lastFailure, healthSnapshot, summarizeConfigOverrides, summarizeAutoRepair, summarizeAgentRuntimeStatus, summarizeEscalations, escalationOperationalTasks, type ReaperReport, type AgentEscalation, type AgentRepairStatus, type MemoryRecord, type SkillLite, type RunLite, type ProviderRoutingRow } from "@/lib/agentdetail";
+import { AgentDetailTabButton, AgentNowPanel, AgentPermissionsSnapshot, AgentWakeResult, ApprovalDecision, BoardMessage, DetailTab, EMPTY_BOARD_MESSAGES, PRIMARY_TABS, PolicyDecision, PolicyStats, RoutingInfo, StatePill, ToolCatalogRow, ToolInvocation, editableAgentProfile } from "@/components/agentdetail/shared";
+import { CommsTab, agentBoardMessages, operatorWakeIssue } from "@/components/agentdetail/comms";
 import { DiagTab } from "@/components/agentdetail/DiagTab";
-import { FilesTab } from "@/components/agentdetail/FilesTab";
-import { MemoryTab } from "@/components/agentdetail/MemoryTab";
+import { MindTab } from "@/components/agentdetail/MindTab";
 import { ModelTab } from "@/components/agentdetail/ModelTab";
 import { Overview } from "@/components/agentdetail/Overview";
-import { SkillsTab } from "@/components/agentdetail/SkillsTab";
 import { TriggersTab } from "@/components/agentdetail/TriggersTab";
-import { agentConfigAccessSummary, agentControlInterventionSummary, agentDelegationPassportDetail, agentGovernancePassport, agentManagedSubagent, effectiveToolPermissions, permissionRowFromSnapshot, summarizePermissionPassport, summarizeWakeAccess } from "@/components/agentdetail/capability";
-import { agentHealthContractLedger, agentLifecycleDetail, agentNoisePolicyLabel, agentResourcePassportDetail, agentRetryPolicyDetail } from "@/components/agentdetail/lifecycle";
+import { agentManagedSubagent, summarizeWakeAccess } from "@/components/agentdetail/capability";
 
 // AgentDetail (M953) — the per-agent Command Center: one screen that answers
 // "what is this agent, how is it triggered, what has it done, what does it know,
-// what is it allowed to do, and what went wrong". Reuses the M941 activity
-// drill-in (components/AgentActivity), the M952 fleet trigger chips, and the
-// shared avatar/format helpers; reads only existing endpoints. Rendered in the
-// Agents → Fleet tab when a roster entity is opened.
+// what is it allowed to do, and what went wrong". Declutter law: a glance layer
+// of MetricWidgets in the header, actions inline, six grouped tabs, and the
+// Diagnostics tab as the single raw escape hatch.
 export function AgentDetail({
   slug,
   profile,
@@ -231,15 +228,9 @@ export function AgentDetail({
     () => summarizeAutoRepair(repairStatus),
     [repairStatus],
   );
-  const repairEvidenceCount = (fail ? 1 : 0) + (myDenials?.length || 0) + (myToolErrors?.length || 0) + overrides.runtime.filter((row) => !row.valid).length;
-  const repairReadiness = repairReadinessPassport(profile, repairEvidenceCount);
   const runtimeStatus = useMemo(
     () => summarizeAgentRuntimeStatus(profile.status),
     [profile.status],
-  );
-  const healthContract = useMemo(
-    () => agentHealthContractLedger(profile, health, repairStatus, runtimeStatus),
-    [profile, health, repairStatus, runtimeStatus],
   );
   const escalation = useMemo(
     () => summarizeEscalations(escalations),
@@ -283,6 +274,30 @@ export function AgentDetail({
     () => (profile.task_type ? routing?.chains?.[profile.task_type] : undefined),
     [routing, profile.task_type],
   );
+  const runTrend = useMemo(() => agentRunTrend(runs, slug), [runs, slug]);
+  // Today's spend for this agent (client-side fold over its runs started today).
+  const todaySpentMc = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const todayMs = d.getTime();
+    return runs
+      .filter((r) => r.agent === slug && (r.started_unix_ms || 0) >= todayMs)
+      .reduce((s, r) => s + (r.spent_mc || 0), 0);
+  }, [runs, slug]);
+  const schedulePassport = useMemo(
+    () => agentSchedulePressurePassport(profile, mySchedules),
+    [profile, mySchedules],
+  );
+  const wakeAccess = agentPermissions?.wake_access;
+  const wakePolicy = useMemo(
+    () => summarizeWakeAccess(profile, wakeAccess),
+    [profile, wakeAccess],
+  );
+  const wakeOwner =
+    wakeAccess?.manager ||
+    (agentManagedSubagent(profile)
+      ? profile.parent_agent || profile.owner_agent || ""
+      : "");
 
   async function mutateTask(id: string, op: "update" | "remove", status?: string) {
     if (!id) return;
@@ -522,282 +537,262 @@ export function AgentDetail({
   const stateLabel = running
     ? runtimeStatus.operationalText || "running"
     : runtimeStatus.operationalText || state;
-  const taskContract = agentTaskContractSummary(profile);
-  const lifecycleDisposition = agentLifecycleDispositionPassport(profile);
-  const modelRoute = agentModelRoutePassport(profile);
-  const modelPassport = agentModelPassportSummary(profile);
-  const skillPassport = agentDetailSkillPassport(mySkills);
-  const noiseBudgetPassport = agentNoiseBudgetPassport(profile);
-  const schedulePassport = agentSchedulePressurePassport(profile, mySchedules);
-  const controlCenterLedger = agentControlCenterLedger(profile, overrides.runtime.filter((row) => !row.valid).length);
-  const controlIntervention = agentControlInterventionSummary(controlCenterLedger);
-  const headerPermissions = useMemo(
-    () =>
-      toolCatalog && toolCatalog.length > 0
-        ? effectiveToolPermissions(toolCatalog, profile, edictLevels)
-        : agentPermissions?.permissions
-          ? agentPermissions.permissions.map(permissionRowFromSnapshot)
-          : [],
-    [agentPermissions, edictLevels, profile, toolCatalog],
-  );
-  const headerPermissionPassport = useMemo(
-    () => summarizePermissionPassport(profile, headerPermissions, !!toolCatalog || !!agentPermissions),
-    [agentPermissions, headerPermissions, profile, toolCatalog],
-  );
-  const configAccess = agentConfigAccessSummary(agentPermissions);
-  const governancePassport = agentGovernancePassport(agentPermissions, headerPermissionPassport.detail);
-  const wakeAccess = agentPermissions?.wake_access;
-  const wakePolicy = summarizeWakeAccess(profile, wakeAccess);
-  const delegationPassport = agentDelegationPassportDetail(profile, wakeAccess);
-  const wakeOwner =
-    wakeAccess?.manager ||
-    (agentManagedSubagent(profile)
-      ? profile.parent_agent || profile.owner_agent || ""
-      : "");
-  const waitingMailboxCount = myComms ? waitingForAgent(myComms, slug).length : 0;
-  const mailboxPassport = agentMailboxPassport(slug, myComms || [], myOrders);
-  const policyDenials = summarizeAgentPolicyDenials(profile.status);
-  const livePresence = agentLivePresencePassport(profile, runtimeStatus, waitingMailboxCount);
-  const identityCard = agentIdentityCardSummary(
-    profile,
-    runtimeStatus,
-    wakeIssue,
-    waitingMailboxCount,
-    Date.now(),
-    governancePassport.detail || headerPermissionPassport.detail,
-  );
-  const commandStrip = agentCommandStrip(
-    profile,
-    runtimeStatus,
-    mailboxPassport,
-    schedulePassport,
-    governancePassport.detail || headerPermissionPassport.detail,
-    {
-      detail: agentResourcePassportDetail(profile, slug),
-      tone: profile.workdir || profile.memory_scope || (profile.tool_allow || []).length > 0 || Object.keys(profile.config_overrides || {}).length > 0 ? "good" : "muted",
-    },
-    wakeIssue,
-    Date.now(),
-  );
+  const isSystemGuardian = profile.system || profile.kind === "system";
+  const presenceTone = running
+    ? "accent"
+    : profile.retired || runtimeStatus.operationalState === "paused" || !profile.enabled
+      ? "muted"
+      : "good";
+  const healthTone =
+    health.state === "healthy" ? "good" : health.state === "retired" ? "muted" : "bad";
+  const spendOver =
+    !!profile.max_daily_mc && profile.max_daily_mc > 0 && todaySpentMc > profile.max_daily_mc;
 
   return (
     <section className="flex min-h-0 flex-col gap-3 rounded-lg border border-border bg-card p-3">
-      {/* Header */}
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-        <div
-          className={cn(
-            "min-w-0 rounded-xl border border-border bg-panel/35 p-3",
-            identityCard.tone === "accent" && "border-accent/40 bg-accent/10",
-            identityCard.tone === "good" && "border-good/30 bg-good/5",
-            identityCard.tone === "warn" && "border-warn/40 bg-warn/10",
-            identityCard.tone === "bad" && "border-bad/35 bg-bad/5",
-          )}
-        >
-          <div className="flex min-w-0 items-start gap-3">
-            <AgentAvatar
-              slug={slug}
-              name={profile.name}
-              size={48}
-              status={avatarStatus}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-base font-semibold text-foreground">
-                  {slug}
-                </span>
-                {profile.name && profile.name !== slug && (
-                  <span className="text-sm text-muted">{profile.name}</span>
-                )}
-                <StatePill state={state} label={stateLabel} running={running} />
-              </div>
-              {profile.description && (
-                <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground/80">
-                  {profile.description}
-                </p>
-              )}
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <AgentDetailHeroFact
-                  icon={ActivityIcon}
-                  label="Presence"
-                  value={livePresence.value}
-                  detail={livePresence.detail}
-                  tone={livePresence.tone}
-                />
-                <AgentDetailHeroFact
-                  icon={CalendarClock}
-                  label="Next wake"
-                  value={runtimeStatus.nextWakeMs ? fmtDue(runtimeStatus.nextWakeMs) : runtimeStatus.wakeText || "manual"}
-                  detail={runtimeStatus.wakeDetail || schedulePassport.detail}
-                  tone={schedulePassport.tone}
-                />
-                <AgentDetailHeroFact
-                  icon={IdCard}
-                  label="Agent identity card"
-                  value={identityCard.label}
-                  detail={identityCard.detail}
-                  tone={identityCard.tone}
-                />
-                <div className="col-span-2 flex items-center gap-2 rounded-lg border border-border/60 bg-panel/25 p-2 sm:col-span-1">
-                  <Cpu className="size-4 shrink-0 text-muted" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-medium uppercase tracking-normal text-muted">Model &amp; Fallback</div>
-                    <div className={cn(
-                      "truncate text-xs font-medium",
-                      modelRoute.tone === "good" && "text-good",
-                      modelRoute.tone === "warn" && "text-warn",
-                      modelRoute.tone === "muted" && "text-muted",
-                    )}>
-                      {modelRoute.value}
-                    </div>
-                    {modelRoute.detail && (
-                      <div className="truncate text-xs text-muted">{modelRoute.detail}</div>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => setModelPickerOpen(true)}
-                    title="Edit model and fallback chain"
-                  >
-                    <Wrench className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-              <div className="sr-only">{livePresence.value} · {livePresence.detail}</div>
-              {wakeIssue && (
-                <p className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-muted">
-                  <span>{wakeIssue}</span>
-                  {wakeOwner && (
-                    <button
-                      type="button"
-                      className="font-mono text-accent hover:underline"
-                      aria-label={`Open wake owner ${wakeOwner}`}
-                      onClick={() => openAgent(wakeOwner)}
-                    >
-                      Open {wakeOwner}
-                    </button>
-                  )}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {modelPickerOpen && (
-          <ModelPicker
-            value={profile.model || ""}
-            onChange={saveModel}
+      {/* Header — identity + actions on one band. */}
+      <div className="rounded-xl border border-border bg-panel/35 p-3">
+        <div className="flex min-w-0 flex-wrap items-start gap-3">
+          <AgentAvatar
+            slug={slug}
+            name={profile.name}
+            size={48}
+            status={avatarStatus}
           />
-        )}
-
-        <div className="flex flex-wrap items-start justify-end gap-1 rounded-xl border border-border bg-panel/25 p-2 lg:max-w-[20rem]">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy || !!wakeIssue}
-            title={wakeIssue || "Wake this agent now"}
-            aria-label={`Wake ${slug}`}
-            onClick={wakeAgentNow}
-          >
-            <Zap className="size-3.5" /> Wake
-          </Button>
-          {running && onLive && (
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-base font-semibold text-foreground">
+                {slug}
+              </span>
+              {profile.name && profile.name !== slug && (
+                <span className="text-sm text-muted">{profile.name}</span>
+              )}
+              <StatePill state={state} label={stateLabel} running={running} />
+            </div>
+            {profile.description && (
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground/80 line-clamp-2">
+                {profile.description}
+              </p>
+            )}
+            {wakeIssue && (
+              <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted">
+                <span>{wakeIssue}</span>
+                {wakeOwner && (
+                  <button
+                    type="button"
+                    className="font-mono text-accent hover:underline"
+                    aria-label={`Open wake owner ${wakeOwner}`}
+                    onClick={() => openAgent(wakeOwner)}
+                  >
+                    Open {wakeOwner}
+                  </button>
+                )}
+              </p>
+            )}
+          </div>
+          {/* Action rail — flat, no folds. */}
+          <div className="flex flex-wrap items-center justify-end gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={onLive}
-              title="View live delegation tree"
+              disabled={busy || !!wakeIssue}
+              title={wakeIssue || "Wake this agent now"}
+              aria-label={`Wake ${slug}`}
+              onClick={wakeAgentNow}
             >
-              <ActivityIcon className="size-3.5" /> Live
+              <Zap className="size-3.5" /> Wake
             </Button>
-          )}
-          <Disclosure
-            className="min-w-full rounded-lg border border-border/60 bg-card/40 px-1 py-0.5"
-            summary={<span className="text-[11px] font-medium text-muted">More actions</span>}
-          >
-            <div className="flex flex-wrap gap-1 p-1.5">
+            {running && onLive && (
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={busy || schedulePassport.frequentIds.length === 0}
-                title={schedulePassport.frequentIds.length > 0 ? `Pause ${schedulePassport.frequentIds.length} frequent schedule${schedulePassport.frequentIds.length === 1 ? "" : "s"}` : "No frequent schedules"}
+                onClick={onLive}
+                title="View live delegation tree"
+              >
+                <ActivityIcon className="size-3.5" /> Live
+              </Button>
+            )}
+            {!profile.retired && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                title={profile.enabled ? "Pause agent" : "Resume agent"}
+                onClick={() => setAgentEnabled(!profile.enabled)}
+              >
+                {profile.enabled ? (
+                  <Pause className="size-3.5" />
+                ) : (
+                  <Play className="size-3.5" />
+                )}
+                {profile.enabled ? "Pause" : "Resume"}
+              </Button>
+            )}
+            {profile.retired ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                title="Revive from the graveyard"
+                aria-label={`Revive ${slug}`}
+                onClick={() => setAgentRetired(false)}
+              >
+                <ArchiveRestore className="size-3.5" /> Revive
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                title="Retire to the graveyard"
+                aria-label={`Retire ${slug}`}
+                onClick={() => setAgentRetired(true)}
+              >
+                <Archive className="size-3.5" /> Retire
+              </Button>
+            )}
+            {schedulePassport.frequentIds.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                title={`Pause ${schedulePassport.frequentIds.length} frequent schedule${schedulePassport.frequentIds.length === 1 ? "" : "s"}`}
                 aria-label={`Pause frequent schedules for ${slug}`}
                 onClick={() => pauseFrequentSchedules(schedulePassport.frequentIds)}
               >
                 <CalendarClock className="size-3.5" /> Pause wakes
               </Button>
-              {!profile.retired && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  title={profile.enabled ? "Pause agent" : "Resume agent"}
-                  onClick={() => setAgentEnabled(!profile.enabled)}
-                >
-                  {profile.enabled ? (
-                    <Pause className="size-3.5" />
-                  ) : (
-                    <Play className="size-3.5" />
-                  )}
-                  {profile.enabled ? "Pause" : "Resume"}
-                </Button>
-              )}
-              {profile.retired ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  title="Revive from the graveyard"
-                  aria-label={`Revive ${slug}`}
-                  onClick={() => setAgentRetired(false)}
-                >
-                  <ArchiveRestore className="size-3.5" /> Revive
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  title="Retire to the graveyard"
-                  aria-label={`Retire ${slug}`}
-                  onClick={() => setAgentRetired(true)}
-                >
-                  <Archive className="size-3.5" /> Retire
-                </Button>
-              )}
+            )}
+            {isSystemGuardian && (
               <Button
                 variant="ghost"
                 size="sm"
-                title="Open lifecycle intervention and removal impact"
-                aria-label={`Lifecycle ${slug}`}
-                onClick={() => setTab("overview")}
+                disabled={busy}
+                title="Apply quiet system guardian policy to this agent"
+                aria-label={`Quiet guardian ${slug}`}
+                onClick={quietSystemGuardian}
               >
-                <Skull className="size-3.5" /> Lifecycle
+                <Megaphone className="size-3.5" /> Quiet guardian
+              </Button>
+            )}
+            {!page && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openAgent(slug)}
+                title="Open this agent's full identity page"
+              >
+                <ArrowUpRight className="size-3.5" /> Page
+              </Button>
+            )}
+            {!page && (
+              <button
+                onClick={onClose}
+                className="rounded-md border border-border p-1.5 text-muted hover:border-accent hover:text-foreground"
+                title="Close"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Glance layer — one metric per fact, numbers and color, no sentences. */}
+        <MetricGrid className="mt-3" cols="repeat(auto-fill, minmax(150px, 1fr))">
+          <MetricWidget
+            icon={ActivityIcon}
+            label="Presence"
+            value={runtimeStatus.operationalText || state}
+            subvalue={
+              runtimeStatus.lastActivityMs
+                ? `active ${fmtAgo(runtimeStatus.lastActivityMs)}`
+                : undefined
+            }
+            tone={presenceTone}
+            pulse={running}
+          />
+          <MetricWidget
+            icon={CalendarClock}
+            label="Next wake"
+            value={
+              runtimeStatus.nextWakeMs
+                ? fmtDue(runtimeStatus.nextWakeMs)
+                : runtimeStatus.wakeText || "manual"
+            }
+            subvalue={runtimeStatus.wakeDetail}
+            tone={runtimeStatus.nextWakeMs ? "accent" : "muted"}
+          />
+          <MetricWidget
+            icon={Bot}
+            label="Runs"
+            value={summary.runs}
+            subvalue={`${money(summary.totalSpentMc)} total`}
+            tone="accent"
+            trend={summary.runs > 0 ? runTrend : undefined}
+          />
+          <MetricWidget
+            icon={Coins}
+            label="Spend today"
+            value={money(todaySpentMc)}
+            subvalue={
+              profile.max_daily_mc
+                ? `cap ${money(profile.max_daily_mc)}`
+                : "uncapped"
+            }
+            tone={spendOver ? "bad" : "good"}
+          />
+          <MetricWidget
+            icon={HeartPulse}
+            label="Health"
+            value={health.label}
+            subvalue={
+              fail?.started_unix_ms
+                ? `last failure ${fmtAgo(fail.started_unix_ms)}`
+                : undefined
+            }
+            tone={healthTone}
+          />
+          {/* Model & fallback — same altitude as the metrics, editable in place. */}
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-e1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-md bg-panel px-1.5 py-0.5 text-xs font-medium text-foreground">
+                <Cpu className="size-3" aria-hidden /> Model
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setModelPickerOpen(true)}
+                title="Edit model and fallback chain"
+              >
+                <Wrench className="size-3.5" />
               </Button>
             </div>
-          </Disclosure>
-          {!page && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => openAgent(slug)}
-              title="Open this agent's full identity page"
-            >
-              <ArrowUpRight className="size-3.5" /> Page
-            </Button>
-          )}
-          {!page && (
-            <button
-              onClick={onClose}
-              className="rounded-md border border-border p-1.5 text-muted hover:border-accent hover:text-foreground"
-              title="Close"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-        </div>
+            <div className="min-w-0">
+              {profile.model ? (
+                <ModelChip id={profile.model} chains={routing?.chains} />
+              ) : (
+                <span className="text-sm text-muted">routing default</span>
+              )}
+              {(profile.fallbacks || []).length > 0 && (
+                <div
+                  className="mt-1 truncate font-mono text-[11px] text-muted"
+                  title={(profile.fallbacks || []).join(" → ")}
+                >
+                  → {(profile.fallbacks || []).join(" → ")}
+                </div>
+              )}
+            </div>
+          </div>
+        </MetricGrid>
       </div>
+
+      {modelPickerOpen && (
+        <ModelPicker
+          value={profile.model || ""}
+          onChange={saveModel}
+        />
+      )}
 
       {running && (
         <AgentNowPanel
@@ -819,39 +814,7 @@ export function AgentDetail({
         />
       )}
 
-      {/* Quick-detail strip — the first thing you see when you need more than the hero. */}
-      <Disclosure
-        className="rounded-lg border border-border/40 bg-panel/20 px-1.5 py-0.5"
-        summary={<span className="text-xs font-medium text-muted/70 uppercase tracking-normal">All details</span>}
-      >
-        <div className="flex flex-col gap-2 p-1.5">
-          {/* One-line metric chips */}
-          <div className="flex flex-wrap gap-1.5">
-            <CompactChip label="Type" value={profile.system ? "system" : profile.kind || "custom"} />
-            <CompactChip label="Lifecycle" value={lifecycleDisposition.value} tone={lifecycleDisposition.tone} />
-            <CompactChip label="Presence" value={livePresence.value} tone={livePresence.tone} />
-            <CompactChip label="Model" value={modelPassport} tone={profile.model ? "good" : "muted"} />
-            <CompactChip label="Skills" value={skillPassport.value} tone={skillPassport.tone} />
-            <CompactChip label="Schedule" value={schedulePassport.detail} tone={schedulePassport.tone} />
-            <CompactChip label="Mailbox" value={mailboxPassport.value} tone={mailboxPassport.tone} />
-            <CompactChip label="Call policy" value={wakePolicy.passport} tone={wakePolicy.tone} />
-            <CompactChip label="Delegation" value={delegationPassport.value} tone={delegationPassport.tone} />
-            <CompactChip label="Task contract" value={taskContract} />
-            {policyDenials.count > 0 && (
-              <CompactChip label="Denials" value={policyDenials.text} tone={policyDenials.tone === "bad" ? "bad" : "warn"} />
-            )}
-            <CompactChip label="Governance" value={governancePassport.detail} tone={governancePassport.tone} />
-            <CompactChip label="Control" value={controlIntervention.label} tone={controlIntervention.tone} />
-            <CompactChip label="Config access" value={configAccess} />
-            <CompactChip label="Noise" value={noiseBudgetPassport.detail} tone={noiseBudgetPassport.tone} />
-            <CompactChip label="Resilience" value={repairReadiness.value} tone={repairReadiness.tone} />
-            <CompactChip label="Capability" value={headerPermissionPassport.detail} tone={headerPermissionPassport.level === "open" ? "warn" : headerPermissionPassport.level === "tight" ? "good" : "muted"} />
-            <CompactChip label="Health" value={health.label} tone={health.state === "healthy" ? "good" : health.state === "retired" ? "muted" : "bad"} />
-          </div>
-        </div>
-      </Disclosure>
-
-      {/* Tabs — all sections in one clean row */}
+      {/* Tabs — six grouped sections in one clean row */}
       <div
         className="rounded-xl border border-border bg-panel/20 px-3 py-2.5"
         role="tablist"
@@ -884,28 +847,17 @@ export function AgentDetail({
             slug={slug}
             profile={profile}
             triggers={triggers}
-            orders={myOrders}
-            summary={summary}
-            runtimeStatus={runtimeStatus}
-            runs={runs}
             fail={fail}
             health={health}
-            healthContract={healthContract}
             repair={repair}
             repairStatus={repairStatus}
-            repairReadiness={repairReadiness}
-            escalations={escalations}
             escalation={escalation}
             escalationTasks={activeEscalationTasks}
+            todaySpentMc={todaySpentMc}
             memory={myMemory}
             skills={mySkills}
             schedules={mySchedules}
             mailboxMessages={myComms || EMPTY_BOARD_MESSAGES}
-            toolCatalog={toolCatalog}
-            edictLevels={edictLevels}
-            agentPermissions={agentPermissions}
-            livePresence={livePresence}
-            commandStrip={commandStrip}
             busy={busy}
             onLifecycleChanged={() => {
               setBump((b) => b + 1);
@@ -914,211 +866,66 @@ export function AgentDetail({
             onManage={onManage}
             onView={setTab}
             onFocusRun={setActivityFocusRun}
-            onQuietGuardian={quietSystemGuardian}
           />
         )}
 
-        {tab === "soul" && (
-          <div className="space-y-2">
-            <Row label="model route" value={modelPassport} />
-            <Row label="skills" value={skillPassport.value} />
-            <Row label="task type" value={profile.task_type || "—"} />
-            <Row
-              label="lifecycle"
-              value={
-                <span>
-                  {agentLifecycleSummary(profile)} · {agentLifecycleDetail(profile)}
-                </span>
-              }
-            />
-            <LifecycleConfigEditor
+        {tab === "activity" && (
+          <AgentActivity
+            slug={slug}
+            initialOpenRun={activityFocusRun}
+            initialTab="activity"
+          />
+        )}
+
+        {tab === "wiring" && (
+          <div className="space-y-3">
+            <TriggersTab
               slug={slug}
               profile={profile}
+              wakeAccess={wakeAccess}
+              orders={myOrders}
+              schedules={mySchedules}
+              triggers={triggers}
               busy={busy}
+              onAction={action}
+              onCreateMailboxWake={createMailboxWake}
+              onManage={onManage}
+            />
+            <CommsTab
+              slug={slug}
+              messages={myComms}
+              escalations={escalations}
+              wokeMessages={profile.status?.mailbox_wakes}
+              onFocusRun={(correlationId) => {
+                setActivityFocusRun(correlationId);
+                setTab("activity");
+              }}
+              onManage={onManage}
               onChanged={() => {
                 setBump((b) => b + 1);
                 onChanged?.();
               }}
             />
-            <Row label="contract" value={taskContract} />
-            <Row label="call policy" value={agentHierarchySummary(profile)} />
-            {/* Identity essentials lead; the operational/policy/runtime knobs fold
-                so the Soul tab reads as "who is this agent", not a config ledger. */}
-            <Disclosure
-              summary={<span className="text-xs uppercase tracking-normal text-muted">Operational config, policy &amp; runtime</span>}
-            >
-              <div className="space-y-2 pt-1">
-                <Row label="noise budget" value={noiseBudgetPassport.detail} />
-                <Row label="schedule pressure" value={schedulePassport.detail} />
-                <Row label="delegation" value={delegationPassport.detail} />
-                <Row label="trust ceiling" value={profile.trust_ceiling || "L4"} />
-                <Row
-                  label="isolation"
-                  value={
-                    <select
-                      aria-label="Execution isolation profile"
-                      value={profile.execution_profile || ""}
-                      disabled={busy}
-                      onChange={(e) => saveExecProfile(e.target.value)}
-                      className="h-7 rounded-md border border-border bg-panel px-2 text-xs outline-none focus-visible:border-accent"
-                    >
-                      <option value="">tool defaults</option>
-                      <option value="local">local</option>
-                      <option value="warden">warden</option>
-                      <option value="container">container</option>
-                    </select>
-                  }
-                />
-                <Row
-                  label="memory scope"
-                  value={
-                    <span className="font-mono">
-                      {agentScope(slug, profile.memory_scope)}
-                    </span>
-                  }
-                />
-                <Row
-                  label="workdir"
-                  value={
-                    profile.workdir ? (
-                      <span className="font-mono">{profile.workdir}</span>
-                    ) : (
-                      "—"
-                    )
-                  }
-                />
-                <Row label="retry" value={agentRetryPolicyDetail(profile)} />
-                <Row
-                  label="doctor"
-                  value={
-                    profile.health_policy?.doctor_agent ? (
-                      <span className="font-mono">
-                        {profile.health_policy.doctor_agent}
-                      </span>
-                    ) : (
-                      "—"
-                    )
-                  }
-                />
-                <Row
-                  label="self-repair"
-                  value={
-                    profile.self_repair?.enabled
-                      ? `enabled${profile.self_repair?.max_attempts ? ` · ${profile.self_repair.max_attempts} attempts` : ""}`
-                      : "off"
-                  }
-                />
-                <Row label="noise policy" value={agentNoisePolicyLabel(profile)} />
-                <Row
-                  label="state"
-                  value={
-                    <span>
-                      {runtimeStatus.operationalText || state}
-                      {runtimeStatus.liveDetail ? ` · ${runtimeStatus.liveDetail}` : ""}
-                    </span>
-                  }
-                />
-                <Row
-                  label="last activity"
-                  value={
-                    runtimeStatus.lastActivitySummary
-                      ? `${runtimeStatus.lastActivitySummary}${runtimeStatus.lastActivityMs ? ` · ${fmtAgo(runtimeStatus.lastActivityMs)}` : ""}`
-                      : "—"
-                  }
-                />
-                <Row
-                  label="next wake"
-                  value={
-                    runtimeStatus.nextWakeMs ? (
-                      <span>
-                        {fmtDue(runtimeStatus.nextWakeMs)}
-                        {runtimeStatus.wakeDetail ? (
-                          <span className="text-muted"> · {runtimeStatus.wakeDetail}</span>
-                        ) : null}
-                      </span>
-                    ) : (
-                      "—"
-                    )
-                  }
-                />
-              </div>
-            </Disclosure>
-            <div>
-              <div className="mb-1 text-xs uppercase tracking-normal text-muted">
-                soul — identity core
-              </div>
-              {profile.soul ? (
-                <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md bg-panel p-2.5 font-mono text-[11px] text-foreground/85">
-                  {profile.soul}
-                </pre>
-              ) : (
-                <div className="text-xs text-muted">
-                  no soul set — this agent inherits the default daemon identity
-                </div>
-              )}
-            </div>
-            {(profile.instructions || []).length > 0 && (
-              <div>
-                <div className="mb-1 text-xs uppercase tracking-normal text-muted">
-                  standing instructions
-                </div>
-                <ul className="space-y-1 rounded-md bg-panel p-2.5 text-xs text-foreground/85">
-                  {(profile.instructions || []).map((ins, i) => (
-                    <li key={`${i}-${ins}`}>{ins}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <AgentTaskList
-              tasks={profile.tasklist || []}
-              busy={taskBusy}
-              onAction={(id, op, status) => mutateTask(id, op, status)}
-              onAdd={addTask}
-            />
-            {activeEscalationTasks.length > 0 && (
-              <OperationalTaskList tasks={activeEscalationTasks} />
-            )}
-            {((profile.tool_allow || []).length > 0 ||
-              (profile.tool_deny || []).length > 0) && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ToolPolicyBox
-                  title="tool allowlist"
-                  items={profile.tool_allow || []}
-                  empty="all advertised tools"
-                />
-                <ToolPolicyBox
-                  title="tool denylist"
-                  items={profile.tool_deny || []}
-                  empty="none blocked"
-                />
-              </div>
-            )}
-            {((profile.config_overrides &&
-              Object.keys(profile.config_overrides).length > 0) ||
-              overrides.runtime.length > 0) && (
-              <ConfigOverrideBox summary={overrides} />
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onManage("roster")}
-            >
-              Edit in Roster <ArrowUpRight className="size-3.5" />
-            </Button>
           </div>
         )}
 
-        {tab === "triggers" && (
-          <TriggersTab
+        {tab === "mind" && (
+          <MindTab
             slug={slug}
             profile={profile}
-            wakeAccess={wakeAccess}
-            orders={myOrders}
-            schedules={mySchedules}
-            triggers={triggers}
+            overrides={overrides}
+            memory={myMemory}
+            skills={mySkills}
             busy={busy}
+            taskBusy={taskBusy}
+            onSaveExecProfile={saveExecProfile}
+            onMutateTask={mutateTask}
+            onAddTask={addTask}
             onAction={action}
-            onCreateMailboxWake={createMailboxWake}
+            onChanged={() => {
+              setBump((b) => b + 1);
+              onChanged?.();
+            }}
             onManage={onManage}
           />
         )}
@@ -1137,103 +944,48 @@ export function AgentDetail({
           />
         )}
 
-        {tab === "activity" && (
-          <AgentActivity
-            slug={slug}
-            initialOpenRun={activityFocusRun}
-            initialTab="activity"
-          />
-        )}
-
-        {tab === "comms" && (
-          <CommsTab
-            slug={slug}
-            messages={myComms}
-            escalations={escalations}
-            wokeMessages={profile.status?.mailbox_wakes}
-            onFocusRun={(correlationId) => {
-              setActivityFocusRun(correlationId);
-              setTab("activity");
-            }}
-            onManage={onManage}
-            onChanged={() => {
-              setBump((b) => b + 1);
-              onChanged?.();
-            }}
-          />
-        )}
-
-        {tab === "memory" && (
-          <MemoryTab
-            records={myMemory}
-            scope={agentScope(slug, profile.memory_scope)}
-            busy={busy}
-            onAction={action}
-            onManage={onManage}
-          />
-        )}
-
-        {tab === "skills" && (
-          <SkillsTab
-            skills={mySkills}
-            busy={busy}
-            onAction={action}
-            onManage={onManage}
-          />
-        )}
-
         {tab === "diag" && (
-          <DiagTab
-            slug={slug}
-            profile={profile}
-            posture={posture}
-            askPolicy={askPolicy}
-            edictLevels={edictLevels}
-            toolCatalog={toolCatalog}
-            agentPermissions={agentPermissions}
-            wakePolicy={wakePolicy}
-            denials={myDenials}
-            approvals={myApprovals}
-            toolErrors={myToolErrors}
-            fail={fail}
-            health={health}
-            overrides={overrides}
-            repair={repair}
-            repairStatus={repairStatus}
-            busy={busy}
-            onChanged={() => {
-              setBump((b) => b + 1);
-              onChanged?.();
-            }}
-          />
-        )}
-
-        {tab === "files" && (
-          <FilesTab workdir={profile.workdir} skills={mySkills} />
-        )}
-
-        {tab === "repair" && (
-          <AgentRepair
-            slug={slug}
-            profile={profile}
-            fail={fail}
-            denials={myDenials}
-            toolErrors={myToolErrors}
-            runs={summary.runs}
-            configIssues={health.configIssues}
-            taskModelChain={repairTaskChain}
-            onApplied={() => {
-              setBump((b) => b + 1);
-              onChanged?.();
-            }}
-          />
+          <div className="space-y-3">
+            <DiagTab
+              slug={slug}
+              profile={profile}
+              posture={posture}
+              askPolicy={askPolicy}
+              edictLevels={edictLevels}
+              toolCatalog={toolCatalog}
+              agentPermissions={agentPermissions}
+              wakePolicy={wakePolicy}
+              denials={myDenials}
+              approvals={myApprovals}
+              toolErrors={myToolErrors}
+              fail={fail}
+              health={health}
+              overrides={overrides}
+              repair={repair}
+              repairStatus={repairStatus}
+              busy={busy}
+              onChanged={() => {
+                setBump((b) => b + 1);
+                onChanged?.();
+              }}
+            />
+            <AgentRepair
+              slug={slug}
+              profile={profile}
+              fail={fail}
+              denials={myDenials}
+              toolErrors={myToolErrors}
+              runs={summary.runs}
+              configIssues={health.configIssues}
+              taskModelChain={repairTaskChain}
+              onApplied={() => {
+                setBump((b) => b + 1);
+                onChanged?.();
+              }}
+            />
+          </div>
         )}
       </div>
     </section>
   );
 }
-
-
-export { agentRemovalRiskLabel, agentLifecycleActionResultSummary, agentLifecycleInterventionSummary, agentLifecycleDecisionLedger, agentScheduleBindingTitle, agentRemovalImpactPlan, agentRetryPolicyDetail, agentRepairCommandSummary, agentRepairOperationsSummary, agentRepairDecisionSummary, agentHealthContractLedger, agentOperationsPassport, agentEntityContractLedger, agentAutonomyRunbook, agentRuntimeDoctorLedger, agentSystemGuardianContract, agentResourcePassportDetail } from "@/components/agentdetail/lifecycle";
-export { agentMailboxSubjects, mailboxSubjectBinding, agentMailboxWakeContract, mailboxWakeArmIssue, operatorWakeIssue, agentBoardMessages, messageAckedBy, messageAckedByLabel, waitingForAgent, agentInboxPrioritySummary, agentMailboxPassport } from "@/components/agentdetail/comms";
-export { agentControlInterventionSummary, agentAuthorityContractSummary, agentAuthorityManifest, agentAuthorityLedger, agentCapabilityRiskPassport, workflowToolAccessSummary, agentDelegationPassportDetail, agentConfigAuthorityContract, normalizeNoiseToolPolicy } from "@/components/agentdetail/capability";

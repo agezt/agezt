@@ -2,7 +2,8 @@ import { authHeaders, getJSON } from "@/lib/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
 
 // One security-review finding from the pre-install vet (kernel/market.VetFinding).
-export interface VetFinding {
+// Internal: reached through VetReport.findings; not exported (knip gate).
+interface VetFinding {
   severity: "info" | "warn" | "danger" | string;
   where: string;
   rule: string;

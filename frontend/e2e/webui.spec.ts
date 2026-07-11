@@ -136,7 +136,9 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
       page.getByRole("group", { name: "System task", exact: true }).getByRole("button", { name: /Catalog sync/ }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText(/Recommended cadence: every 24 hours/)).toBeVisible();
-    await expect(page.getByText(/cron runs system task Catalog sync/).first()).toBeVisible();
+    // Declutter law: the prose execution-contract block is gone; the form shows
+    // one cadence confirmation line and the typed task's executor facts instead.
+    await expect(page.getByText(/every 24 hours/).first()).toBeVisible();
     await expect(page.getByText(/no LLM/).first()).toBeVisible();
     // Close the New-schedule modal before navigating on — its overlay would
     // otherwise swallow the nav clicks.
@@ -169,13 +171,14 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     const agentCard = page.getByRole("button", { name: /Guardian · Health[\s\S]*guardian-health/ });
     await expect(agentCard).toBeVisible();
     await agentCard.click();
-    await expect(page.getByText("Agent identity card")).toBeVisible();
-    await expect(page.getByText("Live presence").first()).toBeVisible();
-    await expect(page.getByText("Lifecycle ledger").first()).toBeVisible();
-    await expect(page.getByText("Runtime doctor ledger").first()).toBeVisible();
-    await expect(page.getByText("Operations passport")).toBeVisible();
-    await expect(page.getByText("Mailbox wake contract")).toBeVisible();
-    await page.getByRole("button", { name: /Triggers/ }).click();
+    // Declutter law: the header is a glance layer of MetricWidgets, the six
+    // grouped tabs carry everything else (no passport/ledger prose cards).
+    await expect(page.getByText("Presence").first()).toBeVisible();
+    await expect(page.getByText("Next wake").first()).toBeVisible();
+    await expect(page.getByText("Spend today").first()).toBeVisible();
+    await expect(page.getByText("How does this run?")).toBeVisible();
+    await expect(page.getByText("Operations passport")).toHaveCount(0);
+    await page.getByRole("button", { name: /Wiring/ }).click();
     await expect(page.getByText("mailbox wake subjects")).toBeVisible();
     await expect(page.getByText(/board\.dm\./).first()).toBeVisible();
     await expect(page.getByText(/board\.help\./).first()).toBeVisible();
