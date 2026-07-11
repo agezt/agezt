@@ -10,7 +10,7 @@ import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
-import { ErrorText } from "@/components/JsonView";
+import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
@@ -362,7 +362,6 @@ export function Standing() {
               const resumeIssue = standingResumeIssue(o, agentBySlug);
               const frequencyIssue = standingFrequencyIssue(o);
               const attentionReasons = standingAttentionReasons(o, agentBySlug);
-              const wakeLedger = standingWakeLedger(o, agentBySlug);
               return (
               <li key={o.id} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
@@ -479,7 +478,6 @@ export function Standing() {
                     <StandingAgentBadge agent={o.agent} agents={agentBySlug} />
                   </div>
                 )}
-                <StandingWakeLedger items={wakeLedger} id={o.id} />
                 {attentionReasons.length > 0 && (
                   <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-warn/30 bg-warn/10 px-2 py-1.5 text-[11px] text-warn">
                     <AlertTriangle className="mt-0.5 size-3 shrink-0" />
@@ -491,7 +489,6 @@ export function Standing() {
                   <button onClick={() => toggleHistory(o.id)} className="text-accent/80 transition-colors hover:text-accent" title="Show this order's life story from the journal">
                     {history?.id === o.id ? "hide history" : "history"}
                   </button>
-                  <span className="font-mono text-muted opacity-70">{o.id}</span>
                 </div>
                 {history?.id === o.id && (
                   <ol className="mt-1.5 space-y-0.5 rounded-md border border-border/60 bg-panel/40 p-2 text-[11px]">
@@ -512,6 +509,37 @@ export function Standing() {
                     )}
                   </ol>
                 )}
+                {/* The card's single raw escape hatch — stored fields once, no narration. */}
+                <Disclosure
+                  className="mt-1"
+                  summary={<span className="text-xs text-muted">details</span>}
+                >
+                  <div className="rounded-md border border-border/60 bg-panel/40 p-2 text-xs">
+                    <KeyValue
+                      pairs={(
+                        [
+                          ["id", <span key="id" className="font-mono">{o.id}</span>],
+                          (o.triggers || []).length > 0
+                            ? [
+                                "triggers",
+                                <span key="triggers" className="break-all font-mono">
+                                  {JSON.stringify(o.triggers)}
+                                </span>,
+                              ]
+                            : null,
+                          o.initiative?.mode ? ["mode", o.initiative.mode] : null,
+                          o.agent ? ["agent", o.agent] : null,
+                          (o.assure ?? 0) > 0 ? ["assure", String(o.assure)] : null,
+                          (o.cooldown_sec ?? 0) > 0 ? ["cooldown_sec", String(o.cooldown_sec)] : null,
+                          o.plan ? ["plan", o.plan] : null,
+                          o.target_status ? ["target status", o.target_status] : null,
+                          o.target_error ? ["target error", o.target_error] : null,
+                          o.frequency_warning ? ["frequency warning", o.frequency_warning] : null,
+                        ] as ([string, ReactNode] | null)[]
+                      ).filter((p): p is [string, ReactNode] => p !== null)}
+                    />
+                  </div>
+                </Disclosure>
               </li>
               );
             })}
@@ -659,7 +687,6 @@ export function NewOrderForm({
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-foreground">{name.trim() || "Untitled standing order"}</div>
-            <div className="truncate text-xs text-muted">{triggerType === "cron" ? "scheduled wake" : "event wake"}</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -670,12 +697,7 @@ export function NewOrderForm({
       </div>
 
       <div className="space-y-2">
-        <StandingFormBlock
-          icon={ClipboardList}
-          title="Identity"
-          meta={name.trim() || "name required"}
-          defaultOpen
-        >
+        <StandingFormBlock icon={ClipboardList} title="Identity">
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-muted">
               Name
@@ -691,12 +713,7 @@ export function NewOrderForm({
           </div>
         </StandingFormBlock>
 
-        <StandingFormBlock
-          icon={Clock}
-          title="Wake rule"
-          meta={triggerValue.trim() || "schedule or event subject"}
-          defaultOpen
-        >
+        <StandingFormBlock icon={Clock} title="Wake rule">
           <div className="flex flex-col gap-1 text-[11px] text-muted">
             Trigger
             <div className="flex items-center gap-1.5">
@@ -737,11 +754,7 @@ export function NewOrderForm({
           </label>
         </StandingFormBlock>
 
-        <StandingFormBlock
-          icon={Zap}
-          title="Execution"
-          meta={plan.trim() ? `${plan.trim().slice(0, 44)}${plan.trim().length > 44 ? "..." : ""}` : "plan optional"}
-        >
+        <StandingFormBlock icon={Zap} title="Execution">
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
             Run as agent
             <AgentPicker value={agent} onChange={setAgent} />
@@ -849,7 +862,6 @@ export function EditOrderForm({
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-foreground">{name.trim() || order.id}</div>
-            <div className="text-[11px] text-muted">mutable standing order fields</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -860,12 +872,7 @@ export function EditOrderForm({
       </div>
 
       <div className="space-y-2">
-        <StandingFormBlock
-          icon={ClipboardList}
-          title="Identity"
-          meta={name.trim() || "name required"}
-          defaultOpen
-        >
+        <StandingFormBlock icon={ClipboardList} title="Identity">
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-muted">
               Name
@@ -880,12 +887,7 @@ export function EditOrderForm({
           </div>
         </StandingFormBlock>
 
-        <StandingFormBlock
-          icon={Zap}
-          title="Execution"
-          meta={plan.trim() ? `${plan.trim().slice(0, 44)}${plan.trim().length > 44 ? "..." : ""}` : "no plan"}
-          defaultOpen
-        >
+        <StandingFormBlock icon={Zap} title="Execution">
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted">
             Run as agent
             <AgentPicker value={agent} onChange={setAgent} />
@@ -903,11 +905,7 @@ export function EditOrderForm({
           </label>
         </StandingFormBlock>
 
-        <StandingFormBlock
-          icon={TimerReset}
-          title="Reliability"
-          meta={`${Math.max(0, Math.floor(Number(assure) || 0))} retries / ${Math.max(0, Math.floor(Number(cooldownSec) || 0))}s cooldown`}
-        >
+        <StandingFormBlock icon={TimerReset} title="Reliability">
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="flex w-40 flex-col gap-1 text-[11px] text-muted">
               Assure (retries)
@@ -947,39 +945,27 @@ export function EditOrderForm({
   );
 }
 
+// StandingFormBlock groups editor fields under a labelled section header. It is
+// deliberately NOT a fold: these fields are the act layer, so they stay inline.
 function StandingFormBlock({
   icon: Icon,
   title,
-  meta,
   children,
-  defaultOpen = false,
 }: {
   icon: LucideIcon;
   title: string;
-  meta: string;
   children: ReactNode;
-  defaultOpen?: boolean;
 }) {
   return (
-    <Disclosure
-      defaultOpen={defaultOpen}
-      className="rounded-lg border border-border/80 bg-panel/45"
-      summaryClassName="px-2.5 py-2"
-      contentClassName="px-2.5 pb-2"
-      summary={
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
-            <Icon className="size-3.5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-foreground">{title}</span>
-            <span className="block truncate text-[11px] font-normal text-muted">{meta}</span>
-          </span>
+    <section className="rounded-lg border border-border/80 bg-panel/45 px-2.5 py-2">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-background/70 text-accent">
+          <Icon className="size-3.5" />
         </span>
-      }
-    >
+        <span className="truncate text-sm font-semibold text-foreground">{title}</span>
+      </div>
       {children}
-    </Disclosure>
+    </section>
   );
 }
 
@@ -1049,89 +1035,6 @@ export function standingAttentionCount(orders: Order[], agents: Map<string, Stan
   return orders.filter((o) => standingNeedsAttention(o, agents)).length;
 }
 
-export interface StandingWakeLedgerEntry {
-  label: string;
-  value: string;
-  detail: string;
-  tone: "good" | "warn" | "bad" | "accent" | "muted";
-}
-
-export function standingTriggerSummary(triggers: Trigger[] = []): { value: string; detail: string; tone: "good" | "warn" | "accent" | "muted" } {
-  const clean = triggers.filter((t) => (t.type === "event" && (t.subject || "").trim()) || (t.type === "cron" && (t.schedule || "").trim()));
-  if (clean.length === 0) return { value: "no trigger", detail: "standing order has no typed trigger", tone: "warn" };
-  if (clean.length === 1) {
-    const t = clean[0];
-    if (t.type === "event") {
-      const subject = (t.subject || "").trim();
-      const mailbox = subject.startsWith("board.dm.") || subject.startsWith("board.help.");
-      return {
-        value: mailbox ? `mailbox event ${subject}` : `event ${subject}`,
-        detail: "journal event wakes this standing rule; the rule is not an agent identity",
-        tone: mailbox ? "accent" : "good",
-      };
-    }
-    return {
-      value: `cron ${t.schedule}`,
-      detail: "cron tick wakes this standing rule; schedule owns timing only",
-      tone: "good",
-    };
-  }
-  const events = clean.filter((t) => t.type === "event").length;
-  const crons = clean.filter((t) => t.type === "cron").length;
-  return {
-    value: `${clean.length} triggers`,
-    detail: [`${events} event`, `${crons} cron`].filter((part) => !part.startsWith("0 ")).join(" · "),
-    tone: "good",
-  };
-}
-
-export function standingWakeLedger(order: Order, agents: Map<string, StandingAgent> | null): StandingWakeLedgerEntry[] {
-  const trigger = standingTriggerSummary(order.triggers || []);
-  const issue = standingResumeIssue(order, agents);
-  const frequency = standingFrequencyIssue(order);
-  const eventTriggered = (order.triggers || []).some((t) => t.type === "event");
-  const cooldown = eventTriggered
-    ? order.cooldown_sec && order.cooldown_sec > 0
-      ? formatCooldown(order.cooldown_sec)
-      : "daemon default"
-    : "cron cadence";
-  const plan = (order.plan || "").trim();
-  return [
-    {
-      label: "trigger",
-      value: trigger.value,
-      detail: trigger.detail,
-      tone: trigger.tone,
-    },
-    {
-      label: "runner",
-      value: order.agent ? `agent ${order.agent}` : "daemon/default",
-      detail: order.agent
-        ? `standing wakes ${order.agent}; that agent owns soul, memory, tools, model route, retry, and repair`
-        : "standing fires under daemon/default context; no durable agent identity is defined here",
-      tone: issue ? "bad" : order.agent ? "good" : "muted",
-    },
-    {
-      label: "cooldown",
-      value: cooldown,
-      detail: eventTriggered ? "event bursts are rate-bounded before they can wake work" : "cron cadence is controlled by the trigger schedule",
-      tone: frequency ? "warn" : "good",
-    },
-    {
-      label: "plan",
-      value: plan ? "wake task set" : "no plan",
-      detail: plan || "the trigger only wakes; no task text is attached",
-      tone: plan ? "good" : "warn",
-    },
-    {
-      label: "guard",
-      value: issue ? "target blocked" : frequency ? "frequency review" : "armed",
-      detail: issue || frequency || "target and cadence are ready",
-      tone: issue ? "bad" : frequency ? "warn" : "good",
-    },
-  ];
-}
-
 function filterStandingOrders(orders: Order[], filter: StandingFilter, agents: Map<string, StandingAgent> | null): Order[] {
   if (filter === "attention") return orders.filter((o) => standingNeedsAttention(o, agents));
   return orders;
@@ -1166,43 +1069,6 @@ function StandingAgentBadge({
   const issue = standingResumeIssue({ id: "", agent }, agents);
   if (!issue) return <Badge variant="good">agent ready</Badge>;
   return <Badge variant="bad">{issue.replace(/^agent\s+\S+\s+/, "")}</Badge>;
-}
-
-function StandingWakeLedger({ items, id }: { items: StandingWakeLedgerEntry[]; id: string }) {
-  return (
-    <div className="mt-1.5 rounded-md border border-border/60 bg-panel/35 p-1.5" aria-label={`${id} wake rule ledger`}>
-      <div className="mb-1 text-[9px] font-semibold uppercase tracking-normal text-muted/80">Wake rule ledger</div>
-      <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-5">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            title={item.detail}
-            className={cn(
-              "min-h-[44px] min-w-0 rounded-md border border-border/50 bg-card/45 px-2 py-1.5",
-              item.tone === "good" && "border-good/25 bg-good/5",
-              item.tone === "bad" && "border-bad/30 bg-bad/5",
-              item.tone === "warn" && "border-warn/35 bg-warn/10",
-              item.tone === "accent" && "border-accent/30 bg-accent/10",
-            )}
-          >
-            <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{item.label}</div>
-            <div
-              className={cn(
-                "mt-0.5 truncate text-[11px] font-medium text-foreground/90",
-                item.tone === "good" && "text-good",
-                item.tone === "bad" && "text-bad",
-                item.tone === "warn" && "text-warn",
-                item.tone === "accent" && "text-accent",
-                item.tone === "muted" && "text-muted",
-              )}
-            >
-              {item.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function StandingStat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
