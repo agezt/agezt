@@ -56,7 +56,13 @@ runs:
       shell: bash
       run: |
         set -e
-        : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
+        # Skip tmpfs staging on GitHub-hosted runners (RUNNER_NAME is only
+        # set on self-hosted runners; ubuntu-latest doesn't have the WSL2
+        # ext4 read corruption that motivates the tmpfs copy).
+        if [ -z "${RUNNER_NAME:-}" ]; then
+          echo "Skipping tmpfs staging (no RUNNER_NAME — GitHub-hosted runner)"
+          exit 0
+        fi
         SRC="$(go env GOROOT)"
         DST="/dev/shm/goroot-${RUNNER_NAME}"
         rm -rf "$DST"
@@ -96,6 +102,10 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        if [ -z "${RUNNER_NAME:-}" ]; then
+          echo "::warning::Go toolchain verification failed on GitHub-hosted runner; no tmpfs staging to retry."
+          exit 0
+        fi
         : "${RUNNER_TOOL_CACHE:?RUNNER_TOOL_CACHE must be set on self-hosted runners}"
         : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
         echo "::warning::Go toolchain corrupt even on tmpfs; re-downloading toolchain once."
@@ -168,7 +178,11 @@ runs:
       # on a shared /dev/shm (same reasoning as the GOROOT staging above).
       run: |
         set -e
-        : "${RUNNER_NAME:?RUNNER_NAME must be set on self-hosted runners}"
+        # Skip on GitHub-hosted runners (no RUNNER_NAME, no WSL2 ext4 issue).
+        if [ -z "${RUNNER_NAME:-}" ]; then
+          echo "Skipping tmpfs GOCACHE/GOTMPDIR staging (GitHub-hosted runner)"
+          exit 0
+        fi
         CACHE="/dev/shm/gocache-${RUNNER_NAME}"
         GTMP="/dev/shm/gotmp-${RUNNER_NAME}"
         rm -rf "$CACHE" "$GTMP"

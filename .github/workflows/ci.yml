@@ -86,7 +86,11 @@ jobs:
     #   kernel/journal        — historically race-prone append/read
     name: race-depth (linux, cgo)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    # Run on GitHub-hosted ubuntu-latest instead of self-hosted WSL runners.
+    # The -count=20 stress test is very sensitive to the WSL2 tmpfs compiler
+    # corruption that plagues the self-hosted runners; ubuntu-latest has no
+    # such issue and the job consistently passes there.
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '1'
     steps:
