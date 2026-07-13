@@ -107,11 +107,7 @@ func (c *Client) Call(ctx context.Context, cmd string, args map[string]any) (map
 	}
 	resp, err := readOneResponse(conn)
 	if err != nil {
-		// Map i/o timeout to context error so callers get DeadlineExceeded.
-		if ctxErr := ctx.Err(); ctxErr != nil && isNetTimeout(err) {
-			return nil, ctxErr
-		}
-		return nil, err
+		return nil, mapNetTimeoutToCtxError(ctx, err)
 	}
 	if resp.Type == RespError {
 		return nil, &ErrServerError{Msg: resp.Error}
@@ -145,10 +141,7 @@ func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil && isNetTimeout(err) {
-			return nil, ctxErr
-		}
-		return nil, apperrors.Wrap(ctx, "controlplane: read", err)
+		return nil, mapNetTimeoutToCtxError(ctx, err)
 	}
 	var resp struct {
 		Type   string          `json:"type"`
@@ -186,10 +179,7 @@ func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, on
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil && isNetTimeout(err) {
-				return nil, ctxErr
-			}
-			return nil, apperrors.Wrap(ctx, "controlplane: read", err)
+			return nil, mapNetTimeoutToCtxError(ctx, err)
 		}
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
@@ -292,6 +282,37 @@ func setReadDeadlineFromCtx(conn net.Conn, ctx context.Context) error {
 		return conn.SetReadDeadline(dl)
 	}
 	return nil
+}
+
+// mapNetTimeoutToCtxError translates a net i/o timeout (from a read whose
+// deadline was set from ctx via setReadDeadlineFromCtx) into the matching
+// context error so callers see context.DeadlineExceeded / context.Canceled.
+//
+// Why not just check ctx.Err()? The connection read deadline and the context
+// timer are independent mechanisms. Under -count=20 stress (or heavy CPU
+// contention) the read deadline can fire a few microseconds before the context
+// timer, leaving ctx.Err() == nil even though the timeout was definitively
+// caused by the context deadline. Since the read deadline was derived FROM the
+// context, an i/o timeout on this read IS the context deadline firing — so we
+// return context.DeadlineExceeded regardless of the ctx.Err() race. If there's
+// no deadline on the context (no setReadDeadlineFromCtx was called), the error
+// is a genuine network issue and we pass it through.
+func mapNetTimeoutToCtxError(ctx context.Context, err error) error {
+	if !isNetTimeout(err) {
+		return apperrors.Wrap(ctx, "controlplane: read", err)
+	}
+	// The read deadline was derived from ctx, so an i/o timeout here means
+	// the ctx deadline expired. ctx.Err() may be nil due to a scheduling
+	// race between the two timers.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return context.DeadlineExceeded
+	}
+	// No context deadline set — the read timed out for a different reason
+	// (e.g. a fixed write deadline in writeRequest). Return as-is.
+	return apperrors.Wrap(ctx, "controlplane: read", err)
 }
 
 // isNetTimeout reports whether err is a net-level timeout (as opposed to
