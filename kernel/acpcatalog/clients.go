@@ -221,14 +221,6 @@ func cloneClientEntries(in []ClientEntry) []ClientEntry {
 	return append([]ClientEntry(nil), in...)
 }
 
-func attachOfficialClients(ctx context.Context, inv Inventory, force bool, client *ClientsClient) Inventory {
-	if client == nil {
-		client = DefaultClients
-	}
-	entries, revision, fetchedAt, cached, err := client.Fetch(ctx, force)
-	return attachClientsResult(inv, client.URL, entries, revision, fetchedAt, cached, err)
-}
-
 func attachClientsResult(inv Inventory, source string, entries []ClientEntry, revision string, fetchedAt time.Time, cached bool, err error) Inventory {
 	inv.ClientsSource = source
 	inv.Clients = entries
