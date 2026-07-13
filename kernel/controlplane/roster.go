@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"os"
 	"path/filepath"
@@ -186,21 +187,33 @@ func profileView(p roster.Profile) map[string]any {
 }
 
 func (s *Server) handleAgentList(conn net.Conn, req Request) {
+	// Cache layer (1.5s TTL): every poll of this endpoint triggered 11 full
+	// journal.Range walks; with the 6–8s SPA poll cadence and N tabs polling
+	// in parallel, that's a 11·N·(60/8) ≈ 82 journal walks/minute per viewer.
+	// The cache key is a content hash of the underlying roster so profile
+	// additions/edits invalidate it implicitly on the very next read; explicit
+	// mutation handlers also call invalidateAgentListCache() to skip the TTL
+	// window for the write that just happened.
 	profiles := s.k.Roster().List()
-	statuses := s.agentStatusViews(profiles)
-	out := make([]any, 0, len(profiles))
-	enabled := 0
-	for _, p := range profiles {
-		view := profileView(p)
-		if st, ok := statuses[p.Slug]; ok {
-			view["status"] = st
+	key := rosterContentHash(profiles)
+	out, total, enabled, hit := s.tryServeAgentListCache(key, profiles)
+	if !hit {
+		statuses := s.agentStatusViews(profiles)
+		out = make([]any, 0, len(profiles))
+		enabled = 0
+		for _, p := range profiles {
+			view := profileView(p)
+			if st, ok := statuses[p.Slug]; ok {
+				view["status"] = st
+			}
+			out = append(out, view)
+			if p.Enabled {
+				enabled++
+			}
 		}
-		out = append(out, view)
-		if p.Enabled {
-			enabled++
-		}
+		total = len(out)
+		s.storeAgentListCache(key, profiles, out, total, enabled)
 	}
-	total := len(out)
 
 	// Cursor pagination (M-pending follow-up): the SPA's Agents / AgentPage /
 	// Roster views load this on every poll, so for large rosters streaming the
@@ -275,6 +288,85 @@ func (s *Server) handleAgentList(conn net.Conn, req Request) {
 		result["next_cursor"] = nextCursor
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
+
+// rosterContentHash produces a cheap, stable key for the agent-list cache
+// from the live roster. It mixes (slug, updated_ms, enabled, retired,
+// system) so any profile edit — not just a count change — flips the hash
+// and invalidates the entry on the very next read. We don't hash
+// journal-derived fields (last_activity, repair state, etc.) here because
+// those are intentionally absorbed by the cached result on a 1.5s TTL.
+func rosterContentHash(profiles []roster.Profile) uint64 {
+	if len(profiles) == 0 {
+		return 0
+	}
+	h := fnv.New64a()
+	var buf []byte
+	for _, p := range profiles {
+		buf = buf[:0]
+		buf = append(buf, p.Slug...)
+		buf = append(buf, 0)
+		buf = strconv.AppendInt(buf, p.UpdatedMS, 16)
+		buf = append(buf, 0)
+		if p.Enabled {
+			buf = append(buf, 1)
+		}
+		if p.Retired {
+			buf = append(buf, 1)
+		}
+		if p.System {
+			buf = append(buf, 1)
+		}
+		buf = append(buf, 0)
+		_, _ = h.Write(buf)
+	}
+	return h.Sum64()
+}
+
+const agentListCacheTTL = 1500 * time.Millisecond
+
+// tryServeAgentListCache returns the cached result if the key matches AND
+// the entry is younger than the TTL. hit=false forces the caller to
+// recompute; the caller is then expected to call storeAgentListCache so
+// the next request benefits. The TTL is 1.5s — short enough that a manual
+// profile edit surfaces in ≤2s on a polling client, long enough to
+// collapse 5+ in-flight polls of one tab to a single underlying walk.
+func (s *Server) tryServeAgentListCache(key uint64, profiles []roster.Profile) (out []any, total, enabled int, hit bool) {
+	s.agentListCacheMu.RLock()
+	defer s.agentListCacheMu.RUnlock()
+	if s.agentListCacheKey != key {
+		return nil, 0, 0, false
+	}
+	if time.Since(s.agentListCacheAt) > agentListCacheTTL {
+		return nil, 0, 0, false
+	}
+	// Re-validate the roster fingerprint — defence in depth against a hash
+	// collision across different rosters. Cheap (a 16-byte buf × N profiles).
+	if rosterContentHash(profiles) != s.agentListCacheKey {
+		return nil, 0, 0, false
+	}
+	return s.agentListCacheResult, s.agentListCacheTotal, s.agentListCacheEnabled, true
+}
+
+func (s *Server) storeAgentListCache(key uint64, profiles []roster.Profile, out []any, total, enabled int) {
+	s.agentListCacheMu.Lock()
+	defer s.agentListCacheMu.Unlock()
+	s.agentListCacheKey = key
+	s.agentListCacheResult = out
+	s.agentListCacheTotal = total
+	s.agentListCacheEnabled = enabled
+	s.agentListCacheAt = time.Now()
+}
+
+// invalidateAgentListCache drops the cached entry so the very next
+// /api/agents call rebuilds from the journal. Mutation handlers call this
+// before returning so the operator sees their edit immediately, without
+// waiting for the 1.5s TTL.
+func (s *Server) invalidateAgentListCache() {
+	s.agentListCacheMu.Lock()
+	s.agentListCacheKey = 0
+	s.agentListCacheResult = nil
+	s.agentListCacheMu.Unlock()
 }
 
 // encodeAgentsCursor packs (CreatedMS, Slug) into the opaque "<ms>:<slug>"
@@ -1180,6 +1272,7 @@ func (s *Server) handleAgentAdd(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 		return
 	}
+	s.invalidateAgentListCache()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"profile": profileView(saved)}})
 }
 
@@ -1247,6 +1340,7 @@ func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
 		return
 	}
+	s.invalidateAgentListCache()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"profile": profileView(p)}})
 }
 
@@ -1410,6 +1504,7 @@ func (s *Server) handleAgentSetEnabled(conn net.Conn, req Request) {
 		res["standing_paused"] = s.countAgentPausedStanding(p.Slug)
 		res["schedules_paused"] = s.countAgentPausedSchedules(p.Slug)
 	}
+	s.invalidateAgentListCache()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
 }
 
@@ -3794,6 +3889,7 @@ func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool)
 			"schedules_paused": pausedSchedules,
 		})
 	}
+	s.invalidateAgentListCache()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
 }
 
@@ -3966,6 +4062,7 @@ func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
 		"subagent_workflow_refs_retained":        retainedSubagentWorkflowRefs,
 		"subagent_workflow_refs_retained_labels": retainedSubagentWorkflowRefLabels,
 	}})
+	s.invalidateAgentListCache()
 }
 
 type agentRemoveCascade struct {
