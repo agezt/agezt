@@ -98,8 +98,19 @@ func (c *Client) Call(ctx context.Context, cmd string, args map[string]any) (map
 	if err := writeRequest(conn, cmd, args, c.token); err != nil {
 		return nil, err
 	}
+	// Context-aware read: propagate cancellation to the blocking read so
+	// Call returns promptly when ctx is done (CWE-666, M992). Without this
+	// the read blocks indefinitely on a silent server and Call never
+	// returns even after the context expires.
+	if err := setReadDeadlineFromCtx(conn, ctx); err != nil {
+		return nil, err
+	}
 	resp, err := readOneResponse(conn)
 	if err != nil {
+		// Map i/o timeout to context error so callers get DeadlineExceeded.
+		if ctxErr := ctx.Err(); ctxErr != nil && isNetTimeout(err) {
+			return nil, ctxErr
+		}
 		return nil, err
 	}
 	if resp.Type == RespError {
@@ -128,9 +139,15 @@ func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (
 	if err := writeRequest(conn, cmd, args, c.token); err != nil {
 		return nil, err
 	}
+	if err := setReadDeadlineFromCtx(conn, ctx); err != nil {
+		return nil, err
+	}
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil && isNetTimeout(err) {
+			return nil, ctxErr
+		}
 		return nil, apperrors.Wrap(ctx, "controlplane: read", err)
 	}
 	var resp struct {
@@ -162,10 +179,16 @@ func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, on
 	if err := writeRequest(conn, cmd, args, c.token); err != nil {
 		return nil, err
 	}
+	if err := setReadDeadlineFromCtx(conn, ctx); err != nil {
+		return nil, err
+	}
 	reader := bufio.NewReader(conn)
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil && isNetTimeout(err) {
+				return nil, ctxErr
+			}
 			return nil, apperrors.Wrap(ctx, "controlplane: read", err)
 		}
 		var resp Response
@@ -257,6 +280,26 @@ func (c *Client) dial(ctx context.Context) (net.Conn, error) {
 	}
 	d := net.Dialer{Timeout: 5 * time.Second}
 	return d.DialContext(ctx, "tcp", c.addr)
+}
+
+// setReadDeadlineFromCtx sets a read deadline on conn derived from the
+// context's deadline (if any). If the context has no deadline, no
+// deadline is set (the read stays blocking — existing behaviour). When
+// the context has already expired the deadline is set to the past,
+// causing an immediate i/o timeout on the next read.
+func setReadDeadlineFromCtx(conn net.Conn, ctx context.Context) error {
+	if dl, ok := ctx.Deadline(); ok {
+		return conn.SetReadDeadline(dl)
+	}
+	return nil
+}
+
+// isNetTimeout reports whether err is a net-level timeout (as opposed to
+// a clean EOF or a reset). Used to translate i/o timeouts into context
+// errors so callers see context.DeadlineExceeded / context.Canceled.
+func isNetTimeout(err error) bool {
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
 }
 
 func writeRequest(conn net.Conn, cmd string, args map[string]any, token string) error {
