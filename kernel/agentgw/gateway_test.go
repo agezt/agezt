@@ -460,8 +460,8 @@ func TestAuditEntry(t *testing.T) {
 // TestGatewayConfig_Defaults tests default configuration.
 func TestGatewayConfig_Defaults(t *testing.T) {
 	cfg := DefaultGatewayConfig("/tmp/agezt")
-	if cfg.SocketPath != "@agezt/agentgw.sock" {
-		t.Errorf("SocketPath: got %q, want %q", cfg.SocketPath, "@agezt/agentgw.sock")
+	if !strings.HasPrefix(cfg.SocketPath, "@agezt/agentgw-") || !strings.HasSuffix(cfg.SocketPath, ".sock") {
+		t.Errorf("SocketPath: got %q, want prefix @agezt/agentgw- and suffix .sock", cfg.SocketPath)
 	}
 	if cfg.ReadTimeout != 30*time.Second {
 		t.Errorf("ReadTimeout: got %v, want %v", cfg.ReadTimeout, 30*time.Second)

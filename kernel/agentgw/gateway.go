@@ -4,6 +4,7 @@ package agentgw
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -64,15 +65,29 @@ const maxBodyBytes = 1 << 20 // 1 MiB
 // DefaultGatewayConfig returns a default gateway configuration. The token secret
 // is an ephemeral process-random key (safe-by-default); the daemon overrides it
 // with the persisted per-install secret via ResolveTokenSecret.
+//
+// The socket path includes a short random suffix so that concurrent test
+// processes (e.g. go test -count=N) don't collide on the abstract Unix
+// socket namespace. In production the daemon is a single process, so the
+// random suffix is harmless — it just makes the path unique per invocation.
 func DefaultGatewayConfig(baseDir string) GatewayConfig {
 	secret, _ := randomSecret()
 	return GatewayConfig{
-		SocketPath:   "@agezt/agentgw.sock",
+		SocketPath:   uniqueSocketPath(),
 		BaseDir:      baseDir,
 		TokenSecret:  secret,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
+}
+
+// uniqueSocketPath returns an abstract Unix socket path with a short random
+// suffix, e.g. "@agezt/agentgw-a1b2c3d4.sock". The randomness prevents
+// bind failures when multiple test instances run concurrently.
+func uniqueSocketPath() string {
+	var b [4]byte
+	_, _ = rand.Read(b[:])
+	return fmt.Sprintf("@agezt/agentgw-%x.sock", b)
 }
 
 // NewGateway creates a new gateway.
