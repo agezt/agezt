@@ -297,9 +297,15 @@ func setReadDeadlineFromCtx(conn net.Conn, ctx context.Context) error {
 // isNetTimeout reports whether err is a net-level timeout (as opposed to
 // a clean EOF or a reset). Used to translate i/o timeouts into context
 // errors so callers see context.DeadlineExceeded / context.Canceled.
+// We check both errors.As (the proper way) and a string fallback because
+// bufio.Reader can wrap the original net error in ways that errors.As
+// misses on some Go versions.
 func isNetTimeout(err error) bool {
 	var ne net.Error
-	return errors.As(err, &ne) && ne.Timeout()
+	if errors.As(err, &ne) && ne.Timeout() {
+		return true
+	}
+	return strings.Contains(err.Error(), "i/o timeout")
 }
 
 func writeRequest(conn net.Conn, cmd string, args map[string]any, token string) error {
