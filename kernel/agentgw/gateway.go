@@ -161,22 +161,29 @@ func (g *Gateway) Listen(ctx context.Context) error {
 	var err error
 
 	// Support both TCP (tcp://host:port) and Unix socket (unix:/path or /path)
+	// Use a ListenConfig with SO_REUSEADDR so that consecutive test runs
+	// (-count=N) don't fail with "address already in use" when the
+	// previous listener's abstract socket hasn't fully released yet.
+	lc := net.ListenConfig{
+		Control: setSockOpt,
+	}
+
 	switch {
 	case len(g.sockPath) >= 1 && g.sockPath[0] == '@':
 		// Abstract unix socket (the default, e.g. @agezt/agentgw.sock). Go maps
 		// the leading @ to the abstract namespace on Linux; without this case it
 		// fell through to net.Listen("tcp", ...) and failed everywhere.
-		ln, err = net.Listen("unix", g.sockPath)
+		ln, err = lc.Listen(ctx, "unix", g.sockPath)
 	case len(g.sockPath) >= 7 && g.sockPath[:6] == "unix://":
 		// Unix socket with explicit prefix
 		socketPath := g.sockPath[6:]
-		ln, err = net.Listen("unix", socketPath)
+		ln, err = lc.Listen(ctx, "unix", socketPath)
 	case len(g.sockPath) >= 4 && g.sockPath[0] == '/' && g.sockPath[1] != '/':
 		// Unix socket path (starts with / but not //)
-		ln, err = net.Listen("unix", g.sockPath)
+		ln, err = lc.Listen(ctx, "unix", g.sockPath)
 	default:
 		// TCP socket
-		ln, err = net.Listen("tcp", g.sockPath)
+		ln, err = lc.Listen(ctx, "tcp", g.sockPath)
 	}
 
 	if err != nil {
