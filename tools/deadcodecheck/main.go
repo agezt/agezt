@@ -107,5 +107,9 @@ func isAllowedSDKFinding(line string) bool {
 		(strings.HasPrefix(normalized, "kernel/workflowexec/") &&
 			strings.Contains(normalized, ": unreachable func:")) ||
 		(strings.HasPrefix(normalized, "kernel/journal/runs.go") &&
+			strings.Contains(normalized, ": unreachable func:")) ||
+		// acpcatalog exports ResolveLaunch for external SDK consumers
+		// (IDE ACP agent launch resolution); deadcodecheck can't see them.
+		(strings.HasPrefix(normalized, "kernel/acpcatalog/") &&
 			strings.Contains(normalized, ": unreachable func:"))
 }
