@@ -28,6 +28,9 @@ func cmdACP(args []string, stdout, stderr io.Writer) int {
 	if len(args) >= 1 && args[0] == "agents" {
 		return cmdACPAgents(args[1:], stdout, stderr)
 	}
+	if len(args) >= 1 && args[0] == "config" {
+		return cmdACPConfig(args[1:], stdout, stderr)
+	}
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprintf(stdout, "usage: %s acp [--tenant <id>]\n", brand.CLI)
 		fmt.Fprintf(stdout, "       %s acp agents [--json]\n", brand.CLI)
@@ -61,6 +64,51 @@ func cmdACP(args []string, stdout, stderr io.Writer) int {
 	srv := acp.New(controlPlaneRunner{c: c, tenant: tenant}, os.Stdin, stdout)
 	if err := srv.Serve(context.Background()); err != nil {
 		fmt.Fprintf(stderr, "%s acp: %v\n", brand.CLI, err)
+		return 1
+	}
+	return 0
+}
+
+// cmdACPConfig emits the IDE-facing configuration JSON so an editor (Zed, …)
+// can auto-discover how to launch Agezt as its ACP agent backend. It does not
+// require a running daemon — it's a static config emitter.
+func cmdACPConfig(args []string, stdout, stderr io.Writer) int {
+	tenant := ""
+	asJSON := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--tenant":
+			if i+1 >= len(args) {
+				fmt.Fprintf(stderr, "%s acp: --tenant requires an id\n", brand.CLI)
+				return 2
+			}
+			tenant = args[i+1]
+			i++
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			fmt.Fprintf(stdout, "usage: %s acp config --tenant <id> [--json]\n", brand.CLI)
+			return 0
+		default:
+			fmt.Fprintf(stderr, "%s acp config: unexpected argument %q\n", brand.CLI, args[i])
+			return 2
+		}
+	}
+	_ = asJSON // always JSON for now; flag reserved for future plain-text mode
+
+	cfg := struct {
+		Name    string   `json:"name"`
+		Command string   `json:"command"`
+		Args    []string `json:"args"`
+	}{
+		Name:    brand.Name,
+		Command: brand.CLI,
+		Args:    []string{"acp", "--tenant", tenant},
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(cfg); err != nil {
+		fmt.Fprintf(stderr, "%s acp config: %v\n", brand.CLI, err)
 		return 1
 	}
 	return 0
