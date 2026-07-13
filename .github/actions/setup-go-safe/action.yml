@@ -62,6 +62,9 @@ runs:
         rm -rf "$DST"
         cp -a "$SRC" "$DST"
         echo "GOROOT=$DST" >> "$GITHUB_ENV"
+        # Save the original ext4 GOROOT path so ci-go-retry.sh can re-stage
+        # the tmpfs copy between retries (tmpfs GOROOT can also corrupt).
+        echo "GOROOT_SRC=$SRC" >> "$GITHUB_ENV"
         echo "Staged Go toolchain to tmpfs: $DST (from $SRC)"
 
     - name: Verify toolchain integrity (stdlib + compile binary)
@@ -117,6 +120,7 @@ runs:
         rm -rf "$DST"
         cp -a "$SRC" "$DST"
         echo "GOROOT=$DST" >> "$GITHUB_ENV"
+        echo "GOROOT_SRC=$SRC" >> "$GITHUB_ENV"
 
     - name: Re-verify toolchain integrity
       if: steps.verify.outcome == 'failure'

@@ -33,5 +33,13 @@ while :; do
   echo "attempt $n/$max failed (rc=$rc; flaky WSL Go compiler on self-hosted runners); retrying..." >&2
   # Clear tmpfs Go cache + temp dirs so the corruption doesn't poison the retry.
   rm -rf /dev/shm/gocache-* /dev/shm/gotmp-* 2>/dev/null || true
+  # Re-stage GOROOT from the original ext4 source to get a fresh tmpfs copy.
+  # The setup-go-safe action stores the pre-tmpfs path in GOROOT_SRC; if set,
+  # the tmpfs GOROOT (pointed to by $GOROOT) may have corrupt compiler binaries.
+  if [ -n "${GOROOT_SRC:-}" ] && [ -n "${GOROOT:-}" ] && [ -d "$GOROOT_SRC" ]; then
+    rm -rf "$GOROOT"
+    cp -a "$GOROOT_SRC" "$GOROOT"
+    echo "re-staged GOROOT from $GOROOT_SRC to $GOROOT" >&2
+  fi
   sleep 3
 done
