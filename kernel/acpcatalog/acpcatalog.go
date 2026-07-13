@@ -89,14 +89,14 @@ var Catalog = []Agent{
 
 // AgentStatus is one agent's detection result for the wire.
 type AgentStatus struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Bin         string `json:"bin"`
-	Command     string `json:"command"`
-	Description string `json:"description"`
-	Install     string `json:"install,omitempty"`
-	Docs        string `json:"docs,omitempty"`
-	Installed   bool   `json:"installed"`
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Bin              string `json:"bin"`
+	Command          string `json:"command"`
+	Description      string `json:"description"`
+	Install          string `json:"install,omitempty"`
+	Docs             string `json:"docs,omitempty"`
+	Installed        bool   `json:"installed"`
 	Version          string `json:"version,omitempty"`
 	InstalledVersion string `json:"installed_version,omitempty"`
 	Path             string `json:"path,omitempty"`
@@ -141,13 +141,13 @@ type Inventory struct {
 	RunnableCount     int    `json:"runnable_count,omitempty"`
 
 	// Clients fields — populated by FetchClients / attachClientsResult.
-	ClientsSource  string        `json:"clients_source,omitempty"`
-	ClientsRevision string       `json:"clients_revision,omitempty"`
-	ClientsFetchedAt string      `json:"clients_fetched_at,omitempty"`
-	ClientsCached    bool        `json:"clients_cached,omitempty"`
-	ClientsError     string      `json:"clients_error,omitempty"`
-	Clients         []ClientEntry `json:"clients,omitempty"`
-	ClientCount     int           `json:"client_count,omitempty"`
+	ClientsSource    string        `json:"clients_source,omitempty"`
+	ClientsRevision  string        `json:"clients_revision,omitempty"`
+	ClientsFetchedAt string        `json:"clients_fetched_at,omitempty"`
+	ClientsCached    bool          `json:"clients_cached,omitempty"`
+	ClientsError     string        `json:"clients_error,omitempty"`
+	Clients          []ClientEntry `json:"clients,omitempty"`
+	ClientCount      int           `json:"client_count,omitempty"`
 }
 
 const versionTimeout = 3 * time.Second
