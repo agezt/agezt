@@ -221,6 +221,11 @@ func (s *Server) handleAgentList(conn net.Conn, req Request) {
 	// LAST entry on the previous page; the server sorts DESC and skips entries
 	// strictly newer than the cursor. List() returns ASC — reverse in place
 	// once, then filter+truncate.
+	//
+	// Copy before reversing: when the cache hits, out shares its backing array
+	// with s.agentListCacheResult. An in-place reverse would corrupt the cached
+	// data for the next caller.
+	out = append([]any(nil), out...)
 	limit := 0
 	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
 		limit = int(raw)
