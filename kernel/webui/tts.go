@@ -32,7 +32,6 @@ func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, ttsTextMaxBytes)
 	var in struct {
 		Text string `json:"text"`
 	}

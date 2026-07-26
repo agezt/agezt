@@ -98,6 +98,36 @@ func TestAuthenticatorCustomTenantHeader(t *testing.T) {
 	}
 }
 
+func TestAuthenticatorRequestAuthorizerOwnsProtectedRoutes(t *testing.T) {
+	var calls int
+	a := Authenticator{
+		Verifier: kernelauth.NewStaticVerifier("must-not-be-used"),
+		RequestAuthorize: func(r *http.Request, tier kernelauth.Tier) bool {
+			calls++
+			return tier == kernelauth.TierUser && r.Header.Get("X-Session") == "valid"
+		},
+	}
+
+	if !a.Authorized(request("", ""), kernelauth.TierPublic) {
+		t.Fatal("public route was not authorized")
+	}
+	if calls != 0 {
+		t.Fatalf("request authorizer called %d times for public route, want 0", calls)
+	}
+
+	protected := request("Bearer must-not-be-used", "")
+	if a.Authorized(protected, kernelauth.TierUser) {
+		t.Fatal("fallback verifier bypassed the request authorizer")
+	}
+	protected.Header.Set("X-Session", "valid")
+	if !a.Authorized(protected, kernelauth.TierUser) {
+		t.Fatal("request authorizer did not authorize valid session")
+	}
+	if calls != 2 {
+		t.Fatalf("request authorizer calls = %d, want 2", calls)
+	}
+}
+
 func TestMiddlewarePreservesSurfaceError(t *testing.T) {
 	var handled bool
 	a := Authenticator{Verifier: kernelauth.NewStaticVerifier("admin")}

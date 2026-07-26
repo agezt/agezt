@@ -95,7 +95,7 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ID string `json:"id"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, jsonBodyMax))
+	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON body: " + err.Error()})
 		return

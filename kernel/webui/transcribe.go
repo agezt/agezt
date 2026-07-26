@@ -30,7 +30,6 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, audioMaxBytes)
 	if err := r.ParseMultipartForm(audioMaxBytes); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected multipart/form-data with a 'file' field: " + err.Error()})
 		return

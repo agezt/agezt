@@ -44,6 +44,7 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 )
 
 // Caller is the API the dashboard proxies to — satisfied by
@@ -738,81 +739,104 @@ const jsonBodyMax = 1 << 20
 // regardless; this only bounds how long the connection is held open.
 const planRunTimeout = 30 * time.Minute
 
-// Handler builds the mux. Every route is wrapped in token auth.
+// Handler builds the route registry. The shared router owns declarative auth
+// tiers and request-body caps; the WebUI keeps its request-aware credential
+// policy (token, password session, and the constrained EventSource exception).
+// Security headers plus Host/Origin checks wrap the entire registry so they
+// also cover public routes and authentication failures.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
+	router := httpserver.NewRouter(httpserver.Authenticator{
+		RequestAuthorize: func(r *http.Request, _ kernelauth.Tier) bool {
+			return s.authorized(r)
+		},
+	}, func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	})
+	public := httpserver.RouteOpts{Tier: kernelauth.TierPublic}
+	protected := httpserver.RouteOpts{Tier: kernelauth.TierUser}
+	jsonProtected := protected
+	jsonProtected.BodyMax = jsonBodyMax
+
 	// The SPA shell loads with the token OR — when a console password is
 	// configured (M933) — with no credential at all, so a token-less visitor
 	// gets the password login screen instead of a bare 401. The shell carries
-	// no data; every data route stays gated by auth().
-	mux.HandleFunc("/", s.shellAuth(s.handleSPA))
+	// no data; every data route stays protected by route policy.
+	router.Handle("/", public, s.shellAuth(s.handleSPA))
 	// Auth surface (M817/M933): probe + login/logout are token-FREE — they are
 	// how a token-less browser gets in. authmeta leaks only "is there a
 	// password gate" (no data); login is bounded by the failed-attempt lockout.
-	mux.HandleFunc("/api/authmeta", s.secure(s.handleAuthMeta))
-	mux.HandleFunc("/api/login", s.secure(s.handleLogin))
-	mux.HandleFunc("/api/logout", s.secure(s.handleLogout))
+	router.Handle("/api/authmeta", public, s.handleAuthMeta)
+	loginPublic := public
+	loginPublic.BodyMax = loginBodyLimit
+	router.Handle("/api/login", loginPublic, s.handleLogin)
+	router.Handle("/api/logout", public, s.handleLogout)
 	// The hashed bundle and favicon are PUBLIC: the browser loads them as
 	// subresources of index.html and cannot attach the ?token= (only fetch /
 	// EventSource, which the SPA controls, can). They carry no secrets (compiled
 	// UI code). The data surfaces — /events and every /api/* — stay token-gated,
 	// so an unauthenticated visitor gets the shell but no data.
-	mux.HandleFunc("/assets/", s.secure(s.handleAssets()))
-	mux.HandleFunc("/favicon.ico", s.secure(handleFavicon))
-	mux.HandleFunc("/events", s.auth(s.handleEvents))
+	router.Handle("/assets/", public, s.handleAssets())
+	router.Handle("/favicon.ico", public, handleFavicon)
+	router.Handle("/events", protected, s.handleEvents)
 	for path, cmd := range apiRoutes {
-		mux.HandleFunc(path, s.auth(s.proxy(cmd)))
+		router.Handle(path, protected, s.proxy(cmd))
 	}
 	for path, rr := range readArgsRoutes {
-		mux.HandleFunc(path, s.auth(s.readArgsProxy(rr)))
+		router.Handle(path, protected, s.readArgsProxy(rr))
 	}
 	for path, wr := range writeRoutes {
-		mux.HandleFunc(path, s.auth(s.writeProxy(wr)))
+		router.Handle(path, protected, s.writeProxy(wr))
 	}
 	for path, jr := range jsonRoutes {
-		mux.HandleFunc(path, s.auth(s.jsonProxy(jr)))
+		router.Handle(path, jsonProtected, s.jsonProxy(jr))
 	}
-	mux.HandleFunc("/api/rollback/checkpoints", s.auth(s.handleRollbackCheckpoints))
-	mux.HandleFunc("/api/rollback/apply", s.auth(s.handleRollbackApply))
-	mux.HandleFunc("/api/plan/run", s.auth(s.planRunProxy()))
-	mux.HandleFunc("/api/run", s.auth(s.runStreamProxy()))
+	router.Handle("/api/rollback/checkpoints", protected, s.handleRollbackCheckpoints)
+	router.Handle("/api/rollback/apply", jsonProtected, s.handleRollbackApply)
+	router.Handle("/api/plan/run", jsonProtected, s.planRunProxy())
+	router.Handle("/api/run", jsonProtected, s.runStreamProxy())
 	// CLI Toolbox install (M956): runs the host package manager and streams a
 	// per-tool progress event then a final summary as SSE.
-	mux.HandleFunc("/api/toolbox/install", s.auth(s.toolInstallProxy()))
+	router.Handle("/api/toolbox/install", jsonProtected, s.toolInstallProxy())
 	// Marketplace install/uninstall stream per-item progress (skill/mcp/tool) as SSE.
-	mux.HandleFunc("/api/market/install", s.auth(s.marketStreamProxy(controlplane.CmdMarketInstall, []string{"name", "marketplace", "version"})))
-	mux.HandleFunc("/api/market/uninstall", s.auth(s.marketStreamProxy(controlplane.CmdMarketUninstall, []string{"name"})))
+	router.Handle("/api/market/install", jsonProtected, s.marketStreamProxy(controlplane.CmdMarketInstall, []string{"name", "marketplace", "version"}))
+	router.Handle("/api/market/uninstall", jsonProtected, s.marketStreamProxy(controlplane.CmdMarketUninstall, []string{"name"}))
 	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
 	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
-	// reusing the main console token. Requires a valid Bearer token in headers.
-	mux.HandleFunc("/api/sse-token", s.auth(s.handleSSEToken))
-	mux.HandleFunc("/api/transcribe", s.auth(s.handleTranscribe))
+	// reusing the main console token. Requires valid WebUI data authorization.
+	router.Handle("/api/sse-token", protected, s.handleSSEToken)
+	transcribeProtected := protected
+	transcribeProtected.BodyMax = audioMaxBytes
+	router.Handle("/api/transcribe", transcribeProtected, s.handleTranscribe)
 	// Text-to-speech for the console Voice Mode (M998): POST {"text":…} and the
 	// server streams synthesized audio from the configured TTS backend.
-	mux.HandleFunc("/api/tts", s.auth(s.handleTTS))
+	ttsProtected := protected
+	ttsProtected.BodyMax = ttsTextMaxBytes
+	router.Handle("/api/tts", ttsProtected, s.handleTTS)
 	// Binary artifact serving (M822): streams the raw bytes for a content ref with
 	// a sanitized Content-Type, so an <img src> / download link can render stored
 	// images and files. Proxies CmdArtifactGet (which re-verifies the bytes).
-	mux.HandleFunc("/api/artifact/raw", s.auth(s.handleArtifactRaw))
+	router.Handle("/api/artifact/raw", protected, s.handleArtifactRaw)
 	// File Manager routes (M1017): live filesystem under the configured
 	// `AGEZT_FILE_ROOT` (default `~/agezt/workspace`). Every endpoint here
 	// path-traversal-guards before touching the OS — see files_route.go for
 	// the chokepoint.
-	mux.HandleFunc("/api/files/tree", s.auth(s.handleFileTree))
-	mux.HandleFunc("/api/files/raw", s.auth(s.handleFileRaw))
-	mux.HandleFunc("/api/files/mkdir", s.auth(s.handleFileMkdir))
-	mux.HandleFunc("/api/files/rename", s.auth(s.handleFileRename))
-	mux.HandleFunc("/api/files/delete", s.auth(s.handleFileDelete))
+	router.Handle("/api/files/tree", protected, s.handleFileTree)
+	router.Handle("/api/files/raw", protected, s.handleFileRaw)
+	filesMutation := protected
+	filesMutation.BodyMax = defaultFileCap
+	router.Handle("/api/files/mkdir", filesMutation, s.handleFileMkdir)
+	router.Handle("/api/files/rename", filesMutation, s.handleFileRename)
+	router.Handle("/api/files/delete", filesMutation, s.handleFileDelete)
 	// Workflow webhooks (M809): the ONE deliberately console-token-free
 	// path. Authentication is the per-workflow secret, verified by the
 	// control plane (constant-time); all this handler can ever do is ask
 	// "fire workflow <name>" — no reads, no other writes, uniform refusals.
-	mux.HandleFunc("/hooks/", s.secure(s.handleWorkflowHook))
+	router.Handle("/hooks/", public, s.handleWorkflowHook)
 	// Channel OAuth redirect target (Phase 4). Public (no console token): the
 	// provider redirects the operator's browser here with ?code&state. Security
 	// rests on the unguessable state minted by /api/channel/oauth/start.
-	mux.HandleFunc("/oauth/callback", s.secure(s.handleOAuthCallback))
-	return mux
+	router.Handle("/oauth/callback", public, s.handleOAuthCallback)
+	return s.secure(router.ServeHTTP)
 }
 
 // handleOAuthCallback receives the provider's authorization redirect
@@ -1245,27 +1269,15 @@ func (s *Server) secure(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// auth wraps a handler with security headers + data-route token checking.
-// API callers use Authorization: Bearer; /events is the only data route that
-// keeps ?token= because browser EventSource cannot set headers.
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
-	return s.secure(func(w http.ResponseWriter, r *http.Request) {
-		if !s.authorized(r) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next(w, r)
-	})
-}
-
 // shellAuth gates the SPA shell: the token always opens it, and when a console
 // password is configured (M933) the shell is served credential-free too — it
 // has to be, or a token-less browser could never reach the login screen. The
-// shell is compiled UI code with no data; auth() still guards every data route.
+// shell is compiled UI code with no data; route policy still guards every data
+// route. Host/Origin checks and security headers are applied outside the router.
 // With no password configured a token-less visit gets a hint page instead of a
 // bare "unauthorized", pointing at the banner URL / password setup.
 func (s *Server) shellAuth(next http.HandlerFunc) http.HandlerFunc {
-	return s.secure(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if !s.tokenPresented(r) && s.consolePassword() == "" {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -1275,7 +1287,7 @@ func (s *Server) shellAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
-	})
+	}
 }
 
 // setSecurityHeaders applies defensive response headers to every web UI route
@@ -1669,7 +1681,7 @@ func (s *Server) decodeAllowedBody(w http.ResponseWriter, r *http.Request, allow
 		return nil, false
 	}
 	var body map[string]any
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, jsonBodyMax))
+	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid JSON body: " + err.Error()})
 		return nil, false

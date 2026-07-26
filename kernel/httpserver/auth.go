@@ -14,15 +14,23 @@ import (
 // never be opened by a tenant credential.
 type TenantAuthorizer func(tenant, presented string) bool
 
+// RequestAuthorizer lets an HTTP surface preserve a complete request-aware
+// credential policy (for example, the WebUI's password session and constrained
+// EventSource token support). It is consulted only for protected routes.
+type RequestAuthorizer func(*http.Request, kernelauth.Tier) bool
+
 // UnauthorizedWriter preserves each surface's wire-specific error envelope.
 type UnauthorizedWriter func(http.ResponseWriter, *http.Request)
 
 // Authenticator adapts HTTP credentials into the transport-independent auth
-// verifier. TenantHeader defaults to X-Agezt-Tenant.
+// verifier. RequestAuthorize, when configured, owns protected-route decisions;
+// otherwise Bearer + optional tenant authorization is used. TenantHeader
+// defaults to X-Agezt-Tenant.
 type Authenticator struct {
-	Verifier        kernelauth.Verifier
-	TenantAuthorize TenantAuthorizer
-	TenantHeader    string
+	Verifier         kernelauth.Verifier
+	TenantAuthorize  TenantAuthorizer
+	TenantHeader     string
+	RequestAuthorize RequestAuthorizer
 }
 
 // BearerToken extracts an exact, case-sensitive "Bearer " credential from the
@@ -48,6 +56,9 @@ func (a Authenticator) Authorized(r *http.Request, required kernelauth.Tier) boo
 	}
 	if required == kernelauth.TierPublic {
 		return true
+	}
+	if a.RequestAuthorize != nil {
+		return a.RequestAuthorize(r, required)
 	}
 	presented := BearerToken(r)
 	if presented == "" {

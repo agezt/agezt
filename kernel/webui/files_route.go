@@ -17,9 +17,9 @@ import (
 // live tree + raw bytes under a configurable root, defaulting to
 // `~/agezt/workspace`. Every endpoint rejects `..`, absolute paths, and
 // symlink escapes against the configured root. Auth is gated by the same
-// `s.auth(...)` wrapper the artifact route uses; we deliberately do NOT
-// route the reads through `controlplane.Cmd*` because the operation is
-// owned by the webui gateway, not the daemon's command surface.
+// protected route policy the artifact route uses; we deliberately do NOT route
+// the reads through `controlplane.Cmd*` because the operation is owned by the
+// webui gateway, not the daemon's command surface.
 //
 // Configuration:
 //   AGEZT_FILE_ROOT — directory the routes serve. Default: ~/agezt/workspace.
@@ -297,7 +297,7 @@ func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	body, ok := readJSONBody(w, r, defaultFileCap)
+	body, ok := readJSONBody(w, r)
 	if !ok {
 		return
 	}
@@ -330,7 +330,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	body, ok := readJSONBody(w, r, defaultFileCap)
+	body, ok := readJSONBody(w, r)
 	if !ok {
 		return
 	}
@@ -366,7 +366,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	body, ok := readJSONBody(w, r, defaultFileCap)
+	body, ok := readJSONBody(w, r)
 	if !ok {
 		return
 	}
@@ -418,11 +418,10 @@ func typeOf(e os.DirEntry) string {
 	return "file"
 }
 
-// readJSONBody decodes a JSON body up to a small cap. It writes a 4xx
-// response and returns ok=false when the body is missing, malformed, or
-// over the cap; the caller should just return in those cases.
-func readJSONBody(w http.ResponseWriter, r *http.Request, maxBytes int64) (map[string]any, bool) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+// readJSONBody decodes a JSON body whose route-level cap has already been
+// applied by Handler. It writes a 4xx response and returns ok=false when the
+// body is missing, malformed, or over the cap; the caller should just return.
+func readJSONBody(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
 	defer r.Body.Close()
 	var out map[string]any
 	dec := json.NewDecoder(r.Body)

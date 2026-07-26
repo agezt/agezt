@@ -209,7 +209,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Password string `json:"password"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, loginBodyLimit))
+	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&body); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
