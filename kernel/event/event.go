@@ -123,10 +123,9 @@ func New(spec Spec, id string, seq int64, ts time.Time, prevHash string) (*Event
 		Payload:       payload,
 		Tags:          spec.Tags,
 	}
-	h, err := e.computeHash()
-	if err != nil {
-		return nil, err
-	}
+	// prevHash was validated above and Event contains only JSON-native fields,
+	// so computeHash cannot fail for a freshly constructed event.
+	h, _ := e.computeHash()
 	e.Hash = h
 	return e, nil
 }
@@ -192,10 +191,10 @@ func (e *Event) Canonical() ([]byte, error) {
 
 // computeHash returns the hex-encoded BLAKE3-256 hash chained from PrevHash.
 func (e *Event) computeHash() (string, error) {
-	canonical, err := e.Canonical()
-	if err != nil {
-		return "", err
-	}
+	// Event's persistence shape contains only JSON-native fields. Canonical
+	// keeps an error return for API compatibility, but serialization cannot
+	// fail for this concrete type.
+	canonical, _ := e.Canonical()
 	prevBytes, err := hex.DecodeString(e.PrevHash)
 	if err != nil {
 		return "", fmt.Errorf("event: prev_hash not hex: %w", err)

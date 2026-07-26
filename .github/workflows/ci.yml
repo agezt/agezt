@@ -52,7 +52,8 @@ jobs:
             ./plugins/tools/runstool \
             ./plugins/tools/workboardtool \
             ./plugins/providers/internal/provopts \
-            ./plugins/tools/standingtool
+            ./plugins/tools/standingtool \
+            ./kernel/event
           do
             go test -coverprofile="$profile" "$package"
             coverage="$(go tool cover -func="$profile" | awk '/^total:/{gsub("%", "", $3); print $3}')"
