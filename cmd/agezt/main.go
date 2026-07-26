@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -60,6 +59,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/market"
 	kernelmemory "github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/netguard"
@@ -4354,19 +4354,6 @@ func onOff(b bool) string {
 // — over the same bus and control plane the CLI uses, so the two views are
 // guaranteed consistent. Returns a banner description (the tokenized URL), or
 // "" when disabled.
-//
-// httpReadHeaderTimeout bounds how long a client may take to send request headers
-// — the standard slow-loris mitigation (M419). It is SSE-safe: it bounds only the
-// header read, not a long-lived streaming response body, so it applies uniformly to
-// the web UI (/events), the OpenAI-compat API (streaming completions), and the REST
-// server. A WriteTimeout would kill those streams, so it is deliberately NOT set.
-// httpIdleTimeout caps how long an idle keep-alive connection is held. (The
-// control-plane TCP server has its own read deadline; these cover the HTTP surfaces.)
-const (
-	httpReadHeaderTimeout = 10 * time.Second
-	httpIdleTimeout       = 120 * time.Second
-)
-
 type webUISurface struct {
 	desc           string
 	localURL       string
@@ -4374,18 +4361,6 @@ type webUISurface struct {
 	passwordOn     bool
 	passwordStrict bool
 	allowHost      func(string)
-}
-
-// newGuardedHTTPServer builds an http.Server with the slow-loris timeouts applied
-// uniformly to every HTTP surface (web UI, OpenAI-compat API, REST). WriteTimeout is
-// intentionally left unset so long-lived SSE/streaming responses are not killed
-// mid-flight (M419).
-func newGuardedHTTPServer(h http.Handler) *http.Server {
-	return &http.Server{
-		Handler:           h,
-		ReadHeaderTimeout: httpReadHeaderTimeout,
-		IdleTimeout:       httpIdleTimeout,
-	}
 }
 
 //	AGEZT_WEB_ADDR  host:port to serve on (e.g. 127.0.0.1:8787); unset = off.
@@ -4470,19 +4445,9 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 		wsrv.SetSynthesizer(v)
 		fmt.Fprintf(stdout, "  voice output     : enabled (voice mode → text-to-speech)\n")
 	}
-	srv := newGuardedHTTPServer(wsrv.Handler())
-	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(stdout, "web ui server error: %v\n", err)
-		}
-	}()
-	// Stop with the daemon: graceful shutdown on ctx cancel.
-	go func() {
-		<-ctx.Done()
-		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutCtx)
-	}()
+	httpserver.Start(ctx, ln, wsrv.Handler(), func(err error) {
+		fmt.Fprintf(stdout, "web ui server error: %v\n", err)
+	})
 
 	localURL := "http://" + ln.Addr().String()
 	consoleURL := localURL + "/?token=" + token
@@ -5148,18 +5113,9 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 	if t := sttTranscriberFromEnv(); t != nil {
 		api.SetTranscriber(t)
 	}
-	srv := newGuardedHTTPServer(api.Handler())
-	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(stdout, "openai api server error: %v\n", err)
-		}
-	}()
-	go func() {
-		<-ctx.Done()
-		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutCtx)
-	}()
+	httpserver.Start(ctx, ln, api.Handler(), func(err error) {
+		fmt.Fprintf(stdout, "openai api server error: %v\n", err)
+	})
 
 	desc := "http://" + ln.Addr().String() + "/v1  (Authorization: Bearer " + prefix + "  — full token in " + filepath.Join(baseDir, "openai.token") + ")"
 	if !isLoopback(addr) {
@@ -5306,18 +5262,9 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		})
 		rest.SetTenantAuthorizer(reg.Authorize)
 	}
-	srv := newGuardedHTTPServer(rest.Handler())
-	go func() {
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(stdout, "rest api server error: %v\n", err)
-		}
-	}()
-	go func() {
-		<-ctx.Done()
-		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutCtx)
-	}()
+	httpserver.Start(ctx, ln, rest.Handler(), func(err error) {
+		fmt.Fprintf(stdout, "rest api server error: %v\n", err)
+	})
 
 	desc := "http://" + ln.Addr().String() + "/api/v1  (Authorization: Bearer " + prefix + "  — full token in " + filepath.Join(baseDir, "rest.token") + ")"
 	if !isLoopback(addr) {

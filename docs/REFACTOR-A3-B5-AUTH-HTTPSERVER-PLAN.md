@@ -5,10 +5,11 @@
 > `docs/REFACTOR-A3-HTTPSERVER-PLAN.md` for the auth-related phases.
 > **Generated:** 2026-07-03. Grounded in a measured auth-surface scan.
 >
-> **Implementation status (2026-07-26):** P0 is complete. The shared
-> `kernel/httpserver` auth/body-limit/router substrate is implemented, and
-> OpenAI API + native REST are migrated to it. WebUI route migration,
-> tenant/OAuth relocation, agent gateway, and shared listener lifecycle remain.
+> **Implementation status (2026-07-26):** P0, P2, P3, P5, and P7 are complete.
+> The shared `kernel/httpserver` auth/body-limit/router substrate plus
+> streaming-safe serve/drain lifecycle are implemented, and OpenAI API, native
+> REST, and WebUI are migrated. Address/TLS binding, tenant/OAuth relocation,
+> and the capability-JWT agent gateway remain.
 
 ## The overlap, and why it's a layer split (not a merge)
 

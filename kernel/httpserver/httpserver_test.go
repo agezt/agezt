@@ -3,12 +3,15 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 )
@@ -224,3 +227,85 @@ func TestRouterRejectsInvalidPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestNewStreamingServerTimeouts(t *testing.T) {
+	server := NewStreamingServer(http.NewServeMux())
+	if server.ReadHeaderTimeout != DefaultReadHeaderTimeout {
+		t.Errorf("ReadHeaderTimeout = %v, want %v", server.ReadHeaderTimeout, DefaultReadHeaderTimeout)
+	}
+	if server.IdleTimeout != DefaultIdleTimeout {
+		t.Errorf("IdleTimeout = %v, want %v", server.IdleTimeout, DefaultIdleTimeout)
+	}
+	if server.WriteTimeout != 0 {
+		t.Errorf("WriteTimeout = %v, want 0 for streaming responses", server.WriteTimeout)
+	}
+}
+
+func TestStartServesAndShutsDownWithContext(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	shutdown := make(chan struct{})
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	server := Start(ctx, listener, handler, func(err error) {
+		t.Errorf("unexpected serve error: %v", err)
+	})
+	server.RegisterOnShutdown(func() { close(shutdown) })
+
+	resp, err := http.Get("http://" + listener.Addr().String())
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		cancel()
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
+
+	cancel()
+	select {
+	case <-shutdown:
+	case <-time.After(time.Second):
+		t.Fatal("server did not shut down after context cancellation")
+	}
+}
+
+func TestStartRejectsInvalidInputs(t *testing.T) {
+	handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		listener net.Listener
+		handler  http.Handler
+	}{
+		{"nil context", nil, &stubListener{}, handler},
+		{"nil listener", context.Background(), nil, handler},
+		{"nil handler", context.Background(), &stubListener{}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("Start accepted invalid input")
+				}
+			}()
+			Start(tt.ctx, tt.listener, tt.handler, nil)
+		})
+	}
+}
+
+type stubListener struct{}
+
+func (*stubListener) Accept() (net.Conn, error) { return nil, errors.New("not implemented") }
+func (*stubListener) Close() error              { return nil }
+func (*stubListener) Addr() net.Addr            { return stubAddr("stub") }
+
+type stubAddr string
+
+func (a stubAddr) Network() string { return string(a) }
+func (a stubAddr) String() string  { return string(a) }

@@ -78,7 +78,8 @@ Status: in progress. `kernel/auth`, shared route/body-limit middleware, and the
 OpenAI, native REST, and WebUI router migrations are implemented. The WebUI
 keeps its shell/session/EventSource credential semantics behind a request-aware
 auth adapter while route tiers and body caps live in the shared registry.
-Shared listener infrastructure and the remaining route metadata still remain.
+The shared streaming-safe server lifecycle is also implemented; address/TLS
+binding policy and the remaining route metadata still remain.
 
 1. Add `kernel/httpserver` route metadata:
    `{method, path, tier, body_max, timeout, mutation}`.
