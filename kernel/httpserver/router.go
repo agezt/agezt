@@ -75,15 +75,29 @@ func (rt *Router) Handle(pattern string, opts RouteOpts, handler http.HandlerFun
 	if opts.Timeout < 0 {
 		panic("httpserver: route timeout cannot be negative")
 	}
-	method := strings.ToUpper(strings.TrimSpace(opts.Method))
-	if method == "" {
-		method = "*"
+	methods := strings.Split(opts.Method, ",")
+	if strings.TrimSpace(opts.Method) == "" {
+		methods = []string{"*"}
 	}
-	if method != "*" {
-		if _, err := http.NewRequest(method, "/", nil); err != nil {
+	normalizedMethods := make([]string, 0, len(methods))
+	seenMethods := make(map[string]struct{}, len(methods))
+	for _, candidate := range methods {
+		method := strings.ToUpper(strings.TrimSpace(candidate))
+		if method == "" || (method == "*" && len(methods) != 1) {
 			panic("httpserver: invalid route method")
 		}
+		if method != "*" {
+			if _, err := http.NewRequest(method, "/", nil); err != nil {
+				panic("httpserver: invalid route method")
+			}
+		}
+		if _, exists := seenMethods[method]; exists {
+			continue
+		}
+		seenMethods[method] = struct{}{}
+		normalizedMethods = append(normalizedMethods, method)
 	}
+	method := strings.Join(normalizedMethods, ",")
 	if handler == nil {
 		panic("httpserver: nil route handler")
 	}

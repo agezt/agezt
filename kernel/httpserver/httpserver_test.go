@@ -230,7 +230,8 @@ func TestRouterRejectsInvalidPolicy(t *testing.T) {
 		{"invalid tier", RouteOpts{Tier: kernelauth.Tier(99)}},
 		{"negative body limit", RouteOpts{Tier: kernelauth.TierPublic, BodyMax: -1}},
 		{"negative timeout", RouteOpts{Tier: kernelauth.TierPublic, Timeout: -time.Second}},
-		{"invalid method", RouteOpts{Tier: kernelauth.TierPublic, Method: "GET,POST"}},
+		{"invalid method", RouteOpts{Tier: kernelauth.TierPublic, Method: "GET,bad method"}},
+		{"wildcard mixed with method", RouteOpts{Tier: kernelauth.TierPublic, Method: "GET,*"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -249,6 +250,17 @@ func TestRouterDefaultsUnmigratedMethodToWildcard(t *testing.T) {
 	rt.Handle("/legacy", RouteOpts{Tier: kernelauth.TierPublic}, func(http.ResponseWriter, *http.Request) {})
 	if got := rt.Routes(); len(got) != 1 || got[0].Method != "*" {
 		t.Fatalf("routes = %#v, want wildcard method", got)
+	}
+}
+
+func TestRouterNormalizesMethodSet(t *testing.T) {
+	rt := NewRouter(Authenticator{}, nil)
+	rt.Handle("/mixed", RouteOpts{
+		Tier:   kernelauth.TierPublic,
+		Method: " get, POST, get ",
+	}, func(http.ResponseWriter, *http.Request) {})
+	if got := rt.Routes(); len(got) != 1 || got[0].Method != "GET,POST" {
+		t.Fatalf("routes = %#v, want normalized method set", got)
 	}
 }
 

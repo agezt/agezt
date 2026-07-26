@@ -184,27 +184,34 @@ func (s *Server) Handler() http.Handler {
 	router := httpserver.NewRouter(authenticator, func(w http.ResponseWriter, _ *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
 	})
-	publicRoute := httpserver.RouteOpts{Tier: kernelauth.TierPublic}
-	userRoute := httpserver.RouteOpts{Tier: kernelauth.TierUser}
+	publicRoute := httpserver.RouteOpts{Tier: kernelauth.TierPublic, Method: "GET,HEAD"}
+	userRoute := httpserver.RouteOpts{Tier: kernelauth.TierUser, Method: http.MethodGet}
 	userBodyRoute := httpserver.RouteOpts{
-		Tier:    kernelauth.TierUser,
-		BodyMax: maxRequestBodyBytes,
+		Tier:     kernelauth.TierUser,
+		Method:   http.MethodPost,
+		BodyMax:  maxRequestBodyBytes,
+		Mutation: true,
 	}
 	adminRoute := httpserver.RouteOpts{
-		Tier: kernelauth.TierAdmin,
+		Tier:   kernelauth.TierAdmin,
+		Method: http.MethodGet,
 		Unauthorized: func(w http.ResponseWriter, _ *http.Request) {
 			writeErr(w, http.StatusUnauthorized, "unauthorized", "this endpoint requires the daemon admin token")
 		},
 	}
 	adminBodyRoute := adminRoute
+	adminBodyRoute.Method = "GET,POST"
 	adminBodyRoute.BodyMax = maxRequestBodyBytes
+	adminBodyRoute.Mutation = true
 
 	router.Handle("/healthz", publicRoute, s.handleLive)
 	router.Handle("/readyz", publicRoute, s.handleReady)
 	// /metrics is token-authed: unlike liveness/readiness it exposes spend and
 	// activity volume (financially/operationally sensitive). Prometheus scrapes it
 	// with a bearer_token.
-	router.Handle("/metrics", userRoute, s.handleMetrics)
+	metricsRoute := userRoute
+	metricsRoute.Method = "GET,HEAD"
+	router.Handle("/metrics", metricsRoute, s.handleMetrics)
 	router.Handle("/api/v1/health", userRoute, s.handleHealth)
 	router.Handle("/api/v1/models", userRoute, s.handleModels)
 	router.Handle("/api/v1/runs", userBodyRoute, s.handleRunsRoot)
@@ -226,7 +233,9 @@ func (s *Server) Handler() http.Handler {
 	// per-tenant credential. (V-011)
 	router.Handle("/api/v1/update", adminRoute, s.handleUpdateCheck)
 	updateApplyRoute := adminRoute
+	updateApplyRoute.Method = http.MethodPost
 	updateApplyRoute.BodyMax = 64 * 1024
+	updateApplyRoute.Mutation = true
 	router.Handle("/api/v1/update/apply", updateApplyRoute, s.handleUpdateApply)
 	return router
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/meshctx"
 )
@@ -119,6 +120,43 @@ func do(t *testing.T, s *Server, method, path, body, token string) *httptest.Res
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, r)
 	return rec
+}
+
+func TestRouteMetadataClassifiesRESTReadsAndMutations(t *testing.T) {
+	s := newServer(t, &fakeEngine{model: "m"}, "secret")
+	inspector, ok := s.Handler().(interface{ Routes() []httpserver.Route })
+	if !ok {
+		t.Fatal("REST handler does not expose shared route metadata")
+	}
+	routes := inspector.Routes()
+	if len(routes) != 16 {
+		t.Fatalf("route count = %d, want 16", len(routes))
+	}
+	byPath := make(map[string]httpserver.Route, len(routes))
+	for _, route := range routes {
+		if route.Method == "*" {
+			t.Errorf("%s still has wildcard method metadata", route.Path)
+		}
+		byPath[route.Path] = route
+	}
+	assertRoute := func(path, method string, mutation bool, bodyMax int64) {
+		t.Helper()
+		route, exists := byPath[path]
+		if !exists {
+			t.Errorf("missing route metadata for %s", path)
+			return
+		}
+		if route.Method != method || route.Mutation != mutation || route.BodyMax != bodyMax {
+			t.Errorf("%s metadata = %#v", path, route)
+		}
+	}
+	assertRoute("/healthz", "GET,HEAD", false, 0)
+	assertRoute("/api/v1/runs", http.MethodPost, true, maxRequestBodyBytes)
+	assertRoute("/api/v1/runs/", http.MethodGet, false, 0)
+	assertRoute("/api/v1/mailbox/messages", "GET,POST", true, maxRequestBodyBytes)
+	assertRoute("/api/v1/mailbox/messages/", "GET,POST", true, maxRequestBodyBytes)
+	assertRoute("/api/v1/update", http.MethodGet, false, 0)
+	assertRoute("/api/v1/update/apply", http.MethodPost, true, 64*1024)
 }
 
 func TestRun_TenantRouting(t *testing.T) {
