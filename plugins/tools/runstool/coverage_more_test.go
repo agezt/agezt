@@ -82,9 +82,16 @@ func TestRunstoolCoverageOKJSONMarshalFail(t *testing.T) {
 }
 
 func TestRunstoolCoverageInvokeBranches(t *testing.T) {
-	// Unbound tool.
+	// Malformed input is a caller error, returned through the Tool interface's
+	// error channel before journal availability is considered.
 	tool := New()
-	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"recent"}`))
+	res, err := tool.Invoke(context.Background(), json.RawMessage(`{`))
+	if err == nil || !strings.Contains(err.Error(), "parse input") {
+		t.Fatalf("Invoke malformed input = (%+v, %v), want parse error", res, err)
+	}
+
+	// Unbound tool.
+	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"recent"}`))
 	if err != nil {
 		t.Fatalf("Invoke unbound: %v", err)
 	}
@@ -124,6 +131,7 @@ func TestRunstoolCoverageInvokeBranches(t *testing.T) {
 
 	// Bound with a sample event: stats reflects one completed run.
 	tool.Bind(fakeHist{events: []*event.Event{
+		makeEvent("task.received", "", 50, map[string]any{"intent": "ignored"}),
 		makeEvent("task.received", "run-1", 100, map[string]any{"intent": "do x"}),
 		makeEvent("task.completed", "run-1", 200, nil),
 	}})
