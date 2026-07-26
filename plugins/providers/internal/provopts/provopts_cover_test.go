@@ -39,8 +39,8 @@ func TestMerge_NullBody(t *testing.T) {
 	}
 }
 
-// TestThinkingBudget_AllEffortLevels covers each switch case plus the floor and
-// the max_tokens cap boundaries.
+// TestThinkingBudget_AllEffortLevels covers each switch case and the
+// max_tokens cap boundaries.
 func TestThinkingBudget_AllEffortLevels(t *testing.T) {
 	cases := []struct {
 		effort string

@@ -5,6 +5,7 @@ package standingtool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 
 type fakeHost struct {
 	orders    []standing.Order
+	store     *standing.Store
 	addErr    error
 	removeOK  bool
 	removeErr error
@@ -37,7 +39,7 @@ func (f *fakeHost) RemoveStanding(id string) (bool, error) {
 	return f.removeOK, f.removeErr
 }
 
-func (f *fakeHost) Standing() *standing.Store { return nil }
+func (f *fakeHost) Standing() *standing.Store { return f.store }
 
 // fakeRosterHost is a host that also implements rosterHost so we can exercise
 // validateActingAgent's roster lookup.
@@ -150,6 +152,18 @@ func TestStandingCoverageValidateActingAgent(t *testing.T) {
 	res, blocked = tool.validateActingAgent("alice")
 	if !blocked || !strings.Contains(res.Output, "managed sub-agent") || !strings.Contains(res.Output, "boss") {
 		t.Fatalf("managed sub-agent: %+v", res)
+	}
+
+	// A healthy, enabled and directly callable roster agent is accepted.
+	direct = true
+	if _, err := r.Update("alice", func(p *roster.Profile) {
+		p.DirectCallable = &direct
+	}); err != nil {
+		t.Fatalf("Update(direct): %v", err)
+	}
+	res, blocked = tool.validateActingAgent("alice")
+	if blocked {
+		t.Fatalf("directly callable agent should pass validation: %+v", res)
 	}
 }
 
@@ -289,6 +303,13 @@ func TestStandingCoverageInvokeValidation(t *testing.T) {
 	if res.IsError || !strings.Contains(res.Output, `"removed"`) {
 		t.Fatalf("remove success = %+v", res)
 	}
+
+	// Host-side remove failures are returned as soft tool errors.
+	h.removeErr = errors.New("remove failed")
+	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"remove","id":"so-1"}`))
+	if err != nil || !res.IsError || !strings.Contains(res.Output, "remove failed") {
+		t.Fatalf("remove failure = %+v, %v", res, err)
+	}
 }
 
 func TestStandingCoverageInvokeCreateEvent(t *testing.T) {
@@ -308,17 +329,27 @@ func TestStandingCoverageInvokeCreateEvent(t *testing.T) {
 	if !strings.Contains(res.Output, `"standing order created"`) {
 		t.Fatalf("output missing message: %s", res.Output)
 	}
+
+	h.addErr = errors.New("add failed")
+	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"create_event","subject":"task.failed","name":"watch","plan":"triage"}`))
+	if err != nil || !res.IsError || !strings.Contains(res.Output, "add failed") {
+		t.Fatalf("create host failure = %+v, %v", res, err)
+	}
 }
 
 func TestStandingCoverageInvokeList(t *testing.T) {
-	h := &fakeHost{}
+	store, err := standing.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("standing.Open: %v", err)
+	}
+	h := &fakeHost{store: store}
 	tool := New()
 	tool.Bind(h)
-	// Standing() returns nil, so List() may panic. Verify by checking that
-	// list path with no orders on the existing fake is safe — actually the
-	// existing fake's Standing() returns nil, which panics on List(). The
-	// production code uses t.host.Standing() (no nil guard), so this test
-	// documents the current behavior. We skip the assertion to keep the test
-	// safe and add a t.Skip for the crash-prone branch.
-	t.Skip("Standing() returns nil in fake; production has no nil guard")
+	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))
+	if err != nil || res.IsError {
+		t.Fatalf("Invoke list = %+v, %v", res, err)
+	}
+	if !strings.Contains(res.Output, `"count": 0`) || !strings.Contains(res.Output, `"orders": []`) {
+		t.Fatalf("empty list output = %s", res.Output)
+	}
 }

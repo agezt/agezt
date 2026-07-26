@@ -53,7 +53,7 @@ func Merge(body []byte, extra json.RawMessage) ([]byte, error) {
 //
 // maxTokens, when > 0, caps the budget below the response cap so the budget can
 // never meet or exceed it (providers reject budget >= max_tokens). A floor of
-// 1024 is applied because Anthropic rejects smaller budgets.
+// The smallest mapped effort is 1024 because Anthropic rejects lower budgets.
 func ThinkingBudget(effort string, maxTokens int) (int, bool) {
 	var b int
 	switch strings.ToLower(strings.TrimSpace(effort)) {
@@ -67,9 +67,6 @@ func ThinkingBudget(effort string, maxTokens int) (int, bool) {
 		b = 16384
 	default:
 		return 0, false
-	}
-	if b < 1024 {
-		b = 1024
 	}
 	if maxTokens > 0 && b >= maxTokens {
 		b = maxTokens - 1

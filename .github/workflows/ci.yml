@@ -50,7 +50,9 @@ jobs:
             ./kernel/board \
             ./tools/jsonschemagen \
             ./plugins/tools/runstool \
-            ./plugins/tools/workboardtool
+            ./plugins/tools/workboardtool \
+            ./plugins/providers/internal/provopts \
+            ./plugins/tools/standingtool
           do
             go test -coverprofile="$profile" "$package"
             coverage="$(go tool cover -func="$profile" | awk '/^total:/{gsub("%", "", $3); print $3}')"
