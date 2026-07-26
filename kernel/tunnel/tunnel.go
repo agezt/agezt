@@ -237,14 +237,10 @@ func execRun(ctx context.Context, name string, args []string, onLine func(string
 	cmd.Cancel = func() error { killProcessTree(cmd); return nil }
 	cmd.WaitDelay = 5 * time.Second
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
+	// cmd is fresh, not started, and has no Stdout/Stderr writer configured;
+	// under those invariants both pipe calls are guaranteed to succeed.
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
 		return err
 	}

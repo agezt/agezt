@@ -146,7 +146,7 @@ func TestStart_BackoffAndReset(t *testing.T) {
 				// reset branch executes on the next iteration.
 				virtual.Add(int64(healthyUptime + time.Second))
 			}
-			if n >= 5 {
+			if n >= 9 {
 				cancel() // stop the supervisor after enough iterations
 			}
 			return nil
@@ -161,8 +161,47 @@ func TestStart_BackoffAndReset(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Start did not return after ctx cancellation")
 	}
-	if runs.Load() < 5 {
-		t.Fatalf("expected the supervisor to run the tunnel at least 5 times, got %d", runs.Load())
+	if runs.Load() < 9 {
+		t.Fatalf("expected the supervisor to run the tunnel at least 9 times, got %d", runs.Load())
+	}
+}
+
+// TestStart_CancelDuringBackoff covers cancellation while the supervisor is
+// waiting to restart, rather than while a tunnel process is running.
+func TestStart_CancelDuringBackoff(t *testing.T) {
+	origAfter := afterFunc
+	defer func() { afterFunc = origAfter }()
+
+	waiting := make(chan struct{})
+	never := make(chan time.Time)
+	afterFunc = func(time.Duration) <-chan time.Time {
+		close(waiting)
+		return never
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	tun := &Tunnel{
+		cmd: []string{"faketunnel"},
+		run: func(context.Context, string, []string, func(string)) error {
+			return nil
+		},
+	}
+	done := make(chan struct{})
+	go func() {
+		tun.Start(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-waiting:
+	case <-time.After(5 * time.Second):
+		t.Fatal("supervisor did not enter backoff")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("supervisor did not stop during backoff")
 	}
 }
 
