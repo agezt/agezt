@@ -17,11 +17,15 @@ type covKernel struct {
 	gotCreate workboard.CreateSpec
 	gotClaim  string
 	workboard *workboard.Store
+	createErr error
 }
 
 func (f *covKernel) Workboard() *workboard.Store { return f.workboard }
 func (f *covKernel) CreateWorkboardTask(_ string, spec workboard.CreateSpec) (workboard.Task, bool, error) {
 	f.gotCreate = spec
+	if f.createErr != nil {
+		return workboard.Task{}, false, f.createErr
+	}
 	return workboard.Task{ID: "t-1", Title: spec.Title, Status: spec.Status, Owner: spec.Owner}, true, nil
 }
 func (f *covKernel) ClaimWorkboardTask(_, id, _, _ string) (workboard.Task, error) {
@@ -118,6 +122,15 @@ func TestWorkboardCoverageInvokeValidation(t *testing.T) {
 	if !res.IsError || !strings.Contains(res.Output, "no workboard task") {
 		t.Fatalf("show missing = %+v", res)
 	}
+
+	task, _, err := st.Create(workboard.CreateSpec{Title: "visible"}, time.UnixMilli(1))
+	if err != nil {
+		t.Fatalf("create visible task: %v", err)
+	}
+	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"show","id":"`+task.ID+`"}`))
+	if err != nil || res.IsError || !strings.Contains(res.Output, task.ID) {
+		t.Fatalf("show existing = %+v, %v", res, err)
+	}
 }
 
 func TestWorkboardCoverageApplyContextDefaults(t *testing.T) {
@@ -196,8 +209,10 @@ func TestWorkboardCoverageInvokeOps(t *testing.T) {
 	tool.Bind(&covKernel{workboard: st})
 
 	cases := map[string]bool{
-		`{"op":"list"}`: false,
+		`{"op":"list"}`:             false,
+		`{"op":"list","limit":101}`: false,
 		`{"op":"create","title":"t","description":"d","priority":3,"tags":["x"],"artifacts":["a"],"max_attempts":2,"escalate_to":"boss"}`: false,
+		`{"op":"create","title":"t","status":"not-a-status"}`:                                                                             true,
 		`{"op":"claim","id":"t-1"}`:                                 false,
 		`{"op":"heartbeat","id":"t-1"}`:                             false,
 		`{"op":"comment","id":"t-1","body":"note"}`:                 false,
@@ -223,5 +238,12 @@ func TestWorkboardCoverageInvokeOps(t *testing.T) {
 		if isErr != res.IsError {
 			t.Errorf("Invoke %q: IsError = %v, want %v (output: %s)", input, res.IsError, isErr, res.Output)
 		}
+	}
+
+	failing := &covKernel{workboard: st, createErr: errors.New("create failed")}
+	tool.Bind(failing)
+	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"create","title":"t"}`))
+	if err != nil || !res.IsError || !strings.Contains(res.Output, "create failed") {
+		t.Fatalf("create error = %+v, %v", res, err)
 	}
 }
