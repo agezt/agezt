@@ -40,16 +40,18 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - run: bash scripts/ci-go-retry.sh go vet ./...
       - run: bash scripts/ci-go-retry.sh go test ./...
-      - name: Voice provider coverage (100%)
+      - name: Jarvis speech coverage (100%)
         run: |
           profile="$(mktemp)"
           trap 'rm -f "$profile"' EXIT
-          go test -coverprofile="$profile" ./plugins/providers/voice
-          coverage="$(go tool cover -func="$profile" | awk '/^total:/{gsub("%", "", $3); print $3}')"
-          if [ "$coverage" != "100.0" ]; then
-            echo "::error::voice provider statement coverage is ${coverage}%, expected 100.0%"
-            exit 1
-          fi
+          for package in ./plugins/providers/voice ./kernel/stt; do
+            go test -coverprofile="$profile" "$package"
+            coverage="$(go tool cover -func="$profile" | awk '/^total:/{gsub("%", "", $3); print $3}')"
+            if [ "$coverage" != "100.0" ]; then
+              echo "::error::${package} statement coverage is ${coverage}%, expected 100.0%"
+              exit 1
+            fi
+          done
       - run: bash scripts/ci-go-retry.sh go build ./...
 
   race-breadth:
