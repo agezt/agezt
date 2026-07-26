@@ -47,7 +47,8 @@ jobs:
           for package in \
             ./plugins/providers/voice \
             ./kernel/stt \
-            ./kernel/board
+            ./kernel/board \
+            ./tools/jsonschemagen
           do
             go test -coverprofile="$profile" "$package"
             coverage="$(go tool cover -func="$profile" | awk '/^total:/{gsub("%", "", $3); print $3}')"

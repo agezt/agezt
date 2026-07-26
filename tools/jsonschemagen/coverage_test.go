@@ -6,11 +6,7 @@ package main
 // exportedName, refTypeName, and a full end-to-end run over the real contract.
 // This file targets the remaining branches: every emitSchema/goTypeFromSchema
 // shape, the run() error paths, the dir/typeString/oneLine/writeDocComment
-// helpers, mapValueType's boolean form, and main()'s flag-driven success path.
-//
-// main() exits via os.Exit(1) only on run() error; the coverage writer is
-// bypassed by os.Exit, so that single error line stays uncovered. Everything
-// else is reachable in-process.
+// helpers, mapValueType's boolean form, and main()'s flag-driven paths.
 
 import (
 	"bytes"
@@ -437,8 +433,7 @@ func TestRunWriteError(t *testing.T) {
 }
 
 // TestMainSuccess drives main() in-process with -in/-out/-pkg flags, exercising
-// flag parsing and the run() success branch (no os.Exit). Only the os.Exit error
-// branch remains uncovered.
+// flag parsing and the run() success branch.
 func TestMainSuccess(t *testing.T) {
 	in := writeTemp(t, "main.jsonc", `"$schemas": {"Ping": {"type":"string"}}`)
 	out := filepath.Join(t.TempDir(), "out.go")
@@ -456,6 +451,51 @@ func TestMainSuccess(t *testing.T) {
 
 	if _, err := os.Stat(out); err != nil {
 		t.Fatalf("main did not produce output: %v", err)
+	}
+}
+
+// TestMainFailure verifies the CLI's fatal path without terminating the test
+// process: production still uses os.Exit, while exitProcess records the code.
+func TestMainFailure(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.jsonc")
+	out := filepath.Join(t.TempDir(), "out.go")
+
+	origArgs := os.Args
+	origFlags := flag.CommandLine
+	origExit := exitProcess
+	origStderr := os.Stderr
+	defer func() {
+		os.Args = origArgs
+		flag.CommandLine = origFlags
+		exitProcess = origExit
+		os.Stderr = origStderr
+	}()
+
+	stderrPath := filepath.Join(t.TempDir(), "stderr.txt")
+	stderr, err := os.Create(stderrPath)
+	if err != nil {
+		t.Fatalf("create stderr capture: %v", err)
+	}
+	os.Stderr = stderr
+
+	gotExit := 0
+	exitProcess = func(code int) { gotExit = code }
+	flag.CommandLine = flag.NewFlagSet("jsonschemagen", flag.ExitOnError)
+	os.Args = []string{"jsonschemagen", "-in", missing, "-out", out, "-pkg", "gen"}
+
+	main()
+	if err := stderr.Close(); err != nil {
+		t.Fatalf("close stderr capture: %v", err)
+	}
+	if gotExit != 1 {
+		t.Fatalf("exit code = %d, want 1", gotExit)
+	}
+	message, err := os.ReadFile(stderrPath)
+	if err != nil {
+		t.Fatalf("read stderr capture: %v", err)
+	}
+	if !strings.Contains(string(message), "jsonschemagen: read") {
+		t.Fatalf("stderr = %q, want read error", message)
 	}
 }
 

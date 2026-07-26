@@ -29,6 +29,11 @@ import (
 	"strings"
 )
 
+// exitProcess is a narrow test seam for main's fatal path. Production keeps
+// the standard os.Exit behavior; tests can observe the requested exit code
+// without terminating the coverage process.
+var exitProcess = os.Exit
+
 func main() {
 	in := flag.String("in", ".project/agezt-contract.jsonc", "input contract file (JSONC)")
 	out := flag.String("out", "contract/gen/types.gen.go", "output Go file")
@@ -37,7 +42,7 @@ func main() {
 
 	if err := run(*in, *out, *pkg); err != nil {
 		fmt.Fprintf(os.Stderr, "jsonschemagen: %v\n", err)
-		os.Exit(1)
+		exitProcess(1)
 	}
 }
 
