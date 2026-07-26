@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, Volume2, HeartPulse, Check, X, Power,
 } from "lucide-react";
-import { getJSON, postAction, authHeaders } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
 import type { AgentEvent } from "@/lib/events";
+import { getVoiceReadiness, type VoiceReadiness } from "@/lib/voiceStatus";
 import { cn } from "@/lib/utils";
 import { goToView } from "@/lib/nav";
 import { Button } from "@/components/ui/button";
@@ -54,9 +55,6 @@ function isInitiativeResponder(o: StandingOrder): boolean {
   return o.slug === "guardian-initiative" || /initiative/i.test(o.name || "");
 }
 
-type VoiceState = "probing" | "natural" | "browser";
-type HearState = "probing" | "server" | "browser";
-
 // navigate to another view by hash (the app routes on location.hash).
 // goToView in lib/nav is the canonical version; this thin shim keeps the
 // existing call sites legible without forcing a 30-site rewrite.
@@ -78,8 +76,7 @@ export function Jarvis() {
   const ui = useUI();
   const [pulse, setPulse] = useState<PulseStatus | null>(null);
   const [records, setRecords] = useState<MemRecord[] | null>(null);
-  const [voice, setVoice] = useState<VoiceState>("probing");
-  const [hear, setHear] = useState<HearState>("probing");
+  const [speech, setSpeech] = useState<VoiceReadiness | null>(null);
   const [asks, setAsks] = useState<PulseAsk[]>([]);
   const [responder, setResponder] = useState<StandingOrder | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
@@ -87,7 +84,6 @@ export function Jarvis() {
   const [arming, setArming] = useState(false);
   const [beating, setBeating] = useState(false);
   const [recent, setRecent] = useState<AgentEvent[]>([]);
-  const probed = useRef(false);
 
   async function reload() {
     try {
@@ -166,36 +162,17 @@ export function Jarvis() {
     }
   }
 
-  // One-shot speech probe: both halves report 501 when unconfigured, so a tiny
-  // request to each tells us whether a real provider is wired (natural voice /
-  // server transcription) or we fall back to the browser's built-in speech.
-  // /api/transcribe checks "configured?" before parsing, so an empty POST is a
-  // safe, cheap probe (501 = no STT; anything else = a provider is wired).
-  async function probeSpeech() {
+  async function reloadSpeech() {
     try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ text: " " }),
-      });
-      setVoice(res.status === 501 ? "browser" : res.ok ? "natural" : "browser");
+      setSpeech(await getVoiceReadiness());
     } catch {
-      setVoice("browser");
-    }
-    try {
-      const res = await fetch("/api/transcribe", { method: "POST", headers: authHeaders() });
-      setHear(res.status === 501 ? "browser" : "server");
-    } catch {
-      setHear("browser");
+      setSpeech(null);
     }
   }
 
   useEffect(() => {
     reload();
-    if (!probed.current) {
-      probed.current = true;
-      probeSpeech();
-    }
+    reloadSpeech();
     const id = setInterval(reload, 6000);
     return () => clearInterval(id);
   }, []);
@@ -210,9 +187,7 @@ export function Jarvis() {
   const pulseRunning = !!pulse?.running && !pulse?.paused;
   const willLive = pulseRunning && init !== "off" && init !== "";
   const profileLive = profile.length > 0;
-  // Voice can always speak (browser fallback), so the pillar is always "on";
-  // "natural" just means the server TTS is wired for a richer voice.
-  const voiceLive = voice !== "probing";
+  const voiceLive = !!speech?.canListen && !!speech.canSpeak;
   const liveCount = (voiceLive ? 1 : 0) + (willLive ? 1 : 0) + (profileLive ? 1 : 0);
 
   async function rebuildProfile() {
@@ -244,7 +219,7 @@ export function Jarvis() {
       description="Your AI's presence — it hears you, acts for you, and knows you."
       width="wide"
       actions={
-        <Button variant="ghost" size="sm" onClick={reload} title="Refresh">
+        <Button variant="ghost" size="sm" onClick={() => { reload(); reloadSpeech(); }} title="Refresh">
           <RefreshCw className="size-3.5" />
         </Button>
       }
@@ -296,30 +271,36 @@ export function Jarvis() {
           eyebrow="It hears you"
           live={voiceLive}
           title={
-            voice === "probing"
+            !speech
               ? "Checking voice…"
-              : voice === "natural"
-                ? "Natural voice ready"
-                : "Browser voice ready"
+              : voiceLive
+                ? speech.serverTTS ? "Natural voice ready" : "Voice ready"
+                : "Voice needs setup"
           }
           tone="converse"
         >
           <div className="space-y-1 text-sm">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Ear className="size-3.5 shrink-0" /> Hearing:{" "}
-              <span className="text-foreground">{hear === "probing" ? "…" : hear === "server" ? "a speech provider" : "your browser"}</span>
+              <span className="text-foreground">
+                {!speech ? "…" : !speech.browserInput ? "browser microphone unavailable" : speech.serverSTT ? "a speech provider" : "provider not configured"}
+              </span>
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Volume2 className="size-3.5 shrink-0" /> Speaking:{" "}
-              <span className="text-foreground">{voice === "probing" ? "…" : voice === "natural" ? "a natural voice" : "your browser"}</span>
+              <span className="text-foreground">
+                {!speech ? "…" : speech.serverTTS ? "a natural voice" : speech.browserTTS ? "your browser" : "unavailable"}
+              </span>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            {voice === "natural" && hear === "server"
+            {voiceLive && speech?.serverTTS
               ? "Fully wired — it listens and replies in a natural voice, with barge-in."
-              : "Hands-free conversation works through your browser. Pick a provider — OpenAI, ElevenLabs, Groq, Deepgram or a local server — on the Voice page for natural speech."}
+              : voiceLive
+                ? "Hearing uses your configured speech provider; replies use the browser voice. Add TTS for more natural speech."
+                : "Hands-free mode needs browser microphone support and a transcription provider. Configure OpenAI, ElevenLabs, Groq, Deepgram, or a local server on the Voice page."}
           </p>
-          <PillarCTA label={voice === "natural" && hear === "server" ? "Start talking" : "Set up voice"} onClick={() => go("voice")} />
+          <PillarCTA label={voiceLive ? "Start talking" : "Set up voice"} onClick={() => go("voice")} />
         </Pillar>
 
         {/* INITIATIVE — it acts for you */}

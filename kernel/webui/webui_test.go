@@ -76,7 +76,7 @@ func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 func TestRouteMetadataClassifiesWebUIReadsMutationsAndTimeouts(t *testing.T) {
 	s, _ := newServer(t, &fakeCaller{}, "secret")
 	routes := s.routeRegistry().Routes()
-	wantCount := 25 + len(apiRoutes) + len(readArgsRoutes) + len(writeRoutes) + len(jsonRoutes)
+	wantCount := 26 + len(apiRoutes) + len(readArgsRoutes) + len(writeRoutes) + len(jsonRoutes)
 	if len(routes) != wantCount {
 		t.Fatalf("route count = %d, want %d", len(routes), wantCount)
 	}
@@ -118,6 +118,7 @@ func TestRouteMetadataClassifiesWebUIReadsMutationsAndTimeouts(t *testing.T) {
 	assertRoute("/events", http.MethodGet, false, 0, 0)
 	assertRoute("/api/run", http.MethodPost, true, jsonBodyMax, planRunTimeout)
 	assertRoute("/api/sse-token", "GET,OPTIONS", false, 0, 0)
+	assertRoute("/api/voice/status", http.MethodGet, false, 0, 0)
 	assertRoute("/api/artifact/raw", http.MethodGet, false, 0, 15*time.Second)
 	assertRoute("/hooks/", http.MethodPost, true, webhookBodyCap, 130*time.Second)
 	assertRoute("/oauth/callback", http.MethodGet, true, 0, 30*time.Second)

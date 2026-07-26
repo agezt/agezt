@@ -5,11 +5,15 @@ import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
+const getVoiceReadiness = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),
   authHeaders: () => new Headers(),
   withToken: (p: string) => p,
+}));
+vi.mock("@/lib/voiceStatus", () => ({
+  getVoiceReadiness: (...a: unknown[]) => getVoiceReadiness(...a),
 }));
 
 // Keep the voice session inert in tests — we only verify the view's chrome and
@@ -33,6 +37,15 @@ afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postJSON.mockReset();
+  getVoiceReadiness.mockReset();
+  getVoiceReadiness.mockResolvedValue({
+    serverSTT: true,
+    serverTTS: false,
+    browserInput: true,
+    browserTTS: true,
+    canListen: true,
+    canSpeak: true,
+  });
   postJSON.mockResolvedValue({ env: "AGEZT_STT_URL", saved: true, applied: "restart" });
   // Route by path: roster for the picker, plus the voice config schema/values the
   // inline VoiceSetup panel reads. Values start empty (nothing configured).
@@ -48,11 +61,11 @@ beforeEach(() => {
 });
 
 describe("Voice view", () => {
-  it("renders the header, orb prompt, and start control", () => {
+  it("renders the header, orb prompt, and start control", async () => {
     render(withUI(<Voice />));
     expect(screen.getByRole("heading", { name: "Voice", level: 2 })).toBeTruthy();
     expect(screen.getByText(/hands-free conversation/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: /start talking/i })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /start talking/i })).toBeTruthy();
   });
 
   it("loads the roster into the agent picker", async () => {
@@ -63,11 +76,29 @@ describe("Voice view", () => {
     expect(localStorage.getItem("agezt.voice.agent")).toBe("researcher");
   });
 
-  it("starts a session and swaps to a Stop control", () => {
+  it("starts a session and swaps to a Stop control", async () => {
     render(withUI(<Voice />));
+    await waitFor(() => expect(screen.getByRole("button", { name: /start talking/i })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /start talking/i }));
     expect(start).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: /stop/i })).toBeTruthy();
+  });
+
+  it("opens setup instead of starting when transcription is not configured", async () => {
+    getVoiceReadiness.mockResolvedValue({
+      serverSTT: false,
+      serverTTS: false,
+      browserInput: true,
+      browserTTS: true,
+      canListen: false,
+      canSpeak: true,
+    });
+    render(withUI(<Voice />));
+
+    const button = await screen.findByRole("button", { name: /set up hearing/i });
+    fireEvent.click(button);
+    expect(start).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Voice setup").length).toBeGreaterThanOrEqual(1);
   });
 
   it("persists the wake-word toggle", () => {

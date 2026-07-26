@@ -5,10 +5,14 @@ import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
 const postAction = vi.fn();
+const getVoiceReadiness = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
   authHeaders: (h?: HeadersInit) => new Headers(h),
+}));
+vi.mock("@/lib/voiceStatus", () => ({
+  getVoiceReadiness: (...a: unknown[]) => getVoiceReadiness(...a),
 }));
 
 import { Jarvis } from "@/views/Jarvis";
@@ -39,8 +43,15 @@ afterEach(cleanup);
 beforeEach(() => {
   getJSON.mockReset();
   postAction.mockReset();
-  // Voice probe: 501 → server TTS not configured → browser voice.
-  vi.stubGlobal("fetch", vi.fn(async () => ({ status: 501, ok: false }) as Response));
+  getVoiceReadiness.mockReset();
+  getVoiceReadiness.mockResolvedValue({
+    serverSTT: true,
+    serverTTS: false,
+    browserInput: true,
+    browserTTS: true,
+    canListen: true,
+    canSpeak: true,
+  });
 });
 
 describe("Jarvis presence view", () => {
@@ -57,8 +68,8 @@ describe("Jarvis presence view", () => {
     // Profile pillar counts only the "operator profile:" records (2 of 3).
     expect(screen.getByText(/Knows 2 things about you/)).toBeTruthy();
     expect(screen.getByText(/expertise/)).toBeTruthy();
-    // Voice pillar fell back to the browser voice after the 501 probe.
-    await waitFor(() => expect(screen.getByText("Browser voice ready")).toBeTruthy());
+    // Server STT + browser TTS is a usable, explicitly degraded voice path.
+    await waitFor(() => expect(screen.getByText("Voice ready")).toBeTruthy());
     // Presence meter: voice + will + profile = 3 of 3.
     expect(screen.getByText(/3 of 3/)).toBeTruthy();
   });
@@ -67,18 +78,38 @@ describe("Jarvis presence view", () => {
     getJSON.mockImplementation((path: string) =>
       path === "/api/pulse" ? Promise.resolve(PULSE_ACT) : Promise.resolve(PROFILE_RECORDS),
     );
-    // TTS ok (natural voice); transcribe 400 (configured — STT present, just no file).
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) =>
-        url === "/api/tts" ? ({ status: 200, ok: true } as Response) : ({ status: 400, ok: false } as Response),
-      ),
-    );
+    getVoiceReadiness.mockResolvedValue({
+      serverSTT: true,
+      serverTTS: true,
+      browserInput: true,
+      browserTTS: true,
+      canListen: true,
+      canSpeak: true,
+    });
     render(withUI(<Jarvis />));
 
     await waitFor(() => expect(screen.getByText("a speech provider")).toBeTruthy());
     expect(screen.getByText("a natural voice")).toBeTruthy();
     expect(screen.getByText(/Fully wired/)).toBeTruthy();
+  });
+
+  it("does not claim browser speech can replace a missing transcription provider", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/pulse" ? Promise.resolve(PULSE_ACT) : Promise.resolve({ records: [] }),
+    );
+    getVoiceReadiness.mockResolvedValue({
+      serverSTT: false,
+      serverTTS: false,
+      browserInput: true,
+      browserTTS: true,
+      canListen: false,
+      canSpeak: true,
+    });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("Voice needs setup")).toBeTruthy());
+    expect(screen.getByText("provider not configured")).toBeTruthy();
+    expect(screen.getByText(/1 of 3/)).toBeTruthy();
   });
 
   it("shows the dormant headlines and a lower count when pillars are off", async () => {

@@ -818,6 +818,9 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	sseTokenRead := protectedRead
 	sseTokenRead.Method = "GET,OPTIONS"
 	router.Handle("/api/sse-token", sseTokenRead, s.handleSSEToken)
+	// Provider-free speech readiness probe. Unlike the STT/TTS action routes,
+	// this never uploads dummy audio or synthesizes throwaway speech.
+	router.Handle("/api/voice/status", protectedRead, s.handleVoiceStatus)
 	transcribeProtected := protectedMutation
 	transcribeProtected.Timeout = 0
 	transcribeProtected.BodyMax = audioMaxBytes

@@ -8,6 +8,7 @@ import { useUI } from "@/components/ui/feedback";
 import { getJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/lib/voiceSession";
+import { getVoiceReadiness, type VoiceReadiness } from "@/lib/voiceStatus";
 import { VoiceSetup } from "@/views/VoiceSetup";
 
 const WAKE_KEY = "agezt.voice.wake";
@@ -68,6 +69,7 @@ export function Voice() {
   const [agents, setAgents] = useState<{ slug: string; name?: string }[]>([]);
   const [agent, setAgent] = useState<string>(() => localStorage.getItem(AGENT_KEY) || "");
   const [setupOpen, setSetupOpen] = useState(false);
+  const [readiness, setReadiness] = useState<VoiceReadiness | null>();
   const sessionRef = useRef<VoiceSession | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -77,6 +79,7 @@ export function Voice() {
     getJSON<{ profiles?: { slug: string; name?: string; enabled?: boolean }[] }>("/api/agents")
       .then((r) => setAgents((r.profiles ?? []).filter((p) => p.enabled !== false).map((p) => ({ slug: p.slug, name: p.name }))))
       .catch(() => {});
+    getVoiceReadiness().then(setReadiness).catch(() => setReadiness(null));
   }, []);
 
   useEffect(() => localStorage.setItem(WAKE_KEY, wake ? "1" : "0"), [wake]);
@@ -92,6 +95,16 @@ export function Voice() {
   useEffect(() => () => sessionRef.current?.stop(), []);
 
   function startSession() {
+    if (!readiness?.canListen) {
+      setSetupOpen(true);
+      ui.toast(
+        readiness && !readiness.browserInput
+          ? "This browser cannot capture microphone audio for Voice mode"
+          : "Set up a transcription provider before starting Voice mode",
+        "info",
+      );
+      return;
+    }
     const io = createBrowserVoiceIO({ agent: agent || undefined });
     const session = new VoiceSession(
       io,
@@ -105,7 +118,10 @@ export function Voice() {
             if (last && last.role === "agezt") return [...ls.slice(0, -1), { ...last, text: last.text + text }];
             return [...ls, { role: "agezt", text }];
           }),
-        onError: (msg) => ui.toast(msg, "error"),
+        onError: (msg) => {
+          ui.toast(msg, "error");
+          stopSession();
+        },
       },
       { wakeWords: wake ? WAKE_WORDS : [], agent: agent || undefined },
     );
@@ -157,13 +173,23 @@ export function Voice() {
               <Square className="size-4" /> Stop
             </Button>
           ) : (
-            <Button variant="accent" onClick={startSession}>
-              <Mic className="size-4" /> Start talking
+            <Button variant="accent" onClick={startSession} disabled={readiness === undefined}>
+              <Mic className="size-4" /> {readiness === undefined ? "Checking voice…" : readiness?.canListen ? "Start talking" : "Set up hearing"}
             </Button>
           )}
         </>
       }
     >
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-muted">
+        <span className={readiness?.canListen ? "text-good" : "text-warn"}>
+          Hearing: {readiness === undefined ? "checking…" : readiness?.serverSTT ? "provider ready" : "setup required"}
+        </span>
+        <span aria-hidden>·</span>
+        <span className={readiness?.canSpeak ? "text-good" : "text-warn"}>
+          Speaking: {readiness === undefined ? "checking…" : readiness?.serverTTS ? "natural provider" : readiness?.browserTTS ? "browser fallback" : "unavailable"}
+        </span>
+        {readiness && !readiness.browserInput && <span className="text-warn">· microphone capture unsupported</span>}
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         {/* Orb + controls */}
