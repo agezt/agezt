@@ -15,7 +15,17 @@ function Harness() {
   return (
     <div>
       <button onClick={() => ui.toast("saved it", "success")}>fire-toast</button>
-      <button onClick={async () => setRes(String(await ui.confirm({ title: "Delete it?", danger: true })))}>
+      <button
+        onClick={async () =>
+          setRes(String(await ui.confirm({
+            title: "Delete it?",
+            target: "agent builder",
+            impact: "Stops scheduled and delegated work.",
+            recovery: "Revive it later; paused triggers stay paused.",
+            danger: true,
+          })))
+        }
+      >
         ask
       </button>
       <span data-testid="res">{res}</span>
@@ -61,6 +71,9 @@ describe("confirm", () => {
     fireEvent.click(screen.getByText("ask"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
     expect(screen.getByText("Delete it?")).toBeTruthy();
+    expect(screen.getByText("agent builder")).toBeTruthy();
+    expect(screen.getByText("Stops scheduled and delegated work.")).toBeTruthy();
+    expect(screen.getByText("Revive it later; paused triggers stay paused.")).toBeTruthy();
   });
 
   it("resolves true when the confirm button is clicked", async () => {

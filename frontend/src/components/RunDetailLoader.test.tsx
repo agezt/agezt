@@ -67,6 +67,9 @@ describe("RunRollbackDrawer", () => {
     expect(screen.getByText("previous secret value is masked by the daemon")).toBeTruthy();
 
     fireEvent.click(screen.getAllByRole("button", { name: /Apply/i })[0]);
+    expect((await screen.findAllByText("notes.txt")).length).toBeGreaterThan(1);
+    expect(screen.getByText(/file content snapshot from checkpoint rb-file/i)).toBeTruthy();
+    expect(screen.getByText(/checkpoint can be applied only once/i)).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: "Apply rollback" }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/rollback/apply", { id: "rb-file" }));
   });

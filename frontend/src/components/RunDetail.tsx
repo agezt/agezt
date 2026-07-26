@@ -716,7 +716,10 @@ export function RunRollbackDrawer({ correlationId }: { correlationId: string }) 
     if (cp.applied_ms || auditReason) return;
     const ok = await ui.confirm({
       title: "Apply rollback checkpoint?",
-      message: `${rollbackSubject(cp)} will be restored from ${cp.id}.`,
+      message: "Restore the checkpointed state over the current state.",
+      target: rollbackSubject(cp),
+      impact: `${rollbackRestoreText(cp)} from checkpoint ${cp.id}.`,
+      recovery: "A checkpoint can be applied only once. Capture the current state separately if this rollback may need to be undone.",
       confirmLabel: "Apply rollback",
       danger: true,
     });

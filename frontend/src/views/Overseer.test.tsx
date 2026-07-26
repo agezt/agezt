@@ -1,19 +1,21 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 const getJSON = vi.fn();
+const postAction = vi.fn();
+const confirm = vi.fn();
 const liveEvents = vi.hoisted(() => ({ events: [] as any[] }));
 
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
-  postAction: vi.fn().mockResolvedValue({}),
+  postAction: (...a: unknown[]) => postAction(...a),
 }));
 
 vi.mock("@/components/ui/feedback", () => ({
-  useUI: () => ({ toast: vi.fn() }),
+  useUI: () => ({ toast: vi.fn(), confirm: (...a: unknown[]) => confirm(...a) }),
 }));
 
 vi.mock("@/lib/events", () => ({
@@ -33,6 +35,9 @@ afterEach(cleanup);
 
 beforeEach(() => {
   getJSON.mockReset();
+  postAction.mockReset();
+  postAction.mockResolvedValue({});
+  confirm.mockReset();
   liveEvents.events = [];
 });
 
@@ -139,5 +144,39 @@ describe("Overseer", () => {
     expect(screen.getByText(/schedule sch-sync/)).toBeTruthy();
     expect(screen.getByText("gpt-5")).toBeTruthy();
     expect(screen.getByText("builder · to lead · tool denied · doctor.auto_repair")).toBeTruthy();
+  });
+
+  it("shows retirement target, blast radius, and recovery before mutating", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/runs") return Promise.resolve({ runs: [] });
+      if (path === "/api/agents") {
+        return Promise.resolve({ profiles: [{ slug: "builder", enabled: true }] });
+      }
+      if (path === "/api/board/help") return Promise.resolve({ open_help: [] });
+      return Promise.resolve({});
+    });
+    confirm.mockResolvedValue(false);
+    render(withPage(<Overseer />));
+
+    await waitFor(() => expect(screen.getByText("builder")).toBeTruthy());
+    fireEvent.click(screen.getByText("Agent fleet & quick actions"));
+    fireEvent.click(screen.getByTitle("Retire agent"));
+
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Retire builder?",
+      target: "Agent builder",
+      impact: expect.stringContaining("standing orders and schedules"),
+      recovery: expect.stringContaining("re-enabled explicitly"),
+      confirmLabel: "Retire agent",
+      danger: true,
+    })));
+    expect(postAction).not.toHaveBeenCalled();
+
+    confirm.mockResolvedValue(true);
+    fireEvent.click(screen.getByTitle("Retire agent"));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith(
+      "/api/agents/retire",
+      { ref: "builder" },
+    ));
   });
 });

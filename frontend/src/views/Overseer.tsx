@@ -100,7 +100,8 @@ const REFRESH_KINDS = new Set([
 // (M850/M862, live in M867). It folds three existing read routes into one screen
 // — what is running now, who is on the roster, who has raised an unanswered call
 // for help — and rides the live event stream so it updates as things happen.
-// Read-only and conflict-free: it watches, it mutates nothing.
+// Supervisory quick actions are explicit and guarded; retirement shows its
+// wake/delegation blast radius before changing durable agent state.
 export function Overseer() {
   const [data, setData] = useState<OverseerData>(EMPTY);
   const [err, setErr] = useState<string | null>(null);
@@ -126,6 +127,20 @@ export function Overseer() {
   }
 
   async function toggleRetired(ref: string, retired: boolean) {
+    if (
+      retired &&
+      !(await ui.confirm({
+        title: `Retire ${ref}?`,
+        message: "Move this durable agent to the graveyard.",
+        target: `Agent ${ref}`,
+        impact: "Stops new wakes and delegation, and pauses its standing orders and schedules.",
+        recovery: "The identity and history are preserved. Revive the agent later; paused triggers must be re-enabled explicitly.",
+        confirmLabel: "Retire agent",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     setBusy((prev) => new Set(prev).add(ref));
     try {
       if (retired) {

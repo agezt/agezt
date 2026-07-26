@@ -17,6 +17,9 @@ interface Toast {
 export interface ConfirmOptions {
   title: string;
   message?: string;
+  target?: string;
+  impact?: string;
+  recovery?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
@@ -247,6 +250,28 @@ function ConfirmModal({ opts, onResult }: { opts: ConfirmOptions; onResult: (v: 
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-foreground">{opts.title}</h3>
             {opts.message && <p className="mt-1 text-sm text-muted">{opts.message}</p>}
+            {(opts.target || opts.impact || opts.recovery) && (
+              <dl className="mt-3 space-y-2 rounded-lg border border-border/70 bg-background/45 p-2.5 text-xs">
+                {opts.target && (
+                  <div>
+                    <dt className="font-semibold uppercase tracking-normal text-muted">Target</dt>
+                    <dd className="mt-0.5 break-words text-foreground">{opts.target}</dd>
+                  </div>
+                )}
+                {opts.impact && (
+                  <div>
+                    <dt className="font-semibold uppercase tracking-normal text-muted">Impact</dt>
+                    <dd className="mt-0.5 break-words text-foreground">{opts.impact}</dd>
+                  </div>
+                )}
+                {opts.recovery && (
+                  <div>
+                    <dt className="font-semibold uppercase tracking-normal text-muted">Recovery</dt>
+                    <dd className="mt-0.5 break-words text-foreground">{opts.recovery}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
