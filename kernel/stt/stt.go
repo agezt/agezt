@@ -68,19 +68,11 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte) 
 	}
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
-	part, err := mw.CreateFormFile("file", filename)
-	if err != nil {
-		return "", err
-	}
-	if _, err := part.Write(audio); err != nil {
-		return "", err
-	}
-	if err := mw.WriteField("model", c.model); err != nil {
-		return "", err
-	}
-	if err := mw.Close(); err != nil {
-		return "", err
-	}
+	// multipart.Writer targets a bytes.Buffer here, whose Write cannot fail.
+	part, _ := mw.CreateFormFile("file", filename)
+	_, _ = part.Write(audio)
+	_ = mw.WriteField("model", c.model)
+	_ = mw.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/audio/transcriptions", &body)
 	if err != nil {
@@ -96,7 +88,13 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte) 
 		return "", c.scrub(err)
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, sttRespMaxBytes))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, sttRespMaxBytes+1))
+	if err != nil {
+		return "", c.scrub(fmt.Errorf("stt: read response: %w", err))
+	}
+	if len(raw) > sttRespMaxBytes {
+		return "", fmt.Errorf("stt: response exceeds %d bytes", sttRespMaxBytes)
+	}
 	if resp.StatusCode/100 != 2 {
 		return "", fmt.Errorf("stt: transcription failed: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}

@@ -4,12 +4,22 @@ package stt
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+type failingBody struct{}
+
+func (failingBody) Read([]byte) (int, error) { return 0, errors.New("broken body") }
+func (failingBody) Close() error             { return nil }
 
 func TestNew_Defaults(t *testing.T) {
 	c := New(Config{})
@@ -102,5 +112,80 @@ func TestTranscribe_BodyErrorSurfaced(t *testing.T) {
 	_, err := c.Transcribe(context.Background(), "x.wav", []byte("audio"))
 	if err == nil || !strings.Contains(err.Error(), "model unavailable") {
 		t.Errorf("want a body-error message, got %v", err)
+	}
+}
+
+func TestTranscribe_BadURLAndTransportErrors(t *testing.T) {
+	c := New(Config{APIURL: "http://bad\x7fhost", APIKey: "secret"})
+	if _, err := c.Transcribe(context.Background(), "x.wav", []byte("audio")); err == nil {
+		t.Fatal("invalid request URL must fail")
+	}
+
+	c = New(Config{
+		APIURL: "http://voice.test/v1",
+		APIKey: "secret",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("transport exposed secret")
+		})},
+	})
+	_, err := c.Transcribe(context.Background(), "x.wav", []byte("audio"))
+	if err == nil || strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "<redacted>") {
+		t.Fatalf("transport error was not safely surfaced: %v", err)
+	}
+}
+
+func TestTranscribe_ResponseReadDecodeAndSizeErrors(t *testing.T) {
+	t.Run("read", func(t *testing.T) {
+		c := New(Config{
+			APIURL: "http://voice.test/v1",
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: failingBody{}}, nil
+			})},
+		})
+		if _, err := c.Transcribe(context.Background(), "x.wav", []byte("audio")); err == nil ||
+			!strings.Contains(err.Error(), "read response") {
+			t.Fatalf("expected read error, got %v", err)
+		}
+	})
+
+	t.Run("decode", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, "{bad json")
+		}))
+		defer srv.Close()
+		c := New(Config{APIURL: srv.URL, HTTPClient: srv.Client()})
+		if _, err := c.Transcribe(context.Background(), "x.wav", []byte("audio")); err == nil ||
+			!strings.Contains(err.Error(), "decode response") {
+			t.Fatalf("expected decode error, got %v", err)
+		}
+	})
+
+	t.Run("too large", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, strings.Repeat("x", sttRespMaxBytes+1))
+		}))
+		defer srv.Close()
+		c := New(Config{APIURL: srv.URL, HTTPClient: srv.Client()})
+		if _, err := c.Transcribe(context.Background(), "x.wav", []byte("audio")); err == nil ||
+			!strings.Contains(err.Error(), "response exceeds") {
+			t.Fatalf("expected response-size error, got %v", err)
+		}
+	})
+}
+
+func TestScrub(t *testing.T) {
+	plain := errors.New("plain failure")
+	if got := (&Client{}).scrub(nil); got != nil {
+		t.Fatalf("scrub(nil) = %v", got)
+	}
+	if got := (&Client{}).scrub(plain); got != plain {
+		t.Fatal("client without a key should preserve the error")
+	}
+	if got := (&Client{key: "secret"}).scrub(plain); got != plain {
+		t.Fatal("error without the key should be preserved")
+	}
+	got := (&Client{key: "secret"}).scrub(errors.New("secret leaked twice: secret"))
+	if strings.Contains(got.Error(), "secret") || strings.Count(got.Error(), "<redacted>") != 2 {
+		t.Fatalf("key was not fully redacted: %v", got)
 	}
 }
