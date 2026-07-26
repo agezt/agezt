@@ -40,11 +40,15 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - run: bash scripts/ci-go-retry.sh go vet ./...
       - run: bash scripts/ci-go-retry.sh go test ./...
-      - name: Jarvis speech coverage (100%)
+      - name: Go package coverage ratchets (100%)
         run: |
           profile="$(mktemp)"
           trap 'rm -f "$profile"' EXIT
-          for package in ./plugins/providers/voice ./kernel/stt; do
+          for package in \
+            ./plugins/providers/voice \
+            ./kernel/stt \
+            ./kernel/board
+          do
             go test -coverprofile="$profile" "$package"
             coverage="$(go tool cover -func="$profile" | awk '/^total:/{gsub("%", "", $3); print $3}')"
             if [ "$coverage" != "100.0" ]; then

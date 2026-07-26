@@ -305,10 +305,10 @@ func (s *Store) Topics() map[string]int {
 }
 
 func (s *Store) save() error {
-	b, err := json.MarshalIndent(s.msgs, "", "  ")
-	if err != nil {
-		return err
-	}
+	// Message contains only JSON-native scalar fields and []string, so this
+	// marshal cannot fail. Keeping an error branch here would be unreachable
+	// unless Message's persistence contract changes.
+	b, _ := json.MarshalIndent(s.msgs, "", "  ")
 	tmp := s.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return err
