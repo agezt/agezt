@@ -191,10 +191,12 @@ func (s *Server) Handler() http.Handler {
 		writeErr(w, http.StatusUnauthorized, "invalid_api_key", "missing or invalid API key")
 	})
 	jsonRoute := httpserver.RouteOpts{
-		Tier:    kernelauth.TierUser,
-		BodyMax: maxRequestBodyBytes,
+		Tier:     kernelauth.TierUser,
+		Method:   http.MethodPost,
+		BodyMax:  maxRequestBodyBytes,
+		Mutation: true,
 	}
-	readRoute := httpserver.RouteOpts{Tier: kernelauth.TierUser}
+	readRoute := httpserver.RouteOpts{Tier: kernelauth.TierUser, Method: http.MethodGet}
 	router.Handle("/v1/chat/completions", jsonRoute, s.handleChat)
 	router.Handle("/v1/responses", jsonRoute, s.handleResponses)
 	router.Handle("/v1/models", readRoute, s.handleModels)
@@ -203,8 +205,10 @@ func (s *Server) Handler() http.Handler {
 	// official SDKs' models.retrieve(id) issues for capability probing) would 404.
 	router.Handle("/v1/models/", readRoute, s.handleModelByID)
 	router.Handle("/v1/audio/transcriptions", httpserver.RouteOpts{
-		Tier:    kernelauth.TierUser,
-		BodyMax: audioMaxBytes,
+		Tier:     kernelauth.TierUser,
+		Method:   http.MethodPost,
+		BodyMax:  audioMaxBytes,
+		Mutation: true,
 	}, s.handleTranscription)
 	return router
 }

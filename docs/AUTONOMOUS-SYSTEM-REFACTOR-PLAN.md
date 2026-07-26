@@ -75,7 +75,10 @@ browser gates green.
 ### Phase 1 — Shared auth and HTTP transport
 
 Status: in progress. `kernel/auth`, shared route/body-limit middleware, and the
-OpenAI, native REST, and WebUI router migrations are implemented. The WebUI
+OpenAI, native REST, and WebUI router migrations are implemented. Shared route
+snapshots now expose method, path, tier, body cap, timeout, and mutation policy;
+the OpenAI surface declares the full metadata while REST and WebUI method /
+mutation classification remains. The WebUI
 keeps its shell/session/EventSource credential semantics behind a request-aware
 auth adapter while route tiers and body caps live in the shared registry.
 The shared streaming-safe server lifecycle is also implemented; address/TLS

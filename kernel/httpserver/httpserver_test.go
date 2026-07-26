@@ -197,13 +197,27 @@ func TestRouterAppliesAuthBeforeBodyLimit(t *testing.T) {
 
 func TestRouterMetadataIsCopied(t *testing.T) {
 	rt := NewRouter(Authenticator{}, nil)
-	rt.Handle("/public", RouteOpts{Tier: kernelauth.TierPublic}, func(http.ResponseWriter, *http.Request) {})
+	rt.Handle("/public", RouteOpts{
+		Tier:     kernelauth.TierPublic,
+		Method:   http.MethodPost,
+		BodyMax:  128,
+		Timeout:  3 * time.Second,
+		Mutation: true,
+	}, func(http.ResponseWriter, *http.Request) {})
 	got := rt.Routes()
-	if len(got) != 1 || got[0].Pattern != "/public" || got[0].Tier != kernelauth.TierPublic {
+	if len(got) != 1 ||
+		got[0].Method != http.MethodPost ||
+		got[0].Path != "/public" ||
+		got[0].Pattern != "/public" ||
+		got[0].Tier != kernelauth.TierPublic ||
+		got[0].BodyMax != 128 ||
+		got[0].Timeout != 3*time.Second ||
+		!got[0].Mutation {
 		t.Fatalf("routes = %#v", got)
 	}
+	got[0].Path = "/changed"
 	got[0].Pattern = "/mutated"
-	if rt.Routes()[0].Pattern != "/public" {
+	if fresh := rt.Routes()[0]; fresh.Path != "/public" || fresh.Pattern != "/public" {
 		t.Fatal("Routes exposed mutable internal storage")
 	}
 }
@@ -215,6 +229,8 @@ func TestRouterRejectsInvalidPolicy(t *testing.T) {
 	}{
 		{"invalid tier", RouteOpts{Tier: kernelauth.Tier(99)}},
 		{"negative body limit", RouteOpts{Tier: kernelauth.TierPublic, BodyMax: -1}},
+		{"negative timeout", RouteOpts{Tier: kernelauth.TierPublic, Timeout: -time.Second}},
+		{"invalid method", RouteOpts{Tier: kernelauth.TierPublic, Method: "GET,POST"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -225,6 +241,14 @@ func TestRouterRejectsInvalidPolicy(t *testing.T) {
 			}()
 			NewRouter(Authenticator{}, nil).Handle("/", tt.opts, func(http.ResponseWriter, *http.Request) {})
 		})
+	}
+}
+
+func TestRouterDefaultsUnmigratedMethodToWildcard(t *testing.T) {
+	rt := NewRouter(Authenticator{}, nil)
+	rt.Handle("/legacy", RouteOpts{Tier: kernelauth.TierPublic}, func(http.ResponseWriter, *http.Request) {})
+	if got := rt.Routes(); len(got) != 1 || got[0].Method != "*" {
+		t.Fatalf("routes = %#v, want wildcard method", got)
 	}
 }
 

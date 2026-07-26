@@ -4,25 +4,38 @@ package httpserver
 
 import (
 	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 )
 
-// RouteOpts declares the shared transport policy for a route. A zero BodyMax
-// leaves the body uncapped by this layer; handlers with specialized streaming
-// limits may still apply their own cap.
+// RouteOpts declares the shared transport policy for a route. Method defaults
+// to "*" while a surface is being migrated. A zero BodyMax leaves the body
+// uncapped by this layer; handlers with specialized streaming limits may still
+// apply their own cap. Timeout is inspectable metadata: handlers retain control
+// of their wire-specific timeout/cancellation response.
 type RouteOpts struct {
 	Tier         kernelauth.Tier
+	Method       string
 	BodyMax      int64
+	Timeout      time.Duration
+	Mutation     bool
 	Unauthorized UnauthorizedWriter
 }
 
 // Route is an inspectable snapshot of registered transport policy.
 type Route struct {
-	Pattern string
-	Tier    kernelauth.Tier
-	BodyMax int64
+	Method string
+	Path   string
+	// Pattern is retained as a compatibility alias for Path.
+	// Deprecated: use Path.
+	Pattern  string
+	Tier     kernelauth.Tier
+	BodyMax  int64
+	Timeout  time.Duration
+	Mutation bool
 }
 
 // Router wraps ServeMux with consistent authorization and body-limit policy.
@@ -59,6 +72,18 @@ func (rt *Router) Handle(pattern string, opts RouteOpts, handler http.HandlerFun
 	if opts.BodyMax < 0 {
 		panic("httpserver: body limit cannot be negative")
 	}
+	if opts.Timeout < 0 {
+		panic("httpserver: route timeout cannot be negative")
+	}
+	method := strings.ToUpper(strings.TrimSpace(opts.Method))
+	if method == "" {
+		method = "*"
+	}
+	if method != "*" {
+		if _, err := http.NewRequest(method, "/", nil); err != nil {
+			panic("httpserver: invalid route method")
+		}
+	}
 	if handler == nil {
 		panic("httpserver: nil route handler")
 	}
@@ -78,9 +103,13 @@ func (rt *Router) Handle(pattern string, opts RouteOpts, handler http.HandlerFun
 
 	rt.mu.Lock()
 	rt.routes = append(rt.routes, Route{
-		Pattern: pattern,
-		Tier:    opts.Tier,
-		BodyMax: opts.BodyMax,
+		Method:   method,
+		Path:     pattern,
+		Pattern:  pattern,
+		Tier:     opts.Tier,
+		BodyMax:  opts.BodyMax,
+		Timeout:  opts.Timeout,
+		Mutation: opts.Mutation,
 	})
 	rt.mu.Unlock()
 }

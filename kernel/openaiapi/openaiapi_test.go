@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/journal"
 )
 
@@ -76,6 +77,34 @@ func newAPIServer(t *testing.T, eng *fakeEngine, token string) *Server {
 	t.Cleanup(func() { b.Close(); j.Close() })
 	eng.b = b
 	return New(eng, b, token)
+}
+
+func TestRouteMetadataClassifiesReadsAndActions(t *testing.T) {
+	s := newAPIServer(t, &fakeEngine{model: "m"}, "secret")
+	inspector, ok := s.Handler().(interface{ Routes() []httpserver.Route })
+	if !ok {
+		t.Fatal("OpenAI handler does not expose shared route metadata")
+	}
+	routes := inspector.Routes()
+	if len(routes) != 5 {
+		t.Fatalf("routes = %#v, want 5", routes)
+	}
+	byPath := make(map[string]httpserver.Route, len(routes))
+	for _, route := range routes {
+		byPath[route.Path] = route
+	}
+	for _, path := range []string{"/v1/chat/completions", "/v1/responses", "/v1/audio/transcriptions"} {
+		route := byPath[path]
+		if route.Method != http.MethodPost || !route.Mutation || route.BodyMax <= 0 {
+			t.Errorf("%s metadata = %#v, want bounded POST action", path, route)
+		}
+	}
+	for _, path := range []string{"/v1/models", "/v1/models/"} {
+		route := byPath[path]
+		if route.Method != http.MethodGet || route.Mutation || route.BodyMax != 0 {
+			t.Errorf("%s metadata = %#v, want unbounded GET read", path, route)
+		}
+	}
 }
 
 func TestChat_TenantRouting(t *testing.T) {
