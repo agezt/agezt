@@ -49,6 +49,7 @@ import (
 	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
 	"github.com/agezt/agezt/kernel/artifact"
+	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
@@ -5091,32 +5092,7 @@ func extraRedactLiterals() []string {
 // return the empty prefix AND the error so the caller can fail closed rather
 // than print nothing and silently leave the operator without the secret.
 func writeAPIListenToken(baseDir, filename, token string) (prefix string, err error) {
-	if token == "" {
-		return "", fmt.Errorf("writeAPIListenToken: empty token")
-	}
-	if baseDir == "" {
-		return "", fmt.Errorf("writeAPIListenToken: empty baseDir")
-	}
-	if err := os.MkdirAll(baseDir, 0o700); err != nil {
-		return "", fmt.Errorf("writeAPIListenToken: mkdir %s: %w", baseDir, err)
-	}
-	path := filepath.Join(baseDir, filename)
-	// 0600 — owner read/write only. On Windows the perms are best-effort but
-	// the file is still placed under the per-user base dir and the kernel's
-	// own DACL is the real boundary; the mode bits are a defense-in-depth
-	// signal for unix hosts and portable tooling.
-	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
-		return "", fmt.Errorf("writeAPIListenToken: write %s: %w", path, err)
-	}
-	// Prefix: first 4 + "…" + last 4 hex chars (the token is 64 hex chars of
-	// `rand.Read(32 bytes)`). Enough to distinguish two banners on the same
-	// host, not enough to brute-force or impersonate.
-	if len(token) <= 8 {
-		prefix = token
-	} else {
-		prefix = token[:4] + "…" + token[len(token)-4:]
-	}
-	return prefix, nil
+	return kernelauth.WriteTokenFile(baseDir, filename, token)
 }
 
 // buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR

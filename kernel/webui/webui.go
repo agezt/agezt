@@ -27,7 +27,6 @@ package webui
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -40,6 +39,7 @@ import (
 	"sync"
 	"time"
 
+	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/convo"
@@ -82,8 +82,10 @@ type Synthesizer interface {
 type Server struct {
 	bus         *bus.Bus
 	client      Caller
-	token       string      // main console / API bearer token
-	sseToken    string      // ephemeral SSE-only token for /events EventSource URL
+	token       string // main console / API bearer token
+	sseToken    string // ephemeral SSE-only token for /events EventSource URL
+	tokenAuth   kernelauth.Verifier
+	sseAuth     kernelauth.Verifier
 	dist        fs.FS       // the built SPA bundle (embed dist/, sub-rooted)
 	transcriber Transcriber // optional STT backend for /api/transcribe (nil = not configured)
 	synthesizer Synthesizer // optional TTS backend for /api/tts (nil = not configured)
@@ -171,7 +173,16 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 	buf := make([]byte, 32)
 	_, _ = rand.Read(buf)
 	sseToken := hex.EncodeToString(buf)
-	return &Server{bus: b, client: client, token: token, sseToken: sseToken, dist: sub, sessions: newSessionStore()}
+	return &Server{
+		bus:       b,
+		client:    client,
+		token:     token,
+		sseToken:  sseToken,
+		tokenAuth: kernelauth.NewStaticVerifier(token),
+		sseAuth:   kernelauth.NewStaticVerifier(sseToken),
+		dist:      sub,
+		sessions:  newSessionStore(),
+	}
 }
 
 // apiRoutes maps each GET /api path to the read-only control-plane command it
@@ -1428,9 +1439,9 @@ func (s *Server) authorized(r *http.Request) bool {
 // tokenMatch compares a presented token against the configured one in CONSTANT
 // TIME, so an attacker who can reach the web UI can't recover the token
 // byte-by-byte by timing the auth check. Mirrors the control-plane's
-// subtle.ConstantTimeCompare gate (server.go). Caller guarantees s.token != "".
+// shared auth verifier. Caller guarantees s.token != "".
 func (s *Server) tokenMatch(presented string) bool {
-	return subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1
+	return s.tokenAuth != nil && s.tokenAuth.Authorize(presented, kernelauth.TierAdmin)
 }
 
 // sseTokenMatch compares a presented token against the ephemeral SSE token
@@ -1438,10 +1449,7 @@ func (s *Server) tokenMatch(presented string) bool {
 // EventSource API cannot set custom headers, so the SSE token travels in the
 // query string through a loopback-bound surface with no third party exposure.
 func (s *Server) sseTokenMatch(presented string) bool {
-	if s.sseToken == "" {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(presented), []byte(s.sseToken)) == 1
+	return s.sseAuth != nil && s.sseAuth.Authorize(presented, kernelauth.TierAdmin)
 }
 
 // handleSPA serves the embedded React single-page app. The hashed JS/CSS live

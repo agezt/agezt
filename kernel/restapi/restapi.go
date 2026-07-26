@@ -30,13 +30,13 @@ package restapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
+	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
@@ -76,10 +76,10 @@ type TenantAuthorizer func(tenant, presented string) bool
 
 // Server is the native REST surface.
 type Server struct {
-	eng     Engine
-	bus     *bus.Bus
-	token   string
-	version string
+	eng      Engine
+	bus      *bus.Bus
+	verifier kernelauth.Verifier
+	version  string
 
 	// resolve, when set, maps the X-Agezt-Tenant request header to a per-tenant
 	// Engine + bus. Nil (or an empty header) means the primary engine/bus —
@@ -129,7 +129,12 @@ type Metric struct {
 // New builds a Server. token gates every request; bus drives streaming;
 // version is reported by /health.
 func New(eng Engine, b *bus.Bus, token, version string) *Server {
-	return &Server{eng: eng, bus: b, token: token, version: version}
+	return &Server{
+		eng:      eng,
+		bus:      b,
+		verifier: kernelauth.NewStaticVerifier(token),
+		version:  version,
+	}
 }
 
 // SetTenantResolver enables tenant routing: requests carrying an X-Agezt-Tenant
@@ -324,7 +329,7 @@ func (s *Server) adminAuthorized(r *http.Request) bool {
 	if presented == "" {
 		return false
 	}
-	return s.token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1
+	return s.verifier != nil && s.verifier.Authorize(presented, kernelauth.TierAdmin)
 }
 
 // bearerToken extracts the presented token from the Authorization: Bearer

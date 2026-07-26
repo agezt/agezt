@@ -21,7 +21,6 @@ package openaiapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
@@ -123,9 +123,9 @@ type TenantAuthorizer func(tenant, presented string) bool
 
 // Server is the OpenAI-compatible HTTP surface.
 type Server struct {
-	eng   Engine
-	bus   *bus.Bus
-	token string
+	eng      Engine
+	bus      *bus.Bus
+	verifier kernelauth.Verifier
 
 	// resolve, when set, maps the X-Agezt-Tenant request header to a per-tenant
 	// Engine + bus. Nil (or an empty header) means the primary engine/bus —
@@ -150,7 +150,11 @@ type Transcriber interface {
 
 // New builds a Server. token gates every request; bus drives streaming.
 func New(eng Engine, b *bus.Bus, token string) *Server {
-	return &Server{eng: eng, bus: b, token: token}
+	return &Server{
+		eng:      eng,
+		bus:      b,
+		verifier: kernelauth.NewStaticVerifier(token),
+	}
 }
 
 // SetTenantResolver enables tenant routing: requests carrying an X-Agezt-Tenant
@@ -254,7 +258,7 @@ func (s *Server) authorized(r *http.Request) bool {
 		return false
 	}
 	// The daemon admin token authorizes the primary and any tenant.
-	if s.token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(s.token)) == 1 {
+	if s.verifier != nil && s.verifier.Authorize(presented, kernelauth.TierAdmin) {
 		return true
 	}
 	// Otherwise a per-tenant token authorizes ONLY its own tenant, and only when
