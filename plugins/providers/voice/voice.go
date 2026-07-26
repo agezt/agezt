@@ -118,8 +118,14 @@ func NewSTT(provider string, cfg Config) (STTBackend, error) {
 		}
 		return &STTClient{BaseURL: cfg.BaseURL, Model: cfg.Model, APIKey: cfg.APIKey, HTTP: cfg.HTTP}, nil
 	case ProviderElevenLabs:
+		if strings.TrimSpace(cfg.APIKey) == "" {
+			return nil, errors.New("voice: ElevenLabs STT API key required")
+		}
 		return &elevenLabsSTT{base: orDefault(cfg.BaseURL, elevenLabsBase), model: orDefault(cfg.Model, "scribe_v2"), key: cfg.APIKey, http: cfg.HTTP}, nil
 	case ProviderDeepgram:
+		if strings.TrimSpace(cfg.APIKey) == "" {
+			return nil, errors.New("voice: Deepgram STT API key required")
+		}
 		return &deepgramSTT{base: orDefault(cfg.BaseURL, deepgramBase), model: orDefault(cfg.Model, "nova-3"), key: cfg.APIKey, http: cfg.HTTP}, nil
 	default:
 		return nil, fmt.Errorf("voice: unknown STT provider %q", provider)
@@ -135,10 +141,25 @@ func NewTTS(provider string, cfg Config) (TTSBackend, error) {
 		}
 		return &TTSClient{BaseURL: cfg.BaseURL, Model: cfg.Model, Voice: cfg.Voice, APIKey: cfg.APIKey, HTTP: cfg.HTTP}, nil
 	case ProviderElevenLabs:
+		if strings.TrimSpace(cfg.APIKey) == "" {
+			return nil, errors.New("voice: ElevenLabs TTS API key required")
+		}
+		if strings.TrimSpace(cfg.Voice) == "" {
+			return nil, errors.New("voice: ElevenLabs TTS voice id required")
+		}
 		return &elevenLabsTTS{base: orDefault(cfg.BaseURL, elevenLabsBase), model: orDefault(cfg.Model, "eleven_multilingual_v2"), voice: cfg.Voice, key: cfg.APIKey, http: cfg.HTTP}, nil
 	case ProviderDeepgram:
+		if strings.TrimSpace(cfg.APIKey) == "" {
+			return nil, errors.New("voice: Deepgram TTS API key required")
+		}
 		return &deepgramTTS{base: orDefault(cfg.BaseURL, deepgramBase), model: orDefault(cfg.Model, "aura-2-thalia-en"), key: cfg.APIKey, http: cfg.HTTP}, nil
 	case ProviderCartesia:
+		if strings.TrimSpace(cfg.APIKey) == "" {
+			return nil, errors.New("voice: Cartesia TTS API key required")
+		}
+		if strings.TrimSpace(cfg.Voice) == "" {
+			return nil, errors.New("voice: Cartesia TTS voice id required")
+		}
 		return &cartesiaTTS{base: orDefault(cfg.BaseURL, cartesiaBase), model: orDefault(cfg.Model, "sonic-3.5"), voice: cfg.Voice, key: cfg.APIKey, http: cfg.HTTP}, nil
 	default:
 		return nil, fmt.Errorf("voice: unknown TTS provider %q", provider)

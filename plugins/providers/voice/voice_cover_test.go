@@ -39,11 +39,14 @@ func TestNewSTT_Providers(t *testing.T) {
 		t.Fatalf("openai STT: %v", err)
 	}
 	// Native providers default their base.
-	if b, err := NewSTT(ProviderElevenLabs, Config{}); err != nil || b == nil {
+	if b, err := NewSTT(ProviderElevenLabs, Config{APIKey: "k"}); err != nil || b == nil {
 		t.Fatalf("elevenlabs STT: %v", err)
 	}
-	if b, err := NewSTT(ProviderDeepgram, Config{}); err != nil || b == nil {
+	if b, err := NewSTT(ProviderDeepgram, Config{APIKey: "k"}); err != nil || b == nil {
 		t.Fatalf("deepgram STT: %v", err)
+	}
+	if _, err := NewSTT(ProviderDeepgram, Config{}); err == nil {
+		t.Fatal("deepgram STT without key should error")
 	}
 	// Unknown provider errors.
 	if _, err := NewSTT("bogus", Config{}); err == nil {
@@ -64,14 +67,17 @@ func TestNewTTS_Providers(t *testing.T) {
 	if b, err := NewTTS(ProviderOpenAI, Config{BaseURL: "http://x"}); err != nil || b == nil {
 		t.Fatalf("openai TTS: %v", err)
 	}
-	if b, err := NewTTS(ProviderElevenLabs, Config{}); err != nil || b == nil {
+	if b, err := NewTTS(ProviderElevenLabs, Config{APIKey: "k", Voice: "voice-id"}); err != nil || b == nil {
 		t.Fatalf("elevenlabs TTS: %v", err)
 	}
-	if b, err := NewTTS(ProviderDeepgram, Config{}); err != nil || b == nil {
+	if b, err := NewTTS(ProviderDeepgram, Config{APIKey: "k"}); err != nil || b == nil {
 		t.Fatalf("deepgram TTS: %v", err)
 	}
-	if b, err := NewTTS(ProviderCartesia, Config{}); err != nil || b == nil {
+	if b, err := NewTTS(ProviderCartesia, Config{APIKey: "k", Voice: "voice-id"}); err != nil || b == nil {
 		t.Fatalf("cartesia TTS: %v", err)
+	}
+	if _, err := NewTTS(ProviderCartesia, Config{APIKey: "k"}); err == nil {
+		t.Fatal("cartesia TTS without voice should error")
 	}
 	if _, err := NewTTS("bogus", Config{}); err == nil {
 		t.Fatal("unknown TTS provider should error")

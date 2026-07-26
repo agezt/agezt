@@ -47,9 +47,8 @@ func TestElevenLabsTTS(t *testing.T) {
 }
 
 func TestElevenLabsTTSRequiresVoice(t *testing.T) {
-	tts, _ := NewTTS(ProviderElevenLabs, Config{APIKey: "k"})
-	if _, _, err := tts.Speak(context.Background(), "hi"); err == nil {
-		t.Fatal("ElevenLabs TTS without a voice id must error")
+	if _, err := NewTTS(ProviderElevenLabs, Config{APIKey: "k"}); err == nil {
+		t.Fatal("ElevenLabs TTS without a voice id must fail construction")
 	}
 }
 
@@ -181,7 +180,7 @@ func TestFactoryRouting(t *testing.T) {
 	if _, err := NewSTT(ProviderOpenAI, Config{Model: "whisper-1"}); err == nil {
 		t.Fatal("OpenAI STT without a URL must error")
 	}
-	if _, err := NewTTS(ProviderElevenLabs, Config{}); err != nil {
+	if _, err := NewTTS(ProviderElevenLabs, Config{APIKey: "k", Voice: "voice-id"}); err != nil {
 		t.Fatalf("ElevenLabs TTS should construct without a URL: %v", err)
 	}
 }

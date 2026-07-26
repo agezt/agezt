@@ -141,4 +141,29 @@ describe("Voice view", () => {
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_PROVIDER", value: "elevenlabs" }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_URL", value: "https://api.elevenlabs.io" }));
   });
+
+  it("does not mark hosted providers ready until their required keys are set", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/agents") return Promise.resolve({ profiles: [] });
+      if (path === "/api/config/schema") return Promise.resolve({ sections: [] });
+      if (path === "/api/config/values")
+        return Promise.resolve({
+          fields: [
+            { env: "AGEZT_STT_PROVIDER", set: true, value: "openai" },
+            { env: "AGEZT_STT_URL", set: true, value: "https://api.openai.com/v1" },
+            { env: "AGEZT_STT_MODEL", set: true, value: "gpt-4o-transcribe" },
+            { env: "AGEZT_TTS_PROVIDER", set: true, value: "elevenlabs" },
+            { env: "AGEZT_TTS_URL", set: true, value: "https://api.elevenlabs.io" },
+            { env: "AGEZT_TTS_MODEL", set: true, value: "eleven_multilingual_v2" },
+            { env: "AGEZT_TTS_VOICE", set: true, value: "voice-id" },
+          ],
+        });
+      return Promise.resolve({});
+    });
+    render(withUI(<Voice />));
+    fireEvent.click(screen.getByRole("button", { name: /setup/i }));
+
+    expect(await screen.findByText("0/2 ready")).toBeTruthy();
+    expect(screen.getAllByText("not set up")).toHaveLength(2);
+  });
 });

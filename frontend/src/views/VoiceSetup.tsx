@@ -121,13 +121,21 @@ export function VoiceSetup() {
   );
 
   const isSet = useCallback((env: string) => !!values[env]?.set, [values]);
-  const sttReady = isSet("AGEZT_STT_URL") && isSet("AGEZT_STT_MODEL");
-  const ttsReady = isSet("AGEZT_TTS_URL") && isSet("AGEZT_TTS_MODEL");
-  const ready = sttReady && ttsReady;
-  const setCount = useMemo(
-    () => ["AGEZT_STT_URL", "AGEZT_STT_MODEL", "AGEZT_STT_KEY", "AGEZT_TTS_URL", "AGEZT_TTS_MODEL", "AGEZT_TTS_VOICE", "AGEZT_TTS_KEY"].filter((e) => isSet(e)).length,
-    [isSet],
+  const halfReady = useCallback(
+    (half: Half, providers: SpeechProvider[]) => {
+      const envs = ENVS[half];
+      if (!isSet(envs.url) || !isSet(envs.model)) return false;
+      const selected = selectProvider(providers, values[envs.url]?.value, values[envs.provider]?.value);
+      if (selected?.needsKey && !isSet(envs.key)) return false;
+      if (half === "tts" && selected?.voiceFree && envs.voice && !isSet(envs.voice)) return false;
+      return true;
+    },
+    [isSet, values],
   );
+  const sttReady = halfReady("stt", STT_PROVIDERS);
+  const ttsReady = halfReady("tts", TTS_PROVIDERS);
+  const ready = sttReady && ttsReady;
+  const readyCount = Number(sttReady) + Number(ttsReady);
 
   const fieldsByEnv = useMemo(() => {
     const m: Record<string, Field> = {};
@@ -150,7 +158,7 @@ export function VoiceSetup() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold">Voice setup</h3>
-              <Badge variant={ready ? "good" : "default"}>{setCount}/7</Badge>
+              <Badge variant={ready ? "good" : "default"}>{readyCount}/2 ready</Badge>
             </div>
             <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted">
               {ready
@@ -244,21 +252,21 @@ function SpeechHalf({
   async function pickProvider(p: SpeechProvider) {
     setCustomOpen(false);
     if (!(await saveConfig(envs.provider, dialectOf(p), true))) return;
-    await saveConfig(envs.url, p.baseURL, true);
+    if (!(await saveConfig(envs.url, p.baseURL, true))) return;
     const keepModel = p.models.some((m) => m.id === modelVal) ? modelVal : p.models[0]?.id || "";
-    if (keepModel && keepModel !== modelVal) await saveConfig(envs.model, keepModel, true);
+    if (keepModel && keepModel !== modelVal && !(await saveConfig(envs.model, keepModel, true))) return;
     if (envs.voice && !p.voiceInModel && !p.voiceFree) {
       const vs = voicesFor(p, keepModel);
-      if (vs.length && !vs.some((x) => x.id === voiceVal)) await saveConfig(envs.voice, vs[0].id, true);
+      if (vs.length && !vs.some((x) => x.id === voiceVal) && !(await saveConfig(envs.voice, vs[0].id, true))) return;
     }
     toast(`${title}: ${p.name} selected — restart to apply`, "success");
   }
 
   async function pickModel(id: string) {
-    await saveConfig(envs.model, id, true);
+    if (!(await saveConfig(envs.model, id, true))) return;
     if (envs.voice && selected) {
       const vs = voicesFor(selected, id);
-      if (vs.length && !vs.some((x) => x.id === voiceVal)) await saveConfig(envs.voice, vs[0].id, true);
+      if (vs.length && !vs.some((x) => x.id === voiceVal) && !(await saveConfig(envs.voice, vs[0].id, true))) return;
     }
     toast("Saved — restart to apply", "success");
   }

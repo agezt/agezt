@@ -233,13 +233,10 @@ conversational loop — "talk to Jarvis":
 - **Barge-in** — start talking while it's speaking and it stops instantly to listen.
 - **Wake word** (optional toggle): say `agezt` / `jarvis` to start a turn.
 
-Voice mode prefers the server `AGEZT_TTS_*` voice and the server transcription
-endpoint for quality, and **degrades gracefully** to the browser's built-in
-speech engines when neither is configured.
-
-> **Env-name note:** the Web UI transcription route reads `AGEZT_STT_API_URL` /
-> `AGEZT_STT_API_KEY` / `AGEZT_STT_MODEL`, while the agent-facing voice adapter
-> (inbound notes, the `voice` tool, TTS) reads `AGEZT_STT_URL` / `AGEZT_STT_KEY`
-> and `AGEZT_TTS_URL` / `AGEZT_TTS_MODEL` / `AGEZT_TTS_VOICE` / `AGEZT_TTS_KEY`.
-> Set both STT spellings to the same endpoint for now if you want every surface
-> hearing through the same backend.
+Voice mode records in the browser and transcribes through the shared
+`AGEZT_STT_*` runtime adapter, so STT must be configured. Spoken replies prefer
+the server `AGEZT_TTS_*` voice and degrade to browser speech synthesis when TTS
+is not configured. The older `AGEZT_STT_API_*` spelling remains a compatibility
+fallback for standalone OpenAI-compatible transcription only; new setups should
+use `AGEZT_STT_PROVIDER` / `AGEZT_STT_URL` / `AGEZT_STT_MODEL` /
+`AGEZT_STT_KEY`.
