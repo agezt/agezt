@@ -5,6 +5,36 @@ import { test, expect, type ConsoleMessage } from "@playwright/test";
 const URL = process.env.AGEZT_WEBUI_URL;
 
 test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
+  test("shows truthful Jarvis and Voice readiness when speech providers are absent", async ({ page }) => {
+    expect(URL, "AGEZT_WEBUI_URL must be set by the harness").toBeTruthy();
+    const errors: string[] = [];
+    page.on("console", (m: ConsoleMessage) => {
+      if (m.type() === "error") errors.push(m.text());
+    });
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await page.addInitScript(() => localStorage.setItem("agezt.setup.skipped", "1"));
+    await page.goto(URL!, { waitUntil: "domcontentloaded" });
+
+    const nav = page.getByRole("navigation");
+    await nav.getByRole("button", { name: "Talk", exact: true }).first().click();
+    await nav.getByRole("button", { name: "Jarvis", exact: true }).last().click();
+    await expect(page.getByRole("heading", { level: 2, name: "Jarvis" })).toBeVisible();
+    await expect(page.getByText("Voice needs setup")).toBeVisible();
+    await expect(page.getByText("provider not configured")).toBeVisible();
+
+    await nav.getByRole("button", { name: "Voice", exact: true }).last().click();
+    await expect(page.getByRole("heading", { level: 2, name: "Voice" })).toBeVisible();
+    await expect(page.getByText("Hearing: setup required")).toBeVisible();
+    const setup = page.getByRole("button", { name: "Set up hearing" });
+    await expect(setup).toBeVisible();
+    await setup.click();
+    await expect(page.getByRole("heading", { level: 4, name: "Hearing" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 4, name: "Voice" })).toBeVisible();
+    await expect(page.getByText("0/2 ready")).toBeVisible();
+
+    expect(errors, `console errors:\n${errors.join("\n")}`).toEqual([]);
+  });
+
   test("loads, navigates core views, renders live data, no console errors", async ({
     page,
   }) => {

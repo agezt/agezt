@@ -1,0 +1,1 @@
+import{l as e}from"./utils-OTUXrFa1.js";async function t(t,n=`clip.webm`){let r=new FormData;r.append(`file`,t,n);let i=await fetch(`/api/transcribe`,{method:`POST`,headers:e(),body:r});if(!i.ok){let e=`HTTP ${i.status}`;try{let t=await i.json();t?.error&&(e=String(t.error))}catch{}throw Error(e)}let a=await i.json();return String(a?.text??``)}export{t};
