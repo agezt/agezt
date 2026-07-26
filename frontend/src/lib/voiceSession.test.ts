@@ -19,6 +19,40 @@ function blobOf(): Blob {
 }
 
 describe("VoiceSession core loop", () => {
+  it("exposes lifecycle state, ignores duplicate starts, forwards levels, and releases once stopped", async () => {
+    const entered = deferred<void>();
+    const release = vi.fn();
+    const onLevel = vi.fn();
+    let captures = 0;
+    const io: VoiceIO = {
+      async capture(ctx) {
+        captures++;
+        ctx.onLevel(0.5);
+        entered.resolve();
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        return null;
+      },
+      transcribe: vi.fn(),
+      run: vi.fn(),
+      speak: vi.fn(),
+      watchBargeIn: vi.fn(),
+      release,
+    };
+    const session = new VoiceSession(io, { onLevel });
+    expect(session.getState()).toBe("idle");
+    expect(session.isRunning()).toBe(false);
+    session.start();
+    session.start();
+    await entered.promise;
+    expect(session.isRunning()).toBe(true);
+    expect(captures).toBe(1);
+    expect(onLevel).toHaveBeenCalledWith(0.5);
+    session.stop();
+    expect(session.getState()).toBe("idle");
+    expect(session.isRunning()).toBe(false);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it("runs a full turn and speaks the answer sentence-by-sentence", async () => {
     const spoken: string[] = [];
     const states: string[] = [];
@@ -89,6 +123,7 @@ describe("VoiceSession core loop", () => {
             "abort",
             () => {
               runAborted = true;
+              onDelta("This late sentence must not play.");
               resolve();
             },
             { once: true },
@@ -156,5 +191,288 @@ describe("VoiceSession core loop", () => {
 
     // The non-wake utterance is ignored; the wake one runs with the name stripped.
     expect(ran).toEqual(["what is the weather"]);
+  });
+
+  it("covers empty captures/transcripts, wake-only commands, recoverable errors, and a final fragment", async () => {
+    const actions: Array<"none" | "empty" | "wake" | "error" | "run"> = ["none", "empty", "wake", "error", "run"];
+    const parked = deferred<void>();
+    const spoken: string[] = [];
+    const errors: string[] = [];
+    const ran: string[] = [];
+    let index = 0;
+    const io: VoiceIO = {
+      async capture(ctx) {
+        if (index >= actions.length) {
+          parked.resolve();
+          await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+          return null;
+        }
+        return actions[index] === "none" ? (index++, null) : blobOf();
+      },
+      async transcribe() {
+        const action = actions[index++];
+        if (action === "empty") return " ";
+        if (action === "wake") return "agezt!!!";
+        if (action === "error") throw new Error("provider down");
+        return "agezt, finish";
+      },
+      async run(intent, onDelta) {
+        ran.push(intent);
+        onDelta("final fragment without punctuation");
+      },
+      async speak(text) {
+        spoken.push(text);
+        throw new Error("speaker unavailable");
+      },
+      async watchBargeIn() {
+        throw new Error("barge watcher unavailable");
+      },
+    };
+    const session = new VoiceSession(io, { onError: (message) => errors.push(message) }, { wakeWords: ["", "agezt"] });
+    session.start();
+    await parked.promise;
+    session.stop();
+
+    expect(errors).toContain("provider down");
+    expect(ran).toEqual(["finish"]);
+    expect(spoken).toEqual(["final fragment without punctuation"]);
+  });
+
+  it("uses dedicated wake detection and stops cleanly while waiting for the next wake", async () => {
+    const wakeCalls = deferred<void>();
+    const ran: string[] = [];
+    let wakes = 0;
+    const io: VoiceIO = {
+      async awaitWake(_keywords, ctx) {
+        wakes++;
+        if (wakes === 1) return false;
+        if (wakes === 2) return true;
+        wakeCalls.resolve();
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        return false;
+      },
+      async capture() {
+        return blobOf();
+      },
+      async transcribe() {
+        return "jarvis: status";
+      },
+      async run(intent) {
+        ran.push(intent);
+      },
+      async speak() {
+        return immediateUtterance();
+      },
+      async watchBargeIn(ctx) {
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+      },
+    };
+    const session = new VoiceSession(io, {}, { wakeWords: ["jarvis"] });
+    session.start();
+    await wakeCalls.promise;
+    session.stop();
+    expect(ran).toEqual(["status"]);
+  });
+
+  it("does not report a run failure after stop, but reports one while active", async () => {
+    const firstRun = deferred<void>();
+    const secondCapture = deferred<void>();
+    let captures = 0;
+    const errors: string[] = [];
+    const io: VoiceIO = {
+      async capture(ctx) {
+        captures++;
+        if (captures === 1) return blobOf();
+        secondCapture.resolve();
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        return null;
+      },
+      async transcribe() {
+        return "test";
+      },
+      async run() {
+        firstRun.resolve();
+        throw new Error("run failed");
+      },
+      async speak() {
+        return immediateUtterance();
+      },
+      async watchBargeIn(ctx) {
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+      },
+    };
+    const active = new VoiceSession(io, { onError: (message) => errors.push(message) });
+    active.start();
+    await firstRun.promise;
+    await secondCapture.promise;
+    active.stop();
+    expect(errors).toContain("run failed");
+
+    const stoppedRun = deferred<void>();
+    const stoppedIO: VoiceIO = {
+      ...io,
+      capture: async () => blobOf(),
+      run: async () => {
+        stoppedRun.resolve();
+        await Promise.resolve();
+        throw "stopped failure";
+      },
+    };
+    const stoppedErrors = vi.fn();
+    const stopped = new VoiceSession(stoppedIO, { onError: stoppedErrors });
+    stopped.start();
+    await stoppedRun.promise;
+    stopped.stop();
+    await Promise.resolve();
+    expect(stoppedErrors).not.toHaveBeenCalled();
+  });
+
+  it("stops safely while transcription is in flight", async () => {
+    const transcribing = deferred<void>();
+    const transcript = deferred<string>();
+    const run = vi.fn();
+    const io: VoiceIO = {
+      async capture() {
+        return blobOf();
+      },
+      async transcribe() {
+        transcribing.resolve();
+        return transcript.promise;
+      },
+      run,
+      async speak() {
+        return immediateUtterance();
+      },
+      watchBargeIn: vi.fn(),
+    };
+    const session = new VoiceSession(io);
+    session.start();
+    await transcribing.promise;
+    session.stop();
+    transcript.resolve("too late");
+    await Promise.resolve();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("reports non-Error loop failures using their string representation", async () => {
+    const parked = deferred<void>();
+    let calls = 0;
+    const onError = vi.fn();
+    const io: VoiceIO = {
+      async capture(ctx) {
+        calls++;
+        if (calls === 1) throw "raw failure";
+        parked.resolve();
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        return null;
+      },
+      transcribe: vi.fn(),
+      run: vi.fn(),
+      speak: vi.fn(),
+      watchBargeIn: vi.fn(),
+    };
+    const session = new VoiceSession(io, { onError });
+    session.start();
+    await parked.promise;
+    session.stop();
+    expect(onError).toHaveBeenCalledWith("raw failure");
+  });
+
+  it("does not report a loop failure that arrives after stop", async () => {
+    const entered = deferred<void>();
+    let rejectCapture!: (reason: unknown) => void;
+    const captureResult = new Promise<Blob | null>((_resolve, reject) => {
+      rejectCapture = reject;
+    });
+    const onError = vi.fn();
+    const io: VoiceIO = {
+      async capture() {
+        entered.resolve();
+        return captureResult;
+      },
+      transcribe: vi.fn(),
+      run: vi.fn(),
+      speak: vi.fn(),
+      watchBargeIn: vi.fn(),
+    };
+    const session = new VoiceSession(io, { onError });
+    session.start();
+    await entered.promise;
+    session.stop();
+    rejectCapture("late capture failure");
+    await Promise.resolve();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("starts the barge watcher only once across separate streamed speech pumps", async () => {
+    const parked = deferred<void>();
+    let captures = 0;
+    const spoken: string[] = [];
+    const watchBargeIn = vi.fn(async () => {
+      throw new Error("not listening");
+    });
+    const io: VoiceIO = {
+      async capture(ctx) {
+        captures++;
+        if (captures === 1) return blobOf();
+        parked.resolve();
+        await new Promise<void>((resolve) => ctx.signal.addEventListener("abort", () => resolve(), { once: true }));
+        return null;
+      },
+      async transcribe() {
+        return "two sentences";
+      },
+      async run(_intent, onDelta) {
+        onDelta("One.");
+        await Promise.resolve();
+        await Promise.resolve();
+        onDelta("Two.");
+      },
+      async speak(text) {
+        spoken.push(text);
+        return immediateUtterance();
+      },
+      watchBargeIn,
+    };
+    const session = new VoiceSession(io);
+    session.start();
+    await parked.promise;
+    session.stop();
+    expect(spoken).toEqual(["One.", "Two."]);
+    expect(watchBargeIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses converse errors when invoked outside a running session", async () => {
+    const onError = vi.fn();
+    const io: VoiceIO = {
+      capture: vi.fn(),
+      transcribe: vi.fn(),
+      async run() {
+        throw new Error("inactive");
+      },
+      speak: vi.fn(),
+      watchBargeIn: vi.fn(),
+    };
+    const session = new VoiceSession(io, { onError });
+    await (session as unknown as { converse(intent: string): Promise<void> }).converse("test");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("stringifies non-Error converse failures while running", async () => {
+    const onError = vi.fn();
+    const io: VoiceIO = {
+      capture: vi.fn(),
+      transcribe: vi.fn(),
+      async run() {
+        throw "raw run failure";
+      },
+      speak: vi.fn(),
+      watchBargeIn: vi.fn(),
+    };
+    const session = new VoiceSession(io, { onError });
+    (session as unknown as { running: boolean }).running = true;
+    await (session as unknown as { converse(intent: string): Promise<void> }).converse("test");
+    expect(onError).toHaveBeenCalledWith("raw run failure");
+    session.stop();
   });
 });

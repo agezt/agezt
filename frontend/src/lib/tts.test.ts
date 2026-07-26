@@ -38,6 +38,16 @@ describe("fetchSpeech", () => {
     expect(await fetchSpeech("hi")).toBeNull();
   });
 
+  it("returns null for non-501 failures and empty successful audio", async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, blob: async () => new Blob() })
+      .mockResolvedValueOnce({ ok: true, status: 200, blob: async () => new Blob() });
+    vi.stubGlobal("fetch", f as unknown as typeof fetch);
+    await expect(fetchSpeech("limited")).resolves.toBeNull();
+    await expect(fetchSpeech("empty")).resolves.toBeNull();
+  });
+
   it("returns null for empty text without calling the server", async () => {
     const f = vi.fn();
     vi.stubGlobal("fetch", f as unknown as typeof fetch);
@@ -97,6 +107,28 @@ describe("playBlob", () => {
     u.stop();
     await expect(u.done).resolves.toBeUndefined();
   });
+
+  it("finishes only once and tolerates pause failures", async () => {
+    const created: FakeAudio[] = [];
+    vi.stubGlobal(
+      "Audio",
+      class extends FakeAudio {
+        constructor(src: string) {
+          super(src);
+          created.push(this);
+        }
+        pause() {
+          throw new Error("already gone");
+        }
+      } as unknown as typeof Audio,
+    );
+    const u = playBlob(new Blob(["x"]));
+    created[0].onended?.();
+    created[0].onerror?.();
+    expect(() => u.stop()).not.toThrow();
+    await u.done;
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("speak fallback", () => {
@@ -105,6 +137,7 @@ describe("speak fallback", () => {
     // speak() degrades without hanging when /api/tts returns nothing.
     mockFetchOnce(async () => ({ ok: false, status: 501, blob: async () => new Blob() }));
     const u = await speak("the lights are off");
+    u.stop();
     await expect(u.done).resolves.toBeUndefined();
     resetServerTTS();
   });
@@ -129,5 +162,26 @@ describe("speak fallback", () => {
     await speak("hello");
     stopSpeech();
     expect(pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses and stops browser speech synthesis when it is supported", async () => {
+    const cancel = vi.fn();
+    const browserSpeak = vi.fn();
+    vi.stubGlobal("speechSynthesis", { cancel, speak: browserSpeak });
+    class FakeSpeechUtterance {
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechUtterance);
+    mockFetchOnce(async () => ({ ok: false, status: 501, blob: async () => new Blob() }));
+
+    const utterance = await speak("browser reply");
+    const spoken = browserSpeak.mock.calls[0][0] as FakeSpeechUtterance;
+    expect(spoken.text).toBe("browser reply");
+    utterance.stop();
+    spoken.onend?.();
+    await utterance.done;
+    expect(cancel).toHaveBeenCalled();
   });
 });

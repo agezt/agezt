@@ -58,4 +58,16 @@ describe("transcribeAudio", () => {
     );
     await expect(transcribeAudio(new Blob(["x"]))).rejects.toThrow(/502/);
   });
+
+  it("falls back to status when JSON has no error and returns blank when text is absent", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({}) })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) }),
+    );
+    await expect(transcribeAudio(new Blob(["x"]))).rejects.toThrow("HTTP 400");
+    await expect(transcribeAudio(new Blob(["x"]))).resolves.toBe("");
+  });
 });

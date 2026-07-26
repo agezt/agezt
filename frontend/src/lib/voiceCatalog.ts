@@ -273,8 +273,8 @@ export const TTS_PROVIDERS: SpeechProvider[] = [
 
 // normBase makes two API roots comparable regardless of a trailing slash or an
 // optional /v1 suffix, so a stored AGEZT_*_URL matches its catalog provider.
-function normBase(url?: string): string {
-  let s = (url || "").trim().toLowerCase().replace(/\/+$/, "");
+function normBase(url: string): string {
+  let s = url.trim().toLowerCase().replace(/\/+$/, "");
   s = s.replace(/\/v1$/, "");
   return s;
 }

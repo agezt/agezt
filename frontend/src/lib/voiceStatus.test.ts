@@ -53,4 +53,12 @@ describe("voice readiness", () => {
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: undefined });
     expect(browserVoiceCapabilities().browserInput).toBe(false);
   });
+
+  it("accepts the webkit AudioContext fallback", () => {
+    vi.stubGlobal("AudioContext", undefined);
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext =
+      class {} as unknown as typeof AudioContext;
+    expect(browserVoiceCapabilities().browserInput).toBe(true);
+    delete (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  });
 });

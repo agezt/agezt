@@ -59,7 +59,7 @@ export interface Utterance {
 export function playBlob(blob: Blob): Utterance {
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
-  let settle: () => void = () => {};
+  let settle!: () => void;
   const done = new Promise<void>((resolve) => (settle = resolve));
   let finished = false;
   const finish = () => {
@@ -86,7 +86,7 @@ export function playBlob(blob: Blob): Utterance {
 
 // browserUtterance speaks via the browser SpeechSynthesis voice.
 function browserUtterance(text: string): Utterance {
-  let settle: () => void = () => {};
+  let settle!: () => void;
   const done = new Promise<void>((resolve) => (settle = resolve));
   if (!speechSupported()) {
     settle();

@@ -91,6 +91,7 @@ class StreamingSpeaker {
 
   stop() {
     this.stopped = true;
+    this.ended = true;
     this.q = [];
     this.current?.stop();
     this.current = null;
@@ -100,7 +101,7 @@ class StreamingSpeaker {
   private async pump() {
     if (this.pumping || this.stopped) return;
     this.pumping = true;
-    if (this.q.length) this.onStart();
+    this.onStart();
     while (this.q.length && !this.stopped) {
       const s = this.q.shift() as string;
       try {
@@ -116,7 +117,7 @@ class StreamingSpeaker {
   }
 
   private settleIfDone() {
-    if (!this.pumping && this.q.length === 0 && (this.ended || this.stopped)) {
+    if (!this.pumping && this.q.length === 0 && this.ended) {
       const w = this.waiters;
       this.waiters = [];
       w.forEach((f) => f());
@@ -125,7 +126,7 @@ class StreamingSpeaker {
 
   // idle resolves once the queue is drained (or stopped) and nothing is playing.
   idle(): Promise<void> {
-    if (!this.pumping && this.q.length === 0 && (this.ended || this.stopped)) return Promise.resolve();
+    if (!this.pumping && this.q.length === 0 && this.ended) return Promise.resolve();
     return new Promise((r) => this.waiters.push(r));
   }
 }
@@ -341,14 +342,14 @@ export function createBrowserVoiceIO(cfg: BrowserIOConfig = {}): VoiceIO {
   }
 
   function level(): number {
-    if (!analyser || !buf) return 0;
-    analyser.getByteTimeDomainData(buf);
+    // poll is only reached after ensureMic has created both objects.
+    analyser!.getByteTimeDomainData(buf!);
     let sum = 0;
-    for (let i = 0; i < buf.length; i++) {
-      const v = (buf[i] - 128) / 128;
+    for (let i = 0; i < buf!.length; i++) {
+      const v = (buf![i] - 128) / 128;
       sum += v * v;
     }
-    return Math.sqrt(sum / buf.length);
+    return Math.sqrt(sum / buf!.length);
   }
 
   // poll runs cb every ~50ms until it returns true or the signal aborts.
@@ -371,8 +372,7 @@ export function createBrowserVoiceIO(cfg: BrowserIOConfig = {}): VoiceIO {
 
   async function capture(ctx: CaptureCtx): Promise<Blob | null> {
     await ensureMic();
-    if (!stream) return null;
-    const rec = new MediaRecorder(stream);
+    const rec = new MediaRecorder(stream!);
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunks.push(e.data);
@@ -422,13 +422,13 @@ export function createBrowserVoiceIO(cfg: BrowserIOConfig = {}): VoiceIO {
     });
   }
 
-  function makeRecognition(): SpeechRecognitionLike | null {
+  function recognitionConstructor(): (new () => SpeechRecognitionLike) | null {
     const w = window as unknown as {
       SpeechRecognition?: new () => SpeechRecognitionLike;
       webkitSpeechRecognition?: new () => SpeechRecognitionLike;
     };
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
-    return Ctor ? new Ctor() : null;
+    return Ctor ?? null;
   }
 
   const io: VoiceIO = {
@@ -453,14 +453,11 @@ export function createBrowserVoiceIO(cfg: BrowserIOConfig = {}): VoiceIO {
 
   // Only advertise awaitWake when the browser can actually do cheap keyword
   // spotting — otherwise the session falls back to transcript gating.
-  if (makeRecognition()) {
+  const Recognition = recognitionConstructor();
+  if (Recognition) {
     io.awaitWake = (keywords, ctx) =>
       new Promise<boolean>((resolve) => {
-        const rec = makeRecognition();
-        if (!rec) {
-          resolve(true);
-          return;
-        }
+        const rec = new Recognition();
         let done = false;
         const finish = (v: boolean) => {
           if (done) return;
