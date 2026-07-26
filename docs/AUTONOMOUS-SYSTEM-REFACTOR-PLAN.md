@@ -135,8 +135,8 @@ most ten choices per group; route ids, hashes, help links, and command actions
 remain compatible. Global run state is now daemon-seeded before SSE folding and
 shared by the header, navigation badges, Now strip, and Activity view, including
 reconciliation after reconnect. High-impact confirmations now support explicit
-target, impact, and recovery facts; agent retirement and checkpoint rollback
-use that contract.
+target, impact, and recovery facts; agent retirement, checkpoint rollback,
+custom execution-seat removal, and taste-exemplar removal use that contract.
 
 1. Organize navigation by operator jobs: Talk, Observe, Automate, Govern,
    Knowledge, Connect, Build, Admin. Hide expert surfaces behind progressive

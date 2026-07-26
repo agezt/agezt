@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { useUI } from "@/components/ui/feedback";
 
 export interface SeatDef {
   id: string;
@@ -31,6 +32,7 @@ export function seatIsoLabel(s: SeatDef): string {
 }
 
 export function Seats() {
+  const ui = useUI();
   const [seats, setSeats] = useState<SeatDef[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -65,6 +67,23 @@ export function Seats() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function removeSeat(seat: SeatDef) {
+    if (
+      !(await ui.confirm({
+        title: `Remove seat ${seat.name || seat.id}?`,
+        message: "Delete this custom execution preset.",
+        target: `Seat ${seat.id}`,
+        impact: "Removes the preset from future seat selection. Existing tasks that store this seat ID are not rewritten.",
+        recovery: "There is no automatic undo. Recreate the seat manually with the same ID and settings if it is still needed.",
+        confirmLabel: "Remove seat",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+    await mutate("/api/seats/delete", { id: seat.id });
   }
 
   useEffect(() => {
@@ -134,9 +153,9 @@ export function Seats() {
         <SkeletonList count={4} lines={2} />
       ) : (
         <div className="space-y-4">
-          <SeatGroup title="Built-in" icon={Lock} seats={builtins} busy={busy} mutate={mutate} />
+          <SeatGroup title="Built-in" icon={Lock} seats={builtins} busy={busy} onRemove={removeSeat} />
           {custom.length > 0 ? (
-            <SeatGroup title="Custom" icon={Shield} seats={custom} busy={busy} mutate={mutate} />
+            <SeatGroup title="Custom" icon={Shield} seats={custom} busy={busy} onRemove={removeSeat} />
           ) : (
             <EmptyState icon={Armchair} title="No custom seats" hint="Add one above — give it an id and an isolation surface, then pin it on a task with the seat picker." />
           )}
@@ -151,13 +170,13 @@ function SeatGroup({
   icon: Icon,
   seats,
   busy,
-  mutate,
+  onRemove,
 }: {
   title: string;
   icon: typeof Lock;
   seats: SeatDef[];
   busy: boolean;
-  mutate: (path: string, body: Record<string, unknown>, after?: () => void) => void;
+  onRemove: (seat: SeatDef) => void;
 }) {
   if (seats.length === 0) return null;
   return (
@@ -178,7 +197,7 @@ function SeatGroup({
               <span className="font-mono text-[10px] text-muted">{s.id}</span>
             </div>
             {!s.builtin && (
-              <Button size="sm" variant="ghost" disabled={busy} title="Remove seat" onClick={() => mutate("/api/seats/delete", { id: s.id })}>
+              <Button size="sm" variant="ghost" disabled={busy} title="Remove seat" onClick={() => onRemove(s)}>
                 <Trash2 className="size-3.5" />
               </Button>
             )}

@@ -4,9 +4,13 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
+const confirm = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),
+}));
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a) }),
 }));
 
 import { Taste, tasteScopeLabel } from "@/views/Taste";
@@ -21,6 +25,7 @@ beforeEach(() => {
   getJSON.mockReset();
   postJSON.mockReset();
   postJSON.mockResolvedValue({});
+  confirm.mockReset();
 });
 
 describe("Taste helpers", () => {
@@ -31,7 +36,7 @@ describe("Taste helpers", () => {
 });
 
 describe("Taste view", () => {
-  it("renders exemplars and posts create + delete", async () => {
+  it("renders exemplars and guards deletion with scope impact", async () => {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/taste") return Promise.resolve({ exemplars, count: exemplars.length });
       return Promise.reject(new Error(`unexpected ${path}`));
@@ -51,6 +56,19 @@ describe("Taste view", () => {
       expect(postJSON).toHaveBeenCalledWith("/api/taste/create", expect.objectContaining({ title: "New anchor", body: "sample" })),
     );
 
+    confirm.mockResolvedValue(false);
+    fireEvent.click(screen.getAllByTitle("Remove")[0]);
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Remove exemplar Good PR summary?",
+      target: "Exemplar ex1",
+      impact: expect.stringContaining("Future runs"),
+      recovery: expect.stringContaining("no automatic undo"),
+      confirmLabel: "Remove exemplar",
+      danger: true,
+    })));
+    expect(postJSON).not.toHaveBeenCalledWith("/api/taste/delete", expect.anything());
+
+    confirm.mockResolvedValue(true);
     fireEvent.click(screen.getAllByTitle("Remove")[0]);
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/taste/delete", expect.objectContaining({ id: "ex1" })),

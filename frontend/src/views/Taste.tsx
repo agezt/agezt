@@ -9,6 +9,7 @@ import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { useUI } from "@/components/ui/feedback";
 
 // TASTE_WINDOW is how many exemplar cards render at once. /api/taste has no
 // cursor, so the whole list arrives in one fetch — the window keeps a large
@@ -36,6 +37,7 @@ export function tasteScopeLabel(e: TasteExemplar): string {
 }
 
 export function Taste() {
+  const ui = useUI();
   const [exemplars, setExemplars] = useState<TasteExemplar[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,6 +74,23 @@ export function Taste() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function removeExemplar(exemplar: TasteExemplar) {
+    if (
+      !(await ui.confirm({
+        title: `Remove exemplar ${exemplar.title || exemplar.id}?`,
+        message: "Delete this quality reference from the taste library.",
+        target: `Exemplar ${exemplar.id}`,
+        impact: `Future ${tasteScopeLabel(exemplar) === "every run" ? "runs" : `${tasteScopeLabel(exemplar)} runs`} will no longer receive this quality signal.`,
+        recovery: "There is no automatic undo. Recreate the exemplar manually from a saved copy if it is needed again.",
+        confirmLabel: "Remove exemplar",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+    await mutate("/api/taste/delete", { id: exemplar.id });
   }
 
   useEffect(() => {
@@ -156,7 +175,7 @@ export function Taste() {
                     {tasteScopeLabel(e)}
                   </Badge>
                 </div>
-                <Button size="sm" variant="ghost" disabled={busy} title="Remove" onClick={() => mutate("/api/taste/delete", { id: e.id })}>
+                <Button size="sm" variant="ghost" disabled={busy} title="Remove" onClick={() => removeExemplar(e)}>
                   <Trash2 className="size-3.5" />
                 </Button>
               </div>

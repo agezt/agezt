@@ -4,9 +4,13 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 const getJSON = vi.fn();
 const postJSON = vi.fn();
+const confirm = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),
+}));
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a) }),
 }));
 
 import { Seats, seatIsoLabel } from "@/views/Seats";
@@ -22,6 +26,7 @@ beforeEach(() => {
   getJSON.mockReset();
   postJSON.mockReset();
   postJSON.mockResolvedValue({});
+  confirm.mockReset();
   getJSON.mockImplementation((path: string) => {
     if (path === "/api/seats") return Promise.resolve({ seats, count: seats.length });
     return Promise.reject(new Error(`unexpected ${path}`));
@@ -47,7 +52,7 @@ describe("Seats view", () => {
     expect(screen.getAllByText("container").length).toBeGreaterThan(0);
   });
 
-  it("creates a custom seat and deletes one", async () => {
+  it("creates a custom seat and guards deletion with impact context", async () => {
     render(<Seats />);
     await waitFor(() => expect(screen.getByText("GPU Box")).toBeTruthy());
 
@@ -59,6 +64,19 @@ describe("Seats view", () => {
     );
 
     // Only the custom seat exposes a remove control.
+    confirm.mockResolvedValue(false);
+    fireEvent.click(screen.getByTitle("Remove seat"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Remove seat GPU Box?",
+      target: "Seat gpu-box",
+      impact: expect.stringContaining("Existing tasks"),
+      recovery: expect.stringContaining("no automatic undo"),
+      confirmLabel: "Remove seat",
+      danger: true,
+    })));
+    expect(postJSON).not.toHaveBeenCalledWith("/api/seats/delete", expect.anything());
+
+    confirm.mockResolvedValue(true);
     fireEvent.click(screen.getByTitle("Remove seat"));
     await waitFor(() =>
       expect(postJSON).toHaveBeenCalledWith("/api/seats/delete", expect.objectContaining({ id: "gpu-box" })),
