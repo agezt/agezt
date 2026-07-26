@@ -77,8 +77,8 @@ browser gates green.
 Status: in progress. `kernel/auth`, shared route/body-limit middleware, and the
 OpenAI, native REST, and WebUI router migrations are implemented. Shared route
 snapshots now expose method, path, tier, body cap, timeout, and mutation policy;
-the OpenAI and native REST surfaces declare the full metadata while WebUI
-method / mutation classification remains. The WebUI
+the OpenAI, native REST, and WebUI surfaces now declare and test the full
+metadata, including long-lived stream and callback timeouts. The WebUI
 keeps its shell/session/EventSource credential semantics behind a request-aware
 auth adapter while route tiers and body caps live in the shared registry.
 The shared streaming-safe server lifecycle is also implemented; address/TLS

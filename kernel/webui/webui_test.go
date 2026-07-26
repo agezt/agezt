@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/journal"
 )
 
@@ -70,6 +71,56 @@ func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 	s.SetPasswordStrict(false) // test default: token OR session
 	s.allowQueryTokensForData = true
 	return s, b
+}
+
+func TestRouteMetadataClassifiesWebUIReadsMutationsAndTimeouts(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	routes := s.routeRegistry().Routes()
+	wantCount := 25 + len(apiRoutes) + len(readArgsRoutes) + len(writeRoutes) + len(jsonRoutes)
+	if len(routes) != wantCount {
+		t.Fatalf("route count = %d, want %d", len(routes), wantCount)
+	}
+	byPath := make(map[string]httpserver.Route, len(routes))
+	for _, route := range routes {
+		if route.Method == "*" {
+			t.Errorf("%s still has wildcard method metadata", route.Path)
+		}
+		byPath[route.Path] = route
+	}
+	assertRoute := func(path, method string, mutation bool, bodyMax int64, timeout time.Duration) {
+		t.Helper()
+		route, ok := byPath[path]
+		if !ok {
+			t.Errorf("missing route metadata for %s", path)
+			return
+		}
+		if route.Method != method ||
+			route.Mutation != mutation ||
+			route.BodyMax != bodyMax ||
+			route.Timeout != timeout {
+			t.Errorf("%s metadata = %#v", path, route)
+		}
+	}
+	for path := range apiRoutes {
+		assertRoute(path, http.MethodGet, false, 0, 5*time.Second)
+	}
+	for path := range readArgsRoutes {
+		assertRoute(path, http.MethodGet, false, 0, 5*time.Second)
+	}
+	for path := range writeRoutes {
+		assertRoute(path, http.MethodPost, true, 0, 5*time.Second)
+	}
+	for path := range jsonRoutes {
+		assertRoute(path, http.MethodPost, true, jsonBodyMax, 120*time.Second)
+	}
+	assertRoute("/api/authmeta", http.MethodGet, false, 0, 0)
+	assertRoute("/api/login", http.MethodPost, true, loginBodyLimit, 0)
+	assertRoute("/events", http.MethodGet, false, 0, 0)
+	assertRoute("/api/run", http.MethodPost, true, jsonBodyMax, planRunTimeout)
+	assertRoute("/api/sse-token", "GET,OPTIONS", false, 0, 0)
+	assertRoute("/api/artifact/raw", http.MethodGet, false, 0, 15*time.Second)
+	assertRoute("/hooks/", http.MethodPost, true, webhookBodyCap, 130*time.Second)
+	assertRoute("/oauth/callback", http.MethodGet, true, 0, 30*time.Second)
 }
 
 // The embedded React SPA is served at "/": index.html with a #root mount and a
