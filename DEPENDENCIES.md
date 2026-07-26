@@ -21,13 +21,13 @@ Entries are grouped by role:
   strip. They are documented for `depscheck` completeness; removing them
   is tracked as a follow-up (UPD-002).
 
-### Direct deps (4)
+### Direct deps (5)
 
 | Module path | Version | Used by | Why stdlib is insufficient / status |
 |---|---:|---|---|
 | `github.com/btcsuite/btcd/btcec/v2` | v2.5.0 | `plugins/channels/nostr` | Secp256k1/BTC-compatible elliptic-curve primitives are not in the Go standard library; Nostr identity / signature support needs them. Pure-Go, MIT. |
 | `github.com/coder/websocket` | v1.8.15 | `plugins/channels/nostr` | WebSocket protocol support is not in the Go standard library; Nostr relay connectivity needs it. |
-| `golang.org/x/net` | v0.6.0 | `plugins/tools/browser` | Public Suffix List for eTLD+1 cookie partitioning; the browser tool's cookie jar uses it to prevent cross-site cookie leaks (VULN psl-fix). Already a transitive dep via `go-message` → `x/text` → `x/tools`; promoted to direct for `publicsuffix.List`. |
+| `golang.org/x/net` | v0.57.0 | `plugins/tools/browser` | Public Suffix List for eTLD+1 cookie partitioning; the browser tool's cookie jar uses it to prevent cross-site cookie leaks (VULN psl-fix). Kept current as a direct dependency because it is compiled into the browser tool. |
 | `github.com/emersion/go-imap/v2` | v2.0.0-beta.8 | `plugins/channels/email` | IMAP protocol support is not in the Go standard library; used for inbound email-channel functionality. |
 | `lukechampine.com/blake3` | v1.4.1 | `kernel/event`, `kernel/journal`, `kernel/artifact` | DECISIONS B3 freezes BLAKE3 as the hash function for the event chain and content addressing. The standard library has no BLAKE3 implementation. This is the canonical pure-Go implementation (MIT, well-maintained, no CGO). POLICY §1.3 pre-blesses a BLAKE3 implementation as an acceptable core dep. |
 
@@ -84,8 +84,8 @@ rather than fork upstream packages.
 | `golang.org/x/crypto` | v0.0.0-20210921155107-089bfa567519 | `golang.org/x/mod@v0.6.0-dev.0.20220419223038-86c51ed26bb4` (legacy toolchain) |
 | `golang.org/x/mod` | v0.8.0 | `x/text@v0.14.0` and `x/tools@v0.6.0` (toolchain dep) |
 | `golang.org/x/sync` | v0.1.0 | `x/tools@v0.6.0` (toolchain dep) |
-| `golang.org/x/sys` | v0.5.0 | `x/text@v0.14.0`, `x/net@v0.6.0`, etc. (platform shim) |
-| `golang.org/x/term` | v0.5.0 | `x/net@v0.6.0` (toolchain dep) |
+| `golang.org/x/sys` | v0.5.0 | `x/text@v0.14.0` and legacy transitive toolchain edges (platform shim) |
+| `golang.org/x/term` | v0.5.0 | legacy transitive toolchain edge |
 | `golang.org/x/text` | v0.14.0 | `go-message@v0.18.2` (used by IMAP plugin) |
 | `golang.org/x/tools` | v0.6.0 | `x/text@v0.14.0` (toolchain dep) |
 | `golang.org/x/xerrors` | v0.0.0-20190717185122-a985d3407aa7 | legacy toolchain dep, no longer reachable from the active path |
