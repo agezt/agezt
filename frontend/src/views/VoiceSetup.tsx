@@ -362,7 +362,7 @@ function SpeechHalf({
                 ) : voiceList.length ? (
                   <PickRow label="Voice">
                     <StyledSelect
-                      value={voiceList.some((x) => x.id === voiceVal) ? voiceVal : voiceList[0]?.id || ""}
+                      value={voiceList.some((x) => x.id === voiceVal) ? voiceVal : voiceList[0].id}
                       disabled={busy}
                       onChange={(id) => saveConfig(envs.voice!, id)}
                       options={voiceList.map((x) => [x.id, x.label || x.id] as [string, string])}

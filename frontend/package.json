@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "deadcode": "knip --reporter json",
     "test": "vitest run",
+    "test:coverage:voice": "vitest run --coverage --config vitest.voice-coverage.config.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

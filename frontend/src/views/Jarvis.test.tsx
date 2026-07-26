@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 const getJSON = vi.fn();
 const postAction = vi.fn();
 const getVoiceReadiness = vi.fn();
+const goToView = vi.fn();
 vi.mock("@/lib/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
@@ -13,6 +14,9 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("@/lib/voiceStatus", () => ({
   getVoiceReadiness: (...a: unknown[]) => getVoiceReadiness(...a),
+}));
+vi.mock("@/lib/nav", () => ({
+  goToView: (...a: unknown[]) => goToView(...a),
 }));
 
 import { Jarvis } from "@/views/Jarvis";
@@ -52,6 +56,7 @@ beforeEach(() => {
     canListen: true,
     canSpeak: true,
   });
+  goToView.mockReset();
 });
 
 describe("Jarvis presence view", () => {
@@ -205,5 +210,192 @@ describe("Jarvis presence view", () => {
     expect(screen.getByText("restarted stuck run")).toBeTruthy();
     expect(screen.getByText("acted")).toBeTruthy();
     expect(screen.getByText("asked")).toBeTruthy();
+  });
+
+  it("navigates from all three pillar actions and refreshes on demand", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/pulse" ? Promise.resolve(PULSE_ACT) : Promise.resolve(PROFILE_RECORDS),
+    );
+    render(withUI(<Jarvis />));
+    await waitFor(() => expect(screen.getByText("Acting on its own")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start talking/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tune autonomy/i }));
+    fireEvent.click(screen.getByRole("button", { name: /manage profile/i }));
+    expect(goToView.mock.calls).toEqual([["voice"], ["autonomy"], ["memory"]]);
+
+    const calls = getJSON.mock.calls.length;
+    fireEvent.click(screen.getByTitle("Refresh"));
+    await waitFor(() => expect(getJSON.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it("degrades cleanly when every status source and speech readiness reject", async () => {
+    getJSON.mockRejectedValue(new Error("offline"));
+    getVoiceReadiness.mockRejectedValue(new Error("offline"));
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(getVoiceReadiness).toHaveBeenCalled());
+    expect(screen.getAllByText("…").length).toBeGreaterThan(0);
+    expect(screen.getByText("Checking voice…")).toBeTruthy();
+    expect(screen.getByText(/0 of 3/)).toBeTruthy();
+  });
+
+  it("shows paused and fully unavailable voice states with responder fallbacks", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve({ paused: true, running: true });
+      if (path === "/api/standing")
+        return Promise.resolve({ orders: [{}, { name: "Initiative fallback", enabled: true }] });
+      if (path === "/api/memory")
+        return Promise.resolve({ records: [{ id: "p", content: "Known", type: "PREFERENCE" }] });
+      return Promise.resolve({});
+    });
+    getVoiceReadiness.mockResolvedValue({
+      serverSTT: false,
+      serverTTS: false,
+      browserInput: false,
+      browserTTS: false,
+      canListen: false,
+      canSpeak: false,
+    });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("Heartbeat paused")).toBeTruthy());
+    expect(screen.getByText("browser microphone unavailable")).toBeTruthy();
+    expect(screen.getByText("unavailable")).toBeTruthy();
+    expect(screen.getByText(/Responder armed/)).toBeTruthy();
+  });
+
+  it("does nothing when the matched responder has no id", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve(PULSE_ACT);
+      if (path === "/api/standing")
+        return Promise.resolve({ orders: [{ name: "Initiative fallback", enabled: false }] });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    render(withUI(<Jarvis />));
+    fireEvent.click(await screen.findByRole("button", { name: /arm/i }));
+    expect(postAction).not.toHaveBeenCalled();
+  });
+
+  it("dismisses asks and covers summary fallbacks", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve({ ...PULSE_ACT, initiative: "ask" });
+      if (path === "/api/pulse/asks")
+        return Promise.resolve({
+          asks: [
+            { issue_key: "source-only", source: "probe:disk" },
+            { issue_key: "key-only" },
+          ],
+        });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    postAction.mockResolvedValue({ resolved: true });
+    render(withUI(<Jarvis />));
+
+    await waitFor(() => expect(screen.getByText("probe:disk")).toBeTruthy());
+    expect(screen.getByText("key-only")).toBeTruthy();
+    fireEvent.click(screen.getAllByTitle("Dismiss")[0]);
+    await waitFor(() =>
+      expect(postAction).toHaveBeenCalledWith("/api/pulse/asks/resolve", {
+        issue_key: "source-only",
+        approve: "false",
+      }),
+    );
+  });
+
+  it("explains when an approved ask has no armed action", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve({ ...PULSE_ACT, initiative: "ask" });
+      if (path === "/api/pulse/asks")
+        return Promise.resolve({ asks: [{ issue_key: "ask-1", summary: "Approval needed" }] });
+      if (path === "/api/memory") return Promise.resolve({});
+      return Promise.resolve({});
+    });
+    postAction.mockResolvedValue({});
+    render(withUI(<Jarvis />));
+
+    fireEvent.click(await screen.findByTitle(/approve/i));
+    expect(await screen.findByText(/enable the Initiative responder/)).toBeTruthy();
+  });
+
+  it("reports failures from every Jarvis action", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/pulse") return Promise.resolve({ ...PULSE_ACT, initiative: "ask" });
+      if (path === "/api/pulse/asks")
+        return Promise.resolve({ asks: [{ issue_key: "ask-1", summary: "Needs approval" }] });
+      if (path === "/api/standing")
+        return Promise.resolve({ orders: [{ id: "ord-1", slug: "guardian-initiative", enabled: false }] });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    postAction.mockRejectedValue(new Error("action failed"));
+    render(withUI(<Jarvis />));
+    await screen.findByText("Needs approval");
+
+    fireEvent.click(screen.getByRole("button", { name: /arm/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/standing/enable", expect.anything()));
+    fireEvent.click(screen.getByTitle(/approve/i));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/asks/resolve", expect.anything()));
+    fireEvent.click(screen.getByRole("button", { name: /think now/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/pulse/beat", {}));
+    fireEvent.click(screen.getByRole("button", { name: /rebuild/i }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/profile/rebuild", {}));
+    expect(await screen.findAllByText("action failed")).toHaveLength(4);
+  });
+
+  it("reports all profile rebuild outcomes", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/pulse" ? Promise.resolve(PULSE_ACT) : Promise.resolve(PROFILE_RECORDS),
+    );
+    postAction
+      .mockResolvedValueOnce({ facets_written: 1 })
+      .mockResolvedValueOnce({ facets_written: 0 })
+      .mockResolvedValueOnce({});
+    render(withUI(<Jarvis />));
+    const rebuild = await screen.findByRole("button", { name: /rebuild/i });
+
+    fireEvent.click(rebuild);
+    await screen.findByText("profile rebuilt: 1 facet learned");
+    fireEvent.click(rebuild);
+    await screen.findByText("nothing to learn from yet — give it some memory first");
+    fireEvent.click(rebuild);
+    await waitFor(() => expect(postAction).toHaveBeenCalledTimes(3));
+  });
+
+  it("uses singular profile copy for one learned facet", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/pulse"
+        ? Promise.resolve(PULSE_ACT)
+        : Promise.resolve({ records: [{ id: "one", subject: "operator profile: timezone", content: "UTC" }] }),
+    );
+    render(withUI(<Jarvis />));
+    expect(await screen.findByText("Knows 1 thing about you")).toBeTruthy();
+  });
+
+  it("formats every recent-event age and payload fallback", async () => {
+    const now = Date.now();
+    getJSON.mockImplementation((path: string, params?: Record<string, string>) => {
+      if (path === "/api/pulse") return Promise.resolve(PULSE_ACT);
+      if (path === "/api/journal" && params?.kind === "initiative.act")
+        return Promise.resolve({
+          events: [
+            {},
+            { id: "day", ts_unix_ms: now - 2 * 86400_000, payload: { issue_key: "issue fallback" } },
+            { id: "hour", ts_unix_ms: now - 2 * 3600_000, payload: { source: "source fallback" } },
+            { id: "minute", ts_unix_ms: now - 2 * 60_000, payload: { summary: "minute event" } },
+            { id: "now", subject: "initiative.ask", ts_unix_ms: now, payload: { reason: "reason only" } },
+          ],
+        });
+      return Promise.resolve(PROFILE_RECORDS);
+    });
+    render(withUI(<Jarvis />));
+
+    await screen.findByText("minute event");
+    expect(screen.getByText("just now")).toBeTruthy();
+    expect(screen.getByText("2m")).toBeTruthy();
+    expect(screen.getByText("2h")).toBeTruthy();
+    expect(screen.getByText("2d")).toBeTruthy();
+    expect(screen.getAllByText("an observation")).toHaveLength(2);
+    expect(screen.getByText("issue fallback")).toBeTruthy();
+    expect(screen.getAllByText("source fallback").length).toBeGreaterThan(0);
   });
 });

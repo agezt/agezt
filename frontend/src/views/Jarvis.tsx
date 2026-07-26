@@ -423,7 +423,7 @@ export function Jarvis() {
               {profile.slice(0, 4).map((r) => (
                 <li key={r.id} className="flex gap-1.5">
                   <span className="font-medium capitalize text-foreground">
-                    {(r.subject || "").slice(PROFILE_PREFIX.length)}
+                    {r.subject!.slice(PROFILE_PREFIX.length)}
                   </span>
                   <span className="truncate text-muted-foreground">— {r.content}</span>
                 </li>
