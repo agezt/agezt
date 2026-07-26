@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const postAction = vi.fn();
 const reload = vi.fn();
+const confirm = vi.fn();
 let panelData: any = null;
 
 vi.mock("@/lib/api", () => ({
@@ -12,6 +13,9 @@ vi.mock("@/lib/api", () => ({
 
 vi.mock("@/lib/usePanel", () => ({
   usePanel: () => ({ data: panelData, error: null, loading: false, reload }),
+}));
+vi.mock("@/components/ui/feedback", () => ({
+  useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a) }),
 }));
 
 import { Budget, projectedDailySpend } from "@/views/Budget";
@@ -25,6 +29,7 @@ beforeEach(() => {
   postAction.mockReset();
   postAction.mockResolvedValue({});
   reload.mockReset();
+  confirm.mockReset();
   panelData = {
     utc_date: "2026-06-28",
     spent_mc: 1_000_000_000,
@@ -66,5 +71,31 @@ describe("Budget view", () => {
 
     await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/budget_set", { ceiling_mc: "12500000000" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Adjust daily ceiling" })).toBeNull());
+  });
+
+  it("shows the enforcement impact before allowing unlimited spend", async () => {
+    confirm.mockResolvedValue(false);
+    render(<Budget />);
+    fireEvent.click(screen.getAllByRole("button", { name: /Adjust/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Unlimited" }));
+
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Remove the daily spending ceiling?",
+      target: "Current ceiling $5.0000 per day",
+      impact: expect.stringContaining("governor"),
+      recovery: expect.stringContaining("Set a new daily ceiling"),
+      confirmLabel: "Allow unlimited spend",
+      danger: true,
+    })));
+    expect(postAction).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Daily ceiling dollars"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: /Set ceiling/ }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+    expect(postAction).not.toHaveBeenCalled();
+
+    confirm.mockResolvedValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Unlimited" }));
+    await waitFor(() => expect(postAction).toHaveBeenCalledWith("/api/budget_set", { ceiling_mc: "0" }));
   });
 });

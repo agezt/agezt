@@ -12,6 +12,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { Ring, BarRow } from "@/components/Widgets";
 import { useRateLimitLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
+import { useUI } from "@/components/ui/feedback";
 
 interface BudgetData {
   utc_date?: string;
@@ -38,6 +39,7 @@ export function projectedDailySpend(spentMc: number, nowMs: number): number | nu
 // knob. Setting a new dollar figure posts /api/budget_set; "Unlimited" clears
 // the cap. The panel re-reads the post-set snapshot so the gauge updates live.
 export function Budget() {
+  const ui = useUI();
   const { data, error, loading, reload } = usePanel<BudgetData>("/api/budget");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,7 +89,28 @@ export function Budget() {
       setNote("Enter a dollar amount like 25 or 1.50 (0 = unlimited)");
       return;
     }
+    if (v === 0) {
+      void removeCeiling();
+      return;
+    }
     setCeiling(v);
+  }
+
+  async function removeCeiling() {
+    if (
+      !(await ui.confirm({
+        title: "Remove the daily spending ceiling?",
+        message: "Allow model spend without a daily global cap.",
+        target: ceiling > 0 ? `Current ceiling ${money(ceiling)} per day` : "Daily budget ceiling",
+        impact: "The governor will no longer stop new spend at a daily global limit. Per-task ceilings, if configured, remain separate.",
+        recovery: "Set a new daily ceiling from this panel to restore global enforcement.",
+        confirmLabel: "Allow unlimited spend",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+    await setCeiling(0);
   }
 
   return (
@@ -204,8 +227,8 @@ export function Budget() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setCeiling(0)}
-                    disabled={busy}
+                    onClick={removeCeiling}
+                    disabled={busy || ceiling <= 0}
                     title="Remove the ceiling (unlimited spend)"
                   >
                     <InfinityIcon className="size-4" /> Unlimited

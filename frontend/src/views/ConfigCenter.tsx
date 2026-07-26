@@ -492,6 +492,7 @@ function QuickConfigDeck({
 }
 
 function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "success" | "error" | "info") => void }) {
+  const ui = useUI();
   const [entries, setEntries] = useState<AgentConfigEntry[] | null>(null);
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
@@ -542,10 +543,23 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
     }
   }
 
-  async function remove(entryKey: string) {
+  async function remove(entry: AgentConfigEntry) {
+    if (
+      !(await ui.confirm({
+        title: `Delete runtime key ${entry.key}?`,
+        message: "Remove this value from the agent runtime configuration store.",
+        target: entry.key,
+        impact: `Deletes the stored ${entry.rating || "internal"} value and its ${agentConfigScopeLabel(entry)} access metadata.`,
+        recovery: "There is no automatic undo. Recreate the key and its access rules manually; secret values cannot be recovered from this UI.",
+        confirmLabel: "Delete runtime key",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     setBusy(true);
     try {
-      await postJSON("/api/configcenter/delete", { key: entryKey });
+      await postJSON("/api/configcenter/delete", { key: entry.key });
       await load();
       toast("Agent config deleted", "success");
     } catch (e) {
@@ -619,7 +633,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
                   {entry.excluded_agents?.length ? <div className="truncate">deny: {entry.excluded_agents.join(", ")}</div> : null}
                   {!entry.allowed_agents?.length && !entry.excluded_agents?.length ? "all eligible agents" : null}
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => remove(entry.key)} disabled={busy} title="Delete agent config">
+                <Button size="sm" variant="ghost" onClick={() => remove(entry)} disabled={busy} title="Delete agent config">
                   <Trash2 className="size-3.5 text-bad" />
                 </Button>
               </div>

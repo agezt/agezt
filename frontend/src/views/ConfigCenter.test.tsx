@@ -274,6 +274,42 @@ describe("ConfigCenter view", () => {
     );
   });
 
+  it("shows runtime key sensitivity and recovery before deletion", async () => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/config/schema") return Promise.resolve(SCHEMA);
+      if (path === "/api/config/values") return Promise.resolve(valuesPayload());
+      if (path === "/api/configcenter/list") {
+        return Promise.resolve({
+          entries: [{
+            key: "shared/provider-token",
+            rating: "secret",
+            allowed_agents: ["ops"],
+          }],
+        });
+      }
+      return Promise.reject(new Error("unexpected " + path));
+    });
+    postJSON.mockResolvedValue({});
+    render(withUI(<ConfigCenter />));
+    await waitFor(() => expect(screen.getByText("shared/provider-token")).toBeTruthy());
+
+    fireEvent.click(screen.getByTitle("Delete agent config"));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getAllByText("shared/provider-token").length).toBeGreaterThan(1);
+    expect(screen.getByText(/stored secret value and its identity-bound access metadata/i)).toBeTruthy();
+    expect(screen.getByText(/secret values cannot be recovered/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(postJSON).not.toHaveBeenCalledWith("/api/configcenter/delete", expect.anything());
+
+    fireEvent.click(screen.getByTitle("Delete agent config"));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete runtime key" }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledWith(
+      "/api/configcenter/delete",
+      { key: "shared/provider-token" },
+    ));
+  });
+
   it("renders an env-pinned field read-only (no input, no save)", async () => {
     mockFetch(valuesPayload({ AGEZT_MODEL: { env_pinned: true, value: "gpt-4o", set: true } }));
     const { container } = render(withUI(<ConfigCenter />));
