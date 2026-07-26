@@ -34,6 +34,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -61,7 +62,6 @@ const maxRequestBodyBytes = 16 << 20
 // failure it writes the appropriate error (413 over the limit, else 400) and
 // returns false, so callers just `if !decodeBody(...) { return }`.
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
@@ -183,16 +183,30 @@ func (s *Server) bind(r *http.Request) (Engine, *bus.Bus, error) {
 
 // Handler builds the mux; every route is token-authed.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/chat/completions", s.auth(s.handleChat))
-	mux.HandleFunc("/v1/responses", s.auth(s.handleResponses))
-	mux.HandleFunc("/v1/models", s.auth(s.handleModels))
+	authenticator := httpserver.Authenticator{
+		Verifier:        s.verifier,
+		TenantAuthorize: httpserver.TenantAuthorizer(s.tenantAuth),
+	}
+	router := httpserver.NewRouter(authenticator, func(w http.ResponseWriter, _ *http.Request) {
+		writeErr(w, http.StatusUnauthorized, "invalid_api_key", "missing or invalid API key")
+	})
+	jsonRoute := httpserver.RouteOpts{
+		Tier:    kernelauth.TierUser,
+		BodyMax: maxRequestBodyBytes,
+	}
+	readRoute := httpserver.RouteOpts{Tier: kernelauth.TierUser}
+	router.Handle("/v1/chat/completions", jsonRoute, s.handleChat)
+	router.Handle("/v1/responses", jsonRoute, s.handleResponses)
+	router.Handle("/v1/models", readRoute, s.handleModels)
 	// OpenAI's "retrieve model" — GET /v1/models/{id}. The list route above is an
 	// EXACT match, so without this subtree handler a single-model GET (what the
 	// official SDKs' models.retrieve(id) issues for capability probing) would 404.
-	mux.HandleFunc("/v1/models/", s.auth(s.handleModelByID))
-	mux.HandleFunc("/v1/audio/transcriptions", s.auth(s.handleTranscription))
-	return mux
+	router.Handle("/v1/models/", readRoute, s.handleModelByID)
+	router.Handle("/v1/audio/transcriptions", httpserver.RouteOpts{
+		Tier:    kernelauth.TierUser,
+		BodyMax: audioMaxBytes,
+	}, s.handleTranscription)
+	return router
 }
 
 // audioMaxBytes bounds an uploaded audio body (OpenAI's own cap is 25 MiB).
@@ -214,7 +228,6 @@ func (s *Server) handleTranscription(w http.ResponseWriter, r *http.Request) {
 			"speech-to-text is not configured: set AGEZT_STT_API_URL + AGEZT_STT_API_KEY")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, audioMaxBytes)
 	if err := r.ParseMultipartForm(audioMaxBytes); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "expected multipart/form-data with a 'file' field: "+err.Error())
 		return
@@ -240,44 +253,6 @@ func (s *Server) handleTranscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"text": text})
-}
-
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.authorized(r) {
-			writeErr(w, http.StatusUnauthorized, "invalid_api_key", "missing or invalid API key")
-			return
-		}
-		next(w, r)
-	}
-}
-
-func (s *Server) authorized(r *http.Request) bool {
-	presented := bearerToken(r)
-	if presented == "" {
-		return false
-	}
-	// The daemon admin token authorizes the primary and any tenant.
-	if s.verifier != nil && s.verifier.Authorize(presented, kernelauth.TierAdmin) {
-		return true
-	}
-	// Otherwise a per-tenant token authorizes ONLY its own tenant, and only when
-	// the request actually targets that tenant via the header.
-	if s.tenantAuth != nil {
-		if id := strings.TrimSpace(r.Header.Get("X-Agezt-Tenant")); id != "" {
-			return s.tenantAuth(id, presented)
-		}
-	}
-	return false
-}
-
-// bearerToken extracts the presented token from the Authorization: Bearer
-// header. Query-string tokens are intentionally not accepted on this API surface.
-func bearerToken(r *http.Request) string {
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ")
-	}
-	return ""
 }
 
 // --- /v1/models ---

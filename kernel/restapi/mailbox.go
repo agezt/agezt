@@ -131,7 +131,6 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var req mailboxSendRequest
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			var mbe *http.MaxBytesError
 			if errors.As(err, &mbe) {
@@ -260,7 +259,6 @@ func (s *Server) handleMailboxMessageSub(w http.ResponseWriter, r *http.Request)
 		var req struct {
 			By string `json:"by"`
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error())
 			return

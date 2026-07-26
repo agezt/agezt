@@ -4,6 +4,11 @@
 > **B5** (no dedicated auth package). **Supersedes** the standalone
 > `docs/REFACTOR-A3-HTTPSERVER-PLAN.md` for the auth-related phases.
 > **Generated:** 2026-07-03. Grounded in a measured auth-surface scan.
+>
+> **Implementation status (2026-07-26):** P0 is complete. The shared
+> `kernel/httpserver` auth/body-limit/router substrate is implemented, and
+> OpenAI API + native REST are migrated to it. WebUI route migration,
+> tenant/OAuth relocation, agent gateway, and shared listener lifecycle remain.
 
 ## The overlap, and why it's a layer split (not a merge)
 

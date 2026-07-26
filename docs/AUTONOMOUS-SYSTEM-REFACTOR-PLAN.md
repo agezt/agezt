@@ -74,8 +74,10 @@ browser gates green.
 
 ### Phase 1 — Shared auth and HTTP transport
 
-Status: in progress. `kernel/auth` and the WebUI/REST/OpenAI verifier migration
-are implemented; shared route/listener infrastructure remains.
+Status: in progress. `kernel/auth`, shared route/body-limit middleware, and the
+OpenAI/native REST router migrations are implemented. WebUI still uses its
+surface-specific router because its shell/session/EventSource policies require
+a separate migration; shared listener infrastructure also remains.
 
 1. Add `kernel/httpserver` route metadata:
    `{method, path, tier, body_max, timeout, mutation}`.

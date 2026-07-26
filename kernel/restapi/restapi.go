@@ -40,6 +40,7 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/meshctx"
 	"github.com/agezt/agezt/kernel/update"
 )
@@ -176,35 +177,58 @@ func (s *Server) bind(r *http.Request) (Engine, *bus.Bus, error) {
 // liveness/readiness — never version, model, or any run data (that stays behind
 // the authed /api/v1/health).
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", s.handleLive)
-	mux.HandleFunc("/readyz", s.handleReady)
+	authenticator := httpserver.Authenticator{
+		Verifier:        s.verifier,
+		TenantAuthorize: httpserver.TenantAuthorizer(s.tenantAuth),
+	}
+	router := httpserver.NewRouter(authenticator, func(w http.ResponseWriter, _ *http.Request) {
+		writeErr(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
+	})
+	publicRoute := httpserver.RouteOpts{Tier: kernelauth.TierPublic}
+	userRoute := httpserver.RouteOpts{Tier: kernelauth.TierUser}
+	userBodyRoute := httpserver.RouteOpts{
+		Tier:    kernelauth.TierUser,
+		BodyMax: maxRequestBodyBytes,
+	}
+	adminRoute := httpserver.RouteOpts{
+		Tier: kernelauth.TierAdmin,
+		Unauthorized: func(w http.ResponseWriter, _ *http.Request) {
+			writeErr(w, http.StatusUnauthorized, "unauthorized", "this endpoint requires the daemon admin token")
+		},
+	}
+	adminBodyRoute := adminRoute
+	adminBodyRoute.BodyMax = maxRequestBodyBytes
+
+	router.Handle("/healthz", publicRoute, s.handleLive)
+	router.Handle("/readyz", publicRoute, s.handleReady)
 	// /metrics is token-authed: unlike liveness/readiness it exposes spend and
 	// activity volume (financially/operationally sensitive). Prometheus scrapes it
 	// with a bearer_token.
-	mux.HandleFunc("/metrics", s.auth(s.handleMetrics))
-	mux.HandleFunc("/api/v1/health", s.auth(s.handleHealth))
-	mux.HandleFunc("/api/v1/models", s.auth(s.handleModels))
-	mux.HandleFunc("/api/v1/runs", s.auth(s.handleRunsRoot))
-	mux.HandleFunc("/api/v1/runs/", s.auth(s.handleRunByID))
-	mux.HandleFunc("/api/v1/artifacts", s.auth(s.handleArtifacts))
-	mux.HandleFunc("/api/v1/artifacts/", s.auth(s.handleArtifactBytes))
+	router.Handle("/metrics", userRoute, s.handleMetrics)
+	router.Handle("/api/v1/health", userRoute, s.handleHealth)
+	router.Handle("/api/v1/models", userRoute, s.handleModels)
+	router.Handle("/api/v1/runs", userBodyRoute, s.handleRunsRoot)
+	router.Handle("/api/v1/runs/", userRoute, s.handleRunByID)
+	router.Handle("/api/v1/artifacts", userRoute, s.handleArtifacts)
+	router.Handle("/api/v1/artifacts/", userRoute, s.handleArtifactBytes)
 	// Mailbox (M937): the shared inter-agent message board for SDK apps —
 	// send/read messages, an inbox per name, replies, ack, topics. The board is a
 	// single daemon-global instance with no tenant partition, so it is gated to
-	// the admin token only (adminAuth) — a per-tenant token must not reach it and
+	// the admin tier only — a per-tenant token must not reach it and
 	// read/spoof across tenants. (V-011)
-	mux.HandleFunc("/api/v1/mailbox/messages", s.adminAuth(s.handleMailboxMessages))
-	mux.HandleFunc("/api/v1/mailbox/messages/", s.adminAuth(s.handleMailboxMessageSub))
-	mux.HandleFunc("/api/v1/mailbox/inbox", s.adminAuth(s.handleMailboxInbox))
-	mux.HandleFunc("/api/v1/mailbox/watch", s.adminAuth(s.handleMailboxWatch))
-	mux.HandleFunc("/api/v1/mailbox/topics", s.adminAuth(s.handleMailboxTopics))
+	router.Handle("/api/v1/mailbox/messages", adminBodyRoute, s.handleMailboxMessages)
+	router.Handle("/api/v1/mailbox/messages/", adminBodyRoute, s.handleMailboxMessageSub)
+	router.Handle("/api/v1/mailbox/inbox", adminRoute, s.handleMailboxInbox)
+	router.Handle("/api/v1/mailbox/watch", adminRoute, s.handleMailboxWatch)
+	router.Handle("/api/v1/mailbox/topics", adminRoute, s.handleMailboxTopics)
 
 	// Self-update changes host-global daemon state — admin token only, never a
 	// per-tenant credential. (V-011)
-	mux.HandleFunc("/api/v1/update", s.adminAuth(s.handleUpdateCheck))
-	mux.HandleFunc("/api/v1/update/apply", s.adminAuth(s.handleUpdateApply))
-	return mux
+	router.Handle("/api/v1/update", adminRoute, s.handleUpdateCheck)
+	updateApplyRoute := adminRoute
+	updateApplyRoute.BodyMax = 64 * 1024
+	router.Handle("/api/v1/update/apply", updateApplyRoute, s.handleUpdateApply)
+	return router
 }
 
 // --- GET /healthz (unauthenticated liveness) ---
@@ -270,75 +294,6 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(b.String()))
-}
-
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.authorized(r) {
-			writeErr(w, http.StatusUnauthorized, "unauthorized", "missing or invalid token")
-			return
-		}
-		next(w, r)
-	}
-}
-
-func (s *Server) authorized(r *http.Request) bool {
-	// The daemon admin token authorizes the primary and any tenant.
-	if s.adminAuthorized(r) {
-		return true
-	}
-	// Otherwise a per-tenant token authorizes ONLY its own tenant, and only when
-	// the request actually targets that tenant via the header.
-	if s.tenantAuth != nil {
-		presented := bearerToken(r)
-		if presented == "" {
-			return false
-		}
-		if id := strings.TrimSpace(r.Header.Get("X-Agezt-Tenant")); id != "" {
-			return s.tenantAuth(id, presented)
-		}
-	}
-	return false
-}
-
-// adminAuth gates a handler so ONLY the daemon admin token authorizes it;
-// per-tenant tokens are rejected. It backs daemon-global surfaces that are not
-// tenant-partitioned — the shared mailbox/board (M937) and the host-level
-// self-update endpoints. (V-011)
-//
-// Rationale: those routes operate on one shared instance with no tenant scoping,
-// and the control plane already excludes board_* (and admin/host ops) from
-// per-tenant token authorization (tenantTokenAllows). Without this gate a
-// per-tenant token could reach the shared board through the REST surface and
-// read any agent's inbox, spoof senders, or tail the cross-tenant firehose — a
-// cross-tenant IDOR bypass. In single-tenant deployments (no tenantAuth wired)
-// the admin token is the only credential, so this is a no-op there.
-func (s *Server) adminAuth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.adminAuthorized(r) {
-			writeErr(w, http.StatusUnauthorized, "unauthorized", "this endpoint requires the daemon admin token")
-			return
-		}
-		next(w, r)
-	}
-}
-
-// adminAuthorized reports whether the request presents the daemon admin token.
-func (s *Server) adminAuthorized(r *http.Request) bool {
-	presented := bearerToken(r)
-	if presented == "" {
-		return false
-	}
-	return s.verifier != nil && s.verifier.Authorize(presented, kernelauth.TierAdmin)
-}
-
-// bearerToken extracts the presented token from the Authorization: Bearer
-// header. Query-string tokens are intentionally not accepted on this API surface.
-func bearerToken(r *http.Request) string {
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ")
-	}
-	return ""
 }
 
 // --- GET /api/v1/health ---
@@ -429,7 +384,6 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(meshctx.WithHop(r.Context(), hopIn))
 
 	var req runRequest
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var mbe *http.MaxBytesError
 		if errors.As(err, &mbe) {
