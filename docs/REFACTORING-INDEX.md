@@ -2,13 +2,14 @@
 
 Entry point for the AGEZT refactoring effort. Every plan below is **evidence-grounded** (measured
 against real files — sizes, method/importer counts, route registrations — not estimated) and
-**read-only planning** (no source changed yet). Start with the master scan, then follow the
-dependency graph to sequence implementation.
+implemented incrementally behind existing behavior gates. Start with the autonomous-system plan,
+then use the detailed scans for each bounded extraction.
 
 ## Documents
 
 | Doc | Finding(s) | Scope | Risk |
 |---|---|---|---|
+| [AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md](AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md) | current program | governed autonomy + WebUI + delivery gates | staged |
 | [REFACTORING-SCAN.md](REFACTORING-SCAN.md) | all 30 | master scan + 15-step sequencing | — |
 | [REFACTOR-A1-CONTROLPLANE-PLAN.md](REFACTOR-A1-CONTROLPLANE-PLAN.md) | A1 | 190-file controlplane → domain packages | med |
 | [REFACTOR-A2-LOG-PAGINATION-PLAN.md](REFACTOR-A2-LOG-PAGINATION-PLAN.md) | A2 | c​ursor pagination for 11 log endpoints | low |
