@@ -9,7 +9,7 @@ param(
 )
 
 go test -cover $Target 2>$null `
-| Select-String '^ok\s+' `
+| Select-String '^ok\s+.*\scoverage:\s' `
 | ForEach-Object {
     $parts = $_ -split '\s+'
     $pkg = $parts[1] -replace '^github\.com/agezt/agezt/', ''
