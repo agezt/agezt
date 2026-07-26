@@ -20,6 +20,7 @@ applyAccentHue(loadAccentHue());
 applyConsoleTitle(loadConsoleName());
 applyAdvanced();
 import { EventsProvider } from "@/lib/events";
+import { GlobalActivityProvider } from "@/lib/globalActivity";
 import { UIProvider } from "@/components/ui/feedback";
 import { ChatProvider } from "@/lib/chatStore";
 import { AuthGate } from "@/views/Login";
@@ -32,9 +33,11 @@ createRoot(document.getElementById("root")!).render(
           et al.) until the user logs in. Transparent when no password is set. */}
       <AuthGate>
         <EventsProvider>
-          <ChatProvider>
-            <App />
-          </ChatProvider>
+          <GlobalActivityProvider>
+            <ChatProvider>
+              <App />
+            </ChatProvider>
+          </GlobalActivityProvider>
         </EventsProvider>
       </AuthGate>
     </UIProvider>

@@ -16,9 +16,14 @@ vi.mock("@/lib/events", () => ({
 
 import { Activity } from "@/views/Activity";
 import { UIProvider } from "@/components/ui/feedback";
+import { GlobalActivityProvider } from "@/lib/globalActivity";
 
 function withUI(node: ReactNode) {
-  return <UIProvider>{node}</UIProvider>;
+  return (
+    <UIProvider>
+      <GlobalActivityProvider>{node}</GlobalActivityProvider>
+    </UIProvider>
+  );
 }
 
 afterEach(cleanup);

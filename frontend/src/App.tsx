@@ -5,7 +5,7 @@ import { useEvents } from "@/lib/events";
 import { ingestCouncilEvent } from "@/lib/councilStore";
 import { ingestConductorEvent } from "@/lib/conductorStore";
 import { attentionAlertCount } from "@/lib/alerts";
-import { foldActivityEvent, summarize, type ActivityState } from "@/lib/activity";
+import { useGlobalActivity } from "@/lib/globalActivity";
 import { CommandPalette } from "@/components/CommandPalette";
 import { HelpDrawer } from "@/components/HelpDrawer";
 import { Inspector, InspectorClosedBar } from "@/components/Inspector";
@@ -113,6 +113,7 @@ export default function App() {
     };
   }, [navDrawerOpen]);
   const { connected, events, subscribe } = useEvents();
+  const { state: activityState, summary: activitySummary } = useGlobalActivity();
   const ui = useUI();
 
   // Live LLM call counter for the inspector badge.
@@ -168,16 +169,9 @@ export default function App() {
   }, [active, liveAlertCount]);
   const unseenAlerts = Math.max(0, liveAlertCount - seenAlerts);
 
-  // Live "active runs" badge on the Overseer nav item (M868): fold the live event
-  // buffer into run state and count those still running, so the operator sees how
-  // many runs are in flight from ANY view — ambient monitoring, like the alert
-  // badge. Events are newest-first, so fold in reverse (chronological) order.
-  // Same cold-start semantics as the alert badge: it reflects the live buffer.
-  const activeRunCount = useMemo(() => {
-    let state: ActivityState = {};
-    for (let i = events.length - 1; i >= 0; i--) state = foldActivityEvent(state, events[i]);
-    return summarize(state).running;
-  }, [events]);
+  // The global badge is seeded from the daemon before SSE folding, so work that
+  // began before this browser opened is still visible from every view.
+  const activeRunCount = activitySummary.running;
 
   const current = NAV.find((n) => n.id === active) || NAV[0];
   const View = current.render;
@@ -485,7 +479,7 @@ export default function App() {
         onToggleInspector={() => setInspectorOpen((v) => !v)}
       />
       <Vitals onNavigate={setActive} />
-      <FleetNowBar onNavigate={setActive} />
+      <FleetNowBar onNavigate={setActive} activityState={activityState} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Two-level nav (M974): a big-icon section RAIL then a secondary LIST
             of that section's views. On lg+ it is a fixed sidebar; below lg it is

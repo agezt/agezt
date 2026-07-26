@@ -5,6 +5,7 @@ import { cn, clip, fmtAgo } from "@/lib/utils";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Sparkline } from "@/components/Sparkline";
 import { openAgent } from "@/lib/agentnav";
+import type { ActivityState } from "@/lib/activity";
 
 // activitySeries buckets the recent event buffer into a small per-interval count
 // series for the live sparkline (M977) — the shape of fleet chatter over the
@@ -229,14 +230,43 @@ export function liveRunsFromEvents(events: AgentEvent[]): LiveRun[] {
     .map(({ terminal: _terminal, seenStart: _seenStart, ...r }) => r);
 }
 
-export function FleetNowBar({ onNavigate }: { onNavigate?: (id: string) => void }) {
+// The event buffer contains rich phase/agent details, while activityState adds
+// daemon-seeded runs that began before this browser connected.
+export function mergeLiveRunsWithActivity(
+  eventRuns: LiveRun[],
+  activityState: ActivityState,
+): LiveRun[] {
+  const seen = new Set(eventRuns.map((run) => run.corr));
+  const seeded = Object.values(activityState)
+    .filter((run) => run.status === "running" && !seen.has(run.corr))
+    .map<LiveRun>((run) => ({
+      corr: run.corr,
+      intent: run.intent,
+      ts: run.startedMs,
+      lastTs: run.startedMs,
+      phase: run.activity || "working",
+      detail: run.parentCorr ? `delegated by ${run.parentCorr}` : "daemon snapshot",
+    }));
+  return [...eventRuns, ...seeded];
+}
+
+export function FleetNowBar({
+  onNavigate,
+  activityState = {},
+}: {
+  onNavigate?: (id: string) => void;
+  activityState?: ActivityState;
+}) {
   const { events, connected } = useEvents();
   const [expanded, setExpanded] = useState(false);
 
   // Replay the buffer (newest-first): terminal task events close a correlation;
   // otherwise the newest non-terminal event becomes the visible phase while the
   // older task.received supplies the agent slug and intent.
-  const live = useMemo<LiveRun[]>(() => liveRunsFromEvents(events), [events]);
+  const live = useMemo<LiveRun[]>(
+    () => mergeLiveRunsWithActivity(liveRunsFromEvents(events), activityState),
+    [events, activityState],
+  );
   const summary = useMemo(() => fleetNowSummary(live), [live]);
 
   const latest = events[0];

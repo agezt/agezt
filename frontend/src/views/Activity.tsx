@@ -28,13 +28,10 @@ import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { openIncident } from "@/lib/incidentnav";
 import {
-  seedFromRuns,
-  foldActivityEvent,
-  summarize,
   buildTree,
   type ActiveRun,
-  type ActivityState,
 } from "@/lib/activity";
+import { useGlobalActivity } from "@/lib/globalActivity";
 import {
   autonomyEventMatches,
   doctorIncidentTrees,
@@ -43,16 +40,21 @@ import {
 } from "@/lib/autonomy";
 
 // Activity is the live fleet monitor: "is anything running right now, and what
-// is it doing?". It seeds the in-flight runs from /api/runs, then folds the
-// event firehose so each run's current activity, iteration, spend and any
-// delegated sub-agents update in real time — the operator stays in control.
+// is it doing?". It renders the app-wide daemon-seeded + SSE-folded activity
+// state so the header, navigation, and detail view cannot disagree about which
+// runs are active.
 export function Activity() {
   const { subscribe, connected } = useEvents();
+  const {
+    state,
+    summary,
+    seeding,
+    refresh: refreshRuns,
+  } = useGlobalActivity();
   const ui = useUI();
-  const [state, setState] = useState<ActivityState>({});
   const [doctorFeed, setDoctorFeed] = useState<AutonomyItem[]>([]);
+  const [doctorSeeding, setDoctorSeeding] = useState(true);
   const [now, setNow] = useState(() => Date.now());
-  const [seeding, setSeeding] = useState(true);
   const [cancelling, setCancelling] = useState<Record<string, boolean>>({});
 
   // Cancel one in-flight run (the targeted alternative to the global Halt). The
@@ -73,37 +75,28 @@ export function Activity() {
     }
   }
 
-  async function seed() {
-    setSeeding(true);
+  async function refreshDoctor() {
+    setDoctorSeeding(true);
     try {
-      const [res, auto] = await Promise.all([
-        getJSON<{ runs?: ActiveRun[] }>("/api/runs"),
-        getJSON<{ items?: AutonomyItem[] }>("/api/autonomy", { limit: "20" }),
-      ]);
-      // Merge the seed over live state so an in-flight run already being folded
-      // isn't clobbered (live activity lines win; seed only fills gaps).
-      setState((live) => {
-        const seeded = seedFromRuns(res.runs || []);
-        return { ...seeded, ...live };
-      });
+      const auto = await getJSON<{ items?: AutonomyItem[] }>("/api/autonomy", { limit: "20" });
       setDoctorFeed(filterDoctorAutonomy(auto.items, 6));
     } catch {
-      /* daemon momentarily unreachable — the firehose will refill */
+      /* daemon momentarily unreachable — live run evidence remains available */
     } finally {
-      setSeeding(false);
+      setDoctorSeeding(false);
     }
   }
 
   useEffect(() => {
-    seed();
+    void refreshDoctor();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fold every firehose event into the run map.
+  // The global provider folds run events. This subscription only refreshes the
+  // doctor incident projection when a relevant autonomy event arrives.
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     const off = subscribe((e) => {
-      setState((s) => foldActivityEvent(s, e));
       if (!autonomyEventMatches(e)) return;
       if (t) clearTimeout(t);
       t = setTimeout(() => {
@@ -120,7 +113,6 @@ export function Activity() {
 
   // Tick once a second so elapsed timers advance while anything is running.
   const tree = buildTree(state);
-  const summary = summarize(state);
   const running = summary.running;
   const hasDoctorFeed = doctorFeed.length > 0;
   const doctorRows = useMemo(() => doctorFeed.slice(0, 6), [doctorFeed]);
@@ -149,9 +141,16 @@ export function Activity() {
         </span>
       }
       actions={
-        <Button variant="ghost" size="sm" onClick={seed} disabled={seeding}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            void Promise.all([refreshRuns(), refreshDoctor()]);
+          }}
+          disabled={seeding || doctorSeeding}
+        >
           <RefreshCw
-            className={cn("size-3.5", seeding && "animate-spin")}
+            className={cn("size-3.5", (seeding || doctorSeeding) && "animate-spin")}
           />{" "}
           Refresh
         </Button>

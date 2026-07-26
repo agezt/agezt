@@ -9,7 +9,12 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: h.events, connected: h.connected, subscribe: () => () => {} }),
 }));
 
-import { FleetNowBar, fleetNowSummary, liveRunsFromEvents } from "@/components/FleetNowBar";
+import {
+  FleetNowBar,
+  fleetNowSummary,
+  liveRunsFromEvents,
+  mergeLiveRunsWithActivity,
+} from "@/components/FleetNowBar";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -39,6 +44,35 @@ describe("FleetNowBar", () => {
   it("shows the idle state when no runs are live", () => {
     render(<FleetNowBar />);
     expect(screen.getByText(/fleet idle · listening/)).toBeTruthy();
+  });
+
+  it("shows a daemon-seeded run that predates the SSE buffer", () => {
+    const state = {
+      "cold-run": {
+        corr: "cold-run",
+        intent: "continue overnight migration",
+        status: "running" as const,
+        startedMs: 10,
+        iters: 2,
+        spentMc: 0,
+        activity: "thinking · iter 2",
+        parentCorr: "",
+        depth: 0,
+        lastSeq: 0,
+      },
+    };
+    expect(mergeLiveRunsWithActivity([], state)).toMatchObject([
+      {
+        corr: "cold-run",
+        intent: "continue overnight migration",
+        phase: "thinking · iter 2",
+        detail: "daemon snapshot",
+      },
+    ]);
+
+    render(<FleetNowBar activityState={state} />);
+    expect(screen.getByText(/1 running/)).toBeTruthy();
+    expect(screen.queryByText(/fleet idle/)).toBeNull();
   });
 
   it("summarizes a running agent (collapsed stack + ticker), not idle", () => {
