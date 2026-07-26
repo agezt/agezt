@@ -25,7 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { speak, stopSpeaking, speechSupported } from "@/lib/speech";
+import { speechSupported } from "@/lib/speech";
+import { speak, stopSpeech, type Utterance } from "@/lib/tts";
 import {
   turnText,
   type ChatTurn,
@@ -373,20 +374,39 @@ function CopyAnswer({ text }: { text: string }) {
   );
 }
 
-// SpeakAnswer reads one answer aloud via the browser's speech synthesis — the
-// per-message companion to the global auto-speak toggle. Renders nothing when the
-// browser can't do TTS. Toggles between speak and stop, and stops on unmount.
+// SpeakAnswer uses the same server-first TTS path as Voice Mode, with browser
+// speech synthesis as fallback.
 function SpeakAnswer({ text }: { text: string }) {
   const [speaking, setSpeaking] = useState(false);
-  useEffect(() => () => stopSpeaking(), []);
+  const utteranceRef = useRef<Utterance | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    utteranceRef.current?.stop();
+    stopSpeech();
+  }, []);
   if (!speechSupported()) return null;
-  function toggle() {
+  async function toggle() {
     if (speaking) {
-      stopSpeaking();
+      abortRef.current?.abort();
+      utteranceRef.current?.stop();
+      stopSpeech();
       setSpeaking(false);
     } else {
       setSpeaking(true);
-      speak(text, () => setSpeaking(false));
+      const abort = new AbortController();
+      abortRef.current = abort;
+      const utterance = await speak(text, abort.signal);
+      if (abort.signal.aborted) {
+        utterance.stop();
+        return;
+      }
+      utteranceRef.current = utterance;
+      await utterance.done;
+      if (utteranceRef.current === utterance) {
+        utteranceRef.current = null;
+        setSpeaking(false);
+      }
     }
   }
   return (

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchSpeech, playBlob, speak, resetServerTTS } from "@/lib/tts";
+import { fetchSpeech, playBlob, speak, resetServerTTS, stopSpeech } from "@/lib/tts";
 
 beforeEach(() => resetServerTTS());
 afterEach(() => vi.restoreAllMocks());
@@ -17,12 +17,17 @@ describe("fetchSpeech", () => {
     expect(got).toBe(audio);
   });
 
-  it("returns null and stops probing after a 501 (TTS not configured)", async () => {
+  it("backs off after a 501 but retries later so a restarted daemon can enable TTS", async () => {
+    vi.useFakeTimers();
     const f = vi.fn(async () => ({ ok: false, status: 501, blob: async () => new Blob() }));
     vi.stubGlobal("fetch", f as unknown as typeof fetch);
     expect(await fetchSpeech("hi")).toBeNull();
     expect(await fetchSpeech("again")).toBeNull();
     expect(f).toHaveBeenCalledTimes(1); // second call short-circuited
+    vi.advanceTimersByTime(30_001);
+    expect(await fetchSpeech("after restart")).toBeNull();
+    expect(f).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
     resetServerTTS();
   });
 
@@ -102,5 +107,27 @@ describe("speak fallback", () => {
     const u = await speak("the lights are off");
     await expect(u.done).resolves.toBeUndefined();
     resetServerTTS();
+  });
+
+  it("stops the active server-audio utterance through the shared stop seam", async () => {
+    const pause = vi.fn();
+    vi.stubGlobal(
+      "Audio",
+      class {
+        onended: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        play() { return Promise.resolve(); }
+        pause = pause;
+      } as unknown as typeof Audio,
+    );
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:active"),
+      revokeObjectURL: vi.fn(),
+    } as unknown as typeof URL);
+    mockFetchOnce(async () => ({ ok: true, status: 200, blob: async () => new Blob(["audio"]) }));
+
+    await speak("hello");
+    stopSpeech();
+    expect(pause).toHaveBeenCalledTimes(1);
   });
 });

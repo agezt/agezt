@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { turnText } from "@/lib/chat";
 import { type Msg } from "@/lib/conversations";
-import { speak, stopSpeaking } from "@/lib/speech";
+import { speak, stopSpeech } from "@/lib/tts";
 
 const AUTOSPEAK_KEY = "agezt.chat.autospeak";
 
@@ -11,8 +11,8 @@ interface UseVoiceParams {
 }
 
 export function useVoice({ busy, messages }: UseVoiceParams) {
-  // autoSpeak: read each completed answer aloud (browser TTS). Persisted, off by
-  // default so the UI is silent unless the user opts in.
+  // autoSpeak reads each completed answer through the configured server TTS,
+  // with browser speech synthesis as the fallback. Persisted and off by default.
   const [autoSpeak, setAutoSpeak] = useState(() => {
     try {
       return localStorage.getItem(AUTOSPEAK_KEY) === "1";
@@ -31,7 +31,7 @@ export function useVoice({ busy, messages }: UseVoiceParams) {
       } catch {
         /* ignore storage errors */
       }
-      if (!next) stopSpeaking();
+      if (!next) stopSpeech();
       return next;
     });
   }
@@ -49,14 +49,14 @@ export function useVoice({ busy, messages }: UseVoiceParams) {
         const key = last.turn.correlationId || turnText(last.turn);
         if (key && key !== lastSpokeRef.current) {
           lastSpokeRef.current = key;
-          speak(turnText(last.turn));
+          void speak(turnText(last.turn));
         }
       }
     }
     prevBusy.current = busy;
   }, [busy, autoSpeak, messages]);
 
-  useEffect(() => () => stopSpeaking(), []);
+  useEffect(() => () => stopSpeech(), []);
 
   return {
     autoSpeak,

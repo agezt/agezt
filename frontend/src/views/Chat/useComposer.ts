@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { buildContext, type AttachRef } from "@/lib/attach";
-import { stopSpeaking } from "@/lib/speech";
+import { stopSpeech } from "@/lib/tts";
 
 interface UseComposerParams {
   busy: boolean;
@@ -37,7 +37,7 @@ export function useComposer({ busy, enqueue, send, setPinned }: UseComposerParam
       setInput("");
       return;
     }
-    stopSpeaking(); // a new turn interrupts any answer being read aloud
+    stopSpeech(); // a new turn interrupts server or browser speech
     setPinned(true);
     setInput("");
     const ctx = buildContext(attached);

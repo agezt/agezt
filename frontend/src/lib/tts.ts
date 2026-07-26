@@ -8,13 +8,15 @@
 import { authHeaders } from "@/lib/api";
 import { speak as browserSpeak, stopSpeaking as browserStop, speechSupported } from "@/lib/speech";
 
-// Once /api/tts answers 501 (TTS not configured) we stop hitting it for the rest
-// of the session and go straight to the browser voice — no point re-asking.
-let serverTTSDisabled = false;
+// A missing backend is cached briefly, not forever: the daemon may be restarted
+// with a newly configured provider while this browser tab stays open.
+const serverTTSRetryMs = 30_000;
+let serverTTSRetryAt = 0;
+let activeUtterance: Utterance | null = null;
 
 // resetServerTTS re-enables server probing (for tests).
 export function resetServerTTS(): void {
-  serverTTSDisabled = false;
+  serverTTSRetryAt = 0;
 }
 
 // fetchSpeech asks the server to synthesize `text` and returns the audio Blob, or
@@ -22,7 +24,7 @@ export function resetServerTTS(): void {
 // falls back to the browser. Throws only on an unexpected transport error after
 // the server was thought available.
 export async function fetchSpeech(text: string, signal?: AbortSignal): Promise<Blob | null> {
-  if (serverTTSDisabled) return null;
+  if (Date.now() < serverTTSRetryAt) return null;
   const t = text.trim();
   if (!t) return null;
   let res: Response;
@@ -37,7 +39,7 @@ export async function fetchSpeech(text: string, signal?: AbortSignal): Promise<B
     return null; // network/abort — fall back to the browser voice
   }
   if (res.status === 501) {
-    serverTTSDisabled = true; // not configured; don't ask again this session
+    serverTTSRetryAt = Date.now() + serverTTSRetryMs;
     return null;
   }
   if (!res.ok) return null; // 4xx/5xx — degrade rather than go silent
@@ -104,7 +106,20 @@ function browserUtterance(text: string): Utterance {
 // transparently falls back to the browser voice. The signal aborts the synthesis
 // request (not playback — use the handle's stop for that).
 export async function speak(text: string, signal?: AbortSignal): Promise<Utterance> {
+  stopSpeech();
   const blob = await fetchSpeech(text, signal);
-  if (blob) return playBlob(blob);
-  return browserUtterance(text);
+  const utterance = blob ? playBlob(blob) : browserUtterance(text);
+  activeUtterance = utterance;
+  void utterance.done.finally(() => {
+    if (activeUtterance === utterance) activeUtterance = null;
+  });
+  return utterance;
+}
+
+// stopSpeech interrupts whichever path is active — server audio or browser
+// SpeechSynthesis. Chat and Voice Mode use the same stop seam.
+export function stopSpeech(): void {
+  activeUtterance?.stop();
+  activeUtterance = null;
+  browserStop();
 }
