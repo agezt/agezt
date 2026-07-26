@@ -12,6 +12,7 @@ package webui
 
 import (
 	"io"
+	"mime/multipart"
 	"net/http"
 )
 
@@ -30,6 +31,7 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, audioMaxBytes)
 	if err := r.ParseMultipartForm(audioMaxBytes); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected multipart/form-data with a 'file' field: " + err.Error()})
 		return
@@ -40,6 +42,10 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+	s.transcribeFile(w, r, hdr, f)
+}
+
+func (s *Server) transcribeFile(w http.ResponseWriter, r *http.Request, hdr *multipart.FileHeader, f multipart.File) {
 	audio, err := io.ReadAll(f)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "read upload: " + err.Error()})

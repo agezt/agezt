@@ -4,6 +4,7 @@ package webui
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,11 +16,12 @@ type stubSynthesizer struct {
 	gotText string
 	audio   []byte
 	mime    string
+	err     error
 }
 
 func (s *stubSynthesizer) Speak(_ context.Context, text string) ([]byte, string, error) {
 	s.gotText = text
-	return s.audio, s.mime, nil
+	return s.audio, s.mime, s.err
 }
 
 func TestTTS_HappyPath(t *testing.T) {
@@ -113,5 +115,33 @@ func TestTTS_RequiresToken(t *testing.T) {
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code == http.StatusOK {
 		t.Errorf("missing token must not succeed (got 200)")
+	}
+}
+
+func TestTTS_RejectsMalformedOversizedAndBackendFailure(t *testing.T) {
+	fc := &fakeCaller{}
+	s, _ := newServer(t, fc, "secret")
+	s.SetSynthesizer(&stubSynthesizer{audio: []byte("x"), mime: "audio/mpeg"})
+
+	for name, body := range map[string]string{
+		"malformed": "{bad",
+		"oversized": `{"text":"` + strings.Repeat("x", ttsTextMaxBytes) + `"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/tts?token=secret", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+
+	s.SetSynthesizer(&stubSynthesizer{err: errors.New("provider down")})
+	req := httptest.NewRequest(http.MethodPost, "/api/tts?token=secret", strings.NewReader(`{"text":"hello"}`))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway || !strings.Contains(rec.Body.String(), "provider down") {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }

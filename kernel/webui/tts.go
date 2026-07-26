@@ -35,6 +35,7 @@ func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Text string `json:"text"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, ttsTextMaxBytes)
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "expected JSON body {\"text\": …}: " + err.Error()})
 		return
