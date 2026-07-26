@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { HELP, FALLBACK_TOPIC, helpTopicFor } from "@/lib/help";
 
-// Mirror of the view ids in App.tsx NAV_GROUPS. When a view is added to the
-// sidebar, add its id here AND write its topic in lib/help.ts — this test is
-// the guard that keeps the in-app manual complete.
+// Mirror of the stable view ids in NAV_GROUPS. Source ordering is historical;
+// nav.test.ts separately guards the operator-job grouping. When a view is
+// added, add its id here AND write its topic in lib/help.ts.
 const NAV_IDS = [
   // Converse
   "jarvis", "chat", "voice", "inbox", "files", "artifacts", "data", "board", "approvals",

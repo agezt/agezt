@@ -51,6 +51,11 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(conn).toHaveAttribute("data-connection-state", /(live|stale)/);
 
     const nav = page.getByRole("navigation");
+    // The cockpit is organized by operator jobs, not internal subsystems.
+    // All eight destinations must remain visible and keyboard-addressable.
+    for (const job of ["Talk", "Observe", "Automate", "Govern", "Knowledge", "Connect", "Build", "Admin"]) {
+      await expect(nav.getByRole("button", { name: job, exact: true }).first()).toBeVisible();
+    }
     // exact: true so a substring nav label can't hijack the match — e.g. the
     // "ACP Agents" item contains "Agents", which used to make `.last()` open it
     // instead of the roster "Agents" view.
@@ -64,10 +69,10 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
       page.getByRole("heading", { level: 2, name: "Talk to your agent" }),
     ).toBeVisible();
 
-    // --- Dashboard (System → Overview): live status pulled from the daemon ---
+    // --- Dashboard (Observe → Overview): live status pulled from the daemon ---
     // The seeded run shows up in the completed counter; the vitals strip and
     // widgets are real daemon state, not placeholders.
-    await openView("System", "Overview");
+    await openView("Observe", "Overview");
     // Generous timeout for the first post-nav heading: a click + React re-mount
     // + initial data fetch under WSL runner load can exceed the default 10s.
     // Same rationale as the data-connection-state live-or-stale tolerance in
@@ -89,7 +94,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await page.setViewportSize({ width: 1280, height: 720 });
 
     // --- Runs: the intent the harness submitted renders as a card -------
-    await openView("Monitor", "Runs");
+    await openView("Observe", "Runs");
     await expect(
       page.getByRole("heading", { level: 2, name: "Runs" }),
     ).toBeVisible();
@@ -112,7 +117,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // --- Autonomy: the proactive-heartbeat controls render + work -------
     // (M743 pause/resume, M756 beat-now, M757 cadence, M758 dial, M761 flush).
     // Pulse is on by default in the demo daemon, so the steering controls render.
-    await openView("Monitor", "Autonomy");
+    await openView("Observe", "Autonomy");
     await expect(page.getByRole("heading", { level: 2, name: "Autonomy" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Beat now/ })).toBeVisible();
     await expect(page.getByLabel("Heartbeat cadence")).toBeVisible();
@@ -125,7 +130,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // The schedule surface must be more than "run this prompt later": it can
     // schedule typed daemon work such as syncing models.dev/api.json with no
     // LLM agent wake.
-    await openView("Automation", "Schedules");
+    await openView("Automate", "Schedules");
     await expect(page.getByRole("heading", { level: 2, name: "Schedules" })).toBeVisible();
     await page.getByRole("button", { name: /New schedule/ }).click();
     await expect(page.getByText("Daemon cron presets")).toBeVisible();
@@ -146,7 +151,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
 
     // --- Policy: the decision + secret-redaction testers mount ----------
     // (M753 policy dry-run, M754 redaction check).
-    await openView("System", "Policy");
+    await openView("Govern", "Policy");
     await expect(page.getByRole("heading", { level: 2, name: "Capability policy" })).toBeVisible();
     // The dry-run testers live behind compact affordances now: a "Test
     // decision" button in the capabilities panel and a "Secret redaction" card.
@@ -155,7 +160,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
 
     // --- Search: the journal's tamper-evident hash chain verifies clean -
     // (M759 integrity verify). The seeded run wrote hash-linked events.
-    await openView("Agents", "Search");
+    await openView("Knowledge", "Search");
     const verify = page.getByRole("button", { name: /verify integrity/ });
     await expect(verify).toBeVisible();
     await verify.click();
@@ -166,7 +171,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // durable objects with their own identity, control, lifecycle and runtime
     // surfaces. This clicks a real daemon-backed fleet card and proves those
     // panels mount in the browser.
-    await openView("Agents", "Agents");
+    await openView("Build", "Agents");
     await expect(page.getByRole("heading", { level: 2, name: "Agents" })).toBeVisible();
     const agentCard = page.getByRole("button", { name: /Guardian · Health[\s\S]*guardian-health/ });
     await expect(agentCard).toBeVisible();

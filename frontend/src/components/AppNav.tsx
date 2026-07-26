@@ -28,13 +28,14 @@ import { NAV_GROUPS, type NavGroup } from "@/nav";
 // reads as a vivid, navigable map rather than one flat grey list. Used for the
 // rail icon tint, the active section pill, and the item active state.
 const SECTION_HUE: Record<string, number> = {
-  converse: 255, // blue
-  monitor: 150, // green
-  agents: 290, // violet
-  automation: 55, // amber
+  talk: 255, // blue
+  observe: 150, // green
+  automate: 55, // amber
+  govern: 25, // red-orange
   knowledge: 195, // cyan
-  provision: 18, // coral
-  system: 230, // indigo
+  connect: 215, // azure
+  build: 290, // violet
+  admin: 230, // indigo
 };
 const sectionHue = (id: string) => SECTION_HUE[id] ?? 255;
 
@@ -71,7 +72,7 @@ export function SectionNav({
           const isActiveSection = activeGroupId === g.id;
           const hue = sectionHue(g.id);
           const sectionBadge =
-            (g.id === "monitor" ? unseenAlerts : 0) + (g.id === "agents" ? activeRunCount : 0);
+            (g.id === "observe" ? unseenAlerts : 0) + (g.id === "govern" ? activeRunCount : 0);
           return (
             <button
               key={g.id}
