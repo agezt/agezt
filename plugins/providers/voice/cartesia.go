@@ -51,10 +51,7 @@ func (c *cartesiaTTS) Speak(ctx context.Context, text string) ([]byte, string, e
 			"bit_rate":    128000,
 		},
 	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, "", fmt.Errorf("voice: encode: %w", err)
-	}
+	body, _ := json.Marshal(payload) // payload contains only JSON-safe scalar/map values
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.base, "/")+"/tts/bytes", bytes.NewReader(body))
 	if err != nil {
 		return nil, "", fmt.Errorf("voice: build request: %w", err)

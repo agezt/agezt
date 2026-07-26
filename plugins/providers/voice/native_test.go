@@ -5,12 +5,22 @@ package voice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+type failingBody struct{}
+
+func (failingBody) Read([]byte) (int, error) { return 0, errors.New("broken response body") }
+func (failingBody) Close() error             { return nil }
 
 func TestElevenLabsTTS(t *testing.T) {
 	var gotPath, gotKey, gotBody string
@@ -182,5 +192,74 @@ func TestFactoryRouting(t *testing.T) {
 	}
 	if _, err := NewTTS(ProviderElevenLabs, Config{APIKey: "k", Voice: "voice-id"}); err != nil {
 		t.Fatalf("ElevenLabs TTS should construct without a URL: %v", err)
+	}
+}
+
+func TestFactoryRejectsMissingNativeKeys(t *testing.T) {
+	if _, err := NewSTT(ProviderElevenLabs, Config{}); err == nil {
+		t.Fatal("ElevenLabs STT without a key must fail")
+	}
+	for _, provider := range []string{ProviderElevenLabs, ProviderDeepgram, ProviderCartesia} {
+		if _, err := NewTTS(provider, Config{Voice: "voice-id"}); err == nil {
+			t.Fatalf("%s TTS without a key must fail", provider)
+		}
+	}
+}
+
+func TestClientsReadErrors(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       failingBody{},
+		}, nil
+	})}
+
+	cases := []struct {
+		name string
+		call func() error
+	}{
+		{"openai stt", func() error {
+			_, err := (&STTClient{BaseURL: "http://voice.test", Model: "whisper-1", HTTP: client}).
+				Transcribe(context.Background(), []byte("audio"), "audio.ogg")
+			return err
+		}},
+		{"openai tts", func() error {
+			_, _, err := (&TTSClient{BaseURL: "http://voice.test", Model: "tts-1", HTTP: client}).
+				Speak(context.Background(), "hello")
+			return err
+		}},
+		{"deepgram stt", func() error {
+			_, err := (&deepgramSTT{base: "http://voice.test", key: "key", http: client}).
+				Transcribe(context.Background(), []byte("audio"), "audio.ogg")
+			return err
+		}},
+		{"deepgram tts", func() error {
+			_, _, err := (&deepgramTTS{base: "http://voice.test", key: "key", http: client}).
+				Speak(context.Background(), "hello")
+			return err
+		}},
+		{"elevenlabs stt", func() error {
+			_, err := (&elevenLabsSTT{base: "http://voice.test", key: "key", http: client}).
+				Transcribe(context.Background(), []byte("audio"), "audio.ogg")
+			return err
+		}},
+		{"elevenlabs tts", func() error {
+			_, _, err := (&elevenLabsTTS{base: "http://voice.test", voice: "voice", key: "key", http: client}).
+				Speak(context.Background(), "hello")
+			return err
+		}},
+		{"cartesia tts", func() error {
+			_, _, err := (&cartesiaTTS{base: "http://voice.test", voice: "voice", key: "key", http: client}).
+				Speak(context.Background(), "hello")
+			return err
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.call(); err == nil || !strings.Contains(err.Error(), "read body") {
+				t.Fatalf("expected read-body error, got %v", err)
+			}
+		})
 	}
 }

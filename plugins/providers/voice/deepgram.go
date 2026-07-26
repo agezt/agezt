@@ -117,10 +117,7 @@ func (c *deepgramTTS) Speak(ctx context.Context, text string) ([]byte, string, e
 	if strings.TrimSpace(c.key) == "" {
 		return nil, "", errors.New("voice: Deepgram API key required")
 	}
-	body, err := json.Marshal(map[string]string{"text": text})
-	if err != nil {
-		return nil, "", fmt.Errorf("voice: encode: %w", err)
-	}
+	body, _ := json.Marshal(map[string]string{"text": text}) // strings are always JSON-encodable
 	q := url.Values{}
 	q.Set("model", orDefault(c.model, "aura-2-thalia-en"))
 	endpoint := strings.TrimRight(c.base, "/") + "/v1/speak?" + q.Encode()

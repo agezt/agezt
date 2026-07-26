@@ -170,6 +170,11 @@ func TestTTSClient_Speak_Errors(t *testing.T) {
 	if _, _, err := c.Speak(context.Background(), "   "); err == nil {
 		t.Fatal("empty text should error")
 	}
+	// Missing base URL.
+	c = &TTSClient{Model: "tts-1"}
+	if _, _, err := c.Speak(context.Background(), "hi"); err == nil {
+		t.Fatal("missing base URL should error")
+	}
 }
 
 func TestTTSClient_Speak_Non2xx(t *testing.T) {

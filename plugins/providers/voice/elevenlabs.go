@@ -40,10 +40,7 @@ func (c *elevenLabsTTS) Speak(ctx context.Context, text string) ([]byte, string,
 	if strings.TrimSpace(c.key) == "" {
 		return nil, "", errors.New("voice: ElevenLabs API key required")
 	}
-	body, err := json.Marshal(map[string]string{"text": text, "model_id": orDefault(c.model, "eleven_multilingual_v2")})
-	if err != nil {
-		return nil, "", fmt.Errorf("voice: encode: %w", err)
-	}
+	body, _ := json.Marshal(map[string]string{"text": text, "model_id": orDefault(c.model, "eleven_multilingual_v2")})
 	endpoint := strings.TrimRight(c.base, "/") + "/v1/text-to-speech/" + url.PathEscape(c.voice) + "?output_format=mp3_44100_128"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -92,19 +89,11 @@ func (c *elevenLabsSTT) Transcribe(ctx context.Context, audio []byte, filename s
 	}
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
-	fw, err := mw.CreateFormFile("file", filename)
-	if err != nil {
-		return "", fmt.Errorf("voice: multipart: %w", err)
-	}
-	if _, err := fw.Write(audio); err != nil {
-		return "", fmt.Errorf("voice: multipart write: %w", err)
-	}
-	if err := mw.WriteField("model_id", orDefault(c.model, "scribe_v2")); err != nil {
-		return "", fmt.Errorf("voice: multipart field: %w", err)
-	}
-	if err := mw.Close(); err != nil {
-		return "", fmt.Errorf("voice: multipart close: %w", err)
-	}
+	// multipart.Writer targets a bytes.Buffer here, whose Write cannot fail.
+	fw, _ := mw.CreateFormFile("file", filename)
+	_, _ = fw.Write(audio)
+	_ = mw.WriteField("model_id", orDefault(c.model, "scribe_v2"))
+	_ = mw.Close()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(c.base, "/")+"/v1/speech-to-text", &body)
 	if err != nil {
 		return "", fmt.Errorf("voice: build request: %w", err)

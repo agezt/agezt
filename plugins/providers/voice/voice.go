@@ -229,19 +229,11 @@ func (c *STTClient) Transcribe(ctx context.Context, audio []byte, filename strin
 
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
-	fw, err := mw.CreateFormFile("file", filename)
-	if err != nil {
-		return "", fmt.Errorf("voice: multipart: %w", err)
-	}
-	if _, err := fw.Write(audio); err != nil {
-		return "", fmt.Errorf("voice: multipart write: %w", err)
-	}
-	if err := mw.WriteField("model", c.Model); err != nil {
-		return "", fmt.Errorf("voice: multipart field: %w", err)
-	}
-	if err := mw.Close(); err != nil {
-		return "", fmt.Errorf("voice: multipart close: %w", err)
-	}
+	// multipart.Writer targets a bytes.Buffer here, whose Write cannot fail.
+	fw, _ := mw.CreateFormFile("file", filename)
+	_, _ = fw.Write(audio)
+	_ = mw.WriteField("model", c.Model)
+	_ = mw.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint(c.BaseURL, "/audio/transcriptions"), &body)
 	if err != nil {
@@ -293,10 +285,7 @@ func (c *TTSClient) Speak(ctx context.Context, text string) ([]byte, string, err
 	if voiceName == "" {
 		voiceName = "alloy"
 	}
-	body, err := json.Marshal(speakRequest{Model: c.Model, Input: text, Voice: voiceName})
-	if err != nil {
-		return nil, "", fmt.Errorf("voice: encode: %w", err)
-	}
+	body, _ := json.Marshal(speakRequest{Model: c.Model, Input: text, Voice: voiceName})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint(c.BaseURL, "/audio/speech"), bytes.NewReader(body))
 	if err != nil {
 		return nil, "", fmt.Errorf("voice: build request: %w", err)
