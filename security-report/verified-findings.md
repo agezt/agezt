@@ -14,11 +14,17 @@
 > | VULN-005 | Medium | OPEN (by design) | `AGEZT_RATE_PER_MIN` still defaults to 0 (`cmd/agezt/main.go:6729`); this is the deliberate default-allow posture — front the listeners with a proxy rate cap if you expose them beyond loopback. |
 > | VULN-006 | Medium | ACCEPTED | budget check-then-act overshoot; explicitly documented as an accepted design tradeoff (`kernel/governor/governor.go`). |
 > | VULN-007 | Medium | **RESOLVED** | the token-free `POST /hooks` webhook is now throttled by `hookRL` (`kernel/webui/webui.go:107`). |
-> | VULN-008–013 | Low | NOT RE-VERIFIED this pass | re-check on demand (VULN-013 CI self-hosted-runner isolation remains an org-settings item). |
+> | VULN-008 | Low | **RESOLVED** | HTML artifact preview uses `sandbox=""` (no `allow-scripts`) + `referrerpolicy=no-referrer` (`frontend/src/views/Artifacts.tsx:514-515`). |
+> | VULN-009 | Medium | LATENT (org/CI setting) | the fork-PR `if:` gate is present and correct on all 14 jobs, so fork code does not reach the runners today; the residual is runner isolation — set "require approval for external collaborators" and move to ephemeral runners (server-side, not a code fix). |
+> | VULN-010 | Low | **RESOLVED** | npm is canonical, the stale `pnpm-lock.yaml` was removed, and the `undici` override is enforced via `package-lock.json` (DEP-001/002 resolved 2026-07-26). |
+> | VULN-011 | Low | **RESOLVED** | the unbounded `ReadBody` helper was removed from `retry.go`; provider response reads route through the bounded `httpread.All`. |
+> | VULN-012 | Low | **RESOLVED** | upstream/STT errors are now scrubbed via `errRedactor`/`redactErr` before being echoed (`kernel/openaiapi/openaiapi.go:42-53`). |
+> | VULN-013 | Low | **RESOLVED** | `.github/CODEOWNERS` was added (2026-06-27) to require owner review of `/.github/**`. |
 >
-> **Net:** the one High and four of the seven Mediums are resolved; VULN-005 is an
-> accepted default-allow posture and VULN-006 an accepted design tradeoff. No
-> Critical/High remains open.
+> **Net:** 10 of 13 findings are RESOLVED in current source
+> (VULN-001/002/003/004/007/008/010/011/012/013). VULN-005 is an accepted default-allow
+> posture, VULN-006 an accepted design tradeoff, and VULN-009 a latent org/CI-setting
+> item (fork-PR gate correct; residual is runner isolation). No Critical/High remains open.
 
 > Phase 3 verifier (`sc-verifier`) over all `security-report/*-results.md`.
 > Repo: `D:\Codebox\PROJECTS\AGEZT` (branch `main`). Threat model: **localhost-first, single-operator,
