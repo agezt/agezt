@@ -1,5 +1,25 @@
 # Verified Security Findings
 
+> **⚠ RE-VERIFICATION STATUS — 2026-07-29 (HEAD `648a0e75`, branch `main`).**
+> This report was authored 2026-06-27. A full re-check against current source found
+> the load-bearing findings already FIXED upstream of the original report. Treat the
+> per-finding bodies below as the historical 2026-06-27 record; the current status is:
+>
+> | ID | Sev (orig) | Current status (2026-07-29) | Evidence in current source |
+> |---|---|---|---|
+> | VULN-001 | High | **RESOLVED** | `WithTrustCeiling` now min-merges the existing ceiling (`kernel/runtime/runtime.go:2137-2147`). The header claim "last-write-wins confirmed" below is obsolete. |
+> | VULN-002 | Medium | **RESOLVED** | channel-registry globals now guarded by `sync.RWMutex` (`kernel/channel/registry.go:16`). The header claim "no mutex confirmed" is obsolete. |
+> | VULN-003 | Medium | **RESOLVED** | act_or_ask orders with no explicit `max_trust` now fail-safe to L2/ask-first (`cmd/agezt/main.go:5399-5433`, `standingTrustCeiling`). |
+> | VULN-004 | Medium | **RESOLVED** | trigger payload wrapped in an explicit `UNTRUSTED OBSERVATION` envelope (`kernel/standing/runner.go:135-164`, `TriggeredIntent`) on top of the L2 fail-safe ceiling. |
+> | VULN-005 | Medium | OPEN (by design) | `AGEZT_RATE_PER_MIN` still defaults to 0 (`cmd/agezt/main.go:6729`); this is the deliberate default-allow posture — front the listeners with a proxy rate cap if you expose them beyond loopback. |
+> | VULN-006 | Medium | ACCEPTED | budget check-then-act overshoot; explicitly documented as an accepted design tradeoff (`kernel/governor/governor.go`). |
+> | VULN-007 | Medium | **RESOLVED** | the token-free `POST /hooks` webhook is now throttled by `hookRL` (`kernel/webui/webui.go:107`). |
+> | VULN-008–013 | Low | NOT RE-VERIFIED this pass | re-check on demand (VULN-013 CI self-hosted-runner isolation remains an org-settings item). |
+>
+> **Net:** the one High and four of the seven Mediums are resolved; VULN-005 is an
+> accepted default-allow posture and VULN-006 an accepted design tradeoff. No
+> Critical/High remains open.
+
 > Phase 3 verifier (`sc-verifier`) over all `security-report/*-results.md`.
 > Repo: `D:\Codebox\PROJECTS\AGEZT` (branch `main`). Threat model: **localhost-first, single-operator,
 > token-gated daemon**; network listeners are off-by-default + loopback-bound, but the operator *can*
