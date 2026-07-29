@@ -91,9 +91,24 @@ No **Critical** or **High** findings. No git/URL/`file:`/`link:` dependencies, n
 - **Supply-chain hygiene wins:** no postinstall scripts, no git/url deps, no `replace` directives, no CGO in core, SDKs are zero-dep, Go core compiles only 9 prod modules.
 
 ## Recommended actions (priority order)
-1. **DEP-002** — `pnpm install` to re-resolve so the `undici ^7.28.0` override actually applies, commit the refreshed lock.
-2. **DEP-001** — delete whichever of `package-lock.json` / `pnpm-lock.yaml` is not the source of truth (keep pnpm).
-3. **DEP-005** — confirm `lucide-react@1.x` provenance on the npm registry.
-4. **DEP-003/004** — pin exact dev-dep versions; align `@types/node` across the two TS projects.
-5. **DEP-006/007** — track `go-imap` stable release; `go get -u lukechampine.com/blake3 && go mod tidy` to refresh `cpuid`.
-6. Run live `govulncheck ./...` (Go) and `pnpm audit` / `osv-scanner` (npm) when network is available to convert these heuristic flags into confirmed advisories.
+
+> **Updated 2026-07-29.** The original action list below referenced `pnpm` as the
+> package manager; that is obsolete — npm is canonical (DEP-001/002 resolved
+> 2026-07-26, see the table above). Current state:
+
+1. **DEP-001/002 — DONE.** npm is the single package manager; the stale
+   `pnpm-lock.yaml`/`pnpm-workspace.yaml` were removed; `package-lock.json` is
+   canonical and enforces the `undici` override.
+2. **DEP-005 — DONE (verified 2026-07-29).** `lucide-react` resolved cleanly to
+   `1.25.0` from the npm registry with no git/url dep and `npm audit` clean — the
+   `1.x` line is the genuine package, not a typosquat.
+3. **DEP-007 — DONE (this refresh).** `github.com/klauspost/cpuid/v2` bumped
+   `v2.0.9 → v2.4.0` (blake3 itself unchanged at `v1.4.1`); `go build` + journal/creds
+   tests green.
+4. **DEP-003/004 — deferred.** Pin exact dev-dep versions and align `@types/node`
+   (frontend `^25.9.3` vs sdk `^26.0.1`; `.nvmrc` pins Node 24) — dev/build-only,
+   low risk, deferred to avoid build-tooling churn.
+5. **DEP-006 — track.** `go-imap/v2 v2.0.0-beta.8` is still a beta; track for a
+   stable release and keep treating inbound mail as untrusted.
+6. Run live `govulncheck ./...` (Go) and `npm audit` / `osv-scanner` (npm) when
+   network is available to convert remaining heuristic flags into confirmed advisories.
