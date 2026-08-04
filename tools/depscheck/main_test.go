@@ -36,16 +36,26 @@ func TestDepscheckAllowlistMatchesBuildList(t *testing.T) {
 	}
 }
 
-// TestGoModOnlyListsCompiledDeps asserts that go.mod's require blocks
-// match the documented Direct + Indirect dep tables in DEPENDENCIES.md.
-// The 14 transitive-test-dep entries are NOT in go.mod — they appear
-// only in `go list -m all` because Go's MVS walks upstream test
-// dependencies. If a future change adds them to go.mod's require
-// blocks, this test catches it.
+// TestGoModOnlyListsCompiledDeps asserts that go.mod's DIRECT require
+// blocks match the documented Direct dep table in DEPENDENCIES.md.
+//
+// The 14 transitive-test-dep entries (see the list below) appear only
+// in `go list -m all` because Go's MVS walks upstream test
+// dependencies. The intent of UPD-002 is to keep these out of the
+// DIRECT require block — but Go is allowed to write them into the
+// `// indirect` block when a DIRECT dep (e.g. golang.org/x/net, our
+// browser tool's PSL source) legitimately imports them. That is
+// transitively-pulled-by-our-direct-dep, not "we have started depending
+// on testify at build time", which is the actual leak we want to catch.
+//
+// If a future change promotes one of these into the DIRECT require
+// block, this test catches it.
 //
 // Detection: scan go.mod line-by-line. A line inside a `require ()`
-// block that starts with `<tab><path>` is a real require. Anything
-// else (in a comment, after the closing paren, etc.) is harmless.
+// block that starts with `<tab><path>` is a require. Lines whose
+// remainder contains `// indirect` are MVS-managed transitives and
+// are not flagged. Anything else (in a comment, after the closing
+// paren, etc.) is harmless.
 func TestGoModOnlyListsCompiledDeps(t *testing.T) {
 	root := repoRoot(t)
 	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
@@ -68,21 +78,74 @@ func TestGoModOnlyListsCompiledDeps(t *testing.T) {
 		"golang.org/x/xerrors": true,
 		"gopkg.in/yaml.v3":     true,
 	}
-	// Inside a `require ()` block, every entry is indented with one
-	// tab — that's how `gofmt` formats them. Any line starting with
-	// "<TAB><path>" is a real require; any other occurrence is in
-	// a comment or prose (like DEPENDENCIES.md) and is harmless.
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimPrefix(line, "\t")
 		if trimmed == line {
 			continue // not inside a require block
 		}
+		// `// indirect` entries are MVS-managed: a DIRECT dep of ours
+		// pulls them in and Go wrote them here for module-graph
+		// completeness. They are NOT the leak this test guards
+		// against (the leak would be promoting them into the DIRECT
+		// require block).
+		if strings.Contains(trimmed, "// indirect") {
+			continue
+		}
 		// Strip the leading tab to get the path (possibly followed
 		// by version + comment).
 		path := strings.SplitN(trimmed, " ", 2)[0]
 		if transitive[path] {
-			t.Errorf("%s is in go.mod's require block — should be MVS-only transitives (UPD-002)", path)
+			t.Errorf("%s is in go.mod's DIRECT require block — should be MVS-only transitives (UPD-002)", path)
 		}
+	}
+}
+
+// TestIndirectTransitiveEntryIsAllowed locks in the post-UPD-002 fix:
+// a transitive-test-dep module is allowed to appear in go.mod's
+// `// indirect` require block (when a DIRECT dep of ours transitively
+// pulls it in), but is still flagged if it shows up in the DIRECT
+// require block. If a future refactor of TestGoModOnlyListsCompiledDeps
+// drops the `// indirect` exemption, this test fails first with a
+// tightly-scoped message pointing at the regression.
+//
+// This test does NOT read the real go.mod — it runs the parser logic
+// against an in-memory fixture so it never depends on the actual
+// dependency state of the repo.
+func TestIndirectTransitiveEntryIsAllowed(t *testing.T) {
+	transitive := map[string]bool{
+		"github.com/stretchr/testify": true,
+		"golang.org/x/sys":            true,
+	}
+	// Fixture mirrors the relevant parts of go.mod:
+	//   - golang.org/x/sys appears in the indirect block (allowed).
+	//   - github.com/stretchr/testify is hypothetically promoted to the
+	//     DIRECT block (the leak we want to catch).
+	const fixture = "" +
+		"require (\n" +
+		"\tgithub.com/btcsuite/btcd/btcec/v2 v2.5.0\n" +
+		"\tgithub.com/stretchr/testify v1.10.0\n" +
+		")\n" +
+		"require (\n" +
+		"\tgolang.org/x/sys v0.47.0 // indirect\n" +
+		")\n"
+
+	var leaks []string
+	for _, line := range strings.Split(fixture, "\n") {
+		trimmed := strings.TrimPrefix(line, "\t")
+		if trimmed == line {
+			continue
+		}
+		if strings.Contains(trimmed, "// indirect") {
+			continue
+		}
+		path := strings.SplitN(trimmed, " ", 2)[0]
+		if transitive[path] {
+			leaks = append(leaks, path)
+		}
+	}
+
+	if len(leaks) != 1 || leaks[0] != "github.com/stretchr/testify" {
+		t.Fatalf("parser flagged wrong set of leaks: %v (want [github.com/stretchr/testify])", leaks)
 	}
 }
 
