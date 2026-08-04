@@ -122,3 +122,6 @@ pnpm-lock.yaml
 
 # Local git worktrees must never be committed (an orphan gitlink breaks actions/checkout).
 .worktrees/
+!/.wrongstack/
+/.wrongstack/*
+!/.wrongstack/project.json
