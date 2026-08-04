@@ -1,279 +1,282 @@
-# AGEZT → Jarvis: Stratejik Durum ve Yol Haritası Raporu
+# AGEZT → Jarvis: Strategic Status and Roadmap Report
 
-> Tarih: 2026-07-02
-> Kapsam: Tüm proje (Go çekirdek + CLI + gömülü React web konsolu) OpenClaw ve
-> Hermes Agent'e karşı; "her ikisinin yapabildiğini yap, ikisinin de ötesinde
-> bir Jarvis ol" hedefi doğrultusunda.
-> Yöntem: İddialar doküman değil **kodla doğrulandı** (iki bağımsız keşif taraması
-> + rakip resmi dokümanları). Sayılar bu checkout'tan alınmıştır.
-
----
-
-## 1. Yönetici Özeti
-
-**Sonuç:** AGEZT bir "demo iskeleti" değil; gerçekten uygulanmış, olağanüstü geniş
-bir *agentic operating system*. Ölçek doğrulandı:
-
-- ~**170.000 satır** Go (test hariç), 5.583 `.go` dosyası, **63 kernel paketi**
-- **25 kanal**, **15 sağlayıcı ailesi**, **30 tool**, **16 yerleşik skill paketi**, **~70 CLI komut grubu**
-- Gömülü React konsolu: **71 gerçek view**, ~73.000 satır TS/TSX, **~473 Vitest testi** (view başına ~1:1 kapsam), tek-EventSource canlı akış
-- **Sıfır** `panic("unimplemented")`, çekirdekte parmakla sayılır TODO — placeholder ekran yok
-
-**Rakiplere karşı konum:**
-
-- **Yönetişim / denetlenebilirlik / geri-alınabilirlik** (Edict politikası, BLAKE3
-  hash-zincirli journal, `agt why`, rollback, kalıcı ajan kimliği): AGEZT **her
-  iki rakibin de açıkça önünde**. Bu, güvenilir bir Jarvis'in temel taşı.
-- **Kanal / sağlayıcı / tool / workflow / zamanlama / bellek genişliği**: **parite
-  veya üstü**.
-- **Proaktiflik (Pulse + Initiative), dünya modeli (worldmodel), çoklu-ajan
-  konsey/kondüktör**: AGEZT'te **var**, rakiplerde ya yok ya zayıf — gerçek
-  farklılaştırıcı zemin.
-
-**Kapatılması gereken paritenin altındaki boşluklar (öncelik sırasıyla):**
-
-1. **Yerel cihaz deneyimi** — mobil (iOS/Android) + masaüstü tepsi/menü-çubuğu
-   companion'ı yok. OpenClaw'ın en görünür üstünlüğü. *(kendi paritel deftercinde
-   "missing")*
-2. **Populer/dolu bir skill pazarı** — altyapı var, ClawHub gibi binlerce paketli
-   yaşayan bir hub yok.
-3. **Canlı sürekli tarayıcı sekmesi** — Playwright gerçek ama kalıcı çok-adımlı
-   canlı sekme + DOM stale-ref oturumu değil (kısmi).
-4. **LLM tabanlı skill curator** — Hermes'in otomatik konsolidasyonu; AGEZT'te
-   yalnızca deterministik küratör var.
-5. **Bağlam ergonomisi** — `@dosya/klasör/diff/URL` referansları ve
-   AGENTS.md/CLAUDE.md/SOUL.md içe aktarımı birinci sınıf değil.
-
-**Paritenin ötesine geçiren en büyük tek fırsat:** **derin araştırma harness'i
-yok** (kodda doğrulandı — hiçbir çok-kaynaklı, çelişki-doğrulamalı araştırma motoru
-yok). Bir Jarvis için bu, proaktiflik kadar kritik ve rakiplerin de zayıf olduğu
-bir alan.
+> Date: 2026-07-02
+> Scope: The entire project (Go core + CLI + embedded React web console) against
+> OpenClaw and Hermes Agent; guided by the goal "do what both can do, and be a
+> Jarvis beyond either".
+> Method: Claims were verified **against the code**, not the documentation (two
+> independent discovery scans + the competitors' official docs). Numbers are
+> taken from this checkout.
 
 ---
 
-## 2. Doğrulanmış Mevcut Durum (kanıt tabanlı)
+## 1. Executive Summary
 
-### 2.1 Otonomi yığını — hepsi gerçek çoklu-dosya kod
+**Conclusion:** AGEZT is not a "demo skeleton"; it is a genuinely implemented,
+exceptionally broad *agentic operating system*. Scale verified:
 
-| Yetenek | Kanıt | Olgunluk |
+- ~**170,000 lines** of Go (excluding tests), 5,583 `.go` files, **63 kernel packages**
+- **25 channels**, **15 provider families**, **30 tools**, **16 built-in skill packages**, **~70 CLI command groups**
+- Embedded React console: **71 real views**, ~73,000 lines of TS/TSX, **~473 Vitest tests** (~1:1 coverage per view), single-EventSource live stream
+- **Zero** `panic("unimplemented")`, a handful of TODOs in the core — no placeholder screens
+
+**Position against competitors:**
+
+- **Governance / auditability / reversibility** (Edict policy, BLAKE3
+  hash-chained journal, `agt why`, rollback, durable agent identity): AGEZT is
+  **clearly ahead of both competitors**. This is the cornerstone of a trustworthy Jarvis.
+- **Channel / provider / tool / workflow / scheduling / memory breadth**: **parity
+  or better**.
+- **Proactivity (Pulse + Initiative), world model (worldmodel), multi-agent
+  council/conductor**: **present** in AGEZT, absent or weak in competitors — the real
+  differentiating ground.
+
+**Below-parity gaps that must be closed (in priority order):**
+
+1. **Local device experience** — no mobile (iOS/Android) or desktop tray/menu-bar
+   companion. OpenClaw's most visible advantage. *(marked "missing" in its own
+   parity ledger)*
+2. **A popular/populated skill marketplace** — the infrastructure exists, but there is
+   no living hub with thousands of packages like ClawHub.
+3. **Live persistent browser tab** — Playwright is real, but it is not a persistent
+   multi-step live tab + DOM stale-ref session (partial).
+4. **LLM-based skill curator** — Hermes's automatic consolidation; AGEZT has only a
+   deterministic curator.
+5. **Context ergonomics** — `@file/folder/diff/URL` references and
+   AGENTS.md/CLAUDE.md/SOUL.md import are not first-class.
+
+**The single biggest opportunity to move beyond parity:** **there is no deep
+research harness** (verified in the code — no multi-source, contradiction-verified
+research engine exists). For a Jarvis this is as critical as proactivity, and it is
+an area where competitors are weak too.
+
+---
+
+## 2. Verified Current State (evidence based)
+
+### 2.1 Autonomy stack — all real, multi-file code
+
+| Capability | Evidence | Maturity |
 |---|---|---|
-| Bellek (vektör + konsolidasyon + retention + profil) | `kernel/memory/` (19 dosya) | Olgun |
-| Dünya modeli (varlık/ilişki + decay + resolve) | `kernel/worldmodel/` (10) | Gerçek, **farklılaştırıcı** |
-| Pulse (proaktif motor: briefing/health/observers/salience/reaper) | `kernel/pulse/` (18) | Olgun |
-| Pulse Initiative (gözlem → aksiyon, yönetişimli) | `pulse-initiative` (M999) | Gerçek, **farklılaştırıcı** |
-| Standing orders (cron tetiklemeli daimî talimatlar) | `kernel/standing/` (6) | Gerçek |
-| Cadence / typed schedules | `kernel/cadence/` (9) + `kernel/scheduler/` | Gerçek |
-| Workflow engine (DAG + template) | `kernel/workflow/` (7) + FlowStudio | Gerçek |
-| Guardians / self-repair / watchdog | `plugins/builtinguardians/` + `cmd/agezt/{auto_repair,watchdog}.go` | Gerçek |
-| Voice (STT/TTS: cartesia/deepgram/elevenlabs + hands-free mod) | `kernel/stt/` + `plugins/providers/voice/` + `Voice.tsx` | Gerçek |
-| Kullanıcı profili (operatörü öğrenme) | `user-profile` (M1000) | Gerçek, **farklılaştırıcı** |
-| Yönetişimli otonomi (trust tavanı, edict, onaylar) | `kernel/controlplane/autonomy.go` + `kernel/edict/` | Gerçek, **moat** |
+| Memory (vector + consolidation + retention + profile) | `kernel/memory/` (19 files) | Mature |
+| World model (entity/relation + decay + resolve) | `kernel/worldmodel/` (10) | Real, **differentiator** |
+| Pulse (proactive engine: briefing/health/observers/salience/reaper) | `kernel/pulse/` (18) | Mature |
+| Pulse Initiative (observation → action, governed) | `pulse-initiative` (M999) | Real, **differentiator** |
+| Standing orders (cron-triggered persistent instructions) | `kernel/standing/` (6) | Real |
+| Cadence / typed schedules | `kernel/cadence/` (9) + `kernel/scheduler/` | Real |
+| Workflow engine (DAG + template) | `kernel/workflow/` (7) + FlowStudio | Real |
+| Guardians / self-repair / watchdog | `plugins/builtinguardians/` + `cmd/agezt/{auto_repair,watchdog}.go` | Real |
+| Voice (STT/TTS: cartesia/deepgram/elevenlabs + hands-free mode) | `kernel/stt/` + `plugins/providers/voice/` + `Voice.tsx` | Real |
+| User profile (learning the operator) | `user-profile` (M1000) | Real, **differentiator** |
+| Governed autonomy (trust ceiling, edict, approvals) | `kernel/controlplane/autonomy.go` + `kernel/edict/` | Real, **moat** |
 
-### 2.2 Tarayıcı otomasyonu — gerçek Playwright (yalnızca fetch değil)
+### 2.2 Browser automation — real Playwright (not just fetch)
 
-- `browser.read`: SSRF-korumalı stdlib fetch (netguard, her yönlendirme atlamasında
-  allowlist, 4MB cap). Ucuz varsayılan.
-- `browser.action`: **gerçek headless Chromium Playwright köprüsü**
-  (`plugins/builtinskills/browseruse/scripts/browse.mjs`, 395 satır). 4 profil
-  (isolated/session/user-attached/remote-cdp), fiil tool'ları
+- `browser.read`: SSRF-protected stdlib fetch (netguard, allowlist on every redirect
+  hop, 4MB cap). The cheap default.
+- `browser.action`: a **real headless Chromium Playwright bridge**
+  (`plugins/builtinskills/browseruse/scripts/browse.mjs`, 395 lines). 4 profiles
+  (isolated/session/user-attached/remote-cdp), verb tools
   (`browser.open/snapshot/click/type/wait/screenshot/downloads/cookies/tabs/close`),
-  ekran görüntüsü + indirme → artifact store. Node/Playwright kurulumu gerektirir
-  (opt-in). **Eksik:** kalıcı canlı-sekme süreci + DOM stale-ref invalidation.
+  screenshots + downloads → artifact store. Requires a Node/Playwright installation
+  (opt-in). **Missing:** a persistent live-tab process + DOM stale-ref invalidation.
 
-### 2.3 Web konsolu — sevk edilebilir, geniş, placeholder yok
+### 2.3 Web console — shippable, broad, no placeholders
 
-67 view; hepsi canlı API/SSE'ye bağlı. Dikkat çekenler: `Jarvis.tsx` (ortam
-asistanı), `Council.tsx` + `Conductor.tsx` (çoklu-ajan orkestrasyon), `Voice.tsx`,
+67 views; all connected to live API/SSE. Notable ones: `Jarvis.tsx` (ambient
+assistant), `Council.tsx` + `Conductor.tsx` (multi-agent orchestration), `Voice.tsx`,
 `Overseer.tsx`, `Workboard.tsx`, `World.tsx`, `Autonomy.tsx`. React 19 + Tailwind
-v4 (oklch token), `@xyflow/react` grafikler, kendi chart kütüphanesi, custom router.
-Çift-tema tutarlı tasarım sistemi. ~473 curated test.
+v4 (oklch tokens), `@xyflow/react` graphs, an in-house chart library, a custom router.
+A dual-theme consistent design system. ~473 curated tests.
 
 ---
 
-## 3. Rakip Analizi
+## 3. Competitor Analysis
 
-### 3.1 OpenClaw (kişisel AI asistan gateway'i — "the lobster way")
+### 3.1 OpenClaw (personal AI assistant gateway — "the lobster way")
 
-Güçlü olduğu yer: kişisel gateway paketlemesi + cihaz deneyimi + skill dağıtımı.
+Its strength: personal gateway packaging + device experience + skill distribution.
 
-- **Kanallar:** Discord, iMessage, Signal, Slack, Telegram, WhatsApp, WebChat +
-  eklenti (Matrix, Teams, Twitch, Nostr, Zalo…)
-- **Tarayıcı:** gerçek Chrome/CDP (Playwright), JS-ağır siteler, oturumlu login,
-  çok-adımlı akışlar
-- **Skills + ClawHub:** SKILL.md tabanlı, **binlerce skill'lik** kamu pazarı
-- **Bellek:** Markdown + arama backend'leri + Honcho
-- **Otomasyon:** cron + heartbeat scheduler, standing orders, taskflow
-- **Medya/ses:** üretim + anlama + TTS/STT (çok sağlayıcılı)
-- **35+ sağlayıcı**, çoklu web-arama sağlayıcısı (Brave/DDG/Exa/Tavily)
-- **CİHAZLAR (ayırt edici):** iOS/Android node'ları (kamera, cihaz komutları,
-  ekran kaydı, konum) + macOS menü çubuğu companion'ı + Windows Hub
-- Ev otomasyonu, local-first gizlilik, DM allowlist/pairing güvenliği, çoklu-ajan
-  yönlendirme
+- **Channels:** Discord, iMessage, Signal, Slack, Telegram, WhatsApp, WebChat +
+  plugins (Matrix, Teams, Twitch, Nostr, Zalo…)
+- **Browser:** real Chrome/CDP (Playwright), JS-heavy sites, session-based login,
+  multi-step flows
+- **Skills + ClawHub:** SKILL.md based, a public marketplace with **thousands of skills**
+- **Memory:** Markdown + search backends + Honcho
+- **Automation:** cron + heartbeat scheduler, standing orders, taskflow
+- **Media/voice:** generation + understanding + TTS/STT (multi-provider)
+- **35+ providers**, multiple web search providers (Brave/DDG/Exa/Tavily)
+- **DEVICES (distinguishing):** iOS/Android nodes (camera, device commands,
+  screen recording, location) + a macOS menu bar companion + Windows Hub
+- Home automation, local-first privacy, DM allowlist/pairing security, multi-agent
+  routing
 
 ### 3.2 Hermes Agent (NousResearch — agent CLI/gateway)
 
-Güçlü olduğu yer: skill self-improvement + terminal backend ergonomisi + dayanıklı
-çoklu-ajan Kanban.
+Its strength: skill self-improvement + terminal backend ergonomics + a durable
+multi-agent Kanban.
 
-- **Skills + Curator:** ajanların ürettiği skill'leri periyodik **LLM ile** gözden
-  geçiren, budayan, konsolide eden, active→stale→archived taşıyan yardımcı-model job'u
-- **Bellek:** built-in + Honcho + Mem0 + RetainDB (pluggable)
-- **Bağlam dosyaları:** `.hermes.md`, `AGENTS.md`, `CLAUDE.md`, `SOUL.md`,
-  `.cursorrules` otomatik keşfi; **`@` bağlam referansları** (dosya/klasör/diff/URL)
-- **Checkpoints & rollback:** dosya değişikliği öncesi otomatik snapshot + `/rollback`
-- **Kanban (ayırt edici):** her proje için ayrı SQLite board; profil lane'leri,
-  bağımlılıklar, heartbeat, comment, blocking, crash recovery; `kanban_*` toolset
-- **Batch processing:** yüzlerce/binlerce prompt'u paralel
-- Subagent delegasyonu, sandbox'lı Python kod yürütme (programatik tool erişimi),
-  event hooks, voice, tarayıcı (Browserbase/BrowserUse/local CDP), vision/image paste,
-  görsel üretim (FAL.ai 9 model), TTS (10 sağlayıcı), MCP, provider routing/fallback,
-  **credential pools**, prompt caching, OpenAI-uyumlu API sunucusu,
-  **IDE entegrasyonu (VSCode/Zed/JetBrains via ACP)**, SOUL.md kişilik, skin/tema, plugin
+- **Skills + Curator:** a helper-model job that periodically reviews agent-produced
+  skills **with an LLM**, prunes them, consolidates them, and moves them active→stale→archived
+- **Memory:** built-in + Honcho + Mem0 + RetainDB (pluggable)
+- **Context files:** automatic discovery of `.hermes.md`, `AGENTS.md`, `CLAUDE.md`, `SOUL.md`,
+  `.cursorrules`; **`@` context references** (file/folder/diff/URL)
+- **Checkpoints & rollback:** automatic snapshot before file changes + `/rollback`
+- **Kanban (distinguishing):** a separate SQLite board per project; profile lanes,
+  dependencies, heartbeat, comments, blocking, crash recovery; the `kanban_*` toolset
+- **Batch processing:** hundreds/thousands of prompts in parallel
+- Subagent delegation, sandboxed Python code execution (programmatic tool access),
+  event hooks, voice, browser (Browserbase/BrowserUse/local CDP), vision/image paste,
+  image generation, **IDE integration (VSCode/Zed/JetBrains via ACP)**, SOUL.md personality,
+  skins/themes, plugins
 
 ---
 
-## 4. Karşılaştırma Matrisi
+## 4. Comparison Matrix
 
-Efsane: 🟢 AGEZT önde · 🟡 parite · 🔴 AGEZT geride
+Legend: 🟢 AGEZT ahead · 🟡 parity · 🔴 AGEZT behind
 
-| Alan | AGEZT | OpenClaw | Hermes | Durum |
+| Area | AGEZT | OpenClaw | Hermes | Status |
 |---|---|---|---|---|
-| Yönetişim/politika (Edict) | ✔ çekirdek | zayıf | orta (hooks) | 🟢 |
-| Denetim izi (hash-zincir journal + `why`) | ✔ | log | log | 🟢 |
-| Kalıcı ajan kimliği | ✔ roster | session | profile | 🟢 |
-| Geri-alma/rollback | ✔ (dosya/skill/workflow/config) | kısmi | ✔ (/rollback) | 🟡 |
+| Governance/policy (Edict) | ✔ core | weak | medium (hooks) | 🟢 |
+| Audit trail (hash-chain journal + `why`) | ✔ | log | log | 🟢 |
+| Durable agent identity | ✔ roster | session | profile | 🟢 |
+| Undo/rollback | ✔ (file/skill/workflow/config) | partial | ✔ (/rollback) | 🟡 |
 | Typed schedules + standing | ✔ | ✔ | ✔ | 🟡 |
-| Workflow/DAG motoru | ✔ + görsel canvas | Lobster | — | 🟢 |
-| Bellek | ✔ vektör+konsolidasyon | Markdown/Honcho | pluggable | 🟡 |
-| Dünya modeli | ✔ | — | — | 🟢 |
-| Kanallar | 25 | ~7+eklenti | mesajlaşma | 🟢/🟡 |
-| Sağlayıcılar | 15 aile | 35+ | çok + pools | 🟡 |
-| Tarayıcı otomasyonu | Playwright (opt-in) | Chrome/CDP her zaman | çok backend | 🟡 |
-| Skill lifecycle + forge | ✔ içerik-adresli | SKILL.md | ✔ | 🟢 |
-| Skill **LLM curator** | deterministik | — | ✔ LLM | 🔴 |
-| Skill **pazarı (dolu hub)** | altyapı var | ClawHub (binlerce) | hub | 🔴 |
-| Çoklu-ajan iş kuyruğu | Workboard (kısmi UX) | routing | Kanban (olgun) | 🟡 |
-| Batch processing (100-1000 paralel) | workflow ile dolaylı | — | ✔ | 🔴 |
-| Credential pools (anahtar rotasyonu) | çoklu-anahtar keyring | — | ✔ | 🟡 |
-| Voice/STT/TTS | ✔ 3 vendor + hands-free | ✔ | ✔ 10 | 🟡 |
-| Görsel üretim | image provider | ✔ | FAL.ai 9 | 🟡 |
-| MCP | ✔ + 43 preset katalog | ✔ | ✔ | 🟡 |
-| OpenAI-uyumlu API + SDK'lar | ✔ (Py/TS/Rust) + ACP | — | ✔ | 🟢 |
-| Çoklu-tenant izolasyon | ✔ | — | — | 🟢 |
-| **Mobil cihaz node'u** | — | ✔ (kamera/konum/ekran) | — | 🔴 |
-| **Masaüstü tepsi/companion** | web-only | ✔ (menü çubuğu/Hub) | dashboard | 🔴 |
-| **IDE eklentisi** | ACP yüzeyi var | — | ✔ shipped | 🔴 |
-| Bağlam `@` referansları + context-file import | kısmi | — | ✔ | 🔴 |
-| **Proaktiflik + aksiyon alan Initiative** | ✔ (Pulse) | heartbeat | scheduled | 🟢 |
-| **Derin araştırma harness'i** | — | web-arama | web-arama | 🔴 (ikisinde de zayıf → fırsat) |
+| Workflow/DAG engine | ✔ + visual canvas | Lobster | — | 🟢 |
+| Memory | ✔ vector+consolidation | Markdown/Honcho | pluggable | 🟡 |
+| World model | ✔ | — | — | 🟢 |
+| Channels | 25 | ~7+plugins | messaging | 🟢/🟡 |
+| Providers | 15 families | 35+ | many + pools | 🟡 |
+| Browser automation | Playwright (opt-in) | Chrome/CDP always | many backends | 🟡 |
+| Skill lifecycle + forge | ✔ content-addressed | SKILL.md | ✔ | 🟢 |
+| Skill **LLM curator** | deterministic | — | ✔ LLM | 🔴 |
+| Skill **marketplace (populated hub)** | infrastructure exists | ClawHub (thousands) | hub | 🔴 |
+| Multi-agent work queue | Workboard (partial UX) | routing | Kanban (mature) | 🟡 |
+| Batch processing (100-1000 parallel) | indirect via workflow | — | ✔ | 🔴 |
+| Credential pools (key rotation) | multi-key keyring | — | ✔ | 🟡 |
+| Voice/STT/TTS | ✔ 3 vendors + hands-free | ✔ | ✔ 10 | 🟡 |
+| Image generation | image provider | ✔ | FAL.ai 9 | 🟡 |
+| MCP | ✔ + 43-preset catalog | ✔ | ✔ | 🟡 |
+| OpenAI-compatible API + SDKs | ✔ (Py/TS/Rust) + ACP | — | ✔ | 🟢 |
+| Multi-tenant isolation | ✔ | — | — | 🟢 |
+| **Mobile device node** | — | ✔ (camera/location/screen) | — | 🔴 |
+| **Desktop tray/companion** | web-only | ✔ (menu bar/Hub) | dashboard | 🔴 |
+| **IDE extension** | ACP surface exists | — | ✔ shipped | 🔴 |
+| Context `@` references + context-file import | partial | — | ✔ | 🔴 |
+| **Proactivity + acting Initiative** | ✔ (Pulse) | heartbeat | scheduled | 🟢 |
+| **Deep research harness** | — | web search | web search | 🔴 (weak in both → opportunity) |
 
 ---
 
-## 5. Paritenin Ötesi: Gerçek Jarvis Farklılaştırıcıları
+## 5. Beyond Parity: The Real Jarvis Differentiators
 
-Bir "Jarvis"i rakip bir chat-agent'tan ayıran şey; genişlik değil, **güvenilir
-proaktif otonomi + derin muhakeme + ortam varlığı**. AGEZT'in zaten sahip olduğu
-zemin bu yönde eşsiz:
+What separates a "Jarvis" from a competing chat agent is not breadth, but
+**trustworthy proactive autonomy + deep reasoning + ambient presence**. The ground
+AGEZT already stands on is unique in this direction:
 
-1. **Yönetişimli proaktiflik = moat.** Pulse gözlemliyor, Initiative *aksiyon*
-   alabiliyor, her aksiyon Edict ile sınırlı ve journal'da izlenebilir. Ne
-   OpenClaw'ın heartbeat cron'u ne Hermes'in zamanlanmış görevleri bu düzeyde
-   *yönetişimli inisiyatife* sahip. Jarvis'in "sen istemeden doğru olanı yapması"
-   ancak güvenle mümkün — o güveni veren denetim/geri-alma katmanı AGEZT'te var.
+1. **Governed proactivity = the moat.** Pulse observes, Initiative can *act*,
+   every action is bounded by Edict and traceable in the journal. Neither
+   OpenClaw's heartbeat cron nor Hermes's scheduled tasks have *governed initiative*
+   at this level. Jarvis "doing the right thing before you ask" is only possible with
+   trust — and the audit/rollback layer that provides that trust exists in AGEZT.
 
-2. **Dünya modeli + bellek → öngörü.** worldmodel (varlık/ilişki/decay) tek başına
-   rakiplerde yok. Bunu proaktifliğe bağlayınca "anticipatory" davranış (kullanıcının
-   bir sonraki ihtiyacını önceden hazırlama) mümkün olur.
+2. **World model + memory → anticipation.** worldmodel (entity/relation/decay) alone
+   is absent in competitors. Wiring it to proactivity makes "anticipatory" behavior
+   possible (preparing the user's next need in advance).
 
-3. **Society-of-agents (Council/Conductor).** Kanban'ın ötesinde bir *muhakeme*
-   katmanı: birden çok ajanın tartışıp uzlaştığı, bir kondüktörün orkestre ettiği
-   yapı zaten UI'da var. Bunu üretimleştirmek Hermes Kanban'ı geçmenin yolu.
+3. **Society-of-agents (Council/Conductor).** A *reasoning* layer beyond Kanban: a
+   structure where multiple agents debate and reach agreement, orchestrated by a
+   conductor, already exists in the UI. Productizing it is the way to surpass Hermes's Kanban.
 
-4. **Ortam varlığı (ambient).** Jarvis.tsx + hands-free voice + wake-word +
-   çok-kanallı erişim. Cihaz companion'ı eklenince "her yerde hazır" asistan olur.
+4. **Ambient presence.** Jarvis.tsx + hands-free voice + wake word + multi-channel
+   access. Once a device companion is added, the "everywhere" experience is complete.
 
-5. **Denetlenebilir geri-alınabilirlik.** "Eylemden önce yetki, eylemden sonra
-   nedensellik/kanıt/geri-alma." Bu, kurumsal ve kişisel güvenin temel farkı.
-
----
-
-## 6. Öncelikli Yol Haritası
-
-### P0 — Paritenin en görünür boşlukları (0–60 gün)
-
-1. **Cihaz/companion katmanı (en yüksek etki).**
-   - Node registry zaten var → üzerine hafif **masaüstü tepsi companion'ı**
-     (başlat/durdur, sağlık, onaylar, push-to-talk, bildirim, tünel durumu).
-   - **PWA/mobil companion**: onaylar, inbox/alert, sesli mesaj, run durumu,
-     paylaş-sayfası webhook hedefi. (OpenClaw mobil node'una fonksiyonel yanıt.)
-   - Cihaz-yönlendirme politikası: hangi node tarayıcı/shell/HA/medya çalıştırabilir.
-
-2. **Canlı tarayıcı sekmesi oturumu.** `browser.action` fiillerini kalıcı canlı
-   Chromium sürecine + DOM-seviyesi stale-ref invalidation'a çıkar; login/iframe/
-   indirme/SPA/cookie-taşıma için E2E fixture'lar. (OpenClaw "her zaman açık tarayıcı"
-   deneyimine yanıt.)
-
-3. **Skill LLM Curator (shadow modda).** Deterministik küratörün üzerine, kullanım
-   metriklerine bakıp konsolidasyon/patch **öneren** yardımcı-model job'u; asla
-   silmez, hep archive/revertable. (Hermes Curator paritesi.)
-
-### P1 — Ergonomi + pazar (60–120 gün)
-
-4. **Bağlam ergonomisi.** `@dosya/klasör/diff/URL` bağlam referansları +
-   AGENTS.md/CLAUDE.md/SOUL.md/.cursorrules **injection-taramalı içe aktarma**.
-   Migrasyon: OpenClaw workspace + Hermes MEMORY/USER/SOUL importer'ları (dry-run,
-   yedeksiz üzerine yazmaz).
-
-5. **Marketplace güven + dağıtım.** Skills/plugins/MCP/kanal/exec-profile/workflow
-   için birleşik pazar UI'si + **paket başına güven kartı** (yayıncı kimliği, imza,
-   BLAKE3, istenen izinler, dosyalar, install script, ağ domainleri, scanner bulguları,
-   karantina, update policy). Opsiyonel ClawHub/agentskills import + ön-tarama.
-
-6. **IDE eklentisi.** ACP yüzeyi mevcut → VSCode (asgari) eklentisi ship et.
-
-7. **Batch + credential pools.** Adlandırılmış toplu-işlem yüzeyi (yüzlerce prompt,
-   workboard üzerine); çoklu-anahtar keyring'e otomatik rotasyon/dağıtım.
-
-### P2 — Jarvis'i geçiren farklılaştırıcılar (120 gün+)
-
-8. **Derin araştırma harness'i (en büyük "ötesi" fırsatı).** Çok-kaynaklı fan-out
-   arama → derin okuma → **çelişki/adversarial doğrulama** → alıntılı sentez. Pulse
-   + worldmodel + workflow üzerine oturur; DeerFlow raporundaki desenler (middleware
-   + deferred tool discovery + citation) rehber. Ne OpenClaw ne Hermes'te güçlü.
-
-9. **Anticipatory otonomi.** worldmodel + memory + pulse → kullanıcının bir sonraki
-   ihtiyacını önceden hazırlama (brifing, hazır taslak, uyarı) — yönetişim sınırında.
-
-10. **Society-of-agents üretimleştirme.** Council/Conductor'ı canlı çok-ajanlı
-    muhakeme + delegasyon grafiği + Workboard lane entegrasyonu ile olgunlaştır;
-    grafik-bağımlılık görünümü, satır-içi artifact/diff önizleme, "insana sor" akışı.
-
-11. **Cloud terminal artifact yaşam döngüsü.** K8s job lifecycle döngüsünü
-    tamamla (exec-profile paritesini kapat).
+5. **Auditable reversibility.** "Authorization before the action; causality/evidence/undo
+   after the action." This is the fundamental difference between enterprise and personal trust.
 
 ---
 
-## 7. En Kritik Üç Vurgu
+## 6. Priority Roadmap
 
-1. **Kod hazır, ürünleşme ve cihaz erişimi eksik.** AGEZT'in geride kaldığı yerler
-   neredeyse tamamen *çalışma-zamanı/dağıtım* (mobil, tepsi, dolu pazar, canlı sekme)
-   — çekirdek yetenek değil. Bu, kapatması hızlı ama görünür boşluklar.
+### P0 — The most visible parity gaps (0–60 days)
 
-2. **AGEZT'in kazanma pozisyonu "daha çok tool" değil.** Yönetişim + nedensellik +
-   geri-alma + kalıcı kimlik + proaktiflik. Rakipler bu eksende yapısal olarak zayıf;
-   mesajlaşma ve demolar bu üstünlüğü öne çıkarmalı.
+1. **Device/companion layer (highest impact).**
+   - The node registry already exists → build a lightweight **desktop tray companion**
+     on top of it (start/stop, health, approvals, push-to-talk, notifications, tunnel status).
+   - **PWA/mobile companion**: approvals, inbox/alerts, voice messages, run status,
+     share-sheet webhook target. (A functional answer to OpenClaw's mobile node.)
+   - Device routing policy: which node may run browser/shell/HA/media.
 
-3. **Tek en büyük "ötesi" hamlesi: derin araştırma + anticipatory proaktiflik.**
-   İkisi de rakiplerde zayıf, AGEZT'in zemini (pulse/worldmodel/workflow/journal) buna
-   hazır. Gerçek "Jarvis" hissi buradan gelir.
+2. **Live browser tab session.** Promote the `browser.action` verbs to a persistent live
+   Chromium process + DOM-level stale-ref invalidation; E2E fixtures for
+   login/iframe/download/SPA/cookie transfer. (An answer to OpenClaw's "always-on browser"
+   experience.)
+
+3. **Skill LLM Curator (in shadow mode).** On top of the deterministic curator, a
+   helper-model job that looks at usage metrics and **proposes** consolidation/patches;
+   it never deletes, always archive/revertable. (Hermes Curator parity.)
+
+### P1 — Ergonomics + marketplace (60–120 days)
+
+4. **Context ergonomics.** `@file/folder/diff/URL` context references +
+   **injection-scanned import** of AGENTS.md/CLAUDE.md/SOUL.md/.cursorrules.
+   Migration: OpenClaw workspace + Hermes MEMORY/USER/SOUL importers (dry-run,
+   never overwrite without a backup).
+
+5. **Marketplace trust + distribution.** A unified marketplace UI for
+   skills/plugins/MCP/channels/exec-profiles/workflows + a **per-package trust card**
+   (publisher identity, signature, BLAKE3, requested permissions, files, install script,
+   network domains, scanner findings, quarantine, update policy). Optional
+   ClawHub/agentskills import + pre-scan.
+
+6. **IDE extension.** The ACP surface exists → ship a (minimal) VSCode extension.
+
+7. **Batch + credential pools.** A named batch-processing surface (hundreds of prompts,
+   on top of workboard); automatic rotation/distribution for the multi-key keyring.
+
+### P2 — Differentiators that surpass Jarvis (120 days+)
+
+8. **Deep research harness (the biggest "beyond" opportunity).** Multi-source fan-out
+   search → deep reading → **contradiction/adversarial verification** → cited synthesis.
+   It sits on top of Pulse + worldmodel + workflow; the patterns from the DeerFlow report
+   (middleware + deferred tool discovery + citation) are the guide. Strong in neither
+   OpenClaw nor Hermes.
+
+9. **Anticipatory autonomy.** worldmodel + memory + pulse → preparing the user's next
+   need in advance (briefing, ready draft, alert) — within the governance boundary.
+
+10. **Productizing society-of-agents.** Mature Council/Conductor with live multi-agent
+    reasoning + a delegation graph + Workboard lane integration; graph-dependency view,
+    inline artifact/diff preview, an "ask a human" flow.
+
+11. **Cloud terminal artifact lifecycle.** Complete the K8s job lifecycle loop
+    (close exec-profile parity).
 
 ---
 
-## 8. Sonuç
+## 7. The Three Most Critical Points
 
-AGEZT bugün **paritenin çok yakınında ve birçok eksende önde** olan olgun bir
-agentic OS. "Her ikisinin yaptığını yapmak" için gereken iş, sıfırdan yetenek değil,
-**beş görünür boşluğun ürünleştirilmesi**: cihaz/companion, canlı tarayıcı, LLM
-curator, bağlam ergonomisi, dolu güvenli pazar. "İkisinin ötesinde bir Jarvis olmak"
-içinse zemin zaten benzersiz: **yönetişimli proaktiflik + dünya modeli + denetlenebilir
-geri-alma** üzerine **derin araştırma harness'i** ve **anticipatory otonomi** eklemek.
+1. **The code is ready; productization and device reach are missing.** The places where
+   AGEZT falls behind are almost entirely *runtime/distribution* (mobile, tray, a populated
+   marketplace, live tab) — not core capability. These are visible gaps, but fast to close.
+
+2. **AGEZT's winning position is not "more tools".** It is governance + causality +
+   undo + durable identity + proactivity. Competitors are structurally weak on this axis;
+   messaging and demos should foreground that advantage.
+
+3. **The single biggest "beyond" move: deep research + anticipatory proactivity.**
+   Both are weak in competitors, and AGEZT's ground (pulse/worldmodel/workflow/journal) is
+   ready for them. The real "Jarvis" feeling comes from here.
+
+---
+
+## 8. Conclusion
+
+Today AGEZT is a mature agentic OS that is **very close to parity and ahead on many
+axes**. The work required to "do what both do" is not building capabilities from scratch,
+but **productizing five visible gaps**: device/companion, live browser, LLM
+curator, context ergonomics, and a populated, secure marketplace. And to "be a Jarvis
+beyond both", the ground is already unique: add a **deep research harness** and
+**anticipatory autonomy** on top of **governed proactivity + world model + auditable
+undo**.

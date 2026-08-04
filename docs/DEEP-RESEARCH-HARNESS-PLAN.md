@@ -1,87 +1,87 @@
-# AGEZT Derin Araştırma Harness'i — Uygulama Planı
+# AGEZT Deep Research Harness — Implementation Plan
 
-> Tarih: 2026-07-02
-> İlgili: [`JARVIS-VISION-2026.md`](JARVIS-VISION-2026.md) §6 P2-8 (en büyük "ötesi" fırsatı)
-> Konum: `kernel/research/` (yeni) + `plugins/tools/research/` (yeni) + workflow şablonu + view
+> Date: 2026-07-02
+> Related: [`JARVIS-VISION-2026.md`](JARVIS-VISION-2026.md) §6 P2-8 (the biggest "beyond parity" opportunity)
+> Location: `kernel/research/` (new) + `plugins/tools/research/` (new) + workflow template + view
 
-## Neden bu, ve neden şimdi
+## Why this, and why now
 
-Bir Jarvis'i chat-agent'tan ayıran iki eksen: **yönetişimli proaktiflik** ve **derin
-muhakeme**. Birincisinde (Pulse+Initiative) AGEZT önde; ikincisinde bir boşluk var:
-kodda hiçbir çok-kaynaklı, çelişki-doğrulamalı **araştırma motoru yok**. OpenClaw ve
-Hermes de burada zayıf (yalnız web-arama). Bu yüzden bu, hem paritenin ötesine geçiren
-hem de rakiplerin karşılık veremeyeceği bir hamle.
+Two axes separate a Jarvis from a chat agent: **governed proactivity** and **deep
+reasoning**. On the first (Pulse+Initiative) AGEZT is ahead; on the second there is a gap:
+there is no multi-source, contradiction-verified **research engine** in the code. OpenClaw and
+Hermes are weak here too (web search only). That makes this both a move that pushes past
+parity and one competitors cannot easily answer.
 
-**Kilit içgörü: bu sıfırdan bir iş değil — mevcut olgun primitiflerin kompozisyonu.**
+**Key insight: this is not a from-scratch job — it is a composition of existing, mature primitives.**
 
-| Araştırma adımı | AGEZT'te hazır primitif | Dosya |
+| Research step | Primitive already in AGEZT | File |
 |---|---|---|
-| Soru → alt-sorular / plan | `planner` (LLM→DAG) | `kernel/planner/planner.go` |
-| URL keşfi | `websearch` (keyless DDG, SSRF-korumalı) | `plugins/tools/websearch/websearch.go` |
-| Sayfa getir + metne çevir | `browser.read` / `browser.action` | `plugins/tools/browser/` |
-| Çok-kaynak üçgenleme (konsensüs) | **`council`** (farklı modeller → uzlaşı) | `plugins/tools/council/` + `kernel/runtime` |
-| Çelişki/adversarial doğrulama | **`conductor`** (Thinker/Worker/**Verifier**) | `plugins/tools/conductor/` + `kernel/runtime` |
-| Orkestrasyon | `workflow` DAG motoru | `kernel/workflow/` |
-| Kalıcılık (bulgu/varlık) | `memory` + `worldmodel` | `kernel/memory/`, `kernel/worldmodel/` |
-| Denetim + alıntı zinciri | hash-zincirli journal + `why` | `kernel/journal/`, `cmd/agt/why.go` |
-| Yönetişim (bütçe/politika/HITL) | governor + edict + approvals | `kernel/governor/`, `kernel/edict/` |
+| Question → sub-questions / plan | `planner` (LLM→DAG) | `kernel/planner/planner.go` |
+| URL discovery | `websearch` (keyless DDG, SSRF-protected) | `plugins/tools/websearch/websearch.go` |
+| Fetch page + convert to text | `browser.read` / `browser.action` | `plugins/tools/browser/` |
+| Multi-source triangulation (consensus) | **`council`** (different models → agreement) | `plugins/tools/council/` + `kernel/runtime` |
+| Contradiction/adversarial verification | **`conductor`** (Thinker/Worker/**Verifier**) | `plugins/tools/conductor/` + `kernel/runtime` |
+| Orchestration | `workflow` DAG engine | `kernel/workflow/` |
+| Persistence (findings/entities) | `memory` + `worldmodel` | `kernel/memory/`, `kernel/worldmodel/` |
+| Audit + citation chain | hash-chained journal + `why` | `kernel/journal/`, `cmd/agt/why.go` |
+| Governance (budget/policy/HITL) | governor + edict + approvals | `kernel/governor/`, `kernel/edict/` |
 
-Rakip harness'lerin (ör. DeerFlow) yeniden inşa ettiği her şey AGEZT'te zaten var;
-**bize gereken tek şey bunları bir araştırma sözleşmesinde birleştiren ince bir katman.**
+Everything competing harnesses (e.g. DeerFlow) rebuild already exists in AGEZT;
+**all we need is a thin layer that unifies these under a research contract.**
 
-## Mimari
+## Architecture
 
-`research` yeni bir kernel paketi + agent-facing tool + workflow şablonu olarak yaşar.
-Kendi LLM çağrılarını yapmaz; mevcut tool'ları governed `RunTool` üzerinden çağırır.
+`research` lives as a new kernel package + agent-facing tool + workflow template.
+It makes no LLM calls of its own; it invokes existing tools through the governed `RunTool`.
 
 ```
 research.Run(question, opts)
   │
-  ├─ 1. PLAN     planner → alt-sorular + araştırma DAG'ı (loop/gate node)
+  ├─ 1. PLAN     planner → sub-questions + research DAG (loop/gate nodes)
   │
-  ├─ 2. GATHER   her alt-soru için (fan-out, workflow paralel node):
-  │                websearch(query) → aday URL'ler
-  │                browser.read(url) → kaynak metni (+ untrusted işareti korunur)
+  ├─ 2. GATHER   for each sub-question (fan-out, parallel workflow node):
+  │                websearch(query) → candidate URLs
+  │                browser.read(url) → source text (+ untrusted marker preserved)
   │                → Source{url, title, text, fetched_at, hash}
   │
-  ├─ 3. EXTRACT  her kaynaktan iddia çıkar → Claim{text, source_id, confidence}
+  ├─ 3. EXTRACT  extract claims from each source → Claim{text, source_id, confidence}
   │
-  ├─ 4. VERIFY   her önemli iddia için conductor (Verifier rolü):
-  │                "bu iddiayı çürüt; belirsizse reddet" → CONFIRMED | REFUTED
-  │                çelişen kaynaklar council'a → uzlaşı + azınlık görüşü notu
+  ├─ 4. VERIFY   for each significant claim, conductor (Verifier role):
+  │                "refute this claim; reject if uncertain" → CONFIRMED | REFUTED
+  │                conflicting sources → council → consensus + minority-opinion note
   │
-  ├─ 5. SYNTH    yalnız CONFIRMED iddialardan alıntılı sentez (her cümle → source_id)
+  ├─ 5. SYNTH    cited synthesis from CONFIRMED claims only (every sentence → source_id)
   │
-  └─ 6. PERSIST  bulgular → memory; varlık/ilişki → worldmodel; her adım → journal
+  └─ 6. PERSIST  findings → memory; entities/relations → worldmodel; every step → journal
                   → ReportArtifact{markdown, sources[], claims[], confidence}
 ```
 
-### Yönetişim sınırı (moat — rakiplerde yok)
-- Her `websearch`/`browser.read` çağrısı Edict politikasından geçer, journal'a yazılır.
-- Kaynak metni `ObservationUntrusted` işaretini korur → prompt-injection guard devrede.
-- Bütçe: `budget.total` benzeri tavan; `governor` circuit-breaker; adım/kaynak/derinlik capları.
-- Alıntılanamayan cümle sentезe **giremez** (citation zorunluluğu, halüsinasyon freni).
-- Sonuç artifact'ı + tam kaynak listesi + `why <event>` ile uçtan uca izlenebilir.
+### Governance boundary (the moat — competitors lack it)
+- Every `websearch`/`browser.read` call passes through Edict policy and is written to the journal.
+- Source text preserves the `ObservationUntrusted` marker → the prompt-injection guard stays active.
+- Budget: a ceiling similar to `budget.total`; `governor` circuit breaker; step/source/depth caps.
+- A sentence that cannot be cited **must not enter** the synthesis (citation requirement, hallucination brake).
+- The result artifact + full source list + `why <event>` make it traceable end to end.
 
-## Veri tipleri (`kernel/research/research.go`)
+## Data types (`kernel/research/research.go`)
 
 ```go
 type Source struct {
     ID        string    // ulid
     URL       string
     Title     string
-    Text      string    // browser.read çıktısı (untrusted)
-    Hash      string    // BLAKE3(text) — yeniden-getiride değişim tespiti
+    Text      string    // browser.read output (untrusted)
+    Hash      string    // BLAKE3(text) — change detection on re-fetch
     FetchedAt time.Time
-    Rank      int        // websearch sırası
+    Rank      int        // websearch ordering
 }
 
 type Claim struct {
     ID        string
     Text      string
-    SourceIDs []string   // destekleyen kaynaklar
+    SourceIDs []string   // supporting sources
     Verdict   string     // "unverified" | "confirmed" | "refuted" | "contested"
-    Note      string     // council azınlık görüşü / verifier gerekçesi
+    Note      string     // council minority opinion / verifier rationale
 }
 
 type Report struct {
@@ -89,58 +89,58 @@ type Report struct {
     SubQuestions []string
     Sources    []Source
     Claims     []Claim
-    Markdown   string     // alıntılı sentez
+    Markdown   string     // cited synthesis
     Confidence float64
-    Budget     BudgetUse  // token/adım/kaynak sayacı
+    Budget     BudgetUse  // token/step/source counters
 }
 ```
 
-## Fazlar
+## Phases
 
-### Faz 1 — Çekirdek harness (MVP, ~1 hafta)
-- `kernel/research/` paketi: `Run()` = plan → gather → extract → synth (VERIFY henüz basit).
-- `plugins/tools/research/` agent-facing tool (`research` fiili); `main.go`'da kaydet
-  (websearch/browser ile aynı `out[...]` deseni, satır ~7615 civarı).
-- Edict `CapResearch` ekseni (websearch benzeri, low-risk read + fan-out capı).
-- `agt research "<soru>" [--depth N] [--max-sources M] [--json]` CLI + `agt why` uyumu.
-- Testler: mock provider + sabit fixture sayfaları (network yok), fan-out capı, citation zorunluluğu.
+### Phase 1 — Core harness (MVP, ~1 week)
+- `kernel/research/` package: `Run()` = plan → gather → extract → synth (VERIFY still simple).
+- `plugins/tools/research/` agent-facing tool (the `research` verb); register it in `main.go`
+  (same `out[...]` pattern as websearch/browser, around line ~7615).
+- Edict `CapResearch` axis (websearch-like, low-risk read + fan-out cap).
+- `agt research "<question>" [--depth N] [--max-sources M] [--json]` CLI + `agt why` compatibility.
+- Tests: mock provider + fixed fixture pages (no network), fan-out cap, citation requirement.
 
-### Faz 2 — Adversarial doğrulama (asıl farklılaştırıcı, ~1 hafta)
-- VERIFY adımını `conductor`'a bağla: her yüksek-etkili iddiayı Verifier rolüyle çürütmeye çalış.
-- Çelişen kaynakları `council`'a ver → uzlaşı + azınlık notu (`Claim.Note`).
-- `Verdict` alanını doldur; `confidence` = confirmed/total oranından türet.
-- Sentez yalnız `confirmed`/`contested(uzlaşılı)` iddiaları kullanır.
+### Phase 2 — Adversarial verification (the real differentiator, ~1 week)
+- Wire the VERIFY step to `conductor`: try to refute every high-impact claim with the Verifier role.
+- Send conflicting sources to `council` → consensus + minority note (`Claim.Note`).
+- Populate the `Verdict` field; derive `confidence` from the confirmed/total ratio.
+- Synthesis uses only `confirmed`/`contested(agreed)` claims.
 
-### Faz 3 — Orkestrasyon + kalıcılık (~1 hafta)
-- Workflow şablonu `research.v1` (`kernel/workflow/templates`): fan-out gather node'ları,
-  gate node = "yeterli güvenilir kaynak var mı?", yoksa yeni alt-sorularla döngü (loop node).
-- Bulguları `memory`'ye yaz (subject-dedupe, per-agent private-by-default), varlık/ilişkileri
-  `worldmodel`'e; rapor → `artifact` store.
-- Pulse entegrasyonu: standing order / schedule ile periyodik araştırma ("her sabah X konusunu tara").
+### Phase 3 — Orchestration + persistence (~1 week)
+- Workflow template `research.v1` (`kernel/workflow/templates`): fan-out gather nodes,
+  gate node = "are there enough reliable sources?", if not loop with new sub-questions (loop node).
+- Write findings to `memory` (subject dedupe, per-agent private-by-default), entities/relations to
+  `worldmodel`; report → `artifact` store.
+- Pulse integration: periodic research via standing order / schedule ("scan topic X every morning").
 
-### Faz 4 — Konsol yüzeyi (~3-4 gün)
-- Yeni view `Research.tsx` (67→68): soru kutusu, canlı adım akışı (SSE), kaynak kartları
-  (güven rozeti + verdict çipi), alıntılı rapor, `why` derin-link. Mevcut tasarım sistemi
-  (PageHeader + glass + ModelChip) ve `events.tsx` SSE hub'ı yeniden kullanılır.
-- `views/Research.test.tsx` (view başına ~1:1 test disiplinine uygun).
+### Phase 4 — Console surface (~3-4 days)
+- New view `Research.tsx` (67→68): question box, live step stream (SSE), source cards
+  (confidence badge + verdict chip), cited report, `why` deep link. Reuses the existing design
+  system (PageHeader + glass + ModelChip) and the `events.tsx` SSE hub.
+- `views/Research.test.tsx` (in line with the ~1:1 per-view test discipline).
 
-## Kabul kriterleri
-- Bir soru → ≥3 bağımsız kaynaktan üçgenlenmiş, her cümlesi alıntılı bir rapor üretir.
-- En az bir yanlış/çelişkili iddia VERIFY adımında `refuted`/`contested` olarak yakalanır
-  (adversarial doğrulamanın çalıştığının kanıtı; fixture ile test edilir).
-- Tüm araştırma bütçe tavanına uyar; aşımda temiz durur, çökmez.
-- Her kaynak getirimi + her iddia verdict'i journal'da; `agt why <report_event>` tam zinciri gösterir.
-- Kaynak metni untrusted işaretini korur; injection-guard tetiklenirse rapora not düşülür.
+## Acceptance criteria
+- One question → a report triangulated from ≥3 independent sources, with every sentence cited.
+- At least one false/conflicting claim is caught as `refuted`/`contested` in the VERIFY step
+  (proof that adversarial verification works; tested with a fixture).
+- All research respects the budget ceiling; on overrun it stops cleanly rather than crashing.
+- Every source fetch + every claim verdict is in the journal; `agt why <report_event>` shows the full chain.
+- Source text preserves the untrusted marker; if the injection guard fires, a note is added to the report.
 
-## Yapılmayacaklar (sınır)
-- Planner'ı mid-execution recursive re-planner'a çevirme — mevcut "tek LLM çağrısı = statik DAG"
-  sözleşmesini koru; döngü workflow loop node'u ile, meta-agent ile değil.
-- Alıntısız cümle üretme (halüsinasyon freni sözleşmesi).
-- Kaynakları güvenilir sayma — hepsi untrusted, verdict'ler kanıtla gelir.
-- Ayrı bir LLM istemcisi ekleme — tüm model çağrıları mevcut governor/provider yolundan.
+## Non-goals (boundary)
+- Turning the planner into a mid-execution recursive re-planner — preserve the existing
+  "one LLM call = static DAG" contract; loop via the workflow loop node, not a meta-agent.
+- Producing uncited sentences (the hallucination-brake contract).
+- Treating sources as trusted — all are untrusted, and verdicts come with evidence.
+- Adding a separate LLM client — all model calls go through the existing governor/provider path.
 
-## Sıradaki (bu plandan sonra)
-Aynı "mevcut primitifleri birleştir" yaklaşımı P0 boşluklarına da uygulanır:
-- **Cihaz/companion**: node registry + tünel + approvals API üzerine tepsi/PWA (yeni kod az).
-- **Canlı tarayıcı sekmesi**: `browser.action` sürücüsünü kalıcı süreç + stale-ref'e çıkar.
-- **LLM curator**: mevcut deterministik küratör + `council` shadow-mod konsolidasyon.
+## Next up (after this plan)
+The same "compose existing primitives" approach also applies to the P0 gaps:
+- **Device/companion**: tray/PWA on top of node registry + tunnel + approvals API (little new code).
+- **Live browser tab**: promote the `browser.action` driver to a persistent process + stale-ref handling.
+- **LLM curator**: existing deterministic curator + `council` shadow-mode consolidation.

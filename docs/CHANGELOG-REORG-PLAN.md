@@ -1,122 +1,122 @@
-# CHANGELOG Reorg Planı (P0-5)
+# CHANGELOG Reorg Plan (P0-5)
 
-> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
-> **Dal:** `main` (HEAD: `ef7b412d`)
-> **Statü:** ARCHIVED — CHANGELOG reorganization completed (root slimmed to release index, per-version bodies in `CHANGELOG/`). Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Plan retained for historical reference.
-> **Diğer referanslar:** `docs/MISSING-PARTS-PLAN.md`, `docs/MISSING-PARTS-REPORT.md` (H-04).
+> **Date:** 2026-07-04 (last updated: 2026-07-06)
+> **Branch:** `main` (HEAD: `ef7b412d`)
+> **Status:** ARCHIVED — CHANGELOG reorganization completed (root slimmed to release index, per-version bodies in `CHANGELOG/`). Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Plan retained for historical reference.
+> **Other references:** `docs/MISSING-PARTS-PLAN.md`, `docs/MISSING-PARTS-REPORT.md` (H-04).
 
 ---
 
-## 1. Mevcut Durum (verified 2026-07-04)
+## 1. Current State (verified 2026-07-04)
 
-| Metrik | Değer |
+| Metric | Value |
 |---|---|
-| `CHANGELOG.md` boyut | **646,076 bytes (≈631 KB)** |
-| Toplam satır | **7,914** |
-| Üst-düzey bölümler (`## `) | 3 |
-| Alt-bölümler (`### `) | 57 |
-| Yayınlanmış sürümler | `[1.0.0] 2026-06-03`, `[0.1.0] 2026-05-30` |
-| Unreleased bölümü | Lines 12–5795 (5,784 satır / **~635 KB**) |
-| `[1.0.0]` bölümü | Lines 5796–7835 (2,040 satır / ≈6.7 KB) |
-| `[0.1.0]` bölümü | Lines 7836–7914 (79 satır / ≈0.3 KB) |
+| `CHANGELOG.md` size | **646,076 bytes (≈631 KB)** |
+| Total lines | **7,914** |
+| Top-level sections (`## `) | 3 |
+| Subsections (`### `) | 57 |
+| Published versions | `[1.0.0] 2026-06-03`, `[0.1.0] 2026-05-30` |
+| Unreleased section | Lines 12–5795 (5,784 lines / **~635 KB**) |
+| `[1.0.0]` section | Lines 5796–7835 (2,040 lines / ≈6.7 KB) |
+| `[0.1.0]` section | Lines 7836–7914 (79 lines / ≈0.3 KB) |
 
-**Sorun:** `[Unreleased]` bloğu **5.7K+ satır** ve neredeyse tüm M-faz raporlarının özetini içeriyor. PR incelemelerinde diff'i anlamak zor; yeni M-faz commit'leri bu bloğa satır eklenmesine neden oluyor.
+**Problem:** The `[Unreleased]` block is **5.7K+ lines** and contains a summary of nearly every M-phase report. The diff is hard to understand in PR reviews; new M-phase commits keep adding lines to this block.
 
-### 1.1 Unreleased İç Yapısı
+### 1.1 Internal Structure of Unreleased
 
-57 alt-bölüm var, Keep a Changelog kategorilerinde dağılmış:
-- `### Added`: ~24 blok
-- `### Fixed`: ~15 blok
-- `### Changed`: ~7 blok
-- `### Security`: ~2 blok
-- `### Code quality`: ~1 blok
-- `### Tests`: ~1 blok
+There are 57 subsections, distributed across the Keep a Changelog categories:
+- `### Added`: ~24 blocks
+- `### Fixed`: ~15 blocks
+- `### Changed`: ~7 blocks
+- `### Security`: ~2 blocks
+- `### Code quality`: ~1 block
+- `### Tests`: ~1 block
 
-Her blok, M-faz çalışmalarının toplu açıklaması. Örnek: `### Added — positioning, security, and SDK parity documentation` (line 14).
-
----
-
-## 2. Hedef
-
-**Hedefler:**
-1. Ana `CHANGELOG.md` ~50 KB altına düşürülsün (sadece TOC + son 1.0.0 + yeni Unreleased).
-2. Unreleased içeriği **milestone aralıklarına** göre dilimlensin.
-3. CI / lint bu yeni yapıyı doğrulayabilsin.
-4. PR diff'leri küçük ve okunabilir kalır (her PR'da yalnız ilgili milestone dosyasına eklenir).
-
-**Olmayan hedefler (non-goals):**
-- CHANGELOG içeriğini **silmek yok** — bölmek/splitting yapacağız, kaldırmak değil.
-- Keep a Changelog formatını bozmak yok — bölüm başlıkları ve kategoriler aynı kalır.
-- M faz-rapor dosyaları (`PHASE-M*.md`) dokunulmaz; onlar zaten ayrı.
-- Geçmişe retroactive `git tag` eklemek yok (örn. `v1.0.1` veya benzeri) — stabilite gereği.
+Each block is a collective description of M-phase work. Example: `### Added — positioning, security, and SDK parity documentation` (line 14).
 
 ---
 
-## 3. Strateji: Yapı Bölme (Splitting)
+## 2. Goal
 
-Önerdiğim yapı:
+**Goals:**
+1. Bring the main `CHANGELOG.md` below ~50 KB (only TOC + the last 1.0.0 + a new Unreleased).
+2. Slice the Unreleased content by **milestone ranges**.
+3. Let CI / lint verify this new structure.
+4. Keep PR diffs small and readable (each PR only appends to the relevant milestone file).
+
+**Non-goals:**
+- **No deletion** of CHANGELOG content — we will split it, not remove it.
+- No breaking of the Keep a Changelog format — section headings and categories stay the same.
+- The M phase-report files (`PHASE-M*.md`) are untouched; they are already separate.
+- No retroactive `git tag` additions to history (e.g. `v1.0.1` or similar) — for stability.
+
+---
+
+## 3. Strategy: Structural Splitting
+
+The structure I propose:
 
 ```
 CHANGELOG.md                                  (≈50 KB — TOC + Unreleased + 1.0.0 + 0.1.0)
 ├── CHANGELOG/
-│   ├── README.md                            (TOC, milestone bağlantıları, bakım kuralı)
+│   ├── README.md                            (TOC, milestone links, maintenance rule)
 │   ├── unreleased/
-│   │   ├── current.md                       (~100 KB — aktif geliştirme, son ~30 gün)
-│   │   ├── m600-m699.md                     (~50 KB — eski M-blokları)
+│   │   ├── current.md                       (~100 KB — active development, last ~30 days)
+│   │   ├── m600-m699.md                     (~50 KB — older M blocks)
 │   │   ├── m700-m799.md
 │   │   ├── m800-m899.md
 │   │   ├── m900-m999.md
 │   │   └── m1000+.md
 │   ├── v1.0.0.md                           (≈7 KB)
 │   ├── v0.1.0.md                           (≈0.3 KB)
-│   └── REORG-LOG.md                        (bölünme tarihçesi)
+│   └── REORG-LOG.md                        (split history)
 ```
 
-### 3.1 Yapının Dayanağı
+### 3.1 Rationale for the Structure
 
-- **Mirror imkanı**: `git log -- CHANGELOG.md` takibi zorlaşırsa, milestone dosyaları daha küçük olduğundan diff sorunsuz olur.
-- **GitHub render**: GitHub `CHANGELOG/README.md` ve `CHANGELOG/v1.0.0.md` ayrı ayrı bağlanılabilir; marketplace/release pages için de uygun.
-- **Lint**: `make check` veya `.github/workflows/ci.yml` bir helper (örn. `tools/changelog-lint`) ile Unreleased'in current.md altında olduğunu doğrulayabilir.
+- **Mirror option**: If tracking `git log -- CHANGELOG.md` becomes difficult, milestone files are smaller so diffs stay clean.
+- **GitHub rendering**: GitHub can link `CHANGELOG/README.md` and `CHANGELOG/v1.0.0.md` separately; also suitable for marketplace/release pages.
+- **Lint**: `make check` or `.github/workflows/ci.yml` can verify via a helper (e.g. `tools/changelog-lint`) that Unreleased lives under current.md.
 
-### 3.2 Milestone Aralığı Nasıl Belirlenir?
+### 3.2 How Are Milestone Ranges Determined?
 
-**Veri dayanağı:** Disk'te 697 `PHASE-M*.md` dosyası var, M1'den M923'e. CHANGELOG'daki 5.7K satır içerik 100+ M-faz'ı kapsıyor.
+**Data basis:** There are 697 `PHASE-M*.md` files on disk, from M1 to M923. The 5.7K lines of content in the CHANGELOG span 100+ M phases.
 
-**Pratik kural:**
-- 100'luk aralıklar (M100-199, M200-299, ...) **yeterli dilimleme** sağlar.
-- 50'lik aralıklar (M50-99, M100-149, ...) **daha küçük dosyalar** verir.
-- 25'lik aralıklar çok küçük olur: 50+ dosya, yönetilmesi zor.
+**Practical rule:**
+- Ranges of 100 (M100-199, M200-299, ...) provide **sufficient slicing**.
+- Ranges of 50 (M50-99, M100-149, ...) yield **smaller files**.
+- Ranges of 25 would be too small: 50+ files, hard to manage.
 
-**Öneri:** 100'lük aralıklar. 10'ar kadar dosya, ~100 KB her biri (Unreleased bloğunun mantıklı dilimleri).
+**Recommendation:** Ranges of 100. About 10 files, ~100 KB each (sensible slices of the Unreleased block).
 
-### 3.3 Unreleased Bloğunun Parçalanması
+### 3.3 Breaking Up the Unreleased Block
 
-Unreleased 5,784 satır. Bu satırları **mevcut zaman-stampr'ları** veya **M-sayı referansları** ile zenginleştirilmiş bir yardımcı ile dilimlemek için:
+Unreleased is 5,784 lines. To slice those lines using a helper enriched with the **existing timestamps** or **M-number references**:
 
-1. **Her paragrafın M-sayı referansını çıkart**: regex `(PHASE-M\d+|M\d{3,4})` ile. Çoğu girişte zaten `M-XXX` geçiyor.
-2. **M-sayı belirsiz olan paragrafları** (örn. eki "added dep doc alignment") en yakın komşu M-referansına ata.
-3. **Dilim dosyalarına** satırları yerleştir.
+1. **Extract each paragraph's M-number reference**: with the regex `(PHASE-M\d+|M\d{3,4})`. Most entries already contain `M-XXX`.
+2. **Assign paragraphs with an unclear M-number** (e.g. an addendum like "added dep doc alignment") to the nearest neighboring M reference.
+3. **Place the lines into the slice files**.
 
-Bu bölünme **scripted** yapılabilir. Plan + script taslağı aşağıda §5'te.
+This split can be done **scripted**. Plan + script draft below in §5.
 
 ---
 
-## 4. Yapısal Tasarım Detayı
+## 4. Structural Design Detail
 
-### 4.1 `CHANGELOG.md` Ana Dosyası (≤50 KB)
+### 4.1 The Main `CHANGELOG.md` File (≤50 KB)
 
 ```
 # Changelog
-[intro paragraphs — 8-10 satır]
+[intro paragraphs — 8-10 lines]
 
 ## [Unreleased] — currently at /CHANGELOG/unreleased/current.md
 See CHANGELOG/unreleased/current.md for the in-flight changes.
 
 ## [1.0.0] — 2026-06-03
-[full content (2,040 satır / ≈7 KB)]
+[full content (2,040 lines / ≈7 KB)]
 
 ## [0.1.0] — 2026-05-30
-[full content (79 satır / ≈0.3 KB)]
+[full content (79 lines / ≈0.3 KB)]
 
 ## Older
 See CHANGELOG/ dir for milestone-level subdivisions.
@@ -124,31 +124,31 @@ See CHANGELOG/ dir for milestone-level subdivisions.
 
 ### 4.2 `CHANGELOG/unreleased/current.md`
 
-Mevcut geliştirme bloğu (son 30 gün). Her PR buraya **tek bir veya birkaç madde** olarak girer.
+The current development block (last 30 days). Every PR enters here as **one or a few items**.
 
 ### 4.3 `CHANGELOG/unreleased/mXXX-mYYY.md`
 
-Her aralık dosyası `### /` ile başlayan `### Added` / `### Fixed` ... kategorileri içerir. Aralık dosyalarına "current.md → mXXX-mYYY'ye taşındı, <tarih>" notu eklenir.
+Each range file contains the `### Added` / `### Fixed` … categories that start with `### /`. A note is added to the range files: "moved from current.md → mXXX-mYYY, <date>".
 
 ### 4.4 `CHANGELOG/README.md`
 
 ```
 # Changelog
 
-Bu dizinde Agezt (`agezt` daemon + `agt` CLI) için per-milestone changelog yer alır.
+This directory holds the per-milestone changelog for Agezt (the `agezt` daemon + the `agt` CLI).
 
-## Yapı
+## Structure
 
-- `v0.1.0.md`, `v1.0.0.md` — yayınlanmış sürümler.
-- `unreleased/current.md` — aktif geliştirme (son ~30 gün).
-- `unreleased/mXXX-mYYY.md` — eski M-blok aralıkları, reorg sırasında oluştu.
-- `REORG-LOG.md` — milestone dosyalarının bölünme tarihçesi.
+- `v0.1.0.md`, `v1.0.0.md` — published versions.
+- `unreleased/current.md` — active development (last ~30 days).
+- `unreleased/mXXX-mYYY.md` — older M-block ranges, created during the reorg.
+- `REORG-LOG.md` — the split history of the milestone files.
 
-## PR Sırası
+## PR Order
 
-1. Yeni özellik, fix veya değişiklik → `unreleased/current.md` eklenir (PR-açılırken).
-2. Current ~30 günlük döngüyü geçince → ilgili `mXXX-mYYY.md` aralığına taşınır.
-3. Yeni sürüm kesildiğinde → yeni `vX.Y.Z.md` dosyası oluşturulur.
+1. New feature, fix, or change → added to `unreleased/current.md` (when opening the PR).
+2. Once current passes the ~30-day cycle → moved to the relevant `mXXX-mYYY.md` range.
+3. When a new version is cut → a new `vX.Y.Z.md` file is created.
 ```
 
 ### 4.5 `CHANGELOG/REORG-LOG.md`
@@ -156,33 +156,33 @@ Bu dizinde Agezt (`agezt` daemon + `agt` CLI) için per-milestone changelog yer 
 ```
 # 2026-07-04 — Reorg v1
 
-`CHANGELOG.md` ~646 KB tek-dosyadan milestone-aralık dosyalarına bölündü.
+`CHANGELOG.md` was split from a single ~646 KB file into milestone-range files.
 
 ## Mapping
 
-- `unreleased/current.md`: son ~30 günlük Unreleased kısmı.
-- `unreleased/m100-m199.md`: M100-M199 referanslı tüm paragraflar.
+- `unreleased/current.md`: the Unreleased portion from the last ~30 days.
+- `unreleased/m100-m199.md`: all paragraphs referencing M100-M199.
 - `unreleased/m200-m299.md`: ...
-- ... (her aralık)
-- `v1.0.0.md` ve `v0.1.0.md`: orijinal versiyon blokları değişmeden.
+- ... (each range)
+- `v1.0.0.md` and `v0.1.0.md`: the original version blocks, unchanged.
 
-## Araçlar
+## Tools
 
-- `tools/changelog-split` (PR'da eklenecek): Unreleased'i otomatik dilimler.
-- `tools/changelog-lint` (PR'da eklenecek): TOC + dosya varlığını doğrular.
+- `tools/changelog-split` (to be added in a PR): slices Unreleased automatically.
+- `tools/changelog-lint` (to be added in a PR): verifies the TOC + file existence.
 
 ## Migrating Back
 
-Ana `CHANGELOG.md` yine de satır içi tutulur (back-compat), ama "silinen" değil. Mirror tooling gerektiğinde otomatik oluşturabilir.
+The main `CHANGELOG.md` is still kept inline (back-compat), but it is not "deleted". Mirror tooling can regenerate it automatically when needed.
 ```
 
 ---
 
-## 5. Uygulama Adımları (sequence)
+## 5. Implementation Steps (sequence)
 
-### 5.1 PR-1: Araç — `tools/changelog-split`
+### 5.1 PR-1: Tool — `tools/changelog-split`
 
-`tools/changelog-split/` paketi:
+The `tools/changelog-split/` package:
 
 ```go
 package main
@@ -193,120 +193,120 @@ package main
 // Dry-run mode, --verify mode, --emit mode.
 ```
 
-Kullanım:
+Usage:
 ```
 go run ./tools/changelog-split --dry-run  # show planned output
 go run ./tools/changelog-split --emit     # write files
 go run ./tools/changelog-split --verify   # check current state matches
 ```
 
-**Testler:**
-- `TestSplitByMRange` — verilen M-references arasındaki paragrafları doğru dosyaya atar.
-- `TestNoMReference` — referanssız paragraflar current.md'ye yazılır.
-- `TestMergedSections` — birden çok paragraf aynı M-referansını paylaştığında birleştirilir.
+**Tests:**
+- `TestSplitByMRange` — assigns paragraphs between given M references to the correct file.
+- `TestNoMReference` — paragraphs without a reference are written to current.md.
+- `TestMergedSections` — merged when multiple paragraphs share the same M reference.
 
-### 5.2 PR-2: Araç — `tools/changelog-lint`
+### 5.2 PR-2: Tool — `tools/changelog-lint`
 
 ```go
 package main
 // Checks CHANGELOG.md structure:
-// - ## [Unreleased] kısa, /CHANGELOG/unreleased/current.md'ye referans.
-// - CHANGELOG/ dizini altında milestone dosyaları mevcut.
-// - Her milestone dosyası `### Added`, `### Fixed`, etc. kategoriler içerir.
-// - En az bir v0/v1 sürümü ayrı dosyada.
-// - REORG-LOG.md mevcut.
+// - ## [Unreleased] is short and references /CHANGELOG/unreleased/current.md.
+// - Milestone files exist under the CHANGELOG/ directory.
+// - Each milestone file contains `### Added`, `### Fixed`, etc. categories.
+// - At least one v0/v1 version lives in a separate file.
+// - REORG-LOG.md exists.
 ```
 
-`make check` veya CI gate'ine eklenir.
+It is added to `make check` or the CI gate.
 
-### 5.3 PR-3: Reorg — dosyaları yaz + CHANGELOG.md'yi kısalt
+### 5.3 PR-3: Reorg — write the files + shorten CHANGELOG.md
 
-- `tools/changelog-split --emit` çalıştır.
-- `CHANGELOG.md` üst-düzey içeriği sadece TOC + v1.0.0 + v0.1.0 versiyonları kalacak.
-- `CHANGELOG/README.md` + `CHANGELOG/REORG-LOG.md` oluştur.
+- Run `tools/changelog-split --emit`.
+- The top-level content of `CHANGELOG.md` will keep only the TOC + the v1.0.0 and v0.1.0 versions.
+- Create `CHANGELOG/README.md` + `CHANGELOG/REORG-LOG.md`.
 
-### 5.4 PR-4: Migration helper (opsiyonel)
+### 5.4 PR-4: Migration helper (optional)
 
-Eski PR'lar için *eğer yazar Unreleased'e commit ettiyse* ve Unreleased yeniden şiştiyse, otomatik migrate komutu:
+For older PRs, *if the author committed to Unreleased* and Unreleased has grown again, an automatic migrate command:
 
 ```
-make changelog-migrate  # Unreleased içeriğini milestone dosyalarına taşır
+make changelog-migrate  # moves Unreleased content into the milestone files
 ```
 
 ---
 
 ## 6. Demo Gate (Phase 0 → Phase 1)
 
-- ✅ `tools/changelog-split --verify` çalışıyor: `current.md` ile milestone dosyaları arasında split doğru.
-- ✅ `tools/changelog-lint` CI gate'inde yeşil: `CHANGELOG.md` anahtar başlıkları mevcut.
-- ✅ Toplam CHANGELOG ağacı ana `CHANGELOG.md` <50 KB.
-- ✅ Mevcut `git log` ile her milestone PR değişikliği yalnızca ilgili milestone dosyasına dokunur.
+- ✅ `tools/changelog-split --verify` works: the split between `current.md` and the milestone files is correct.
+- ✅ `tools/changelog-lint` is green in the CI gate: the key headings of `CHANGELOG.md` exist.
+- ✅ The main `CHANGELOG.md` of the whole CHANGELOG tree is <50 KB.
+- ✅ With the current `git log`, each milestone PR change touches only the relevant milestone file.
 
-### 6.1 Süre Tahmini
+### 6.1 Duration Estimate
 
-| Adım | Süre | Bağımlılık |
+| Step | Duration | Dependency |
 |---|---|---|
-| PR-1 `tools/changelog-split` | 1-2 g | yok |
-| PR-2 `tools/changelog-lint` | 0.5 g | PR-1 |
-| PR-3 reorg (dosya yazma) | 0.5 g | PR-1, PR-2 (kuru çalıştırma) |
-| PR-4 migration helper (opsiyonel) | 0.5 g | PR-3 |
-| **Toplam** | **2-4 g** | |
+| PR-1 `tools/changelog-split` | 1-2 d | none |
+| PR-2 `tools/changelog-lint` | 0.5 d | PR-1 |
+| PR-3 reorg (writing files) | 0.5 d | PR-1, PR-2 (dry run) |
+| PR-4 migration helper (optional) | 0.5 d | PR-3 |
+| **Total** | **2-4 d** | |
 
 ---
 
-## 7. Riskler ve Azaltmaları
+## 7. Risks and Mitigations
 
-| Risk | Olasılık | Azaltma |
+| Risk | Likelihood | Mitigation |
 |---|---|---|
-| Bölünme sırasında M referansı olmayan paragraflar kaybolur | Orta | `--no-m-reference` → `current.md` (default); PR review'da görünür; lint ile Unreleased kısa kalır. |
-| Eski PR'lar yeni yapıyı bilmeden ana `CHANGELOG.md`'ye ekleme yapar | Düşük-Orta | PR-2 lint → CI fail; PR-3'te katı bir "Unreleased sadece referans" kuralı konur. |
-| Çoklu agent eş zamanlı reorg çakışması | Düşük | PR-4 migration helper ile koordine; her PR'da `tools/changelog-lint` invariant test. |
-| Tarih format kaybı (özellikle `[1.0.0]` ve `[0.1.0]`) | Düşük | Ana `CHANGELOG.md` orijinal blokları saklar; alt dosyalar mirror. |
-| Keep-a-Changelog format sapması | Çok Düşük | Yapı bu formatın "alternatif representasyonu"; içerik aynı. |
+| Paragraphs without an M reference are lost during the split | Medium | `--no-m-reference` → `current.md` (default); visible in PR review; lint keeps Unreleased short. |
+| Older PRs append to the main `CHANGELOG.md` without knowing the new structure | Low-Medium | PR-2 lint → CI fail; a strict "Unreleased is reference-only" rule is established in PR-3. |
+| Concurrent reorg conflicts across multiple agents | Low | Coordinated via the PR-4 migration helper; `tools/changelog-lint` invariant test on every PR. |
+| Loss of date formatting (especially `[1.0.0]` and `[0.1.0]`) | Low | The main `CHANGELOG.md` retains the original blocks; the sub-files are mirrors. |
+| Deviation from the Keep-a-Changelog format | Very Low | The structure is an "alternative representation" of that format; the content is the same. |
 
 ---
 
-## 8. Senaryo Sonrası (post-org)
+## 8. Post-Reorg Scenario
 
-Bu PR'lar land edildikten sonra:
+After these PRs land:
 
-- `git log -- CHANGELOG/unreleased/current.md` ile aktif geliştirmenin diff'i küçük ve okunabilir.
-- Yeni M-faz tamamlandığında: PHASE-M*.md raporları + `unreleased/mXXX-mYYY.md` güncelleme + ana `CHANGELOG.md`'de Unreleased satırı yok.
-- Sürüm kesildiğinde: `CHANGELOG/vX.Y.Z.md` yeni dosya + ana `CHANGELOG.md`'ye satır.
-- `make check` ve CI her PR'da invariant doğrular.
+- With `git log -- CHANGELOG/unreleased/current.md`, the diff of active development is small and readable.
+- When a new M phase completes: PHASE-M*.md reports + an `unreleased/mXXX-mYYY.md` update + no Unreleased line in the main `CHANGELOG.md`.
+- When a version is cut: a new `CHANGELOG/vX.Y.Z.md` file + a line in the main `CHANGELOG.md`.
+- `make check` and CI verify the invariant on every PR.
 
-### 8.1 PR Politikaları (sonradan)
+### 8.1 PR Policies (going forward)
 
-- **Yeni eklenen CHANGELOG satırı** ya `unreleased/current.md` (yeni özellik) veya `unreleased/mXXX-mYYY.md` (geçmişe ekleme) veya `vX.Y.Z.md` (sürüm patch) — başka dosya değil.
-- **Eski CHANGELOG.md'ye append** → lint fail eder.
-- **Tooling güncellemesi** (örn. `changelog-add` helper) PR'la gelir.
+- **A newly added CHANGELOG line** goes to either `unreleased/current.md` (new feature), `unreleased/mXXX-mYYY.md` (backfill), or `vX.Y.Z.md` (version patch) — no other file.
+- **Appending to the old CHANGELOG.md** → lint fails.
+- **Tooling updates** (e.g. a `changelog-add` helper) arrive via PR.
 
 ---
 
 ## 9. Snapshot (2026-07-04)
 
-Bu plan aşamasında:
+At this planning stage:
 
-- Disk'te 1 dosya: `CHANGELOG.md` (646 KB, 7,914 satır)
-- Reorg sonrası (beklenen):
+- 1 file on disk: `CHANGELOG.md` (646 KB, 7,914 lines)
+- After the reorg (expected):
   - `CHANGELOG.md` ≤ 50 KB
   - `CHANGELOG/README.md` ≈ 1 KB
   - `CHANGELOG/REORG-LOG.md` ≈ 1 KB
   - `CHANGELOG/v0.1.0.md` ≈ 0.3 KB
   - `CHANGELOG/v1.0.0.md` ≈ 7 KB
   - `CHANGELOG/unreleased/current.md` ≈ 100 KB
-  - `CHANGELOG/unreleased/m100-m199.md`, `m200-m299.md`, ... (10 dosya, ortalama 50 KB)
+  - `CHANGELOG/unreleased/m100-m199.md`, `m200-m299.md`, ... (10 files, ~50 KB each)
 
-Toplam: ≈ 50 + 1 + 1 + 0.3 + 7 + 100 + 50×10 ≈ **660 KB toplam** (mirror maliyeti), ama ana dosya %92 azalır.
-
----
-
-## 10. Açık Sorular / Karar Bekleyenler
-
-- **100'lük aralıklar vs 50'lik**: 100'lük daha yönetilebilir ama daha büyük dosyalar. Karar: **100'lük** ile başla, gerekirse 50'liğe geç.
-- **`REORG-LOG.md` şart mı**: PR review için yararlı, ama her bölünme için büyüyebilir. Karar: **mevcut tut**, eski girişleri "summary" olarak birleştir.
-- **CI gate erken mi**: `tools/changelog-lint` PR-1/PR-2 ile birlikte merge'lenirse CI henüz yok. Öneri: PR-2'de `--off` flag ile başla; PR-3 sonrası `--on` yap.
+Total: ≈ 50 + 1 + 1 + 0.3 + 7 + 100 + 50×10 ≈ **660 KB overall** (the cost of mirroring), but the main file shrinks by 92%.
 
 ---
 
-*Bu plan tamamen "release hygiene" kapsamındadır. Yeni özellik eklemez; sadece mevcut 646 KB'ı yönetilebilir ~10 dosyaya böler.*
+## 10. Open Questions / Pending Decisions
+
+- **Ranges of 100 vs 50**: 100 is more manageable but produces larger files. Decision: start with **100**, switch to 50 if needed.
+- **Is `REORG-LOG.md` required**: useful for PR review, but it can grow with every split. Decision: **keep it**, merging older entries into a "summary".
+- **Is the CI gate too early**: if `tools/changelog-lint` is merged together with PR-1/PR-2, CI does not exist yet. Suggestion: start with an `--off` flag in PR-2; switch to `--on` after PR-3.
+
+---
+
+*This plan is entirely within "release hygiene" scope. It adds no new features; it only splits the existing 646 KB into ~10 manageable files.*

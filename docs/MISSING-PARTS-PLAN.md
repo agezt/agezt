@@ -1,275 +1,275 @@
-# AGEZT — Missing Parts Plan (Eksik Parçalar İçin Eylem Planı)
+# AGEZT — Missing Parts Plan (Action Plan for Missing Pieces)
 
-> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
-> **Dal:** `main` (HEAD: `ef7b412d`)
-> **Statü:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference; see `docs/SYSTEM-AUDIT-REPORT.md` for current audit state.
-> **Diğer referanslar:** `docs/OPENCLAW-HERMES-ROADMAP.md`, `docs/JARVIS-VISION-2026.md`, `docs/REFACTORING-INDEX.md`, `docs/GRAVEYARD-POLICY.md`, `docs/PLUGIN-SECURITY.md`, `docs/OPERATIONS.md`, `docs/COMPARISON.md`, `docs/THREAT-MODEL.md`.
+> **Date:** 2026-07-04 (last updated: 2026-07-06)
+> **Branch:** `main` (HEAD: `ef7b412d`)
+> **Status:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference; see `docs/SYSTEM-AUDIT-REPORT.md` for current audit state.
+> **Other references:** `docs/OPENCLAW-HERMES-ROADMAP.md`, `docs/JARVIS-VISION-2026.md`, `docs/REFACTORING-INDEX.md`, `docs/GRAVEYARD-POLICY.md`, `docs/PLUGIN-SECURITY.md`, `docs/OPERATIONS.md`, `docs/COMPARISON.md`, `docs/THREAT-MODEL.md`.
 
 ---
 
-## 0. Bağlam
+## 0. Context
 
-`docs/NEXT.md` §0 der ki:
+`docs/NEXT.md` §0 says:
 
 > "Do not declare the project complete. Continue making concrete progress."
 >
 > "For the current missing-parts audit and execution plan, see `docs/MISSING-PARTS-REPORT.md` and `docs/MISSING-PARTS-PLAN.md`."
 
-Bu dosya **execution plan**'dır. Üçlüsü artık: `SYSTEM-AUDIT-REPORT.md` (denetim), `MISSING-PARTS-REPORT.md` (ham envanter), `MISSING-PARTS-PLAN.md` (bu dosya). İlerideki agent'ın başvuru noktası üçlüsü:
+This file is the **execution plan**. The trio is now: `SYSTEM-AUDIT-REPORT.md` (audit), `MISSING-PARTS-REPORT.md` (raw inventory), `MISSING-PARTS-PLAN.md` (this file). The reference trio for a future agent:
 
-- **`docs/SYSTEM-AUDIT-REPORT.md`** — denetimci özeti + sayısal zemin + düzeltme geçmişi.
-- **`docs/MISSING-PARTS-REPORT.md`** — kalem-bazlı ham envanter (F/N/H/D şeması, durum makinesi).
-- **`docs/MISSING-PARTS-PLAN.md`** — bu dosya; önceliklendirme, sahiplik, demo gate'ler.
+- **`docs/SYSTEM-AUDIT-REPORT.md`** — auditor summary + numerical baseline + fix history.
+- **`docs/MISSING-PARTS-REPORT.md`** — item-level raw inventory (F/N/H/D scheme, state machine).
+- **`docs/MISSING-PARTS-PLAN.md`** — this file; prioritization, ownership, demo gates.
 
-**`NEXT.md` §0 referansı artık tam:** hem `MISSING-PARTS-REPORT.md` hem `MISSING-PARTS-PLAN.md` disk'te mevcut.
+**The `NEXT.md` §0 reference is now complete:** both `MISSING-PARTS-REPORT.md` and `MISSING-PARTS-PLAN.md` exist on disk.
 
-### 0.1 Kullanım Kuralı
+### 0.1 Usage Rule
 
-- Bu doküman **yaşayan** olmalı: her Phase geçildiğinde durumu, gerçekleşen veya yeniden planlanan kalemleri güncellemek için bir PR açılmalı.
-- Bir kalem **CLOSED** olunca "→ CLOSED commit-hash" ibaresi ile sabitlenmeli.
-- Yeni kalem buraya eklenirse **PR ile** gelmeli, doğrudan main'e düşmemelidir (multi-agent ortamında).
+- This document must be **living**: whenever a Phase is passed, a PR should be opened to update its status and any completed or replanned items.
+- When an item becomes **CLOSED**, it must be pinned with a "→ CLOSED commit-hash" note.
+- If a new item is added here, it must arrive **via PR** and must not land directly on main (in a multi-agent environment).
 
-### 0.2 Sınırlamalar
+### 0.2 Limitations
 
-- Dış fetch başarısız (project memory `#fetch #github #undici #network`). Bu plan repo-içi kanıt + `OPENCLAW-HERMES-ROADMAP`/`JARVIS-VISION` ile kuruludur.
-- "Owner sign-off gerek" ibareleri: ilgili dokümanlarla (örn. `GRAVEYARD-POLICY.md`) çelişmediğinden emin olunmalı.
+- External fetch fails (project memory `#fetch #github #undici #network`). This plan is built on in-repo evidence + `OPENCLAW-HERMES-ROADMAP`/`JARVIS-VISION`.
+- "Owner sign-off required" notes: make sure they do not conflict with the related documents (e.g. `GRAVEYARD-POLICY.md`).
 
 ---
 
-## 1. Sahiplik ve Roller
+## 1. Ownership and Roles
 
-| Rol | Sorumluluk |
+| Role | Responsibility |
 |---|---|
-| **Plan sahibi** | Bir sonraki lead agent — bu dokümanı yaşatır. |
-| **Phase 0 hygiene** | ilk 5 gün; düşük-risk, hiçbir özellik değişmez. |
-| **Dilim (slice) sahipleri** | Her refactor/PR'ı ayrı bir kişi/agent üstlenir; commit sonrası bu dokümana kapatır. |
-| **Jarvis Eksen-B** | F-11…F-14 için ayrı bir çalışma başlatılır; P0 alındıktan sonra tetiklenir. |
+| **Plan owner** | The next lead agent — keeps this document alive. |
+| **Phase 0 hygiene** | First 5 days; low risk, no feature changes. |
+| **Slice owners** | Each refactor/PR is taken on by a separate person/agent; closed out in this document after commit. |
+| **Jarvis Axis-B** | A separate effort is started for F-11…F-14; triggered after P0 is taken. |
 
 ---
 
-## 2. Phase 0 — Hygiene & Doc Reorg (Hafta içi)
+## 2. Phase 0 — Hygiene & Doc Reorg (During the week)
 
-**Hedef:** Disk ve dokümanı daha temiz bir zemine taşı; multi-agent hatalarını azalt; SPEC ↔ kod matrisini oluştur.
+**Goal:** Move disk and documentation onto cleaner ground; reduce multi-agent errors; build the SPEC ↔ code matrix.
 
-### 2.1 Görevler
+### 2.1 Tasks
 
-| ID | Görev | Kapsam | Çıktı | Süre |
+| ID | Task | Scope | Output | Duration |
 |---|---|---|---|---|
-| P0-1 | Worktree prune | `git worktree prune` sonra `git worktree list`'te görünmeyen 19 worktree'i `--force` ile sil | `.claude/worktrees/` 20 → 1 (deep-research); `.worktrees/` 2 → 1 (rebased-main) | 0.5 g | **CLOSED 2026-07-04** (destructive onay alındı) — `git worktree prune -v` + 19 orphan silindi (16 boş + 3 dolu: `anim` 10 MB, `m951-webui-modernize` 161 MB, `ci-verify` 187 MB → toplam 358 MB boşaldı). `m1002-resume` (0 byte) Windows process kilidi — reboot/kilit çözümünden sonra temizlenebilir (zararsız). |
-| P0-2 | 16 SPEC başlığını güncelle | `.project/SPEC-{01..16}-*.md` ilk 4-7 satırı `Draft v0.1 · Domain/Repo: TBD` → `Active · Domain: github.com/agezt/agezt · License: MIT` | Sed/script veya manuel PR | 0.5 g | **CLOSED 2026-07-04** (TBD→canonical, dil: SPEC-09 dışında "Language: English" eklendi) |
-| P0-3 | `MISSING-PARTS-REPORT.md` oluştur | `SYSTEM-AUDIT-REPORT.md` Section 3'ün ham envanterini canonicalize et | Dosya (~24 KB / 596 satır) | 1 g | **CLOSED 2026-07-04** (43 kalem: 28 F + 6 N + 6 H + 3 D; §6 status log + §7 çapraz-link + §8 istatistik). |
-| P0-4 | `SPEC-IMPLEMENTATION-STATUS.md` oluştur | 16 SPEC × {tamamlandı/kısmi/eksik} matrisi | Markdown tablosu | 1 g | **CLOSED 2026-07-04** (13 shipped + 2 partial + 1 design-only; SPEC-12 widget 0 M-raporla ayrıksı). |
-| P0-5 | CHANGELOG.md reorg (planlama) | 646 KB CHANGELOG'u milestone başına böl; "Unreleased" + Phase M1300'ler | Plan + ilk bölünmüş dosya | 1 g (plan), sonra incremental | **CLOSED 2026-07-04 (PLAN)** — `docs/CHANGELOG-REORG-PLAN.md` (12.4 KB / 312 satır) oluştu. Hedef: 100'lük M-aralıklarla dilimleme, tools/changelog-split + tools/changelog-lint araçları. **Uygulama adımları** (4 PR, 2-4 g): (PR-1) `tools/changelog-split`, (PR-2) `tools/changelog-lint`, (PR-3) reorg, (PR-4) ops migration helper. Ana CHANGELOG.md → 50 KB hedef. |
-| P0-6 | CI gate'ini doğrula | `make check` (Windows-safe eşdeğeri) yeşil mi? | PR'da `make check` çıktısı | 0.5 g | **CLOSED 2026-07-04** — `jsonschemagen`, `go vet ./...`, `depscheck` (24 deps OK), `sdkparity -check` (regen sonrası), `npm test` (1453/1453 passed, 176 dosya), `npm run typecheck`, `npm run build` (390 ms, 2167 modül), `go test -count=1 -p=1 -short ./...` (tüm paketler yeşil), `tools/deadcodecheck` (**OK: no unexpected dead code**), `staticcheck ./...` (**clean**). NOT: İlk paralel `go test ./...` Windows'ta socket-buffer hatası verdi (`TestRunsList_RowCarriesAnswerPreview`); `-p=1` ile düzeldi — Windows için beklenen davranış (NEXT.md §Current Validation Commands). |
-| P0-7 | `.dev-home/.gitignore` doğrula | `sandbox/projects/weather-card/.deps/` git-ignore mi | Çıktı + düzeltme PR | 0.5 g | **CLOSED 2026-07-04** — Kök `.gitignore` line 101'deki `.dev-home/` pattern ile tüm runtime state (config.json, creds.json, agentgw.secret, journal, datalake, sandbox `.deps/`, vb.) zaten ignore ediliyor. 12 farklı dosya/dizin için `git check-ignore` hepsi IGNORED, `git ls-files` untracked. **Ek eylem gerekmez.** |
+| P0-1 | Worktree prune | `git worktree prune`, then delete the 19 worktrees not shown in `git worktree list` with `--force` | `.claude/worktrees/` 20 → 1 (deep-research); `.worktrees/` 2 → 1 (rebased-main) | 0.5 d | **CLOSED 2026-07-04** (destructive approval obtained) — `git worktree prune -v` + 19 orphans deleted (16 empty + 3 populated: `anim` 10 MB, `m951-webui-modernize` 161 MB, `ci-verify` 187 MB → 358 MB freed in total). `m1002-resume` (0 bytes) is under a Windows process lock — can be cleaned after a reboot/lock release (harmless). |
+| P0-2 | Update 16 SPEC headers | Change the first 4-7 lines of `.project/SPEC-{01..16}-*.md` from `Draft v0.1 · Domain/Repo: TBD` to `Active · Domain: github.com/agezt/agezt · License: MIT` | Sed/script or manual PR | 0.5 d | **CLOSED 2026-07-04** (TBD→canonical; language: "Language: English" added except for SPEC-09) |
+| P0-3 | Create `MISSING-PARTS-REPORT.md` | Canonicalize the raw inventory from Section 3 of `SYSTEM-AUDIT-REPORT.md` | File (~24 KB / 596 lines) | 1 d | **CLOSED 2026-07-04** (43 items: 28 F + 6 N + 6 H + 3 D; §6 status log + §7 cross-links + §8 statistics). |
+| P0-4 | Create `SPEC-IMPLEMENTATION-STATUS.md` | A 16 SPEC × {complete/partial/missing} matrix | Markdown table | 1 d | **CLOSED 2026-07-04** (13 shipped + 2 partial + 1 design-only; SPEC-12 widget is an outlier with 0 M-reports). |
+| P0-5 | CHANGELOG.md reorg (planning) | Split the 646 KB CHANGELOG per milestone; "Unreleased" + Phase M1300s | Plan + the first split file | 1 d (plan), then incremental | **CLOSED 2026-07-04 (PLAN)** — `docs/CHANGELOG-REORG-PLAN.md` (12.4 KB / 312 lines) created. Target: slicing into M-ranges of 100, with tools/changelog-split + tools/changelog-lint tooling. **Implementation steps** (4 PRs, 2-4 d): (PR-1) `tools/changelog-split`, (PR-2) `tools/changelog-lint`, (PR-3) reorg, (PR-4) ops migration helper. Main CHANGELOG.md → 50 KB target. |
+| P0-6 | Verify the CI gate | Is `make check` (Windows-safe equivalent) green? | `make check` output in the PR | 0.5 d | **CLOSED 2026-07-04** — `jsonschemagen`, `go vet ./...`, `depscheck` (24 deps OK), `sdkparity -check` (after regen), `npm test` (1453/1453 passed, 176 files), `npm run typecheck`, `npm run build` (390 ms, 2167 modules), `go test -count=1 -p=1 -short ./...` (all packages green), `tools/deadcodecheck` (**OK: no unexpected dead code**), `staticcheck ./...` (**clean**). NOTE: The first parallel `go test ./...` produced a socket-buffer error on Windows (`TestRunsList_RowCarriesAnswerPreview`); it was fixed with `-p=1` — expected behavior on Windows (NEXT.md §Current Validation Commands). |
+| P0-7 | Verify `.dev-home/.gitignore` | Is `sandbox/projects/weather-card/.deps/` git-ignored? | Output + fix PR | 0.5 d | **CLOSED 2026-07-04** — With the `.dev-home/` pattern at line 101 of the root `.gitignore`, all runtime state (config.json, creds.json, agentgw.secret, journal, datalake, sandbox `.deps/`, etc.) is already covered. |
 
-### 2.2 Demo Gate (Phase 0 → Phase 1 arası)
+### 2.2 Demo Gate (between Phase 0 → Phase 1)
 
-- `git worktree list` çıktısı ana dizine paralel **yalnızca 1 + 1** (kanalizasyon).
-- 16 SPEC başlığı canonical biçimde.
-- 3 ana doküman üçlüsü (`REPORT`/`AUDIT`/`PLAN`) PR-ready.
-- CHANGELOG reorg planı üretildi; ayrı owner onayı / uygulama PR'ı bekliyor.
+- `git worktree list` output shows **only 1 + 1** parallel to the main directory (plumbing).
+- The 16 SPEC headers are in canonical form.
+- The 3 main document trio (`REPORT`/`AUDIT`/`PLAN`) is PR-ready.
+- The CHANGELOG reorg plan is produced; awaiting separate owner approval / implementation PR.
 
-### 2.3 Sahiplik
+### 2.3 Ownership
 
-| ID | Sahip | Not |
+| ID | Owner | Note |
 |---|---|---|
-| P0-1 | ops-hygiene | `git worktree prune` + (19) `git worktree remove --force`. PR açıp `WORKTREE-ASSESSMENT.md`'i "stale" listesinden temizle. |
-| P0-2 | docs-curator | 16 dosya başlığını güncelle; SPEC-09 ve SPEC-11'i özellikle doğrula (V0.1 TBD). |
-| P0-3 | bu oturumdaki agent | `MISSING-PARTS-REPORT.md` hemen üretilebilir; SYSTEM-AUDIT-REPORT §3'ü kopyala-yapıştır. |
-| P0-4 | docs-curator | Yeni matris; SPEC'lere cross-link ekle. |
-| P0-5 | release-mgr | M1300+ için önce "Unreleased" blokunu sabitle. |
-| P0-6 | her agent | PR'da otomatik gate. |
+| P0-1 | ops-hygiene | `git worktree prune` + (19) `git worktree remove --force`. Open a PR and clean `WORKTREE-ASSESSMENT.md` of its "stale" list. |
+| P0-2 | docs-curator | Update the 16 file headers; verify SPEC-09 and SPEC-11 in particular (V0.1 TBD). |
+| P0-3 | the agent in this session | `MISSING-PARTS-REPORT.md` can be produced immediately; copy-paste SYSTEM-AUDIT-REPORT §3. |
+| P0-4 | docs-curator | New matrix; add cross-links to the SPECs. |
+| P0-5 | release-mgr | For M1300+, first pin down the "Unreleased" block. |
+| P0-6 | every agent | Automatic gate in the PR. |
 | P0-7 | ops-hygiene | `.gitignore` test: `git check-ignore -v .dev-home/sandbox/projects/weather-card/.deps/numpy/__init__.py` |
 
 ---
 
-## 3. Phase 1 — Dilim ve Refactor (Sıradaki 1-2 sprint)
+## 3. Phase 1 — Slices and Refactors (Next 1-2 sprints)
 
-**Hedef:** Mevcut branch'i (`refactor/c4-agentdetail-phase0`) temizle; sıradaki refactor dilimini seç; NEXT takip işlerini kapat.
+**Goal:** Clean up the current branch (`refactor/c4-agentdetail-phase0`); pick the next refactor slice; close the NEXT follow-up items.
 
-### 3.1 Dilimler (board)
+### 3.1 Slices (board)
 
-| ID | Refactor / Kalem | Kaynak plan | Çıktı | Süre |
+| ID | Refactor / Item | Source plan | Output | Duration |
 |---|---|---|---|---|
-| P1-A | **C4 — Chat decomposition** | `docs/REFACTOR-C4-CHAT-DECOMPOSITION.md` (mevcut branch) | PR mergable | devam | **IN-PROGRESS 2026-07-04** — P0 barrel shim tamamlandı: `frontend/src/views/Chat.tsx` → barrel, gerçek içerik `frontend/src/views/Chat/Chat.tsx`, `frontend/src/views/Chat/index.tsx` eklendi. Ardından mekanik dilimler çıkarıldı: `frontend/src/views/Chat/message.tsx` (message grubu) + `frontend/src/views/Chat/context.tsx` (`barTone`, `ContextChip`, `ContextModal`, `CompactionNote`) + `frontend/src/views/Chat/pickers.tsx` (`ExecutionProfilePicker`, `ConversationPersona`, `PromptLauncher`, `FallbackNote`, `SummaryDivider`, `SteerNote`, `TurnMeta`) + `frontend/src/views/Chat/conversation.tsx` (`ConversationItem`, `QueuePanel`, `EmptyState`, `lastAssistantTools`). **P5 başlangıcı da atıldı:** `frontend/src/views/Chat/useChatSession.ts` eklendi; ardından alt-hook extraction ilerledi: `frontend/src/views/Chat/useComposer.ts`, `frontend/src/views/Chat/useVoice.ts`, `frontend/src/views/Chat/useContextWindow.ts`, `frontend/src/views/Chat/useConversationRouting.ts`, `frontend/src/views/Chat/useSteering.ts`, `frontend/src/views/Chat/useConversationControls.ts` eklendi. `Chat/Chat.tsx` artık yerel UI state/effect/handler kümelerinin büyük kısmını bu hook'lardan destructure ediyor. Root dosya tüm bu modülleri import/re-export ederek test yüzeyini koruyor. Gate: `npm run typecheck`, 11 Chat testi, **tam `npm test` frontend suite** ve `npm run build` yeşil. **P5'in planlanan alt-dilimleri tamamlandı.** Sonraki adım: `C4-clean` (import/comment kalıntıları) veya gerekiyorsa `useExecutionProfile` / `usePersona` gibi daha mikro özel hook’lar. |
-| P1-B | **A3 — kernel/httpserver extraction** | `docs/REFACTOR-A3-HTTPSERVER-PLAN.md` | Yeni paket, geriye-uyumlu import | 3-5 g |
-| P1-C | **B5 — auth split** | `docs/REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md` | Auth middleware ayrımı | 3-5 g |
-| P1-D | **C2 — lib/ keep-vs-colocate** | `docs/REFACTOR-C2-LIB-CLASSIFICATION.md` | Classification rule, PR | 2 g |
-| P1-E | **N-1 workflow→agent wake** | NEXT §2 son | Yeni wake subject wiring | 1-2 g |
-| P1-F | **N-5 config center per-agent** | NEXT §5 | `kernel/controlplane/configcenter_handler.go` UI genişletme + test | 2 g |
+| P1-A | **C4 — Chat decomposition** | `docs/REFACTOR-C4-CHAT-DECOMPOSITION.md` (current branch) | PR mergeable | ongoing | **IN-PROGRESS 2026-07-04** — The P0 barrel shim is complete: `frontend/src/views/Chat.tsx` → barrel, real content in `frontend/src/views/Chat/Chat.tsx`, `frontend/src/views/Chat/index.tsx` added. Mechanical slices were then extracted: `frontend/src/views/Chat/message.tsx` (message group) + `frontend/src/views/Chat/context.tsx` (`barTone`, `ContextChip`, `ContextModal`, `CompactionNote`) + `frontend/src/views/Chat/pickers.tsx` (`ExecutionProfilePicker`, `ConversationPersona`, `PromptLauncher`, `FallbackNote`, `SummaryDivider`, `SteerNote`, `TurnMeta`) + `frontend/src/views/Chat/conversation.tsx` (`ConversationItem`, `QueuePanel`, `EmptyState`, `lastAssistantTools`). **P5 has also been started:** `frontend/src/views/Chat/useChatSession.ts` was added; sub-hook extraction then progressed: `frontend/src/views/Chat/useComposer.ts`, `frontend/src/views/Chat/useVoice.ts`, `frontend/src/views/Chat/useContextWindow.ts`, `frontend/src/views/Chat/useConversationRouting.ts`, `frontend/src/views/Chat/useSteering.ts`, `frontend/src/views/Chat/useConversationControls.ts` added. `Chat/Chat.tsx` now destructures most of the local UI state/effect/handler sets from these hooks. The root file preserves the test surface by importing/re-exporting all of these modules. Gate: `npm run typecheck`, 11 Chat tests, the **full `npm test` frontend suite**, and `npm run build` are green. **The planned sub-slices of P5 are complete.** Next step: `C4-clean` (leftover imports/comments) or, if needed, more micro-specific hooks such as `useExecutionProfile` / `usePersona`. |
+| P1-B | **A3 — kernel/httpserver extraction** | `docs/REFACTOR-A3-HTTPSERVER-PLAN.md` | New package, backward-compatible import | 3-5 d |
+| P1-C | **B5 — auth split** | `docs/REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md` | Auth middleware separation | 3-5 d |
+| P1-D | **C2 — lib/ keep-vs-colocate** | `docs/REFACTOR-C2-LIB-CLASSIFICATION.md` | Classification rule, PR | 2 d |
+| P1-E | **N-1 workflow→agent wake** | NEXT §2 end | New wake subject wiring | 1-2 d |
+| P1-F | **N-5 config center per-agent** | NEXT §5 | `kernel/controlplane/configcenter_handler.go` UI extension + tests | 2 d |
 
-### 3.2 Öncelik ve Bağımlılık
+### 3.2 Priority and Dependencies
 
 ```
-P1-A (devam) → P1-D (classification) → P1-B (httpserver) → P1-C (auth split)
-P1-E, P1-F (NEXT takip işleri) → herhangi bir dilimde paralel yapılabilir
-P1-G (doğrulama gate) — her dilimden sonra `make check`
+P1-A (ongoing) → P1-D (classification) → P1-B (httpserver) → P1-C (auth split)
+P1-E, P1-F (NEXT follow-up items) → can be done in parallel with any slice
+P1-G (verification gate) — `make check` after every slice
 ```
 
 ### 3.3 Demo Gate
 
-- C4 PR mergable (varsa birden fazla alt-PR).
-- A3 PR mergable, B5 PR mergable.
-- N-1, N-5 kapandı.
-- `make check` her dilimde yeşil.
+- C4 PR mergeable (with multiple sub-PRs if needed).
+- A3 PR mergeable, B5 PR mergeable.
+- N-1, N-5 closed.
+- `make check` green on every slice.
 
-### 3.4 Sahiplik
+### 3.4 Ownership
 
-- **Dilim sahipleri** ayrı agent/PR; her PR "phase" etiketi ile.
-- P1-E için `kernel/controlplane/standing.go` ve `kernel/workflow` arasındaki wake-subject wiring'i incele; `standing_fired`'daki runbook builder'a benzer şekilde "workflow_fired" oluştur.
-- P1-F için `frontend/src/components/AgentDetail.tsx`'in Diagnostics tab'ına 4'lü açık görünüm.
+- **Slice owners** are separate agents/PRs; every PR carries a "phase" label.
+- For P1-E, examine the wake-subject wiring between `kernel/controlplane/standing.go` and `kernel/workflow`; create a "workflow_fired" analogous to the runbook builder in `standing_fired`.
+- For P1-F, a four-way explicit view in the Diagnostics tab of `frontend/src/components/AgentDetail.tsx`.
 
 ---
 
-## 4. Phase 2 — Görünür Kapılar (Eksen A, 0-60 gün)
+## 4. Phase 2 — Visible Gates (Axis A, 0-60 days)
 
-**Hedef:** OpenClaw'ın mobil/tepsi ayrıcalığını, Hermes'in LLM curator'unu, canlı tarayıcı sekmesini karşıla. Pazar penceresi daralıyor.
+**Goal:** Match OpenClaw's mobile/tray advantage, Hermes's LLM curator, and the live browser tab. The market window is narrowing.
 
-### 4.1 P0 Öncelikli Dilimler
+### 4.1 P0 Priority Slices
 
-| ID | Eksik | Sprint / süre | Çıktı | Sahiplik |
+| ID | Missing item | Sprint / duration | Output | Ownership |
 |---|---|---|---|---|
-| P2-A | **F-3 Canlı tarayıcı sekmesi** | 8-10 g | `browser.action`'ı kalıcı Chromium tab process'e çıkar; DOM stale-ref invalidation; E2E fixture | browser-tool owner + browseruse skill owner |
-| P2-B | **F-4 LLM Skill Curator** (shadow mod) | 6-8 g | `kernel/skill/curator_llm.go`: kullanım metrikleri üzerinden patch/consolidate **öneren** LLM job; asla silmez | skill kernel owner |
-| P2-C | **F-1 Mobil companion (PWA)** | 5-7 g | Web UI'dan PWA; push notification opt-in; share-target; onay/inbox/run-durumu | webui owner |
-| P2-D | **F-2 Masaüstü tepsi companion** | 5-7 g | Küçük Go binary; node registry'den daemon'a bağlan; onaylar, tünel, HALT butonu | cli owner |
+| P2-A | **F-3 Live browser tab** | 8-10 d | Promote `browser.action` to a persistent Chromium tab process; DOM stale-ref invalidation; E2E fixtures | browser-tool owner + browseruse skill owner |
+| P2-B | **F-4 LLM Skill Curator** (shadow mode) | 6-8 d | `kernel/skill/curator_llm.go`: an LLM job that **proposes** patches/consolidation based on usage metrics; never deletes | skill kernel owner |
+| P2-C | **F-1 Mobile companion (PWA)** | 5-7 d | PWA from the Web UI; push notification opt-in; share-target; approvals/inbox/run-status | webui owner |
+| P2-D | **F-2 Desktop tray companion** | 5-7 d | Small Go binary; connects to the daemon from the node registry; approvals, tunnel, HALT button | cli owner |
 
-### 4.2 P1 Dilimler (paralel)
+### 4.2 P1 Slices (parallel)
 
-| ID | Eksik | Sprint / süre | Çıktı | Sahiplik |
+| ID | Missing item | Sprint / duration | Output | Ownership |
 |---|---|---|---|---|
-| P2-E | **F-6 VSCode eklentisi (asgari)** | 8-10 g | VSCode marketplace'e yayınlanabilir paket; ACP üzerinden bağlanır | acp owner |
-| P2-F | **F-9 Bağlam `@` referansları + AGENTS.md/CLAUDE.md/SOUL.md injection-taramalı import** | 6-8 g | `chat_summarize`/`@mention` parser; secure loader (injection tarama) | chat owner |
+| P2-E | **F-6 VSCode extension (minimal)** | 8-10 d | A package publishable to the VSCode marketplace; connects over ACP | acp owner |
+| P2-F | **F-9 Context `@` references + injection-scanned import of AGENTS.md/CLAUDE.md/SOUL.md** | 6-8 d | `chat_summarize`/`@mention` parser; secure loader (injection scanning) | chat owner |
 
 ### 4.3 Demo Gate
 
-- **F-3**: E2E test: open page → inspect → click → type → wait → screenshot (with persistent tab session); M-fazı (`PHASE-M???-BROWSER-LIVE-TAB-REPORT.md`) ile.
-- **F-4**: Shadow curator önerisi → kullanıcı onayı → `skill.shadow_eval` → active; bir skill üzerinde tam dolaşım.
-- **F-1**: PWA Android Chrome'da yüklenebilir; share-target çalışır.
-- **F-2**: macOS menü çubuğu + Windows tray binary çalışır.
+- **F-3**: E2E test: open page → inspect → click → type → wait → screenshot (with persistent tab session); via the M-phase (`PHASE-M???-BROWSER-LIVE-TAB-REPORT.md`).
+- **F-4**: Shadow curator proposal → user approval → `skill.shadow_eval` → active; a full round trip on one skill.
+- **F-1**: PWA installable in Android Chrome; share-target works.
+- **F-2**: macOS menu bar + Windows tray binary work.
 - **F-6**: VSCode `Agezt` view; chat & run drill.
-- **F-9**: Chat'te `@file.txt` → dosya içeriği context'e enjekte edilir; AGENTS.md'den tanımlar yüklenir.
+- **F-9**: `@file.txt` in chat → file content injected into context; definitions loaded from AGENTS.md.
 
-### 4.4 Sahiplik
+### 4.4 Ownership
 
-- F-3 → `plugins/tools/browser/` + `plugins/builtinskills/browseruse/` (iki paket; interface'i yeni `BrowserTool.Driver` ile).
-- F-4 → `kernel/skill/curator*`; LLM-judge için `cmd/agt` veya standalone CLI.
-- F-1 → `frontend/` PWA manifesti; Service Worker ekleme.
-- F-2 → Yeni `cmd/tray/`.
-- F-6 → Yeni `ide-plugins/vscode/` (multi-repo).
+- F-3 → `plugins/tools/browser/` + `plugins/builtinskills/browseruse/` (two packages; with the interface via a new `BrowserTool.Driver`).
+- F-4 → `kernel/skill/curator*`; `cmd/agt` or a standalone CLI for the LLM judge.
+- F-1 → `frontend/` PWA manifest; add a Service Worker.
+- F-2 → New `cmd/tray/`.
+- F-6 → New `ide-plugins/vscode/` (multi-repo).
 - F-9 → `frontend/src/views/Chat.tsx` parser + `kernel/runtime/context_budget` loader.
 
 ---
 
-## 5. Phase 3 — Jarvis Farklılaştırıcıları (Eksen B, 60-120+ gün)
+## 5. Phase 3 — Jarvis Differentiators (Axis B, 60-120+ days)
 
-**Hedef:** Rakipleri geçen — derin araştırma, anticipatory, society-of-agents prod.
+**Goal:** Surpass the competitors — deep research, anticipatory autonomy, society-of-agents.
 
-### 5.1 Dilimler
+### 5.1 Slices
 
-| ID | Eksik | Sprint | Çıktı | Sahiplik |
+| ID | Missing item | Sprint | Output | Ownership |
 |---|---|---|---|---|
-| P3-A | **F-11 Derin araştırma harness'i** | 12-15 g | `plugins/tools/research/` + `plugins/tools/council/` + `plugins/tools/conductor/` birleşik: çok-kaynaklı fan-out → derin okuma → adversarial doğrulama → alıntılı sentez | research-tool owner |
-| P3-B | **F-14 K8s job lifecycle** | 8-10 g | `kernel/runtime/exec_profile/k8s.go`; pod lifecycle, exit handling, artifact fetch | exec-profile owner |
-| P3-C | **F-12 Anticipatory otonomi** | 10-12 g | Pulse observer'ı; worldmodel'den "hazır taslak" türetir; öneri subject yayınlar | pulse owner |
-| P3-D | **F-13 Society-of-agents prod** | 12-15 g | Council.tsx + Conductor.tsx canlı çok-ajanlı muhakeme + workboard lane + delegasyon grafiği | workflow owner + frontend owner |
+| P3-A | **F-11 Deep research harness** | 12-15 d | `plugins/tools/research/` + `plugins/tools/council/` + `plugins/tools/conductor/` combined: multi-source fan-out → deep reading → adversarial verification → cited synthesis | research-tool owner |
+| P3-B | **F-14 K8s job lifecycle** | 8-10 d | `kernel/runtime/exec_profile/k8s.go`; pod lifecycle, exit handling, artifact fetch | exec-profile owner |
+| P3-C | **F-12 Anticipatory autonomy** | 10-12 d | A Pulse observer; derives a "ready draft" from worldmodel; publishes a proposal subject | pulse owner |
+| P3-D | **F-13 Society-of-agents prod** | 12-15 d | Council.tsx + Conductor.tsx live multi-agent reasoning + workboard lanes + delegation graph | workflow owner + frontend owner |
 
 ### 5.2 Demo Gate
 
-- **F-11**: Bir araştırma görevi (örn. "AGEZT'i OpenClaw ile karşılaştır") → 5+ kaynak, çelişki tablosu, citation'lı yanıt.
-- **F-14**: `agt run --exec-profile k8s` ile bir pod'da çalışan run, artifact'lar pod'dan geri alınır.
-- **F-12**: Bir pulse observer "yarın toplantın var" çıktısı 1 saat önceden kullanıcıya ulaşır.
-- **F-13**: Bir karmaşık görev (örn. "kitap araştır + bölüm özetini PDF yap") council + conductor ile dağılır, workboard lane'ler akar, sonuç birleşir.
+- **F-11**: A research task (e.g. "compare AGEZT with OpenClaw") → 5+ sources, a contradiction table, a cited answer.
+- **F-14**: A run executing in a pod via `agt run --exec-profile k8s`, with artifacts fetched back from the pod.
+- **F-12**: A pulse observer's "you have a meeting tomorrow" output reaches the user one hour in advance.
+- **F-13**: A complex task (e.g. "research a book + turn the chapter summary into a PDF") is distributed via council + conductor, workboard lanes flow, and the result merges.
 
 ---
 
-## 6. Phase 4 — Tasarım Aşamasındaki Backlog (Phase 0'ı kapatır, sonra yıllık rotasyona girer)
+## 6. Phase 4 — Design-Stage Backlog (Closes Phase 0, then enters annual rotation)
 
-**Giriş:** SPEC-12/13/14/15/16 içinde "Phase 6/8" işaretli; bunlar Phase 0–3 kapandıkça serbest bırakılır.
+**Entry:** Marked "Phase 6/8" inside SPEC-12/13/14/15/16; these are released as Phases 0–3 close.
 
-### 6.1 Dilimler
+### 6.1 Slices
 
-| ID | Eksik | SPEC | Phase | Not |
+| ID | Missing item | SPEC | Phase | Note |
 |---|---|---|---|---|
-| P4-A | F-15 Saga / compensation birinci-sınıf | SPEC-14 §1 | Phase 6 | `kernel/runtime/saga/`; declarative step + reverse step; workflow ile orkestrasyon |
-| P4-B | F-16 Multi-tenant RBAC granüler rol | SPEC-14 §4 | Phase 6 | `kernel/edict/dimension_user.go`; rol/grup ile policy |
-| P4-C | F-17 Single-instance RBAC + Edict user-dimension | SPEC-14 §4 | Phase 6 | (P4-B ile örtüşür) |
+| P4-A | F-15 First-class saga / compensation | SPEC-14 §1 | Phase 6 | `kernel/runtime/saga/`; declarative step + reverse step; orchestration via workflow |
+| P4-B | F-16 Multi-tenant RBAC granular roles | SPEC-14 §4 | Phase 6 | `kernel/edict/dimension_user.go`; policy by role/group |
+| P4-C | F-17 Single-instance RBAC + Edict user-dimension | SPEC-14 §4 | Phase 6 | (overlaps with P4-B) |
 | P4-D | F-18 Escalation chains | SPEC-14 §6 | Phase 8 | `kernel/alerter/chain.go` |
-| P4-E | F-19 External vault entegrasyonu | SPEC-14 §7 | Phase 8 | Plug-gear vault adapter interface |
+| P4-E | F-19 External vault integration | SPEC-14 §7 | Phase 8 | Plug-gear vault adapter interface |
 | P4-F | F-20 Widget SDK + Sandbox render | SPEC-12 | Phase 5+7+8 | `frontend/src/widgets/`; iframe + CSP |
 | P4-G | F-21 Widget marketplace | SPEC-12 | Phase 8 | `kernel/market` widget loader |
-| P4-H | F-22 Widget scaffold | SPEC-12 | Phase 8 | `tools/create-agezt-plugin` widget mod |
-| P4-I | F-23 Capability eval harness | SPEC-14 §3 | Phase 5 | `cmd/eval/`; scenario + success-rate |
+| P4-H | F-22 Widget scaffold | SPEC-12 | Phase 8 | `tools/create-agezt-plugin` widget mode |
+| P4-I | F-23 Capability eval harness | SPEC-14 §3 | Phase 5 | `cmd/eval/`; scenario + success rate |
 | P4-J | F-24 Eval-driven reflection | SPEC-14 §3 | Phase 8 | `kernel/reflect/` → eval consumer |
 | P4-K | F-25 UI i18n (TR) | SPEC-14 §8 | Phase 8 | `frontend/src/i18n/` + `react-i18next` |
-| P4-L | F-26 OpenTelemetry export | SPEC-14 §9 | Phase 5-8 | `go.opentelemetry.io/otel` entegrasyonu |
+| P4-L | F-26 OpenTelemetry export | SPEC-14 §9 | Phase 5-8 | `go.opentelemetry.io/otel` integration |
 | P4-M | F-27 FinOps views / cost attribution | SPEC-14 §9 | Phase 5-8 | `cmd/agt finops` + dashboard |
 | P4-N | F-28 Codec/encryption auto-rotation | SPEC-14 §7 | Phase 7 | `kernel/creds/rotation.go` policy |
 
-### 6.2 Bu dilimler için ayrı ayrı plan PR'ları beklenmez; her biri Phase 2/3 ile birleştirildiğinde ilerler.
+### 6.2 Separate plan PRs are not expected for these slices; each progresses as it is merged with Phase 2/3.
 
 ---
 
-## 7. NEXT.md Takip İşleri (yukarıdaki dilimlerden hangisine girerse)
+## 7. NEXT.md Follow-up Items (whichever of the slices above they fall into)
 
-| NEXT ID | Hedef | Atandığı Phase | Not |
+| NEXT ID | Goal | Assigned Phase | Note |
 |---|---|---|---|
 | N-1 | Workflow → agent wake | Phase 1 (P1-E) | |
-| N-2 | "Why quieted" audit event | Phase 4 (P4-D ile birlikte) | |
-| N-3 | Guardian schedule düşük-frekans doğrulaması | Phase 4 (P4-D ile birlikte) | |
-| N-4 | Auto-archive destructive yol → owner sign-off | **DEFERRED** — `GRAVEYARD-POLICY.md` ile uyumlu, ayrı PR | |
-| N-5 | Config center per-agent görünürlük | Phase 1 (P1-F) | |
-| N-6 | Yüksek-risk tool APPROVALS per-agent yüzey | Phase 4 (P4-B ile birlikte) | |
+| N-2 | "Why quieted" audit event | Phase 4 (together with P4-D) | |
+| N-3 | Guardian schedule low-frequency verification | Phase 4 (together with P4-D) | |
+| N-4 | Auto-archive destructive path → owner sign-off | **DEFERRED** — consistent with `GRAVEYARD-POLICY.md`, separate PR | |
+| N-5 | Config center per-agent visibility | Phase 1 (P1-F) | |
+| N-6 | High-risk tool APPROVALS per-agent surface | Phase 4 (together with P4-B) | |
 
 ---
 
-## 8. Strateji ve "Ötesi" Fırsatlar
+## 8. Strategy and "Beyond" Opportunities
 
-### 8.1 F-11 (Derin Araştırma Harness) — En Büyük Stratejik Açı
+### 8.1 F-11 (Deep Research Harness) — The Biggest Strategic Angle
 
-`docs/JARVIS-VISION-2026.md` doğru tespit ediyor:
+`docs/JARVIS-VISION-2026.md` identifies it correctly:
 
-> "En büyük 'ötesi' hamlesi: derin araştırma + anticipatory proaktiflik. İkisi de rakiplerde zayıf, AGEZT'in zemini (pulse/worldmodel/workflow/journal) buna hazır."
+> "The single biggest 'beyond' move: deep research + anticipatory proactivity. Both are weak in competitors, and AGEZT's ground (pulse/worldmodel/workflow/journal) is ready for them."
 
-Phase 3'te Phase 2'den ÖNCE başlatılabilir çünkü düşük risk taşıyan bir **research skill**'i olarak prototip edilebilir. Ama deployment sırası Phase 3'te.
+It can be started in Phase 3 BEFORE Phase 2, because it can be prototyped as a low-risk **research skill**. But its deployment order is in Phase 3.
 
-### 8.2 Zamanlama Pencereleri
+### 8.2 Timing Windows
 
-- **Sprint 0**: Phase 0 hygiene (4-5 g)
-- **Sprint 1-2**: Phase 1 dilimleri (10-20 g)
-- **Sprint 3-8**: Phase 2 görünür kapılar (60 g)
-- **Sprint 9-12**: Phase 3 Jarvis farklılaştırıcıları (60+ g)
-- **Phase 4 backlog**: Sprint 5+ ile paralel
-
----
-
-## 9. Çapraz Dokümanlar
-
-Bu plan şu kaynaklarla tutarlı olmalı:
-
-- **`docs/SYSTEM-AUDIT-REPORT.md`** — ham envanter ve sayısal zemin.
-- **`docs/MISSING-PARTS-REPORT.md`** — kalem bazlı envanter.
-- **`docs/JARVIS-VISION-2026.md`** — strateji ve Eksen A/B.
-- **`docs/OPENCLAW-HERMES-ROADMAP.md`** — rakip parite ve Phase 1-2 sıralaması.
-- **`docs/REFACTORING-INDEX.md`** — A1/A2/A3/B5/C2/C4 dilimleri.
-- **`docs/GRAVEYARD-POLICY.md`** — N-4 için sign-off barı.
-- **`docs/NEXT.md`** — top priorities + Immediate Context (komşu koruyucu).
-
-Bir kalem taşınırsa, **diğer dokümanlar da güncellenmeli**. PR'da tek dosya değişikliği policy dışıdır.
+- **Sprint 0**: Phase 0 hygiene (4-5 d)
+- **Sprint 1-2**: Phase 1 slices (10-20 d)
+- **Sprint 3-8**: Phase 2 visible gates (60 d)
+- **Sprint 9-12**: Phase 3 Jarvis differentiators (60+ d)
+- **Phase 4 backlog**: in parallel with Sprint 5+
 
 ---
 
-## 10. Kapanış
+## 9. Cross-Documents
 
-Bu plan, AGEZT'in bir **agentic operating system**'den **Jarvis-class proaktif operatör asistanı**'na evrilmesinin **ilk somut yol haritasıdır**. Tüm kalemler kod-tabani kanıta, dosya referansına ve SPEC ↔ commit eşlemesine dayanır. Dış fetch başarısız olduğundan rakip iddiaları repo-içi dokümanlarla sınırlıdır.
+This plan must stay consistent with these sources:
 
-**İlk Sprint:** Phase 0 (4-5 gün) → Phase 1 dilimlerinden 1-2'sini (en azından C4'ün devamı ve N-1).
+- **`docs/SYSTEM-AUDIT-REPORT.md`** — raw inventory and numerical baseline.
+- **`docs/MISSING-PARTS-REPORT.md`** — item-level inventory.
+- **`docs/JARVIS-VISION-2026.md`** — strategy and Axis A/B.
+- **`docs/OPENCLAW-HERMES-ROADMAP.md`** — competitor parity and Phase 1-2 ordering.
+- **`docs/REFACTORING-INDEX.md`** — the A1/A2/A3/B5/C2/C4 slices.
+- **`docs/GRAVEYARD-POLICY.md`** — the sign-off bar for N-4.
+- **`docs/NEXT.md`** — top priorities + Immediate Context (neighbor guard).
 
-**Phase 2'ye giriş koşulu:** P0-A/B/C/D closed + `make check` yeşil + hiçbir stale worktree.
-
-**Başarı metriği (6 ay sonra):** (a) F-3 + F-4 + F-6 canlı, (b) Ekim 2026'ya kadar en az 1 stable release, (c) dış kaynak markete en az 50 yayınlanmış skill.
+If an item moves, **the other documents must be updated too**. A single-file change in a PR is out of policy.
 
 ---
 
-*Bu plan `docs/NEXT.md` §0 referansını kapatır. Revizyon notları `MISSING-PARTS-REPORT.md`'deki Kalem-Statü tablosunda yaşar.*
+## 10. Closing
+
+This plan is the **first concrete roadmap** for AGEZT's evolution from an **agentic operating system** into a **Jarvis-class proactive operator assistant**. All items rest on code-base evidence, file references, and SPEC ↔ commit mapping. Since external fetch fails, competitor claims are limited to in-repo documents.
+
+**First Sprint:** Phase 0 (4-5 days) → 1-2 of the Phase 1 slices (at minimum the continuation of C4 and N-1).
+
+**Entry condition for Phase 2:** P0-A/B/C/D closed + `make check` green + no stale worktrees.
+
+**Success metric (6 months out):** (a) F-3 + F-4 + F-6 live, (b) at least 1 stable release by October 2026, (c) at least 50 published skills in the external marketplace.
+
+---
+
+*This plan closes the `docs/NEXT.md` §0 reference. Revision notes live in the Item-Status table in `MISSING-PARTS-REPORT.md`.*

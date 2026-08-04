@@ -1,596 +1,596 @@
-# AGEZT — Missing Parts Report (Eksik Parçalar — Ham Envanter)
+# AGEZT — Missing Parts Report (Raw Inventory of Missing Pieces)
 
-> **Tarih:** 2026-07-04 (last updated: 2026-07-06)
-> **Dal:** `main` (HEAD: `ef7b412d`)
-> **Statü:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference; see `docs/SYSTEM-AUDIT-REPORT.md` for current audit state and `docs/MISSING-PARTS-PLAN.md` for the action plan.
-> **Diğer referanslar:** `docs/SYSTEM-AUDIT-REPORT.md`, `docs/MISSING-PARTS-PLAN.md`, `docs/OPENCLAW-HERMES-ROADMAP.md`, `docs/JARVIS-VISION-2026.md`, `docs/REFACTORING-INDEX.md`, `docs/GRAVEYARD-POLICY.md`.
+> **Date:** 2026-07-04 (last updated: 2026-07-06)
+> **Branch:** `main` (HEAD: `ef7b412d`)
+> **Status:** ARCHIVED — Branch `refactor/c4-agentdetail-phase0` merged into `main` and deleted. Content retained for historical reference; see `docs/SYSTEM-AUDIT-REPORT.md` for the current audit state and `docs/MISSING-PARTS-PLAN.md` for the action plan.
+> **Other references:** `docs/SYSTEM-AUDIT-REPORT.md`, `docs/MISSING-PARTS-PLAN.md`, `docs/OPENCLAW-HERMES-ROADMAP.md`, `docs/JARVIS-VISION-2026.md`, `docs/REFACTORING-INDEX.md`, `docs/GRAVEYARD-POLICY.md`.
 
 ---
 
-## 0. Conventions (Sözleşmeler)
+## 0. Conventions
 
-Bu rapor **canonical data sheet**'tir. Her kalem şu şema ile:
+This report is the **canonical data sheet**. Each item follows this schema:
 
 ```
-### F-NN <kalem adı>
-- **Öncelik:** P0 | P1 | P2 | P3
-- **Aşama:** SPEC-YY §X | Jarv-P0/P1/P2 | NEXT §N | Phase-0 hygiene
-- **Durum:** open | in-progress | done | deferred | needs-design
-- **Sahip (rol):** <rol adı>
-- **Kanıt (kod/doküman):**
-  - `<dosya yolu>`
+### F-NN <item name>
+- **Priority:** P0 | P1 | P2 | P3
+- **Phase:** SPEC-YY §X | Jarv-P0/P1/P2 | NEXT §N | Phase-0 hygiene
+- **Status:** open | in-progress | done | deferred | needs-design
+- **Owner (role):** <role name>
+- **Evidence (code/doc):**
+  - `<file path>`
   - `<path-to-doc>.md §X`
-- **M-rapor (varsa):** `PHASE-M???-...-REPORT.md` (disk'te disk taramasıyla doğrulanır)
-- **Bağımlılıklar:** <diğer F-/N- kalemleri, PR'lar>
-- **Açıklama:** <bir paragraf>
-- **Son not:** <YYYY-MM-DD: serbest metin, kapanınca/ertelenince sabitle>
+- **M-report (if any):** `PHASE-M???-...-REPORT.md` (verified on disk by a disk scan)
+- **Dependencies:** <other F-/N- items, PRs>
+- **Description:** <one paragraph>
+- **Last note:** <YYYY-MM-DD: free text; pin when closed or deferred>
 ```
 
-### Kısaltmalar
+### Abbreviations
 
-| Kısaltma | Anlam |
+| Abbreviation | Meaning |
 |---|---|
-| `F-` | Functional gap — kapsam dışı/işlenmemiş özellik (SPEC'de tanımlı). |
-| `N-` | NEXT.md tail item — `NEXT.md`'de açıkça işaretlenen takip işi. |
-| `H-` | Hygiene — repo hygiene ile ilgili kalem (worktree, doküman, CI). |
-| `D-` | Doc gap — sadece dokümantasyon borcu. |
-| `P0`/`P1`/`P2`/`P3` | Öncelik (Phase'lerdeki tanımla eşleşir, bkz. `MISSING-PARTS-PLAN.md`). |
-| **Jarv** | `JARVIS-VISION-2026.md`'daki §6 Eksen A/B referansı. |
+| `F-` | Functional gap — out-of-scope/unaddressed feature (defined in a SPEC). |
+| `N-` | NEXT.md tail item — a follow-up item explicitly marked in `NEXT.md`. |
+| `H-` | Hygiene — an item related to repo hygiene (worktree, docs, CI). |
+| `D-` | Doc gap — documentation debt only. |
+| `P0`/`P1`/`P2`/`P3` | Priority (matches the definition in the Phases, see `MISSING-PARTS-PLAN.md`). |
+| **Jarv** | §6 Axis A/B reference in `JARVIS-VISION-2026.md`. |
 
-### Durum Makinesi
+### State Machine
 
 ```
 open ──▶ in-progress ──▶ done
-     │                  ▶ deferred (gerekçe ile)
-     │                  ▶ needs-design (spesifikasyon tıkandı)
-     └──▶ deferred (gerekçe: örn. dış fetch başarısız, owner sign-off gerek)
+     │                  ▶ deferred (with rationale)
+     │                  ▶ needs-design (spec blocked)
+     └──▶ deferred (rationale: e.g. external fetch failed, owner sign-off required)
 ```
 
-`done` yalnızca commit hash'i ile sabitlenir: `done → commit <hash>`.
+`done` is pinned only with a commit hash: `done → commit <hash>`.
 
 ---
 
-## 1. Sayaç
+## 1. Counter
 
-| Kategori | open | in-progress | needs-design | done | deferred | Toplam |
+| Category | open | in-progress | needs-design | done | deferred | Total |
 |---|---|---|---|---|---|---|
 | F (functional gap) | 20 | 2 | 2 | 0 | 4 | 28 |
 | N (NEXT.md tail)    | 5  | 0 | 0 | 0 | 1 | 6 |
 | H (hygiene)         | 0  | 0 | 0 | 6 | 0 | 6 |
 | D (doc gap)         | 3  | 0 | 0 | 0 | 0 | 3 |
-| **Toplam**          | **28** | **2** | **2** | **6** | **5** | **43** |
+| **Total**          | **28** | **2** | **2** | **6** | **5** | **43** |
 
-> **Not:** Bu sayım dosya revizyonu sırasında güncellenmelidir. "done" olan kalemler için kapatma commit-hash'i §6'da kayıt edilir.
+> **Note:** This count must be updated during a file revision. For "done" items, the closing commit hash is recorded in §6.
 
 ---
 
 ## 2. Functional Gaps (F-N)
 
-### F-01 Mobil companion (PWA)
-- **Öncelik:** P0 (Jarv P0-1)
-- **Aşama:** JARVIS-VISION §6 P0-1, `docs/OPENCLAW-HERMES-ROADMAP.md` Phase 0
-- **Durum:** open
-- **Sahip:** webui-owner (F-01'de)
-- **Kanıt:** Kod tabanında `pwa`/`mobile`/`companion` anahtar kelime eşleşmeleri sıfıra yakın; yalnızca `.dev-home/.../artifacts/index/art-01KWBV0T4C03GXR12WPWABGV7G.json` (artefakt JSON).
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-02 (node registry çekirdeği zaten `kernel/peer` mevcut)
-- **Açıklama:** OpenClaw ayırt edici gücü — iOS/Android push node (PWA veya native), onay/inbox/voice/run-durumu, share-page webhook hedefi. AGEZT'te yok.
-- **Son not:** 2026-07-04 — `frontend/manifest.json` ve Service Worker pattern'i ile başlanabilir.
+### F-01 Mobile companion (PWA)
+- **Priority:** P0 (Jarv P0-1)
+- **Phase:** JARVIS-VISION §6 P0-1, `docs/OPENCLAW-HERMES-ROADMAP.md` Phase 0
+- **Status:** open
+- **Owner:** webui-owner (on F-01)
+- **Evidence:** `pwa`/`mobile`/`companion` keyword matches are near zero in the code base; only `.dev-home/.../artifacts/index/art-01KWBV0T4C03GXR12WPWABGV7G.json` (an artifact JSON).
+- **M-report:** None
+- **Dependencies:** F-02 (the node registry core already exists in `kernel/peer`)
+- **Description:** OpenClaw's distinguishing strength — an iOS/Android push node (PWA or native), approvals/inbox/voice/run-status, share-page webhook target. Absent in AGEZT.
+- **Last note:** 2026-07-04 — can be started with the `frontend/manifest.json` and a Service Worker pattern.
 
-### F-02 Masaüstü tepsi / menü-çubuğu companion
-- **Öncelik:** P0 (Jarv P0-1)
-- **Aşama:** JARVIS-VISION §6 P0-1
-- **Durum:** open
-- **Sahip:** cli-owner
-- **Kanıt:** Kod tabanında "tray" anahtar kelimesi 0; ancak `kernel/peer` peer altyapısı var.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** `kernel/peer` (mevcut)
-- **Açıklama:** Başlat/durdur, sağlık, onaylar, push-to-talk, tünel durumu.
-- **Son not:** 2026-07-04 — Yeni `cmd/tray/` önerilir.
+### F-02 Desktop tray / menu-bar companion
+- **Priority:** P0 (Jarv P0-1)
+- **Phase:** JARVIS-VISION §6 P0-1
+- **Status:** open
+- **Owner:** cli-owner
+- **Evidence:** The "tray" keyword has 0 hits in the code base; however, the `kernel/peer` peer infrastructure exists.
+- **M-report:** None
+- **Dependencies:** `kernel/peer` (existing)
+- **Description:** Start/stop, health, approvals, push-to-talk, tunnel status.
+- **Last note:** 2026-07-04 — a new `cmd/tray/` is recommended.
 
-### F-03 Canlı tarayıcı sekmesi oturumu
-- **Öncelik:** P0 (Jarv P0-2)
-- **Aşama:** JARVIS-VISION §6 P0-2, OPENCLAW-HERMES Phase 1
-- **Durum:** in-progress
-- **Sahip:** browser-tool-owner + browseruse-skill-owner
-- **Kanıt:**
-  - `plugins/tools/browser/browser.go` (346 satır) — wrappers mevcut (`open/snapshot/click/type/wait/screenshot/downloads/cookies/tabs/close`)
-  - `plugins/builtinskills/browseruse/scripts/browse.mjs` (395 satır) — `stale` referansı 0
-- **M-rapor:** Yok (henüz)
-- **Bağımlılıklar:** Browser action provider
-- **Açıklama:** Kalıcı canlı Chromium tab process + DOM stale-ref invalidation + çok-adımlı tab lifecycle eksik; E2E fixture'ları eksik.
-- **Son not:** 2026-07-04 — `BrowserTool.Driver` interface'i için `browse.mjs`'in driver bölümüne bakılacak.
+### F-03 Live browser tab session
+- **Priority:** P0 (Jarv P0-2)
+- **Phase:** JARVIS-VISION §6 P0-2, OPENCLAW-HERMES Phase 1
+- **Status:** in-progress
+- **Owner:** browser-tool-owner + browseruse-skill-owner
+- **Evidence:**
+  - `plugins/tools/browser/browser.go` (346 lines) — wrappers exist (`open/snapshot/click/type/wait/screenshot/downloads/cookies/tabs/close`)
+  - `plugins/builtinskills/browseruse/scripts/browse.mjs` (395 lines) — 0 `stale` references
+- **M-report:** None (yet)
+- **Dependencies:** Browser action provider
+- **Description:** A persistent live Chromium tab process + DOM stale-ref invalidation + a multi-step tab lifecycle are missing; E2E fixtures are missing.
+- **Last note:** 2026-07-04 — the driver part of `browse.mjs` will be looked at for the `BrowserTool.Driver` interface.
 
-### F-04 Skill LLM Curator (shadow mod)
-- **Öncelik:** P0 (Jarv P0-3)
-- **Aşama:** JARVIS-VISION §6 P0-3
-- **Durum:** open
-- **Sahip:** skill-kernel-owner
-- **Kanıt:**
-  - `kernel/skill/` (var)
+### F-04 Skill LLM Curator (shadow mode)
+- **Priority:** P0 (Jarv P0-3)
+- **Phase:** JARVIS-VISION §6 P0-3
+- **Status:** open
+- **Owner:** skill-kernel-owner
+- **Evidence:**
+  - `kernel/skill/` (exists)
   - `PHASE-M401-SKILL-AUTOPROMOTE-REPORT.md` (auto-promote, deterministic)
-  - Hermes'in ayırt edici gücü.
-- **M-rapor:** Yok (henüz)
-- **Bağımlılıklar:** M399-M401 altyapısı
-- **Açıklama:** Yalnızca deterministik küratör var. Shadow-eval ve auto-promote var ama bunlar LLM-judged değil. Hermes parite.
-- **Son not:** 2026-07-04 — LLM-judge bir yardımcı-model olarak gölgede çalışır; asla silmez (her zaman archive/revertable).
+  - Hermes's distinguishing strength.
+- **M-report:** None (yet)
+- **Dependencies:** M399-M401 infrastructure
+- **Description:** Only a deterministic curator exists. Shadow-eval and auto-promote exist, but they are not LLM-judged. Hermes parity.
+- **Last note:** 2026-07-04 — the LLM judge runs in the shadow as a helper model; it never deletes (always archive/revertable).
 
-### F-05 Dolu skill pazarı (ClawHub/agentskills.io)
-- **Öncelik:** P1 (Jarv P1-5)
-- **Aşama:** JARVIS-VISION §6 P1-5
-- **Durum:** open
-- **Sahip:** market-owner
-- **Kanıt:**
-  - `plugins/builtinmarket/` (altyapı)
+### F-05 Populated skill marketplace (ClawHub/agentskills.io)
+- **Priority:** P1 (Jarv P1-5)
+- **Phase:** JARVIS-VISION §6 P1-5
+- **Status:** open
+- **Owner:** market-owner
+- **Evidence:**
+  - `plugins/builtinmarket/` (infrastructure)
   - `kernel/market/` (registry)
-  - `plugins/builtinmarket/...` ve `kernel/market` ile imzalı/BLAKE3 doğrulamalı kurulum hazır.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Trust UX (imza, risk card, scanner bulguları)
-- **Açıklama:** Binlerce paketlik yaşayan hub yok.
+  - Signed/BLAKE3-verified installation is ready via `plugins/builtinmarket/...` and `kernel/market`.
+- **M-report:** None
+- **Dependencies:** Trust UX (signature, risk card, scanner findings)
+- **Description:** There is no living hub with thousands of packages.
 
-### F-06 VSCode IDE eklentisi (asgari)
-- **Öncelik:** P1 (Jarv P1-6)
-- **Aşama:** JARVIS-VISION §6 P1-6
-- **Durum:** open
-- **Sahip:** acp-owner + ext-owner
-- **Kanıt:** `kernel/acp/` ACP yüzeyi mevcut; shipped eklenti yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** ACP server
-- **Açıklama:** VSCode marketplace'e yayınlanabilir paket; ACP üzerinden bağlanır.
+### F-06 VSCode IDE extension (minimal)
+- **Priority:** P1 (Jarv P1-6)
+- **Phase:** JARVIS-VISION §6 P1-6
+- **Status:** open
+- **Owner:** acp-owner + ext-owner
+- **Evidence:** The `kernel/acp/` ACP surface exists; no shipped extension.
+- **M-report:** None
+- **Dependencies:** ACP server
+- **Description:** A package publishable to the VSCode marketplace; connects over ACP.
 
-### F-07 Batch processing yüzeyi (100-1000 paralel)
-- **Öncelik:** P1 (Jarv P1-7)
-- **Aşama:** OPENCLAW-HERMES §6 P1-7
-- **Durum:** open
-- **Sahip:** workflow-owner
-- **Kanıt:** Workflow aracılığıyla dolaylı; kod tabanında doğrudan `batch_*.go` yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** workboard (M-*)
-- **Açıklama:** Doğrudan yüzey yok; workflow ile dolaylı.
+### F-07 Batch processing surface (100-1000 parallel)
+- **Priority:** P1 (Jarv P1-7)
+- **Phase:** OPENCLAW-HERMES §6 P1-7
+- **Status:** open
+- **Owner:** workflow-owner
+- **Evidence:** Indirect via workflow; no direct `batch_*.go` in the code base.
+- **M-report:** None
+- **Dependencies:** workboard (M-*)
+- **Description:** No direct surface; indirect via workflow.
 
-### F-08 Credential pool + otomatik rotasyon
-- **Öncelik:** P1
-- **Aşama:** OPENCLAW-HERMES matrix 🟡
-- **Durum:** open
-- **Sahip:** creds-owner
-- **Kanıt:** `kernel/creds/keyring.go` + 28 dosya (`aws.go`, `sigv4.go`, `machineid_*.go`, `pbkdf2_test.go`, `kdf_known_answer_internal_test.go`, vb.); çoklu anahtar havuzu yok, otomatik rotasyon yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** M172 PBKDF2, M303 nonce
-- **Açıklama:** Tek-anahtar kullanan keyring; havuzlanmış çoklu-anahtar keyring + zaman-tabanlı rotasyon eksik.
+### F-08 Credential pool + automatic rotation
+- **Priority:** P1
+- **Phase:** OPENCLAW-HERMES matrix 🟡
+- **Status:** open
+- **Owner:** creds-owner
+- **Evidence:** `kernel/creds/keyring.go` + 28 files (`aws.go`, `sigv4.go`, `machineid_*.go`, `pbkdf2_test.go`, `kdf_known_answer_internal_test.go`, etc.); no multi-key pool, no automatic rotation.
+- **M-report:** None
+- **Dependencies:** M172 PBKDF2, M303 nonce
+- **Description:** A keyring that uses a single key; a pooled multi-key keyring + time-based rotation is missing.
 
-### F-09 Bağlam `@dosya/klasör/diff/URL` referansları
-- **Öncelik:** P1 (Jarv P1-4)
-- **Aşama:** JARVIS-VISION §6 P1-4
-- **Durum:** open
-- **Sahip:** chat-owner + context-kernel-owner
-- **Kanıt:** Kod tabanında `chat_summarize` var; `@mention` parser yok; AGENTS.md/CLAUDE.md/SOUL.md injection-taramalı import yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** `kernel/runtime/context_budget`
-- **Açıklama:** Hermes'in ayırt edici gücü; şu anda kısmi yok.
+### F-09 Context `@file/folder/diff/URL` references
+- **Priority:** P1 (Jarv P1-4)
+- **Phase:** JARVIS-VISION §6 P1-4
+- **Status:** open
+- **Owner:** chat-owner + context-kernel-owner
+- **Evidence:** `chat_summarize` exists in the code base; no `@mention` parser; no injection-scanned import of AGENTS.md/CLAUDE.md/SOUL.md.
+- **M-report:** None
+- **Dependencies:** `kernel/runtime/context_budget`
+- **Description:** Hermes's distinguishing strength; currently partial or absent.
 
-### F-10 `agt migrate openclaw|hermes` komutu
-- **Öncelik:** P1
-- **Aşama:** SPEC-13 §1.3, ROADMAP Phase 9
-- **Durum:** open
-- **Sahip:** cmd-owner
-- **Kanıt:** `cmd/agt/vault_migrate_test.go` var; gerçek `cmd/agt/migrate.go` yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** SPEC-13 §1.3
-- **Açıklama:** Sadece vault migrate var; OpenClaw/Hermes profile+memory+skill import komutu yok.
+### F-10 `agt migrate openclaw|hermes` command
+- **Priority:** P1
+- **Phase:** SPEC-13 §1.3, ROADMAP Phase 9
+- **Status:** open
+- **Owner:** cmd-owner
+- **Evidence:** `cmd/agt/vault_migrate_test.go` exists; no real `cmd/agt/migrate.go`.
+- **M-report:** None
+- **Dependencies:** SPEC-13 §1.3
+- **Description:** Only vault migration exists; no OpenClaw/Hermes profile+memory+skill import command.
 
-### F-11 Derin araştırma harness'i
-- **Öncelik:** P2 (Jarv P2-8)
-- **Aşama:** JARVIS-VISION §6 P2-8; `docs/DEEP-RESEARCH-HARNESS-PLAN.md`, `docs/DEER-FLOW-IMPLEMENTATION-PLAN.md`
-- **Durum:** needs-design
-- **Sahip:** research-tool-owner + council-owner + conductor-owner
-- **Kanıt:**
-  - `plugins/tools/research/`, `plugins/tools/council/`, `plugins/tools/conductor/` (kısmi)
+### F-11 Deep research harness
+- **Priority:** P2 (Jarv P2-8)
+- **Phase:** JARVIS-VISION §6 P2-8; `docs/DEEP-RESEARCH-HARNESS-PLAN.md`, `docs/DEER-FLOW-IMPLEMENTATION-PLAN.md`
+- **Status:** needs-design
+- **Owner:** research-tool-owner + council-owner + conductor-owner
+- **Evidence:**
+  - `plugins/tools/research/`, `plugins/tools/council/`, `plugins/tools/conductor/` (partial)
   - `docs/DEEP-RESEARCH-HARNESS-PLAN.md` (plan)
   - `docs/DEER-FLOW-IMPLEMENTATION-PLAN.md` (plan)
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Puls e + worldmodel + workflow (mevcut)
-- **Açıklama:** Çok-kaynaklı fan-out → derin okuma → çelişki/adversarial doğrulama → alıntılı sentez. **En büyük stratejik açık.**
+- **M-report:** None
+- **Dependencies:** Pulse + worldmodel + workflow (existing)
+- **Description:** Multi-source fan-out → deep reading → contradiction/adversarial verification → cited synthesis. **The biggest strategic gap.**
 
-### F-12 Anticipatory otonomi
-- **Öncelik:** P2 (Jarv P2-9)
-- **Aşama:** JARVIS-VISION §6 P2-9
-- **Durum:** needs-design
-- **Sahip:** pulse-owner
-- **Kanıt:** Pulse observer + Initiative (M999), Reaper (M903) mevcut.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** worldmodel decay
-- **Açıklama:** pulse + worldmodel + memory → kullanıcının bir sonraki ihtiyacını önceden hazırlama (brifing/taslak/uyarı).
+### F-12 Anticipatory autonomy
+- **Priority:** P2 (Jarv P2-9)
+- **Phase:** JARVIS-VISION §6 P2-9
+- **Status:** needs-design
+- **Owner:** pulse-owner
+- **Evidence:** Pulse observer + Initiative (M999), Reaper (M903) exist.
+- **M-report:** None
+- **Dependencies:** worldmodel decay
+- **Description:** pulse + worldmodel + memory → preparing the user's next need in advance (briefing/draft/alert).
 
-### F-13 Society-of-agents üretimleştirme
-- **Öncelik:** P2 (Jarv P2-10)
-- **Aşama:** JARVIS-VISION §6 P2-10
-- **Durum:** in-progress (UI mevcut)
-- **Sahip:** workflow-owner + frontend-owner
-- **Kanıt:** `frontend/src/views/Council.tsx`, `frontend/src/views/Conductor.tsx` UI mevcut.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-11 (research harness ile yakından bağlantılı)
-- **Açıklama:** Canlı çok-ajanlı muhakeme + delegasyon grafiği + workboard lane entegrasyonu ile olgunlaştırılacak.
+### F-13 Society-of-agents productization
+- **Priority:** P2 (Jarv P2-10)
+- **Phase:** JARVIS-VISION §6 P2-10
+- **Status:** in-progress (UI exists)
+- **Owner:** workflow-owner + frontend-owner
+- **Evidence:** The `frontend/src/views/Council.tsx` and `frontend/src/views/Conductor.tsx` UI exist.
+- **M-report:** None
+- **Dependencies:** F-11 (closely linked to the research harness)
+- **Description:** To be matured with live multi-agent reasoning + a delegation graph + workboard lane integration.
 
 ### F-14 K8s job lifecycle
-- **Öncelik:** P2 (Jarv P2-11)
-- **Aşama:** OPENCLAW-HERMES Phase 1 §Terminal/sandbox; JARVIS-VISION P2-11
-- **Durum:** open
-- **Sahip:** exec-profile-owner
-- **Kanıt:** `kernel/runtime/exec_profile/` (kısmi).
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Lokal/SSH/Daytona exec-profile (mevcut)
-- **Açıklama:** Shell/code_exec routing için pod lifecycle tamamlanmadı.
+- **Priority:** P2 (Jarv P2-11)
+- **Phase:** OPENCLAW-HERMES Phase 1 §Terminal/sandbox; JARVIS-VISION P2-11
+- **Status:** open
+- **Owner:** exec-profile-owner
+- **Evidence:** `kernel/runtime/exec_profile/` (partial).
+- **M-report:** None
+- **Dependencies:** Local/SSH/Daytona exec-profile (existing)
+- **Description:** The pod lifecycle for shell/code_exec routing is not complete.
 
-### F-15 Saga / compensation birinci-sınıf
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §1 Phase 6
-- **Durum:** open
-- **Sahip:** runtime-owner + workflow-owner
-- **Kanıt:** `kernel/runtime`, `kernel/workflow`, `kernel/resume`. Declarative saga model yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** workflow engine
-- **Açıklama:** Temel retry/checkpoint var, full saga ters-invoke hâlâ kısmi.
+### F-15 First-class saga / compensation
+- **Priority:** P3
+- **Phase:** SPEC-14 §1 Phase 6
+- **Status:** open
+- **Owner:** runtime-owner + workflow-owner
+- **Evidence:** `kernel/runtime`, `kernel/workflow`, `kernel/resume`. No declarative saga model.
+- **M-report:** None
+- **Dependencies:** workflow engine
+- **Description:** Basic retry/checkpoint exists; full saga reverse-invocation is still partial.
 
-### F-16 Multi-tenant RBAC granüler rol modeli
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §4 Phase 6; SPEC-09 §6
-- **Durum:** open
-- **Sahip:** tenant-owner + edict-owner
-- **Kanıt:** `kernel/tenant/tenant.go`. Granüler rol yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Edict user-dimension (F-17)
-- **Açıklama:** Multi-tenant var; "tek-kişilik için bunyruk olmayan rol" yok.
+### F-16 Multi-tenant RBAC granular role model
+- **Priority:** P3
+- **Phase:** SPEC-14 §4 Phase 6; SPEC-09 §6
+- **Status:** open
+- **Owner:** tenant-owner + edict-owner
+- **Evidence:** `kernel/tenant/tenant.go`. No granular roles.
+- **M-report:** None
+- **Dependencies:** Edict user-dimension (F-17)
+- **Description:** Multi-tenant exists; there is no "non-burdensome role for a single person".
 
 ### F-17 Single-instance RBAC + Edict user-dimension
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §4 Phase 6
-- **Durum:** deferred (F-16 ile çakışır; F-16 kapandığında aç)
-- **Sahip:** edict-owner
-- **Kanıt:** `kernel/edict/` policy engine mevcut.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-16
-- **Açıklama:** Tek instance içinde çok-kullanıcı modeli.
+- **Priority:** P3
+- **Phase:** SPEC-14 §4 Phase 6
+- **Status:** deferred (overlaps with F-16; reopen when F-16 closes)
+- **Owner:** edict-owner
+- **Evidence:** The `kernel/edict/` policy engine exists.
+- **M-report:** None
+- **Dependencies:** F-16
+- **Description:** A multi-user model within a single instance.
 
 ### F-18 Escalation chains
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §6 Phase 8
-- **Durum:** open
-- **Sahip:** alerter-owner + pulse-owner
-- **Kanıt:** `kernel/alerter/alerter.go`, `kernel/alerter/alerter_test.go` (mevcut).
-- **M-rapor:** Yok
-- **Bağımlılıklar:** channel push (mevcut, M922)
-- **Açıklama:** Alert → ack izleme → kanaldan kanala geçiş; ack tracking.
+- **Priority:** P3
+- **Phase:** SPEC-14 §6 Phase 8
+- **Status:** open
+- **Owner:** alerter-owner + pulse-owner
+- **Evidence:** `kernel/alerter/alerter.go`, `kernel/alerter/alerter_test.go` (existing).
+- **M-report:** None
+- **Dependencies:** channel push (existing, M922)
+- **Description:** Alert → ack tracking → channel-to-channel escalation; ack tracking.
 
-### F-19 External vault entegrasyonu
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §7 Phase 8
-- **Durum:** open
-- **Sahip:** creds-owner + plugin-owner
-- **Kanıt:** `kernel/creds/creds.go`, vault enc + rotate var. Pluggable secret-provider interface yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-28 (rotation)
-- **Açıklama:** Org için pluggable secret backend (HashiCorp Vault, AWS Secrets Manager, vb.).
+### F-19 External vault integration
+- **Priority:** P3
+- **Phase:** SPEC-14 §7 Phase 8
+- **Status:** open
+- **Owner:** creds-owner + plugin-owner
+- **Evidence:** `kernel/creds/creds.go`; vault enc + rotate exist. No pluggable secret-provider interface.
+- **M-report:** None
+- **Dependencies:** F-28 (rotation)
+- **Description:** A pluggable secret backend for orgs (HashiCorp Vault, AWS Secrets Manager, etc.).
 
 ### F-20 Widget SDK + Sandbox render
-- **Öncelik:** P3
-- **Aşama:** SPEC-12 §5-7 (Phase 5+7+8)
-- **Durum:** open
-- **Sahip:** webui-owner + runtime-owner
-- **Kanıt:** SPEC-12; frontend `views/Chat.tsx` Markdown kullanıyor, widget render değil.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Frontend i18n (F-25)
-- **Açıklama:** Sandboxed (iframe + sıkı CSP); widget'lar konuşmayı zenginleştiren interaktif öğeler.
+- **Priority:** P3
+- **Phase:** SPEC-12 §5-7 (Phase 5+7+8)
+- **Status:** open
+- **Owner:** webui-owner + runtime-owner
+- **Evidence:** SPEC-12; the frontend `views/Chat.tsx` uses Markdown, not widget rendering.
+- **M-report:** None
+- **Dependencies:** Frontend i18n (F-25)
+- **Description:** Sandboxed (iframe + strict CSP); widgets are interactive elements that enrich the conversation.
 
 ### F-21 Widget marketplace
-- **Öncelik:** P3
-- **Aşama:** SPEC-12 §4-5 (Phase 8)
-- **Durum:** deferred (F-20 ile bağımlı)
-- **Sahip:** market-owner
-- **Kanıt:** SPEC-12 §4-5.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-20
-- **Açıklama:** Widget'lar için marketplace (F-05 ile paylaşımlı altyapı).
+- **Priority:** P3
+- **Phase:** SPEC-12 §4-5 (Phase 8)
+- **Status:** deferred (dependent on F-20)
+- **Owner:** market-owner
+- **Evidence:** SPEC-12 §4-5.
+- **M-report:** None
+- **Dependencies:** F-20
+- **Description:** A marketplace for widgets (shared infrastructure with F-05).
 
-### F-22 Widget scaffold (`create-agezt-plugin` widget modu)
-- **Öncelik:** P3
-- **Aşama:** SPEC-12 §5 (Phase 8)
-- **Durum:** deferred (F-20-F-21 ile bağımlı)
-- **Sahip:** sdk-owner
-- **Kanıt:** SPEC-12 §5.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-20, F-21
-- **Açıklama:** Scaffolder widget için şablon üretir.
+### F-22 Widget scaffold (`create-agezt-plugin` widget mode)
+- **Priority:** P3
+- **Phase:** SPEC-12 §5 (Phase 8)
+- **Status:** deferred (dependent on F-20-F-21)
+- **Owner:** sdk-owner
+- **Evidence:** SPEC-12 §5.
+- **M-report:** None
+- **Dependencies:** F-20, F-21
+- **Description:** The scaffolder generates a template for widgets.
 
 ### F-23 Capability eval harness
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §3 (Phase 5)
-- **Durum:** open
-- **Sahip:** eval-owner
-- **Kanıt:** SPEC-14 §3.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** M399 shadow-eval
-- **Açıklama:** Tool/skill başarı oranı ölçümü; journal'dan türetilmiş scenario'lar.
+- **Priority:** P3
+- **Phase:** SPEC-14 §3 (Phase 5)
+- **Status:** open
+- **Owner:** eval-owner
+- **Evidence:** SPEC-14 §3.
+- **M-report:** None
+- **Dependencies:** M399 shadow-eval
+- **Description:** Tool/skill success-rate measurement; scenarios derived from the journal.
 
-### F-24 Eval-driven reflection kapaması
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §3 (Phase 8)
-- **Durum:** deferred (F-23 ile bağımlı)
-- **Sahip:** reflect-owner
-- **Kanıt:** SPEC-14 §3.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-23
-- **Açıklama:** Reflection eval sonuçlarını tüketir.
+### F-24 Eval-driven reflection closure
+- **Priority:** P3
+- **Phase:** SPEC-14 §3 (Phase 8)
+- **Status:** deferred (dependent on F-23)
+- **Owner:** reflect-owner
+- **Evidence:** SPEC-14 §3.
+- **M-report:** None
+- **Dependencies:** F-23
+- **Description:** Reflection consumes eval results.
 
-### F-25 UI i18n (TR default'a ek)
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §8 (Phase 8)
-- **Durum:** open
-- **Sahip:** webui-owner
-- **Kanıt:** `frontend/package.json` i18n kütüphanesi yok (i18next, react-intl, @formatjs hepsi yok).
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Yok
-- **Açıklama:** Şu anda hardcoded İngilizce; İngilizce default + Türkçe-ready + locale-aware formatting.
+### F-25 UI i18n (in addition to the TR default)
+- **Priority:** P3
+- **Phase:** SPEC-14 §8 (Phase 8)
+- **Status:** open
+- **Owner:** webui-owner
+- **Evidence:** No i18n library in `frontend/package.json` (i18next, react-intl, @formatjs all absent).
+- **M-report:** None
+- **Dependencies:** None
+- **Description:** Currently hardcoded English; English default + Turkish-ready + locale-aware formatting.
 
 ### F-26 OpenTelemetry export
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §9 (Phase 5-8)
-- **Durum:** open
-- **Sahip:** observability-owner
-- **Kanıt:** `go.sum`'da `otel`/`opentelemetry` yok; SPEC-14 §9.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Yok
-- **Açıklama:** Traces/metrics/logs external collector'a (otel/jaeger/tempo) export.
+- **Priority:** P3
+- **Phase:** SPEC-14 §9 (Phase 5-8)
+- **Status:** open
+- **Owner:** observability-owner
+- **Evidence:** No `otel`/`opentelemetry` in `go.sum`; SPEC-14 §9.
+- **M-report:** None
+- **Dependencies:** None
+- **Description:** Export traces/metrics/logs to an external collector (otel/jaeger/tempo).
 
 ### F-27 FinOps views / cost attribution
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §9 + SPEC-10 §6
-- **Durum:** open
-- **Sahip:** governor-owner
-- **Kanıt:** `kernel/controlplane/budget.go` + `kernel/governor/*budget*.go` (mevcut); "finops"/"cost attribution" anahtar kelimeleri 0.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Cost aggregation store
-- **Açıklama:** Tenant/agent/task başına maliyet dağılımı ve trend.
+- **Priority:** P3
+- **Phase:** SPEC-14 §9 + SPEC-10 §6
+- **Status:** open
+- **Owner:** governor-owner
+- **Evidence:** `kernel/controlplane/budget.go` + `kernel/governor/*budget*.go` (existing); 0 "finops"/"cost attribution" keywords.
+- **M-report:** None
+- **Dependencies:** Cost aggregation store
+- **Description:** Cost attribution and trends per tenant/agent/task.
 
 ### F-28 Codec/encryption auto-rotation lifecycle
-- **Öncelik:** P3
-- **Aşama:** SPEC-14 §7 (Phase 7)
-- **Durum:** open
-- **Sahip:** creds-owner
-- **Kanıt:** `kernel/creds/rotate_test.go` var; automation policy'si yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-19, F-08
-- **Açıklama:** Vault enc key ve API anahtarları için otomatik rotasyon politikası.
+- **Priority:** P3
+- **Phase:** SPEC-14 §7 (Phase 7)
+- **Status:** open
+- **Owner:** creds-owner
+- **Evidence:** `kernel/creds/rotate_test.go` exists; no automation policy.
+- **M-report:** None
+- **Dependencies:** F-19, F-08
+- **Description:** An automatic rotation policy for vault encryption keys and API keys.
 
 ---
 
 ## 3. NEXT.md Tail Items (N-N)
 
 ### N-01 Workflow → agent-node wake
-- **Öncelik:** P1
-- **Aşama:** NEXT §2 son; MISSING-PARTS-PLAN P1-E
-- **Durum:** open
-- **Sahip:** controlplane-owner + workflow-owner
-- **Kanıt:** `kernel/workflow`, `kernel/controlplane` mevcut; `standing_fired`'a benzer `workflow_fired` subject yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** M-1 autonomy runbook
-- **Açıklama:** Bir workflow bir agent'ı direkt uyandırmak için yol yok.
+- **Priority:** P1
+- **Phase:** NEXT §2 end; MISSING-PARTS-PLAN P1-E
+- **Status:** open
+- **Owner:** controlplane-owner + workflow-owner
+- **Evidence:** `kernel/workflow`, `kernel/controlplane` exist; no `workflow_fired` subject analogous to `standing_fired`.
+- **M-report:** None
+- **Dependencies:** M-1 autonomy runbook
+- **Description:** There is no path for a workflow to wake an agent directly.
 
 ### N-02 "Why quieted" audit event
-- **Öncelik:** P3
-- **Aşama:** NEXT §6; MISSING-PARTS-PLAN P4-D
-- **Durum:** open
-- **Sahip:** guardian-owner + alerter-owner
-- **Kanıt:** `plugins/builtinguardians/`, `cmd/agt/doctor.go`.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-18
-- **Açıklama:** Doctor quiet patch fires için `policy.quiet_patch_fired` olayı.
+- **Priority:** P3
+- **Phase:** NEXT §6; MISSING-PARTS-PLAN P4-D
+- **Status:** open
+- **Owner:** guardian-owner + alerter-owner
+- **Evidence:** `plugins/builtinguardians/`, `cmd/agt/doctor.go`.
+- **M-report:** None
+- **Dependencies:** F-18
+- **Description:** A `policy.quiet_patch_fired` event for doctor quiet patch fires.
 
-### N-03 Guardian schedule düşük-frekans doğrulaması
-- **Öncelik:** P3
-- **Aşama:** NEXT §6
-- **Durum:** open
-- **Sahip:** guardian-owner + scheduler-owner
-- **Kanıt:** `plugins/builtinguardians/SeedAll` 8h cooldown.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Yok
-- **Açıklama:** Sürekli tetikleyen guardian olmadığının periyodik doğrulanması (seeder 8h).
+### N-03 Guardian schedule low-frequency verification
+- **Priority:** P3
+- **Phase:** NEXT §6
+- **Status:** open
+- **Owner:** guardian-owner + scheduler-owner
+- **Evidence:** `plugins/builtinguardians/SeedAll` 8h cooldown.
+- **M-report:** None
+- **Dependencies:** None
+- **Description:** Periodic verification that no guardian fires continuously (seeder 8h).
 
-### N-04 Auto-archive (graveyard) destructive yol — sign-off
-- **Öncelik:** P3 → deferred (owner sign-off gerek)
-- **Aşama:** NEXT §7 son; `docs/GRAVEYARD-POLICY.md`
-- **Durum:** deferred (owner sign-off)
-- **Sahip:** roster-owner + owner
-- **Kanıt:** `docs/GRAVEYARD-POLICY.md`, `kernel/controlplane/roster.go`.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Uyumluluk — `docs/GRAVEYARD-POLICY.md`
-- **Açıklama:** Destructive auto-archive için sign-off. Şu an yalnızca **rapor** (graveyard_scan system task).
-- **Son not:** 2026-07-04 — Sign-off gelene kadar defer.
+### N-04 Auto-archive (graveyard) destructive path — sign-off
+- **Priority:** P3 → deferred (owner sign-off required)
+- **Phase:** NEXT §7 end; `docs/GRAVEYARD-POLICY.md`
+- **Status:** deferred (owner sign-off)
+- **Owner:** roster-owner + owner
+- **Evidence:** `docs/GRAVEYARD-POLICY.md`, `kernel/controlplane/roster.go`.
+- **M-report:** None
+- **Dependencies:** Compliance — `docs/GRAVEYARD-POLICY.md`
+- **Description:** Sign-off for destructive auto-archive. Currently only a **report** (graveyard_scan system task).
+- **Last note:** 2026-07-04 — defer until sign-off arrives.
 
-### N-05 Config center per-agent görünürlük (4'lü)
-- **Öncelik:** P1
-- **Aşama:** NEXT §5; MISSING-PARTS-PLAN P1-F
-- **Durum:** open
-- **Sahip:** configcenter-owner + frontend-owner
-- **Kanıt:** `kernel/controlplane/configcenter_handler.go`, `frontend/src/components/AgentDetail.tsx`.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Yok
-- **Açıklama:** owned / shared-allowlisted / hidden secrets / excluded dörtlü.
+### N-05 Config center per-agent visibility (the quad)
+- **Priority:** P1
+- **Phase:** NEXT §5; MISSING-PARTS-PLAN P1-F
+- **Status:** open
+- **Owner:** configcenter-owner + frontend-owner
+- **Evidence:** `kernel/controlplane/configcenter_handler.go`, `frontend/src/components/AgentDetail.tsx`.
+- **M-report:** None
+- **Dependencies:** None
+- **Description:** The owned / shared-allowlisted / hidden secrets / excluded quad.
 
-### N-06 Yüksek-risk tool APPROVALS per-agent yüzey
-- **Öncelik:** P3
-- **Aşama:** NEXT §5; MISSING-PARTS-PLAN P4-B
-- **Durum:** open
-- **Sahip:** controlplane-owner + frontend-owner
-- **Kanıt:** `kernel/agent/agent.go`, `/api/approvals` log; deny'ler per-agent var (M-ın); approvals per-agent yok.
-- **M-rapor:** Yok
-- **Bağımlılıklar:** F-17 (user-dimension)
-- **Açıklama:** Deny'lerin yanı sıra approvals yüzeyi.
+### N-06 High-risk tool APPROVALS per-agent surface
+- **Priority:** P3
+- **Phase:** NEXT §5; MISSING-PARTS-PLAN P4-B
+- **Status:** open
+- **Owner:** controlplane-owner + frontend-owner
+- **Evidence:** `kernel/agent/agent.go`, the `/api/approvals` log; per-agent denies exist (M-…); no per-agent approvals.
+- **M-report:** None
+- **Dependencies:** F-17 (user-dimension)
+- **Description:** An approvals surface in addition to denies.
 
 ---
 
 ## 4. Hygiene Items (H-N)
 
-### H-01 Stale worktree'ler (22 → 1 kilitli)
-- **Öncelik:** P0 (Phase 0 hygiene)
-- **Aşama:** MISSING-PARTS-PLAN P0-1
-- **Durum:** done 2026-07-04 (destructive onay alındı; 1 kilitli kalıntı — reboot/kilit çözümünden sonra temizlenebilir)
-- **Sahip:** ops-hygiene
-- **Kanıt:**
-  - `git worktree list` → 3 worktree (1 ana + deep-research + rebased-main)
-  - Klasör tarama (önceki): 22 klasör
-  - 2026-07-04 tur 1: 16 boş orphan (0-byte) silindi.
-  - 2026-07-04 tur 2 (destructive onay alındıktan sonra): 3 dolu orphan silindi — `anim` (10 MB / 0.1s), `m951-webui-modernize` (161 MB / 1.7s), `ci-verify` (187 MB / 3.5s). **Toplam 358 MB boşaldı.**
-  - **Kalıntı:** `.worktrees/m1002-resume` (0-byte, başka process kilidi — Windows Defender veya SearchService tutuyor olabilir; reboot veya kilit çözümünden sonra tekrar denenebilir).
-- **M-rapor:** Yok
-- **Bağımlılıklar:** Yok
-- **Açıklama:** `git worktree prune` + listelenmeyen worktree'lerin recursive silinmesi. Toplam 19 orphan silindi. Ana hedef olan "git worktree list temizliği + 22→2 orphan azaltma" tamamlandı; son 1 kalıntı zararsız.
+### H-01 Stale worktrees (22 → 1 locked)
+- **Priority:** P0 (Phase 0 hygiene)
+- **Phase:** MISSING-PARTS-PLAN P0-1
+- **Status:** done 2026-07-04 (destructive approval obtained; 1 locked remnant — cleanable after a reboot/lock release)
+- **Owner:** ops-hygiene
+- **Evidence:**
+  - `git worktree list` → 3 worktrees (1 main + deep-research + rebased-main)
+  - Folder scan (previously): 22 folders
+  - 2026-07-04 round 1: 16 empty orphans (0-byte) deleted.
+  - 2026-07-04 round 2 (after destructive approval): 3 populated orphans deleted — `anim` (10 MB / 0.1s), `m951-webui-modernize` (161 MB / 1.7s), `ci-verify` (187 MB / 3.5s). **358 MB freed in total.**
+  - **Remnant:** `.worktrees/m1002-resume` (0-byte, locked by another process — possibly Windows Defender or SearchService; can be retried after a reboot or a lock release).
+- **M-report:** None
+- **Dependencies:** None
+- **Description:** `git worktree prune` + recursive deletion of unlisted worktrees. 19 orphans deleted in total. The main goal — "clean `git worktree list` + reduce 22 → 2 orphans" — is complete; the last remnant is harmless.
 
-### H-02 SPEC başlıkları canonicalize — tamamlandı
-- **Öncelik:** P0 (Phase 0 hygiene)
-- **Aşama:** MISSING-PARTS-PLAN P0-2
-- **Durum:** done → 2026-07-04
-- **Sahip:** docs-curator
-- **Kanıt:** `.project/SPEC-01..16-*.md` — `Status: Active · Domain: github.com/agezt/agezt · License: MIT` (16/16).
-- **Son not:** 2026-07-04 — Tüm 16 SPEC canonicalize edildi.
+### H-02 SPEC headers canonicalized — complete
+- **Priority:** P0 (Phase 0 hygiene)
+- **Phase:** MISSING-PARTS-PLAN P0-2
+- **Status:** done → 2026-07-04
+- **Owner:** docs-curator
+- **Evidence:** `.project/SPEC-01..16-*.md` — `Status: Active · Domain: github.com/agezt/agezt · License: MIT` (16/16).
+- **Last note:** 2026-07-04 — all 16 SPECs canonicalized.
 
-### H-03 SPEC-IMPLEMENTATION-STATUS.md oluştur — tamamlandı
-- **Öncelik:** P1
-- **Aşama:** MISSING-PARTS-PLAN P0-4
-- **Durum:** done → 2026-07-04
-- **Sahip:** docs-curator
-- **Kanıt:** `docs/SPEC-IMPLEMENTATION-STATUS.md` (mevcut, 17.5 KB / 317 satır); 13 shipped + 2 partial + 1 design-only + 0 not-started; SPEC-12 widget 0 M-raporla ayrıksı; §3 çapraz matris (SPEC ↔ F-/N-/H-/D-) eklendi.
-- **Bağımlılıklar:** Yok
-- **Açıklama:** 16 SPEC × {tamamlandı/kısmi/eksik} matrisi.
+### H-03 SPEC-IMPLEMENTATION-STATUS.md created — complete
+- **Priority:** P1
+- **Phase:** MISSING-PARTS-PLAN P0-4
+- **Status:** done → 2026-07-04
+- **Owner:** docs-curator
+- **Evidence:** `docs/SPEC-IMPLEMENTATION-STATUS.md` (exists, 17.5 KB / 317 lines); 13 shipped + 2 partial + 1 design-only + 0 not-started; SPEC-12 widget is an outlier with 0 M-reports; §3 cross matrix (SPEC ↔ F-/N-/H-/D-) added.
+- **Dependencies:** None
+- **Description:** A 16 SPEC × {complete/partial/missing} matrix.
 
-### H-04 CHANGELOG.md reorg planı — tamamlandı (plan only)
-- **Öncelik:** P2
-- **Aşama:** MISSING-PARTS-PLAN P0-5
-- **Durum:** done → 2026-07-04 (plan oluştu; uygulama 4 PR'lık incremental sprint)
-- **Sahip:** release-mgr
-- **Kanıt:** `docs/CHANGELOG-REORG-PLAN.md` (12.4 KB / 312 satır). Plan: 100'lük M-aralıklarla dilimleme; PR-1 `tools/changelog-split`, PR-2 `tools/changelog-lint`, PR-3 dosya yazma, PR-4 migration helper.
-- **Bağımlılıklar:** Yok
-- **Açıklama:** CHANGELOG'u milestone başına bölünmüş dosyalara ayır. **Uygulama** (PR-3) bu plandaki adımlara göre olur; H-04 planı kapsamında done.
+### H-04 CHANGELOG.md reorg plan — complete (plan only)
+- **Priority:** P2
+- **Phase:** MISSING-PARTS-PLAN P0-5
+- **Status:** done → 2026-07-04 (plan created; implementation is a 4-PR incremental sprint)
+- **Owner:** release-mgr
+- **Evidence:** `docs/CHANGELOG-REORG-PLAN.md` (12.4 KB / 312 lines). Plan: slicing into M-ranges of 100; PR-1 `tools/changelog-split`, PR-2 `tools/changelog-lint`, PR-3 file writing, PR-4 migration helper.
+- **Dependencies:** None
+- **Description:** Split the CHANGELOG into per-milestone files. **Implementation** (PR-3) happens per the steps in this plan; H-04 is done within the scope of the plan.
 
-### H-05 `make check` yeşil doğrulaması — tamamlandı
-- **Öncelik:** P0
-- **Aşama:** MISSING-PARTS-PLAN P0-6
-- **Durum:** done → 2026-07-04
-- **Sahip:** her agent (PR gate)
-- **Kanıt:**
+### H-05 `make check` green verification — complete
+- **Priority:** P0
+- **Phase:** MISSING-PARTS-PLAN P0-6
+- **Status:** done → 2026-07-04
+- **Owner:** every agent (PR gate)
+- **Evidence:**
   - `go run ./tools/jsonschemagen` — exit 0
   - `go vet ./...` — exit 0
   - `go run ./tools/depscheck` — "OK: 24 core dependencies, all justified"
-  - `go run ./tools/sdkparity -check docs/SDK-PARITY.md` — exit 0 (re-generate sonrası)
-  - `npm test` (vitest) — 1453/1453 passed, 176 test file (~26 s)
+  - `go run ./tools/sdkparity -check docs/SDK-PARITY.md` — exit 0 (after re-generate)
+  - `npm test` (vitest) — 1453/1453 passed, 176 test files (~26 s)
   - `npm run typecheck` — exit 0
-  - `npm run build` — 390 ms, 2167 modül
-  - `go test -count=1 -p=1 -short ./...` — **tüm paketler yeşil** (~180+ paket)
+  - `npm run build` — 390 ms, 2167 modules
+  - `go test -count=1 -p=1 -short ./...` — **all packages green** (~180+ packages)
   - `go run ./tools/deadcodecheck` — **OK: no unexpected dead code**
   - `staticcheck ./...` — **clean**
-- **Bağımlılıklar:** Yok
-- **Açıklama:** PowerShell eşdeğerini yeşil doğrula. Ana CI gate (test+build+lint+deadcode) yeşil. Windows'ta ilk paralel `go test ./...` socket-buffer hatası verebildiği için `-p=1` ile çalıştırıldı; NEXT.md §Current Validation Commands ile uyumlu.
+- **Dependencies:** None
+- **Description:** Verify the PowerShell equivalent is green. The main CI gate (test+build+lint+deadcode) is green. Since the first parallel `go test ./...` on Windows can produce a socket-buffer error, it was run with `-p=1`; consistent with NEXT.md §Current Validation Commands.
 
-### H-06 `.dev-home/.gitignore` doğrulaması — tamamlandı (zaten ignore ediliyor)
-- **Öncelik:** P1
-- **Aşama:** MISSING-PARTS-PLAN P0-7
-- **Durum:** done → 2026-07-04 (kök `.gitignore` zaten `.dev-home/` ignore ediyor, doğrulandı)
-- **Sahip:** ops-hygiene
-- **Kanıt:** Kök `.gitignore` line 101: `.dev-home/` pattern. `git check-ignore -v` 12 farklı `.dev-home/{config.json,creds.json,agentgw.secret,sandbox/,journal/,datalake/,memory/,roster/,artifacts/...}` path için hepsini IGNORED olarak işaretliyor; `git ls-files` untracked. SYSTEM-AUDIT-REPORT §5.3'teki tahmin doğrulandı.
-- **Bağımlılıklar:** Yok
-- **Açıklama:** `git check-ignore` ile doğrula; ignore değilse `.gitignore` ekle. **Zaten ignore ediliyor — ek bir eylem gerekmez.**
+### H-06 `.dev-home/.gitignore` verification — complete (already ignored)
+- **Priority:** P1
+- **Phase:** MISSING-PARTS-PLAN P0-7
+- **Status:** done → 2026-07-04 (the root `.gitignore` already ignores `.dev-home/`, verified)
+- **Owner:** ops-hygiene
+- **Evidence:** Root `.gitignore` line 101: the `.dev-home/` pattern. `git check-ignore -v` marks all of the 12 different `.dev-home/{config.json,creds.json,agentgw.secret,sandbox/,journal/,datalake/,memory/,roster/,artifacts/...}` paths as IGNORED; `git ls-files` shows them untracked. The estimate in SYSTEM-AUDIT-REPORT §5.3 is verified.
+- **Dependencies:** None
+- **Description:** Verify with `git check-ignore`; add to `.gitignore` if not ignored. **Already ignored — no additional action needed.**
 
 ---
 
 ## 5. Doc Gaps (D-N)
 
-### D-01 `.project/TASKS.md` v0.1 taslak yenileme
-- **Öncelik:** P2
-- **Aşama:** SYSTEM-AUDIT-REPORT §4.3
-- **Durum:** open
-- **Sahip:** docs-curator
-- **Kanıt:** `.project/TASKS.md` (mevcut, "Status: Draft v0.1"); tüm checklist `[ ]` todo.
-- **Bağımlılıklar:** Yok
-- **Açıklama:** 1000+ M-faz raporu ile senkronize değil; ya yeniden yaz ya "archived" işaretle.
+### D-01 `.project/TASKS.md` v0.1 draft refresh
+- **Priority:** P2
+- **Phase:** SYSTEM-AUDIT-REPORT §4.3
+- **Status:** open
+- **Owner:** docs-curator
+- **Evidence:** `.project/TASKS.md` (exists, "Status: Draft v0.1"); all checklist items are `[ ]` todos.
+- **Dependencies:** None
+- **Description:** Not in sync with the 1000+ M-phase reports; either rewrite it or mark it "archived".
 
-### D-02 Yarışan SPEC özetleri (README/SPEC bridge)
-- **Öncelik:** P2
-- **Aşama:** SYSTEM-AUDIT-REPORT §4.5
-- **Durum:** open
-- **Sahip:** docs-curator
-- **Kanıt:** `JARVIS-VISION-2026.md`, `OPENCLAW-HERMES-ROADMAP.md` rakip-parite matrisleri var; ama AGEZT-internal SPEC ↔ kod durum matrisi yok.
-- **Bağımlılıklar:** H-03 ile paylaşımlı
-- **Açıklama:** README'de SPEC-01..16 kısa özet tablosu.
+### D-02 Competing SPEC summaries (README/SPEC bridge)
+- **Priority:** P2
+- **Phase:** SYSTEM-AUDIT-REPORT §4.5
+- **Status:** open
+- **Owner:** docs-curator
+- **Evidence:** `JARVIS-VISION-2026.md`, `OPENCLAW-HERMES-ROADMAP.md` have competitor-parity matrices; but there is no AGEZT-internal SPEC ↔ code status matrix.
+- **Dependencies:** shared with H-03
+- **Description:** A short summary table of SPEC-01..16 in the README.
 
-### D-03 Yarışan geçiş tabloları (`STATUS-*.md`)
-- **Öncelik:** P3
-- **Aşama:** SYSTEM-AUDIT-REPORT §4.4
-- **Durum:** open
-- **Sahip:** docs-curator
-- **Kanıt:** `.project/STATUS-2026-06-03-POST-M{249,255,257,265}.md` (mevcut); yeni milestone geçişleri için canonical format.
-- **Bağımlılıklar:** Yok
-- **Açıklama:** Milestone geçişlerinde status snapshot.
-
----
-
-## 6. Status Log (Kapanmış / Ertelenmiş Kalemler)
-
-Bu bölüm **done** ve **deferred** kalemlerin tarihli kaydını tutar. Yeni kapanan kalemler buraya taşınır.
-
-### Kapalı (done)
-
-| ID | Tarih | Commit | Kapanış notu |
-|---|---|---|---|
-| **H-02** SPEC başlık canonicalize | 2026-07-04 | (bu oturum) | 16/16 SPEC `Active · Domain: github.com/agezt/agezt · License: MIT` (SPEC-09 dışında `Language: English` eklendi). |
-| **H-01** Stale worktree'ler | 2026-07-04 | (bu oturum) | 19 orphan silindi (16 boş + 3 dolu, toplam 358 MB). `git worktree list` temiz: ana + `deep-research` + `rebased-main`. `m1002-resume` (0-byte) Windows process kilidi yüzünden silinemedi (zararsız kalıntı; reboot/kilit çözümünden sonra temizlenebilir). |
-| **H-03** SPEC-IMPLEMENTATION-STATUS.md | 2026-07-04 | (bu oturum) | `docs/SPEC-IMPLEMENTATION-STATUS.md` (17.5 KB / 317 satır); 13 shipped + 2 partial + 1 design-only. |
-| **H-04** CHANGELOG.md reorg planı | 2026-07-04 | (bu oturum) | `docs/CHANGELOG-REORG-PLAN.md` (12.4 KB / 312 satır) oluştu. 646 KB tek dosyayı 100'lük M-aralıklarla dilimleme stratejisi; 4 PR'lık uygulama planı. |
-| **H-05** `make check` yeşil doğrulaması | 2026-07-04 | (bu oturum) | Ana CI gate (test+build+lint+deadcode) YEŞİL: jsonschemagen, vet, depscheck (24 OK), sdkparity (re-gen sonrası), vitest 1453/1453, typecheck, build 390ms, `go test -count=1 -p=1 -short ./...` tüm paketler yeşil, `go run ./tools/deadcodecheck` clean, `staticcheck ./...` clean. |
-| **H-06** `.dev-home/.gitignore` doğrulaması | 2026-07-04 | (bu oturum) | Kök `.gitignore` line 101'deki `.dev-home/` pattern ile tüm runtime state (config.json, creds.json, agentgw.secret, journal, datalake, sandbox, vb.) zaten ignore ediliyor. 12 farklı dosya/dizin için `git check-ignore` hepsi IGNORED, `git ls-files` untracked. |
-
-### Ertelenmiş (deferred)
-
-| ID | Tarih | Gerekçe | Yeniden açma koşulu |
-|---|---|---|---|
-| **F-17** Single-instance RBAC + Edict user-dimension | 2026-07-04 | F-16 ile çakışıyor; F-16 kapanınca aç | F-16 PR'da tamamlanınca |
-| **F-21** Widget marketplace | 2026-07-04 | F-20'e bağımlı | F-20 done olunca |
-| **F-22** Widget scaffold | 2026-07-04 | F-20 + F-21'e bağımlı | F-20 ve F-21 done olunca |
-| **F-24** Eval-driven reflection | 2026-07-04 | F-23'e bağımlı | F-23 done olunca |
-| **N-04** Graveyard destructive auto-archive | 2026-07-04 | `docs/GRAVEYARD-POLICY.md` ile uyumlu; yıkıcı yol için owner sign-off gerek | Owner sign-off + `docs/GRAVEYARD-POLICY.md` policy netleşmesi |
-
-### Disk'te sırası bekleyen (notes/limitations)
-
-- Dış fetch başarısız (project memory `#fetch #github #undici #network`); rakip dokümanları (`openclaw.ai`, `hermes-agent.nousresearch.com`) repo-içi `OPENCLAW-HERMES-ROADMAP.md` üzerinden eşleştirildi.
-- "Sahip (rol)" alanları **operational role** isimleridir; PR açılırken tek bir kişi/agent atanır.
+### D-03 Competing transition tables (`STATUS-*.md`)
+- **Priority:** P3
+- **Phase:** SYSTEM-AUDIT-REPORT §4.4
+- **Status:** open
+- **Owner:** docs-curator
+- **Evidence:** `.project/STATUS-2026-06-03-POST-M{249,255,257,265}.md` (exists); a canonical format for new milestone transitions.
+- **Dependencies:** None
+- **Description:** A status snapshot at milestone transitions.
 
 ---
 
-## 7. Çapraz Doküman Haritası
+## 6. Status Log (Closed / Deferred Items)
 
-| Bu rapor | ↔ | Hedef |
+This section keeps the dated record of **done** and **deferred** items. Newly closed items are moved here.
+
+### Closed (done)
+
+| ID | Date | Commit | Closing note |
+|---|---|---|---|
+| **H-02** SPEC header canonicalization | 2026-07-04 | (this session) | 16/16 SPECs `Active · Domain: github.com/agezt/agezt · License: MIT` (`Language: English` added except for SPEC-09). |
+| **H-01** Stale worktrees | 2026-07-04 | (this session) | 19 orphans deleted (16 empty + 3 populated, 358 MB total). `git worktree list` clean: main + `deep-research` + `rebased-main`. `m1002-resume` (0-byte) could not be deleted because of a Windows process lock (harmless remnant; cleanable after a reboot/lock release). |
+| **H-03** SPEC-IMPLEMENTATION-STATUS.md | 2026-07-04 | (this session) | `docs/SPEC-IMPLEMENTATION-STATUS.md` (17.5 KB / 317 lines); 13 shipped + 2 partial + 1 design-only. |
+| **H-04** CHANGELOG.md reorg plan | 2026-07-04 | (this session) | `docs/CHANGELOG-REORG-PLAN.md` (12.4 KB / 312 lines) created. A strategy to slice the 646 KB single file into M-ranges of 100; a 4-PR implementation plan. |
+| **H-05** `make check` green verification | 2026-07-04 | (this session) | Main CI gate (test+build+lint+deadcode) GREEN: jsonschemagen, vet, depscheck (24 OK), sdkparity (after re-gen), vitest 1453/1453, typecheck, build 390ms, `go test -count=1 -p=1 -short ./...` all packages green, `go run ./tools/deadcodecheck` clean, `staticcheck ./...` clean. |
+| **H-06** `.dev-home/.gitignore` verification | 2026-07-04 | (this session) | With the `.dev-home/` pattern at line 101 of the root `.gitignore`, all runtime state (config.json, creds.json, agentgw.secret, journal, datalake, sandbox, etc.) is already ignored. For 12 different files/dirs, `git check-ignore` marks all IGNORED; `git ls-files` untracked. |
+
+### Deferred
+
+| ID | Date | Rationale | Reopen condition |
+|---|---|---|---|
+| **F-17** Single-instance RBAC + Edict user-dimension | 2026-07-04 | Overlaps with F-16; reopen when F-16 closes | When F-16 completes in a PR |
+| **F-21** Widget marketplace | 2026-07-04 | Dependent on F-20 | When F-20 is done |
+| **F-22** Widget scaffold | 2026-07-04 | Dependent on F-20 + F-21 | When F-20 and F-21 are done |
+| **F-24** Eval-driven reflection | 2026-07-04 | Dependent on F-23 | When F-23 is done |
+| **N-04** Graveyard destructive auto-archive | 2026-07-04 | Consistent with `docs/GRAVEYARD-POLICY.md`; owner sign-off required for the destructive path | Owner sign-off + clarification of the `docs/GRAVEYARD-POLICY.md` policy |
+
+### Awaiting on disk (notes/limitations)
+
+- External fetch failed (project memory `#fetch #github #undici #network`); competitor documents (`openclaw.ai`, `hermes-agent.nousresearch.com`) were matched via the in-repo `OPENCLAW-HERMES-ROADMAP.md`.
+- "Owner (role)" fields are **operational role** names; a single person/agent is assigned when the PR is opened.
+
+---
+
+## 7. Cross-Document Map
+
+| This report | ↔ | Target |
 |---|---|---|
-| F- / N- | ↔ | `SYSTEM-AUDIT-REPORT.md` §3 (envanterin denetimci özeti) |
-| F- / N- | ↔ | `MISSING-PARTS-PLAN.md` §3-7 (Phase'ler) |
+| F- / N- | ↔ | `SYSTEM-AUDIT-REPORT.md` §3 (the auditor summary of the inventory) |
+| F- / N- | ↔ | `MISSING-PARTS-PLAN.md` §3-7 (the Phases) |
 | H- / D- | ↔ | `MISSING-PARTS-PLAN.md` §2 (Phase 0 hygiene) |
-| Kapanan kalemler | ↔ | `MISSING-PARTS-PLAN.md` §2 "CLOSED date" ibaresi |
-| TBD → canonical dönüşümleri | ↔ | `H-02` §6 log + commit hash |
+| Closed items | ↔ | `MISSING-PARTS-PLAN.md` §2 "CLOSED date" note |
+| TBD → canonical conversions | ↔ | `H-02` §6 log + commit hash |
 
-Yeni kalem buraya eklendikçe, **diğer dokümanlarda çapraz-güncelleme** PR'a eklenir.
+As new items are added here, a **cross-update in the other documents** is included in the PR.
 
 ---
 
-## 8. Kalem İstatistikleri (snapshot 2026-07-04)
+## 8. Item Statistics (snapshot 2026-07-04)
 
-- **Toplam kalem:** 43 (28 F + 6 N + 6 H + 3 D)
+- **Total items:** 43 (28 F + 6 N + 6 H + 3 D)
 - **Open:** 28 (F=20, N=5, H=0, D=3)
-- **In-progress:** 2 (F-03 tarayıcı sekmesi, F-13 society-of-agents)
-- **Needs-design:** 2 (F-11 derin araştırma, F-12 widgets)
-- **Done:** 6 (H-01 worktree, H-02 SPEC canonicalize, H-03 SPEC-IMPLEMENTATION-STATUS, H-04 CHANGELOG reorg planı, H-05 make check, H-06 .dev-home gitignore)
+- **In-progress:** 2 (F-03 browser tab, F-13 society-of-agents)
+- **Needs-design:** 2 (F-11 deep research, F-12 widgets)
+- **Done:** 6 (H-01 worktree, H-02 SPEC canonicalization, H-03 SPEC-IMPLEMENTATION-STATUS, H-04 CHANGELOG reorg plan, H-05 make check, H-06 .dev-home gitignore)
 - **Deferred:** 5 (F-17 RBAC, F-21 widget market, F-22 widget scaffold, F-24 eval reflection, N-04 graveyard destructive)
-- **Disk'teki en yüksek M-rapor:** M923 (CHANGELOG'da M1002 referansı var)
-- **Toplam F-03 ile F-28'in dosya başına hit'i:** SYSTEM-AUDIT-REPORT §3'te doğrulanmış.
+- **Highest M-report on disk:** M923 (M1002 is referenced in the CHANGELOG)
+- **Per-file hit totals for F-03 through F-28:** verified in SYSTEM-AUDIT-REPORT §3.
 
-> **2026-07-04 spotlight düzeltmesi:** §1 Sayaç tablosu önceki yazımda F=24/2/0/2, N=5/0/0/1, H=0/0/6/0, D=2/0/0/0 olarak gösteriliyordu; toplam satırı (36/2/1/3/42) tutarsızdı. Gerçek değerler: F=20/2/2/0/4=28, N=5/0/0/0/1=6, H=0/0/0/6/0=6, D=3/0/0/0/0=3; toplam=43. `needs-design` sütunu eklendi.
+> **2026-07-04 spotlight correction:** In the previous writeup of the §1 Counter table, F=24/2/0/2, N=5/0/0/1, H=0/0/6/0, D=2/0/0/0 was shown; the total row (36/2/1/3/42) was inconsistent. The real values: F=20/2/2/0/4=28, N=5/0/0/0/1=6, H=0/0/0/6/0=6, D=3/0/0/0/0=3; total=43. The `needs-design` column was added.
 
 ---
 
-*Bu envanter yaşayan dokümandır. Yeni kalem buraya eklendikçe karşılığı `SYSTEM-AUDIT-REPORT.md` §3 ile `MISSING-PARTS-PLAN.md` çapraz-güncellenir. Çift kayıt policy dışıdır.*
+*This inventory is a living document. As new items are added here, their counterparts in `SYSTEM-AUDIT-REPORT.md` §3 and `MISSING-PARTS-PLAN.md` are cross-updated. Double-record keeping is out of policy.*
