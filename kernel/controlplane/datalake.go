@@ -40,9 +40,9 @@ func (s *Server) handleDataRecords(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "data lake unavailable"})
 		return
 	}
-	coll, _ := req.Args["collection"].(string)
-	if coll == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.collection required"})
+	coll, err := requiredArgString(req.Args, "collection")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	q := datalake.Query{
@@ -72,12 +72,20 @@ func (s *Server) handleDataInsert(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "data lake unavailable"})
 		return
 	}
-	coll, _ := req.Args["collection"].(string)
-	if coll == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.collection required"})
+	coll, err := requiredArgString(req.Args, "collection")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	fields, _ := req.Args["record"].(map[string]any)
+	var fields map[string]any
+	if raw := req.Args["record"]; raw != nil {
+		m, isMap := raw.(map[string]any)
+		if !isMap {
+			s.failMsg(conn, req, "args.record must be an object")
+			return
+		}
+		fields = m
+	}
 	r, err := l.Insert(coll, fields, "operator")
 	if err != nil {
 		s.writeResp(conn, dataErr(req, coll, err))
@@ -92,13 +100,25 @@ func (s *Server) handleDataUpdate(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "data lake unavailable"})
 		return
 	}
-	coll, _ := req.Args["collection"].(string)
-	id, _ := req.Args["id"].(string)
-	if coll == "" || id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.collection and args.id required"})
+	coll, err := requiredArgString(req.Args, "collection")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	patch, _ := req.Args["record"].(map[string]any)
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var patch map[string]any
+	if raw := req.Args["record"]; raw != nil {
+		m, isMap := raw.(map[string]any)
+		if !isMap {
+			s.failMsg(conn, req, "args.record must be an object")
+			return
+		}
+		patch = m
+	}
 	r, err := l.Update(coll, id, patch, "operator")
 	if err != nil {
 		s.writeResp(conn, dataErr(req, coll+"/"+id, err))
@@ -113,10 +133,14 @@ func (s *Server) handleDataDelete(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "data lake unavailable"})
 		return
 	}
-	coll, _ := req.Args["collection"].(string)
-	id, _ := req.Args["id"].(string)
-	if coll == "" || id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.collection and args.id required"})
+	coll, err := requiredArgString(req.Args, "collection")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	if err := l.Delete(coll, id); err != nil {
@@ -132,7 +156,15 @@ func (s *Server) handleDataCreateCollection(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "data lake unavailable"})
 		return
 	}
-	raw, _ := req.Args["collection"].(map[string]any)
+	var raw map[string]any
+	if rv := req.Args["collection"]; rv != nil {
+		m, isMap := rv.(map[string]any)
+		if !isMap {
+			s.failMsg(conn, req, "args.collection must be an object")
+			return
+		}
+		raw = m
+	}
 	sc := schemaFromMap(raw)
 	if sc.Name == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "collection.name required"})
@@ -156,9 +188,9 @@ func (s *Server) handleDataDropCollection(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "data lake unavailable"})
 		return
 	}
-	name, _ := req.Args["name"].(string)
-	if name == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
+	name, err := requiredArgString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	if err := l.DropCollection(name); err != nil {

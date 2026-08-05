@@ -24,13 +24,20 @@ import (
 //	url        (optional) override the sync URL for this call
 //	timeout_s  (optional) override the per-call timeout
 func (s *Server) handleCatalogSync(ctx context.Context, conn net.Conn, req Request) {
-	url, _ := req.Args["url"].(string)
+	url, _, err := argString(req.Args, "url")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if url == "" {
 		url = envOrDefault(brand.EnvPrefix+"CATALOG_URL", catalog.DefaultSyncURL)
 	}
 	syncer := catalog.NewSyncer()
 	syncer.URL = url
-	if t, ok := req.Args["timeout_s"].(float64); ok && t > 0 {
+	if t, _, terr := argFloat64(req.Args, "timeout_s"); terr != nil {
+		s.fail(conn, req, terr)
+		return
+	} else if t > 0 {
 		syncer.Timeout = time.Duration(t) * time.Second
 	}
 
@@ -178,7 +185,11 @@ func (s *Server) handleCatalogList(conn net.Conn, req Request) {
 // to local.json, and reloads. Failure is per-call non-fatal; the
 // catalog.discovery_failed event surfaces why.
 func (s *Server) handleCatalogDiscover(ctx context.Context, conn net.Conn, req Request) {
-	endpoint, _ := req.Args["endpoint"].(string)
+	endpoint, _, err := argString(req.Args, "endpoint")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if endpoint == "" {
 		endpoint = envOrDefault(brand.EnvPrefix+"OLLAMA_ENDPOINT", catalog.DefaultOllamaEndpoint)
 	}
@@ -243,16 +254,18 @@ func envOrDefault(name, fallback string) string {
 // keys/add path. custom.json wins the merge, so this pins the exact base URL a
 // coding-plan endpoint needs even when models.dev ships a different default.
 func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	id = strings.TrimSpace(id)
-	api, _ := req.Args["api"].(string)
-	api = strings.TrimSpace(api)
-	model, _ := req.Args["model"].(string)
-	model = strings.TrimSpace(model)
+	sa, err := argStrings(req.Args, "id", "api", "model", "env", "name", "npm")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	id := strings.TrimSpace(sa["id"])
+	api := strings.TrimSpace(sa["api"])
+	model := strings.TrimSpace(sa["model"])
 	// env is OPTIONAL: a keyless local runtime (Ollama, LM Studio, …) connects
 	// with no API key. When present it must be a valid provider env var.
 	var envs []string
-	if raw, _ := req.Args["env"].(string); strings.TrimSpace(raw) != "" {
+	if strings.TrimSpace(sa["env"]) != "" {
 		env, ok := keyEnv(req)
 		if !ok {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.env must be a provider key env var (UPPER_SNAKE, not AGEZT_*)"})
@@ -264,11 +277,11 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id, args.api and args.model are required"})
 		return
 	}
-	name, _ := req.Args["name"].(string)
+	name := sa["name"]
 	if strings.TrimSpace(name) == "" {
 		name = id
 	}
-	npm, _ := req.Args["npm"].(string)
+	npm := sa["npm"]
 	if strings.TrimSpace(npm) == "" {
 		npm = "@ai-sdk/openai-compatible"
 	}

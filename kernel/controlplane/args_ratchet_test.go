@@ -28,9 +28,7 @@ var rawArgCastBaseline = map[string]int{
 	"schedule.go":           1, // residual: enabled bool-or-string switch
 	"workflow.go":           3, // residual: enabled/limit/async dual-type switches
 	"standing.go":           1, // residual: enabled bool-or-string switch
-	"pulse_control.go":      10,
-	"datalake.go":           10,
-	"catalog.go":            9,
+	"pulse_control.go":      3, // residual: approve/seconds/min_pct dual-type switches
 	"toolforge.go":          8,
 	"steer.go":              8,
 	"pulse.go":              8,
