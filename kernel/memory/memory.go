@@ -28,21 +28,16 @@
 package memory
 
 import (
-	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"unicode"
 
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"lukechampine.com/blake3"
-
-	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Type is the canonical memory-record discriminator. The set mirrors
@@ -223,30 +218,12 @@ type FileStore struct {
 // Open opens (or creates) a FileStore under dir, loading <dir>/memory.json
 // if present. The directory is created if absent.
 func Open(dir string) (*FileStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("memory: mkdir %s: %w", dir, err)
-	}
-	s := &FileStore{
-		path: filepath.Join(dir, "memory.json"),
-		data: make(map[string]Record),
-	}
-	raw, err := os.ReadFile(s.path)
+	s := &FileStore{data: make(map[string]Record)}
+	path, err := jsonstore.LoadFrom(dir, "memory.json", &s.data)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("memory: read %s: %w", s.path, err)
+		return nil, fmt.Errorf("memory: %w", err)
 	}
-	if len(raw) == 0 {
-		return s, nil
-	}
-	raw = bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return s, nil
-	}
-	if err := json.Unmarshal(raw, &s.data); err != nil {
-		return nil, fmt.Errorf("memory: parse %s: %w", s.path, err)
-	}
+	s.path = path
 	if s.data == nil {
 		s.data = make(map[string]Record)
 	}
@@ -312,14 +289,13 @@ func (s *FileStore) Count() int {
 func (s *FileStore) Close() error { return nil }
 
 // snapshotLocked writes the whole record map atomically. Caller holds s.mu.
+// MarshalIndent over a map sorts keys alphabetically (Go guarantee), giving
+// deterministic on-disk diffs.
 func (s *FileStore) snapshotLocked() error {
-	// MarshalIndent over a map sorts keys alphabetically (Go guarantee),
-	// giving deterministic on-disk diffs.
-	body, err := json.MarshalIndent(s.data, "", "  ")
-	if err != nil {
-		return fmt.Errorf("memory: marshal: %w", err)
+	if err := jsonstore.Save(s.path, s.data); err != nil {
+		return fmt.Errorf("memory: %w", err)
 	}
-	return atomicWrite(s.path, body)
+	return nil
 }
 
 // sortRecords orders records deterministically: oldest first, ties broken by
@@ -428,14 +404,4 @@ func tokenize(s string) []string {
 		out = append(out, f)
 	}
 	return out
-}
-
-// atomicWrite writes data to a temp file and renames it over the target.
-// os.Rename replaces atomically on POSIX and on Windows (MoveFileEx). Mirrors
-// kernel/state's helper (kept local to avoid coupling the two packages).
-func atomicWrite(path string, data []byte) error {
-	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("memory: %w", err)
-	}
-	return nil
 }

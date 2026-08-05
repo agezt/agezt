@@ -31,18 +31,14 @@ package worldmodel
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"lukechampine.com/blake3"
-
-	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Kind classifies an entity (SPEC-05 §3.2). It is an open string — the set
@@ -225,28 +221,16 @@ type FileStore struct {
 // Open opens (or creates) a FileStore under dir, loading <dir>/worldmodel.json
 // if present. The directory is created if absent.
 func Open(dir string) (*FileStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("worldmodel: mkdir %s: %w", dir, err)
-	}
 	s := &FileStore{
-		path:      filepath.Join(dir, "worldmodel.json"),
 		entities:  make(map[string]Entity),
 		relations: make(map[string]Relation),
 	}
-	raw, err := os.ReadFile(s.path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("worldmodel: read %s: %w", s.path, err)
-	}
-	if len(raw) == 0 {
-		return s, nil
-	}
 	var gd graphData
-	if err := json.Unmarshal(raw, &gd); err != nil {
-		return nil, fmt.Errorf("worldmodel: parse %s: %w", s.path, err)
+	path, err := jsonstore.LoadFrom(dir, "worldmodel.json", &gd)
+	if err != nil {
+		return nil, fmt.Errorf("worldmodel: %w", err)
 	}
+	s.path = path
 	if gd.Entities != nil {
 		s.entities = gd.Entities
 	}
@@ -337,14 +321,13 @@ func (s *FileStore) Close() error { return nil }
 
 // snapshotLocked writes the whole graph atomically. Caller holds s.mu.
 func (s *FileStore) snapshotLocked() error {
-	body, err := json.MarshalIndent(graphData{
+	if err := jsonstore.Save(s.path, graphData{
 		Entities:  s.entities,
 		Relations: s.relations,
-	}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("worldmodel: marshal: %w", err)
+	}); err != nil {
+		return fmt.Errorf("worldmodel: %w", err)
 	}
-	return atomicWrite(s.path, body)
+	return nil
 }
 
 func sortEntities(es []Entity) {
@@ -363,12 +346,4 @@ func sortRelations(rs []Relation) {
 		}
 		return rs[i].ID < rs[j].ID
 	})
-}
-
-// atomicWrite writes via a unique temp + fsync + rename (see internal/atomicfile).
-func atomicWrite(path string, data []byte) error {
-	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("worldmodel: %w", err)
-	}
-	return nil
 }

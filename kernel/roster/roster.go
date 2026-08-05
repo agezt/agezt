@@ -15,10 +15,8 @@
 package roster
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -26,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -731,32 +729,22 @@ func (s *Store) SetNowForTest(now func() time.Time) {
 
 // Open opens (or creates) the roster store under dir.
 func Open(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("roster: mkdir %s: %w", dir, err)
-	}
-	s := &Store{path: filepath.Join(dir, "roster.json"), now: time.Now}
-	b, err := os.ReadFile(s.path)
+	s := &Store{now: time.Now}
+	path, err := jsonstore.LoadFrom(dir, "roster.json", &s.profiles)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("roster: read %s: %w", s.path, err)
+		return nil, fmt.Errorf("roster: %w", err)
 	}
-	if len(b) > 0 {
-		if err := json.Unmarshal(b, &s.profiles); err != nil {
-			return nil, fmt.Errorf("roster: parse %s: %w", s.path, err)
+	s.path = path
+	changed := false
+	for _, p := range s.profiles {
+		if applySystemGuardianDefaults(p) {
+			p.UpdatedMS = s.now().UnixMilli()
+			changed = true
 		}
-		changed := false
-		for _, p := range s.profiles {
-			if applySystemGuardianDefaults(p) {
-				p.UpdatedMS = s.now().UnixMilli()
-				changed = true
-			}
-		}
-		if changed {
-			if err := s.save(); err != nil {
-				return nil, fmt.Errorf("roster: migrate %s: %w", s.path, err)
-			}
+	}
+	if changed {
+		if err := s.save(); err != nil {
+			return nil, fmt.Errorf("roster: migrate %s: %w", s.path, err)
 		}
 	}
 	return s, nil
@@ -942,9 +930,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	b, err := json.MarshalIndent(s.profiles, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, s.profiles)
 }

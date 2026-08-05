@@ -19,16 +19,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -594,31 +592,21 @@ type Store struct {
 
 // OpenStore opens (or creates) the schedule store under dir.
 func OpenStore(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("cadence: mkdir %s: %w", dir, err)
-	}
-	s := &Store{path: filepath.Join(dir, "schedules.json")}
-	b, err := os.ReadFile(s.path)
+	s := &Store{}
+	path, err := jsonstore.LoadFrom(dir, "schedules.json", &s.entries)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("cadence: read %s: %w", s.path, err)
+		return nil, fmt.Errorf("cadence: %w", err)
 	}
-	if len(b) > 0 {
-		if err := json.Unmarshal(b, &s.entries); err != nil {
-			return nil, fmt.Errorf("cadence: parse %s: %w", s.path, err)
-		}
-		// Repair against a corrupt or hand-edited file (M196): an interval or
-		// window entry with a sub-minimum IntervalSec would advance the next run
-		// onto `now`/the past and busy-loop the ticker. Clamp to MinInterval so a
-		// bad value degrades to the slowest safe rate. `advance` floors defensively
-		// too, but repairing here makes the clamp durable and visible in
-		// `agt schedule list`.
-		for i := range s.entries {
-			if s.entries[i].usesInterval() && s.entries[i].Interval() < MinInterval {
-				s.entries[i].IntervalSec = int64(MinInterval / time.Second)
-			}
+	s.path = path
+	// Repair against a corrupt or hand-edited file (M196): an interval or
+	// window entry with a sub-minimum IntervalSec would advance the next run
+	// onto `now`/the past and busy-loop the ticker. Clamp to MinInterval so a
+	// bad value degrades to the slowest safe rate. `advance` floors defensively
+	// too, but repairing here makes the clamp durable and visible in
+	// `agt schedule list`.
+	for i := range s.entries {
+		if s.entries[i].usesInterval() && s.entries[i].Interval() < MinInterval {
+			s.entries[i].IntervalSec = int64(MinInterval / time.Second)
 		}
 	}
 	return s, nil
@@ -1252,11 +1240,7 @@ func (s *Store) Count() int {
 
 // save writes the entries atomically (temp file + rename). Caller holds s.mu.
 func (s *Store) save() error {
-	b, err := json.MarshalIndent(s.entries, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, s.entries)
 }
 
 // --- Engine ---

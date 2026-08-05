@@ -14,17 +14,14 @@
 package okr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -173,24 +170,13 @@ type diskState struct {
 
 // OpenStore opens or creates the OKR store under dir.
 func OpenStore(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("okr: mkdir %s: %w", dir, err)
-	}
-	s := &Store{path: filepath.Join(dir, "okr.json"), now: time.Now}
-	b, err := os.ReadFile(s.path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("okr: read %s: %w", s.path, err)
-	}
-	if len(b) == 0 {
-		return s, nil
-	}
+	s := &Store{now: time.Now}
 	var st diskState
-	if err := json.Unmarshal(b, &st); err != nil {
-		return nil, fmt.Errorf("okr: parse %s: %w", s.path, err)
+	path, err := jsonstore.LoadFrom(dir, "okr.json", &st)
+	if err != nil {
+		return nil, fmt.Errorf("okr: %w", err)
 	}
+	s.path = path
 	for _, o := range st.Objectives {
 		if o == nil {
 			continue
@@ -437,11 +423,7 @@ func findKR(o *Objective, krID string) *KeyResult {
 }
 
 func (s *Store) saveLocked() error {
-	b, err := json.MarshalIndent(diskState{Version: storeVersion, Objectives: s.objectives}, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, diskState{Version: storeVersion, Objectives: s.objectives})
 }
 
 func cloneObjective(o Objective) Objective {
