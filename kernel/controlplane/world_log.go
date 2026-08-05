@@ -12,128 +12,46 @@ package controlplane
 import (
 	"encoding/json"
 	"net"
-	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleWorldLog(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
-	kindFilter, _ := req.Args["kind"].(string)                                // entity|relation
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	cutoff := sinceCutoff(req.Args["since_ms"])                               // M65 helper
-
-	k, err := s.kernelFor(tenantOf(req))
-	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	type worldOp struct {
-		ts, seq int64
-		op      string // upsert verb (observe/reinforce/revive/decay) or forget
-		what    string // entity | relation
-		label   string // entity name, or "from verb to"
-	}
-	ops := make([]worldOp, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
-		if cutoff > 0 && e.TSUnixMS < cutoff {
-			return nil
-		}
-		var o worldOp
-		o.ts, o.seq = e.TSUnixMS, e.Seq
+	kindFilter, _ := req.Args["kind"].(string) // entity|relation
+	s.projectJournal(conn, req, "ops", func(e *event.Event) (map[string]any, bool) {
+		var op, what, label string
 		switch e.Kind {
 		case event.KindWorldEntityUpserted:
 			var p struct{ Action, Name, Kind string }
 			_ = json.Unmarshal(e.Payload, &p)
-			o.op, o.what, o.label = p.Action, "entity", p.Name
+			op, what, label = p.Action, "entity", p.Name
 			if p.Kind != "" {
-				o.label += " [" + p.Kind + "]"
+				label += " [" + p.Kind + "]"
 			}
 		case event.KindWorldRelationUpserted:
 			var p struct{ Action, From, Verb, To string }
 			_ = json.Unmarshal(e.Payload, &p)
-			o.op, o.what, o.label = p.Action, "relation", p.From+" "+p.Verb+" "+p.To
+			op, what, label = p.Action, "relation", p.From+" "+p.Verb+" "+p.To
 		case event.KindWorldForgotten:
 			var p struct {
 				Name, Verb, What string
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			o.op, o.what = "forget", p.What
+			op, what = "forget", p.What
 			if p.Name != "" {
-				o.label = p.Name
+				label = p.Name
 			} else {
-				o.label = p.Verb
+				label = p.Verb
 			}
 		default:
-			return nil
+			return nil, false
 		}
-		if o.op == "" {
-			o.op = "upsert"
+		if op == "" {
+			op = "upsert"
 		}
-		if kindFilter != "" && o.what != kindFilter {
-			return nil
+		if kindFilter != "" && what != kindFilter {
+			return nil, false
 		}
-		ops = append(ops, o)
-		return nil
-	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	sort.Slice(ops, func(i, j int) bool {
-		if ops[i].ts != ops[j].ts {
-			return ops[i].ts > ops[j].ts
-		}
-		return ops[i].seq > ops[j].seq
-	})
-	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
-		kept := ops[:0]
-		for _, o := range ops {
-			if journal.KeepBeforeCursor(o.ts, o.seq, cursorMS, cursorSeq) {
-				kept = append(kept, o)
-			}
-		}
-		ops = kept
-	}
-	if len(ops) > limit {
-		ops = ops[:limit]
-	}
-
-	out := make([]map[string]any, 0, len(ops))
-	for _, o := range ops {
-		out = append(out, map[string]any{
-			"ts_unix_ms": o.ts,
-			"seq":        o.seq, // A2: stable per-row id for the frontend cursor pager
-			"op":         o.op,
-			"what":       o.what,
-			"label":      o.label,
-		})
-	}
-	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
-	if n := len(ops); n > 0 {
-		nextCursor = journal.NextCursor(ops[n-1].ts, ops[n-1].seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"ops": out, "count": len(out), "next_cursor": nextCursor},
+		return map[string]any{"op": op, "what": what, "label": label}, true
 	})
 }

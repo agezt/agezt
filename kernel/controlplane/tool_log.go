@@ -14,11 +14,9 @@ package controlplane
 import (
 	"encoding/json"
 	"net"
-	"sort"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
 )
 
 // toolOutputPreviewRunes bounds the one-line output/input excerpt folded into a
@@ -27,30 +25,8 @@ import (
 const toolOutputPreviewRunes = 100
 
 func (s *Server) handleToolLog(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
-	// Cursor pagination (A2): opaque ts:seq token from the previous page; we
-	// return rows strictly older than it. Absent/unparseable falls back to the
-	// newest page. Shares journal.Cursor with /api/runs and the other logs.
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"])
 	errorsOnly, _ := req.Args["errors"].(bool)
 	toolFilter, _ := req.Args["tool"].(string)
-	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper: optional time window
 	// Latency floor (M73): keep only calls at/above this wall-clock. 0 = no floor.
 	var slowMS int64
 	switch v := req.Args["slow_ms"].(type) {
@@ -62,34 +38,19 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 		slowMS = int64(v)
 	}
 
-	k, err := s.kernelFor(tenantOf(req))
-	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
 	// One row per tool.result (the always-present event: a policy-denied call
 	// emits a result but no tool.invoked). A first-seen tool.invoked stashes the
 	// call's input by call_id so the row can show what the agent asked for; since
-	// the journal is in order, the invoked event precedes its result and the map
-	// is already populated when we reach it.
-	type invocation struct {
-		ts, seq           int64
-		actor, corr       string
-		tool              string
-		callID            string
-		output            string
-		isError           bool
-		duration          int64 // M71: result.TS − invoked.TS, 0 when unknowable
-		observationTrust  string
-		observationSource string
-		directiveLike     bool
-		directiveMatches  []string
-	}
+	// the journal is in order, the invoked event precedes its result and the maps
+	// (closure state across decode calls) are already populated when we reach it.
+	//
+	// tool.invoked events are stashed even when outside the since_ms window
+	// (an invoked can precede the cutoff its result falls inside) — safe
+	// because projectJournal runs decode on every event and applies the
+	// cutoff to decoded ROWS only, and rows only come from tool.result.
 	inputs := map[string]string{}   // call_id → input preview
 	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
-	results := make([]invocation, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
+	s.projectJournal(conn, req, "invocations", func(e *event.Event) (map[string]any, bool) {
 		switch e.Kind {
 		case event.KindToolInvoked:
 			id, input := decodeToolInvoked(e.Payload)
@@ -97,16 +58,14 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 				inputs[id] = input
 				invokedTS[id] = e.TSUnixMS
 			}
+			return nil, false
 		case event.KindToolResult:
-			if cutoff > 0 && e.TSUnixMS < cutoff {
-				return nil // M65: outside the time window
-			}
 			decoded := decodeToolResult(e.Payload)
 			if toolFilter != "" && decoded.tool != toolFilter {
-				return nil
+				return nil, false
 			}
 			if errorsOnly && !decoded.isError {
-				return nil
+				return nil, false
 			}
 			// Latency (M71) joins the call's invoked→result span by call_id. A
 			// policy-denied call has no tool.invoked, so it has no latency (0).
@@ -115,80 +74,27 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 				dur = e.TSUnixMS - it
 			}
 			if slowMS > 0 && dur < slowMS {
-				return nil // M73: faster than the latency floor (or unmeasurable)
+				return nil, false // M73: faster than the latency floor (or unmeasurable)
 			}
-			results = append(results, invocation{
-				ts: e.TSUnixMS, seq: e.Seq, actor: e.Actor, corr: e.CorrelationID,
-				tool:              decoded.tool,
-				callID:            decoded.callID,
-				output:            decoded.output,
-				isError:           decoded.isError,
-				duration:          dur,
-				observationTrust:  decoded.observationTrust,
-				observationSource: decoded.observationSource,
-				directiveLike:     decoded.directiveLike,
-				directiveMatches:  decoded.directiveMatches,
-			})
+			return map[string]any{
+				"actor":          e.Actor,
+				"correlation_id": e.CorrelationID,
+				"tool":           decoded.tool,
+				"call_id":        decoded.callID,
+				"input":          inputs[decoded.callID],
+				"output":         decoded.output,
+				"error":          decoded.isError,
+				"duration_ms":    dur, // M71: invoked→result span (0 if unknowable)
+				// Prompt-injection hygiene: keep provenance and directive-like taint
+				// visible to operators instead of burying it in raw journal payloads.
+				"observation_trust":  decoded.observationTrust,
+				"observation_source": decoded.observationSource,
+				"directive_like":     decoded.directiveLike,
+				"directive_matches":  decoded.directiveMatches,
+			}, true
+		default:
+			return nil, false
 		}
-		return nil
-	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	sort.Slice(results, func(i, j int) bool {
-		if results[i].ts != results[j].ts {
-			return results[i].ts > results[j].ts
-		}
-		return results[i].seq > results[j].seq
-	})
-	// Cursor filter (A2): keep only rows strictly older than the cursor, in the
-	// same descending (ts, seq) order, before applying the page limit.
-	if cursorOK {
-		kept := results[:0]
-		for _, r := range results {
-			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
-				kept = append(kept, r)
-			}
-		}
-		results = kept
-	}
-	if len(results) > limit {
-		results = results[:limit]
-	}
-
-	out := make([]map[string]any, 0, len(results))
-	for _, r := range results {
-		out = append(out, map[string]any{
-			"ts_unix_ms":     r.ts,
-			"seq":            r.seq, // A2: stable per-row id for the frontend cursor pager
-			"actor":          r.actor,
-			"correlation_id": r.corr,
-			"tool":           r.tool,
-			"call_id":        r.callID,
-			"input":          inputs[r.callID],
-			"output":         r.output,
-			"error":          r.isError,
-			"duration_ms":    r.duration, // M71: invoked→result span (0 if unknowable)
-			// Prompt-injection hygiene: keep provenance and directive-like taint
-			// visible to operators instead of burying it in raw journal payloads.
-			"observation_trust":  r.observationTrust,
-			"observation_source": r.observationSource,
-			"directive_like":     r.directiveLike,
-			"directive_matches":  r.directiveMatches,
-		})
-	}
-	// next_cursor (A2): the (ts, seq) of the last (oldest) emitted row, so the
-	// client's next request pages past it. Only when the page is full.
-	var nextCursor string
-	if n := len(results); n > 0 {
-		last := results[n-1]
-		nextCursor = journal.NextCursor(last.ts, last.seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"invocations": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
 
