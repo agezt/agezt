@@ -48,19 +48,24 @@ import (
 // operator knows their view is incomplete.
 func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Request) {
 	pattern := ">"
-	if p, ok := req.Args["pattern"].(string); ok && strings.TrimSpace(p) != "" {
+	if p, _, err := argString(req.Args, "pattern"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if strings.TrimSpace(p) != "" {
 		pattern = strings.TrimSpace(p)
 	}
 
-	// Optional kinds filter. Wire shape: []string, decoded from JSON
-	// as []any → coerce per-element. Empty / missing = no filter.
+	// Optional kinds filter. Empty / missing = no filter.
 	var kindFilter map[event.Kind]struct{}
-	if raw, ok := req.Args["kinds"].([]any); ok && len(raw) > 0 {
-		kindFilter = make(map[event.Kind]struct{}, len(raw))
-		for _, r := range raw {
-			if k, ok := r.(string); ok && strings.TrimSpace(k) != "" {
-				kindFilter[event.Kind(strings.TrimSpace(k))] = struct{}{}
-			}
+	kinds, _, err := argStringList(req.Args, "kinds")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	if len(kinds) > 0 {
+		kindFilter = make(map[event.Kind]struct{}, len(kinds))
+		for _, k := range kinds {
+			kindFilter[event.Kind(k)] = struct{}{}
 		}
 	}
 
@@ -71,7 +76,10 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// means "no replay; start live." (M1.aa — Pulse v2.)
 	// JSON numbers decode as float64; coerce.
 	since := int64(-1)
-	if v, ok := req.Args["since"].(float64); ok {
+	if v, present, err := argFloat64(req.Args, "since"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if present {
 		since = int64(v)
 	}
 
@@ -84,7 +92,10 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// common case is one or the other; AND semantics are the safer
 	// default (no surprising inclusion).
 	sinceTSMs := int64(-1)
-	if v, ok := req.Args["since_ts_ms"].(float64); ok {
+	if v, present, err := argFloat64(req.Args, "since_ts_ms"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if present {
 		sinceTSMs = int64(v)
 	}
 
@@ -100,11 +111,17 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// when EITHER is set, so a single bound triggers replay-only
 	// mode.
 	until := int64(-1)
-	if v, ok := req.Args["until"].(float64); ok {
+	if v, present, err := argFloat64(req.Args, "until"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if present {
 		until = int64(v)
 	}
 	untilTSMs := int64(-1)
-	if v, ok := req.Args["until_ts_ms"].(float64); ok {
+	if v, present, err := argFloat64(req.Args, "until_ts_ms"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if present {
 		untilTSMs = int64(v)
 	}
 	replayOnly := until >= 0 || untilTSMs >= 0
@@ -116,7 +133,10 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// other filter — `--correlation X --kind tool.invoked`
 	// means "tool invocations on X's chain, nothing else."
 	correlationFilter := ""
-	if v, ok := req.Args["correlation"].(string); ok {
+	if v, _, err := argString(req.Args, "correlation"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else {
 		correlationFilter = strings.TrimSpace(v)
 	}
 
@@ -128,7 +148,10 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// uncapped — back-pressure there is the bus's dropped-events
 	// notice (M1.aa).
 	replayRate := float64(0)
-	if v, ok := req.Args["replay_rate"].(float64); ok && v > 0 {
+	if v, _, err := argFloat64(req.Args, "replay_rate"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if v > 0 {
 		replayRate = v
 	}
 
