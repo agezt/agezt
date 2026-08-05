@@ -280,16 +280,18 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	// first call of a session does anyway.
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"])
 
-	// Optional status filter (M61): completed|failed|running|abandoned.
-	statusFilter, _ := req.Args["status"].(string)
-	// Optional intent substring filter (M77): case-insensitive contains, so an
-	// operator can find "that deploy run" without scanning the whole list.
-	intentQuery, _ := req.Args["intent"].(string)
-	intentQuery = strings.ToLower(intentQuery)
-	// Optional model substring filter (M123): case-insensitive contains, so an
-	// operator can find "which runs used claude-opus" in a multi-provider mix.
-	modelQuery, _ := req.Args["model"].(string)
-	modelQuery = strings.ToLower(modelQuery)
+	// Optional filters: status (M61) completed|failed|running|abandoned;
+	// intent substring (M77) and model substring (M123), both case-insensitive
+	// contains, so an operator can find "that deploy run" / "which runs used
+	// claude-opus" without scanning the whole list.
+	filters, err := argStrings(req.Args, "status", "intent", "model")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	statusFilter := filters["status"]
+	intentQuery := strings.ToLower(filters["intent"])
+	modelQuery := strings.ToLower(filters["model"])
 	// Optional cost band (M125), in microcents: keep runs whose folded spend is
 	// >= min and (when set) <= max — "which runs cost at least $X / blew the
 	// budget". A run that never spent (0) is excluded once a positive min is set.
@@ -497,7 +499,12 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// Optional intent substring scope (M78): aggregate only runs whose intent
 	// matches, so an operator can ask "how reliable are my deploy runs?".
 	// Case-insensitive contains, mirroring `agt runs list --intent` (M77).
-	intentQuery := strings.ToLower(func() string { s, _ := req.Args["intent"].(string); return s }())
+	intentArg, _, err := argString(req.Args, "intent")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	intentQuery := strings.ToLower(intentArg)
 
 	var total, completed, failed, running, abandoned int
 	var itersSum int

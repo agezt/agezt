@@ -48,13 +48,15 @@ func sectionFieldFor(baseDir, kind, name string) (settings.Field, bool) {
 // handleChannelAccountSet writes one field value for a channel account instance.
 // args: kind, label (""=default), name (base AGEZT_ env), value.
 func (s *Server) handleChannelAccountSet(conn net.Conn, req Request) {
-	kind, _ := req.Args["kind"].(string)
-	label, _ := req.Args["label"].(string)
-	name, _ := req.Args["name"].(string)
-	value, _ := req.Args["value"].(string)
-	kind = strings.TrimSpace(strings.ToLower(kind))
-	label = strings.TrimSpace(label)
-	name = strings.TrimSpace(name)
+	sa, err := argStrings(req.Args, "kind", "label", "name", "value")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	kind := strings.TrimSpace(strings.ToLower(sa["kind"]))
+	label := strings.TrimSpace(sa["label"])
+	name := strings.TrimSpace(sa["name"])
+	value := sa["value"]
 	if kind == "" || name == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.kind and args.name required"})
 		return
@@ -119,10 +121,13 @@ func (s *Server) handleChannelAccountSet(conn net.Conn, req Request) {
 // across the config store + vault. The default account ("") cannot be removed
 // this way (clear its fields individually). args: kind, label.
 func (s *Server) handleChannelAccountRemove(conn net.Conn, req Request) {
-	kind, _ := req.Args["kind"].(string)
-	label, _ := req.Args["label"].(string)
-	kind = strings.TrimSpace(strings.ToLower(kind))
-	label = strings.TrimSpace(label)
+	sa, err := argStrings(req.Args, "kind", "label")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	kind := strings.TrimSpace(strings.ToLower(sa["kind"]))
+	label := strings.TrimSpace(sa["label"])
 	if kind == "" || label == "" {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.kind and a non-empty args.label required"})
 		return

@@ -28,12 +28,16 @@ const (
 )
 
 func (s *Server) handleJournalGrep(conn net.Conn, req Request) {
-	pattern, _ := req.Args["pattern"].(string)
-	patternLower := strings.ToLower(pattern)
-	kindFilter, _ := req.Args["kind"].(string)
-	subjectFilter, _ := req.Args["subject"].(string)
-	actorFilter, _ := req.Args["actor"].(string)
-	corrFilter, _ := req.Args["correlation_id"].(string)
+	sa, err := argStrings(req.Args, "pattern", "kind", "subject", "actor", "correlation_id")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	patternLower := strings.ToLower(sa["pattern"])
+	kindFilter := sa["kind"]
+	subjectFilter := sa["subject"]
+	actorFilter := sa["actor"]
+	corrFilter := sa["correlation_id"]
 
 	limit := defaultJournalGrepLimit
 	if raw, ok := req.Args["limit"]; ok {
@@ -66,7 +70,7 @@ func (s *Server) handleJournalGrep(conn net.Conn, req Request) {
 	// doesn't see it.
 	errStopWalk := stopWalkSentinel{}
 
-	err := s.k.Journal().Range(func(e *event.Event) error {
+	err = s.k.Journal().Range(func(e *event.Event) error {
 		if kindFilter != "" && string(e.Kind) != kindFilter {
 			return nil
 		}

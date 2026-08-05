@@ -35,15 +35,11 @@ var rawArgCastBaseline = map[string]int{
 	"server.go":             2,
 	"provider_keys.go":      2,
 	"policy_log.go":         6,
-	"edict.go":              6,
-	"channel_accounts.go":   6,
 	"tool_log.go":           5,
-	"tenant.go":             5,
+	"tenant.go":             1, // residual: tenantOf's documented lenient read
 	"schedule_fires.go":     5,
-	"runs.go":               5,
-	"planner.go":            5,
-	"mcp.go":                5,
-	"journal_grep.go":       5,
+	"runs.go":               1, // residual: since_ms number multi-type switch
+	"mcp.go":                1, // residual: enabled bool-or-string switch
 	"update_control.go":     4,
 	"settings.go":           4,
 	"board.go":              4,
