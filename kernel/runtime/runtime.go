@@ -3485,13 +3485,13 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	lc.System = system
 	lc.Actor = actor
 	lc.CorrelationID = corr
-	lc.Images = imagesFromCtx(runCtx)                 // M93: image attachments (vision-gated upstream)
-	lc.JSONMode = jsonModeFromCtx(runCtx)             // M314: structured-output request
-	lc.MaxRunCostMicrocents = maxCostFromCtx(runCtx)  // M166: per-run cost cap
-	lc.Steer = rc                                     // M608: live operator steering
-	lc.Checkpoint = resumeCheckpoint                  // M1002: persist snapshot each iteration
-	lc.PriorMessages = resumePriorMessages            // M1002: seed a resumed run's conversation
-	lc.StartIter = resumeStartIter                    // M1002: continue iter numbering on resume
+	lc.Images = imagesFromCtx(runCtx)                // M93: image attachments (vision-gated upstream)
+	lc.JSONMode = jsonModeFromCtx(runCtx)            // M314: structured-output request
+	lc.MaxRunCostMicrocents = maxCostFromCtx(runCtx) // M166: per-run cost cap
+	lc.Steer = rc                                    // M608: live operator steering
+	lc.Checkpoint = resumeCheckpoint                 // M1002: persist snapshot each iteration
+	lc.PriorMessages = resumePriorMessages           // M1002: seed a resumed run's conversation
+	lc.StartIter = resumeStartIter                   // M1002: continue iter numbering on resume
 	answer, err := agent.Run(runCtx, lc, intent)
 
 	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but
