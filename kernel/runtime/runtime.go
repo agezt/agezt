@@ -622,15 +622,28 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, errors.New("runtime: Provider required")
 	}
 
+	// Every store opened below registers its Close here; fail() unwinds them in
+	// reverse order. The previous hand-copied close cascades had already
+	// diverged (late failure paths leaked the journal handle), so this is the
+	// one place unwind order lives.
+	var closers []interface{ Close() error }
+	fail := func(prefix string, err error) (*Kernel, error) {
+		for i := len(closers) - 1; i >= 0; i-- {
+			_ = closers[i].Close()
+		}
+		return nil, apperrors.WrapSimple(prefix, err)
+	}
+
 	j, err := journal.Open(filepath.Join(cfg.BaseDir, "journal"), journal.Options{})
 	if err != nil {
 		return nil, apperrors.WrapSimple("runtime: journal", err)
 	}
+	closers = append(closers, j)
 	st, err := state.Open(filepath.Join(cfg.BaseDir, "state"))
 	if err != nil {
-		j.Close()
-		return nil, apperrors.WrapSimple("runtime: state", err)
+		return fail("runtime: state", err)
 	}
+	closers = append(closers, st)
 	eng := cfg.Edict
 	if eng == nil {
 		eng = edict.New(edict.Options{})
@@ -652,10 +665,9 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	mstore, err := memory.Open(filepath.Join(cfg.BaseDir, "memory"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		return nil, apperrors.WrapSimple("runtime: memory", err)
+		return fail("runtime: memory", err)
 	}
+	closers = append(closers, mstore)
 	mgr := memory.NewManager(mstore, kbus)
 	if cfg.MemoryEmbedder != nil {
 		mgr.SetEmbedder(cfg.MemoryEmbedder) // M884: provider embeddings opt-in
@@ -663,21 +675,16 @@ func Open(cfg Config) (*Kernel, error) {
 
 	wstore, err := worldmodel.Open(filepath.Join(cfg.BaseDir, "worldmodel"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		return nil, apperrors.WrapSimple("runtime: worldmodel", err)
+		return fail("runtime: worldmodel", err)
 	}
+	closers = append(closers, wstore)
 	wgraph := worldmodel.NewGraph(wstore, kbus)
 
 	skstore, err := skill.Open(filepath.Join(cfg.BaseDir, "skills"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		return nil, apperrors.WrapSimple("runtime: skills", err)
+		return fail("runtime: skills", err)
 	}
+	closers = append(closers, skstore)
 	forge := skill.NewForge(skstore, kbus)
 	// Wire the on-disk bundle store so skills can ship reference files + scripts
 	// (agentskills.io shape, M847). Best-effort: a bundle-store failure leaves
@@ -688,36 +695,21 @@ func Open(cfg Config) (*Kernel, error) {
 
 	schedStore, err := cadence.OpenStore(filepath.Join(cfg.BaseDir, "cadence"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: cadence", err)
+		return fail("runtime: cadence", err)
 	}
 
 	// Content-addressed artifact store (SPEC-04 §3.6): the agent loop offloads
 	// oversized tool outputs here so the journal stays small. Store-only — no bus.
 	artStore, err := artifact.Open(filepath.Join(cfg.BaseDir, "artifacts"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: artifacts", err)
+		return fail("runtime: artifacts", err)
 	}
 	// Metadata index over the blob store (M822) — browsable/deletable entries
 	// (inbound images, tool outputs). Failure here is non-fatal to the blob store
 	// but we surface it so the operator knows the file-manager won't populate.
 	artIndex, err := artifact.OpenIndex(artStore, filepath.Join(cfg.BaseDir, "artifacts"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: artifact index", err)
+		return fail("runtime: artifact index", err)
 	}
 
 	// Personal Data Lake (M834): file-based structured collections agents build
@@ -725,12 +717,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// the prior stores like the others.
 	lake, err := datalake.Open(cfg.BaseDir, func() int64 { return time.Now().UnixMilli() })
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: data lake", err)
+		return fail("runtime: data lake", err)
 	}
 	// Seed the built-in Personal Data Lake collections (M835) — expenses, calendar,
 	// tasks, notes, habits, bookmarks, contacts. Idempotent (EnsureCollection skips
@@ -740,12 +727,7 @@ func Open(cfg Config) (*Kernel, error) {
 
 	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: standing", err)
+		return fail("runtime: standing", err)
 	}
 
 	// Durable in-flight-run tickets (M1002): opened only when resume is enabled so
@@ -755,93 +737,48 @@ func Open(cfg Config) (*Kernel, error) {
 	if cfg.ResumeEnabled {
 		rsstore, err = resume.Open(filepath.Join(cfg.BaseDir, "resume"), cfg.ResumeSnapshotMaxBytes)
 		if err != nil {
-			j.Close()
-			st.Close()
-			mstore.Close()
-			wstore.Close()
-			skstore.Close()
-			return nil, apperrors.WrapSimple("runtime: resume", err)
+			return fail("runtime: resume", err)
 		}
 	}
 
 	rstore, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: roster", err)
+		return fail("runtime: roster", err)
 	}
 
 	tfstore, err := toolforge.Open(filepath.Join(cfg.BaseDir, "toolforge"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: toolforge", err)
+		return fail("runtime: toolforge", err)
 	}
 
 	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: mcp", err)
+		return fail("runtime: mcp", err)
 	}
 
 	wfstore, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: workflows", err)
+		return fail("runtime: workflows", err)
 	}
 
 	wbstore, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: workboard", err)
+		return fail("runtime: workboard", err)
 	}
 
 	okrstore, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: okr", err)
+		return fail("runtime: okr", err)
 	}
 
 	tastestore, err := taste.OpenStore(filepath.Join(cfg.BaseDir, "taste"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: taste", err)
+		return fail("runtime: taste", err)
 	}
 
 	seatstore, err := seat.OpenStore(filepath.Join(cfg.BaseDir, "seats"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: seats", err)
+		return fail("runtime: seats", err)
 	}
 
 	// Reflection holds no store of its own — it folds the journal and tunes
@@ -902,12 +839,7 @@ func Open(cfg Config) (*Kernel, error) {
 	if cat == nil {
 		loaded, err := catStore.Load()
 		if err != nil {
-			j.Close()
-			st.Close()
-			mstore.Close()
-			wstore.Close()
-			skstore.Close()
-			return nil, apperrors.WrapSimple("runtime: catalog load", err)
+			return fail("runtime: catalog load", err)
 		}
 		cat = loaded
 	}
@@ -977,11 +909,9 @@ func Open(cfg Config) (*Kernel, error) {
 	// Config Center for agent SDK config access (M???)
 	configCenter, err := configcenter.Open(configcenter.DefaultConfig(cfg.BaseDir))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		return nil, apperrors.WrapSimple("runtime: configcenter", err)
+		return fail("runtime: configcenter", err)
 	}
+	closers = append(closers, configCenter)
 	// Wire approval registry for HITL support
 	if apr != nil {
 		configCenter.SetApprovalRegistry(apr)
@@ -995,7 +925,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// hardcoded "change-me-in-production" constant.
 	secret, err := agentgw.ResolveTokenSecret(cfg.BaseDir)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: resolve agentgw token secret: %w", err)
+		return fail("runtime: resolve agentgw token secret", err)
 	}
 	gwCfg.TokenSecret = secret
 	// Override socket path from environment if set (useful for Windows TCP testing)
