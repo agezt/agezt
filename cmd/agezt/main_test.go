@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	browsertool "github.com/agezt/agezt/plugins/tools/browser"
 )
@@ -138,10 +139,13 @@ func TestDeliverScheduled(t *testing.T) {
 	}
 }
 
-// TestCollectChannels — env-driven channel inventory for `agt status` (M141):
-// only token-set channels appear, and Inbound reflects whether a webhook channel
-// is fully configured (addr + secret/public key) vs. half-configured.
+// TestCollectChannels — manifest-registry-driven channel inventory for
+// `agt status` (M141, rebuilt for LD-7): a channel appears when its manifest's
+// RequiredEnv are all set, and Inbound reflects the manifest's InboundEnv
+// (e.g. Slack needs addr + signing secret beyond its token).
 func TestCollectChannels(t *testing.T) {
+	builtinchannels.RegisterAll()
+
 	// No tokens → empty.
 	if got := collectChannels(); len(got) != 0 {
 		t.Fatalf("no tokens should yield 0 channels, got %d", len(got))
@@ -157,10 +161,14 @@ func TestCollectChannels(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"DISCORD_ADDR", "127.0.0.1:8850")
 	t.Setenv(brand.EnvPrefix+"DISCORD_PUBLIC_KEY", "deadbeef")
 	t.Setenv(brand.EnvPrefix+"DISCORD_CHANNELS", "D1,D2,D3")
+	// A kind the OLD hand-maintained list never covered — the drift LD-7 fixed:
+	// 15 registered kinds were invisible to `agt status`.
+	t.Setenv(brand.EnvPrefix+"LINE_TOKEN", "line-token")
+	t.Setenv(brand.EnvPrefix+"LINE_USERS", "U1,U2")
 
 	got := collectChannels()
-	if len(got) != 3 {
-		t.Fatalf("expected 3 channels, got %d: %+v", len(got), got)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 channels, got %d: %+v", len(got), got)
 	}
 	type info struct {
 		inbound   bool
@@ -179,6 +187,10 @@ func TestCollectChannels(t *testing.T) {
 	}
 	if dc := by["discord"]; !dc.inbound || dc.addr != "127.0.0.1:8850" || dc.allowlist != 3 {
 		t.Errorf("discord = %+v want inbound, addr set, allow 3", dc)
+	}
+	// LINE has no LINE_ADDR set → configured but not inbound; allowlist counted.
+	if ln := by["line"]; ln.inbound || ln.allowlist != 2 {
+		t.Errorf("line = %+v want NOT inbound (no addr), allow 2", ln)
 	}
 }
 
