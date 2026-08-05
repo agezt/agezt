@@ -20,15 +20,17 @@ import (
 // env-seeded ones come from AGEZT_SCHEDULE.
 
 func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
-	intent, _ := req.Args["intent"].(string)
-	model, _ := req.Args["model"].(string)
-	agent, _ := req.Args["agent"].(string)
-	agent = strings.TrimSpace(agent)
-	target, _ := req.Args["target"].(string)
-	workflowRef, _ := req.Args["workflow"].(string)
-	systemTask, _ := req.Args["system_task"].(string)
-	toolName, _ := req.Args["tool"].(string)
-	target, workflowRef, systemTask, toolName = strings.TrimSpace(target), strings.TrimSpace(workflowRef), strings.TrimSpace(systemTask), strings.TrimSpace(toolName)
+	sa, err := argStrings(req.Args, "intent", "model", "agent", "target", "workflow", "system_task", "tool")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	intent, model := sa["intent"], sa["model"]
+	agent := strings.TrimSpace(sa["agent"])
+	target := strings.TrimSpace(sa["target"])
+	workflowRef := strings.TrimSpace(sa["workflow"])
+	systemTask := strings.TrimSpace(sa["system_task"])
+	toolName := strings.TrimSpace(sa["tool"])
 	if workflowRef != "" {
 		target = cadence.TargetWorkflow
 	}
@@ -157,7 +159,6 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 	}
 
 	var e cadence.Entry
-	var err error
 	// One-shot when once_at_unix is present; daily when at_minutes is present;
 	// interval otherwise.
 	if _, ok := req.Args["once_at_unix"]; ok {
@@ -199,7 +200,11 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: parseErr.Error()})
 			return
 		}
-		tz, _ := req.Args["tz"].(string)
+		tz, _, tzErr := argString(req.Args, "tz")
+		if tzErr != nil {
+			s.fail(conn, req, tzErr)
+			return
+		}
 		e, err = s.k.Schedules().AddWindow(intent, time.Duration(sec)*time.Second, int(start), int(end), int(days), tz, model, cadence.SourceOperator, time.Now())
 	} else if _, ok := req.Args["at_minutes"]; ok {
 		at, _, parseErr := scheduleArgNumber(req.Args, "at_minutes")
@@ -212,7 +217,11 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: parseErr.Error()})
 			return
 		}
-		tz, _ := req.Args["tz"].(string)
+		tz, _, tzErr := argString(req.Args, "tz")
+		if tzErr != nil {
+			s.fail(conn, req, tzErr)
+			return
+		}
 		e, err = s.k.Schedules().AddDaily(intent, int(at), int(days), tz, model, cadence.SourceOperator, time.Now())
 	} else {
 		sec, _, parseErr := scheduleArgNumber(req.Args, "interval_sec")
@@ -293,9 +302,9 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	// Accept enabled as a bool (CLI/JSON transport) or a "true"/"false"/"1"/"0"
@@ -342,19 +351,17 @@ func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
 // dry-run. Uses the entry's own Forecast simulation so the result matches what
 // the cadence engine will actually do.
 func (s *Server) handleScheduleTest(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	count := 5
-	switch v := req.Args["count"].(type) {
-	case float64:
-		count = int(v)
-	case int:
-		count = v
-	case int64:
-		count = int(v)
+	if n, present, err := scheduleArgNumber(req.Args, "count"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if present {
+		count = int(n)
 	}
 	if count < 1 {
 		count = 1
@@ -389,9 +396,9 @@ func (s *Server) handleScheduleTest(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	store := s.k.Schedules()
@@ -401,11 +408,15 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 		return
 	}
 	now := time.Now()
-	target, _ := req.Args["target"].(string)
-	workflowRef, _ := req.Args["workflow"].(string)
-	systemTask, _ := req.Args["system_task"].(string)
-	toolName, _ := req.Args["tool"].(string)
-	target, workflowRef, systemTask, toolName = strings.TrimSpace(target), strings.TrimSpace(workflowRef), strings.TrimSpace(systemTask), strings.TrimSpace(toolName)
+	sa, err := argStrings(req.Args, "target", "workflow", "system_task", "tool")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	target := strings.TrimSpace(sa["target"])
+	workflowRef := strings.TrimSpace(sa["workflow"])
+	systemTask := strings.TrimSpace(sa["system_task"])
+	toolName := strings.TrimSpace(sa["tool"])
 	targetSet := false
 	if _, ok := req.Args["target"]; ok {
 		targetSet = true
@@ -650,8 +661,11 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 	}
 
 	// At most one cadence change: once | continuous | window | daily | interval.
-	var err error
-	tz, _ := req.Args["tz"].(string)
+	tz, _, err := argString(req.Args, "tz")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if _, ok := req.Args["once_at_unix"]; ok {
 		at, _, parseErr := scheduleArgNumber(req.Args, "once_at_unix")
 		if parseErr != nil {
@@ -974,9 +988,9 @@ func (s *Server) handleScheduleSystemTasks(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleScheduleRemove(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	removed, err := s.k.Schedules().Remove(id)
@@ -988,9 +1002,9 @@ func (s *Server) handleScheduleRemove(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleScheduleRun(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	if e, ok := s.k.Schedules().Get(id); ok {

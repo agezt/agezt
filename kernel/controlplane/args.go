@@ -91,6 +91,21 @@ func argFloat64(args map[string]any, key string) (float64, bool, error) {
 	return f, true, nil
 }
 
+// argStrings extracts several OPTIONAL string args at once (absent → "" in the
+// returned map), failing on the first wrong-typed key. For the handler headers
+// that start by pulling half a dozen optional strings out of the request.
+func argStrings(args map[string]any, keys ...string) (map[string]string, error) {
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		v, _, err := argString(args, k)
+		if err != nil {
+			return nil, err
+		}
+		out[k] = v
+	}
+	return out, nil
+}
+
 // argLimit reads the ubiquitous paging `limit` arg: absent or non-positive
 // falls back to def, anything above max is clamped to max, and a non-numeric
 // present value is an error. def=0 conventionally means "no limit" at sites

@@ -25,9 +25,8 @@ var rawArgCastBaseline = map[string]int{
 	// (enabled bool-or-string, older_than_days number-or-string,
 	// task_model_chain []any) — not migration debt.
 	"roster.go":               3,
-	"schedule.go":             21,
-	"workflow.go":             17,
-	"skill.go":                17,
+	"schedule.go":             1, // residual: enabled bool-or-string switch
+	"workflow.go":             3, // residual: enabled/limit/async dual-type switches
 	"world.go":                15,
 	"standing.go":             15,
 	"configcenter_handler.go": 14,

@@ -74,9 +74,9 @@ func (s *Server) handleWorkflowList(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorkflowShow(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
@@ -131,7 +131,11 @@ func (s *Server) handleWorkflowRestore(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
 		return
 	}
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	restored, created, err := s.k.RestoreWorkflow("", w, reason)
 	if err != nil {
 		s.fail(conn, req, err)
@@ -145,9 +149,9 @@ func (s *Server) handleWorkflowRestore(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorkflowRemove(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	ok, err := s.k.RemoveWorkflow("", ref)
@@ -159,9 +163,9 @@ func (s *Server) handleWorkflowRemove(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	enabled := false
@@ -210,12 +214,20 @@ func (s *Server) handleWorkflowTestNode(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
 		return
 	}
-	nodeID, _ := req.Args["node"].(string)
-	if strings.TrimSpace(nodeID) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.node required"})
+	nodeID, err := requiredArgString(req.Args, "node")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	data, _ := req.Args["data"].(map[string]any)
+	var data map[string]any
+	if raw, ok := req.Args["data"]; ok {
+		m, isMap := raw.(map[string]any)
+		if !isMap {
+			s.failMsg(conn, req, "args.data must be an object")
+			return
+		}
+		data = m
+	}
 	payload := req.Args["payload"]
 	corr := s.k.NewCorrelation()
 	ctx, cancel := context.WithTimeout(context.Background(), workflowTestNodeTimeout)
@@ -245,9 +257,11 @@ func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
 	refuse := func() {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "webhook refused"})
 	}
-	ref, _ := req.Args["ref"].(string)
-	secret, _ := req.Args["secret"].(string)
-	if strings.TrimSpace(ref) == "" || secret == "" {
+	// Wrong-typed args refuse uniformly too — the gate must not leak which
+	// input was malformed.
+	ref, _, refErr := argString(req.Args, "ref")
+	secret, _, secErr := argString(req.Args, "secret")
+	if refErr != nil || secErr != nil || strings.TrimSpace(ref) == "" || secret == "" {
 		refuse()
 		return
 	}
@@ -346,9 +360,9 @@ const (
 // console's Runs drawer replays on the canvas — the journal is the truth,
 // nothing new is stored.
 func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
@@ -545,12 +559,16 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
-	desc, _ := req.Args["description"].(string)
-	if strings.TrimSpace(desc) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.description required"})
+	desc, err := requiredArgString(req.Args, "description")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	name, _ := req.Args["name"].(string)
+	name, _, err := argString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	corr := s.k.NewCorrelation()
 	ctx, cancel := context.WithTimeout(context.Background(), workflowDraftTimeout)
 	defer cancel()
@@ -572,9 +590,9 @@ func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
 // (the canvas's truth, unsaved edits included), else the STORED one at
 // args.ref (the CLI's path). The revision returns UNSAVED, like a draft.
 func (s *Server) handleWorkflowRefine(conn net.Conn, req Request) {
-	instruction, _ := req.Args["instruction"].(string)
-	if strings.TrimSpace(instruction) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.instruction required"})
+	instruction, err := requiredArgString(req.Args, "instruction")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	var base workflow.Workflow
@@ -588,9 +606,13 @@ func (s *Server) handleWorkflowRefine(conn net.Conn, req Request) {
 			return
 		}
 	} else {
-		ref, _ := req.Args["ref"].(string)
+		ref, _, err := argString(req.Args, "ref")
+		if err != nil {
+			s.fail(conn, req, err)
+			return
+		}
 		if strings.TrimSpace(ref) == "" {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow or args.ref required"})
+			s.failMsg(conn, req, "args.workflow or args.ref required")
 			return
 		}
 		w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
@@ -616,9 +638,9 @@ func (s *Server) handleWorkflowRefine(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	// payload may be any JSON value (object on the canvas, a string from the
