@@ -13,21 +13,24 @@ import (
 
 // handleConfigCenterSet sets a config entry.
 func (s *Server) handleConfigCenterSet(conn net.Conn, req Request) {
-	key, _ := req.Args["key"].(string)
-	value, _ := req.Args["value"].(string)
-	ratingStr, _ := req.Args["rating"].(string)
-	description, _ := req.Args["description"].(string)
+	key, err := requiredArgString(req.Args, "key")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	value, err := requiredArgString(req.Args, "value")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	sa, err := argStrings(req.Args, "rating", "description")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	ratingStr, description := sa["rating"], sa["description"]
 	allowedAgents := configCenterStringList(req.Args["allowed_agents"])
 	excludedAgents := configCenterStringList(req.Args["excluded_agents"])
-
-	if key == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
-		return
-	}
-	if value == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "value is required"})
-		return
-	}
 
 	// Determine rating
 	rating := configcenter.RatingInternal
@@ -81,10 +84,9 @@ func (s *Server) handleConfigCenterSet(conn net.Conn, req Request) {
 
 // handleConfigCenterGet retrieves a config entry.
 func (s *Server) handleConfigCenterGet(conn net.Conn, req Request) {
-	key, _ := req.Args["key"].(string)
-
-	if key == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
+	key, err := requiredArgString(req.Args, "key")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -108,7 +110,11 @@ func (s *Server) handleConfigCenterGet(conn net.Conn, req Request) {
 
 // handleConfigCenterList lists all config entries.
 func (s *Server) handleConfigCenterList(conn net.Conn, req Request) {
-	ratingStr, _ := req.Args["rating"].(string)
+	ratingStr, _, err := argString(req.Args, "rating")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	var rating configcenter.Rating
 	if ratingStr != "" {
@@ -154,10 +160,9 @@ func (s *Server) handleConfigCenterList(conn net.Conn, req Request) {
 
 // handleConfigCenterDelete deletes a config entry.
 func (s *Server) handleConfigCenterDelete(conn net.Conn, req Request) {
-	key, _ := req.Args["key"].(string)
-
-	if key == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
+	key, err := requiredArgString(req.Args, "key")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -166,7 +171,7 @@ func (s *Server) handleConfigCenterDelete(conn net.Conn, req Request) {
 		return
 	}
 
-	err := s.k.ConfigCenter().Delete(key)
+	err = s.k.ConfigCenter().Delete(key)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
@@ -181,15 +186,14 @@ func (s *Server) handleConfigCenterDelete(conn net.Conn, req Request) {
 
 // handleConfigCenterSetRating sets the rating for a config entry.
 func (s *Server) handleConfigCenterSetRating(conn net.Conn, req Request) {
-	key, _ := req.Args["key"].(string)
-	ratingStr, _ := req.Args["rating"].(string)
-
-	if key == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
+	key, err := requiredArgString(req.Args, "key")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	if ratingStr == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "rating is required"})
+	ratingStr, err := requiredArgString(req.Args, "rating")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -229,9 +233,9 @@ func (s *Server) handleConfigCenterSetRating(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleConfigCenterSetAccess(conn net.Conn, req Request) {
-	key, _ := req.Args["key"].(string)
-	if key == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "key is required"})
+	key, err := requiredArgString(req.Args, "key")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -266,9 +270,12 @@ func (s *Server) handleConfigCenterSetAccess(conn net.Conn, req Request) {
 
 // handleConfigCenterAccessLog returns the access log.
 func (s *Server) handleConfigCenterAccessLog(conn net.Conn, req Request) {
-	key, _ := req.Args["key"].(string)
-	agentID, _ := req.Args["agent_id"].(string)
-	sinceStr, _ := req.Args["since"].(string)
+	sa, err := argStrings(req.Args, "key", "agent_id", "since")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	key, agentID, sinceStr := sa["key"], sa["agent_id"], sa["since"]
 
 	var since time.Duration
 	if sinceStr != "" {
@@ -310,20 +317,23 @@ func (s *Server) handleConfigCenterAccessLog(conn net.Conn, req Request) {
 
 // handleConfigCenterAudit returns the audit log.
 func (s *Server) handleConfigCenterAudit(conn net.Conn, req Request) {
-	sinceStr, _ := req.Args["since"].(string)
+	sinceStr, _, err := argString(req.Args, "since")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	var since time.Duration
 	if sinceStr != "" {
-		var err error
 		since, err = time.ParseDuration(sinceStr)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "invalid duration: " + sinceStr})
+			s.failMsg(conn, req, "invalid duration: "+sinceStr)
 			return
 		}
 	}
 
 	if s.k.ConfigCenter() == nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "config center not available"})
+		s.failMsg(conn, req, "config center not available")
 		return
 	}
 
