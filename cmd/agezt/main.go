@@ -7199,8 +7199,11 @@ func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
 	if ht, ok := tools["http"].(*httptool.Tool); ok {
 		ht.OnBlock = publish("http")
 	}
-	if br, ok := tools["browser"].(*browser.Tool); ok {
-		br.OnBlock = publish("browser")
+	if br, ok := tools["browser.read"].(*browser.Tool); ok {
+		br.OnBlock = publish("browser.read")
+	}
+	if ba, ok := tools["browser.action"].(*browser.ActionTool); ok {
+		ba.OnBlock = publish("browser.action")
 	}
 	if ws, ok := tools["web_search"].(*websearch.Tool); ok {
 		ws.OnBlock = publish("web_search")
