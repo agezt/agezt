@@ -1075,11 +1075,6 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 // IS the chat payload, so it's forwarded inline.
 func (s *Server) runStreamProxy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
 		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history", "system", "agent", "execution_profile", "auto_approve_caps"})
 		if !ok {
 			return
@@ -1102,17 +1097,12 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 			args["intent"] = convo.TranscriptIntent(turns)
 		}
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusOK)
-		write := func(obj any) {
-			b, _ := json.Marshal(obj)
-			_, _ = w.Write([]byte("data: "))
-			_, _ = w.Write(b)
-			_, _ = w.Write([]byte("\n\n"))
-			flusher.Flush()
+		sse, ok := httpserver.StartSSE(w, r)
+		if !ok {
+			return
 		}
+		defer sse.Close()
+		write := func(obj any) { _ = sse.WriteJSON(obj) }
 		write(map[string]any{"kind": "open"})
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
@@ -1140,11 +1130,6 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 // it's forwarded inline. Only `names` is forwarded from the body.
 func (s *Server) toolInstallProxy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
 		args, ok := s.decodeAllowedBody(w, r, []string{"names"})
 		if !ok {
 			return
@@ -1154,17 +1139,12 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusOK)
-		write := func(obj any) {
-			b, _ := json.Marshal(obj)
-			_, _ = w.Write([]byte("data: "))
-			_, _ = w.Write(b)
-			_, _ = w.Write([]byte("\n\n"))
-			flusher.Flush()
+		sse, ok := httpserver.StartSSE(w, r)
+		if !ok {
+			return
 		}
+		defer sse.Close()
+		write := func(obj any) { _ = sse.WriteJSON(obj) }
 		write(map[string]any{"kind": "open"})
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
@@ -1189,11 +1169,6 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 // SSE — mirroring toolInstallProxy. Only the whitelisted keys are forwarded.
 func (s *Server) marketStreamProxy(cmd string, keys []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
 		args, ok := s.decodeAllowedBody(w, r, keys)
 		if !ok {
 			return
@@ -1202,17 +1177,12 @@ func (s *Server) marketStreamProxy(cmd string, keys []string) http.HandlerFunc {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "name is required"})
 			return
 		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusOK)
-		write := func(obj any) {
-			b, _ := json.Marshal(obj)
-			_, _ = w.Write([]byte("data: "))
-			_, _ = w.Write(b)
-			_, _ = w.Write([]byte("\n\n"))
-			flusher.Flush()
+		sse, ok := httpserver.StartSSE(w, r)
+		if !ok {
+			return
 		}
+		defer sse.Close()
+		write := func(obj any) { _ = sse.WriteJSON(obj) }
 		write(map[string]any{"kind": "open"})
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
@@ -1578,33 +1548,23 @@ func contentType(name string) string {
 // whole firehose and relays each event as one `data: {json}` frame, flushing
 // per event, until the client disconnects (request ctx) or the bus closes.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-	// Bound concurrent firehose streams per client (V-009) before allocating a
-	// subscription — refuses with 429 when a client is over its generous cap.
-	release, ok := sseGate(w, r)
-	if !ok {
-		return
-	}
-	defer release()
+	// Subscribe before opening the stream so a subscribe failure is a plain
+	// 500, not a broken SSE body. StartSSE bounds concurrent firehose streams
+	// per client (V-009) — 429 when a client is over its generous cap.
 	sub, err := s.bus.Subscribe(">", 256)
 	if err != nil {
 		http.Error(w, "subscribe: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer sub.Cancel()
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
+	sse, ok := httpserver.StartSSE(w, r)
+	if !ok {
+		return
+	}
+	defer sse.Close()
 	// An initial comment opens the stream so the browser's EventSource fires
 	// onopen even before the first event.
-	_, _ = w.Write([]byte(": connected\n\n"))
-	flusher.Flush()
+	_ = sse.Comment("connected")
 
 	ctx := r.Context()
 	// A heartbeat keeps proxies from closing an idle stream.
@@ -1616,10 +1576,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-ping.C:
-			if _, err := w.Write([]byte(": ping\n\n")); err != nil {
+			if err := sse.Comment("ping"); err != nil {
 				return
 			}
-			flusher.Flush()
 		case ev, ok := <-sub.C:
 			if !ok {
 				return
@@ -1628,10 +1587,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
-			if _, err := w.Write([]byte("data: " + string(payload) + "\n\n")); err != nil {
+			if err := sse.WriteData(string(payload)); err != nil {
 				return
 			}
-			flusher.Flush()
 		}
 	}
 }

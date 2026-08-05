@@ -35,6 +35,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 )
 
 // mailboxDefaultLimit / mailboxMaxLimit bound the list endpoints (mirrors the
@@ -333,17 +334,6 @@ func (s *Server) handleMailboxWatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	flusher, canFlush := w.(http.Flusher)
-	if !canFlush {
-		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
-		return
-	}
-	// Bound concurrent watch streams per client (V-009) before subscribing.
-	release, ok := s.sseGate(w, r)
-	if !ok {
-		return
-	}
-	defer release()
 	name := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("name")))
 	topic := strings.TrimSpace(r.URL.Query().Get("topic"))
 
@@ -355,15 +345,15 @@ func (s *Server) handleMailboxWatch(w http.ResponseWriter, r *http.Request) {
 	}
 	defer sub.Cancel()
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
+	// StartSSE bounds concurrent watch streams per client (V-009/LD-8).
+	sse, ok := httpserver.StartSSE(w, r)
+	if !ok {
+		return
+	}
+	defer sse.Close()
 
 	send := func(eventName string, payload any) {
-		data, _ := json.Marshal(payload)
-		_, _ = w.Write([]byte("event: " + eventName + "\ndata: " + string(data) + "\n\n"))
-		flusher.Flush()
+		_ = sse.WriteEvent(eventName, payload)
 	}
 	ready := map[string]any{}
 	if name != "" {
@@ -382,8 +372,7 @@ func (s *Server) handleMailboxWatch(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-keepalive.C:
-			_, _ = w.Write([]byte(": keepalive\n\n"))
-			flusher.Flush()
+			_ = sse.Comment("keepalive")
 		case ev, alive := <-sub.C:
 			if !alive {
 				return

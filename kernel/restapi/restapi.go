@@ -444,11 +444,6 @@ func (s *Server) handleRunsRoot(w http.ResponseWriter, r *http.Request) {
 // SSE frames (event: token / event: done / event: error). It subscribes BEFORE
 // starting the run so no early token is missed.
 func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
-		return
-	}
 	corr := eng.NewCorrelation()
 	sub, err := b.Subscribe(eng.SubjectForRun(corr), 1024)
 	if err != nil {
@@ -457,15 +452,15 @@ func (s *Server) streamRun(w http.ResponseWriter, r *http.Request, eng Engine, b
 	}
 	defer sub.Cancel()
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
+	// StartSSE applies the process-wide per-client stream cap (V-009/LD-8).
+	sse, ok := httpserver.StartSSE(w, r)
+	if !ok {
+		return
+	}
+	defer sse.Close()
 
 	send := func(eventName string, payload map[string]any) {
-		data, _ := json.Marshal(payload)
-		_, _ = w.Write([]byte("event: " + eventName + "\ndata: " + string(data) + "\n\n"))
-		flusher.Flush()
+		_ = sse.WriteEvent(eventName, payload)
 	}
 	send("start", map[string]any{"correlation_id": corr, "model": model})
 

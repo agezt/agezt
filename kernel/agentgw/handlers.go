@@ -4,11 +4,11 @@ package agentgw
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/memory"
 )
 
@@ -51,17 +51,16 @@ func (g *Gateway) handleEventbusSubscribe(w http.ResponseWriter, r *http.Request
 	defer sub.Cancel()
 
 	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
+	// StartSSE writes the header triple and applies the process-wide
+	// per-client stream cap (V-009/LD-8 — this endpoint had no cap before).
 	// No CORS header: this SSE stream is consumed by agent subprocesses over a
 	// local socket, never a cross-origin browser. A wildcard ACAO would let any
 	// web page read the event bus if the gateway is ever TCP-exposed.
-
-	// Flush headers
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
+	sse, ok := httpserver.StartSSE(w, r)
+	if !ok {
+		return
 	}
+	defer sse.Close()
 
 	// Stream events
 	for {
@@ -74,9 +73,8 @@ func (g *Gateway) handleEventbusSubscribe(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				continue
 			}
-			fmt.Fprintf(w, "data: %s\n\n", data)
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
+			if err := sse.WriteData(string(data)); err != nil {
+				return
 			}
 		case <-r.Context().Done():
 			return
