@@ -21,7 +21,10 @@ import (
 // deleting the entry at zero). Do not raise a number to make the test pass —
 // that re-opens the silent-failure class the accessors were written to close.
 var rawArgCastBaseline = map[string]int{
-	"roster.go":               29,
+	// roster.go's 3 residual casts are deliberate polymorphic transports
+	// (enabled bool-or-string, older_than_days number-or-string,
+	// task_model_chain []any) — not migration debt.
+	"roster.go":               3,
 	"schedule.go":             21,
 	"workflow.go":             17,
 	"skill.go":                17,

@@ -226,17 +226,18 @@ func (s *Server) handleAgentList(conn net.Conn, req Request) {
 	// with s.agentListCacheResult. An in-place reverse would corrupt the cached
 	// data for the next caller.
 	out = append([]any(nil), out...)
-	limit := 0
-	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
-		limit = int(raw)
-	}
-	if limit > 1000 {
-		limit = 1000
+	limit, err := argLimit(req.Args, 0, 1000)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	var cursorMS int64
 	var cursorSlug string
 	cursorOK := false
-	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+	if raw, _, err := argString(req.Args, "cursor"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if raw != "" {
 		msStr, slug, _ := strings.Cut(raw, ":")
 		if ms, err := strconv.ParseInt(msStr, 10, 64); err == nil {
 			cursorMS, cursorSlug, cursorOK = ms, slug, true
@@ -1288,26 +1289,26 @@ func (s *Server) handleAgentAdd(conn net.Conn, req Request) {
 // policy fields, etc. Identity/lifecycle fields are protected by the store, so
 // a stale client can't rename a slug or resurrect a paused agent.
 func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	raw, ok := req.Args["profile"]
 	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.profile required"})
+		s.failMsg(conn, req, "args.profile required")
 		return
 	}
 	b, err := json.Marshal(raw)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.profile: " + err.Error()})
+		s.failMsg(conn, req, "args.profile: "+err.Error())
 		return
 	}
 	// Parse the raw payload into a flat map to detect which top-level keys the
 	// caller explicitly provided (as opposed to zero-value fields from omission).
 	provided := map[string]bool{}
-	if raw, _ := req.Args["profile"].(map[string]any); raw != nil {
-		for k := range raw {
+	if rawMap, _ := raw.(map[string]any); rawMap != nil {
+		for k := range rawMap {
 			provided[k] = true
 		}
 	}
@@ -1477,9 +1478,9 @@ func managedSubagentDirectCallError(p roster.Profile, action string) string {
 }
 
 func (s *Server) handleAgentSetEnabled(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	// Accept enabled as a bool (CLI/JSON) or a "true"/"false"/"1"/"0" string
@@ -1514,46 +1515,50 @@ func (s *Server) handleAgentSetEnabled(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleAgentTaskUpdate(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	op, _ := req.Args["op"].(string)
+	op, _, err := argString(req.Args, "op")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	op = strings.ToLower(strings.TrimSpace(op))
 	if op == "" {
 		op = "update"
 	}
 	if op != "add" && op != "update" && op != "remove" && op != "delete" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.op must be add, update, or remove"})
+		s.failMsg(conn, req, "args.op must be add, update, or remove")
 		return
 	}
 	var in roster.AgentTask
 	if raw, ok := req.Args["task"]; ok {
 		b, err := json.Marshal(raw)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.task: " + err.Error()})
+			s.failMsg(conn, req, "args.task: "+err.Error())
 			return
 		}
 		if err := json.Unmarshal(b, &in); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.task: " + err.Error()})
+			s.failMsg(conn, req, "args.task: "+err.Error())
 			return
 		}
 	}
-	if v, ok := req.Args["id"].(string); ok {
-		in.ID = v
-	}
-	if v, ok := req.Args["title"].(string); ok {
-		in.Title = v
-	}
-	if v, ok := req.Args["description"].(string); ok {
-		in.Description = v
-	}
-	if v, ok := req.Args["scope"].(string); ok {
-		in.Scope = v
-	}
-	if v, ok := req.Args["status"].(string); ok {
-		in.Status = v
+	// Flat-arg overrides layered over args.task (both transports are live).
+	for _, f := range []struct {
+		key string
+		dst *string
+	}{
+		{"id", &in.ID}, {"title", &in.Title}, {"description", &in.Description},
+		{"scope", &in.Scope}, {"status", &in.Status},
+	} {
+		if v, present, err := argString(req.Args, f.key); err != nil {
+			s.fail(conn, req, err)
+			return
+		} else if present {
+			*f.dst = v
+		}
 	}
 	titleProvided := hasArg(req.Args, "title") || taskFieldPresent(req.Args["task"], "title")
 	scopeProvided := hasArg(req.Args, "scope") || taskFieldPresent(req.Args["task"], "scope")
@@ -1680,9 +1685,9 @@ func taskFieldPresent(raw any, key string) bool {
 // handleAgentImpact reports what depends on an agent — shown before retiring or
 // removing so the operator sees the effects (M846).
 func (s *Server) handleAgentImpact(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -1697,9 +1702,9 @@ func (s *Server) handleAgentImpact(conn net.Conn, req Request) {
 // identity, lifecycle/retirement record, and durable resource footprint. Portable
 // archival/audit artifact — it removes and mutates nothing (NEXT.md #7).
 func (s *Server) handleAgentTombstone(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -1864,9 +1869,9 @@ func (s *Server) agentImpactResult(p roster.Profile) map[string]any {
 // changes to its own profile. Derived entirely from the journal (no new store),
 // newest first. Answers the owner's "what happened, which agent consulted for advice".
 func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -1875,12 +1880,10 @@ func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
 		return
 	}
 	slug := p.Slug
-	limit := 50
-	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
-		limit = int(raw)
-	}
-	if limit > 500 {
-		limit = 500
+	limit, err := argLimit(req.Args, 50, 500)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 
 	// Pass 1: the correlation ids of runs this agent executed (task.received
@@ -1954,9 +1957,9 @@ func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
 // self-repair history: queued/completed/failed doctor.auto_repair events,
 // newest first, plus the current inflight fingerprints and effective cooldown.
 func (s *Server) handleAgentRepairStatus(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -1964,12 +1967,10 @@ func (s *Server) handleAgentRepairStatus(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
 		return
 	}
-	limit := 20
-	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
-		limit = int(raw)
-	}
-	if limit > 100 {
-		limit = 100
+	limit, err := argLimit(req.Args, 20, 100)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	cooldown := agentAutoRepairCooldown()
 	var rows []agentRepairRow
@@ -2221,9 +2222,9 @@ func repairDecisionDetail(row agentRepairRow, fallback string) string {
 }
 
 func (s *Server) handleAgentRepair(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -2291,9 +2292,9 @@ func (s *Server) handleAgentRepair(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleAgentWake(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -2346,9 +2347,9 @@ func (s *Server) handleAgentWake(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleAgentResolve(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -2687,9 +2688,9 @@ func equalStringSlices(a, b []string) bool {
 }
 
 func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -2697,12 +2698,10 @@ func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
 		return
 	}
-	limit := 20
-	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
-		limit = int(raw)
-	}
-	if limit > 100 {
-		limit = 100
+	limit, err := argLimit(req.Args, 20, 100)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	st, err := s.boardReader()
 	if err != nil {
@@ -2716,9 +2715,12 @@ func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {
 	var cursorTS int64
 	var cursorID string
 	cursorOK := false
-	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+	if raw, _, cerr := argString(req.Args, "cursor"); cerr != nil {
+		s.fail(conn, req, cerr)
+		return
+	} else if raw != "" {
 		tsStr, id, _ := strings.Cut(raw, ":")
-		if ts, err := strconv.ParseInt(tsStr, 10, 64); err == nil {
+		if ts, perr := strconv.ParseInt(tsStr, 10, 64); perr == nil {
 			cursorTS, cursorID, cursorOK = ts, id, true
 		}
 	}
@@ -3826,9 +3828,9 @@ func (s *Server) handleAgentRevive(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	reason := stringArg(req.Args, "reason")
@@ -3899,9 +3901,9 @@ func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool)
 }
 
 func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, found := s.k.Roster().Get(ref)

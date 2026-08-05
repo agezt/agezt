@@ -72,7 +72,7 @@ func requiredArgString(args map[string]any, key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if v == "" {
+	if strings.TrimSpace(v) == "" {
 		return "", fmt.Errorf("args.%s required", key)
 	}
 	return v, nil
@@ -89,6 +89,25 @@ func argFloat64(args map[string]any, key string) (float64, bool, error) {
 		return 0, true, fmt.Errorf("args.%s must be a number", key)
 	}
 	return f, true, nil
+}
+
+// argLimit reads the ubiquitous paging `limit` arg: absent or non-positive
+// falls back to def, anything above max is clamped to max, and a non-numeric
+// present value is an error. def=0 conventionally means "no limit" at sites
+// that support returning everything.
+func argLimit(args map[string]any, def, max int) (int, error) {
+	f, _, err := argFloat64(args, "limit")
+	if err != nil {
+		return 0, err
+	}
+	limit := def
+	if f > 0 {
+		limit = int(f)
+	}
+	if limit > max {
+		limit = max
+	}
+	return limit, nil
 }
 
 // argStringMap extracts a JSON object whose values are strings. A non-string
