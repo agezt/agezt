@@ -11,6 +11,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"sort"
 	"strconv"
@@ -77,31 +78,49 @@ func (s *Server) handleProfileRebuild(conn net.Conn, req Request) {
 	})
 }
 
-func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
-	content, _ := req.Args["content"].(string)
-	if content == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.content required"})
-		return
+// memoryRememberSpecFromArgs decodes the RememberSpec fields shared by the
+// memory add and supersede commands with the typed accessors (Phase 1.2b), so
+// a mistyped field errors instead of silently zeroing. Content is validated
+// required; Actor/Force are the operator-write constants both callers use.
+func memoryRememberSpecFromArgs(args map[string]any) (memory.RememberSpec, error) {
+	content, _, err := argString(args, "content")
+	if err != nil {
+		return memory.RememberSpec{}, err
 	}
-	subject, _ := req.Args["subject"].(string)
-	typ, _ := req.Args["type"].(string)
-	conf, _ := req.Args["confidence"].(float64) // JSON numbers decode to float64
-	evidence, _ := req.Args["evidence"].(string)
+	if content == "" {
+		return memory.RememberSpec{}, errors.New("args.content required")
+	}
+	subject, _, err := argString(args, "subject")
+	if err != nil {
+		return memory.RememberSpec{}, err
+	}
+	typ, _, err := argString(args, "type")
+	if err != nil {
+		return memory.RememberSpec{}, err
+	}
+	conf, _, err := argFloat64(args, "confidence")
+	if err != nil {
+		return memory.RememberSpec{}, err
+	}
+	evidence, _, err := argString(args, "evidence")
+	if err != nil {
+		return memory.RememberSpec{}, err
+	}
 	halfLifeMS := int64(0)
-	if raw, ok := req.Args["half_life_ms"].(float64); ok && raw > 0 {
+	if raw, _, err := argFloat64(args, "half_life_ms"); err != nil {
+		return memory.RememberSpec{}, err
+	} else if raw > 0 {
 		halfLifeMS = int64(raw)
 	}
-
 	tags := map[string]string{"source": "operator"}
-	if raw, ok := req.Args["tags"].(map[string]any); ok {
-		for k, v := range raw {
-			if sv, ok := v.(string); ok {
-				tags[k] = sv
-			}
-		}
+	rawTags, _, err := argStringMap(args, "tags")
+	if err != nil {
+		return memory.RememberSpec{}, err
 	}
-
-	rec, created, err := s.k.Memory().Remember("", memory.RememberSpec{
+	for k, v := range rawTags {
+		tags[k] = v
+	}
+	return memory.RememberSpec{
 		Type:       memory.Type(typ),
 		Subject:    subject,
 		Content:    content,
@@ -111,7 +130,16 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 		HalfLifeMS: halfLifeMS,
 		Actor:      "operator", // a console/CLI write (M851)
 		Force:      true,
-	})
+	}, nil
+}
+
+func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
+	spec, err := memoryRememberSpecFromArgs(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	rec, created, err := s.k.Memory().Remember("", spec)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
@@ -135,45 +163,21 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 // supersession is the model-correct "edit". Reviving to identical content is a no-op
 // (the new id equals the old) and reported as superseded:false.
 func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
-	oldID, _ := req.Args["old_id"].(string)
+	oldID, _, err := argString(req.Args, "old_id")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if oldID == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.old_id required"})
+		s.failMsg(conn, req, "args.old_id required")
 		return
 	}
-	content, _ := req.Args["content"].(string)
-	if content == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.content required"})
+	spec, err := memoryRememberSpecFromArgs(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	subject, _ := req.Args["subject"].(string)
-	typ, _ := req.Args["type"].(string)
-	conf, _ := req.Args["confidence"].(float64)
-	evidence, _ := req.Args["evidence"].(string)
-	halfLifeMS := int64(0)
-	if raw, ok := req.Args["half_life_ms"].(float64); ok && raw > 0 {
-		halfLifeMS = int64(raw)
-	}
-
-	tags := map[string]string{"source": "operator"}
-	if raw, ok := req.Args["tags"].(map[string]any); ok {
-		for k, v := range raw {
-			if sv, ok := v.(string); ok {
-				tags[k] = sv
-			}
-		}
-	}
-
-	rec, err := s.k.Memory().Supersede("", oldID, memory.RememberSpec{
-		Type:       memory.Type(typ),
-		Subject:    subject,
-		Content:    content,
-		Tags:       tags,
-		Confidence: conf,
-		Evidence:   memory.Evidence(evidence),
-		HalfLifeMS: halfLifeMS,
-		Actor:      "operator", // a console/CLI edit (M851)
-		Force:      true,
-	})
+	rec, err := s.k.Memory().Supersede("", oldID, spec)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
@@ -201,7 +205,10 @@ func (s *Server) handleMemoryList(conn net.Conn, req Request) {
 	// this on every render; for a busy memory store the response is large
 	// enough to slow the panel. Newest first; cursor = (CreatedMS, ID).
 	limit := 100
-	if raw, ok := req.Args["limit"].(float64); ok && raw > 0 {
+	if raw, _, lerr := argFloat64(req.Args, "limit"); lerr != nil {
+		s.fail(conn, req, lerr)
+		return
+	} else if raw > 0 {
 		limit = int(raw)
 	}
 	if limit > 1000 {
@@ -217,7 +224,10 @@ func (s *Server) handleMemoryList(conn net.Conn, req Request) {
 	var cursorMS int64
 	var cursorID string
 	cursorOK := false
-	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+	if raw, _, cerr := argString(req.Args, "cursor"); cerr != nil {
+		s.fail(conn, req, cerr)
+		return
+	} else if raw != "" {
 		msStr, id, _ := strings.Cut(raw, ":")
 		if ms, err := strconv.ParseInt(msStr, 10, 64); err == nil {
 			cursorMS, cursorID, cursorOK = ms, id, true
@@ -253,9 +263,9 @@ func (s *Server) handleMemoryList(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleMemoryGet(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	rec, found, err := s.k.Memory().Get(id)
@@ -271,13 +281,16 @@ func (s *Server) handleMemoryGet(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleMemorySearch(conn net.Conn, req Request) {
-	query, _ := req.Args["query"].(string)
-	if query == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.query required"})
+	query, err := requiredArgString(req.Args, "query")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	limit := 10
-	if l, ok := req.Args["limit"].(float64); ok && l > 0 {
+	if l, _, lerr := argFloat64(req.Args, "limit"); lerr != nil {
+		s.fail(conn, req, lerr)
+		return
+	} else if l > 0 {
 		limit = int(l)
 	}
 	if limit > 100 {
@@ -300,9 +313,9 @@ func (s *Server) handleMemorySearch(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	ok, err := s.k.Memory().Forget("", id)
@@ -321,9 +334,9 @@ func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
 // so it joins the shared brain every agent recalls. The selective-sharing valve
 // over per-agent memory; journaled as memory.promoted.
 func (s *Server) handleMemoryPromote(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	rec, found, err := s.k.Memory().Promote("", id)
@@ -357,11 +370,10 @@ func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
 	if days <= 0 {
 		days = defaultPruneDays
 	}
-	dryRun := true
-	if v, ok := req.Args["dry_run"].(bool); ok {
-		dryRun = v
-	} else if v, ok := req.Args["dry_run"].(string); ok {
-		dryRun = !(v == "false" || v == "0")
+	dryRun, err := argDryRun(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
 
@@ -399,11 +411,10 @@ func (s *Server) handleMemoryTidy(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "memory unavailable"})
 		return
 	}
-	dryRun := true
-	if v, ok := req.Args["dry_run"].(bool); ok {
-		dryRun = v
-	} else if v, ok := req.Args["dry_run"].(string); ok {
-		dryRun = !(v == "false" || v == "0")
+	dryRun, err := argDryRun(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	n, err := mgr.DedupeDistilled("", dryRun)
 	if err != nil {
@@ -419,29 +430,22 @@ func (s *Server) handleMemoryTidy(conn net.Conn, req Request) {
 // It is idempotent: already-tombstoned records are counted as "forgotten".
 // Args: ids (required, array of string). Returns: { forgotten: N, not_found: M }.
 func (s *Server) handleMemoryBulkForget(conn net.Conn, req Request) {
-	raw, ok := req.Args["ids"]
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ids required"})
+	strIDs, present, err := argStringList(req.Args, "ids")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	ids, ok := raw.([]any)
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ids must be an array"})
+	if !present {
+		s.failMsg(conn, req, "args.ids required")
 		return
 	}
-	if len(ids) == 0 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"forgotten": 0, "not_found": 0}})
+	if len(strIDs) == 0 {
+		s.ok(conn, req, map[string]any{"forgotten": 0, "not_found": 0})
 		return
 	}
-	if len(ids) > 500 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ids exceeds 500 — use smaller batches"})
+	if len(strIDs) > 500 {
+		s.failMsg(conn, req, "args.ids exceeds 500 — use smaller batches")
 		return
-	}
-	var strIDs []string
-	for _, idRaw := range ids {
-		if id, ok := idRaw.(string); ok {
-			strIDs = append(strIDs, id)
-		}
 	}
 
 	var forgotten, notFound int
@@ -470,13 +474,16 @@ func (s *Server) handleMemoryBulkForget(conn net.Conn, req Request) {
 // Args: id (required), limit (optional; default 10, max 100).
 // Returns: { results: [{record, score}, ...], count }.
 func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	limit := 10
-	if l, ok := req.Args["limit"].(float64); ok && l > 0 {
+	if l, _, lerr := argFloat64(req.Args, "limit"); lerr != nil {
+		s.fail(conn, req, lerr)
+		return
+	} else if l > 0 {
 		limit = int(l)
 	}
 	if limit > 100 {
@@ -539,11 +546,10 @@ func (s *Server) handleMemoryClean(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	dryRun := true
-	if v, ok := req.Args["dry_run"].(bool); ok {
-		dryRun = v
-	} else if v, ok := req.Args["dry_run"].(string); ok {
-		dryRun = !(v == "false" || v == "0")
+	dryRun, err := argDryRun(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	report, err := k.Memory().CleanLowValue("", dryRun)
 	if err != nil {

@@ -63,6 +63,78 @@ func argBool(args map[string]any, key string) (bool, bool, error) {
 	return b, true, nil
 }
 
+// requiredArgString extracts a string arg that must be present and non-empty —
+// the id/name-shaped inputs nearly every mutating handler starts with. The
+// error reads exactly like the hand-written "args.<key> required" messages it
+// replaces, so client-visible wording is unchanged.
+func requiredArgString(args map[string]any, key string) (string, error) {
+	v, _, err := argString(args, key)
+	if err != nil {
+		return "", err
+	}
+	if v == "" {
+		return "", fmt.Errorf("args.%s required", key)
+	}
+	return v, nil
+}
+
+// argFloat64 extracts a numeric arg (JSON numbers decode to float64).
+func argFloat64(args map[string]any, key string) (float64, bool, error) {
+	v, present := args[key]
+	if !present {
+		return 0, false, nil
+	}
+	f, ok := v.(float64)
+	if !ok {
+		return 0, true, fmt.Errorf("args.%s must be a number", key)
+	}
+	return f, true, nil
+}
+
+// argStringMap extracts a JSON object whose values are strings. A non-string
+// value is an error rather than silently dropped (the previous inline form
+// skipped them, so a mistyped tag value vanished without a trace).
+func argStringMap(args map[string]any, key string) (map[string]string, bool, error) {
+	v, present := args[key]
+	if !present {
+		return nil, false, nil
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, true, fmt.Errorf("args.%s must be an object", key)
+	}
+	out := make(map[string]string, len(m))
+	for k, e := range m {
+		s, ok := e.(string)
+		if !ok {
+			return nil, true, fmt.Errorf("args.%s.%s must be a string", key, k)
+		}
+		out[k] = s
+	}
+	return out, true, nil
+}
+
+// argDryRun reads the confirm-first dry_run toggle shared by the destructive
+// maintenance commands (prune/tidy/clean/collect): ABSENT defaults to true
+// (preview — the safe direction), an explicit bool is honored, and the string
+// forms "false"/"0" mean false (CLI clients send the flag as text). Any other
+// present value is an error — a mistyped dry_run that silently fell through to
+// a default is exactly the typo class the typed accessors exist to surface.
+func argDryRun(args map[string]any) (bool, error) {
+	v, present := args["dry_run"]
+	if !present {
+		return true, nil
+	}
+	switch t := v.(type) {
+	case bool:
+		return t, nil
+	case string:
+		return !(t == "false" || t == "0"), nil
+	default:
+		return true, fmt.Errorf("args.dry_run must be a boolean")
+	}
+}
+
 // argInt64 extracts an integer arg. JSON numbers decode to float64, so that's the
 // accepted form (an integer-valued float); a non-numeric present value is an error.
 func argInt64(args map[string]any, key string) (int64, bool, error) {
