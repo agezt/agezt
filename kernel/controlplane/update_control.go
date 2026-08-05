@@ -116,10 +116,12 @@ func (s *Server) handleUpdateApply(conn net.Conn, req Request) {
 	}
 
 	// Parse required args.
-	version, _ := req.Args["version"].(string)
-	sha256, _ := req.Args["sha256"].(string)
-	url, _ := req.Args["url"].(string)
-	notes, _ := req.Args["notes"].(string)
+	sa, err := argStrings(req.Args, "version", "sha256", "url", "notes")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	version, sha256, url, notes := sa["version"], sa["sha256"], sa["url"], sa["notes"]
 
 	var errs []string
 	if version == "" {
@@ -162,7 +164,7 @@ func (s *Server) handleUpdateApply(conn net.Conn, req Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := s.updateSvc.Apply(ctx, info, drainFn)
+	err = s.updateSvc.Apply(ctx, info, drainFn)
 	if err != nil {
 		// Distinguish drain timeout (user-visible, no swap occurred).
 		if errors.Is(err, update.ErrDrainTimeout) {

@@ -17,7 +17,11 @@ import (
 )
 
 func (s *Server) handleRedactTest(conn net.Conn, req Request) {
-	text, _ := req.Args["text"].(string)
+	text, _, err := argString(req.Args, "text")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	red := s.k.Bus().Redactor()
 	enabled := red != nil

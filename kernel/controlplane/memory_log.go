@@ -17,7 +17,11 @@ import (
 )
 
 func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
-	opFilter, _ := req.Args["op"].(string) // written|forgotten|superseded
+	opFilter, _, err := argString(req.Args, "op") // written|forgotten|superseded
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.projectJournal(conn, req, "ops", func(e *event.Event) (map[string]any, bool) {
 		var op, id, subject, mtyp string
 		switch e.Kind {

@@ -102,10 +102,14 @@ func projectView(dir, name string) map[string]any {
 // handleSandboxFile returns one file's content, path-confined to a single
 // project under the projects dir. Rejects traversal; caps the read.
 func (s *Server) handleSandboxFile(conn net.Conn, req Request) {
-	project, _ := req.Args["project"].(string)
-	file, _ := req.Args["file"].(string)
-	if strings.TrimSpace(project) == "" || strings.TrimSpace(file) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.project and args.file required"})
+	project, err := requiredArgString(req.Args, "project")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	file, err := requiredArgString(req.Args, "file")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -150,9 +154,9 @@ func (s *Server) handleSandboxFile(conn net.Conn, req Request) {
 // of agent-built work. Path-confined: the target must be a direct child of the
 // projects dir (a single project), never the root itself or a nested path.
 func (s *Server) handleSandboxDelete(conn net.Conn, req Request) {
-	project, _ := req.Args["project"].(string)
-	if strings.TrimSpace(project) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.project required"})
+	project, err := requiredArgString(req.Args, "project")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	root := s.sandboxProjectsDir()

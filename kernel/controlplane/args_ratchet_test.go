@@ -32,38 +32,12 @@ var rawArgCastBaseline = map[string]int{
 	// server.go/provider_keys.go residuals sit inside auth/validation gates
 	// (tenant auth pin, whoami echo, keyEnv/keyTarget funnels) where a wrong
 	// type already collapses to an honest refusal — not migration debt.
-	"server.go":             2,
-	"provider_keys.go":      2,
-	"policy_log.go":         6,
-	"tool_log.go":           5,
-	"tenant.go":             1, // residual: tenantOf's documented lenient read
-	"schedule_fires.go":     5,
-	"runs.go":               1, // residual: since_ms number multi-type switch
-	"mcp.go":                1, // residual: enabled bool-or-string switch
-	"update_control.go":     4,
-	"settings.go":           4,
-	"board.go":              4,
-	"workboard.go":          3,
-	"sandbox.go":            3,
-	"webhook_log.go":        2,
-	"warden_log.go":         2,
-	"tool.go":               2,
-	"seat.go":               2,
-	"provider_log.go":       2,
-	"chatsuggestions.go":    2,
-	"approvals_log.go":      2,
-	"world_log.go":          1,
-	"ratelimit_log.go":      1,
-	"plan_history.go":       1,
-	"okr.go":                1,
-	"memory_log.go":         1,
-	"journal_export.go":     1,
-	"inbox.go":              1,
-	"execution_profiles.go": 1,
-	"chatsummary.go":        1,
-	"channels.go":           1,
-	"cache_stats.go":        1,
-	"redact_test_cmd.go":    1,
+	"server.go":          2,
+	"provider_keys.go":   2,
+	"tenant.go":          1, // residual: tenantOf's documented lenient read
+	"mcp.go":             1, // residual: enabled bool-or-string switch
+	"chatsuggestions.go": 1, // residual: tools string-or-list dual-type switch
+	"channels.go":        1, // residual: wgArg's documented lenient read
 }
 
 var rawArgCastRe = regexp.MustCompile(`req\.Args\[[^]]+\]\.\(`)

@@ -24,15 +24,7 @@ import (
 // by request time. Tenant-routed.
 func (s *Server) handleApprovalsStats(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -160,7 +152,11 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	deniedOnly, _ := req.Args["denied"].(bool)
+	deniedOnly, _, err := argBool(req.Args, "denied")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper
 
 	k, err := s.kernelFor(tenantOf(req))

@@ -37,8 +37,11 @@ func (s *Server) handleSeatCreate(conn net.Conn, req Request) {
 		ModelChain:       workboardStringSliceArg(req.Args["model_chain"]),
 		Tools:            workboardStringSliceArg(req.Args["tools"]),
 	}
-	if _, ok := req.Args["restrict_tools"].(bool); ok {
-		spec.RestrictTools, _ = req.Args["restrict_tools"].(bool)
+	if v, present, err := argBool(req.Args, "restrict_tools"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else if present {
+		spec.RestrictTools = v
 	}
 	made, err := s.k.Seats().Create(spec)
 	if err != nil {

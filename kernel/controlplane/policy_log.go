@@ -17,9 +17,18 @@ import (
 )
 
 func (s *Server) handleEdictLog(conn net.Conn, req Request) {
-	deniedOnly, _ := req.Args["denied"].(bool)
-	toolFilter, _ := req.Args["tool"].(string)      // M74: scope to one tool
-	capFilter, _ := req.Args["capability"].(string) // M74: scope to one capability
+	deniedOnly, _, err := argBool(req.Args, "denied")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	// M74: optionally scope to one tool / capability.
+	sa, err := argStrings(req.Args, "tool", "capability")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	toolFilter, capFilter := sa["tool"], sa["capability"]
 	s.projectJournal(conn, req, "decisions", func(e *event.Event) (map[string]any, bool) {
 		if e.Kind != event.KindPolicyDecision {
 			return nil, false
@@ -97,21 +106,18 @@ func sinceCutoff(arg any) int64 {
 // hard-denied, denial rate, and a denied-by-capability breakdown. Optional
 // since_ms windows by decision time. Tenant-scoped via kernelFor.
 func (s *Server) handleEdictStats(conn net.Conn, req Request) {
-	sinceMS := int64(0)
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 	var cutoff int64
 	if sinceMS > 0 {
 		cutoff = time.Now().UnixMilli() - sinceMS
 	}
-	toolFilter, _ := req.Args["tool"].(string)      // M76: scope to one tool
-	capFilter, _ := req.Args["capability"].(string) // M76: scope to one capability
+	// M76: optionally scope to one tool / capability.
+	sa, err := argStrings(req.Args, "tool", "capability")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	toolFilter, capFilter := sa["tool"], sa["capability"]
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {

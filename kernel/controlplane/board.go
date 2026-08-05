@@ -86,7 +86,11 @@ func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	topic, _ := req.Args["topic"].(string)
+	topic, _, err := argString(req.Args, "topic")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	// Cursor pagination (M-pending follow-up): the SPA's Board / Inbox /
 	// ChannelSessions views poll this on every render; for a busy board the
@@ -96,9 +100,12 @@ func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 	var cursorTS int64
 	var cursorID string
 	cursorOK := false
-	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+	if raw, _, cerr := argString(req.Args, "cursor"); cerr != nil {
+		s.fail(conn, req, cerr)
+		return
+	} else if raw != "" {
 		tsStr, id, _ := strings.Cut(raw, ":")
-		if ts, err := strconv.ParseInt(tsStr, 10, 64); err == nil {
+		if ts, perr := strconv.ParseInt(tsStr, 10, 64); perr == nil {
 			cursorTS, cursorID, cursorOK = ts, id, true
 		}
 	}
@@ -198,11 +205,14 @@ func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 	topic := stringArg(req.Args, "topic")
 	replyTo := stringArg(req.Args, "reply_to")
 	corr := stringArg(req.Args, "correlation_id")
-	help, _ := req.Args["help"].(bool)
+	help, _, err := argBool(req.Args, "help")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	now := time.Now().UnixMilli()
 
 	var m board.Message
-	var err error
 	switch {
 	case replyTo != "":
 		// A reply goes back to the asker on the original topic (the board tool's
@@ -258,7 +268,11 @@ func (s *Server) handleBoardInbox(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_inbox requires to (whose inbox)"})
 		return
 	}
-	all, _ := req.Args["all"].(bool)
+	all, _, err := argBool(req.Args, "all")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	msgs := st.Inbox(to, boardLimitArg(req.Args), all)
 	views := make([]map[string]any, 0, len(msgs))
 	for _, m := range msgs {

@@ -25,15 +25,7 @@ import (
 // reliable is my primary?". since_ms windows by event time. Tenant-routed.
 func (s *Server) handleProviderStats(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
@@ -199,7 +191,11 @@ func (s *Server) handleProviderRejections(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleProviderLog(conn net.Conn, req Request) {
-	fallbacksOnly, _ := req.Args["fallbacks"].(bool)
+	fallbacksOnly, _, err := argBool(req.Args, "fallbacks")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.projectJournal(conn, req, "events", func(e *event.Event) (map[string]any, bool) {
 		switch e.Kind {
 		case event.KindRoutingDecision:

@@ -18,7 +18,11 @@ import (
 )
 
 func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
-	failedOnly, _ := req.Args["failed"].(bool)
+	failedOnly, _, err := argBool(req.Args, "failed")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.projectJournal(conn, req, "deliveries", func(e *event.Event) (map[string]any, bool) {
 		isDelivered := e.Kind == event.KindWebhookDelivered
 		isFailed := e.Kind == event.KindWebhookFailed
@@ -53,15 +57,7 @@ func (s *Server) handleWebhookLog(conn net.Conn, req Request) {
 
 func (s *Server) handleWebhookStats(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {

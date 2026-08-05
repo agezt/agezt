@@ -38,9 +38,10 @@ type ChatSuggestion struct {
 //
 // Returns: { suggestions: [ChatSuggestion] }.
 func (s *Server) handleChatSuggestions(conn net.Conn, req Request) {
-	var sessionID string
-	if v, ok := req.Args["session_id"].(string); ok {
-		sessionID = v
+	sessionID, _, err := argString(req.Args, "session_id")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 
 	// Collect context from args. The HTTP read-args proxy forwards each query

@@ -25,18 +25,18 @@ import (
 const toolOutputPreviewRunes = 100
 
 func (s *Server) handleToolLog(conn net.Conn, req Request) {
-	errorsOnly, _ := req.Args["errors"].(bool)
-	toolFilter, _ := req.Args["tool"].(string)
-	// Latency floor (M73): keep only calls at/above this wall-clock. 0 = no floor.
-	var slowMS int64
-	switch v := req.Args["slow_ms"].(type) {
-	case float64:
-		slowMS = int64(v)
-	case int64:
-		slowMS = v
-	case int:
-		slowMS = int64(v)
+	errorsOnly, _, err := argBool(req.Args, "errors")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
+	toolFilter, _, err := argString(req.Args, "tool")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	// Latency floor (M73): keep only calls at/above this wall-clock. 0 = no floor.
+	slowMS := int64Arg(req.Args["slow_ms"])
 
 	// One row per tool.result (the always-present event: a policy-denied call
 	// emits a result but no tool.invoked). A first-seen tool.invoked stashes the
@@ -103,7 +103,11 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 // total / errored / error-rate plus a per-tool breakdown ({calls, errors}).
 // Optional tool scopes to one tool; since_ms windows by call time. Tenant-scoped.
 func (s *Server) handleToolStats(conn net.Conn, req Request) {
-	toolFilter, _ := req.Args["tool"].(string)
+	toolFilter, _, err := argString(req.Args, "tool")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	cutoff := sinceCutoff(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
@@ -189,15 +193,7 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	// reusing the nearest-rank durationStats so it reads like runs stats' block.
 	dstats := durationStats(durations)
 
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,

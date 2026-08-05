@@ -482,15 +482,7 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// Resolve the optional window. cutoff==0 means "no filter". We compute
 	// the cutoff against the server's clock, which is the same clock that
 	// stamped the events' TSUnixMS — so the comparison is apples-to-apples.
-	sinceMS := int64(0)
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 	var cutoff int64
 	if sinceMS > 0 {
 		cutoff = time.Now().UnixMilli() - sinceMS

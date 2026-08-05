@@ -33,15 +33,7 @@ func (s *Server) handleRateLimitLog(conn net.Conn, req Request) {
 
 func (s *Server) handleRateLimitStats(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {

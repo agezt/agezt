@@ -98,7 +98,12 @@ func (s *Server) handleWorkboardList(conn net.Conn, req Request) {
 	}
 	filter.Tenant = stringArg(req.Args, "tenant")
 	filter.Assignee = stringArg(req.Args, "assignee")
-	filter.IncludeArchived, _ = req.Args["include_archived"].(bool)
+	if v, _, err := argBool(req.Args, "include_archived"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else {
+		filter.IncludeArchived = v
+	}
 	filter.Limit = intArg(req.Args["limit"], 100)
 	tasks := s.k.Workboard().List(filter)
 	out := make([]any, 0, len(tasks))
@@ -119,7 +124,12 @@ func (s *Server) handleWorkboardLanes(conn net.Conn, req Request) {
 		filter.Status = st
 	}
 	filter.Tenant = stringArg(req.Args, "tenant")
-	filter.IncludeArchived, _ = req.Args["include_archived"].(bool)
+	if v, _, err := argBool(req.Args, "include_archived"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else {
+		filter.IncludeArchived = v
+	}
 	filter.Limit = intArg(req.Args["limit"], 500)
 	tasks := s.k.Workboard().List(filter)
 	type lane struct {
@@ -309,7 +319,12 @@ func (s *Server) handleWorkboardPolicy(conn net.Conn, req Request) {
 		return
 	}
 	var policy *workboard.RetryPolicy
-	if cleared, _ := req.Args["clear"].(bool); !cleared {
+	cleared, _, err := argBool(req.Args, "clear")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	if !cleared {
 		if _, ok := req.Args["max_attempts"]; !ok {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_policy requires max_attempts or clear"})
 			return

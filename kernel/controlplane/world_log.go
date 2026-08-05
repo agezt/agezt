@@ -17,7 +17,11 @@ import (
 )
 
 func (s *Server) handleWorldLog(conn net.Conn, req Request) {
-	kindFilter, _ := req.Args["kind"].(string) // entity|relation
+	kindFilter, _, err := argString(req.Args, "kind") // entity|relation
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.projectJournal(conn, req, "ops", func(e *event.Event) (map[string]any, bool) {
 		var op, what, label string
 		switch e.Kind {

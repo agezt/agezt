@@ -36,7 +36,11 @@ func (s *Server) handleJournalExport(conn net.Conn, req Request) {
 	// is intentionally non-contiguous — the CLI marks the bundle scoped and the
 	// offline verify path checks per-event integrity + scope membership instead of
 	// prev-hash continuity.
-	correlation, _ := req.Args["correlation"].(string)
+	correlation, _, err := argString(req.Args, "correlation")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	headSeq, headHash := s.k.Journal().Head()
 	if headSeq < 0 {
@@ -46,7 +50,7 @@ func (s *Server) handleJournalExport(conn net.Conn, req Request) {
 	events := make([]any, 0, 256)
 	var firstSeq, lastSeq int64 = -1, -1
 	truncated := false
-	err := s.k.Journal().Range(func(e *event.Event) error {
+	err = s.k.Journal().Range(func(e *event.Event) error {
 		if cutoff > 0 && e.TSUnixMS < cutoff {
 			return nil
 		}
