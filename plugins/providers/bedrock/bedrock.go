@@ -41,6 +41,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -285,31 +286,25 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	}
 
 	endpoint := p.ResolveEndpoint(model)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	// build runs per retry attempt so the SigV4 signature (date-scoped) is
+	// re-computed fresh for each try.
+	respBytes, respHeader, err := retry.DoHTTP(ctx, p.HTTP, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("bedrock: build request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		if err := p.applyAuth(httpReq, body); err != nil {
+			return nil, err
+		}
+		return httpReq, nil
+	}, httpread.DefaultMaxResponseBytes)
 	if err != nil {
-		return nil, fmt.Errorf("bedrock: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if err := p.applyAuth(httpReq, body); err != nil {
-		return nil, err
-	}
-
-	client := p.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
+		var h *retry.HTTPError
+		if errors.As(err, &h) {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
 		return nil, fmt.Errorf("bedrock: http: %w", err)
-	}
-	defer httpResp.Body.Close()
-
-	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-	if err != nil {
-		return nil, fmt.Errorf("bedrock: read body: %w", err)
-	}
-	if httpResp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
 	resp, err := decodeResp(respBytes, model)
 	if err != nil {
@@ -323,8 +318,8 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 	// inline counts (Anthropic, Nova, Meta-Llama, AI21 Jamba) keep their richer
 	// body-derived usage (e.g. Anthropic's cache-read/write breakdown).
 	if resp.Usage.InputTokens == 0 && resp.Usage.OutputTokens == 0 {
-		resp.Usage.InputTokens = headerTokenCount(httpResp.Header, "X-Amzn-Bedrock-Input-Token-Count")
-		resp.Usage.OutputTokens = headerTokenCount(httpResp.Header, "X-Amzn-Bedrock-Output-Token-Count")
+		resp.Usage.InputTokens = headerTokenCount(respHeader, "X-Amzn-Bedrock-Input-Token-Count")
+		resp.Usage.OutputTokens = headerTokenCount(respHeader, "X-Amzn-Bedrock-Output-Token-Count")
 		if resp.Usage.Model == "" {
 			resp.Usage.Model = model
 		}
