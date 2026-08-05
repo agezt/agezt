@@ -9,8 +9,9 @@ then use the detailed scans for each bounded extraction.
 
 | Doc | Finding(s) | Scope | Risk |
 |---|---|---|---|
-| [AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md](AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md) | current program | governed autonomy + WebUI + delivery gates | staged |
-| [REFACTORING-SCAN.md](REFACTORING-SCAN.md) | all 30 | master scan + 15-step sequencing | — |
+| [REFACTORING-SCAN-2026-08.md](REFACTORING-SCAN-2026-08.md) | **current master plan** | 5-track deep scan: 8 live defects (LD-1..8) + 4-phase program; supersedes the July sequencing | staged |
+| [AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md](AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md) | prior program | governed autonomy + WebUI + delivery gates | staged |
+| [REFACTORING-SCAN.md](REFACTORING-SCAN.md) | all 30 (2026-07) | master scan + 15-step sequencing — **sequencing superseded by the 2026-08 scan**; per-finding detail still valid | — |
 | [REFACTOR-A1-CONTROLPLANE-PLAN.md](REFACTOR-A1-CONTROLPLANE-PLAN.md) | A1 | 190-file controlplane → domain packages | med |
 | [REFACTOR-A2-LOG-PAGINATION-PLAN.md](REFACTOR-A2-LOG-PAGINATION-PLAN.md) | A2 | c​ursor pagination for 11 log endpoints | low |
 | [REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md](REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md) | A3+B5 | `kernel/auth` (domain) + `kernel/httpserver` (transport) | high |
