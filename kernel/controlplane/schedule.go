@@ -151,7 +151,7 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 	if target == cadence.TargetTool && agent != "" {
 		p, _ := s.k.Roster().Get(agent)
 		if err := validateAgentScheduledTool(p, toolName); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
@@ -227,7 +227,7 @@ func (s *Server) handleScheduleAdd(conn net.Conn, req Request) {
 		e, err = s.k.Schedules().Add(intent, time.Duration(sec)*time.Second, model, cadence.SourceOperator, time.Now())
 	}
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	failCreated := func(msg string) {
@@ -311,14 +311,14 @@ func (s *Server) handleScheduleEnable(conn net.Conn, req Request) {
 	if enabled {
 		if found {
 			if err := s.validateScheduleRunnable(current); err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 		}
 	}
 	ok, err := s.k.Schedules().SetEnabled(id, enabled)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	action := "paused"
@@ -512,7 +512,7 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 					return
 				}
 				if err := validateAgentScheduledTool(p, toolName); err != nil {
-					s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+					s.fail(conn, req, err)
 					return
 				}
 			}
@@ -538,7 +538,7 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 		}
 	}
 	if err := validateScheduleEditCadenceArgs(req.Args, now); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -546,7 +546,7 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 	if v, ok := req.Args["intent"]; ok {
 		intent, _ := v.(string)
 		if _, err := store.SetIntent(id, intent); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
@@ -582,7 +582,7 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 			payload = b
 		}
 		if _, err := store.SetWorkflowTarget(id, w.Name, payload); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	} else if target != "" && target != cadence.TargetIntent {
@@ -617,7 +617,7 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 				payload = b
 			}
 			if _, err := store.SetToolTarget(id, toolName, payload); err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 		} else {
@@ -638,13 +638,13 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 				return
 			}
 			if _, err := store.SetSystemTaskTarget(id, systemTask); err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 		}
 	} else if _, ok := req.Args["target"]; ok && target == cadence.TargetIntent {
 		if _, err := store.SetIntentTarget(id); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
@@ -709,7 +709,7 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 		_, err = store.Reschedule(id, cadence.ModeInterval, time.Duration(sec)*time.Second, 0, 0, 0, "", time.Time{}, now)
 	}
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -981,7 +981,7 @@ func (s *Server) handleScheduleRemove(conn net.Conn, req Request) {
 	}
 	removed, err := s.k.Schedules().Remove(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed}})
@@ -995,13 +995,13 @@ func (s *Server) handleScheduleRun(conn net.Conn, req Request) {
 	}
 	if e, ok := s.k.Schedules().Get(id); ok {
 		if err := s.validateScheduleRunnable(e); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
 	triggered, err := s.k.Schedules().RunNow(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"triggered": triggered}})

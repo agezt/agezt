@@ -179,7 +179,7 @@ func (s *Server) handleProviderOAuthStatus(conn net.Conn, req Request) {
 func (s *Server) handleProviderOAuthImport(conn net.Conn, req Request) {
 	path := strings.TrimSpace(stringArg(req.Args, "path"))
 	if err := s.chatgptMgr().ImportFromCodexCLI(path); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if s.k != nil {
@@ -194,7 +194,7 @@ func (s *Server) handleProviderOAuthImport(conn net.Conn, req Request) {
 // handleProviderOAuthLogout clears the stored ChatGPT tokens.
 func (s *Server) handleProviderOAuthLogout(conn net.Conn, req Request) {
 	if err := s.chatgptMgr().Logout(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if s.k != nil {

@@ -28,7 +28,7 @@ func (s *Server) edictFor(conn net.Conn, req Request) (*edict.Engine, *runtime.K
 	tenantID, _ := req.Args["tenant"].(string)
 	k, err := s.kernelFor(tenantID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return nil, nil, false
 	}
 	return k.Edict(), k, true
@@ -162,7 +162,7 @@ func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
 	spec, _ := req.Args["rule"].(string)
 	parsed, err := edict.ParseDenyRules(spec)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if len(parsed) != 1 {
@@ -176,7 +176,7 @@ func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
 	}
 	added, err := eng.AddHardDeny(parsed[0])
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -224,7 +224,7 @@ func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
 	}
 	removed, err := eng.RemoveHardDeny(name)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	count := len(eng.HardDenyRules())
@@ -267,7 +267,7 @@ func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
 	levelStr, _ := req.Args["level"].(string)
 	lvl, err := edict.ParseTrustLevel(levelStr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -312,7 +312,7 @@ func (s *Server) handleEdictSetMode(conn net.Conn, req Request) {
 	modeStr, _ := req.Args["mode"].(string)
 	mode, err := edict.ParseAskPolicy(modeStr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	eng, k, ok := s.edictFor(conn, req)

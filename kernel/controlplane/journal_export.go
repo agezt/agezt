@@ -66,7 +66,7 @@ func (s *Server) handleJournalExport(conn net.Conn, req Request) {
 	})
 	if err != nil {
 		if _, ok := err.(stopWalkSentinel); !ok {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}

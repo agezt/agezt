@@ -43,7 +43,7 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -91,7 +91,7 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 func (s *Server) handlePlanStats(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -187,7 +187,7 @@ func (s *Server) handlePlanStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

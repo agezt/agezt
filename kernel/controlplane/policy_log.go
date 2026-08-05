@@ -115,7 +115,7 @@ func (s *Server) handleEdictStats(conn net.Conn, req Request) {
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -151,7 +151,7 @@ func (s *Server) handleEdictStats(conn net.Conn, req Request) {
 		deniedByCap[capName]++
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

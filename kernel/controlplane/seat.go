@@ -42,7 +42,7 @@ func (s *Server) handleSeatCreate(conn net.Conn, req Request) {
 	}
 	made, err := s.k.Seats().Create(spec)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"seat": seatView(made)}})
@@ -56,7 +56,7 @@ func (s *Server) handleSeatDelete(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.k.Seats().Delete(id); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": id}})

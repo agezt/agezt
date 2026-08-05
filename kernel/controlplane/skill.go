@@ -20,7 +20,7 @@ import (
 func (s *Server) handleSkillList(conn net.Conn, req Request) {
 	sks, err := s.k.Forge().List()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(sks))
@@ -46,7 +46,7 @@ func (s *Server) handleSkillGet(conn net.Conn, req Request) {
 	}
 	sk, found, err := s.k.Forge().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"found": found}
@@ -103,7 +103,7 @@ func (s *Server) handleSkillPromote(conn net.Conn, req Request) {
 	}
 	status, err := s.k.Forge().Promote("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -120,7 +120,7 @@ func (s *Server) handleSkillQuarantine(conn net.Conn, req Request) {
 	}
 	reason, _ := req.Args["reason"].(string)
 	if err := s.k.Forge().Quarantine("", id, reason); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -137,7 +137,7 @@ func (s *Server) handleSkillArchive(conn net.Conn, req Request) {
 	}
 	reason, _ := req.Args["reason"].(string)
 	if err := s.k.Forge().Archive("", id, reason); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -157,7 +157,7 @@ func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 	}
 	restored, err := s.k.Forge().Revert("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -180,7 +180,7 @@ func (s *Server) handleSkillRestore(conn net.Conn, req Request) {
 	reason, _ := req.Args["reason"].(string)
 	from, to, err := s.k.Forge().RestoreStatus("", id, skill.Status(statusText), reason)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -199,7 +199,7 @@ func (s *Server) handleSkillShare(conn net.Conn, req Request) {
 	}
 	sk, found, err := s.k.Forge().Reassign("", id, "")
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"shared": found, "id": id}
@@ -226,7 +226,7 @@ func (s *Server) handleSkillReassign(conn net.Conn, req Request) {
 	}
 	sk, found, err := s.k.Forge().Reassign("", id, agent)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"reassigned": found, "id": id, "to_agent": agent}
@@ -274,7 +274,7 @@ func (s *Server) handleSkillImport(conn net.Conn, req Request) {
 		Agent:         stringArg(req.Args, "agent"),
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -322,7 +322,7 @@ func (s *Server) handleSkillFiles(conn net.Conn, req Request) {
 	}
 	sk, found, err := s.k.Forge().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -355,7 +355,7 @@ func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
 	}
 	sk, found, err := s.k.Forge().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -369,7 +369,7 @@ func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
 	}
 	data, err := bundles.Read(sk.Name, path)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -389,7 +389,7 @@ func (s *Server) handleSkillHygiene(conn net.Conn, req Request) {
 	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
 	rep, err := s.k.Forge().Hygiene(cutoff)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	idle := make([]any, 0, len(rep.Idle))

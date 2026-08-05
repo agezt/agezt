@@ -58,7 +58,7 @@ func (s *Server) handlePlanGenerate(ctx context.Context, conn net.Conn, req Requ
 
 	rawJSON, plan, err := planner.Generate(ctx, cfg, intent)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -123,7 +123,7 @@ func (s *Server) handlePlanRefine(ctx context.Context, conn net.Conn, req Reques
 
 	rawJSON, revised, err := planner.Refine(ctx, cfg, original, feedback)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{

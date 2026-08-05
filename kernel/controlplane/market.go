@@ -22,7 +22,7 @@ func (s *Server) handleMarketList(conn net.Conn, req Request) {
 	}
 	listings, err := m.List(strArg(req.Args["query"]))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	rows := make([]map[string]any, 0, len(listings))
@@ -49,7 +49,7 @@ func (s *Server) handleMarketShow(conn net.Conn, req Request) {
 	}
 	pack, installed, isInstalled, err := m.Show(strArg(req.Args["marketplace"]), name)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	skills, mcps, tools := pack.Counts()
@@ -114,7 +114,7 @@ func (s *Server) handleMarketInstall(ctx context.Context, conn net.Conn, req Req
 	}
 	rec, err := m.Install(strArg(req.Args["correlation_id"]), strArg(req.Args["marketplace"]), name, strArg(req.Args["version"]), emit)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.publishMarket("market.pack.installed", map[string]any{
@@ -146,7 +146,7 @@ func (s *Server) handleMarketUninstall(ctx context.Context, conn net.Conn, req R
 		}})
 	}
 	if err := m.Uninstall(strArg(req.Args["correlation_id"]), name, emit); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.publishMarket("market.pack.uninstalled", map[string]any{"pack": name})
@@ -162,7 +162,7 @@ func (s *Server) handleMarketSources(conn net.Conn, req Request) {
 	}
 	srcs, err := m.Sources()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	rows := make([]map[string]any, 0, len(srcs))
@@ -186,7 +186,7 @@ func (s *Server) handleMarketAddSource(conn net.Conn, req Request) {
 	}
 	src, err := m.AddSource(strArg(req.Args["name"]), rawURL, strArg(req.Args["pubkey"]))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.publishMarket("market.source.added", map[string]any{"source": src.Name, "url": src.URL})
@@ -207,7 +207,7 @@ func (s *Server) handleMarketRemoveSource(conn net.Conn, req Request) {
 	}
 	found, err := m.RemoveSource(name)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.publishMarket("market.source.removed", map[string]any{"source": name})
@@ -224,7 +224,7 @@ func (s *Server) handleMarketSync(ctx context.Context, conn net.Conn, req Reques
 	}
 	results, err := m.Sync(ctx, strArg(req.Args["name"]))
 	if err != nil && len(results) == 0 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	rows := make([]map[string]any, 0, len(results))

@@ -111,7 +111,7 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 		return nil
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

@@ -45,7 +45,7 @@ func (s *Server) handleTasteCreate(conn net.Conn, req Request) {
 		Tags:  workboardStringSliceArg(req.Args["tags"]),
 	}, time.Now())
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"exemplar": tasteExemplarView(e)}})
@@ -58,7 +58,7 @@ func (s *Server) handleTasteDelete(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.k.Taste().Delete(id); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": id}})

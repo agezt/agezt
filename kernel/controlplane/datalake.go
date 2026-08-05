@@ -144,7 +144,7 @@ func (s *Server) handleDataCreateCollection(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "collection already exists: " + sc.Name})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"collection": collectionMap(out, 0)}})
@@ -168,7 +168,7 @@ func (s *Server) handleDataDropCollection(conn net.Conn, req Request) {
 		case errors.Is(err, datalake.ErrNotFound):
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no such collection: " + name})
 		default:
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 		}
 		return
 	}

@@ -83,7 +83,7 @@ func (s *Server) handleToolforgeDraft(conn net.Conn, req Request) {
 	}
 	saved, err := s.k.DraftScriptTool("", st)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tool": scriptToolView(saved, false)}})
@@ -130,7 +130,7 @@ func (s *Server) handleToolforgeEdit(conn net.Conn, req Request) {
 		}
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -153,7 +153,7 @@ func (s *Server) handleToolforgeTest(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown script tool: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -175,7 +175,7 @@ func (s *Server) handleToolforgePromote(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown script tool: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tool": scriptToolView(st, false)}})
@@ -194,7 +194,7 @@ func (s *Server) handleToolforgeQuarantine(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown script tool: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tool": scriptToolView(st, false)}})
@@ -208,7 +208,7 @@ func (s *Server) handleToolforgeRemove(conn net.Conn, req Request) {
 	}
 	ok, err := s.k.RemoveScriptTool("", ref)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})

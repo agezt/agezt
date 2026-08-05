@@ -91,12 +91,12 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.validateStandingAgent(o.Agent); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	saved, err := s.k.AddStanding(o)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(saved)}})
@@ -115,7 +115,7 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 	}
 	if v, ok := req.Args["agent"].(string); ok {
 		if err := s.validateStandingAgent(v); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
@@ -147,7 +147,7 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 		}
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !ok {
@@ -200,13 +200,13 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 			return
 		}
 		if err := s.validateStandingAgent(o.Agent); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
 	o, err := s.k.SetStandingEnabled(id, enabled)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(o)}})
@@ -258,7 +258,7 @@ func (s *Server) handleStandingRemove(conn net.Conn, req Request) {
 	}
 	removed, err := s.k.RemoveStanding(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed, "id": id}})
@@ -289,7 +289,7 @@ func (s *Server) handleStandingFire(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.validateStandingAgent(o.Agent); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	fired := s.standingFire(id)

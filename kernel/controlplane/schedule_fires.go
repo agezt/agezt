@@ -108,14 +108,14 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	// Tenant-scoped via the M39 seam: an empty tenant reads the primary journal.
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Run outcomes, keyed by correlation — the same fold `agt runs` uses, so a
 	// firing's status/duration/spend/answer never disagrees between the two views.
 	runs, err := s.collectRuns(k)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -176,7 +176,7 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -404,12 +404,12 @@ func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	runs, err := s.collectRuns(k)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -455,7 +455,7 @@ func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

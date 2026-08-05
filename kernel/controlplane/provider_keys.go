@@ -109,7 +109,7 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 	}
 	activeChanged, err := vault.KeyringAdd(target, label, value, makeActive)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if err := vault.Save(); err != nil {
@@ -142,7 +142,7 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 		return
 	}
 	if err := vault.KeyringActivate(target, label); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if err := vault.Save(); err != nil {

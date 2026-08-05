@@ -131,7 +131,7 @@ func (s *Server) handleAgentCapabilities(conn net.Conn, req Request) {
 	}
 	patch, touched, err := decodeAgentCapabilityPatch(req.Args)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !touched {
@@ -141,14 +141,14 @@ func (s *Server) handleAgentCapabilities(conn net.Conn, req Request) {
 	candidate := current
 	applyAgentCapabilityPatch(&candidate, patch)
 	if err := s.validateAgentHierarchyRefs(candidate); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	updated, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
 		applyAgentCapabilityPatch(dst, patch)
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {

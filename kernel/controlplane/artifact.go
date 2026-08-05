@@ -90,7 +90,7 @@ func (s *Server) handleArtifactGet(conn net.Conn, req Request) {
 		case errors.Is(err, artifact.ErrCorrupt):
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact CORRUPT (bytes do not match ref): " + ref})
 		default:
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 		}
 		return
 	}
@@ -151,7 +151,7 @@ func (s *Server) handleArtifactDelete(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact not found: " + id})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": true, "id": id}})

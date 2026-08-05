@@ -83,7 +83,7 @@ func boardMsgView(m board.Message) map[string]any {
 func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	topic, _ := req.Args["topic"].(string)
@@ -160,7 +160,7 @@ func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 func (s *Server) handleBoardHelp(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	msgs := st.OpenHelp(boardLimitArg(req.Args))
@@ -231,7 +231,7 @@ func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 		m, err = st.Post(topic, from, text, now)
 	}
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if s.boardNotify != nil {
@@ -250,7 +250,7 @@ func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 func (s *Server) handleBoardInbox(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	to := stringArg(req.Args, "to")
@@ -289,7 +289,7 @@ func (s *Server) handleBoardAck(conn net.Conn, req Request) {
 	}
 	_, found, err := st.Ack(id, by)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -306,7 +306,7 @@ func (s *Server) handleBoardAck(conn net.Conn, req Request) {
 func (s *Server) handleBoardGet(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	id := stringArg(req.Args, "id")
@@ -327,7 +327,7 @@ func (s *Server) handleBoardGet(conn net.Conn, req Request) {
 func (s *Server) handleBoardReplies(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	id := stringArg(req.Args, "id")

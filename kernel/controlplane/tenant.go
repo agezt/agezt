@@ -102,7 +102,7 @@ func (s *Server) handleTenantCreate(conn net.Conn, req Request) {
 	existed := s.tenants.Exists(id)
 	t, err := s.tenants.Acquire(id, time.Now())
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -126,7 +126,7 @@ func (s *Server) handleTenantToken(conn net.Conn, req Request) {
 	}
 	token, err := s.tenants.Token(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"id": id, "token": token}})
@@ -139,7 +139,7 @@ func (s *Server) handleTenantList(conn net.Conn, req Request) {
 	}
 	infos, err := s.tenants.List()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]map[string]any, 0, len(infos))
@@ -165,7 +165,7 @@ func (s *Server) handleTenantRelease(conn net.Conn, req Request) {
 	}
 	released, err := s.tenants.Release(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"released": released}})
@@ -183,7 +183,7 @@ func (s *Server) handleTenantRemove(conn net.Conn, req Request) {
 	}
 	removed, err := s.tenants.Remove(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed}})
@@ -205,7 +205,7 @@ func (s *Server) handleTenantStats(conn net.Conn, req Request) {
 	}
 	infos, err := s.tenants.List()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

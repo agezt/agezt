@@ -73,7 +73,7 @@ func (s *Server) handleChannelAccountSet(conn net.Conn, req Request) {
 		return
 	}
 	if err := settings.Validate(field, value); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	value = strings.TrimSpace(value)

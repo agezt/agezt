@@ -105,7 +105,7 @@ func (s *Server) handleWorkflowSave(conn net.Conn, req Request) {
 	}
 	saved, created, err := s.k.SaveWorkflow("", w)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -134,7 +134,7 @@ func (s *Server) handleWorkflowRestore(conn net.Conn, req Request) {
 	reason, _ := req.Args["reason"].(string)
 	restored, created, err := s.k.RestoreWorkflow("", w, reason)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -152,7 +152,7 @@ func (s *Server) handleWorkflowRemove(conn net.Conn, req Request) {
 	}
 	ok, err := s.k.RemoveWorkflow("", ref)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})
@@ -177,7 +177,7 @@ func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, false)}})
@@ -222,7 +222,7 @@ func (s *Server) handleWorkflowTestNode(conn net.Conn, req Request) {
 	defer cancel()
 	res, err := s.k.TestWorkflowNode(ctx, corr, w, nodeID, data, payload)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -556,7 +556,7 @@ func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
 	defer cancel()
 	w, err := s.k.DraftWorkflow(ctx, corr, name, desc)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// The draft is NOT saved — the caller (canvas, CLI) reviews and saves.
@@ -605,7 +605,7 @@ func (s *Server) handleWorkflowRefine(conn net.Conn, req Request) {
 	defer cancel()
 	w, err := s.k.RefineWorkflow(ctx, corr, base, instruction)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{

@@ -23,7 +23,7 @@ import (
 func (s *Server) handleJournalStats(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -42,7 +42,7 @@ func (s *Server) handleJournalStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

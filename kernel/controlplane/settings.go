@@ -93,7 +93,7 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		return
 	}
 	if err := settings.Validate(field, value); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	value = strings.TrimSpace(value)
@@ -214,7 +214,7 @@ func (s *Server) handleConfigSchemaRegister(conn net.Conn, req Request) {
 		return
 	}
 	if err := settings.NewRegistry(s.baseDir).Register(sec); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -236,7 +236,7 @@ func (s *Server) handleConfigSchemaUnregister(conn net.Conn, req Request) {
 	force, _ := req.Args["force"].(bool)
 	existed, err := settings.NewRegistry(s.baseDir).Unregister(id, force)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{

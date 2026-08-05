@@ -1269,12 +1269,12 @@ func (s *Server) handleAgentAdd(conn net.Conn, req Request) {
 	normalizeAgentProfileKind(b, &p)
 	p.System = false // System is kernel-owned (set only by guardian seeding); never accept it from a client (M961)
 	if err := s.validateAgentHierarchyRefs(p); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	saved, err := s.k.AddProfile(p)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.invalidateAgentListCache()
@@ -1331,14 +1331,14 @@ func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 	candidate := current
 	applyAgentMutableProfilePatch(&candidate, in, provided)
 	if err := s.validateAgentHierarchyRefs(candidate); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	p, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
 		applyAgentMutableProfilePatch(dst, in, provided)
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -1501,7 +1501,7 @@ func (s *Server) handleAgentSetEnabled(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + ref + " is retired — revive it first"})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	res := map[string]any{"profile": profileView(p)}
@@ -1630,7 +1630,7 @@ func (s *Server) handleAgentTaskUpdate(conn net.Conn, req Request) {
 		}
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !exists {
@@ -2408,7 +2408,7 @@ func (s *Server) handleAgentResolve(conn net.Conn, req Request) {
 			fail["routing_task_model_chain"] = result.taskModelChain
 		}
 		publishOperatorAction(s.k, "agent.resolve", corr, fail)
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	completed := map[string]any{
@@ -2706,7 +2706,7 @@ func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {
 	}
 	st, err := s.boardReader()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Cursor pagination (M-pending follow-up): `cursor` is the opaque
@@ -3842,7 +3842,7 @@ func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool)
 		}
 	} else if p, ok := s.k.Roster().Get(ref); ok {
 		if err := s.validateAgentHierarchyRefs(p); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
@@ -3852,19 +3852,19 @@ func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool)
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	res := map[string]any{"profile": profileView(p)}
 	if retired {
 		pausedStanding, err := s.pauseAgentStanding(p.Slug)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		pausedSchedules, err := s.pauseAgentSchedules(p.Slug)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		res["impact"] = impact
@@ -3930,30 +3930,30 @@ func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
 	retainedSubagentWorkflowRefs := len(retainedSubagentWorkflowRefLabels)
 	retiredSubagents, retiredSubagentSlugs, err := s.retireAgentSubagents(p.Slug, subagents, cascade.Subagents)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	removedStanding, err := s.removeAgentStanding(p.Slug, cascade.Standing)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	removedSchedules, err := s.removeAgentSchedules(p.Slug, cascade.Schedules)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if cascade.Subagents {
 		for _, child := range subagents {
 			n, err := s.removeAgentStanding(child.Slug, cascade.Standing)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			removedStanding += n
 			n, err = s.removeAgentSchedules(child.Slug, cascade.Schedules)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			removedSchedules += n
@@ -3961,60 +3961,60 @@ func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
 	}
 	forgotMemory, err := s.forgetAgentMemory(p, cascade.Memory)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	forgotAuthoredMemory, err := s.forgetAgentAuthoredSharedMemory(p.Slug, cascade.AuthoredMemory)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	archivedSkills, err := s.archiveAgentSkills(p.Slug, cascade.Skills)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	deletedConfig, prunedConfigAccess, err := s.deleteAgentConfigEntries(p.Slug, cascade.Config)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	deletedWorkspaces, err := s.deleteAgentWorkspace(p, cascade.Workspace)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if cascade.Subagents {
 		for _, child := range subagents {
 			n, err := s.forgetAgentMemory(child, cascade.Memory)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			forgotMemory += n
 			n, err = s.forgetAgentAuthoredSharedMemory(child.Slug, cascade.AuthoredMemory)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			forgotAuthoredMemory += n
 			n, err = s.archiveAgentSkills(child.Slug, cascade.Skills)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			archivedSkills += n
 			var pruned int
 			n, pruned, err = s.deleteAgentConfigEntries(child.Slug, cascade.Config)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			deletedConfig += n
 			prunedConfigAccess += pruned
 			n, err = s.deleteAgentWorkspace(child, cascade.Workspace)
 			if err != nil {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+				s.fail(conn, req, err)
 				return
 			}
 			deletedWorkspaces += n
@@ -4022,7 +4022,7 @@ func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
 	}
 	ok, err := s.k.RemoveProfile(ref)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if ok {

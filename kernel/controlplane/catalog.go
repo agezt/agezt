@@ -42,7 +42,7 @@ func (s *Server) handleCatalogSync(ctx context.Context, conn net.Conn, req Reque
 			Actor:   "catalog",
 			Payload: map[string]any{"url": url, "error": err.Error()},
 		})
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -190,7 +190,7 @@ func (s *Server) handleCatalogDiscover(ctx context.Context, conn net.Conn, req R
 			Actor:   "catalog",
 			Payload: map[string]any{"endpoint": endpoint, "error": err.Error()},
 		})
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if err := s.k.CatalogStore().SaveLocal(frag, "ollama@"+endpoint); err != nil {
@@ -308,7 +308,7 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 func (s *Server) handleProviderReload(conn net.Conn, req Request) {
 	cat, providersReloaded, err := s.k.Reload()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{

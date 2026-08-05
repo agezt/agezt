@@ -1266,7 +1266,7 @@ func (s *Server) handleCancelRun(conn net.Conn, req Request) {
 	tenantID, _ := req.Args["tenant"].(string)
 	k, err := s.kernelFor(tenantID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	cancelled := k.CancelRun(corr)
@@ -1299,12 +1299,12 @@ func (s *Server) handleWhy(conn net.Conn, req Request) {
 	// did runs list/stats; this does why).
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	events, err := k.Why(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(events))
@@ -1379,7 +1379,7 @@ func (s *Server) handleWhoami(conn net.Conn, req Request) {
 
 func (s *Server) handleVerify(conn net.Conn, req Request) {
 	if err := s.k.Verify(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true}})
@@ -1496,7 +1496,7 @@ func (s *Server) handlePlan(ctx context.Context, conn net.Conn, req Request) {
 	subjectPrefix := "plan."
 	sub, err := s.k.Bus().Subscribe(subjectPrefix+">", 1024)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	defer sub.Cancel()
@@ -1579,7 +1579,7 @@ func (s *Server) handleDecide(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.k.Approvals().Resolve(id, decision, reason, "operator"); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -1615,7 +1615,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	tenantID, _ := req.Args["tenant"].(string)
 	k, err := s.kernelFor(tenantID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -2023,7 +2023,7 @@ executionProfileDone:
 	// this run's subject *before* starting it. No race; no missed events.
 	sub, err := k.Bus().Subscribe(k.SubjectForRun(corr), 1024)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	defer sub.Cancel()

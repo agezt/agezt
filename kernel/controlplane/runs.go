@@ -300,12 +300,12 @@ func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	// tenant reads its own isolated journal, so a tenant sees only its runs.
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	runs, err := s.collectRuns(k)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -468,12 +468,12 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 	// its own isolated journal.
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	runs, err := s.collectRuns(k)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

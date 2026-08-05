@@ -44,7 +44,7 @@ func (s *Server) handleWorldAdd(conn net.Conn, req Request) {
 		Kind: worldmodel.Kind(kind), Name: name, Aliases: aliases, Attrs: attrs,
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -81,7 +81,7 @@ func (s *Server) handleWorldEdit(conn net.Conn, req Request) {
 	}
 	e, ok, err := s.k.World().EditEntity("", id, aliases, attrs)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !ok {
@@ -107,7 +107,7 @@ func (s *Server) handleWorldRelate(conn net.Conn, req Request) {
 	verb, _ := req.Args["verb"].(string)
 	r, err := s.k.World().Relate("", from, worldmodel.Verb(verb), to)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -134,7 +134,7 @@ func (s *Server) handleWorldResolve(conn net.Conn, req Request) {
 	}
 	hits, err := s.k.World().ResolveQuiet(query, limit)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(hits))
@@ -156,7 +156,7 @@ func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 	}
 	hits, err := s.k.World().ResolveQuiet(query, 1)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if len(hits) == 0 {
@@ -169,7 +169,7 @@ func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 	center := hits[0].Entity
 	ns, err := s.k.World().Neighbors(center.ID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(ns))
@@ -192,12 +192,12 @@ func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 func (s *Server) handleWorldList(conn net.Conn, req Request) {
 	ents, err := s.k.World().Entities()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	rels, err := s.k.World().Relations()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(ents))
@@ -228,7 +228,7 @@ func (s *Server) handleWorldGet(conn net.Conn, req Request) {
 	}
 	e, found, err := s.k.World().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"found": found}
@@ -246,7 +246,7 @@ func (s *Server) handleWorldForget(conn net.Conn, req Request) {
 	}
 	ok, err := s.k.World().Forget("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{

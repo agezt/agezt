@@ -34,7 +34,7 @@ func (s *Server) handleMemoryConsolidate(conn net.Conn, req Request) {
 	defer cancel()
 	report, err := s.k.DistillBrain(ctx, corr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -62,7 +62,7 @@ func (s *Server) handleProfileRebuild(conn net.Conn, req Request) {
 	defer cancel()
 	report, err := s.k.DistillProfile(ctx, corr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -113,7 +113,7 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 		Force:      true,
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -175,7 +175,7 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 		Force:      true,
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -194,7 +194,7 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 func (s *Server) handleMemoryList(conn net.Conn, req Request) {
 	recs, err := s.k.Memory().Active()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Cursor pagination (M-pending follow-up): the SPA's Memory view polls
@@ -260,7 +260,7 @@ func (s *Server) handleMemoryGet(conn net.Conn, req Request) {
 	}
 	rec, found, err := s.k.Memory().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"found": found}
@@ -285,7 +285,7 @@ func (s *Server) handleMemorySearch(conn net.Conn, req Request) {
 	}
 	hits, err := s.k.Memory().Search(query, limit)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(hits))
@@ -307,7 +307,7 @@ func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
 	}
 	ok, err := s.k.Memory().Forget("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -328,7 +328,7 @@ func (s *Server) handleMemoryPromote(conn net.Conn, req Request) {
 	}
 	rec, found, err := s.k.Memory().Promote("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"promoted": found, "id": id}
@@ -367,7 +367,7 @@ func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
 
 	hyg, err := mgr.Hygiene(cutoff)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if dryRun {
@@ -379,7 +379,7 @@ func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
 	}
 	pruned, err := mgr.Prune("", cutoff, false)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -407,7 +407,7 @@ func (s *Server) handleMemoryTidy(conn net.Conn, req Request) {
 	}
 	n, err := mgr.DedupeDistilled("", dryRun)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -448,7 +448,7 @@ func (s *Server) handleMemoryBulkForget(conn net.Conn, req Request) {
 	for _, id := range strIDs {
 		ok, err := s.k.Memory().Forget("", id)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		if ok {
@@ -485,7 +485,7 @@ func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
 
 	seed, found, err := s.k.Memory().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -497,7 +497,7 @@ func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
 	// embedding) search so it works even when no embedder is configured.
 	hits, err := s.k.Memory().Search(seed.Content, limit+1) // +1 because seed itself may appear
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -521,12 +521,12 @@ func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
 func (s *Server) handleMemoryAudit(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	report, err := k.Memory().Audit()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	body, _ := jsonMap(report)
@@ -536,7 +536,7 @@ func (s *Server) handleMemoryAudit(conn net.Conn, req Request) {
 func (s *Server) handleMemoryClean(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	dryRun := true
@@ -547,7 +547,7 @@ func (s *Server) handleMemoryClean(conn net.Conn, req Request) {
 	}
 	report, err := k.Memory().CleanLowValue("", dryRun)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	body, _ := jsonMap(report)

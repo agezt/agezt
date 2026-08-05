@@ -47,7 +47,7 @@ func (s *Server) handleResearchAsk(ctx context.Context, conn net.Conn, req Reque
 		MaxVerifyClaims: dlInt(req.Args, "max_verify_claims"),
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

@@ -32,7 +32,7 @@ func (s *Server) handleRunPause(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -48,7 +48,7 @@ func (s *Server) handleRunResume(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -64,7 +64,7 @@ func (s *Server) handleRunStep(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -89,7 +89,7 @@ func (s *Server) handleRunSteer(conn net.Conn, req Request) {
 	note := mode == "note"
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -114,7 +114,7 @@ func (s *Server) handleRunIntervene(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	res, err := k.InterveneRun(intervention.Request{
@@ -126,7 +126,7 @@ func (s *Server) handleRunIntervene(conn net.Conn, req Request) {
 		IdempotencyKey: key,
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := map[string]any{

@@ -143,7 +143,7 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 	// pulse v2 will eventually surface as a synthetic notice).
 	sub, err := s.k.Bus().Subscribe(pattern, 4096)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	defer sub.Cancel()

@@ -61,14 +61,14 @@ func (s *Server) handleConfigCenterSet(conn net.Conn, req Request) {
 	}
 
 	if err := s.k.ConfigCenter().Set(entry); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
 	// Reload to get the computed entry
 	updated, err := s.k.ConfigCenter().GetEntry(key)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -168,7 +168,7 @@ func (s *Server) handleConfigCenterDelete(conn net.Conn, req Request) {
 
 	err := s.k.ConfigCenter().Delete(key)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (s *Server) handleConfigCenterSetRating(conn net.Conn, req Request) {
 
 	rating, err := configcenter.ParseRating(ratingStr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -217,7 +217,7 @@ func (s *Server) handleConfigCenterSetRating(conn net.Conn, req Request) {
 
 	entry.Rating = rating
 	if err := s.k.ConfigCenter().Set(entry); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -248,12 +248,12 @@ func (s *Server) handleConfigCenterSetAccess(conn net.Conn, req Request) {
 	entry.AllowedAgents = configCenterStringList(req.Args["allowed_agents"])
 	entry.ExcludedAgents = configCenterStringList(req.Args["excluded_agents"])
 	if err := s.k.ConfigCenter().Set(entry); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	updated, err := s.k.ConfigCenter().GetEntry(key)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

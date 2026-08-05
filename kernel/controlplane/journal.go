@@ -70,7 +70,7 @@ func (s *Server) handleJournalTail(conn net.Conn, req Request) {
 	// the tail of a multi-gigabyte journal shouldn't scan every segment.
 	tail, err := s.k.Journal().Tail(n)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

@@ -64,7 +64,7 @@ func (s *Server) handleChatSummarize(ctx context.Context, conn net.Conn, req Req
 		}},
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	summary := strings.TrimSpace(resp.Message.Content)

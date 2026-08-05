@@ -91,7 +91,7 @@ func (s *Server) handleWorkboardList(conn net.Conn, req Request) {
 	if raw := stringArg(req.Args, "status"); raw != "" {
 		st, err := workboard.ParseStatus(raw)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		filter.Status = st
@@ -113,7 +113,7 @@ func (s *Server) handleWorkboardLanes(conn net.Conn, req Request) {
 	if raw := stringArg(req.Args, "status"); raw != "" {
 		st, err := workboard.ParseStatus(raw)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		filter.Status = st
@@ -194,7 +194,7 @@ func (s *Server) handleWorkboardCreate(conn net.Conn, req Request) {
 	if raw := stringArg(req.Args, "status"); raw != "" {
 		st, err := workboard.ParseStatus(raw)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		status = st
@@ -220,7 +220,7 @@ func (s *Server) handleWorkboardCreate(conn net.Conn, req Request) {
 		RetryPolicy:        retryPolicyFromArgs(req.Args),
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task), "created": created}})
@@ -344,7 +344,7 @@ func (s *Server) handleWorkboardSweep(conn net.Conn, req Request) {
 	}
 	tasks, err := s.k.SweepStaleWorkboardClaims(workboardCorr(s, req), firstNonEmpty(stringArg(req.Args, "actor"), "workboard-sweeper"), time.Duration(staleAfterMS)*time.Millisecond, limit)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(tasks))
@@ -367,7 +367,7 @@ func (s *Server) handleWorkboardDispatch(conn net.Conn, req Request) {
 	}
 	blocked, err := s.k.Workboard().BlockingDependencies(task.ID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if len(blocked) > 0 {
