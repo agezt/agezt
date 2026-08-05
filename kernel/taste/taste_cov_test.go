@@ -136,14 +136,17 @@ func TestCleanStrings_DedupAndTrim(t *testing.T) {
 	}
 }
 
-// TestSaveLocked_WriteError forces saveLocked's temp-write error branch by
-// making the ".tmp" sibling an existing directory, so os.WriteFile fails.
+// TestSaveLocked_WriteError forces saveLocked's write-error branch by making
+// the target a NON-EMPTY directory, which defeats both the atomic rename and
+// atomicfile's Windows remove-retry fallback (Remove refuses a non-empty dir).
 // Because the test is in-package, it can build a Store with a crafted path.
 func TestSaveLocked_WriteError(t *testing.T) {
 	dir := t.TempDir()
 	storePath := filepath.Join(dir, "taste.json")
-	// Occupy the temp path with a directory: WriteFile(storePath+".tmp") must fail.
-	if err := os.Mkdir(storePath+".tmp", 0o755); err != nil {
+	if err := os.Mkdir(storePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(storePath, "occupied"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	st := &Store{path: storePath}

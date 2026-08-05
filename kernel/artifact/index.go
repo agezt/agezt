@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -132,12 +133,7 @@ func (i *Index) writeMeta(e Entry) error {
 	if err != nil {
 		return err
 	}
-	tmp := filepath.Join(i.dir, ".tmp-"+e.ID)
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("artifact index: write: %w", err)
-	}
-	if err := os.Rename(tmp, filepath.Join(i.dir, e.ID+".json")); err != nil {
-		_ = os.Remove(tmp)
+	if err := atomicfile.WriteFile(filepath.Join(i.dir, e.ID+".json"), b, 0o600); err != nil {
 		return fmt.Errorf("artifact index: write: %w", err)
 	}
 	return nil

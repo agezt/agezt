@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/agent"
 )
 
@@ -140,22 +141,5 @@ func writeRollbackCatalog(path string, cat rollbackCatalog) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, body, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		if _, statErr := os.Stat(path); statErr == nil {
-			if removeErr := os.Remove(path); removeErr == nil {
-				if retryErr := os.Rename(tmp, path); retryErr == nil {
-					return nil
-				} else {
-					err = retryErr
-				}
-			}
-		}
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return atomicfile.WriteFile(path, body, 0o600)
 }

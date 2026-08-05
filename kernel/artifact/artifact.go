@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"lukechampine.com/blake3"
 )
 
@@ -75,22 +76,7 @@ func (s *Store) Put(data []byte) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return "", fmt.Errorf("artifact: put: %w", err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
-	if err != nil {
-		return "", fmt.Errorf("artifact: put: %w", err)
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		_ = os.Remove(tmpName)
-		return "", fmt.Errorf("artifact: put: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return "", fmt.Errorf("artifact: put: %w", err)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		_ = os.Remove(tmpName)
+	if err := atomicfile.WriteFile(path, data, 0o600); err != nil {
 		return "", fmt.Errorf("artifact: put: %w", err)
 	}
 	return ref, nil

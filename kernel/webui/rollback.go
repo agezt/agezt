@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
@@ -279,24 +280,7 @@ func writeRollbackCatalogAt(path string, cat rollbackCatalog) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, body, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		if _, statErr := os.Stat(path); statErr == nil {
-			if removeErr := os.Remove(path); removeErr == nil {
-				if retryErr := os.Rename(tmp, path); retryErr == nil {
-					return nil
-				} else {
-					err = retryErr
-				}
-			}
-		}
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return atomicfile.WriteFile(path, body, 0o600)
 }
 
 func findRollbackCheckpoint(cat rollbackCatalog, id string) (int, *rollbackCheckpoint) {
@@ -312,39 +296,7 @@ func writeRollbackFile(path string, data []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".agezt-rollback-*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmpName, perm); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		if _, statErr := os.Stat(path); statErr == nil {
-			if removeErr := os.Remove(path); removeErr == nil {
-				if retryErr := os.Rename(tmpName, path); retryErr == nil {
-					return nil
-				} else {
-					err = retryErr
-				}
-			}
-		}
-		return err
-	}
-	return nil
+	return atomicfile.WriteFile(path, data, perm)
 }
 
 func rollbackString(v any) string {

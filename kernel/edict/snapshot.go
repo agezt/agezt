@@ -18,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // OverlaySnapshotFile is the snapshot's filename, under a kernel's
@@ -107,9 +109,5 @@ func SaveOverlaySnapshot(path string, snap *OverlaySnapshot) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.WriteFile(path, b, 0o644)
 }

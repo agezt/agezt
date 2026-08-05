@@ -91,16 +91,21 @@ func TestInbox_LimitTruncation(t *testing.T) {
 	}
 }
 
-// TestSave_WriteError makes the tmp write target a directory so os.WriteFile
-// fails inside save(), exercising the write-error return branch.
+// TestSave_WriteError makes the save target un-renamable-over so the atomic
+// write fails inside save(), exercising the write-error return branch. A
+// NON-EMPTY directory at board.json defeats both the rename and atomicfile's
+// Windows remove-retry fallback (Remove refuses a non-empty dir).
 func TestSave_WriteError(t *testing.T) {
 	dir := t.TempDir()
 	st, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Occupy board.json.tmp with a directory so WriteFile can't create the file.
-	if err := os.Mkdir(filepath.Join(dir, "board.json.tmp"), 0o755); err != nil {
+	target := filepath.Join(dir, "board.json")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "occupied"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.Post("t", "a", "x", 1); err == nil {

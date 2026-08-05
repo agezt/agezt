@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // WriteFile writes data to path atomically with the given mode. The parent
@@ -46,6 +47,27 @@ func WriteFile(path string, data []byte, mode os.FileMode) error {
 		return fmt.Errorf("atomicfile: chmod temp: %w", err)
 	}
 	if err := os.Rename(tmpName, path); err != nil {
+		// Windows: rename-over-existing fails when another process (antivirus,
+		// indexer, a reader without FILE_SHARE_DELETE) holds the target open.
+		// Remove-then-rename recovers at the cost of a brief window with no
+		// file — strictly better than losing the write. Several stores (okr,
+		// seat, taste, workboard) had each grown this fallback independently;
+		// it lives here now so every caller gets it.
+		if runtime.GOOS == "windows" {
+			if removeErr := os.Remove(path); removeErr == nil || os.IsNotExist(removeErr) {
+				if retryErr := os.Rename(tmpName, path); retryErr == nil {
+					return nil
+				}
+				// The target is gone and the retry rename also failed; the
+				// data is still in memory, so a direct (non-atomic) write is
+				// the last resort that keeps the file from being lost
+				// entirely. (kernel/seat used to preserve its fixed-name temp
+				// for next-boot recovery to cover exactly this window.)
+				if werr := os.WriteFile(path, data, mode); werr == nil {
+					return nil
+				}
+			}
+		}
 		return fmt.Errorf("atomicfile: rename: %w", err)
 	}
 	return nil
