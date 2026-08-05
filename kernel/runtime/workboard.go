@@ -309,12 +309,10 @@ func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, 
 		"{\"complete\": true|false, \"gap\": \"<what is still missing overall; empty string if everything is satisfied>\", \"criteria\": [{\"text\": \"<the criterion, verbatim>\", \"met\": true|false, \"note\": \"<short reason>\"}]}\n" +
 		"Set \"complete\" to true only if EVERY criterion is met.\n\n" +
 		"TASK:\n" + task + "\n\nACCEPTANCE CRITERIA:\n" + cb.String() + "\nANSWER:\n" + answer
-	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         k.Model(),
-		CorrelationID: corr,
-		TaskType:      "verify",
-		MaxTokens:     assureCriteriaMaxTokens,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+	resp, err := k.completeAux(ctx, corr, "verify", agent.CompletionRequest{
+		Model:     k.Model(),
+		MaxTokens: assureCriteriaMaxTokens,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 	})
 	if err != nil {
 		return assure.Verdict{}, nil, err

@@ -3021,12 +3021,10 @@ func (k *Kernel) verifyCompletion(ctx context.Context, corr, task, answer string
 	prompt := "You are a strict completion checker. Given a TASK and the ANSWER an agent produced, decide whether the answer FULLY accomplishes the task with nothing important left undone. Be skeptical: a plan or a promise to do it is NOT completion.\n\n" +
 		"Reply with ONLY a JSON object and no other text: {\"complete\": true|false, \"gap\": \"<concise description of what is still missing; empty string if complete>\"}.\n\n" +
 		"TASK:\n" + task + "\n\nANSWER:\n" + answer
-	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         k.Model(),
-		CorrelationID: corr,
-		TaskType:      "verify",
-		MaxTokens:     assureVerifyMaxTokens,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+	resp, err := k.completeAux(ctx, corr, "verify", agent.CompletionRequest{
+		Model:     k.Model(),
+		MaxTokens: assureVerifyMaxTokens,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 	})
 	if err != nil {
 		return assure.Verdict{}, err
@@ -3073,12 +3071,10 @@ func (k *Kernel) DescribeImages(ctx context.Context, corr string, images []strin
 	if strings.TrimSpace(prompt) == "" {
 		prompt = "Describe the attached image(s) in detail and transcribe any visible text. Be thorough and factual."
 	}
-	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         model,
-		CorrelationID: corr,
-		TaskType:      "vision",
-		MaxTokens:     visionDescribeMaxTokens,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt, Images: images}},
+	resp, err := k.completeAux(ctx, corr, "vision", agent.CompletionRequest{
+		Model:     model,
+		MaxTokens: visionDescribeMaxTokens,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt, Images: images}},
 	})
 	if err != nil {
 		return "", err

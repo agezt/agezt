@@ -476,10 +476,11 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 				model = k.cfg.Model
 			}
 		}
-		resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
+		// completeAux stamps CorrelationID (previously dropped here, leaving
+		// llm-node spend unattributable) alongside the workflow routing class.
+		resp, err := k.completeAux(ctx, corr, "workflow", agent.CompletionRequest{
 			Model:    model,
 			System:   workflow.Interpolate(c.System, data),
-			TaskType: "workflow", // route + meter workflow completions as their own class
 			Messages: []agent.Message{{Role: agent.RoleUser, Content: workflow.Interpolate(c.Prompt, data)}},
 		})
 		if err != nil {
