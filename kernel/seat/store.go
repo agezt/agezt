@@ -9,9 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	stdruntime "runtime"
 	"strings"
 	"sync"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 const (
@@ -211,27 +212,11 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		if stdruntime.GOOS == "windows" {
-			if removeErr := os.Remove(s.path); removeErr == nil || os.IsNotExist(removeErr) {
-				if retryErr := os.Rename(tmp, s.path); retryErr == nil {
-					return nil
-				} else {
-					// The target is already gone but the retry rename failed, so
-					// tmp now holds the only copy. Preserve it (do NOT remove) so
-					// the next OpenStore can recover the custom seats.
-					return retryErr
-				}
-			}
-		}
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	// atomicfile owns the crash/lock-safety story now (unique temp + fsync +
+	// Windows remove-retry + in-memory last-resort write); the legacy
+	// fixed-name ".tmp" recovery read in OpenStore stays only to pick up
+	// leftovers written by older builds.
+	return atomicfile.WriteFile(s.path, b, 0o644)
 }
 
 func cleanStrings(in []string) []string {

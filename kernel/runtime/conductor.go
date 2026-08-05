@@ -231,18 +231,16 @@ func (k *Kernel) conductorRoleModels(cfg ConductorConfig) (thinker, worker, veri
 // a "@chain" reference through the Governor's chain expansion (via ModelChain).
 func (k *Kernel) conductorComplete(ctx context.Context, corr, model, system, prompt string, maxTokens int) (string, error) {
 	req := agent.CompletionRequest{
-		CorrelationID: corr,
-		TaskType:      "conductor",
-		MaxTokens:     maxTokens,
-		System:        system,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+		MaxTokens: maxTokens,
+		System:    system,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 	}
 	if strings.HasPrefix(model, "@") {
 		req.ModelChain = []string{model}
 	} else {
 		req.Model = model
 	}
-	resp, err := k.cfg.Provider.Complete(ctx, req)
+	resp, err := k.completeAux(ctx, corr, "conductor", req)
 	if err != nil {
 		return "", err
 	}

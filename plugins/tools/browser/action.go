@@ -60,6 +60,10 @@ type ActionTool struct {
 	AllowLoopback bool
 	AllowPrivate  bool
 
+	// OnBlock, if set, is called (resolved IP, reason) when the egress guard
+	// refuses a dial, so the host can journal it as a netguard.blocked event.
+	OnBlock func(ip, reason string)
+
 	AllowUserProfile bool
 	UserDataDir      string
 	AllowRemoteCDP   bool
@@ -817,6 +821,9 @@ func (t *ActionTool) validateHostEgress(ctx context.Context, host string) error 
 	}
 	if t.AllowPrivate {
 		opts = append(opts, netguard.AllowPrivate())
+	}
+	if t.OnBlock != nil {
+		opts = append(opts, netguard.OnBlock(t.OnBlock))
 	}
 	g := netguard.New(opts...)
 	for _, ip := range ips {

@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	stdruntime "runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/proof"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -843,24 +843,7 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		if stdruntime.GOOS == "windows" {
-			if removeErr := os.Remove(s.path); removeErr == nil || os.IsNotExist(removeErr) {
-				if retryErr := os.Rename(tmp, s.path); retryErr == nil {
-					return nil
-				} else {
-					err = retryErr
-				}
-			}
-		}
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return atomicfile.WriteFile(s.path, b, 0o644)
 }
 
 func (s *Store) dependsOnLocked(startID, targetID string, seen map[string]bool) bool {

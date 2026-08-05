@@ -39,6 +39,20 @@ type Manifest struct {
 	// "qr" (scan, e.g. whatsappgw), "gateway" (self-hosted URL + reachability), or
 	// "oauth" (authorize in browser). Empty = "token".
 	ConnectMethod string `json:"connect_method,omitempty"`
+
+	// The three fields below drive derived STATUS reporting (`agt status`), so
+	// the daemon never needs a hand-maintained per-kind predicate list (which
+	// had silently drifted to cover 11 of the registered kinds). All optional.
+	//
+	// AddrEnv names the env var holding the channel's serve/endpoint address.
+	AddrEnv string `json:"addr_env,omitempty"`
+	// AllowlistEnv names the env var whose comma-separated value is the
+	// channel's recipient/room/channel allowlist.
+	AllowlistEnv string `json:"allowlist_env,omitempty"`
+	// InboundEnv lists env vars that must ALSO be set (beyond RequiredEnv) for
+	// the channel to actually receive inbound traffic. Meaningful only for
+	// Duplex channels; empty means inbound whenever configured.
+	InboundEnv []string `json:"inbound_env,omitempty"`
 }
 
 // MediaCaps describes a channel's non-text multimodal reach. Text is always

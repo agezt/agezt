@@ -1507,6 +1507,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  skill shadow-eval: %s\n", shadowEvalDesc)
 	fmt.Fprintf(stdout, "  skill auto-promo.: %s\n", autoPromoteDesc)
 
+	// Register the built-in channel manifests (Telegram, WhatsApp, …) BEFORE
+	// any channel construction or status snapshot: the Channels wizard lists
+	// them, and collectChannels() derives `agt status`'s configured-channel
+	// view from the registry, so it must be populated by the time
+	// srv.SetChannels runs below. (This call used to sit further down, nested
+	// inside an `if k.Forge() != nil` block — pure registration has no
+	// business being conditional on the Forge.)
+	builtinchannels.RegisterAll()
+
 	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
 	// set. Built before Pulse so its brief sink can tee with the log sink.
 	// Telegram channel (SPEC-04 §1) — multi-account: the default instance plus any
@@ -1951,9 +1960,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if fg := k.Forge(); fg != nil {
 		skillToolInst.Bind(fg)
 		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
-		// Register the built-in channel manifests (Telegram, WhatsApp, …) so the
-		// Channels wizard can list + configure every shipped channel uniformly.
-		builtinchannels.RegisterAll()
 
 		// Seed the built-in skill bundles baked into the binary (M852), so
 		// capabilities like full browser automation work out of the box — the
@@ -3859,99 +3865,46 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 // and act on commands (Telegram always can; Slack/Discord need a listen addr plus
 // the inbound secret/public key), so a half-configured webhook channel shows up
 // as outbound-only rather than silently looking active.
+// collectChannels derives `agt status`'s configured-channel list from the
+// channel manifest registry (LD-7). It used to be a hand-maintained per-kind
+// predicate list that had silently drifted to cover 11 of the 34 registered
+// kinds; deriving from Manifest.RequiredEnv/AddrEnv/AllowlistEnv/InboundEnv
+// means a newly registered channel is status-visible with no edit here.
 func collectChannels() []controlplane.ChannelInfo {
-	env := func(suffix string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + suffix)) }
+	env := func(name string) string { return strings.TrimSpace(os.Getenv(name)) }
 	var out []controlplane.ChannelInfo
-	if env("TELEGRAM_TOKEN") != "" {
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "telegram",
-			Inbound:   true, // long-polls whenever a token is set
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "TELEGRAM_CHAT_ID"))),
-		})
-	}
-	if env("SLACK_TOKEN") != "" {
-		addr := env("SLACK_ADDR")
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "slack",
-			Inbound:   addr != "" && env("SLACK_SIGNING_SECRET") != "",
-			Addr:      addr,
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SLACK_CHANNELS"))),
-		})
-	}
-	if env("DISCORD_TOKEN") != "" {
-		addr := env("DISCORD_ADDR")
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "discord",
-			Inbound:   addr != "" && env("DISCORD_PUBLIC_KEY") != "",
-			Addr:      addr,
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "DISCORD_CHANNELS"))),
-		})
-	}
-	if env("WEBHOOK_SECRET") != "" || env("WEBHOOK_OUTBOUND_URL") != "" {
-		addr := env("WEBHOOK_ADDR")
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "webhook",
-			Inbound:   addr != "" && env("WEBHOOK_SECRET") != "",
-			Addr:      addr,
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "WEBHOOK_CHANNELS"))),
-		})
-	}
-	if env("EMAIL_SMTP_ADDR") != "" {
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "email",
-			Inbound:   false, // outbound-only
-			Addr:      env("EMAIL_SMTP_ADDR"),
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "EMAIL_RECIPIENTS"))),
-		})
-	}
-	if env("MATRIX_HOMESERVER") != "" && env("MATRIX_TOKEN") != "" {
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "matrix",
-			Inbound:   true, // long-polls /sync whenever configured
-			Addr:      env("MATRIX_HOMESERVER"),
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "MATRIX_ROOMS"))),
-		})
-	}
-	if env("SMS_ACCOUNT_SID") != "" && env("SMS_AUTH_TOKEN") != "" {
-		addr := env("SMS_ADDR")
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "sms",
-			Inbound:   addr != "", // inbound webhook served when an addr is set
-			Addr:      addr,
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SMS_NUMBERS"))),
-		})
-	}
-	if env("WHATSAPP_APP_SECRET") != "" && env("WHATSAPP_ACCESS_TOKEN") != "" {
-		addr := env("WHATSAPP_ADDR")
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "whatsapp",
-			Inbound:   addr != "", // inbound webhook served when an addr is set
-			Addr:      addr,
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "WHATSAPP_NUMBERS"))),
-		})
-	}
-	if env("HOMEASSISTANT_URL") != "" && env("HOMEASSISTANT_TOKEN") != "" {
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "homeassistant",
-			Inbound:   false, // outbound-only (notify API)
-			Addr:      env("HOMEASSISTANT_URL"),
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "HOMEASSISTANT_SERVICES"))),
-		})
-	}
-	if env("TEAMS_WEBHOOKS") != "" {
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "teams",
-			Inbound:   false, // outbound-only (incoming webhooks)
-			Allowlist: len(parseNamedWebhooks(env("TEAMS_WEBHOOKS"))),
-		})
-	}
-	if env("SIGNAL_API_URL") != "" && env("SIGNAL_NUMBER") != "" {
-		out = append(out, controlplane.ChannelInfo{
-			Kind:      "signal",
-			Inbound:   true, // long-polls /v1/receive whenever configured
-			Addr:      env("SIGNAL_API_URL"),
-			Allowlist: len(splitNonEmpty(os.Getenv(brand.EnvPrefix + "SIGNAL_RECIPIENTS"))),
-		})
+	for _, m := range channel.Manifests() {
+		configured := len(m.RequiredEnv) > 0
+		for _, e := range m.RequiredEnv {
+			if env(e) == "" {
+				configured = false
+				break
+			}
+		}
+		// The generic webhook is usable outbound-only with just an outbound
+		// URL — the one kind whose "configured" predicate is an OR the
+		// manifest's all-required semantics can't express.
+		if !configured && m.Kind == "webhook" && env("AGEZT_WEBHOOK_OUTBOUND_URL") != "" {
+			configured = true
+		}
+		if !configured {
+			continue
+		}
+		inbound := m.Duplex
+		for _, e := range m.InboundEnv {
+			if env(e) == "" {
+				inbound = false
+				break
+			}
+		}
+		info := controlplane.ChannelInfo{Kind: m.Kind, Inbound: inbound}
+		if m.AddrEnv != "" {
+			info.Addr = env(m.AddrEnv)
+		}
+		if m.AllowlistEnv != "" {
+			info.Allowlist = len(splitNonEmpty(env(m.AllowlistEnv)))
+		}
+		out = append(out, info)
 	}
 	return out
 }
@@ -7199,8 +7152,11 @@ func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
 	if ht, ok := tools["http"].(*httptool.Tool); ok {
 		ht.OnBlock = publish("http")
 	}
-	if br, ok := tools["browser"].(*browser.Tool); ok {
-		br.OnBlock = publish("browser")
+	if br, ok := tools["browser.read"].(*browser.Tool); ok {
+		br.OnBlock = publish("browser.read")
+	}
+	if ba, ok := tools["browser.action"].(*browser.ActionTool); ok {
+		ba.OnBlock = publish("browser.action")
 	}
 	if ws, ok := tools["web_search"].(*websearch.Tool); ok {
 		ws.OnBlock = publish("web_search")

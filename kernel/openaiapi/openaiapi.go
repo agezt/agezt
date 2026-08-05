@@ -613,11 +613,6 @@ capture:
 // BEFORE starting the run so no early token is missed (the same no-race pattern
 // the control plane's handleRun uses).
 func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string, includeUsage, jsonMode bool) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
-		return
-	}
 	corr := eng.NewCorrelation()
 	sub, err := b.Subscribe(eng.SubjectForRun(corr), 1024)
 	if err != nil {
@@ -626,21 +621,20 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	}
 	defer sub.Cancel()
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
+	// StartSSE applies the process-wide per-client stream cap (V-009/LD-8).
+	sse, ok := httpserver.StartSSE(w, r)
+	if !ok {
+		return
+	}
+	defer sse.Close()
 
 	id := "chatcmpl-" + ulid.New()
 	created := time.Now().Unix()
 	sendChunk := func(delta map[string]any, finish any) {
-		frame := map[string]any{
+		_ = sse.WriteJSON(map[string]any{
 			"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
 			"choices": []map[string]any{{"index": 0, "delta": delta, "finish_reason": finish}},
-		}
-		b, _ := json.Marshal(frame)
-		_, _ = w.Write([]byte("data: " + string(b) + "\n\n"))
-		flusher.Flush()
+		})
 	}
 
 	var full strings.Builder // accumulates the answer for the optional usage chunk
@@ -660,17 +654,13 @@ func (s *Server) streamChat(w http.ResponseWriter, r *http.Request, eng Engine, 
 	endStream := func(finish string) {
 		sendChunk(map[string]any{}, finish)
 		if includeUsage {
-			frame := map[string]any{
+			_ = sse.WriteJSON(map[string]any{
 				"id": id, "object": "chat.completion.chunk", "created": created, "model": model,
 				"choices": []map[string]any{},
 				"usage":   chatUsage(eng, corr, intent, full.String()),
-			}
-			b, _ := json.Marshal(frame)
-			_, _ = w.Write([]byte("data: " + string(b) + "\n\n"))
-			flusher.Flush()
+			})
 		}
-		_, _ = w.Write([]byte("data: [DONE]\n\n"))
-		flusher.Flush()
+		_ = sse.WriteData("[DONE]")
 	}
 
 	// Opening role chunk.

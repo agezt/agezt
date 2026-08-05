@@ -241,16 +241,24 @@ func TestSafeFire_ContainsPanic(t *testing.T) {
 // TestStore_RollsBackOnSaveFailure: when the durable write fails, SetEnabled and
 // Remove must leave the in-memory view byte-identical to disk — never a state that
 // diverges from what survives a reopen (M412, BUG 5 fix). The failure is forced by
-// turning the atomic-write temp path into a directory so os.WriteFile errors.
+// replacing the target file with a non-empty directory so the atomic rename errors.
 func TestStore_RollsBackOnSaveFailure(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := Open(dir)
 	o, _ := s.Add(cronOrder("watch"))
 
-	// Make save() fail: the temp path WriteFile targets is now a directory.
-	tmp := filepath.Join(dir, "standing.json.tmp")
-	if err := os.Mkdir(tmp, 0o755); err != nil {
-		t.Fatalf("mkdir tmp: %v", err)
+	// Make save() fail: replace the target with a NON-EMPTY directory, which
+	// defeats both the atomic rename and atomicfile's Windows remove-retry
+	// fallback (Remove refuses a non-empty dir).
+	target := filepath.Join(dir, "standing.json")
+	if err := os.Remove(target); err != nil {
+		t.Fatalf("remove target: %v", err)
+	}
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("mkdir target: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "occupied"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("occupy target: %v", err)
 	}
 
 	// SetEnabled must report the error AND not mutate the live order.

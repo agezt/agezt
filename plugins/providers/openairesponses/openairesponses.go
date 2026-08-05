@@ -18,8 +18,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -30,6 +30,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
 //go:embed instructions.md
@@ -126,32 +127,42 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 // send performs one POST, returning the raw body bytes + status. When force, it
 // asks the token source to refresh first.
 func (p *Provider) send(ctx context.Context, body []byte, force bool) ([]byte, int, error) {
-	access, accountID, err := p.Token(ctx, force)
+	// Transient failures (connection errors, 429/5xx) retry via the shared
+	// transport (LD-4). The forced token refresh applies to the FIRST attempt
+	// only — later attempts reuse the freshly cached token instead of hammering
+	// the OAuth endpoint once per backoff round. A terminal non-2xx (401, 4xx)
+	// is surfaced as (body, status, nil) to preserve this method's contract —
+	// Complete's reactive 401-refresh branch keys on the status code.
+	first := true
+	raw, _, err := retry.DoHTTP(ctx, p.client(), func() (*http.Request, error) {
+		access, accountID, err := p.Token(ctx, force && first)
+		first = false
+		if err != nil {
+			return nil, err
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.base()+"/responses", strings.NewReader(string(body)))
+		if err != nil {
+			return nil, err
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+access)
+		if accountID != "" {
+			httpReq.Header.Set("chatgpt-account-id", accountID)
+		}
+		httpReq.Header.Set("OpenAI-Beta", betaHeader)
+		httpReq.Header.Set("originator", originator)
+		httpReq.Header.Set("session_id", p.session())
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Accept", "text/event-stream")
+		return httpReq, nil
+	}, 16<<20)
 	if err != nil {
+		var h *retry.HTTPError
+		if errors.As(err, &h) {
+			return []byte(h.Body), h.StatusCode, nil
+		}
 		return nil, 0, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.base()+"/responses", strings.NewReader(string(body)))
-	if err != nil {
-		return nil, 0, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+access)
-	if accountID != "" {
-		httpReq.Header.Set("chatgpt-account-id", accountID)
-	}
-	httpReq.Header.Set("OpenAI-Beta", betaHeader)
-	httpReq.Header.Set("originator", originator)
-	httpReq.Header.Set("session_id", p.session())
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "text/event-stream")
-
-	client := p.client()
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
-	return raw, resp.StatusCode, nil
+	return raw, http.StatusOK, nil
 }
 
 func (p *Provider) client() *http.Client {

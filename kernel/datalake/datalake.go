@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -500,12 +501,7 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return fmt.Errorf("datalake: write %s: %w", path, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+	if err := atomicfile.WriteFile(path, b, 0o600); err != nil {
 		return fmt.Errorf("datalake: write %s: %w", path, err)
 	}
 	return nil

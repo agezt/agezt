@@ -37,6 +37,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -164,34 +165,27 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, fmt.Errorf("vertex: encode request: %w", err)
 	}
 
-	tok, err := p.TokenSource.Token(ctx)
+	// build runs per retry attempt so a token refreshed mid-backoff (short-lived
+	// OAuth access tokens) is picked up fresh each try.
+	respBytes, _, err := retry.DoHTTP(ctx, p.HTTP, func() (*http.Request, error) {
+		tok, err := p.TokenSource.Token(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("vertex: get access token: %w", err)
+		}
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.ResolveEndpoint(model), bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("vertex: build request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+tok)
+		return httpReq, nil
+	}, httpread.DefaultMaxResponseBytes)
 	if err != nil {
-		return nil, fmt.Errorf("vertex: get access token: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.ResolveEndpoint(model), bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("vertex: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+tok)
-
-	client := p.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
+		var h *retry.HTTPError
+		if errors.As(err, &h) {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
 		return nil, fmt.Errorf("vertex: http: %w", err)
-	}
-	defer httpResp.Body.Close()
-
-	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-	if err != nil {
-		return nil, fmt.Errorf("vertex: read body: %w", err)
-	}
-	if httpResp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
 	resp, err := decodeResponse(respBytes, model)
 	if err != nil {

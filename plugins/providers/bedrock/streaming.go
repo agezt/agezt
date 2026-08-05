@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -84,30 +85,29 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 	}
 
 	endpoint := resolveStreamEndpoint(p, model)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	// Stream SETUP retries transient failures (connection errors, 429/5xx)
+	// before the first frame; mid-stream failures are never replayed (LD-4).
+	// build runs per attempt so the SigV4 signature is re-computed fresh.
+	httpResp, err := retry.DoHTTPStream(ctx, p.HTTP, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("bedrock: build request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Accept", "application/vnd.amazon.eventstream")
+		if err := p.applyAuth(httpReq, body); err != nil {
+			return nil, err
+		}
+		return httpReq, nil
+	}, httpread.DefaultMaxResponseBytes)
 	if err != nil {
-		return nil, fmt.Errorf("bedrock: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "application/vnd.amazon.eventstream")
-	if err := p.applyAuth(httpReq, body); err != nil {
-		return nil, err
-	}
-
-	client := p.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
+		var h *retry.HTTPError
+		if errors.As(err, &h) {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
 		return nil, fmt.Errorf("bedrock: http: %w", err)
 	}
 	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode/100 != 2 {
-		raw, _ := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(raw)}
-	}
 
 	resp, err := parseEventStream(httpResp.Body, model, onChunk)
 	if err != nil {

@@ -152,13 +152,11 @@ func (k *Kernel) Research(ctx context.Context, corr, question string, opts Resea
 
 	// 1. PLAN — decompose into sub-questions (falls back to the question itself).
 	subqs := []string{question}
-	if planResp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         opts.Model,
-		CorrelationID: corr,
-		TaskType:      "research",
-		MaxTokens:     researchPlanMaxTokens,
-		System:        "You are a research planner. Break the user's question into distinct, specific sub-questions that together cover it. Reply with ONLY a JSON array of strings.",
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: buildResearchPlanPrompt(question, opts.MaxSubQuestions)}},
+	if planResp, err := k.completeAux(ctx, corr, "research", agent.CompletionRequest{
+		Model:     opts.Model,
+		MaxTokens: researchPlanMaxTokens,
+		System:    "You are a research planner. Break the user's question into distinct, specific sub-questions that together cover it. Reply with ONLY a JSON array of strings.",
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: buildResearchPlanPrompt(question, opts.MaxSubQuestions)}},
 	}); err == nil {
 		subqs = parseSubQuestions(planResp.Message.Content, question, opts.MaxSubQuestions)
 	} else {
@@ -219,13 +217,11 @@ func (k *Kernel) Research(ctx context.Context, corr, question string, opts Resea
 	}
 
 	// 3. SYNTHESIZE — cited answer grounded only on the numbered sources.
-	synthResp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         opts.Model,
-		CorrelationID: corr,
-		TaskType:      "research",
-		MaxTokens:     researchSynthMaxTokens,
-		System:        researchSynthSystem,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: buildResearchSynthPrompt(question, report.Sources)}},
+	synthResp, err := k.completeAux(ctx, corr, "research", agent.CompletionRequest{
+		Model:     opts.Model,
+		MaxTokens: researchSynthMaxTokens,
+		System:    researchSynthSystem,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: buildResearchSynthPrompt(question, report.Sources)}},
 	})
 	if err != nil {
 		return report, fmt.Errorf("research: synthesis failed: %w", err)
@@ -294,13 +290,11 @@ func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, s
 		go func(i int, c ResearchClaim) {
 			defer wg.Done()
 			c.Verdict = "uncertain"
-			resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-				Model:         model,
-				CorrelationID: corr,
-				TaskType:      "research-verify",
-				MaxTokens:     researchVerifyMaxTokens,
-				System:        researchVerifySystem,
-				Messages:      []agent.Message{{Role: agent.RoleUser, Content: buildResearchVerifyPrompt(c, byID)}},
+			resp, err := k.completeAux(ctx, corr, "research-verify", agent.CompletionRequest{
+				Model:     model,
+				MaxTokens: researchVerifyMaxTokens,
+				System:    researchVerifySystem,
+				Messages:  []agent.Message{{Role: agent.RoleUser, Content: buildResearchVerifyPrompt(c, byID)}},
 			})
 			if err != nil {
 				c.Note = "verifier error: " + err.Error()

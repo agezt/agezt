@@ -106,10 +106,11 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 	prompt := basePrompt
 	var lastErr error
 	for attempt := 1; attempt <= 2; attempt++ {
-		resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
+		// completeAux stamps CorrelationID (previously dropped here, leaving
+		// draft spend unattributable) alongside the workflow routing class.
+		resp, err := k.completeAux(ctx, corr, "workflow", agent.CompletionRequest{
 			Model:    k.cfg.Model,
 			System:   workflowDraftSystem,
-			TaskType: "workflow", // same routing/metering class as llm nodes
 			Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 		})
 		if err != nil {

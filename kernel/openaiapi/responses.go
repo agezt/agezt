@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -207,11 +208,6 @@ func responsesUsageFor(eng Engine, corr, prompt, completion string) map[string]a
 // sequence. It subscribes BEFORE starting the run so no early token is missed
 // (the same no-race pattern as streamChat).
 func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Engine, b *bus.Bus, intent, model string, images []string, jsonMode bool) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeErr(w, http.StatusInternalServerError, "stream_unsupported", "streaming unsupported")
-		return
-	}
 	corr := eng.NewCorrelation()
 	sub, err := b.Subscribe(eng.SubjectForRun(corr), 1024)
 	if err != nil {
@@ -220,10 +216,12 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 	}
 	defer sub.Cancel()
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
+	// StartSSE applies the process-wide per-client stream cap (V-009/LD-8).
+	sse, ok := httpserver.StartSSE(w, r)
+	if !ok {
+		return
+	}
+	defer sse.Close()
 
 	respID := "resp_" + ulid.New()
 	msgID := "msg_" + ulid.New()
@@ -232,9 +230,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 		payload["type"] = eventType
 		payload["sequence_number"] = seq
 		seq++
-		b, _ := json.Marshal(payload)
-		_, _ = w.Write([]byte("event: " + eventType + "\ndata: " + string(b) + "\n\n"))
-		flusher.Flush()
+		_ = sse.WriteEvent(eventType, payload)
 	}
 
 	// response.created — a skeleton response, status in_progress.
@@ -315,8 +311,7 @@ func (s *Server) streamResponses(w http.ResponseWriter, r *http.Request, eng Eng
 		} else {
 			send("response.completed", map[string]any{"response": final})
 		}
-		_, _ = w.Write([]byte("data: [DONE]\n\n"))
-		flusher.Flush()
+		_ = sse.WriteData("[DONE]")
 	}
 
 	for {

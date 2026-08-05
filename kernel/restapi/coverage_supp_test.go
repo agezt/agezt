@@ -4,7 +4,6 @@ package restapi
 
 import (
 	"encoding/json"
-	"net/http"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -46,18 +45,5 @@ func TestTokenText_Success(t *testing.T) {
 	}
 }
 
-// --- streamClientKey ---
-
-func TestStreamClientKey_WithPort(t *testing.T) {
-	r := &http.Request{RemoteAddr: "192.168.1.1:45678"}
-	if key := streamClientKey(r); key != "192.168.1.1" {
-		t.Errorf("streamClientKey = %q, want 192.168.1.1", key)
-	}
-}
-
-func TestStreamClientKey_NoPort(t *testing.T) {
-	r := &http.Request{RemoteAddr: "unix-socket-path"}
-	if key := streamClientKey(r); key != "unix-socket-path" {
-		t.Errorf("streamClientKey(no-port) = %q, want raw addr", key)
-	}
-}
+// The streamClientKey tests moved to kernel/httpserver (sseClientKey) with the
+// shared SSE gate (LD-8).

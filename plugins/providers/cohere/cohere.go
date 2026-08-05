@@ -35,6 +35,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
+	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -126,29 +127,21 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		return nil, fmt.Errorf("cohere: encode request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.resolveEndpoint(), bytes.NewReader(body))
+	respBytes, _, err := retry.DoHTTP(ctx, p.HTTP, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.resolveEndpoint(), bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("cohere: build request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
+		return httpReq, nil
+	}, httpread.DefaultMaxResponseBytes)
 	if err != nil {
-		return nil, fmt.Errorf("cohere: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
-
-	client := p.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
+		var h *retry.HTTPError
+		if errors.As(err, &h) {
+			return nil, &APIError{Status: h.StatusCode, Body: h.Body}
+		}
 		return nil, fmt.Errorf("cohere: http: %w", err)
-	}
-	defer httpResp.Body.Close()
-
-	respBytes, err := httpread.All(httpResp.Body, httpread.DefaultMaxResponseBytes)
-	if err != nil {
-		return nil, fmt.Errorf("cohere: read body: %w", err)
-	}
-	if httpResp.StatusCode/100 != 2 {
-		return nil, &APIError{Status: httpResp.StatusCode, Body: string(respBytes)}
 	}
 	resp, err := decodeResponse(respBytes, model)
 	if err != nil {

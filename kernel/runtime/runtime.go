@@ -622,15 +622,28 @@ func Open(cfg Config) (*Kernel, error) {
 		return nil, errors.New("runtime: Provider required")
 	}
 
+	// Every store opened below registers its Close here; fail() unwinds them in
+	// reverse order. The previous hand-copied close cascades had already
+	// diverged (late failure paths leaked the journal handle), so this is the
+	// one place unwind order lives.
+	var closers []interface{ Close() error }
+	fail := func(prefix string, err error) (*Kernel, error) {
+		for i := len(closers) - 1; i >= 0; i-- {
+			_ = closers[i].Close()
+		}
+		return nil, apperrors.WrapSimple(prefix, err)
+	}
+
 	j, err := journal.Open(filepath.Join(cfg.BaseDir, "journal"), journal.Options{})
 	if err != nil {
 		return nil, apperrors.WrapSimple("runtime: journal", err)
 	}
+	closers = append(closers, j)
 	st, err := state.Open(filepath.Join(cfg.BaseDir, "state"))
 	if err != nil {
-		j.Close()
-		return nil, apperrors.WrapSimple("runtime: state", err)
+		return fail("runtime: state", err)
 	}
+	closers = append(closers, st)
 	eng := cfg.Edict
 	if eng == nil {
 		eng = edict.New(edict.Options{})
@@ -652,10 +665,9 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	mstore, err := memory.Open(filepath.Join(cfg.BaseDir, "memory"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		return nil, apperrors.WrapSimple("runtime: memory", err)
+		return fail("runtime: memory", err)
 	}
+	closers = append(closers, mstore)
 	mgr := memory.NewManager(mstore, kbus)
 	if cfg.MemoryEmbedder != nil {
 		mgr.SetEmbedder(cfg.MemoryEmbedder) // M884: provider embeddings opt-in
@@ -663,21 +675,16 @@ func Open(cfg Config) (*Kernel, error) {
 
 	wstore, err := worldmodel.Open(filepath.Join(cfg.BaseDir, "worldmodel"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		return nil, apperrors.WrapSimple("runtime: worldmodel", err)
+		return fail("runtime: worldmodel", err)
 	}
+	closers = append(closers, wstore)
 	wgraph := worldmodel.NewGraph(wstore, kbus)
 
 	skstore, err := skill.Open(filepath.Join(cfg.BaseDir, "skills"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		return nil, apperrors.WrapSimple("runtime: skills", err)
+		return fail("runtime: skills", err)
 	}
+	closers = append(closers, skstore)
 	forge := skill.NewForge(skstore, kbus)
 	// Wire the on-disk bundle store so skills can ship reference files + scripts
 	// (agentskills.io shape, M847). Best-effort: a bundle-store failure leaves
@@ -688,36 +695,21 @@ func Open(cfg Config) (*Kernel, error) {
 
 	schedStore, err := cadence.OpenStore(filepath.Join(cfg.BaseDir, "cadence"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: cadence", err)
+		return fail("runtime: cadence", err)
 	}
 
 	// Content-addressed artifact store (SPEC-04 §3.6): the agent loop offloads
 	// oversized tool outputs here so the journal stays small. Store-only — no bus.
 	artStore, err := artifact.Open(filepath.Join(cfg.BaseDir, "artifacts"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: artifacts", err)
+		return fail("runtime: artifacts", err)
 	}
 	// Metadata index over the blob store (M822) — browsable/deletable entries
 	// (inbound images, tool outputs). Failure here is non-fatal to the blob store
 	// but we surface it so the operator knows the file-manager won't populate.
 	artIndex, err := artifact.OpenIndex(artStore, filepath.Join(cfg.BaseDir, "artifacts"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: artifact index", err)
+		return fail("runtime: artifact index", err)
 	}
 
 	// Personal Data Lake (M834): file-based structured collections agents build
@@ -725,12 +717,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// the prior stores like the others.
 	lake, err := datalake.Open(cfg.BaseDir, func() int64 { return time.Now().UnixMilli() })
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: data lake", err)
+		return fail("runtime: data lake", err)
 	}
 	// Seed the built-in Personal Data Lake collections (M835) — expenses, calendar,
 	// tasks, notes, habits, bookmarks, contacts. Idempotent (EnsureCollection skips
@@ -740,12 +727,7 @@ func Open(cfg Config) (*Kernel, error) {
 
 	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: standing", err)
+		return fail("runtime: standing", err)
 	}
 
 	// Durable in-flight-run tickets (M1002): opened only when resume is enabled so
@@ -755,93 +737,48 @@ func Open(cfg Config) (*Kernel, error) {
 	if cfg.ResumeEnabled {
 		rsstore, err = resume.Open(filepath.Join(cfg.BaseDir, "resume"), cfg.ResumeSnapshotMaxBytes)
 		if err != nil {
-			j.Close()
-			st.Close()
-			mstore.Close()
-			wstore.Close()
-			skstore.Close()
-			return nil, apperrors.WrapSimple("runtime: resume", err)
+			return fail("runtime: resume", err)
 		}
 	}
 
 	rstore, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: roster", err)
+		return fail("runtime: roster", err)
 	}
 
 	tfstore, err := toolforge.Open(filepath.Join(cfg.BaseDir, "toolforge"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: toolforge", err)
+		return fail("runtime: toolforge", err)
 	}
 
 	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: mcp", err)
+		return fail("runtime: mcp", err)
 	}
 
 	wfstore, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: workflows", err)
+		return fail("runtime: workflows", err)
 	}
 
 	wbstore, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: workboard", err)
+		return fail("runtime: workboard", err)
 	}
 
 	okrstore, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: okr", err)
+		return fail("runtime: okr", err)
 	}
 
 	tastestore, err := taste.OpenStore(filepath.Join(cfg.BaseDir, "taste"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: taste", err)
+		return fail("runtime: taste", err)
 	}
 
 	seatstore, err := seat.OpenStore(filepath.Join(cfg.BaseDir, "seats"))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		wstore.Close()
-		skstore.Close()
-		return nil, apperrors.WrapSimple("runtime: seats", err)
+		return fail("runtime: seats", err)
 	}
 
 	// Reflection holds no store of its own — it folds the journal and tunes
@@ -902,12 +839,7 @@ func Open(cfg Config) (*Kernel, error) {
 	if cat == nil {
 		loaded, err := catStore.Load()
 		if err != nil {
-			j.Close()
-			st.Close()
-			mstore.Close()
-			wstore.Close()
-			skstore.Close()
-			return nil, apperrors.WrapSimple("runtime: catalog load", err)
+			return fail("runtime: catalog load", err)
 		}
 		cat = loaded
 	}
@@ -977,11 +909,9 @@ func Open(cfg Config) (*Kernel, error) {
 	// Config Center for agent SDK config access (M???)
 	configCenter, err := configcenter.Open(configcenter.DefaultConfig(cfg.BaseDir))
 	if err != nil {
-		j.Close()
-		st.Close()
-		mstore.Close()
-		return nil, apperrors.WrapSimple("runtime: configcenter", err)
+		return fail("runtime: configcenter", err)
 	}
+	closers = append(closers, configCenter)
 	// Wire approval registry for HITL support
 	if apr != nil {
 		configCenter.SetApprovalRegistry(apr)
@@ -995,7 +925,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// hardcoded "change-me-in-production" constant.
 	secret, err := agentgw.ResolveTokenSecret(cfg.BaseDir)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: resolve agentgw token secret: %w", err)
+		return fail("runtime: resolve agentgw token secret", err)
 	}
 	gwCfg.TokenSecret = secret
 	// Override socket path from environment if set (useful for Windows TCP testing)
@@ -3091,12 +3021,10 @@ func (k *Kernel) verifyCompletion(ctx context.Context, corr, task, answer string
 	prompt := "You are a strict completion checker. Given a TASK and the ANSWER an agent produced, decide whether the answer FULLY accomplishes the task with nothing important left undone. Be skeptical: a plan or a promise to do it is NOT completion.\n\n" +
 		"Reply with ONLY a JSON object and no other text: {\"complete\": true|false, \"gap\": \"<concise description of what is still missing; empty string if complete>\"}.\n\n" +
 		"TASK:\n" + task + "\n\nANSWER:\n" + answer
-	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         k.Model(),
-		CorrelationID: corr,
-		TaskType:      "verify",
-		MaxTokens:     assureVerifyMaxTokens,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+	resp, err := k.completeAux(ctx, corr, "verify", agent.CompletionRequest{
+		Model:     k.Model(),
+		MaxTokens: assureVerifyMaxTokens,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 	})
 	if err != nil {
 		return assure.Verdict{}, err
@@ -3143,12 +3071,10 @@ func (k *Kernel) DescribeImages(ctx context.Context, corr string, images []strin
 	if strings.TrimSpace(prompt) == "" {
 		prompt = "Describe the attached image(s) in detail and transcribe any visible text. Be thorough and factual."
 	}
-	resp, err := k.cfg.Provider.Complete(ctx, agent.CompletionRequest{
-		Model:         model,
-		CorrelationID: corr,
-		TaskType:      "vision",
-		MaxTokens:     visionDescribeMaxTokens,
-		Messages:      []agent.Message{{Role: agent.RoleUser, Content: prompt, Images: images}},
+	resp, err := k.completeAux(ctx, corr, "vision", agent.CompletionRequest{
+		Model:     model,
+		MaxTokens: visionDescribeMaxTokens,
+		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt, Images: images}},
 	})
 	if err != nil {
 		return "", err
@@ -3507,93 +3433,20 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		modelChain = []string{model}
 	}
 
-	// Per-run tool restriction (WithTools): an allowlist (possibly empty = no
-	// tools) scopes what this run may call, without changing the kernel's tool
-	// set. Forged script tools (M794) and live MCP attachments (M796) are
-	// merged BEFORE the filter so a restricted run only sees the dynamic
-	// tools its allowlist grants.
-	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-	runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(runCtx))
-	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
-	if allow, ok := toolsFromCtx(runCtx); ok {
-		runTools = filterTools(runTools, allow)
-	}
-	toolDiscoveryMax := k.cfg.ToolDiscoveryMax
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
-		toolDiscoveryMax = v
-	}
-	if toolDiscoveryMax > 0 && len(runTools) > toolDiscoveryMax {
-		runTools = withToolSearch(runTools)
-	}
+	// Governance- and capacity-shaped LoopConfig fields — shared verbatim with
+	// executeSubAgent so root and delegated runs can never diverge on cost
+	// accounting, compaction, or tool policy (LD-1).
+	lc := k.buildLoopConfig(runCtx, corr, model)
 
 	// Host-environment preamble (M609): prepend OS/arch, the shell the shell tool
 	// uses, the shared workspace dir, the date, and THIS run's tools — so the
 	// model acts correctly on this host instead of guessing. Injected last (after
-	// memory/world/skills and after runTools is resolved) so it sits at the top of
-	// the system prompt and reflects any per-run tool restriction.
+	// memory/world/skills and after the run's tool set is resolved) so it sits at
+	// the top of the system prompt and reflects any per-run tool restriction.
 	if k.cfg.EnvironmentInject {
-		system = injectEnvironment(system, k.cfg.WorkspaceRoot, runTools, time.Now())
+		system = injectEnvironment(system, k.cfg.WorkspaceRoot, lc.Tools, time.Now())
 	}
 
-	// Context budget (SPEC-10 §3): an explicit budget wins; otherwise, in auto
-	// mode, derive one from the resolved model's catalog context window. An
-	// unknown model leaves compaction off (0).
-	ctxBudget := k.cfg.ContextBudget
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_CONTEXT_BUDGET"); ok {
-		ctxBudget = v
-	}
-	if ctxBudget == 0 && k.cfg.ContextBudgetAuto {
-		// Read the catalog through the locked accessor: ReloadCatalog swaps the
-		// k.catalog field under k.mu, and this hot path runs concurrently with an
-		// operator's `catalog sync`/`provider reload`, so a direct field read here is
-		// a data race (no happens-before, possible stale/torn read). (M477)
-		if cat := k.Catalog(); cat != nil {
-			if _, m := cat.FindModel(model); m != nil {
-				ctxBudget = agent.AutoContextBudgetChars(m.Limit.Context)
-			}
-		}
-	}
-
-	// Abstractive summary of elided tool outputs (M398): opt-in, and only worth
-	// wiring when compaction is actually active for this run.
-	var summarizeElided func(context.Context, string) (string, error)
-	if k.cfg.ContextSummarize && (ctxBudget > 0 || k.cfg.ContextBudgetAuto) {
-		maxTok := elidedSummaryMaxTokens
-		// A reasoning model needs headroom for its chain of thought or the
-		// summary comes back empty (M926). The catalog knows which models
-		// reason; locked accessor for the same M477 race reason as above.
-		if cat := k.Catalog(); cat != nil {
-			if _, m := cat.FindModel(model); m != nil && m.Reasoning {
-				maxTok = elidedSummaryReasoningMaxTokens
-			}
-		}
-		summarizeElided = makeElidedSummarizer(k.cfg.Provider, model, corr, maxTok)
-	}
-
-	maxIter := k.cfg.MaxIter
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_MAX_ITER"); ok {
-		maxIter = v
-	}
-	maxAutoContinue := k.cfg.MaxAutoContinue
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_MAX_AUTO_CONTINUE"); ok {
-		maxAutoContinue = v
-	}
-	autoContinueWait := k.cfg.AutoContinueWait
-	if v, ok := agentConfigDurationOverride(runCtx, "AGEZT_AUTO_CONTINUE_WAIT"); ok {
-		autoContinueWait = v
-	}
-	maxParallelTools := k.cfg.MaxParallelTools
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_PARALLEL_TOOLS"); ok {
-		maxParallelTools = v
-	}
-	observationDeltas := k.cfg.ObservationDeltas
-	if v, ok := agentConfigBoolOverride(runCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
-		observationDeltas = v
-	}
-	toolSelector := agent.LexicalToolSelector(toolDiscoveryMax)
-	if _, ok := runTools[toolSearchName]; ok && toolDiscoveryMax > 0 {
-		toolSelector = agent.DeferredLexicalToolSelector(toolDiscoveryMax, []string{toolSearchName})
-	}
 	wake := wakeContextFromCtx(runCtx)
 
 	// Durable resume (M1002): a root run owns a ticket unless a governed wrapper
@@ -3613,50 +3466,29 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 	}
 
-	answer, err := agent.Run(runCtx, agent.LoopConfig{
-		Provider:             k.cfg.Provider,
-		Tools:                runTools,
-		Bus:                  k.bus,
-		Model:                model,
-		TaskType:             "chat",     // M703: main agent loop → "chat" routing target
-		ModelChain:           modelChain, // M787 agent fallbacks, or the explicit pick (M931)
-		Agent:                agentSlugFromCtx(runCtx),
-		AgentDailyCeilingMc:  agentDailyMcFromCtx(runCtx),
-		WakeSource:           wake.Source,
-		WakeReason:           wake.Reason,
-		ScheduleID:           wake.ScheduleID,
-		StandingID:           wake.StandingID,
-		StandingName:         wake.StandingName,
-		TriggerSubject:       wake.TriggerSubject,
-		ParentCorrelation:    wake.ParentCorrelation,
-		System:               system,
-		MaxIter:              maxIter,
-		MaxAutoContinue:      maxAutoContinue,  // M833: autonomous continue past MaxIter
-		AutoContinueWait:     autoContinueWait, // M833
-		ToolTimeout:          k.cfg.ToolTimeout,
-		MaxParallelTools:     maxParallelTools, // M880: in-turn parallel tool dispatch
-		Actor:                actor,
-		CorrelationID:        corr,
-		Policy:               k.policyHook,
-		ToolSelector:         toolSelector,
-		ToolResultHook:       k.completeAgentNoiseNotify,
-		ObservationDeltas:    observationDeltas,
-		ToolMemo:             agent.NewToolMemo(agent.DefaultToolMemoTTL, agent.DefaultToolMemoMaxEntries),
-		Images:               imagesFromCtx(runCtx),   // M93: image attachments (vision-gated upstream)
-		JSONMode:             jsonModeFromCtx(runCtx), // M314: structured-output request
-		MaxRunCostMicrocents: maxCostFromCtx(runCtx),  // M166: per-run cost cap
-		CostFn:               governor.CostMicrocents,
-		Artifacts:            k.artifacts, // M390: offload oversized tool outputs (SPEC-04 §3.6)
-		ArtifactThreshold:    k.cfg.ArtifactThreshold,
-		ContextBudget:        ctxBudget,                 // M393/M394: context budgeting (SPEC-10 §3)
-		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
-		SummarizeElided:      summarizeElided,           // M398: abstractive summary of dropped outputs
-		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
-		Steer:                rc,                  // M608: live operator steering
-		Checkpoint:           resumeCheckpoint,    // M1002: persist snapshot each iteration
-		PriorMessages:        resumePriorMessages, // M1002: seed a resumed run's conversation
-		StartIter:            resumeStartIter,     // M1002: continue iter numbering on resume
-	}, intent)
+	// Run identity + root-run-only concerns layered on the shared base.
+	lc.TaskType = "chat"       // M703: main agent loop → "chat" routing target
+	lc.ModelChain = modelChain // M787 agent fallbacks, or the explicit pick (M931)
+	lc.Agent = agentSlugFromCtx(runCtx)
+	lc.AgentDailyCeilingMc = agentDailyMcFromCtx(runCtx)
+	lc.WakeSource = wake.Source
+	lc.WakeReason = wake.Reason
+	lc.ScheduleID = wake.ScheduleID
+	lc.StandingID = wake.StandingID
+	lc.StandingName = wake.StandingName
+	lc.TriggerSubject = wake.TriggerSubject
+	lc.ParentCorrelation = wake.ParentCorrelation
+	lc.System = system
+	lc.Actor = actor
+	lc.CorrelationID = corr
+	lc.Images = imagesFromCtx(runCtx)                // M93: image attachments (vision-gated upstream)
+	lc.JSONMode = jsonModeFromCtx(runCtx)            // M314: structured-output request
+	lc.MaxRunCostMicrocents = maxCostFromCtx(runCtx) // M166: per-run cost cap
+	lc.Steer = rc                                    // M608: live operator steering
+	lc.Checkpoint = resumeCheckpoint                 // M1002: persist snapshot each iteration
+	lc.PriorMessages = resumePriorMessages           // M1002: seed a resumed run's conversation
+	lc.StartIter = resumeStartIter                   // M1002: continue iter numbering on resume
+	answer, err := agent.Run(runCtx, lc, intent)
 
 	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but
 	// keep it if the run was interrupted by shutdown (finalizeResumeTicket honours
