@@ -636,73 +636,26 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 
 	var activatedSkillIDs []string
 	runOnce := func() (string, []string, error) {
-		runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-		runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(p.childCtx))
-		runTools = applyAgentNoisePolicyToPromptTools(runTools, p.childCtx)
-		if allow, ok := toolsFromCtx(p.childCtx); ok {
-			runTools = filterTools(runTools, allow)
-		}
-		toolDiscoveryMax := k.cfg.ToolDiscoveryMax
-		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
-			toolDiscoveryMax = v
-		}
-		if toolDiscoveryMax > 0 && len(runTools) > toolDiscoveryMax {
-			runTools = withToolSearch(runTools)
-		}
-		maxIter := k.cfg.MaxIter
-		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_MAX_ITER"); ok {
-			maxIter = v
-		}
-		maxAutoContinue := k.cfg.MaxAutoContinue
-		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_MAX_AUTO_CONTINUE"); ok {
-			maxAutoContinue = v
-		}
-		autoContinueWait := k.cfg.AutoContinueWait
-		if v, ok := agentConfigDurationOverride(p.childCtx, "AGEZT_AUTO_CONTINUE_WAIT"); ok {
-			autoContinueWait = v
-		}
-		maxParallelTools := k.cfg.MaxParallelTools
-		if v, ok := agentConfigIntOverride(p.childCtx, "AGEZT_PARALLEL_TOOLS"); ok {
-			maxParallelTools = v
-		}
-		observationDeltas := k.cfg.ObservationDeltas
-		if v, ok := agentConfigBoolOverride(p.childCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
-			observationDeltas = v
-		}
-		toolSelector := agent.LexicalToolSelector(toolDiscoveryMax)
-		if _, ok := runTools[toolSearchName]; ok && toolDiscoveryMax > 0 {
-			toolSelector = agent.DeferredLexicalToolSelector(toolDiscoveryMax, []string{toolSearchName})
-		}
+		// Shared governance/capacity base (LD-1): identical to RunWith's, so a
+		// delegated run gets the same cost accounting (CostFn — without it the
+		// per-run spend ceiling below is inert), artifact offload, context
+		// compaction, and tool policy as a root run.
+		lc := k.buildLoopConfig(p.childCtx, p.childCorr, p.subModel)
 		system, skills, task := k.subAgentInjectedSystem(p.childCtx, p.childCorr, p.actor, p.task, p.system)
 		activatedSkillIDs = delegation.AppendUniqueStrings(activatedSkillIDs, skills...)
-		answer, err := agent.Run(p.childCtx, agent.LoopConfig{
-			Provider:             k.cfg.Provider,
-			Tools:                runTools, // forged + MCP tools reach sub-agents when their identity allows them (M794/M796)
-			Bus:                  k.bus,
-			Model:                p.subModel,
-			TaskType:             p.taskType,   // M705: route the sub-agent (chain supplies fallbacks)
-			ModelChain:           p.modelChain, // M787: the named agent's own fallbacks win
-			Agent:                p.agentSlug,
-			AgentDailyCeilingMc:  p.agentDailyMc,
-			WakeSource:           "subagent",
-			WakeReason:           "delegation",
-			ParentCorrelation:    p.parentCorr,
-			System:               system,
-			MaxIter:              maxIter,
-			MaxAutoContinue:      maxAutoContinue,  // M833: autonomous continue past MaxIter
-			AutoContinueWait:     autoContinueWait, // M833
-			ToolTimeout:          k.cfg.ToolTimeout,
-			MaxParallelTools:     maxParallelTools, // M880: in-turn parallel tool dispatch
-			MaxRunCostMicrocents: p.maxRunCost,
-			Actor:                p.actor,
-			CorrelationID:        p.childCorr,
-			Policy:               k.policyHook,
-			ToolSelector:         toolSelector,
-			ToolResultHook:       k.completeAgentNoiseNotify,
-			ObservationDeltas:    observationDeltas,
-			ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
-			Steer:                p.rc, // M631: individual sub-agent steering
-		}, task)
+		lc.TaskType = p.taskType     // M705: route the sub-agent (chain supplies fallbacks)
+		lc.ModelChain = p.modelChain // M787: the named agent's own fallbacks win
+		lc.Agent = p.agentSlug
+		lc.AgentDailyCeilingMc = p.agentDailyMc
+		lc.WakeSource = "subagent"
+		lc.WakeReason = "delegation"
+		lc.ParentCorrelation = p.parentCorr
+		lc.System = system
+		lc.MaxRunCostMicrocents = p.maxRunCost
+		lc.Actor = p.actor
+		lc.CorrelationID = p.childCorr
+		lc.Steer = p.rc // M631: individual sub-agent steering
+		answer, err := agent.Run(p.childCtx, lc, task)
 		return answer, skills, err
 	}
 	answer, _, err := runOnce()

@@ -3437,93 +3437,20 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		modelChain = []string{model}
 	}
 
-	// Per-run tool restriction (WithTools): an allowlist (possibly empty = no
-	// tools) scopes what this run may call, without changing the kernel's tool
-	// set. Forged script tools (M794) and live MCP attachments (M796) are
-	// merged BEFORE the filter so a restricted run only sees the dynamic
-	// tools its allowlist grants.
-	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-	runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(runCtx))
-	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
-	if allow, ok := toolsFromCtx(runCtx); ok {
-		runTools = filterTools(runTools, allow)
-	}
-	toolDiscoveryMax := k.cfg.ToolDiscoveryMax
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_TOOL_DISCOVERY_MAX"); ok {
-		toolDiscoveryMax = v
-	}
-	if toolDiscoveryMax > 0 && len(runTools) > toolDiscoveryMax {
-		runTools = withToolSearch(runTools)
-	}
+	// Governance- and capacity-shaped LoopConfig fields — shared verbatim with
+	// executeSubAgent so root and delegated runs can never diverge on cost
+	// accounting, compaction, or tool policy (LD-1).
+	lc := k.buildLoopConfig(runCtx, corr, model)
 
 	// Host-environment preamble (M609): prepend OS/arch, the shell the shell tool
 	// uses, the shared workspace dir, the date, and THIS run's tools — so the
 	// model acts correctly on this host instead of guessing. Injected last (after
-	// memory/world/skills and after runTools is resolved) so it sits at the top of
-	// the system prompt and reflects any per-run tool restriction.
+	// memory/world/skills and after the run's tool set is resolved) so it sits at
+	// the top of the system prompt and reflects any per-run tool restriction.
 	if k.cfg.EnvironmentInject {
-		system = injectEnvironment(system, k.cfg.WorkspaceRoot, runTools, time.Now())
+		system = injectEnvironment(system, k.cfg.WorkspaceRoot, lc.Tools, time.Now())
 	}
 
-	// Context budget (SPEC-10 §3): an explicit budget wins; otherwise, in auto
-	// mode, derive one from the resolved model's catalog context window. An
-	// unknown model leaves compaction off (0).
-	ctxBudget := k.cfg.ContextBudget
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_CONTEXT_BUDGET"); ok {
-		ctxBudget = v
-	}
-	if ctxBudget == 0 && k.cfg.ContextBudgetAuto {
-		// Read the catalog through the locked accessor: ReloadCatalog swaps the
-		// k.catalog field under k.mu, and this hot path runs concurrently with an
-		// operator's `catalog sync`/`provider reload`, so a direct field read here is
-		// a data race (no happens-before, possible stale/torn read). (M477)
-		if cat := k.Catalog(); cat != nil {
-			if _, m := cat.FindModel(model); m != nil {
-				ctxBudget = agent.AutoContextBudgetChars(m.Limit.Context)
-			}
-		}
-	}
-
-	// Abstractive summary of elided tool outputs (M398): opt-in, and only worth
-	// wiring when compaction is actually active for this run.
-	var summarizeElided func(context.Context, string) (string, error)
-	if k.cfg.ContextSummarize && (ctxBudget > 0 || k.cfg.ContextBudgetAuto) {
-		maxTok := elidedSummaryMaxTokens
-		// A reasoning model needs headroom for its chain of thought or the
-		// summary comes back empty (M926). The catalog knows which models
-		// reason; locked accessor for the same M477 race reason as above.
-		if cat := k.Catalog(); cat != nil {
-			if _, m := cat.FindModel(model); m != nil && m.Reasoning {
-				maxTok = elidedSummaryReasoningMaxTokens
-			}
-		}
-		summarizeElided = makeElidedSummarizer(k.cfg.Provider, model, corr, maxTok)
-	}
-
-	maxIter := k.cfg.MaxIter
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_MAX_ITER"); ok {
-		maxIter = v
-	}
-	maxAutoContinue := k.cfg.MaxAutoContinue
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_MAX_AUTO_CONTINUE"); ok {
-		maxAutoContinue = v
-	}
-	autoContinueWait := k.cfg.AutoContinueWait
-	if v, ok := agentConfigDurationOverride(runCtx, "AGEZT_AUTO_CONTINUE_WAIT"); ok {
-		autoContinueWait = v
-	}
-	maxParallelTools := k.cfg.MaxParallelTools
-	if v, ok := agentConfigIntOverride(runCtx, "AGEZT_PARALLEL_TOOLS"); ok {
-		maxParallelTools = v
-	}
-	observationDeltas := k.cfg.ObservationDeltas
-	if v, ok := agentConfigBoolOverride(runCtx, "AGEZT_OBSERVATION_DELTAS"); ok {
-		observationDeltas = v
-	}
-	toolSelector := agent.LexicalToolSelector(toolDiscoveryMax)
-	if _, ok := runTools[toolSearchName]; ok && toolDiscoveryMax > 0 {
-		toolSelector = agent.DeferredLexicalToolSelector(toolDiscoveryMax, []string{toolSearchName})
-	}
 	wake := wakeContextFromCtx(runCtx)
 
 	// Durable resume (M1002): a root run owns a ticket unless a governed wrapper
@@ -3543,50 +3470,29 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 		}
 	}
 
-	answer, err := agent.Run(runCtx, agent.LoopConfig{
-		Provider:             k.cfg.Provider,
-		Tools:                runTools,
-		Bus:                  k.bus,
-		Model:                model,
-		TaskType:             "chat",     // M703: main agent loop → "chat" routing target
-		ModelChain:           modelChain, // M787 agent fallbacks, or the explicit pick (M931)
-		Agent:                agentSlugFromCtx(runCtx),
-		AgentDailyCeilingMc:  agentDailyMcFromCtx(runCtx),
-		WakeSource:           wake.Source,
-		WakeReason:           wake.Reason,
-		ScheduleID:           wake.ScheduleID,
-		StandingID:           wake.StandingID,
-		StandingName:         wake.StandingName,
-		TriggerSubject:       wake.TriggerSubject,
-		ParentCorrelation:    wake.ParentCorrelation,
-		System:               system,
-		MaxIter:              maxIter,
-		MaxAutoContinue:      maxAutoContinue,  // M833: autonomous continue past MaxIter
-		AutoContinueWait:     autoContinueWait, // M833
-		ToolTimeout:          k.cfg.ToolTimeout,
-		MaxParallelTools:     maxParallelTools, // M880: in-turn parallel tool dispatch
-		Actor:                actor,
-		CorrelationID:        corr,
-		Policy:               k.policyHook,
-		ToolSelector:         toolSelector,
-		ToolResultHook:       k.completeAgentNoiseNotify,
-		ObservationDeltas:    observationDeltas,
-		ToolMemo:             agent.NewToolMemo(agent.DefaultToolMemoTTL, agent.DefaultToolMemoMaxEntries),
-		Images:               imagesFromCtx(runCtx),   // M93: image attachments (vision-gated upstream)
-		JSONMode:             jsonModeFromCtx(runCtx), // M314: structured-output request
-		MaxRunCostMicrocents: maxCostFromCtx(runCtx),  // M166: per-run cost cap
-		CostFn:               governor.CostMicrocents,
-		Artifacts:            k.artifacts, // M390: offload oversized tool outputs (SPEC-04 §3.6)
-		ArtifactThreshold:    k.cfg.ArtifactThreshold,
-		ContextBudget:        ctxBudget,                 // M393/M394: context budgeting (SPEC-10 §3)
-		ContextProtectFirst:  k.cfg.ContextProtectFirst, // M395: shield the earliest grounding
-		SummarizeElided:      summarizeElided,           // M398: abstractive summary of dropped outputs
-		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
-		Steer:                rc,                  // M608: live operator steering
-		Checkpoint:           resumeCheckpoint,    // M1002: persist snapshot each iteration
-		PriorMessages:        resumePriorMessages, // M1002: seed a resumed run's conversation
-		StartIter:            resumeStartIter,     // M1002: continue iter numbering on resume
-	}, intent)
+	// Run identity + root-run-only concerns layered on the shared base.
+	lc.TaskType = "chat"       // M703: main agent loop → "chat" routing target
+	lc.ModelChain = modelChain // M787 agent fallbacks, or the explicit pick (M931)
+	lc.Agent = agentSlugFromCtx(runCtx)
+	lc.AgentDailyCeilingMc = agentDailyMcFromCtx(runCtx)
+	lc.WakeSource = wake.Source
+	lc.WakeReason = wake.Reason
+	lc.ScheduleID = wake.ScheduleID
+	lc.StandingID = wake.StandingID
+	lc.StandingName = wake.StandingName
+	lc.TriggerSubject = wake.TriggerSubject
+	lc.ParentCorrelation = wake.ParentCorrelation
+	lc.System = system
+	lc.Actor = actor
+	lc.CorrelationID = corr
+	lc.Images = imagesFromCtx(runCtx)                 // M93: image attachments (vision-gated upstream)
+	lc.JSONMode = jsonModeFromCtx(runCtx)             // M314: structured-output request
+	lc.MaxRunCostMicrocents = maxCostFromCtx(runCtx)  // M166: per-run cost cap
+	lc.Steer = rc                                     // M608: live operator steering
+	lc.Checkpoint = resumeCheckpoint                  // M1002: persist snapshot each iteration
+	lc.PriorMessages = resumePriorMessages            // M1002: seed a resumed run's conversation
+	lc.StartIter = resumeStartIter                    // M1002: continue iter numbering on resume
+	answer, err := agent.Run(runCtx, lc, intent)
 
 	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but
 	// keep it if the run was interrupted by shutdown (finalizeResumeTicket honours
