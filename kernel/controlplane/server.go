@@ -1244,7 +1244,11 @@ func (s *Server) handleVersion(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleHalt(conn net.Conn, req Request) {
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.k.HaltWith(reason)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"ok":     true,
@@ -1258,12 +1262,16 @@ func (s *Server) handleHalt(conn net.Conn, req Request) {
 // alternative to the global halt. Routes to the tenant kernel when a
 // tenant is named (empty → primary), mirroring handleRun.
 func (s *Server) handleCancelRun(conn net.Conn, req Request) {
-	corr, _ := req.Args["correlation"].(string)
-	if corr == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.correlation required"})
+	corr, err := requiredArgString(req.Args, "correlation")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	tenantID, _ := req.Args["tenant"].(string)
+	tenantID, _, err := argString(req.Args, "tenant")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	k, err := s.kernelFor(tenantID)
 	if err != nil {
 		s.fail(conn, req, err)
@@ -1277,7 +1285,11 @@ func (s *Server) handleCancelRun(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleResume(conn net.Conn, req Request) {
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.k.ResumeWith(reason)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"ok":     true,
@@ -1612,7 +1624,11 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	// Optional tenant routing: an empty tenant runs on the primary kernel
 	// (unchanged single-tenant path); a named tenant routes to its isolated
 	// kernel via the registry.
-	tenantID, _ := req.Args["tenant"].(string)
+	tenantID, _, err := argString(req.Args, "tenant")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	k, err := s.kernelFor(tenantID)
 	if err != nil {
 		s.fail(conn, req, err)

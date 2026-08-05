@@ -24,14 +24,16 @@ var rawArgCastBaseline = map[string]int{
 	// roster.go's 3 residual casts are deliberate polymorphic transports
 	// (enabled bool-or-string, older_than_days number-or-string,
 	// task_model_chain []any) — not migration debt.
-	"roster.go":             3,
-	"schedule.go":           1, // residual: enabled bool-or-string switch
-	"workflow.go":           3, // residual: enabled/limit/async dual-type switches
-	"standing.go":           1, // residual: enabled bool-or-string switch
-	"pulse_control.go":      3, // residual: approve/seconds/min_pct dual-type switches
-	"server.go":             7,
-	"provider_keys.go":      7,
-	"artifact.go":           7,
+	"roster.go":        3,
+	"schedule.go":      1, // residual: enabled bool-or-string switch
+	"workflow.go":      3, // residual: enabled/limit/async dual-type switches
+	"standing.go":      1, // residual: enabled bool-or-string switch
+	"pulse_control.go": 3, // residual: approve/seconds/min_pct dual-type switches
+	// server.go/provider_keys.go residuals sit inside auth/validation gates
+	// (tenant auth pin, whoami echo, keyEnv/keyTarget funnels) where a wrong
+	// type already collapses to an honest refusal — not migration debt.
+	"server.go":             2,
+	"provider_keys.go":      2,
 	"policy_log.go":         6,
 	"edict.go":              6,
 	"channel_accounts.go":   6,
