@@ -86,17 +86,13 @@ type Server struct {
 	// the id is unknown. Nil until wired; the handler reports that.
 	standingFire func(id string) bool
 
-	// diskWatch adds a pulse disk-space observer at runtime (M767), injected by
-	// the daemon via SetDiskWatch (the daemon constructs the observer with its
-	// DiskUsage func, keeping this package decoupled from kernel/pulse). Returns
-	// the observer name + ok. Nil when pulse is disabled; the handler reports that.
-	diskWatch func(path string, minPct float64) (string, bool)
-
-	// probeWatch adds a pulse command-probe observer at runtime (M768): the agent
-	// runs the command each beat and alerts on red↔green transitions. Injected by
-	// the daemon via SetProbeWatch (it builds the warden-gated observer). Nil when
-	// pulse is disabled.
-	probeWatch func(name string, argv []string) (string, bool)
+	// observers adds pulse observers (disk-space watches M767, command probes
+	// M768) at runtime. The daemon injects an adapter over the live engine via
+	// SetPulseObservers (it owns the DiskUsage func and the warden, keeping this
+	// package decoupled from kernel/pulse). Nil when pulse is disabled; the
+	// handlers report that. The legacy SetDiskWatch/SetProbeWatch setters wrap
+	// their funcs in a funcObservers shim stored here.
+	observers PulseObservers
 
 	// tenants is the optional multi-tenant registry, injected by the daemon
 	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers

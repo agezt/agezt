@@ -65,6 +65,7 @@ import (
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/stt"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/toolreg"
@@ -301,7 +302,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// anything reads the channel registry: notifyTargets just below derives its
 	// env names from the manifests, the Channels wizard lists them, and
 	// collectChannels() derives `agt status`'s configured-channel view from the
-	// registry, so it must be populated by the time srv.SetChannels runs below.
+	// registry, so it must be populated by the time collectChannels() feeds
+	// Deps.Channels at server construction below.
 	// (This call used to sit further down, nested inside an
 	// `if k.Forge() != nil` block — pure registration has no business being
 	// conditional on the Forge.)
@@ -960,23 +962,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		})
 	}
 
-	srv := controlplane.NewServer(k, baseDir)
-	srv.SetConfigEnvPinned(configPinned) // M693: Config Center marks env-pinned fields read-only
-	if boardErr == nil {
-		// Board writes over the control plane (M937): `agt`/Go-SDK board_send,
-		// board_ack go through the shared instance and fire the same notifier.
-		srv.SetBoard(boardStore, boardNotify)
+	// Early control-plane dependencies (Phase 2.6 3b-ii): everything below is
+	// computed up front and handed to NewServerWithDeps in one shot, so the
+	// server never accepts a connection without them.
+	//
+	// Board writes over the control plane (M937): `agt`/Go-SDK board_send,
+	// board_ack go through the shared instance and fire the same notifier. Only
+	// when the shared store opened — a failed open leaves board commands
+	// unavailable (boardErr is surfaced in the banner phase below).
+	srvBoard, srvBoardNotify := boardStore, boardNotify
+	if boardErr != nil {
+		srvBoard, srvBoardNotify = nil, nil
 	}
 	// Cancel-on-disconnect (M35): when AGEZT_CANCEL_ON_DISCONNECT=on, a
 	// streaming `agt run` whose client drops (Ctrl-C / killed) cancels its run
 	// server-side instead of running on headless. Off by default so a
 	// backgrounded `agt run &` (client still alive) is unaffected.
 	cancelOnDisconnect := dcfg.Lifecycle.CancelOnDisconnect
-	srv.SetCancelOnDisconnect(cancelOnDisconnect)
-	// Disk-space health (M131): inject the cross-platform disk-usage probe so the
-	// disk handler / doctor check can report free space without controlplane
-	// importing kernel/pulse (same decoupling as SetPulse).
-	srv.SetDiskFree(pulse.DiskUsage)
 	// Self-update engine (M860): wired when AGEZT_UPDATE_ENDPOINT or
 	// AGEZT_UPDATE_GITHUB_OWNER/REPO is set. When not configured, update
 	// commands report "update is disabled" rather than erroring.
@@ -999,13 +1001,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 			CheckInterval: 0,
 		})
 	}
-	if updateSvc != nil {
-		srv.SetUpdateService(updateSvc)
-	}
 	// Record the network-exposed HTTP servers (M137) so `agt status` and the
 	// doctor exposure check can flag a non-loopback bind — the agent reachable
 	// beyond localhost, gated only by a token. Built from the configured addrs
-	// (env-only, so it can run here in the NewServer setter region, Phase 2.6);
+	// (env-only, so it can run here in the pre-construction deps region, Phase 2.6);
 	// the per-server boot banner already warns once, this makes it persistent.
 	var httpBindings []controlplane.HTTPBinding
 	for _, b := range []struct{ name, env string }{
@@ -1019,26 +1018,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 			})
 		}
 	}
-	srv.SetHTTPBindings(httpBindings)
-	// Record the resolved AWS credential chain (M307) so `agt status` can report
-	// which keyless/ambient layer engaged (IRSA, SSO, assume-role, IMDS) — the
-	// boot banner's credentials line scrolls past, and on EKS an operator wants to
-	// confirm IRSA is live without grepping pod logs.
-	srv.SetCredChain(awsChainDesc)
-	// Record the configured messaging channels (M141) so `agt status` can report
-	// what's listening — the per-channel boot banner scrolls past. Read-only from
-	// the same env the buildX functions consume.
-	srv.SetChannels(collectChannels())
-	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
-	if cancelOnDisconnect {
-		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
-	}
-	if err := srv.Start(ctx); err != nil {
-		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)
-		return 1
-	}
-	defer srv.Stop()
-
 	// Multi-tenant registry (ROADMAP P6-MULTI), opt-in via AGEZT_MULTITENANT.
 	// Each tenant gets its own isolated base dir under <baseDir>/tenants/<id>
 	// and its own kernel — opened with the same provider/tools/model as the
@@ -1107,7 +1086,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 			return 1
 		}
 		tenantReg = reg
-		srv.SetTenants(reg)
+		// Registered before defer srv.Stop() below, so on unwind the control
+		// plane stops accepting requests BEFORE the tenant kernels close (the
+		// old post-Start wiring closed the tenants first, leaving a brief
+		// window where an in-flight request could hit a closed tenant kernel).
 		defer reg.CloseAll()
 		root := filepath.Join(baseDir, "tenants")
 		if infos, _ := reg.List(); infos != nil {
@@ -1116,6 +1098,34 @@ func runDaemon(stdout, stderr io.Writer) int {
 			tenantsDesc = fmt.Sprintf("enabled (root=%s, ceiling=%s, rate=%s)", root, ceilingDesc, rateDesc)
 		}
 	}
+
+	// One-shot early wiring (Phase 2.6 3b-ii): the server comes up with every
+	// pre-Start dependency already applied — including the tenant registry, so
+	// tenant tokens authorize from the very first accepted connection (the old
+	// post-Start SetTenants left a boot window where they were rejected as
+	// "unauthorized"). The late deps (pulse, channel send, standing fire) arrive
+	// via srv.Bind at each point of readiness below.
+	srv := controlplane.NewServerWithDeps(k, baseDir, controlplane.Deps{
+		ConfigEnvPinned:    configPinned,       // M693: Config Center marks env-pinned fields read-only
+		Board:              srvBoard,           // M937: the ONE shared board instance…
+		BoardNotify:        srvBoardNotify,     // …and its board.posted notifier
+		DiskFree:           pulse.DiskUsage,    // M131: cross-platform probe keeps controlplane pulse-free
+		UpdateSvc:          updateSvc,          // M860: nil = update disabled
+		Tenants:            tenantReg,          // P6-MULTI: nil = single-tenant
+		CancelOnDisconnect: cancelOnDisconnect, // M35
+		HTTPBindings:       httpBindings,       // M137: exposure check + `agt status`
+		CredChain:          awsChainDesc,       // M307: which AWS credential layer engaged
+		Channels:           collectChannels(),  // M141: configured channels for `agt status`
+	})
+	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
+	if cancelOnDisconnect {
+		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
+	}
+	if err := srv.Start(ctx); err != nil {
+		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)
+		return 1
+	}
+	defer srv.Stop()
 
 	// Daemon-ready banner: surfaces the stamped build identity so an
 	// operator can confirm exactly which commit + build time the
@@ -1204,16 +1214,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// is configured, briefs tee to it (closes the Jarvis loop).
 	if eng, pulseDesc := buildPulse(k, ward, model, stdout, channelSinks); eng != nil {
 		eng.Start(ctx)
-		srv.SetPulse(eng)
-		// Runtime disk watches (M767): build the observer here (the daemon owns the
-		// DiskUsage func) and register it on the live engine.
-		srv.SetDiskWatch(func(path string, minPct float64) (string, bool) {
-			return eng.AddObserver(pulse.NewDiskObserver(path, minPct, pulse.DiskUsage)), true
-		})
-		// Runtime command-probe watches (M768): the agent runs the command each beat
-		// (warden-gated, like any shell call) and alerts when its pass/fail flips.
-		srv.SetProbeWatch(func(name string, argv []string) (string, bool) {
-			return eng.AddObserver(pulse.NewProbeObserver(name, argv, ward, k.State())), true
+		// Late-bind the engine + the runtime watch registry (disk watches M767,
+		// command probes M768): the adapter builds the observers (the daemon owns
+		// the DiskUsage func and the warden) and registers them on the live engine.
+		srv.Bind(controlplane.LateDeps{
+			Pulse:     eng,
+			Observers: pulseObserverAdmin{eng: eng, ward: ward, st: k.State()},
 		})
 		// Reaper (#53, M903): each beat, scan for dead agents, degraded live agents,
 		// and stale artifacts, and surface a low-severity brief when the pile grows.
@@ -1390,7 +1396,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		return firstErr
 	}
-	srv.SetChannelSender(channelSend)
+	srv.Bind(controlplane.LateDeps{ChannelSend: channelSend})
 
 	// Late registry phase (Phase 2.2 PR 5): Set.ConfigureLate wires the specs
 	// that need live infrastructure, at the exact point their hand-wired Binds
@@ -1408,139 +1414,221 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if boardErr != nil {
 		lateBoard = nil // spec leaves the tool unbound; error surfaced below
 	}
-	if err := toolSet.ConfigureLate(toolreg.LateDeps{
-		KernelDeps: toolreg.KernelDeps{
-			K:         k,
-			Bus:       k.Bus(),
-			Artifacts: k.ArtifactIndex(),
-			Lake:      k.DataLake(),
-			Journal:   k.Journal(),
-			BaseDir:   baseDir,
-			Stdout:    stdout,
+	// Tool late-bind + seed/banner steps as a flat table (Phase 2.6 3a) so the
+	// sequence is scannable — and a natural place to time steps later. Each run
+	// func either prints its own (conditional / multi-line) banner output
+	// directly, or returns one ready-made banner line as desc. Banner text and
+	// order are unchanged. Only the first step is fatal; every other step is
+	// best-effort and surfaces its own failures without blocking startup.
+	bootSteps := []bootStep{
+		{
+			// Late registry phase (Phase 2.2 PR 5): Set.ConfigureLate wires the
+			// specs that need live infrastructure, at the exact point their
+			// hand-wired Binds used to run. notify (M143) gets the channel sender
+			// + operator allowlist (destinations stay pinned to each channel's
+			// configured allowlist — the agent supplies only text); send_media
+			// gets the media sender + the artifact store so it can resolve a ref
+			// to bytes; board (M647) gets the SAME store instance the control
+			// plane and REST mailbox write through (opened once, before the
+			// servers) plus boardNotify, so each post journals a board.posted
+			// event (M656) a standing order can trigger on — or
+			// board.dm.<recipient> for an addressed message (M788) — and one
+			// agent's post wakes another. The posting run's correlation ties
+			// into `agt why`.
+			name: "late-configure tools", fatal: true,
+			run: func() (string, error) {
+				if err := toolSet.ConfigureLate(toolreg.LateDeps{
+					KernelDeps: toolreg.KernelDeps{
+						K:         k,
+						Bus:       k.Bus(),
+						Artifacts: k.ArtifactIndex(),
+						Lake:      k.DataLake(),
+						Journal:   k.Journal(),
+						BaseDir:   baseDir,
+						Stdout:    stdout,
+					},
+					ChannelSend:      channelSend,
+					ChannelSendMedia: channelSendMedia,
+					Board:            lateBoard,
+					BoardNotify:      boardNotify,
+				}); err != nil {
+					return "", err
+				}
+				if len(notifyTargets) > 0 {
+					fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
+					fmt.Fprintf(stdout, "  send_media tool  : enabled (the agent can send images/voice/files to the operator)\n")
+				}
+				return "", nil
+			},
 		},
-		ChannelSend:      channelSend,
-		ChannelSendMedia: channelSendMedia,
-		Board:            lateBoard,
-		BoardNotify:      boardNotify,
-	}); err != nil {
-		fmt.Fprintf(stderr, "%s: late-configure tools: %v\n", brand.Binary, err)
-		return 1
-	}
-	if len(notifyTargets) > 0 {
-		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
-		fmt.Fprintf(stdout, "  send_media tool  : enabled (the agent can send images/voice/files to the operator)\n")
-	}
+		{
+			// The schedule/runs/standing tools were wired to the live kernel by
+			// their registry specs' Configure hooks (toolSet.Configure, just
+			// after Open); only the boot banner remains here.
+			name: "schedule tool",
+			run: func() (string, error) {
+				if k.Schedules() == nil {
+					return "", nil
+				}
+				return "  schedule tool    : enabled (the agent can schedule its own future runs)", nil
+			},
+		},
+		{
+			// Board banner / failure surface — the bind itself ran in ConfigureLate.
+			name: "board tool",
+			run: func() (string, error) {
+				if boardErr != nil {
+					fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, boardErr)
+					return "", nil
+				}
+				return "  board tool       : enabled (agents share a persistent message board)", nil
+			},
+		},
+		{
+			// The skill tool was bound to the kernel's Forge (M648) by its
+			// registry spec's Configure hook; the banner + the Forge-dependent
+			// seeding stay here.
+			name: "skill tool + marketplace",
+			run: func() (string, error) {
+				fg := k.Forge()
+				if fg == nil {
+					return "", nil
+				}
+				fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
 
-	// The schedule/runs/standing tools were wired to the live kernel by their
-	// registry specs' Configure hooks (toolSet.Configure, just after Open); only
-	// the boot banner remains here so the output is unchanged.
-	if k.Schedules() != nil {
-		fmt.Fprintf(stdout, "  schedule tool    : enabled (the agent can schedule its own future runs)\n")
+				// Seed the built-in skill bundles baked into the binary (M852), so
+				// capabilities like full browser automation work out of the box — the
+				// agent gets a ready, active skill with its scripts on disk. Idempotent
+				// (content-addressed); best-effort — a seed failure never blocks startup.
+				if seeded, serr := builtinskills.SeedAll(fg, ""); serr != nil {
+					fmt.Fprintf(stderr, "  built-in skills  : partial (%v)\n", serr)
+				} else if len(seeded) > 0 {
+					names := make([]string, 0, len(seeded))
+					for _, s := range seeded {
+						names = append(names, s.Name)
+					}
+					fmt.Fprintf(stdout, "  built-in skills  : seeded (%s)\n", strings.Join(names, ", "))
+				}
+				// Wire the capability marketplace (M-market): the built-in "Official"
+				// catalogue (skill/MCP/tool packs) is a plugin the kernel must not import,
+				// so it's injected here with this kernel's Forge + MCP as the install
+				// targets. Install materializes packs into those existing subsystems. The
+				// composite Library also serves synced remote marketplaces from the Store
+				// cache (Phase 2); the Syncer fetches them under netguard.
+				marketStore := market.NewStore(baseDir)
+				k.SetMarket(market.NewManager(market.Config{
+					Library: market.NewCompositeLibrary(builtinmarket.New(), marketStore),
+					Store:   marketStore,
+					Skills:  fg,
+					MCP:     k,
+					Now:     func() int64 { return time.Now().UnixMilli() },
+					Verify:  func(p market.Pack) (bool, error) { return market.VerifyPack(p, "") },
+					Syncer:  market.NewSyncer(),
+				}))
+				return "  marketplace      : enabled (built-in Official + synced remotes; `agt market`)", nil
+			},
+		},
+		// The introspect (M682) and overseer (M850) tools were bound to the live
+		// kernel by their registry specs' Configure hooks; banners stay here.
+		{name: "introspect tool", run: func() (string, error) {
+			return "  introspect tool  : enabled (the agent can read the daemon's own live state)", nil
+		}},
+		{name: "overseer tool", run: func() (string, error) {
+			return "  overseer tool    : enabled (a brain agent can supervise & intervene on the fleet)", nil
+		}},
+		{
+			// Seed the built-in guardian agents (M961): the daemon's internal
+			// self-healing fleet (health / doctor / stuck / budget / routing-429 /
+			// code), each a System-marked agent with an event or cadence trigger,
+			// wielding the tools bound just above. Idempotent by slug (an operator
+			// who pauses/removes one is respected); best-effort — a seed failure
+			// never blocks startup.
+			name: "built-in guardians",
+			run: func() (string, error) {
+				guards, gerr := builtinguardians.SeedAll(builtinguardians.NewKernelHost(k), "")
+				if gerr != nil {
+					fmt.Fprintf(stderr, "  built-in guardians: partial (%v)\n", gerr)
+					return "", nil
+				}
+				created := 0
+				for _, g := range guards {
+					if g.Created {
+						created++
+					}
+				}
+				if created > 0 {
+					return fmt.Sprintf("  built-in guardians: seeded %d (health, doctor, stuck, budget, routing, code)", created), nil
+				} else if len(guards) > 0 {
+					return fmt.Sprintf("  built-in guardians: present (%d)", len(guards)), nil
+				}
+				return "", nil
+			},
+		},
+		{
+			// code_exec wiring — the bus bind (M683, code.executed events) and the
+			// Conductor's Verifier backend (M997) — moved to its registry spec's
+			// Configure hook. Only the banner remains; the type assertion here is
+			// display-only (Languages() isn't on agent.Tool).
+			name: "code_exec tool",
+			run: func() (string, error) {
+				if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
+					return fmt.Sprintf("  code_exec tool   : enabled (the agent can write & run code: %s)", strings.Join(ce.Languages(), ", ")), nil
+				}
+				return "", nil
+			},
+		},
+		{
+			// The tool_forge tool (M794) was bound to the live kernel by its
+			// registry spec's Configure hook; the banner stays.
+			name: "tool_forge tool",
+			run: func() (string, error) {
+				promoteMode := "auto-promotes tested tools"
+				if !autoPromoteScriptTools {
+					promoteMode = "operator promotes"
+				}
+				return "  tool_forge tool  : enabled (the agent can build its own tools; " + promoteMode + ")", nil
+			},
+		},
+		// The workflow (M802) and workboard tools were bound to the live kernel
+		// by their registry specs' Configure hooks; banners stay.
+		{name: "workflow tool", run: func() (string, error) {
+			return "  workflow tool    : enabled (the agent can author & run workflows)", nil
+		}},
+		{name: "workboard tool", run: func() (string, error) {
+			return "  workboard tool   : enabled (agents can coordinate through durable tasks)", nil
+		}},
+		{
+			// The MCP self-install tool (M796) was bound by its registry spec's
+			// Configure hook; auto-attach every ENABLED registered server here (it
+			// needs the daemon ctx). Per-server failures are reported, never fatal
+			// — one broken server must not take the daemon down.
+			name: "mcp servers",
+			run: func() (string, error) {
+				registered := k.MCPStore().Count()
+				if registered == 0 {
+					return "  mcp self-install : enabled (the agent can attach MCP servers at runtime; Edict mcp.install gates it)", nil
+				}
+				attached, failures := k.AttachEnabledMCPServers(ctx)
+				fmt.Fprintf(stdout, "  mcp servers      : %d attached of %d registered\n", len(attached), registered)
+				for name, aerr := range failures {
+					fmt.Fprintf(stdout, "    %s: attach failed: %v\n", name, aerr)
+				}
+				return "", nil
+			},
+		},
 	}
-
-	// Board banner / failure surface — the bind itself ran in ConfigureLate.
-	if boardErr != nil {
-		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, boardErr)
-	} else {
-		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
-	}
-
-	// The skill tool was bound to the kernel's Forge (M648) by its registry
-	// spec's Configure hook; the banner + the Forge-dependent seeding below stay.
-	if fg := k.Forge(); fg != nil {
-		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
-
-		// Seed the built-in skill bundles baked into the binary (M852), so
-		// capabilities like full browser automation work out of the box — the
-		// agent gets a ready, active skill with its scripts on disk. Idempotent
-		// (content-addressed); best-effort — a seed failure never blocks startup.
-		if seeded, serr := builtinskills.SeedAll(fg, ""); serr != nil {
-			fmt.Fprintf(stderr, "  built-in skills  : partial (%v)\n", serr)
-		} else if len(seeded) > 0 {
-			names := make([]string, 0, len(seeded))
-			for _, s := range seeded {
-				names = append(names, s.Name)
+	for _, step := range bootSteps {
+		desc, err := step.run()
+		if err != nil {
+			if step.fatal {
+				fmt.Fprintf(stderr, "%s: %s: %v\n", brand.Binary, step.name, err)
+				return 1
 			}
-			fmt.Fprintf(stdout, "  built-in skills  : seeded (%s)\n", strings.Join(names, ", "))
+			continue // best-effort steps report their own failures inside run
 		}
-		// Wire the capability marketplace (M-market): the built-in "Official"
-		// catalogue (skill/MCP/tool packs) is a plugin the kernel must not import,
-		// so it's injected here with this kernel's Forge + MCP as the install
-		// targets. Install materializes packs into those existing subsystems. The
-		// composite Library also serves synced remote marketplaces from the Store
-		// cache (Phase 2); the Syncer fetches them under netguard.
-		marketStore := market.NewStore(baseDir)
-		k.SetMarket(market.NewManager(market.Config{
-			Library: market.NewCompositeLibrary(builtinmarket.New(), marketStore),
-			Store:   marketStore,
-			Skills:  fg,
-			MCP:     k,
-			Now:     func() int64 { return time.Now().UnixMilli() },
-			Verify:  func(p market.Pack) (bool, error) { return market.VerifyPack(p, "") },
-			Syncer:  market.NewSyncer(),
-		}))
-		fmt.Fprintf(stdout, "  marketplace      : enabled (built-in Official + synced remotes; `agt market`)\n")
-	}
-
-	// The introspect (M682) and overseer (M850) tools were bound to the live
-	// kernel by their registry specs' Configure hooks; banners stay here.
-	fmt.Fprintf(stdout, "  introspect tool  : enabled (the agent can read the daemon's own live state)\n")
-	fmt.Fprintf(stdout, "  overseer tool    : enabled (a brain agent can supervise & intervene on the fleet)\n")
-
-	// Seed the built-in guardian agents (M961): the daemon's internal self-healing
-	// fleet (health / doctor / stuck / budget / routing-429 / code), each a System-marked
-	// agent with an event or cadence trigger, wielding the tools bound just above.
-	// Idempotent by slug (an operator who pauses/removes one is respected);
-	// best-effort — a seed failure never blocks startup.
-	if guards, gerr := builtinguardians.SeedAll(builtinguardians.NewKernelHost(k), ""); gerr != nil {
-		fmt.Fprintf(stderr, "  built-in guardians: partial (%v)\n", gerr)
-	} else {
-		created := 0
-		for _, g := range guards {
-			if g.Created {
-				created++
-			}
+		if desc != "" {
+			fmt.Fprintln(stdout, desc)
 		}
-		if created > 0 {
-			fmt.Fprintf(stdout, "  built-in guardians: seeded %d (health, doctor, stuck, budget, routing, code)\n", created)
-		} else if len(guards) > 0 {
-			fmt.Fprintf(stdout, "  built-in guardians: present (%d)\n", len(guards))
-		}
-	}
-
-	// code_exec wiring — the bus bind (M683, code.executed events) and the
-	// Conductor's Verifier backend (M997) — moved to its registry spec's
-	// Configure hook. Only the banner remains; the type assertion here is
-	// display-only (Languages() isn't on agent.Tool).
-	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
-		fmt.Fprintf(stdout, "  code_exec tool   : enabled (the agent can write & run code: %s)\n", strings.Join(ce.Languages(), ", "))
-	}
-
-	// The tool_forge tool (M794) was bound to the live kernel by its registry
-	// spec's Configure hook; the banner stays.
-	promoteMode := "auto-promotes tested tools"
-	if !autoPromoteScriptTools {
-		promoteMode = "operator promotes"
-	}
-	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; %s)\n", promoteMode)
-
-	// The workflow (M802) and workboard tools were bound to the live kernel by
-	// their registry specs' Configure hooks; banners stay.
-	fmt.Fprintf(stdout, "  workflow tool    : enabled (the agent can author & run workflows)\n")
-	fmt.Fprintf(stdout, "  workboard tool   : enabled (agents can coordinate through durable tasks)\n")
-
-	// The MCP self-install tool (M796) was bound by its registry spec's
-	// Configure hook; auto-attach every ENABLED registered server here (it needs
-	// the daemon ctx). Per-server failures are reported, never fatal — one
-	// broken server must not take the daemon down.
-	if registered := k.MCPStore().Count(); registered > 0 {
-		attached, failures := k.AttachEnabledMCPServers(ctx)
-		fmt.Fprintf(stdout, "  mcp servers      : %d attached of %d registered\n", len(attached), registered)
-		for name, aerr := range failures {
-			fmt.Fprintf(stdout, "    %s: attach failed: %v\n", name, aerr)
-		}
-	} else {
-		fmt.Fprintf(stdout, "  mcp self-install : enabled (the agent can attach MCP servers at runtime; Edict mcp.install gates it)\n")
 	}
 
 	// Scheduled intents (autonomy) — fire operator-configured intents on a timer
@@ -1596,7 +1684,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingBrief)
-	srv.SetStandingFire(fireStandingNow)
+	srv.Bind(controlplane.LateDeps{StandingFire: fireStandingNow})
 	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
 	// Resume interrupted runs (M1002): re-dispatch any run that a prior restart —
 	// stop/start, self-update, or hard kill — left mid-flight, so ongoing work
@@ -3411,6 +3499,40 @@ func truncateScheduledAnswer(s string) string {
 // event so the update is auditable. The watchdog is signalled to restart
 // with the new binary.
 // startUpdateChecker → boot_ops.go
+
+// bootStep is one step of runDaemon's tool late-bind + seed/banner phase
+// (Phase 2.6 3a). run performs the step: it may print its own (multi-line or
+// conditional) banner output directly, or return a single ready-to-print banner
+// line as desc ("" = nothing to print). A returned error aborts the daemon only
+// when fatal is set; best-effort steps surface their own failures inside run
+// and return nil. The table keeps the sequence scannable and gives a single
+// place to time steps later.
+type bootStep struct {
+	name  string
+	run   func() (desc string, err error)
+	fatal bool
+}
+
+// pulseObserverAdmin adapts the live pulse engine to controlplane.PulseObservers
+// (Phase 2.6 3b-i): the daemon owns the DiskUsage func, the warden and the state
+// store the observer constructors need, so the control plane stays decoupled
+// from kernel/pulse. Wired only when the engine is running (pulse enabled).
+type pulseObserverAdmin struct {
+	eng  *pulse.Engine
+	ward warden.Engine
+	st   *state.FileStore
+}
+
+// AddDiskObserver registers a runtime disk-space watch (M767).
+func (a pulseObserverAdmin) AddDiskObserver(path string, minPct float64) (string, bool) {
+	return a.eng.AddObserver(pulse.NewDiskObserver(path, minPct, pulse.DiskUsage)), true
+}
+
+// AddProbeObserver registers a runtime command-probe watch (M768) — the command
+// runs through the warden each beat, like any agent shell call.
+func (a pulseObserverAdmin) AddProbeObserver(name string, argv []string) (string, bool) {
+	return a.eng.AddObserver(pulse.NewProbeObserver(name, argv, a.ward, a.st)), true
+}
 
 func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdout io.Writer, extraSink pulse.BriefSink) (*pulse.Engine, string) {
 	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"PULSE"), "off") {

@@ -155,16 +155,92 @@ func (s *Server) handlePulseCadence(conn net.Conn, req Request) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"cadence_ms": applied.Milliseconds()}})
 }
 
+// PulseObservers is the narrow slice of the pulse engine's observer registry the
+// control plane needs to add watches at runtime: disk-space watches (M767) and
+// warden-gated command probes (M768). The daemon injects an adapter over the
+// live engine (it owns the DiskUsage func, the warden and the state store), so
+// this package never imports kernel/pulse. Nil when pulse is disabled; the
+// handlers report the watch commands as unavailable.
+type PulseObservers interface {
+	// AddDiskObserver registers a disk-space observer for path that alerts when
+	// free space drops below minPct. Returns the observer name + ok.
+	AddDiskObserver(path string, minPct float64) (string, bool)
+	// AddProbeObserver registers a command-probe observer: argv runs each beat
+	// (warden-gated) and alerts on red↔green transitions. Returns the observer
+	// name + ok.
+	AddProbeObserver(name string, argv []string) (string, bool)
+}
+
+// SetPulseObservers wires the runtime observer registry (disk watches + command
+// probes) in one step. Nil leaves both watch commands reporting unavailable.
+func (s *Server) SetPulseObservers(o PulseObservers) { s.observers = o }
+
+// funcObservers adapts the legacy per-func setters (SetDiskWatch/SetProbeWatch)
+// onto PulseObservers. Each capability keeps its own independent nil state, so a
+// server wired with only one of the two funcs reports the other command
+// unavailable — exactly the pre-interface behavior.
+type funcObservers struct {
+	disk  func(path string, minPct float64) (string, bool)
+	probe func(name string, argv []string) (string, bool)
+}
+
+func (f *funcObservers) AddDiskObserver(path string, minPct float64) (string, bool) {
+	if f.disk == nil {
+		return "", false
+	}
+	return f.disk(path, minPct)
+}
+
+func (f *funcObservers) AddProbeObserver(name string, argv []string) (string, bool) {
+	if f.probe == nil {
+		return "", false
+	}
+	return f.probe(name, argv)
+}
+
+// legacyObservers returns the funcObservers shim currently installed, creating
+// one (replacing any non-shim adapter) when needed.
+func (s *Server) legacyObservers() *funcObservers {
+	if f, ok := s.observers.(*funcObservers); ok {
+		return f
+	}
+	f := &funcObservers{}
+	s.observers = f
+	return f
+}
+
+// diskWatchAvailable reports whether the runtime disk-watch path is wired —
+// per-capability, so a legacy shim with only the probe func set still reports
+// disk watches unavailable.
+func (s *Server) diskWatchAvailable() bool {
+	if f, ok := s.observers.(*funcObservers); ok {
+		return f.disk != nil
+	}
+	return s.observers != nil
+}
+
+// probeWatchAvailable reports whether the runtime command-probe path is wired.
+func (s *Server) probeWatchAvailable() bool {
+	if f, ok := s.observers.(*funcObservers); ok {
+		return f.probe != nil
+	}
+	return s.observers != nil
+}
+
 // SetDiskWatch wires the runtime disk-watch path (M767). The daemon injects a closure
 // that builds a pulse disk observer (with its DiskUsage func) and registers it on the
-// engine, so the control plane stays decoupled from kernel/pulse.
-func (s *Server) SetDiskWatch(fn func(path string, minPct float64) (string, bool)) { s.diskWatch = fn }
+// engine, so the control plane stays decoupled from kernel/pulse. Kept for
+// compatibility; new wiring should inject a PulseObservers via SetPulseObservers
+// (or Bind).
+func (s *Server) SetDiskWatch(fn func(path string, minPct float64) (string, bool)) {
+	s.legacyObservers().disk = fn
+}
 
 // handlePulseWatch adds a disk-space watch to the proactive heartbeat at runtime
 // (M767): the agent will alert when free space on `path` drops below `min_pct`. The
 // new observer takes effect on the next beat.
 func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
-	if s.diskWatch == nil {
+	if !s.diskWatchAvailable() {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "watches are unavailable (pulse is disabled)"})
 		return
 	}
@@ -184,7 +260,7 @@ func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.min_pct must be between 0 and 100"})
 		return
 	}
-	name, ok := s.diskWatch(path, pct)
+	name, ok := s.observers.AddDiskObserver(path, pct)
 	if !ok {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "could not add the watch"})
 		return
@@ -194,13 +270,17 @@ func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
 
 // SetProbeWatch wires the runtime command-probe path (M768). The daemon injects a
 // closure that builds a warden-gated probe observer and registers it on the engine.
-func (s *Server) SetProbeWatch(fn func(name string, argv []string) (string, bool)) { s.probeWatch = fn }
+// Kept for compatibility; new wiring should inject a PulseObservers via
+// SetPulseObservers (or Bind).
+func (s *Server) SetProbeWatch(fn func(name string, argv []string) (string, bool)) {
+	s.legacyObservers().probe = fn
+}
 
 // handlePulseProbe adds a command-probe watch to the heartbeat at runtime (M768): the
 // agent runs `command` each beat and alerts when its pass/fail flips (e.g. watch CI or
 // a build). The command runs through the warden, like any agent shell call.
 func (s *Server) handlePulseProbe(conn net.Conn, req Request) {
-	if s.probeWatch == nil {
+	if !s.probeWatchAvailable() {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "watches are unavailable (pulse is disabled)"})
 		return
 	}
@@ -215,7 +295,7 @@ func (s *Server) handlePulseProbe(conn net.Conn, req Request) {
 		s.failMsg(conn, req, "args.name and args.command required")
 		return
 	}
-	obs, ok := s.probeWatch(name, argv)
+	obs, ok := s.observers.AddProbeObserver(name, argv)
 	if !ok {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "could not add the probe"})
 		return
