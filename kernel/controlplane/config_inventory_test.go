@@ -36,6 +36,10 @@ func TestConfigEnvVars_CoversCmdAgeztReads(t *testing.T) {
 	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..")
 	roots := []string{
 		filepath.Join(repoRoot, "cmd", "agezt"),
+		// Phase 2.5: the typed boot-config package the inline runDaemon env
+		// parsing moved into (the ReadDir scan below is non-recursive, so the
+		// subdirectory needs its own root).
+		filepath.Join(repoRoot, "cmd", "agezt", "internal", "daemonconfig"),
 		filepath.Join(repoRoot, "plugins", "providerboot"),
 		filepath.Join(repoRoot, "plugins", "builtinchannels"),
 		filepath.Join(repoRoot, "plugins", "builtintools"),
