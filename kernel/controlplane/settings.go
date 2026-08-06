@@ -76,11 +76,15 @@ func (s *Server) handleConfigValues(conn net.Conn, req Request) {
 // process env and the provider is rebuilt immediately; everything else takes
 // effect on the next restart. The response says which happened.
 func (s *Server) handleConfigSet(conn net.Conn, req Request) {
-	name, _ := req.Args["name"].(string)
-	value, _ := req.Args["value"].(string)
+	name, err := requiredArgString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	name = strings.TrimSpace(name)
-	if name == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
+	value, _, err := argString(req.Args, "value")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	field, ok := settings.NewRegistry(s.baseDir).FieldByEnv(name)
@@ -93,7 +97,7 @@ func (s *Server) handleConfigSet(conn net.Conn, req Request) {
 		return
 	}
 	if err := settings.Validate(field, value); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	value = strings.TrimSpace(value)
@@ -214,7 +218,7 @@ func (s *Server) handleConfigSchemaRegister(conn net.Conn, req Request) {
 		return
 	}
 	if err := settings.NewRegistry(s.baseDir).Register(sec); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -227,16 +231,20 @@ func (s *Server) handleConfigSchemaRegister(conn net.Conn, req Request) {
 // schema is removed, so the Config Center stops showing the section. A Locked
 // (system-approved) section is refused unless args.force is truthy.
 func (s *Server) handleConfigSchemaUnregister(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	id = strings.TrimSpace(id)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	force, _ := req.Args["force"].(bool)
+	id = strings.TrimSpace(id)
+	force, _, err := argBool(req.Args, "force")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	existed, err := settings.NewRegistry(s.baseDir).Unregister(id, force)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{

@@ -54,7 +54,7 @@ func (s *Server) handleToolboxInstall(ctx context.Context, conn net.Conn, req Re
 
 	for _, name := range names {
 		if err := ctx.Err(); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		res := toolbox.Install(ctx, name)

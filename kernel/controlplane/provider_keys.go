@@ -98,10 +98,22 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 		s.writeResp(conn, resp)
 		return
 	}
-	label, _ := req.Args["label"].(string)
+	label, _, err := argString(req.Args, "label")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	label = strings.TrimSpace(label)
-	value, _ := req.Args["value"].(string)
-	makeActive, _ := req.Args["active"].(bool)
+	value, _, err := argString(req.Args, "value")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	makeActive, _, err := argBool(req.Args, "active")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	vault, ok := s.loadVault(conn, req)
 	if !ok {
@@ -109,7 +121,7 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 	}
 	activeChanged, err := vault.KeyringAdd(target, label, value, makeActive)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if err := vault.Save(); err != nil {
@@ -134,7 +146,11 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 		s.writeResp(conn, resp)
 		return
 	}
-	label, _ := req.Args["label"].(string)
+	label, _, err := argString(req.Args, "label")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	label = strings.TrimSpace(label)
 
 	vault, ok := s.loadVault(conn, req)
@@ -142,7 +158,7 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 		return
 	}
 	if err := vault.KeyringActivate(target, label); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if err := vault.Save(); err != nil {
@@ -166,7 +182,11 @@ func (s *Server) handleProviderKeyRemove(conn net.Conn, req Request) {
 		s.writeResp(conn, resp)
 		return
 	}
-	label, _ := req.Args["label"].(string)
+	label, _, err := argString(req.Args, "label")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	label = strings.TrimSpace(label)
 
 	vault, ok := s.loadVault(conn, req)

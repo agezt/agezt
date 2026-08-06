@@ -17,15 +17,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -712,22 +710,12 @@ type Store struct {
 
 // OpenStore opens (or creates) the registry under dir.
 func OpenStore(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("workflow: mkdir %s: %w", dir, err)
-	}
-	s := &Store{path: filepath.Join(dir, "workflows.json"), now: time.Now}
-	b, err := os.ReadFile(s.path)
+	s := &Store{now: time.Now}
+	path, err := jsonstore.LoadFrom(dir, "workflows.json", &s.items)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("workflow: read %s: %w", s.path, err)
+		return nil, fmt.Errorf("workflow: %w", err)
 	}
-	if len(b) > 0 {
-		if err := json.Unmarshal(b, &s.items); err != nil {
-			return nil, fmt.Errorf("workflow: parse %s: %w", s.path, err)
-		}
-	}
+	s.path = path
 	return s, nil
 }
 
@@ -889,9 +877,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	b, err := json.MarshalIndent(s.items, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, s.items)
 }

@@ -52,9 +52,9 @@ func (s *Server) handleToolforgeList(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleToolforgeShow(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	st, found := s.k.ToolForge().Get(strings.TrimSpace(ref))
@@ -83,7 +83,7 @@ func (s *Server) handleToolforgeDraft(conn net.Conn, req Request) {
 	}
 	saved, err := s.k.DraftScriptTool("", st)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tool": scriptToolView(saved, false)}})
@@ -95,9 +95,9 @@ func (s *Server) handleToolforgeDraft(conn net.Conn, req Request) {
 // code/language change demotes the tool to draft with its test record
 // cleared).
 func (s *Server) handleToolforgeEdit(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	raw, ok := req.Args["tool"]
@@ -130,7 +130,7 @@ func (s *Server) handleToolforgeEdit(conn net.Conn, req Request) {
 		}
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -141,19 +141,23 @@ func (s *Server) handleToolforgeEdit(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleToolforgeTest(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	sample, _ := req.Args["input"].(string)
+	sample, _, err := argString(req.Args, "input")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	st, out, err := s.k.TestScriptTool(context.Background(), "", ref, sample)
 	if err != nil {
 		if errors.Is(err, toolforge.ErrNotFound) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown script tool: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -164,9 +168,9 @@ func (s *Server) handleToolforgeTest(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleToolforgePromote(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	st, err := s.k.PromoteScriptTool("", ref)
@@ -175,40 +179,44 @@ func (s *Server) handleToolforgePromote(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown script tool: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tool": scriptToolView(st, false)}})
 }
 
 func (s *Server) handleToolforgeQuarantine(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	st, err := s.k.QuarantineScriptTool("", ref, reason)
 	if err != nil {
 		if errors.Is(err, toolforge.ErrNotFound) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown script tool: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tool": scriptToolView(st, false)}})
 }
 
 func (s *Server) handleToolforgeRemove(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	ok, err := s.k.RemoveScriptTool("", ref)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})

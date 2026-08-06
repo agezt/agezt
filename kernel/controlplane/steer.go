@@ -17,9 +17,9 @@ import (
 // runCorr pulls and validates the required correlation arg shared by every
 // steering handler, writing the error response itself. ok=false ⇒ return.
 func (s *Server) runCorr(conn net.Conn, req Request) (string, bool) {
-	corr, _ := req.Args["correlation"].(string)
-	if corr == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.correlation required"})
+	corr, err := requiredArgString(req.Args, "correlation")
+	if err != nil {
+		s.fail(conn, req, err)
 		return "", false
 	}
 	return corr, true
@@ -32,7 +32,7 @@ func (s *Server) handleRunPause(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -48,7 +48,7 @@ func (s *Server) handleRunResume(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -64,7 +64,7 @@ func (s *Server) handleRunStep(conn net.Conn, req Request) {
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -78,18 +78,22 @@ func (s *Server) handleRunSteer(conn net.Conn, req Request) {
 	if !ok {
 		return
 	}
-	directive, _ := req.Args["directive"].(string)
-	if directive == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.directive required"})
+	directive, err := requiredArgString(req.Args, "directive")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	// mode "note" = a soft BTW (read it, stay on task); anything else = a forceful
 	// steer that re-prioritises (the default, M962).
-	mode, _ := req.Args["mode"].(string)
+	mode, _, err := argString(req.Args, "mode")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	note := mode == "note"
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
@@ -104,17 +108,22 @@ func (s *Server) handleRunIntervene(conn net.Conn, req Request) {
 	if !ok {
 		return
 	}
-	primitive, _ := req.Args["primitive"].(string)
-	directive, _ := req.Args["directive"].(string)
-	scope, _ := req.Args["scope"].(string)
-	key, _ := req.Args["idempotency_key"].(string)
+	sa, err := argStrings(req.Args, "primitive", "directive", "scope", "idempotency_key")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	primitive, directive, scope, key := sa["primitive"], sa["directive"], sa["scope"], sa["idempotency_key"]
 	var lease time.Duration
-	if ms, ok := req.Args["lease_ms"].(float64); ok && ms > 0 {
+	if ms, _, lerr := argFloat64(req.Args, "lease_ms"); lerr != nil {
+		s.fail(conn, req, lerr)
+		return
+	} else if ms > 0 {
 		lease = time.Duration(ms) * time.Millisecond
 	}
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	res, err := k.InterveneRun(intervention.Request{
@@ -126,7 +135,7 @@ func (s *Server) handleRunIntervene(conn net.Conn, req Request) {
 		IdempotencyKey: key,
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := map[string]any{

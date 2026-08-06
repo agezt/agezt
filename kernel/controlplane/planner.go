@@ -38,12 +38,16 @@ import (
 //	plan_json  (string) — the validated plan JSON
 //	node_count (int)    — number of nodes in the generated plan
 func (s *Server) handlePlanGenerate(ctx context.Context, conn net.Conn, req Request) {
-	intent, _ := req.Args["intent"].(string)
-	if intent == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.intent required"})
+	intent, err := requiredArgString(req.Args, "intent")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	model, _ := req.Args["model"].(string)
+	model, _, err := argString(req.Args, "model")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	cfg := planner.Config{Provider: s.k.Provider(), Model: model}
 	if cfg.Provider == nil {
@@ -58,7 +62,7 @@ func (s *Server) handlePlanGenerate(ctx context.Context, conn net.Conn, req Requ
 
 	rawJSON, plan, err := planner.Generate(ctx, cfg, intent)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -92,17 +96,21 @@ func (s *Server) handlePlanGenerate(ctx context.Context, conn net.Conn, req Requ
 //	plan_json  (string) — the validated replacement plan JSON
 //	node_count (int)    — number of nodes in the replacement
 func (s *Server) handlePlanRefine(ctx context.Context, conn net.Conn, req Request) {
-	planJSON, _ := req.Args["plan_json"].(string)
-	if planJSON == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.plan_json required"})
+	planJSON, err := requiredArgString(req.Args, "plan_json")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	feedback, _ := req.Args["feedback"].(string)
-	if feedback == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.feedback required"})
+	feedback, err := requiredArgString(req.Args, "feedback")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	model, _ := req.Args["model"].(string)
+	model, _, err := argString(req.Args, "model")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	var original planner.Plan
 	if err := json.Unmarshal([]byte(planJSON), &original); err != nil {
@@ -123,7 +131,7 @@ func (s *Server) handlePlanRefine(ctx context.Context, conn net.Conn, req Reques
 
 	rawJSON, revised, err := planner.Refine(ctx, cfg, original, feedback)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{

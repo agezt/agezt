@@ -20,7 +20,7 @@ import (
 func (s *Server) handleSkillList(conn net.Conn, req Request) {
 	sks, err := s.k.Forge().List()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(sks))
@@ -39,14 +39,14 @@ func (s *Server) handleSkillList(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleSkillGet(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	sk, found, err := s.k.Forge().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"found": found}
@@ -60,9 +60,9 @@ func (s *Server) handleSkillGet(conn net.Conn, req Request) {
 // this skill id, newest-last (chronological), so `agt skill history` reads as
 // the skill's life story.
 func (s *Server) handleSkillHistory(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	var events []any
@@ -96,14 +96,14 @@ func (s *Server) handleSkillHistory(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleSkillPromote(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	status, err := s.k.Forge().Promote("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -113,14 +113,18 @@ func (s *Server) handleSkillPromote(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleSkillQuarantine(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if err := s.k.Forge().Quarantine("", id, reason); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -130,14 +134,18 @@ func (s *Server) handleSkillQuarantine(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleSkillArchive(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if err := s.k.Forge().Archive("", id, reason); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -150,14 +158,14 @@ func (s *Server) handleSkillArchive(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	restored, err := s.k.Forge().Revert("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -167,20 +175,24 @@ func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleSkillRestore(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	statusText, _ := req.Args["status"].(string)
-	if statusText == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.status required"})
+	statusText, err := requiredArgString(req.Args, "status")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	reason, _ := req.Args["reason"].(string)
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	from, to, err := s.k.Forge().RestoreStatus("", id, skill.Status(statusText), reason)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -192,14 +204,14 @@ func (s *Server) handleSkillRestore(conn net.Conn, req Request) {
 // handleSkillShare promotes a private per-agent skill (M932) into the shared
 // pool — the ownership analogue of memory_promote (M915). Clears Skill.Agent.
 func (s *Server) handleSkillShare(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	sk, found, err := s.k.Forge().Reassign("", id, "")
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"shared": found, "id": id}
@@ -212,12 +224,16 @@ func (s *Server) handleSkillShare(conn net.Conn, req Request) {
 // handleSkillReassign changes a skill's owning agent (M942). An empty agent
 // shares the skill; a non-empty slug must exist in the roster.
 func (s *Server) handleSkillReassign(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	agent, _ := req.Args["agent"].(string)
+	agent, _, err := argString(req.Args, "agent")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if agent != "" {
 		if _, ok := s.k.Roster().Get(agent); !ok {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no such agent: " + agent})
@@ -226,7 +242,7 @@ func (s *Server) handleSkillReassign(conn net.Conn, req Request) {
 	}
 	sk, found, err := s.k.Forge().Reassign("", id, agent)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"reassigned": found, "id": id, "to_agent": agent}
@@ -274,7 +290,7 @@ func (s *Server) handleSkillImport(conn net.Conn, req Request) {
 		Agent:         stringArg(req.Args, "agent"),
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -315,14 +331,14 @@ func argResources(args map[string]any, key string) (map[string][]byte, error) {
 // handleSkillFiles lists a skill's bundle resources (relative paths) plus the
 // absolute bundle directory the agent runs scripts from. Read-only.
 func (s *Server) handleSkillFiles(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	sk, found, err := s.k.Forge().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -347,15 +363,19 @@ func (s *Server) handleSkillFiles(conn net.Conn, req Request) {
 // handleSkillReadFile returns the text content of one bundle resource. Read-only;
 // the bundle store rejects any path that escapes the skill's directory.
 func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	path, _ := req.Args["path"].(string)
-	if id == "" || path == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id and args.path required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	path, err := requiredArgString(req.Args, "path")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	sk, found, err := s.k.Forge().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {
@@ -369,7 +389,7 @@ func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
 	}
 	data, err := bundles.Read(sk.Name, path)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -389,7 +409,7 @@ func (s *Server) handleSkillHygiene(conn net.Conn, req Request) {
 	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
 	rep, err := s.k.Forge().Hygiene(cutoff)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	idle := make([]any, 0, len(rep.Idle))

@@ -21,7 +21,7 @@ func (s *Server) handleReflectRun(conn net.Conn, req Request) {
 	corr := "reflect-" + ulid.New()
 	rep, err := s.k.Reflect().Reflect(context.Background(), corr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := reportView(rep)

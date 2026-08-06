@@ -78,7 +78,7 @@ func (s *Server) handleCouncilAsk(ctx context.Context, conn net.Conn, req Reques
 
 	res, err := s.k.Council(ctx, corr, question, nil, rounds)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	opinions := make([]map[string]any, 0, len(res.Opinions))

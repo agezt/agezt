@@ -36,11 +36,10 @@ func (s *Server) handleArtifactCollect(conn net.Conn, req Request) {
 		days = defaultCollectDays
 	}
 	// dry_run defaults to TRUE — collection only deletes when explicitly asked.
-	dryRun := true
-	if v, ok := req.Args["dry_run"].(bool); ok {
-		dryRun = v
-	} else if v, ok := req.Args["dry_run"].(string); ok {
-		dryRun = !(v == "false" || v == "0")
+	dryRun, err := argDryRun(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
 
@@ -69,9 +68,9 @@ func (s *Server) handleArtifactCollect(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleArtifactGet(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if ref == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	store := s.k.Artifacts()
@@ -90,7 +89,7 @@ func (s *Server) handleArtifactGet(conn net.Conn, req Request) {
 		case errors.Is(err, artifact.ErrCorrupt):
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact CORRUPT (bytes do not match ref): " + ref})
 		default:
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 		}
 		return
 	}
@@ -114,10 +113,12 @@ func (s *Server) handleArtifactList(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact index unavailable"})
 		return
 	}
-	kind, _ := req.Args["kind"].(string)
-	source, _ := req.Args["source"].(string)
-	corr, _ := req.Args["corr"].(string)
-	ents := idx.List(artifact.Filter{Kind: kind, Source: source, Corr: corr})
+	sa, err := argStrings(req.Args, "kind", "source", "corr")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	ents := idx.List(artifact.Filter{Kind: sa["kind"], Source: sa["source"], Corr: sa["corr"]})
 	out := make([]map[string]any, 0, len(ents))
 	for _, e := range ents {
 		out = append(out, map[string]any{
@@ -136,9 +137,9 @@ func (s *Server) handleArtifactList(conn net.Conn, req Request) {
 // handleArtifactDelete removes an index entry by id (M822); the blob is GC'd when
 // no other entry references it.
 func (s *Server) handleArtifactDelete(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	idx := s.k.ArtifactIndex()
@@ -151,7 +152,7 @@ func (s *Server) handleArtifactDelete(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "artifact not found: " + id})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": true, "id": id}})

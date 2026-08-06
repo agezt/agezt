@@ -39,7 +39,11 @@ func (s *Server) handleChatSummarize(ctx context.Context, conn net.Conn, req Req
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "daemon has no provider configured"})
 		return
 	}
-	model, _ := req.Args["model"].(string)
+	model, _, err := argString(req.Args, "model")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	if model == "" {
 		model = s.k.Model()
 	}
@@ -64,7 +68,7 @@ func (s *Server) handleChatSummarize(ctx context.Context, conn net.Conn, req Req
 		}},
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	summary := strings.TrimSpace(resp.Message.Content)

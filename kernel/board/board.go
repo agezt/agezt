@@ -18,15 +18,12 @@
 package board
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -74,16 +71,12 @@ type Store struct {
 
 // Open loads (or creates) the board under dir/board.json.
 func Open(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("board: mkdir: %w", err)
+	s := &Store{}
+	path, err := jsonstore.LoadFrom(dir, "board.json", &s.msgs)
+	if err != nil {
+		return nil, fmt.Errorf("board: %w", err)
 	}
-	s := &Store{path: filepath.Join(dir, "board.json")}
-	b, err := os.ReadFile(s.path)
-	if err == nil {
-		_ = json.Unmarshal(b, &s.msgs)
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("board: read: %w", err)
-	}
+	s.path = path
 	return s, nil
 }
 
@@ -306,9 +299,5 @@ func (s *Store) Topics() map[string]int {
 }
 
 func (s *Store) save() error {
-	// Message contains only JSON-native scalar fields and []string, so this
-	// marshal cannot fail. Keeping an error branch here would be unreachable
-	// unless Message's persistence contract changes.
-	b, _ := json.MarshalIndent(s.msgs, "", "  ")
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, s.msgs)
 }

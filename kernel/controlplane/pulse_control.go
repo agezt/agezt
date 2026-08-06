@@ -111,9 +111,9 @@ func (s *Server) handlePulseAskResolve(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
 		return
 	}
-	key, _ := req.Args["issue_key"].(string)
-	if key == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.issue_key is required"})
+	key, err := requiredArgString(req.Args, "issue_key")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	approve := false
@@ -168,9 +168,9 @@ func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "watches are unavailable (pulse is disabled)"})
 		return
 	}
-	path, _ := req.Args["path"].(string)
-	if path == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.path required"})
+	path, err := requiredArgString(req.Args, "path")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	var pct float64
@@ -204,11 +204,15 @@ func (s *Server) handlePulseProbe(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "watches are unavailable (pulse is disabled)"})
 		return
 	}
-	name, _ := req.Args["name"].(string)
-	command, _ := req.Args["command"].(string)
+	sa, err := argStrings(req.Args, "name", "command")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	name, command := sa["name"], sa["command"]
 	argv := strings.Fields(command)
 	if name == "" || len(argv) == 0 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name and args.command required"})
+		s.failMsg(conn, req, "args.name and args.command required")
 		return
 	}
 	obs, ok := s.probeWatch(name, argv)
@@ -229,9 +233,9 @@ func (s *Server) handlePulseUnwatch(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
 		return
 	}
-	name, _ := req.Args["name"].(string)
-	if name == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
+	name, err := requiredArgString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	removed := s.pulse.RemoveObserver(name)
@@ -245,7 +249,11 @@ func (s *Server) handlePulseDial(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
 		return
 	}
-	dial, _ := req.Args["dial"].(string)
+	dial, _, err := argString(req.Args, "dial")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	applied := s.pulse.SetDial(dial)
 	s.persistPulseSetting("AGEZT_PULSE_DIAL", applied)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"dial": applied}})
@@ -260,7 +268,11 @@ func (s *Server) handlePulseQuiet(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse is disabled (AGEZT_PULSE=off)"})
 		return
 	}
-	hours, _ := req.Args["hours"].(string)
+	hours, _, err := argString(req.Args, "hours")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	applied := s.pulse.SetQuietHours(hours)
 	s.persistPulseSetting("AGEZT_PULSE_QUIET_HOURS", applied)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"quiet": applied}})

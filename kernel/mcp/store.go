@@ -19,19 +19,16 @@
 package mcp
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -190,22 +187,12 @@ type Store struct {
 
 // OpenStore opens (or creates) the registry under dir.
 func OpenStore(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("mcp: mkdir %s: %w", dir, err)
-	}
-	s := &Store{path: filepath.Join(dir, "servers.json"), now: time.Now}
-	b, err := os.ReadFile(s.path)
+	s := &Store{now: time.Now}
+	path, err := jsonstore.LoadFrom(dir, "servers.json", &s.servers)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("mcp: read %s: %w", s.path, err)
+		return nil, fmt.Errorf("mcp: %w", err)
 	}
-	if len(b) > 0 {
-		if err := json.Unmarshal(b, &s.servers); err != nil {
-			return nil, fmt.Errorf("mcp: parse %s: %w", s.path, err)
-		}
-	}
+	s.path = path
 	return s, nil
 }
 
@@ -322,9 +309,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	b, err := json.MarshalIndent(s.servers, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, s.servers)
 }

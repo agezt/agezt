@@ -187,7 +187,7 @@ func (s *Server) handleAutonomyFeed(conn net.Conn, req Request) {
 
 	tail, err := s.k.Journal().Tail(autonomyScanN)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

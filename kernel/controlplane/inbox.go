@@ -111,7 +111,7 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 		return nil
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -140,9 +140,12 @@ func (s *Server) handleInbox(conn net.Conn, req Request) {
 	var cursorTS int64
 	var cursorCorr string
 	cursorOK := false
-	if raw, ok := req.Args["cursor"].(string); ok && raw != "" {
+	if raw, _, cerr := argString(req.Args, "cursor"); cerr != nil {
+		s.fail(conn, req, cerr)
+		return
+	} else if raw != "" {
 		tsStr, corr, _ := strings.Cut(raw, ":")
-		if ts, err := strconv.ParseInt(tsStr, 10, 64); err == nil {
+		if ts, perr := strconv.ParseInt(tsStr, 10, 64); perr == nil {
 			cursorTS, cursorCorr, cursorOK = ts, corr, true
 		}
 	}

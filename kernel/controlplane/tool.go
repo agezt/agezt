@@ -82,9 +82,9 @@ func toolRollbackMode(class agent.EffectClass) string {
 }
 
 func (s *Server) handleAgentPermissions(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	p, ok := s.k.Roster().Get(ref)
@@ -119,9 +119,9 @@ func (s *Server) handleAgentPermissions(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleAgentCapabilities(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	current, ok := s.k.Roster().Get(ref)
@@ -131,7 +131,7 @@ func (s *Server) handleAgentCapabilities(conn net.Conn, req Request) {
 	}
 	patch, touched, err := decodeAgentCapabilityPatch(req.Args)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !touched {
@@ -141,14 +141,14 @@ func (s *Server) handleAgentCapabilities(conn net.Conn, req Request) {
 	candidate := current
 	applyAgentCapabilityPatch(&candidate, patch)
 	if err := s.validateAgentHierarchyRefs(candidate); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	updated, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
 		applyAgentCapabilityPatch(dst, patch)
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !found {

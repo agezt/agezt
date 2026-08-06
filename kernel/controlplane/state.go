@@ -35,7 +35,7 @@ func (s *Server) handleStateList(conn net.Conn, req Request) {
 	// Namespace set → enumerate keys within it.
 	keys, err := s.k.State().Keys(ns)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(keys))
@@ -67,7 +67,7 @@ func (s *Server) handleStateGet(conn net.Conn, req Request) {
 
 	raw, found, err := s.k.State().Get(ns, key)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Decode the stored RawMessage so the response uses the value's

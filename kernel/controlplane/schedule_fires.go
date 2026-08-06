@@ -94,28 +94,30 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	// Optional filter (M55): only firings of this schedule id.
-	idFilter, _ := req.Args["id"].(string)
-	// Optional status filter (M61): completed|failed|running|abandoned.
-	statusFilter, _ := req.Args["status"].(string)
-	// Optional intent substring filter (M80): case-insensitive contains, mirroring
-	// `agt runs list --intent` (M77) so the two list surfaces filter alike.
-	intentQuery, _ := req.Args["intent"].(string)
-	intentQuery = strings.ToLower(intentQuery)
+	// Optional filters: id (M55) scopes to one schedule; status (M61)
+	// completed|failed|running|abandoned; intent substring (M80) is a
+	// case-insensitive contains, mirroring `agt runs list --intent` (M77).
+	sa, err := argStrings(req.Args, "id", "status", "intent")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	idFilter, statusFilter := sa["id"], sa["status"]
+	intentQuery := strings.ToLower(sa["intent"])
 	// Optional time window (M65): only firings at/after now − since_ms.
 	cutoff := sinceCutoff(req.Args["since_ms"])
 
 	// Tenant-scoped via the M39 seam: an empty tenant reads the primary journal.
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Run outcomes, keyed by correlation — the same fold `agt runs` uses, so a
 	// firing's status/duration/spend/answer never disagrees between the two views.
 	runs, err := s.collectRuns(k)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -176,7 +178,7 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -387,16 +389,12 @@ func scheduleFiredAction(p scheduleFiredPayload) string {
 // total spend over scheduled runs. Optional args.id scopes to one schedule;
 // args.since_ms windows by firing time.
 func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
-	idFilter, _ := req.Args["id"].(string)
-	sinceMS := int64(0)
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
+	idFilter, _, err := argString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 	var cutoff int64
 	if sinceMS > 0 {
 		cutoff = time.Now().UnixMilli() - sinceMS
@@ -404,12 +402,12 @@ func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	runs, err := s.collectRuns(k)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -455,7 +453,7 @@ func (s *Server) handleScheduleStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

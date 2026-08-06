@@ -14,10 +14,8 @@ package controlplane
 import (
 	"encoding/json"
 	"net"
-	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
 )
 
 // handleWardenStats aggregates sandboxed executions (M97) — total execs,
@@ -26,19 +24,11 @@ import (
 // silently degrading?". since_ms windows by event time. Tenant-routed.
 func (s *Server) handleWardenStats(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -73,7 +63,7 @@ func (s *Server) handleWardenStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -101,55 +91,17 @@ func (s *Server) handleWardenStats(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWardenLog(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
 	// --downgrades keeps only the noteworthy events (downgrades + limit breaches).
-	issuesOnly, _ := req.Args["issues"].(bool)
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	cutoff := sinceCutoff(req.Args["since_ms"])                               // M65 helper
-
-	k, err := s.kernelFor(tenantOf(req))
+	issuesOnly, _, err := argBool(req.Args, "issues")
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
-
-	type wardenEvent struct {
-		ts, seq    int64
-		kind       string // exec | downgrade | limit
-		argv0      string
-		profile    string
-		exitCode   int
-		durationMS int64
-		downgraded bool
-		timedOut   bool
-		requested  string // downgrade: requested profile
-		reason     string // downgrade reason / limit name
-	}
-	rows := make([]wardenEvent, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
-		if cutoff > 0 && e.TSUnixMS < cutoff {
-			return nil
-		}
+	s.projectJournal(conn, req, "executions", func(e *event.Event) (map[string]any, bool) {
 		switch e.Kind {
 		case event.KindWardenExecuted:
 			if issuesOnly {
-				return nil
+				return nil, false
 			}
 			var p struct {
 				ProfileEffective string `json:"profile_effective"`
@@ -160,11 +112,11 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 				TimedOut         bool   `json:"timed_out"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			rows = append(rows, wardenEvent{
-				ts: e.TSUnixMS, seq: e.Seq, kind: "exec", argv0: p.Argv0,
-				profile: p.ProfileEffective, exitCode: p.ExitCode, durationMS: p.DurationMS,
-				downgraded: p.Downgraded, timedOut: p.TimedOut,
-			})
+			return map[string]any{
+				"kind": "exec", "profile": p.ProfileEffective, "argv0": p.Argv0,
+				"exit_code": p.ExitCode, "duration_ms": p.DurationMS,
+				"downgraded": p.Downgraded, "timed_out": p.TimedOut,
+			}, true
 		case event.KindWardenProfileDowngraded:
 			var p struct {
 				Requested string `json:"requested"`
@@ -172,71 +124,21 @@ func (s *Server) handleWardenLog(conn net.Conn, req Request) {
 				Reason    string `json:"reason"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			rows = append(rows, wardenEvent{
-				ts: e.TSUnixMS, seq: e.Seq, kind: "downgrade",
-				requested: p.Requested, profile: p.Effective, reason: p.Reason,
-			})
+			return map[string]any{
+				"kind": "downgrade", "profile": p.Effective,
+				"requested": p.Requested, "reason": p.Reason,
+			}, true
 		case event.KindWardenLimitExceeded:
 			var p struct {
 				Limit string `json:"limit"`
 				Argv0 string `json:"argv0"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			rows = append(rows, wardenEvent{
-				ts: e.TSUnixMS, seq: e.Seq, kind: "limit", argv0: p.Argv0, reason: p.Limit,
-			})
+			return map[string]any{
+				"kind": "limit", "profile": "", "argv0": p.Argv0, "reason": p.Limit,
+			}, true
+		default:
+			return nil, false
 		}
-		return nil
-	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].ts != rows[j].ts {
-			return rows[i].ts > rows[j].ts
-		}
-		return rows[i].seq > rows[j].seq
-	})
-	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
-		kept := rows[:0]
-		for _, r := range rows {
-			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
-				kept = append(kept, r)
-			}
-		}
-		rows = kept
-	}
-	if len(rows) > limit {
-		rows = rows[:limit]
-	}
-
-	out := make([]map[string]any, 0, len(rows))
-	for _, r := range rows {
-		m := map[string]any{"ts_unix_ms": r.ts, "seq": r.seq, "kind": r.kind, "profile": r.profile}
-		switch r.kind {
-		case "exec":
-			m["argv0"] = r.argv0
-			m["exit_code"] = r.exitCode
-			m["duration_ms"] = r.durationMS
-			m["downgraded"] = r.downgraded
-			m["timed_out"] = r.timedOut
-		case "downgrade":
-			m["requested"] = r.requested
-			m["reason"] = r.reason
-		case "limit":
-			m["argv0"] = r.argv0
-			m["reason"] = r.reason
-		}
-		out = append(out, m)
-	}
-	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
-	if n := len(rows); n > 0 {
-		nextCursor = journal.NextCursor(rows[n-1].ts, rows[n-1].seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"executions": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }

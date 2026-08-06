@@ -14,7 +14,7 @@ import (
 func (s *Server) handleExecutionProfiles(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	inv := executionprofile.Build(executionprofile.Options{
@@ -41,15 +41,15 @@ func (s *Server) handleExecutionProfiles(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleExecutionProfileShow(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	id = strings.TrimSpace(id)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
+	id = strings.TrimSpace(id)
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	inv := executionprofile.Build(executionprofile.Options{
@@ -79,7 +79,7 @@ func (s *Server) handleExecutionProfileShow(conn net.Conn, req Request) {
 func (s *Server) handleExecutionProfileCheck(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	inv := executionprofile.Build(executionprofile.Options{

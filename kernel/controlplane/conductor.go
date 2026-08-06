@@ -68,7 +68,7 @@ func (s *Server) handleConductorAsk(ctx context.Context, conn net.Conn, req Requ
 		Plan:      dlBool(req.Args, "plan"),
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	steps := make([]map[string]any, 0, len(res.Steps))

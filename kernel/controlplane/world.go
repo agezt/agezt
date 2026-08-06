@@ -14,37 +14,42 @@ import (
 	"github.com/agezt/agezt/kernel/worldmodel"
 )
 
+// worldAliasesAttrs decodes the optional aliases/attrs pair shared by the
+// entity add+edit handlers.
+func worldAliasesAttrs(args map[string]any) ([]string, map[string]string, error) {
+	aliases, _, err := argStringList(args, "aliases")
+	if err != nil {
+		return nil, nil, err
+	}
+	attrs, _, err := argStringMap(args, "attrs")
+	if err != nil {
+		return nil, nil, err
+	}
+	return aliases, attrs, nil
+}
+
 func (s *Server) handleWorldAdd(conn net.Conn, req Request) {
-	name, _ := req.Args["name"].(string)
-	if name == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
+	name, err := requiredArgString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	kind, _ := req.Args["kind"].(string)
-
-	var aliases []string
-	if raw, ok := req.Args["aliases"].([]any); ok {
-		for _, a := range raw {
-			if sv, ok := a.(string); ok {
-				aliases = append(aliases, sv)
-			}
-		}
+	kind, _, err := argString(req.Args, "kind")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	var attrs map[string]string
-	if raw, ok := req.Args["attrs"].(map[string]any); ok {
-		attrs = make(map[string]string, len(raw))
-		for k, v := range raw {
-			if sv, ok := v.(string); ok {
-				attrs[k] = sv
-			}
-		}
+	aliases, attrs, err := worldAliasesAttrs(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 
 	e, created, err := s.k.World().Upsert("", worldmodel.UpsertSpec{
 		Kind: worldmodel.Kind(kind), Name: name, Aliases: aliases, Attrs: attrs,
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -57,31 +62,19 @@ func (s *Server) handleWorldAdd(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorldEdit(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	var aliases []string
-	if raw, ok := req.Args["aliases"].([]any); ok {
-		for _, a := range raw {
-			if sv, ok := a.(string); ok {
-				aliases = append(aliases, sv)
-			}
-		}
-	}
-	var attrs map[string]string
-	if raw, ok := req.Args["attrs"].(map[string]any); ok {
-		attrs = make(map[string]string, len(raw))
-		for k, v := range raw {
-			if sv, ok := v.(string); ok {
-				attrs[k] = sv
-			}
-		}
+	aliases, attrs, err := worldAliasesAttrs(req.Args)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	e, ok, err := s.k.World().EditEntity("", id, aliases, attrs)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !ok {
@@ -98,16 +91,19 @@ func (s *Server) handleWorldEdit(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorldRelate(conn net.Conn, req Request) {
-	from, _ := req.Args["from"].(string)
-	to, _ := req.Args["to"].(string)
-	if from == "" || to == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.from and args.to required"})
+	sa, err := argStrings(req.Args, "from", "to", "verb")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	verb, _ := req.Args["verb"].(string)
+	from, to, verb := sa["from"], sa["to"], sa["verb"]
+	if from == "" || to == "" {
+		s.failMsg(conn, req, "args.from and args.to required")
+		return
+	}
 	r, err := s.k.World().Relate("", from, worldmodel.Verb(verb), to)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -120,21 +116,19 @@ func (s *Server) handleWorldRelate(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorldResolve(conn net.Conn, req Request) {
-	query, _ := req.Args["query"].(string)
-	if query == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.query required"})
+	query, err := requiredArgString(req.Args, "query")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	limit := 10
-	if l, ok := req.Args["limit"].(float64); ok && l > 0 {
-		limit = int(l)
-	}
-	if limit > 100 {
-		limit = 100
+	limit, err := argLimit(req.Args, 10, 100)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
 	hits, err := s.k.World().ResolveQuiet(query, limit)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(hits))
@@ -149,14 +143,14 @@ func (s *Server) handleWorldResolve(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
-	query, _ := req.Args["query"].(string)
-	if query == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.query required"})
+	query, err := requiredArgString(req.Args, "query")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	hits, err := s.k.World().ResolveQuiet(query, 1)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if len(hits) == 0 {
@@ -169,7 +163,7 @@ func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 	center := hits[0].Entity
 	ns, err := s.k.World().Neighbors(center.ID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(ns))
@@ -192,12 +186,12 @@ func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 func (s *Server) handleWorldList(conn net.Conn, req Request) {
 	ents, err := s.k.World().Entities()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	rels, err := s.k.World().Relations()
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	out := make([]any, 0, len(ents))
@@ -221,14 +215,14 @@ func (s *Server) handleWorldList(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorldGet(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	e, found, err := s.k.World().Get(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	result := map[string]any{"found": found}
@@ -239,14 +233,14 @@ func (s *Server) handleWorldGet(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleWorldForget(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	ok, err := s.k.World().Forget("", id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{

@@ -11,121 +11,47 @@ package controlplane
 import (
 	"encoding/json"
 	"net"
-	"sort"
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleEdictLog(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	deniedOnly, _ := req.Args["denied"].(bool)
-	toolFilter, _ := req.Args["tool"].(string)      // M74: scope to one tool
-	capFilter, _ := req.Args["capability"].(string) // M74: scope to one capability
-	cutoff := sinceCutoff(req.Args["since_ms"])     // M65: optional time window
-
-	k, err := s.kernelFor(tenantOf(req))
+	deniedOnly, _, err := argBool(req.Args, "denied")
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
-
-	type decision struct {
-		ts                int64
-		seq               int64
-		actor, corr       string
-		tool, capability  string
-		reason            string
-		allow, hardDenied bool
+	// M74: optionally scope to one tool / capability.
+	sa, err := argStrings(req.Args, "tool", "capability")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	decisions := make([]decision, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
+	toolFilter, capFilter := sa["tool"], sa["capability"]
+	s.projectJournal(conn, req, "decisions", func(e *event.Event) (map[string]any, bool) {
 		if e.Kind != event.KindPolicyDecision {
-			return nil
-		}
-		if cutoff > 0 && e.TSUnixMS < cutoff {
-			return nil
+			return nil, false
 		}
 		d := decodePolicyDecision(e.Payload)
 		if deniedOnly && d.allow {
-			return nil
+			return nil, false
 		}
 		if toolFilter != "" && d.tool != toolFilter {
-			return nil
+			return nil, false
 		}
 		if capFilter != "" && d.capability != capFilter {
-			return nil
+			return nil, false
 		}
-		decisions = append(decisions, decision{
-			ts: e.TSUnixMS, seq: e.Seq, actor: e.Actor, corr: e.CorrelationID,
-			tool: d.tool, capability: d.capability, reason: d.reason,
-			allow: d.allow, hardDenied: d.hardDenied,
-		})
-		return nil
-	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	sort.Slice(decisions, func(i, j int) bool {
-		if decisions[i].ts != decisions[j].ts {
-			return decisions[i].ts > decisions[j].ts
-		}
-		return decisions[i].seq > decisions[j].seq
-	})
-	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
-		kept := decisions[:0]
-		for _, d := range decisions {
-			if journal.KeepBeforeCursor(d.ts, d.seq, cursorMS, cursorSeq) {
-				kept = append(kept, d)
-			}
-		}
-		decisions = kept
-	}
-	if len(decisions) > limit {
-		decisions = decisions[:limit]
-	}
-
-	out := make([]map[string]any, 0, len(decisions))
-	for _, d := range decisions {
-		out = append(out, map[string]any{
-			"ts_unix_ms":     d.ts,
-			"seq":            d.seq, // A2: stable per-row id for the frontend cursor pager
-			"actor":          d.actor,
-			"correlation_id": d.corr,
+		return map[string]any{
+			"actor":          e.Actor,
+			"correlation_id": e.CorrelationID,
 			"tool":           d.tool,
 			"capability":     d.capability,
 			"allow":          d.allow,
 			"reason":         d.reason,
 			"hard_denied":    d.hardDenied,
-		})
-	}
-	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
-	if n := len(decisions); n > 0 {
-		nextCursor = journal.NextCursor(decisions[n-1].ts, decisions[n-1].seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"decisions": out, "count": len(out), "next_cursor": nextCursor},
+		}, true
 	})
 }
 
@@ -180,25 +106,22 @@ func sinceCutoff(arg any) int64 {
 // hard-denied, denial rate, and a denied-by-capability breakdown. Optional
 // since_ms windows by decision time. Tenant-scoped via kernelFor.
 func (s *Server) handleEdictStats(conn net.Conn, req Request) {
-	sinceMS := int64(0)
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 	var cutoff int64
 	if sinceMS > 0 {
 		cutoff = time.Now().UnixMilli() - sinceMS
 	}
-	toolFilter, _ := req.Args["tool"].(string)      // M76: scope to one tool
-	capFilter, _ := req.Args["capability"].(string) // M76: scope to one capability
+	// M76: optionally scope to one tool / capability.
+	sa, err := argStrings(req.Args, "tool", "capability")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	toolFilter, capFilter := sa["tool"], sa["capability"]
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -234,7 +157,7 @@ func (s *Server) handleEdictStats(conn net.Conn, req Request) {
 		deniedByCap[capName]++
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

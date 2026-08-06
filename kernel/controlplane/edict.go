@@ -25,10 +25,14 @@ import (
 // Every `agt edict` command routes through here, giving per-tenant policy
 // management for free across show/test/deny/level/mode.
 func (s *Server) edictFor(conn net.Conn, req Request) (*edict.Engine, *runtime.Kernel, bool) {
-	tenantID, _ := req.Args["tenant"].(string)
+	tenantID, _, err := argString(req.Args, "tenant")
+	if err != nil {
+		s.fail(conn, req, err)
+		return nil, nil, false
+	}
 	k, err := s.kernelFor(tenantID)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return nil, nil, false
 	}
 	return k.Edict(), k, true
@@ -159,10 +163,14 @@ func (s *Server) handleEdictDenyList(conn net.Conn, req Request) {
 // to the deny floor is itself security-relevant, so it lands in the same
 // hash-chained journal as the decisions it will govern.
 func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
-	spec, _ := req.Args["rule"].(string)
+	spec, _, err := argString(req.Args, "rule")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	parsed, err := edict.ParseDenyRules(spec)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if len(parsed) != 1 {
@@ -176,7 +184,7 @@ func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
 	}
 	added, err := eng.AddHardDeny(parsed[0])
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -213,9 +221,9 @@ func (s *Server) handleEdictDenyAdd(conn net.Conn, req Request) {
 // the change. Removing a floor rule is refused by the engine and surfaced
 // as an error here, never a silent success.
 func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
-	name, _ := req.Args["name"].(string)
-	if name == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.name required"})
+	name, err := requiredArgString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	eng, k, ok := s.edictFor(conn, req)
@@ -224,7 +232,7 @@ func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
 	}
 	removed, err := eng.RemoveHardDeny(name)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	count := len(eng.HardDenyRules())
@@ -253,9 +261,9 @@ func (s *Server) handleEdictDenyRemove(conn net.Conn, req Request) {
 // is parsed leniently (L0..L4 or aliases). The previous level is captured
 // for the event + response so the change is fully reconstructable.
 func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
-	capStr, _ := req.Args["capability"].(string)
-	if capStr == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.capability required"})
+	capStr, err := requiredArgString(req.Args, "capability")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	cap := edict.Capability(capStr)
@@ -264,10 +272,14 @@ func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
 			Error: "unknown capability " + capStr + " (see `edict show` for the governed set)"})
 		return
 	}
-	levelStr, _ := req.Args["level"].(string)
+	levelStr, _, err := argString(req.Args, "level")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	lvl, err := edict.ParseTrustLevel(levelStr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -309,10 +321,14 @@ func (s *Server) handleEdictSetLevel(conn net.Conn, req Request) {
 // (allow/deny/prompt); the previous mode is captured for the event +
 // response so the change is fully reconstructable (and replayable, M20).
 func (s *Server) handleEdictSetMode(conn net.Conn, req Request) {
-	modeStr, _ := req.Args["mode"].(string)
+	modeStr, _, err := argString(req.Args, "mode")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	mode, err := edict.ParseAskPolicy(modeStr)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	eng, k, ok := s.edictFor(conn, req)

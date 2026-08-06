@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
 )
 
 // handleProviderStats aggregates provider routing (M90) — total routed calls,
@@ -26,19 +25,11 @@ import (
 // reliable is my primary?". since_ms windows by event time. Tenant-routed.
 func (s *Server) handleProviderStats(conn net.Conn, req Request) {
 	cutoff := sinceCutoff(req.Args["since_ms"])
-	var sinceMS int64
-	switch v := req.Args["since_ms"].(type) {
-	case float64:
-		sinceMS = int64(v)
-	case int64:
-		sinceMS = v
-	case int:
-		sinceMS = int64(v)
-	}
+	sinceMS := int64Arg(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -78,7 +69,7 @@ func (s *Server) handleProviderStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -136,7 +127,7 @@ func (s *Server) handleProviderRejections(conn net.Conn, req Request) {
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -167,7 +158,7 @@ func (s *Server) handleProviderRejections(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -200,51 +191,16 @@ func (s *Server) handleProviderRejections(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleProviderLog(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	fallbacksOnly, _ := req.Args["fallbacks"].(bool)
-	cutoff := sinceCutoff(req.Args["since_ms"]) // M65 helper
-
-	k, err := s.kernelFor(tenantOf(req))
+	fallbacksOnly, _, err := argBool(req.Args, "fallbacks")
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
-
-	type provEvent struct {
-		ts, seq int64
-		kind    string // route | fallback
-		// route fields
-		primary, chain, taskType string
-		// fallback fields
-		failed, next, reason string
-		scope                string // "" provider | "model-chain" (M706)
-	}
-	events := make([]provEvent, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
-		if cutoff > 0 && e.TSUnixMS < cutoff {
-			return nil
-		}
+	s.projectJournal(conn, req, "events", func(e *event.Event) (map[string]any, bool) {
 		switch e.Kind {
 		case event.KindRoutingDecision:
 			if fallbacksOnly {
-				return nil
+				return nil, false
 			}
 			var p struct {
 				Primary  string   `json:"primary"`
@@ -252,10 +208,10 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 				TaskType string   `json:"task_type"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			events = append(events, provEvent{
-				ts: e.TSUnixMS, seq: e.Seq, kind: "route",
-				primary: p.Primary, chain: strings.Join(p.Chain, ","), taskType: p.TaskType,
-			})
+			return map[string]any{
+				"kind": "route", "primary": p.Primary,
+				"chain": strings.Join(p.Chain, ","), "task_type": p.TaskType,
+			}, true
 		case event.KindProviderFallback:
 			var p struct {
 				Failed, Next, Reason string
@@ -267,66 +223,18 @@ func (s *Server) handleProviderLog(conn net.Conn, req Request) {
 			_ = json.Unmarshal(e.Payload, &p)
 			// Model-chain fallbacks (M706) name the failed/next MODEL, not provider;
 			// normalise into the same failed/next fields so the timeline shows the hop.
-			ev := provEvent{ts: e.TSUnixMS, seq: e.Seq, kind: "fallback", reason: p.Reason, scope: p.Scope}
+			row := map[string]any{"kind": "fallback", "reason": p.Reason}
+			if p.Scope != "" {
+				row["scope"] = p.Scope
+			}
 			if p.Scope == "model-chain" {
-				ev.failed, ev.next, ev.taskType = p.FailedModel, p.NextModel, p.TaskType
+				row["failed"], row["next"], row["task_type"] = p.FailedModel, p.NextModel, p.TaskType
 			} else {
-				ev.failed, ev.next = p.Failed, p.Next
+				row["failed"], row["next"] = p.Failed, p.Next
 			}
-			events = append(events, ev)
+			return row, true
+		default:
+			return nil, false
 		}
-		return nil
-	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	sort.Slice(events, func(i, j int) bool {
-		if events[i].ts != events[j].ts {
-			return events[i].ts > events[j].ts
-		}
-		return events[i].seq > events[j].seq
-	})
-	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
-		kept := events[:0]
-		for _, e := range events {
-			if journal.KeepBeforeCursor(e.ts, e.seq, cursorMS, cursorSeq) {
-				kept = append(kept, e)
-			}
-		}
-		events = kept
-	}
-	if len(events) > limit {
-		events = events[:limit]
-	}
-
-	out := make([]map[string]any, 0, len(events))
-	for _, e := range events {
-		row := map[string]any{"ts_unix_ms": e.ts, "seq": e.seq, "kind": e.kind}
-		if e.kind == "route" {
-			row["primary"] = e.primary
-			row["chain"] = e.chain
-			row["task_type"] = e.taskType
-		} else {
-			row["failed"] = e.failed
-			row["next"] = e.next
-			row["reason"] = e.reason
-			if e.scope != "" {
-				row["scope"] = e.scope
-			}
-			if e.scope == "model-chain" {
-				row["task_type"] = e.taskType
-			}
-		}
-		out = append(out, row)
-	}
-	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
-	if n := len(events); n > 0 {
-		nextCursor = journal.NextCursor(events[n-1].ts, events[n-1].seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"events": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }

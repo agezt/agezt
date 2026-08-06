@@ -12,74 +12,40 @@ package controlplane
 import (
 	"encoding/json"
 	"net"
-	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
 )
 
 func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
-	limit := defaultRunsLimit
-	if raw, ok := req.Args["limit"]; ok {
-		switch v := raw.(type) {
-		case float64:
-			limit = int(v)
-		case int:
-			limit = v
-		case int64:
-			limit = int(v)
-		}
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	if limit > maxRunsLimit {
-		limit = maxRunsLimit
-	}
-	opFilter, _ := req.Args["op"].(string)                                    // written|forgotten|superseded
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	cutoff := sinceCutoff(req.Args["since_ms"])                               // M65 helper: optional window
-
-	k, err := s.kernelFor(tenantOf(req))
+	opFilter, _, err := argString(req.Args, "op") // written|forgotten|superseded
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
-
-	type memOp struct {
-		ts, seq           int64
-		op                string // write | revive | forget | supersede
-		id, subject, mtyp string
-	}
-	ops := make([]memOp, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
-		if cutoff > 0 && e.TSUnixMS < cutoff {
-			return nil
-		}
-		var m memOp
-		m.ts, m.seq = e.TSUnixMS, e.Seq
+	s.projectJournal(conn, req, "ops", func(e *event.Event) (map[string]any, bool) {
+		var op, id, subject, mtyp string
 		switch e.Kind {
 		case event.KindMemoryWritten:
 			var p struct {
 				Action, ID, Type, Subject string
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			m.op = p.Action // "write" or "revive"
-			if m.op == "" {
-				m.op = "write"
+			op = p.Action // "write" or "revive"
+			if op == "" {
+				op = "write"
 			}
-			m.id, m.subject, m.mtyp = p.ID, p.Subject, p.Type
+			id, subject, mtyp = p.ID, p.Subject, p.Type
 		case event.KindMemoryForgotten:
 			var p struct{ ID, Subject string }
 			_ = json.Unmarshal(e.Payload, &p)
-			m.op, m.id, m.subject = "forget", p.ID, p.Subject
+			op, id, subject = "forget", p.ID, p.Subject
 		case event.KindMemorySuperseded:
 			var p struct {
 				OldID string `json:"old_id"`
 				NewID string `json:"new_id"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			m.op, m.id, m.subject = "supersede", p.OldID, "→ "+p.NewID
+			op, id, subject = "supersede", p.OldID, "→ "+p.NewID
 		case event.KindMemoryPromoted:
 			var p struct {
 				ID        string `json:"id"`
@@ -87,60 +53,16 @@ func (s *Server) handleMemoryLog(conn net.Conn, req Request) {
 				FromScope string `json:"from_scope"`
 			}
 			_ = json.Unmarshal(e.Payload, &p)
-			m.op, m.id, m.subject = "promote", p.ID, p.Subject+" (was private to "+p.FromScope+")"
+			op, id, subject = "promote", p.ID, p.Subject+" (was private to "+p.FromScope+")"
 		default:
-			return nil
+			return nil, false
 		}
 		// op filter (M85): "written" matches write+revive (both are
 		// memory.written); the others match by their own verb.
-		if opFilter != "" && !memOpMatches(opFilter, e.Kind, m.op) {
-			return nil
+		if opFilter != "" && !memOpMatches(opFilter, e.Kind, op) {
+			return nil, false
 		}
-		ops = append(ops, m)
-		return nil
-	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
-		return
-	}
-
-	sort.Slice(ops, func(i, j int) bool {
-		if ops[i].ts != ops[j].ts {
-			return ops[i].ts > ops[j].ts
-		}
-		return ops[i].seq > ops[j].seq
-	})
-	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
-		kept := ops[:0]
-		for _, m := range ops {
-			if journal.KeepBeforeCursor(m.ts, m.seq, cursorMS, cursorSeq) {
-				kept = append(kept, m)
-			}
-		}
-		ops = kept
-	}
-	if len(ops) > limit {
-		ops = ops[:limit]
-	}
-
-	out := make([]map[string]any, 0, len(ops))
-	for _, m := range ops {
-		out = append(out, map[string]any{
-			"ts_unix_ms": m.ts,
-			"seq":        m.seq, // A2: stable per-row id for the frontend cursor pager
-			"op":         m.op,
-			"id":         m.id,
-			"type":       m.mtyp,
-			"subject":    m.subject,
-		})
-	}
-	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
-	if n := len(ops); n > 0 {
-		nextCursor = journal.NextCursor(ops[n-1].ts, ops[n-1].seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"ops": out, "count": len(out), "next_cursor": nextCursor},
+		return map[string]any{"op": op, "id": id, "type": mtyp, "subject": subject}, true
 	})
 }
 

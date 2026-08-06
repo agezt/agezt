@@ -134,7 +134,7 @@ func (s *Server) handleChannelOAuthStart(conn net.Conn, req Request) {
 	if prov.instanceBased {
 		base, err := normalizeInstanceURL(instanceURL)
 		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 		authURL = base + "/oauth/authorize"

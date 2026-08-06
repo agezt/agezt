@@ -96,16 +96,16 @@ func (s *Server) handleMCPAdd(conn net.Conn, req Request) {
 	}
 	saved, err := s.k.AddMCPServer("", srv)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"server": s.mcpServerView(saved)}})
 }
 
 func (s *Server) handleMCPAttach(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	srv, tools, err := s.k.AttachMCPServer(context.Background(), "", ref)
@@ -114,7 +114,7 @@ func (s *Server) handleMCPAttach(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown mcp server: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{
@@ -125,22 +125,22 @@ func (s *Server) handleMCPAttach(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleMCPDetach(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	if err := s.k.DetachMCPServer("", ref); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"detached": true}})
 }
 
 func (s *Server) handleMCPSetEnabled(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	enabled := false
@@ -156,21 +156,21 @@ func (s *Server) handleMCPSetEnabled(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown mcp server: " + ref})
 			return
 		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"server": s.mcpServerView(srv)}})
 }
 
 func (s *Server) handleMCPRemove(conn net.Conn, req Request) {
-	ref, _ := req.Args["ref"].(string)
-	if strings.TrimSpace(ref) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.ref required"})
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	ok, err := s.k.RemoveMCPServer("", ref)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})

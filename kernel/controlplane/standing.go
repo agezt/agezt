@@ -91,12 +91,12 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.validateStandingAgent(o.Agent); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	saved, err := s.k.AddStanding(o)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(saved)}})
@@ -108,46 +108,74 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 // enabled has its own pause/resume path. Unknown id → {updated:false}, mirroring
 // the schedule-edit path. Every edit is journaled (standing.updated, "edited").
 func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	if v, ok := req.Args["agent"].(string); ok {
-		if err := s.validateStandingAgent(v); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+	// Decode every patch field up front (first wrong-typed arg fails the whole
+	// edit) so the UpdateStanding closure applies a pre-validated patch.
+	var argErr error
+	str := func(key string) (string, bool) {
+		v, present, err := argString(req.Args, key)
+		if err != nil && argErr == nil {
+			argErr = err
+		}
+		return v, present
+	}
+	num := func(key string) (float64, bool) {
+		v, present, err := argFloat64(req.Args, key)
+		if err != nil && argErr == nil {
+			argErr = err
+		}
+		return v, present
+	}
+	name, nameSet := str("name")
+	plan, planSet := str("plan")
+	agent, agentSet := str("agent")
+	mode, modeSet := str("mode")
+	maxTrust, maxTrustSet := str("max_trust")
+	briefingMin, briefingSet := str("briefing_min")
+	assure, assureSet := num("assure")
+	cooldownSec, cooldownSet := num("cooldown_sec")
+	if argErr != nil {
+		s.fail(conn, req, argErr)
+		return
+	}
+	if agentSet {
+		if err := s.validateStandingAgent(agent); err != nil {
+			s.fail(conn, req, err)
 			return
 		}
 	}
 	o, ok, err := s.k.UpdateStanding(id, func(o *standing.Order) {
-		if v, ok := req.Args["name"].(string); ok {
-			o.Name = v
+		if nameSet {
+			o.Name = name
 		}
-		if v, ok := req.Args["plan"].(string); ok {
-			o.Plan = v
+		if planSet {
+			o.Plan = plan
 		}
-		if v, ok := req.Args["agent"].(string); ok {
-			o.Agent = strings.TrimSpace(v) // M790: run firings AS this roster agent ("" clears)
+		if agentSet {
+			o.Agent = strings.TrimSpace(agent) // M790: run firings AS this roster agent ("" clears)
 		}
-		if v, ok := req.Args["mode"].(string); ok {
-			o.Initiative.Mode = standing.InitiativeMode(v)
+		if modeSet {
+			o.Initiative.Mode = standing.InitiativeMode(mode)
 		}
-		if v, ok := req.Args["max_trust"].(string); ok {
-			o.Initiative.MaxTrust = v
+		if maxTrustSet {
+			o.Initiative.MaxTrust = maxTrust
 		}
-		if v, ok := req.Args["briefing_min"].(string); ok {
-			o.BriefingMin = v
+		if briefingSet {
+			o.BriefingMin = briefingMin
 		}
-		// assure is numeric; the JSON body carries it as a float64.
-		if v, ok := req.Args["assure"].(float64); ok {
-			o.Assure = int(v)
+		if assureSet {
+			o.Assure = int(assure)
 		}
-		if v, ok := req.Args["cooldown_sec"].(float64); ok {
-			o.CooldownSec = int64(v)
+		if cooldownSet {
+			o.CooldownSec = int64(cooldownSec)
 		}
 	})
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	if !ok {
@@ -179,9 +207,9 @@ func (s *Server) validateStandingAgent(ref string) error {
 }
 
 func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	// Accept enabled as a bool (CLI/JSON) or a "true"/"false"/"1"/"0" string
@@ -200,13 +228,13 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 			return
 		}
 		if err := s.validateStandingAgent(o.Agent); err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+			s.fail(conn, req, err)
 			return
 		}
 	}
 	o, err := s.k.SetStandingEnabled(id, enabled)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(o)}})
@@ -216,9 +244,9 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 // order id — its life story: created, paused/resumed, every time it fired, and
 // removed (SPEC-16 §4). Mirrors `agt skill history`.
 func (s *Server) handleStandingWhy(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	var events []any
@@ -251,14 +279,14 @@ func (s *Server) handleStandingWhy(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleStandingRemove(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	removed, err := s.k.RemoveStanding(id)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed, "id": id}})
@@ -274,9 +302,9 @@ func (s *Server) SetStandingFire(fn func(id string) bool) { s.standingFire = fn 
 // its cron/event triggers (useful to test an order or run it on demand). Returns as
 // soon as the run is dispatched; the result lands in the journal / Runs view.
 func (s *Server) handleStandingFire(conn net.Conn, req Request) {
-	id, _ := req.Args["id"].(string)
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
+	id, err := requiredArgString(req.Args, "id")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
 	if s.standingFire == nil {
@@ -289,7 +317,7 @@ func (s *Server) handleStandingFire(conn net.Conn, req Request) {
 		return
 	}
 	if err := s.validateStandingAgent(o.Agent); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	fired := s.standingFire(id)

@@ -39,11 +39,15 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 		limit = maxRunsLimit
 	}
 	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
-	statusFilter, _ := req.Args["status"].(string)                            // completed|failed|running
+	statusFilter, _, err := argString(req.Args, "status")                     // completed|failed|running
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -91,7 +95,7 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -155,7 +159,7 @@ func (s *Server) handlePlanHistory(conn net.Conn, req Request) {
 func (s *Server) handlePlanStats(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -187,7 +191,7 @@ func (s *Server) handlePlanStats(conn net.Conn, req Request) {
 		}
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 

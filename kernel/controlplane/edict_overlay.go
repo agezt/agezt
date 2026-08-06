@@ -28,7 +28,7 @@ import (
 func (s *Server) handleEdictCompact(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -44,7 +44,7 @@ func (s *Server) handleEdictCompact(conn net.Conn, req Request) {
 		changes = append(changes, ch)
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	overlay := edict.ProjectPolicyChanges(changes)
@@ -52,7 +52,7 @@ func (s *Server) handleEdictCompact(conn net.Conn, req Request) {
 	snap := &edict.OverlaySnapshot{ThroughSeq: headSeq, Changes: overlay.ToChanges()}
 	path := filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile)
 	if err := edict.SaveOverlaySnapshot(path, snap); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Bind the snapshot to the tamper-evident journal (M176): record its content
@@ -80,7 +80,7 @@ func (s *Server) handleEdictCompact(conn net.Conn, req Request) {
 func (s *Server) handleEdictOverlay(conn net.Conn, req Request) {
 	k, err := s.kernelFor(tenantOf(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 
@@ -96,7 +96,7 @@ func (s *Server) handleEdictOverlay(conn net.Conn, req Request) {
 		changes = append(changes, ch)
 		return nil
 	}); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	overlay := edict.ProjectPolicyChanges(changes)

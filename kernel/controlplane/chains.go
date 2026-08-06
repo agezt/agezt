@@ -162,7 +162,7 @@ func (s *Server) handleChainsSet(conn net.Conn, req Request) {
 	}
 	chains, err := decodeChains(raw)
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
+		s.fail(conn, req, err)
 		return
 	}
 	// Validate names and reject nested chain references.

@@ -27,18 +27,14 @@ package skill
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"lukechampine.com/blake3"
-
-	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 // Status is the lifecycle state of a skill (SPEC-05 §5.2).
@@ -219,26 +215,12 @@ type FileStore struct {
 // Open opens (or creates) a FileStore under dir, loading <dir>/skills.json if
 // present. The directory is created if absent.
 func Open(dir string) (*FileStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("skill: mkdir %s: %w", dir, err)
-	}
-	s := &FileStore{
-		path: filepath.Join(dir, "skills.json"),
-		data: make(map[string]Skill),
-	}
-	raw, err := os.ReadFile(s.path)
+	s := &FileStore{data: make(map[string]Skill)}
+	path, err := jsonstore.LoadFrom(dir, "skills.json", &s.data)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("skill: read %s: %w", s.path, err)
+		return nil, fmt.Errorf("skill: %w", err)
 	}
-	if len(raw) == 0 {
-		return s, nil
-	}
-	if err := json.Unmarshal(raw, &s.data); err != nil {
-		return nil, fmt.Errorf("skill: parse %s: %w", s.path, err)
-	}
+	s.path = path
 	if s.data == nil {
 		s.data = make(map[string]Skill)
 	}
@@ -298,11 +280,10 @@ func (s *FileStore) Close() error { return nil }
 
 // snapshotLocked writes the whole skill map atomically. Caller holds s.mu.
 func (s *FileStore) snapshotLocked() error {
-	body, err := json.MarshalIndent(s.data, "", "  ")
-	if err != nil {
-		return fmt.Errorf("skill: marshal: %w", err)
+	if err := jsonstore.Save(s.path, s.data); err != nil {
+		return fmt.Errorf("skill: %w", err)
 	}
-	return atomicWrite(s.path, body)
+	return nil
 }
 
 func sortSkills(sk []Skill) {
@@ -312,12 +293,4 @@ func sortSkills(sk []Skill) {
 		}
 		return sk[i].ID < sk[j].ID
 	})
-}
-
-// atomicWrite writes via a unique temp + fsync + rename (see internal/atomicfile).
-func atomicWrite(path string, data []byte) error {
-	if err := atomicfile.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("skill: %w", err)
-	}
-	return nil
 }

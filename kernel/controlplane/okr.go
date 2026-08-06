@@ -31,7 +31,12 @@ func (s *Server) handleOKRList(conn net.Conn, req Request) {
 		f.Status = okr.Status(raw)
 	}
 	f.Tenant = stringArg(req.Args, "tenant")
-	f.IncludeArchived, _ = req.Args["include_archived"].(bool)
+	if v, _, err := argBool(req.Args, "include_archived"); err != nil {
+		s.fail(conn, req, err)
+		return
+	} else {
+		f.IncludeArchived = v
+	}
 	f.Limit = intArg(req.Args["limit"], 200)
 	objs := s.k.OKR().List(f)
 	out := make([]any, 0, len(objs))

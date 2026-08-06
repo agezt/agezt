@@ -6,17 +6,14 @@
 package workboard
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/proof"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -208,24 +205,13 @@ type diskState struct {
 
 // OpenStore opens or creates the workboard store under dir.
 func OpenStore(dir string) (*Store, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("workboard: mkdir %s: %w", dir, err)
-	}
-	s := &Store{path: filepath.Join(dir, "workboard.json"), now: time.Now}
-	b, err := os.ReadFile(s.path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return s, nil
-		}
-		return nil, fmt.Errorf("workboard: read %s: %w", s.path, err)
-	}
-	if len(b) == 0 {
-		return s, nil
-	}
+	s := &Store{now: time.Now}
 	var st diskState
-	if err := json.Unmarshal(b, &st); err != nil {
-		return nil, fmt.Errorf("workboard: parse %s: %w", s.path, err)
+	path, err := jsonstore.LoadFrom(dir, "workboard.json", &st)
+	if err != nil {
+		return nil, fmt.Errorf("workboard: %w", err)
 	}
+	s.path = path
 	for _, t := range st.Tasks {
 		if t == nil {
 			continue
@@ -839,11 +825,7 @@ func (s *Store) find(id string) *Task {
 }
 
 func (s *Store) saveLocked() error {
-	b, err := json.MarshalIndent(diskState{Version: storeVersion, Tasks: s.tasks}, "", "  ")
-	if err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(s.path, b, 0o644)
+	return jsonstore.Save(s.path, diskState{Version: storeVersion, Tasks: s.tasks})
 }
 
 func (s *Store) dependsOnLocked(startID, targetID string, seen map[string]bool) bool {
