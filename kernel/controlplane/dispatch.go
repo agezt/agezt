@@ -10,11 +10,12 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// Phase 2.3 (commit A): a declarative command registry that MIRRORS the
-// 319-case switch in handleConn. Nothing dispatches through it yet — commit B
-// swaps handleConn onto it and deletes the switch plus tenantTokenAllows.
-// Until then, dispatch_registry_test.go pins the registry 1:1 against the
-// protocol constants, the legacy switch, and the legacy tenant allowlist.
+// Phase 2.3: the declarative command registry handleConn dispatches through.
+// Every protocol command is a commandSpec registered by its subsystem
+// (registry.go's registerAllCommands); handleConn authenticates, looks the
+// command up, and hands a DispatchCtx to the spec's handler.
+// dispatch_registry_test.go pins the registry 1:1 against the protocol
+// constants; tenant_auth_test.go sweeps the TenantAllowed surface end-to-end.
 
 // DispatchCtx carries everything a command handler needs for one request.
 // K is the pre-resolved kernel for the request (the primary kernel, or the
@@ -34,7 +35,7 @@ type DispatchCtx struct {
 type Handler func(*DispatchCtx)
 
 // StreamMode classifies how a command uses the connection after the request
-// is read (drives deadline handling and disconnect-cancellation in commit B).
+// is read (drives deadline handling and disconnect-cancellation in dispatch).
 type StreamMode int
 
 const (
@@ -43,19 +44,37 @@ const (
 	// StreamEvents: emits RespEvent progress before the final result, but is
 	// bounded work — the read/write deadline stays in place.
 	StreamEvents
-	// StreamLive: long-lived streaming (subscription or LLM stream) — the
-	// deadline is cleared and the handler's context is cancelled when the
-	// client disconnects.
+	// StreamLive: long-lived streaming (subscription or LLM stream) —
+	// dispatch wraps the handler's context via cancelOnConnClose, which
+	// clears the read deadline and cancels the context when the client
+	// disconnects. A StreamLive handler must NOT call cancelOnConnClose (or
+	// otherwise read the conn) itself: two goroutines reading one conn race.
+	// A handler that needs its own connection lifecycle (pulse_subscribe's
+	// timeout-tolerant disconnect watcher) stays StreamNone and manages the
+	// deadline itself — see its registration comment.
 	StreamLive
 )
 
-// commandSpec declares one protocol command: its handler plus the metadata
-// that today lives implicitly in handleConn and tenantTokenAllows.
+// commandSpec declares one protocol command: its handler plus the dispatch
+// metadata handleConn acts on.
 //
-//   - TenantAllowed: a TENANT token may invoke it (copied verbatim from the
-//     tenantTokenAllows allowlist; deny-by-default).
+//   - TenantAllowed: a TENANT token may invoke it — the deny-by-default
+//     allowlist (M38). It marks exactly the commands that route to the
+//     caller's kernel via kernelFor/edictFor: running and cancelling the
+//     tenant's own work, managing the tenant's own Edict policy, and
+//     observing the tenant's own isolated subsystems (M128: the read-only
+//     journal folds — runs, tools, edict, rate-limit, netguard, webhooks,
+//     memory, world, approvals, plan, provider-routing, schedule-firing,
+//     warden). Everything else — tenant-registry management (incl.
+//     cross-tenant tenant_stats), daemon-global halt/resume/shutdown, pulse,
+//     durable-policy compaction (a mutation), and anything reading the
+//     primary kernel — requires the primary token. New tenant-routed commands
+//     must set it explicitly; forgetting to is the safe failure (the tenant
+//     is denied, not over-granted). TestTenantToken_* sweeps both directions
+//     end-to-end.
 //   - TenantRouted: the handler resolves its kernel per-request via
-//     kernelFor / edictFor / projectJournal rather than using s.k directly.
+//     kernelFor / edictFor / projectJournal rather than using s.k directly
+//     (dispatch also pre-resolves dc.K via kernelFor at the boundary).
 //     Invariant (TestRegistry_TenantAllowedImpliesTenantRouted): every
 //     TenantAllowed command must be TenantRouted, or a tenant token would
 //     read the PRIMARY kernel's data. whoami is the sole, explicit exception.

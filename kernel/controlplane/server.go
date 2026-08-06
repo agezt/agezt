@@ -458,14 +458,17 @@ func (s *Server) acceptLoop(ctx context.Context) {
 }
 
 // cancelOnConnClose derives a child context that is cancelled when the client
-// closes conn. For synchronous request/response handlers (research/council/
-// conductor) a disconnected client means the result can no longer be delivered,
-// so continuing to spend model calls is pure waste. It generalizes the run
-// disconnect sentinel in handleRun: since these handlers read exactly one
-// request and the client then sends nothing, a blocking Read unblocks only on
-// disconnect (or when the handler itself returns and handleConn closes the
-// conn, at which point the cancel is a harmless no-op). The caller must
-// defer the returned cancel. Unlike run, this is always on: these handlers have
+// closes conn. Dispatch applies it to every StreamLive command (research/
+// council/conductor/planner/chat-summarize): a disconnected client means the
+// result can no longer be delivered, so continuing to spend model calls is
+// pure waste. It generalizes the run disconnect sentinel in handleRun: since
+// these handlers read exactly one request and the client then sends nothing, a
+// blocking Read unblocks only on disconnect (or when the handler itself
+// returns and handleConn closes the conn, at which point the cancel is a
+// harmless no-op). The caller must defer the returned cancel, and handlers
+// must never layer a second call on the same conn — two goroutines reading one
+// conn race (pulse_subscribe runs its own watcher and is therefore dispatched
+// without this wrapper). Unlike run, this is always on: these handlers have
 // no detach path, so there is nothing to preserve by keeping the work alive.
 func cancelOnConnClose(ctx context.Context, conn net.Conn) (context.Context, context.CancelFunc) {
 	cctx, cancel := context.WithCancel(ctx)
@@ -515,19 +518,29 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	// Authentication + authorization (M38). The primary (admin) token
 	// authorizes everything, on any tenant. Otherwise the request must name a
 	// tenant AND present that tenant's own token: the principal is then that
-	// tenant, restricted to an allowlist of tenant-routed commands and pinned
-	// to its own tenant. This completes M14 tenant isolation on the control
-	// side — a tenant manages its own runs/policy without the primary token,
-	// and cannot touch another tenant or daemon-global state.
-	if !s.tokenIsPrimary(req.Token) {
+	// tenant, restricted to the TenantAllowed subset of the command registry
+	// and pinned to its own tenant. This completes M14 tenant isolation on the
+	// control side — a tenant manages its own runs/policy without the primary
+	// token, and cannot touch another tenant or daemon-global state.
+	primary := s.tokenIsPrimary(req.Token)
+	var tenantID string
+	if !primary {
 		reqTenant, _ := req.Args["tenant"].(string)
 		reqTenant = strings.TrimSpace(reqTenant)
 		if s.tenants == nil || reqTenant == "" || !s.tenants.Authorize(reqTenant, req.Token) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unauthorized"})
 			return
 		}
-		// Authorized as the named tenant. Restrict to tenant-safe commands.
-		if !tenantTokenAllows(req.Cmd) {
+		tenantID = reqTenant
+	}
+
+	// Command lookup happens AFTER the auth gate, and the tenant allowlist is
+	// applied BEFORE unknown commands are distinguished: a tenant token probing
+	// an unregistered command gets the same deny-by-default "forbidden" the
+	// legacy tenantTokenAllows gate produced, not an "unknown command" oracle.
+	spec, known := commandRegistry[req.Cmd]
+	if !primary {
+		if !known || !spec.TenantAllowed {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError,
 				Error: fmt.Sprintf("forbidden: a tenant token cannot run %q (primary token required)", req.Cmd)})
 			return
@@ -537,651 +550,36 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		if req.Args == nil {
 			req.Args = map[string]any{}
 		}
-		req.Args["tenant"] = reqTenant
+		req.Args["tenant"] = tenantID
+	}
+	if !known {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
+		return
 	}
 
-	switch req.Cmd {
-	case CmdVersion:
-		s.handleVersion(conn, req)
-	case CmdRun:
-		s.handleRun(ctx, conn, req)
-	case CmdHalt:
-		s.handleHalt(conn, req)
-	case CmdResume:
-		s.handleResume(conn, req)
-	case CmdWhy:
-		s.handleWhy(conn, req)
-	case CmdWhoami:
-		s.handleWhoami(conn, req)
-	case CmdJournalVerify:
-		s.handleVerify(conn, req)
-	case CmdArtifactGet:
-		s.handleArtifactGet(conn, req)
-	case CmdArtifactList:
-		s.handleArtifactList(conn, req)
-	case CmdArtifactDelete:
-		s.handleArtifactDelete(conn, req)
-	case CmdArtifactCollect:
-		s.handleArtifactCollect(conn, req)
-	case CmdDataCollections:
-		s.handleDataCollections(conn, req)
-	case CmdDataRecords:
-		s.handleDataRecords(conn, req)
-	case CmdDataInsert:
-		s.handleDataInsert(conn, req)
-	case CmdDataUpdate:
-		s.handleDataUpdate(conn, req)
-	case CmdDataDelete:
-		s.handleDataDelete(conn, req)
-	case CmdDataCreateCollection:
-		s.handleDataCreateCollection(conn, req)
-	case CmdDataDropCollection:
-		s.handleDataDropCollection(conn, req)
-	case CmdCouncilMembers:
-		s.handleCouncilMembers(conn, req)
-	case CmdCouncilAsk:
-		s.handleCouncilAsk(ctx, conn, req)
-	case CmdCouncilSet:
-		s.handleCouncilSet(conn, req)
-	case CmdConductorRoles:
-		s.handleConductorRoles(conn, req)
-	case CmdConductorAsk:
-		s.handleConductorAsk(ctx, conn, req)
-	case CmdResearchAsk:
-		s.handleResearchAsk(ctx, conn, req)
-	case CmdApprovals:
-		s.handleApprovals(conn, req)
-	case CmdApprovalsLog:
-		s.handleApprovalsLog(conn, req)
-	case CmdApprovalsStats:
-		s.handleApprovalsStats(conn, req)
-	case CmdDecide:
-		s.handleDecide(conn, req)
-	case CmdPlan:
-		s.handlePlan(ctx, conn, req)
-	case CmdPlanHistory:
-		s.handlePlanHistory(conn, req)
-	case CmdPlanStats:
-		s.handlePlanStats(conn, req)
-	case CmdCatalogSync:
-		s.handleCatalogSync(ctx, conn, req)
-	case CmdCatalogList:
-		s.handleCatalogList(conn, req)
-	case CmdCatalogDiscover:
-		s.handleCatalogDiscover(ctx, conn, req)
-	case CmdProviderReload:
-		s.handleProviderReload(conn, req)
-	case CmdProviderConnect:
-		s.handleProviderConnect(conn, req)
-	case CmdProviderProbe:
-		s.handleProviderProbe(conn, req)
-	case CmdWhatsAppGatewayStatus:
-		s.handleWhatsAppGatewayStatus(conn, req)
-	case CmdWhatsAppGatewayQR:
-		s.handleWhatsAppGatewayQR(conn, req)
-	case CmdProviderLog:
-		s.handleProviderLog(conn, req)
-	case CmdProviderStats:
-		s.handleProviderStats(conn, req)
-	case CmdProviderRejections:
-		s.handleProviderRejections(conn, req)
-	case CmdPulseSubscribe:
-		s.handlePulseSubscribe(ctx, conn, req)
-	case CmdPlanGenerate:
-		s.handlePlanGenerate(ctx, conn, req)
-	case CmdPlanRefine:
-		s.handlePlanRefine(ctx, conn, req)
-	case CmdBudget:
-		s.handleBudget(conn, req)
-	case CmdBudgetSet:
-		s.handleBudgetSet(conn, req)
-	case CmdToolList:
-		s.handleToolList(conn, req)
-	case CmdToolLog:
-		s.handleToolLog(conn, req)
-	case CmdToolStats:
-		s.handleToolStats(conn, req)
-	case CmdExecutionProfiles:
-		s.handleExecutionProfiles(conn, req)
-	case CmdExecutionProfileShow:
-		s.handleExecutionProfileShow(conn, req)
-	case CmdExecutionProfileCheck:
-		s.handleExecutionProfileCheck(conn, req)
-	case CmdCacheStats:
-		s.handleCacheStats(conn, req)
-	case CmdStatus:
-		s.handleStatus(conn, req)
-	case CmdWardenLog:
-		s.handleWardenLog(conn, req)
-	case CmdWardenStats:
-		s.handleWardenStats(conn, req)
-	case CmdPluginList:
-		s.handlePluginList(conn, req)
-	case CmdShutdown:
-		s.handleShutdown(conn, req)
-	case CmdJournalTail:
-		s.handleJournalTail(conn, req)
-	case CmdEdictOverlay:
-		s.handleEdictOverlay(conn, req)
-	case CmdEdictCompact:
-		s.handleEdictCompact(conn, req)
-	case CmdEdictLog:
-		s.handleEdictLog(conn, req)
-	case CmdEdictStats:
-		s.handleEdictStats(conn, req)
-	case CmdEdictShow:
-		s.handleEdictShow(conn, req)
-	case CmdEdictTest:
-		s.handleEdictTest(conn, req)
-	case CmdEdictDenyList:
-		s.handleEdictDenyList(conn, req)
-	case CmdEdictDenyAdd:
-		s.handleEdictDenyAdd(conn, req)
-	case CmdEdictDenyRemove:
-		s.handleEdictDenyRemove(conn, req)
-	case CmdEdictSetLevel:
-		s.handleEdictSetLevel(conn, req)
-	case CmdEdictSetMode:
-		s.handleEdictSetMode(conn, req)
-	case CmdStateList:
-		s.handleStateList(conn, req)
-	case CmdStateGet:
-		s.handleStateGet(conn, req)
-	case CmdRunsList:
-		s.handleRunsList(conn, req)
-	case CmdReaperScan:
-		s.handleReaperScan(conn, req)
-	case CmdRunsStats:
-		s.handleRunsStats(conn, req)
-	case CmdCancelRun:
-		s.handleCancelRun(conn, req)
-	case CmdRunPause:
-		s.handleRunPause(conn, req)
-	case CmdRunResume:
-		s.handleRunResume(conn, req)
-	case CmdRunStep:
-		s.handleRunStep(conn, req)
-	case CmdRunSteer:
-		s.handleRunSteer(conn, req)
-	case CmdRunIntervene:
-		s.handleRunIntervene(conn, req)
-	case CmdConfig:
-		s.handleConfig(conn, req)
-	case CmdConfigCenterSet:
-		s.handleConfigCenterSet(conn, req)
-	case CmdConfigCenterGet:
-		s.handleConfigCenterGet(conn, req)
-	case CmdConfigCenterList:
-		s.handleConfigCenterList(conn, req)
-	case CmdConfigCenterDelete:
-		s.handleConfigCenterDelete(conn, req)
-	case CmdConfigCenterSetRating:
-		s.handleConfigCenterSetRating(conn, req)
-	case CmdConfigCenterSetAccess:
-		s.handleConfigCenterSetAccess(conn, req)
-	case CmdConfigCenterAccessLog:
-		s.handleConfigCenterAccessLog(conn, req)
-	case CmdConfigCenterAudit:
-		s.handleConfigCenterAudit(conn, req)
-	case CmdConfigCenterHealth:
-		s.handleConfigCenterHealth(conn, req)
-	case CmdJournalGrep:
-		s.handleJournalGrep(conn, req)
-	case CmdJournalHead:
-		s.handleJournalHead(conn, req)
-	case CmdJournalExport:
-		s.handleJournalExport(conn, req)
-	case CmdRedactTest:
-		s.handleRedactTest(conn, req)
-	case CmdRateLimitLog:
-		s.handleRateLimitLog(conn, req)
-	case CmdRateLimitStats:
-		s.handleRateLimitStats(conn, req)
-	case CmdNetguardLog:
-		s.handleNetguardLog(conn, req)
-	case CmdWebhookLog:
-		s.handleWebhookLog(conn, req)
-	case CmdWebhookStats:
-		s.handleWebhookStats(conn, req)
-	case CmdMemoryAdd:
-		s.handleMemoryAdd(conn, req)
-	case CmdMemorySupersede:
-		s.handleMemorySupersede(conn, req)
-	case CmdMemoryList:
-		s.handleMemoryList(conn, req)
-	case CmdMemoryLog:
-		s.handleMemoryLog(conn, req)
-	case CmdMemoryGet:
-		s.handleMemoryGet(conn, req)
-	case CmdMemorySearch:
-		s.handleMemorySearch(conn, req)
-	case CmdMemoryConsolidate:
-		s.handleMemoryConsolidate(conn, req)
-	case CmdProfileRebuild:
-		s.handleProfileRebuild(conn, req)
-	case CmdMemoryForget:
-		s.handleMemoryForget(conn, req)
-	case CmdMemoryPromote:
-		s.handleMemoryPromote(conn, req)
-	case CmdMemoryPrune:
-		s.handleMemoryPrune(conn, req)
-	case CmdMemoryTidy:
-		s.handleMemoryTidy(conn, req)
-	case CmdMemoryBulkForget:
-		s.handleMemoryBulkForget(conn, req)
-	case CmdMemoryFindRelated:
-		s.handleMemoryFindRelated(conn, req)
-	case CmdMemoryAudit:
-		s.handleMemoryAudit(conn, req)
-	case CmdMemoryClean:
-		s.handleMemoryClean(conn, req)
-	case CmdChatSuggestions:
-		s.handleChatSuggestions(conn, req)
-	case CmdScheduleAdd:
-		s.handleScheduleAdd(conn, req)
-	case CmdScheduleList:
-		s.handleScheduleList(conn, req)
-	case CmdScheduleSystemTasks:
-		s.handleScheduleSystemTasks(conn, req)
-	case CmdScheduleRemove:
-		s.handleScheduleRemove(conn, req)
-	case CmdScheduleRun:
-		s.handleScheduleRun(conn, req)
-	case CmdScheduleEnable:
-		s.handleScheduleEnable(conn, req)
-	case CmdScheduleEdit:
-		s.handleScheduleEdit(conn, req)
-	case CmdScheduleFires:
-		s.handleScheduleFires(conn, req)
-	case CmdScheduleStats:
-		s.handleScheduleStats(conn, req)
-	case CmdScheduleTest:
-		s.handleScheduleTest(conn, req)
-	case CmdTenantCreate:
-		s.handleTenantCreate(conn, req)
-	case CmdTenantList:
-		s.handleTenantList(conn, req)
-	case CmdTenantRelease:
-		s.handleTenantRelease(conn, req)
-	case CmdTenantRemove:
-		s.handleTenantRemove(conn, req)
-	case CmdTenantToken:
-		s.handleTenantToken(conn, req)
-	case CmdTenantStats:
-		s.handleTenantStats(conn, req)
-	case CmdDiskStats:
-		s.handleDiskStats(conn, req)
-	case CmdStorageStats:
-		s.handleStorageStats(conn, req)
-	case CmdJournalStats:
-		s.handleJournalStats(conn, req)
-	case CmdChangelog:
-		s.handleChangelog(conn, req)
-	case CmdWorldAdd:
-		s.handleWorldAdd(conn, req)
-	case CmdWorldEdit:
-		s.handleWorldEdit(conn, req)
-	case CmdWorldRelate:
-		s.handleWorldRelate(conn, req)
-	case CmdWorldResolve:
-		s.handleWorldResolve(conn, req)
-	case CmdWorldNeighbors:
-		s.handleWorldNeighbors(conn, req)
-	case CmdWorldLog:
-		s.handleWorldLog(conn, req)
-	case CmdWorldList:
-		s.handleWorldList(conn, req)
-	case CmdWorldGet:
-		s.handleWorldGet(conn, req)
-	case CmdWorldForget:
-		s.handleWorldForget(conn, req)
-	case CmdSkillList:
-		s.handleSkillList(conn, req)
-	case CmdSkillGet:
-		s.handleSkillGet(conn, req)
-	case CmdSkillHistory:
-		s.handleSkillHistory(conn, req)
-	case CmdSkillPromote:
-		s.handleSkillPromote(conn, req)
-	case CmdSkillQuarantine:
-		s.handleSkillQuarantine(conn, req)
-	case CmdSkillArchive:
-		s.handleSkillArchive(conn, req)
-	case CmdSkillRevert:
-		s.handleSkillRevert(conn, req)
-	case CmdSkillRestore:
-		s.handleSkillRestore(conn, req)
-	case CmdSkillShare:
-		s.handleSkillShare(conn, req)
-	case CmdSkillReassign:
-		s.handleSkillReassign(conn, req)
-	case CmdSkillImport:
-		s.handleSkillImport(conn, req)
-	case CmdSkillHygiene:
-		s.handleSkillHygiene(conn, req)
-	case CmdSkillFiles:
-		s.handleSkillFiles(conn, req)
-	case CmdSkillReadFile:
-		s.handleSkillReadFile(conn, req)
-	case CmdStandingList:
-		s.handleStandingList(conn, req)
-	case CmdStandingAdd:
-		s.handleStandingAdd(conn, req)
-	case CmdStandingEdit:
-		s.handleStandingEdit(conn, req)
-	case CmdStandingSetEnabled:
-		s.handleStandingSetEnabled(conn, req)
-	case CmdStandingRemove:
-		s.handleStandingRemove(conn, req)
-	case CmdStandingFire:
-		s.handleStandingFire(conn, req)
-	case CmdAgentList:
-		s.handleAgentList(conn, req)
-	case CmdAgentAdd:
-		s.handleAgentAdd(conn, req)
-	case CmdAgentEdit:
-		s.handleAgentEdit(conn, req)
-	case CmdAgentSetEnabled:
-		s.handleAgentSetEnabled(conn, req)
-	case CmdAgentRemove:
-		s.handleAgentRemove(conn, req)
-	case CmdAgentTaskUpdate:
-		s.handleAgentTaskUpdate(conn, req)
-	case CmdAgentImpact:
-		s.handleAgentImpact(conn, req)
-	case CmdAgentTombstone:
-		s.handleAgentTombstone(conn, req)
-	case CmdAgentGraveyard:
-		s.handleAgentGraveyard(conn, req)
-	case CmdAgentPermissions:
-		s.handleAgentPermissions(conn, req)
-	case CmdAgentCapabilities:
-		s.handleAgentCapabilities(conn, req)
-	case CmdAgentActivity:
-		s.handleAgentActivity(conn, req)
-	case CmdAgentRepairStatus:
-		s.handleAgentRepairStatus(conn, req)
-	case CmdAgentRepair:
-		s.handleAgentRepair(conn, req)
-	case CmdAgentEscalations:
-		s.handleAgentEscalations(conn, req)
-	case CmdAgentWake:
-		s.handleAgentWake(conn, req)
-	case CmdAgentResolve:
-		s.handleAgentResolve(conn, req)
-	case CmdAgentRetire:
-		s.handleAgentRetire(conn, req)
-	case CmdAgentRevive:
-		s.handleAgentRevive(conn, req)
-	case CmdToolforgeList:
-		s.handleToolforgeList(conn, req)
-	case CmdToolforgeShow:
-		s.handleToolforgeShow(conn, req)
-	case CmdToolforgeDraft:
-		s.handleToolforgeDraft(conn, req)
-	case CmdToolforgeEdit:
-		s.handleToolforgeEdit(conn, req)
-	case CmdToolforgeTest:
-		s.handleToolforgeTest(conn, req)
-	case CmdToolforgePromote:
-		s.handleToolforgePromote(conn, req)
-	case CmdToolforgeQuarantine:
-		s.handleToolforgeQuarantine(conn, req)
-	case CmdToolforgeRemove:
-		s.handleToolforgeRemove(conn, req)
-	case CmdMCPList:
-		s.handleMCPList(conn, req)
-	case CmdMCPAdd:
-		s.handleMCPAdd(conn, req)
-	case CmdMCPAttach:
-		s.handleMCPAttach(conn, req)
-	case CmdMCPDetach:
-		s.handleMCPDetach(conn, req)
-	case CmdMCPSetEnabled:
-		s.handleMCPSetEnabled(conn, req)
-	case CmdMCPRemove:
-		s.handleMCPRemove(conn, req)
-	case CmdACPAgents:
-		s.handleACPAgents(ctx, conn, req)
-	case CmdToolboxDetect:
-		s.handleToolboxDetect(ctx, conn, req)
-	case CmdToolboxOutdated:
-		s.handleToolboxOutdated(ctx, conn, req)
-	case CmdToolboxInstall:
-		s.handleToolboxInstall(ctx, conn, req)
-	case CmdMarketList:
-		s.handleMarketList(conn, req)
-	case CmdMarketShow:
-		s.handleMarketShow(conn, req)
-	case CmdMarketInstall:
-		s.handleMarketInstall(ctx, conn, req)
-	case CmdMarketUninstall:
-		s.handleMarketUninstall(ctx, conn, req)
-	case CmdMarketSources:
-		s.handleMarketSources(conn, req)
-	case CmdMarketAddSource:
-		s.handleMarketAddSource(conn, req)
-	case CmdMarketRemoveSource:
-		s.handleMarketRemoveSource(conn, req)
-	case CmdMarketSync:
-		s.handleMarketSync(ctx, conn, req)
-	case CmdWorkflowList:
-		s.handleWorkflowList(conn, req)
-	case CmdWorkflowShow:
-		s.handleWorkflowShow(conn, req)
-	case CmdWorkflowSave:
-		s.handleWorkflowSave(conn, req)
-	case CmdWorkflowRestore:
-		s.handleWorkflowRestore(conn, req)
-	case CmdWorkflowRemove:
-		s.handleWorkflowRemove(conn, req)
-	case CmdWorkflowSetEnabled:
-		s.handleWorkflowSetEnabled(conn, req)
-	case CmdWorkflowRun:
-		s.handleWorkflowRun(conn, req)
-	case CmdWorkflowDraft:
-		s.handleWorkflowDraft(conn, req)
-	case CmdWorkflowRefine:
-		s.handleWorkflowRefine(conn, req)
-	case CmdWorkflowRuns:
-		s.handleWorkflowRuns(conn, req)
-	case CmdWorkflowTemplates:
-		s.handleWorkflowTemplates(conn, req)
-	case CmdWorkflowWebhook:
-		s.handleWorkflowWebhook(conn, req)
-	case CmdWorkflowTestNode:
-		s.handleWorkflowTestNode(conn, req)
-	case CmdSandboxList:
-		s.handleSandboxList(conn, req)
-	case CmdSandboxFile:
-		s.handleSandboxFile(conn, req)
-	case CmdSandboxDelete:
-		s.handleSandboxDelete(conn, req)
-	case CmdConfigSchema:
-		s.handleConfigSchema(conn, req)
-	case CmdConfigValues:
-		s.handleConfigValues(conn, req)
-	case CmdChannelList:
-		s.handleChannelList(conn, req)
-	case CmdNodeRegistry:
-		s.handleNodeRegistry(conn, req)
-	case CmdChannelAccountSet:
-		s.handleChannelAccountSet(conn, req)
-	case CmdChannelAccountRemove:
-		s.handleChannelAccountRemove(conn, req)
-	case CmdChannelOAuthStart:
-		s.handleChannelOAuthStart(conn, req)
-	case CmdChannelOAuthCallback:
-		s.handleChannelOAuthCallback(ctx, conn, req)
-	case CmdChannelOAuthStatus:
-		s.handleChannelOAuthStatus(conn, req)
-	case CmdProviderOAuthStart:
-		s.handleProviderOAuthStart(conn, req)
-	case CmdProviderOAuthStatus:
-		s.handleProviderOAuthStatus(conn, req)
-	case CmdProviderOAuthImport:
-		s.handleProviderOAuthImport(conn, req)
-	case CmdProviderOAuthLogout:
-		s.handleProviderOAuthLogout(conn, req)
-	case CmdConfigSet:
-		s.handleConfigSet(conn, req)
-	case CmdConfigSchemaRegister:
-		s.handleConfigSchemaRegister(conn, req)
-	case CmdConfigSchemaUnregister:
-		s.handleConfigSchemaUnregister(conn, req)
-	case CmdProviderKeyList:
-		s.handleProviderKeyList(conn, req)
-	case CmdProviderKeyAdd:
-		s.handleProviderKeyAdd(conn, req)
-	case CmdProviderKeyActivate:
-		s.handleProviderKeyActivate(conn, req)
-	case CmdProviderKeyRemove:
-		s.handleProviderKeyRemove(conn, req)
-	case CmdRoutingGet:
-		s.handleRoutingGet(conn, req)
-	case CmdRoutingSet:
-		s.handleRoutingSet(conn, req)
-	case CmdChainsGet:
-		s.handleChainsGet(conn, req)
-	case CmdChainsSet:
-		s.handleChainsSet(conn, req)
-	case CmdPersonaGet:
-		s.handlePersonaGet(conn, req)
-	case CmdPersonaSet:
-		s.handlePersonaSet(conn, req)
-	case CmdPromptsGet:
-		s.handlePromptsGet(conn, req)
-	case CmdPromptsSet:
-		s.handlePromptsSet(conn, req)
-	case CmdChatSummarize:
-		s.handleChatSummarize(ctx, conn, req)
-	case CmdStandingWhy:
-		s.handleStandingWhy(conn, req)
-	case CmdReflectRun:
-		s.handleReflectRun(conn, req)
-	case CmdReflectShow:
-		s.handleReflectShow(conn, req)
-	case CmdPulseStatus:
-		s.handlePulseStatus(conn, req)
-	case CmdPulseAsks:
-		s.handlePulseAsks(conn, req)
-	case CmdPulseAskResolve:
-		s.handlePulseAskResolve(conn, req)
-	case CmdPulsePause:
-		s.handlePulsePause(conn, req)
-	case CmdPulseResume:
-		s.handlePulseResume(conn, req)
-	case CmdPulseBeat:
-		s.handlePulseBeat(conn, req)
-	case CmdPulseCadence:
-		s.handlePulseCadence(conn, req)
-	case CmdPulseDial:
-		s.handlePulseDial(conn, req)
-	case CmdPulseFlush:
-		s.handlePulseFlush(conn, req)
-	case CmdPulseWatch:
-		s.handlePulseWatch(conn, req)
-	case CmdPulseProbe:
-		s.handlePulseProbe(conn, req)
-	case CmdPulseUnwatch:
-		s.handlePulseUnwatch(conn, req)
-	case CmdPulseQuiet:
-		s.handlePulseQuiet(conn, req)
-	case CmdInbox:
-		s.handleInbox(conn, req)
-	case CmdSend:
-		s.handleSend(conn, req)
-	case CmdBoardRead:
-		s.handleBoardRead(conn, req)
-	case CmdBoardHelp:
-		s.handleBoardHelp(conn, req)
-	case CmdBoardSend:
-		s.handleBoardSend(conn, req)
-	case CmdBoardInbox:
-		s.handleBoardInbox(conn, req)
-	case CmdBoardAck:
-		s.handleBoardAck(conn, req)
-	case CmdBoardReplies:
-		s.handleBoardReplies(conn, req)
-	case CmdBoardGet:
-		s.handleBoardGet(conn, req)
-	case CmdWorkboardList:
-		s.handleWorkboardList(conn, req)
-	case CmdWorkboardLanes:
-		s.handleWorkboardLanes(conn, req)
-	case CmdWorkboardShow:
-		s.handleWorkboardShow(conn, req)
-	case CmdWorkboardCreate:
-		s.handleWorkboardCreate(conn, req)
-	case CmdWorkboardClaim:
-		s.handleWorkboardClaim(conn, req)
-	case CmdWorkboardHeartbeat:
-		s.handleWorkboardHeartbeat(conn, req)
-	case CmdWorkboardComment:
-		s.handleWorkboardComment(conn, req)
-	case CmdWorkboardBlock:
-		s.handleWorkboardBlock(conn, req)
-	case CmdWorkboardFail:
-		s.handleWorkboardFail(conn, req)
-	case CmdWorkboardUnblock:
-		s.handleWorkboardUnblock(conn, req)
-	case CmdWorkboardComplete:
-		s.handleWorkboardComplete(conn, req)
-	case CmdWorkboardProve:
-		s.handleWorkboardProve(conn, req)
-	case CmdWorkboardSeat:
-		s.handleWorkboardSeat(conn, req)
-	case CmdSeatList:
-		s.handleSeatList(conn, req)
-	case CmdSeatCreate:
-		s.handleSeatCreate(conn, req)
-	case CmdSeatDelete:
-		s.handleSeatDelete(conn, req)
-	case CmdOKRList:
-		s.handleOKRList(conn, req)
-	case CmdOKRShow:
-		s.handleOKRShow(conn, req)
-	case CmdOKRCreate:
-		s.handleOKRCreate(conn, req)
-	case CmdOKRKeyResult:
-		s.handleOKRKeyResult(conn, req)
-	case CmdOKRLink:
-		s.handleOKRLink(conn, req)
-	case CmdOKRUnlink:
-		s.handleOKRUnlink(conn, req)
-	case CmdOKRArchive:
-		s.handleOKRArchive(conn, req)
-	case CmdTasteList:
-		s.handleTasteList(conn, req)
-	case CmdTasteCreate:
-		s.handleTasteCreate(conn, req)
-	case CmdTasteDelete:
-		s.handleTasteDelete(conn, req)
-	case CmdWorkboardArchive:
-		s.handleWorkboardArchive(conn, req)
-	case CmdWorkboardLink:
-		s.handleWorkboardLink(conn, req)
-	case CmdWorkboardPolicy:
-		s.handleWorkboardPolicy(conn, req)
-	case CmdWorkboardDepend:
-		s.handleWorkboardDepend(conn, req)
-	case CmdWorkboardReclaim:
-		s.handleWorkboardReclaim(conn, req)
-	case CmdWorkboardSweep:
-		s.handleWorkboardSweep(conn, req)
-	case CmdWorkboardDispatch:
-		s.handleWorkboardDispatch(conn, req)
-	case CmdWorkboardWatch:
-		s.handleWorkboardWatch(conn, req)
-	case CmdAutonomyFeed:
-		s.handleAutonomyFeed(conn, req)
-	case CmdUpdateCheck:
-		s.handleUpdateCheck(conn, req)
-	case CmdUpdateApply:
-		s.handleUpdateApply(conn, req)
-	default:
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown command: " + req.Cmd})
+	dc := &DispatchCtx{Ctx: ctx, Conn: conn, Req: req, S: s, K: s.k, Tenant: tenantID, Primary: primary}
+	if spec.TenantRouted {
+		// Resolve the request's kernel once at the dispatch boundary. For a
+		// primary caller without a tenant arg kernelFor("") == s.k, so
+		// tenant-routed commands cost nothing extra in the common case.
+		k, err := s.kernelFor(tenantOf(req))
+		if err != nil {
+			s.fail(conn, req, err)
+			return
+		}
+		dc.K = k
 	}
+	if spec.Streaming == StreamLive {
+		// Long-lived streaming work: tie the handler's context to the client
+		// connection so a disconnect cancels the (model-heavy) work instead of
+		// spending it into a closed connection. Handlers receive the tied
+		// context as their ctx parameter and must NOT call cancelOnConnClose
+		// themselves — two goroutines reading one conn would race.
+		cctx, cancel := cancelOnConnClose(ctx, conn)
+		defer cancel()
+		dc.Ctx = cctx
+	}
+	spec.Handler(dc)
 }
 
 func (s *Server) writeResp(conn net.Conn, resp Response) {

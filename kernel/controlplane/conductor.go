@@ -54,11 +54,9 @@ func (s *Server) handleConductorAsk(ctx context.Context, conn net.Conn, req Requ
 	if corr == "" {
 		corr = s.k.NewCorrelation()
 	}
-	// A disconnected client can't receive the answer — cancel the Thinker→
-	// Worker→Verifier loop instead of spending it into a closed connection.
-	ctx, cancel := cancelOnConnClose(ctx, conn)
-	defer cancel()
-
+	// ctx is already tied to the connection by dispatch (StreamLive): a
+	// disconnected client can't receive the answer, so the Thinker→Worker→
+	// Verifier loop is cancelled instead of being spent into a closed connection.
 	res, err := s.k.Conduct(ctx, corr, runtime.ConductorConfig{
 		Task:      task,
 		Thinker:   stringArg(req.Args, "thinker"),

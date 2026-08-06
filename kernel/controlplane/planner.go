@@ -55,11 +55,9 @@ func (s *Server) handlePlanGenerate(ctx context.Context, conn net.Conn, req Requ
 		return
 	}
 
-	// A disconnected client can't receive the plan — cancel generation instead
-	// of spending it into a closed connection.
-	ctx, cancel := cancelOnConnClose(ctx, conn)
-	defer cancel()
-
+	// ctx is already tied to the connection by dispatch (StreamLive): a
+	// disconnected client can't receive the plan, so generation is cancelled
+	// instead of being spent into a closed connection.
 	rawJSON, plan, err := planner.Generate(ctx, cfg, intent)
 	if err != nil {
 		s.fail(conn, req, err)
@@ -124,11 +122,9 @@ func (s *Server) handlePlanRefine(ctx context.Context, conn net.Conn, req Reques
 		return
 	}
 
-	// A disconnected client can't receive the revision — cancel refinement
-	// instead of spending it into a closed connection.
-	ctx, cancel := cancelOnConnClose(ctx, conn)
-	defer cancel()
-
+	// ctx is already tied to the connection by dispatch (StreamLive): a
+	// disconnected client can't receive the revision, so refinement is
+	// cancelled instead of being spent into a closed connection.
 	rawJSON, revised, err := planner.Refine(ctx, cfg, original, feedback)
 	if err != nil {
 		s.fail(conn, req, err)

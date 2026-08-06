@@ -35,11 +35,9 @@ func (s *Server) handleResearchAsk(ctx context.Context, conn net.Conn, req Reque
 		}
 	}
 
-	// A disconnected client can't receive the report — cancel the (model-heavy)
-	// harness instead of spending it into a closed connection.
-	ctx, cancel := cancelOnConnClose(ctx, conn)
-	defer cancel()
-
+	// ctx is already tied to the connection by dispatch (StreamLive): a
+	// disconnected client can't receive the report, so the (model-heavy)
+	// harness is cancelled instead of being spent into a closed connection.
 	rep, err := s.k.Research(ctx, corr, question, runtime.ResearchOptions{
 		MaxSubQuestions: dlInt(req.Args, "max_sub_questions"),
 		MaxSources:      dlInt(req.Args, "max_sources"),

@@ -9,11 +9,10 @@ import (
 	"testing"
 )
 
-// Phase 2.3 commit-A bridge tests: the command registry must be a PERFECT
-// mirror of the legacy dispatch surface before commit B swaps handleConn onto
-// it. Two of these tests pin the registry against legacy code that commit B
-// deletes (and are deleted with it); the tenant-isolation invariant test is
-// permanent.
+// Registry invariants: the command registry IS the dispatch surface (handleConn
+// routes every request through it), so these tests pin it against protocol.go
+// and enforce the tenant-isolation invariant. The tenant allowlist itself is
+// swept end-to-end by tenant_auth_test.go's registry-driven exhaustive test.
 
 // cmdConstRe matches the Cmd* string constants in protocol.go, e.g.
 //
@@ -75,55 +74,6 @@ func TestRegistry_MatchesProtocolConstants(t *testing.T) {
 	}
 	if len(declared) != len(commandRegistry) {
 		t.Errorf("protocol.go declares %d commands, registry has %d", len(declared), len(commandRegistry))
-	}
-}
-
-// TestRegistry_MatchesOldSwitch asserts set equality between the `case Cmd*:`
-// arms of handleConn's dispatch switch in server.go and commandRegistry.
-// DELETE in commit B (the switch itself is deleted then).
-func TestRegistry_MatchesOldSwitch(t *testing.T) {
-	consts := protocolCommands(t)
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatalf("read server.go: %v", err)
-	}
-	caseRe := regexp.MustCompile(`(?m)^\s*case (Cmd\w+):`)
-	inSwitch := map[string]string{} // value → const name
-	for _, m := range caseRe.FindAllStringSubmatch(string(src), -1) {
-		val, ok := consts[m[1]]
-		if !ok {
-			t.Fatalf("server.go: case %s: not a Cmd* constant declared in protocol.go", m[1])
-		}
-		if prev, dup := inSwitch[val]; dup {
-			t.Errorf("server.go: duplicate case for %q (%s and %s)", val, prev, m[1])
-		}
-		inSwitch[val] = m[1]
-	}
-	if len(inSwitch) == 0 {
-		t.Fatal("server.go: no `case Cmd*:` arms matched — regexp or file layout changed")
-	}
-	for _, val := range sortedKeys(inSwitch) {
-		if _, ok := commandRegistry[val]; !ok {
-			t.Errorf("handleConn switch dispatches %s (%q) but the registry does not — add a commandSpec", inSwitch[val], val)
-		}
-	}
-	for _, cmd := range sortedKeys(commandRegistry) {
-		if _, ok := inSwitch[cmd]; !ok {
-			t.Errorf("registry contains %q which handleConn's switch does not dispatch — the registry must mirror the switch until commit B", cmd)
-		}
-	}
-}
-
-// TestRegistry_TenantAllowedMatchesLegacyAllowlist asserts that every spec's
-// TenantAllowed flag equals tenantTokenAllows(cmd) — the registry copies the
-// legacy allowlist verbatim. DELETE in commit B (tenantTokenAllows is deleted
-// then; tenant_auth_test gains a registry-driven exhaustive table instead).
-func TestRegistry_TenantAllowedMatchesLegacyAllowlist(t *testing.T) {
-	for _, cmd := range sortedKeys(commandRegistry) {
-		spec := commandRegistry[cmd]
-		if got, want := spec.TenantAllowed, tenantTokenAllows(cmd); got != want {
-			t.Errorf("%q: spec.TenantAllowed=%v but tenantTokenAllows=%v — the registry must mirror tenant.go's allowlist verbatim", cmd, got, want)
-		}
 	}
 }
 

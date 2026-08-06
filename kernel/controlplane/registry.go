@@ -125,7 +125,14 @@ func registerDaemonOpsCommands() {
 	register(
 		commandSpec{Cmd: CmdAutonomyFeed, Handler: func(dc *DispatchCtx) { dc.S.handleAutonomyFeed(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdDiskStats, Handler: func(dc *DispatchCtx) { dc.S.handleDiskStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdPulseSubscribe, Streaming: StreamLive, Handler: func(dc *DispatchCtx) { dc.S.handlePulseSubscribe(dc.Ctx, dc.Conn, dc.Req) }},
+		// pulse_subscribe is a long-lived stream but deliberately NOT StreamLive:
+		// it manages its own connection lifecycle (handlePulseSubscribe clears the
+		// read deadline itself and runs a bespoke disconnect watcher that re-arms
+		// 500ms read deadlines and treats read timeouts as "idle, not gone").
+		// Dispatch's cancelOnConnClose wrapper would add a SECOND goroutine
+		// reading the same conn (a race) and its blocking Read would trip on the
+		// watcher's 500ms deadlines, cancelling a healthy idle stream.
+		commandSpec{Cmd: CmdPulseSubscribe, Handler: func(dc *DispatchCtx) { dc.S.handlePulseSubscribe(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdReaperScan, Handler: func(dc *DispatchCtx) { dc.S.handleReaperScan(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRedactTest, Handler: func(dc *DispatchCtx) { dc.S.handleRedactTest(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRunsList, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRunsList(dc.Conn, dc.Req) }},
