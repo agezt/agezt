@@ -550,7 +550,7 @@ func TestBuildToolsBrowserActionOptIn(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"SANDBOX", "off")
 
 	var stderr bytes.Buffer
-	tools, _, _, _, err := buildTools(t.TempDir(), &stderr, warden.New(nil))
+	tools, _, _, _, _, err := buildTools(t.TempDir(), &stderr, warden.New(nil), nil)
 	if err != nil {
 		t.Fatalf("buildTools disabled: %v; stderr=%s", err, stderr.String())
 	}
@@ -573,7 +573,7 @@ func TestBuildToolsBrowserActionOptIn(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"BROWSER_ACTION_SESSION_DIR", sessionRoot)
 
 	stderr.Reset()
-	tools, _, _, desc, err := buildTools(t.TempDir(), &stderr, warden.New(nil))
+	tools, _, _, _, desc, err := buildTools(t.TempDir(), &stderr, warden.New(nil), nil)
 	if err != nil {
 		t.Fatalf("buildTools enabled: %v; stderr=%s", err, stderr.String())
 	}

@@ -70,6 +70,12 @@ func New() *Tool {
 // since the index lives on the kernel). Without it, the tool reports unavailable.
 func (t *Tool) SetIndex(idx Indexer) { t.index = idx }
 
+// SetOnBlock installs the egress-guard audit callback (toolreg.NetguardAware).
+// Wired by the registry-driven Configure phase — the field itself existed since
+// M831 but was never wired by wireNetguardAudit, so fetch's SSRF refusals went
+// unjournaled (LD-2 residue, fixed in Phase 2.2 PR 2).
+func (t *Tool) SetOnBlock(fn func(ip, reason string)) { t.OnBlock = fn }
+
 func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP

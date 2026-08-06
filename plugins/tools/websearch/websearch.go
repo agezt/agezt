@@ -86,6 +86,9 @@ const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 // browser-like User-Agent.
 func New() *Tool { return &Tool{UserAgent: DefaultUserAgent} }
 
+// SetOnBlock installs the egress-guard audit callback (toolreg.NetguardAware).
+func (t *Tool) SetOnBlock(fn func(ip, reason string)) { t.OnBlock = fn }
+
 func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP

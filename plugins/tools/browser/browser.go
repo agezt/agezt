@@ -104,6 +104,9 @@ func New() *Tool {
 	}
 }
 
+// SetOnBlock installs the egress-guard audit callback (toolreg.NetguardAware).
+func (t *Tool) SetOnBlock(fn func(ip, reason string)) { t.OnBlock = fn }
+
 // client returns the fetch client: the injected one if set, else a fresh
 // netguard-protected client that refuses internal/metadata addresses on every
 // hop (initial + redirects), relaxed by AllowLoopback/AllowPrivate.
