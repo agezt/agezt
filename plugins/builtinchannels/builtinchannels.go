@@ -9,19 +9,60 @@
 // out-of-tree channel can call channel.RegisterManifest itself.
 package builtinchannels
 
-import "github.com/agezt/agezt/kernel/channel"
+import (
+	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/channelwire"
+	"github.com/agezt/agezt/plugins/channels/chatwebhook"
+)
 
-// RegisterAll seeds the channel registry with the built-in manifests. Called
-// once at daemon start (idempotent).
+// RegisterAll seeds the channel registry with the built-in manifests and the
+// channelwire factories (Phase 2.1) for the migrated kinds. Called once at
+// daemon start (idempotent — manifest registration replaces by Kind, factory
+// Register replaces by kind).
 func RegisterAll() {
 	for _, m := range manifests {
 		channel.RegisterManifest(m)
 	}
+	channelwire.Register("telegram", buildTelegram)
+	channelwire.Register("slack", buildSlack)
+	channelwire.Register("email", buildEmail)
+	channelwire.Register("discord", buildDiscord)
+	channelwire.Register("matrix", buildMatrix)
+	channelwire.Register("whatsapp", buildWhatsApp)
+	channelwire.Register("webhook", buildWebhook)
+	channelwire.Register("irc", buildIRC)
+	channelwire.Register("twitch", buildTwitch)
+	channelwire.Register("sms", buildSMS)
+	channelwire.Register("signal", buildSignal)
+	channelwire.Register("whatsappgw", buildWhatsAppGateway)
+	channelwire.Register("imessage", buildIMessage)
+	channelwire.Register("homeassistant", buildHomeAssistant)
+	channelwire.Register("teams", buildTeams)
+	channelwire.Register("nextcloudtalk", buildNextcloudTalk)
+	channelwire.Register("nostr", buildNostr)
+	channelwire.Register("zalo", buildZalo)
+	channelwire.Register("qq", oneBotFactory("qq", "QQ"))
+	channelwire.Register("wechat", oneBotFactory("wechat", "WECHAT"))
+	channelwire.Register("line", buildLine)
+	channelwire.Register("googlechat", chatWebhookFactory(chatwebhook.KindGoogleChat, "GOOGLECHAT"))
+	channelwire.Register("mattermost", chatWebhookFactory(chatwebhook.KindMattermost, "MATTERMOST"))
+	channelwire.Register("dingtalk", buildDingTalk)
+	channelwire.Register("feishu", buildFeishu)
+	channelwire.Register("wecom", buildWeCom)
+	channelwire.Register("mastodon", buildMastodon)
+	channelwire.Register("ntfy", buildNtfy)
+	channelwire.Register("pushover", buildPushover)
+	channelwire.Register("gotify", buildGotify)
+	channelwire.Register("pushbullet", buildPushbullet)
+	channelwire.Register("rocketchat", buildRocketChat)
+	channelwire.Register("zulip", buildZulip)
+	channelwire.Register("synology", buildSynology)
 }
 
 var manifests = []channel.Manifest{
 	{
 		Kind: "telegram", Display: "Telegram", Transport: "long-poll", Duplex: true,
+		BannerLabel: "telegram", DisabledHint: "disabled (set AGEZT_TELEGRAM_TOKEN)",
 		Description:   "Telegram bot — two-way chat and notifications via @BotFather.",
 		ConfigSection: "telegram", RequiredEnv: []string{"AGEZT_TELEGRAM_TOKEN"},
 		AllowlistEnv:  "AGEZT_TELEGRAM_CHAT_ID",
@@ -37,6 +78,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "whatsapp", Display: "WhatsApp", Transport: "webhook", Duplex: true,
+		BannerLabel: "whatsapp channel", DisabledHint: "disabled (set AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN)",
 		Description:   "WhatsApp Cloud API (Meta) — two-way messaging with media.",
 		ConfigSection: "whatsapp", RequiredEnv: []string{"AGEZT_WHATSAPP_ACCESS_TOKEN", "AGEZT_WHATSAPP_PHONE_NUMBER_ID"},
 		AddrEnv: "AGEZT_WHATSAPP_ADDR", AllowlistEnv: "AGEZT_WHATSAPP_NUMBERS", InboundEnv: []string{"AGEZT_WHATSAPP_ADDR"},
@@ -52,6 +94,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "slack", Display: "Slack", Transport: "webhook", Duplex: true,
+		BannerLabel: "slack", DisabledHint: "disabled (set AGEZT_SLACK_TOKEN)",
 		Description:   "Slack bot — slash/events with signed inbound verification.",
 		ConfigSection: "slack", RequiredEnv: []string{"AGEZT_SLACK_TOKEN"},
 		AddrEnv: "AGEZT_SLACK_ADDR", AllowlistEnv: "AGEZT_SLACK_CHANNELS", InboundEnv: []string{"AGEZT_SLACK_ADDR", "AGEZT_SLACK_SIGNING_SECRET"},
@@ -67,6 +110,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "discord", Display: "Discord", Transport: "webhook", Duplex: true,
+		BannerLabel: "discord", DisabledHint: "disabled (set AGEZT_DISCORD_TOKEN)",
 		Description:   "Discord bot — interactions via Ed25519-verified webhook.",
 		ConfigSection: "discord", RequiredEnv: []string{"AGEZT_DISCORD_TOKEN"},
 		AddrEnv: "AGEZT_DISCORD_ADDR", AllowlistEnv: "AGEZT_DISCORD_CHANNELS", InboundEnv: []string{"AGEZT_DISCORD_ADDR", "AGEZT_DISCORD_PUBLIC_KEY"},
@@ -82,6 +126,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "matrix", Display: "Matrix", Transport: "long-poll", Duplex: true,
+		BannerLabel: "matrix channel", DisabledHint: "disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)",
 		Description:   "Matrix — two-way via /sync long-poll on any homeserver.",
 		ConfigSection: "matrix", RequiredEnv: []string{"AGEZT_MATRIX_HOMESERVER", "AGEZT_MATRIX_TOKEN"},
 		AddrEnv: "AGEZT_MATRIX_HOMESERVER", AllowlistEnv: "AGEZT_MATRIX_ROOMS",
@@ -90,6 +135,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "sms", Display: "SMS (Twilio)", Transport: "webhook", Duplex: true,
+		BannerLabel: "sms channel", DisabledHint: "disabled (set AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN)",
 		Description:   "SMS via Twilio Programmable Messaging.",
 		ConfigSection: "sms", RequiredEnv: []string{"AGEZT_SMS_ACCOUNT_SID", "AGEZT_SMS_AUTH_TOKEN"},
 		AddrEnv: "AGEZT_SMS_ADDR", AllowlistEnv: "AGEZT_SMS_NUMBERS", InboundEnv: []string{"AGEZT_SMS_ADDR"},
@@ -97,6 +143,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "signal", Display: "Signal", Transport: "rest", Duplex: true,
+		BannerLabel: "signal channel", DisabledHint: "disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)",
 		Description:   "Signal via a signal-cli REST gateway.",
 		ConfigSection: "signal", RequiredEnv: []string{"AGEZT_SIGNAL_API_URL", "AGEZT_SIGNAL_NUMBER"},
 		AddrEnv: "AGEZT_SIGNAL_API_URL", AllowlistEnv: "AGEZT_SIGNAL_RECIPIENTS",
@@ -110,6 +157,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "teams", Display: "Microsoft Teams", Transport: "webhook", Duplex: false,
+		BannerLabel: "teams channel", DisabledHint: "disabled (set AGEZT_TEAMS_WEBHOOKS=name=url,...)",
 		Description:   "Outbound notifications via Teams Incoming Webhooks.",
 		ConfigSection: "teams", RequiredEnv: []string{"AGEZT_TEAMS_WEBHOOKS"},
 		AllowlistEnv: "AGEZT_TEAMS_WEBHOOKS",
@@ -117,6 +165,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "email", Display: "Email / SMTP", Transport: "smtp", Duplex: true,
+		BannerLabel: "email channel", DisabledHint: "disabled (set AGEZT_EMAIL_SMTP_ADDR + AGEZT_EMAIL_FROM)",
 		Description:   "Email — outbound over SMTP, two-way with an IMAP/POP3 inbox. Add several accounts, each its own server.",
 		ConfigSection: "email", RequiredEnv: []string{"AGEZT_EMAIL_SMTP_ADDR", "AGEZT_EMAIL_FROM"},
 		AddrEnv: "AGEZT_EMAIL_SMTP_ADDR", AllowlistEnv: "AGEZT_EMAIL_RECIPIENTS", InboundEnv: []string{"AGEZT_EMAIL_INBOX_ADDR"},
@@ -130,6 +179,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "homeassistant", Display: "Home Assistant", Transport: "rest", Duplex: false,
+		BannerLabel: "homeassistant ch", DisabledHint: "disabled (set AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN)",
 		Description:   "Outbound notifications via the Home Assistant notify API.",
 		ConfigSection: "homeassistant", RequiredEnv: []string{"AGEZT_HOMEASSISTANT_URL", "AGEZT_HOMEASSISTANT_TOKEN"},
 		AddrEnv: "AGEZT_HOMEASSISTANT_URL", AllowlistEnv: "AGEZT_HOMEASSISTANT_SERVICES",
@@ -137,54 +187,63 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "webhook", Display: "Generic Webhook", Transport: "webhook", Duplex: true,
+		BannerLabel: "webhook channel", DisabledHint: "disabled (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR)",
 		Description:   "Vendor-neutral signed-JSON channel — bridge anything.",
 		ConfigSection: "webhook", RequiredEnv: []string{"AGEZT_WEBHOOK_SECRET"},
 		AddrEnv: "AGEZT_WEBHOOK_ADDR", AllowlistEnv: "AGEZT_WEBHOOK_CHANNELS", InboundEnv: []string{"AGEZT_WEBHOOK_ADDR", "AGEZT_WEBHOOK_SECRET"},
 	},
 	{
 		Kind: "ntfy", Display: "ntfy", Transport: "rest", Duplex: false,
+		BannerLabel:   "ntfy push",
 		Description:   "Outbound push notifications via ntfy.sh or a self-hosted server.",
 		ConfigSection: "ntfy", RequiredEnv: []string{"AGEZT_NTFY_TOPIC"},
 		DocsURL: "https://ntfy.sh",
 	},
 	{
 		Kind: "pushover", Display: "Pushover", Transport: "rest", Duplex: false,
+		BannerLabel:   "pushover push",
 		Description:   "Outbound push notifications to phones via Pushover.",
 		ConfigSection: "pushover", RequiredEnv: []string{"AGEZT_PUSHOVER_TOKEN", "AGEZT_PUSHOVER_USER"},
 		DocsURL: "https://pushover.net",
 	},
 	{
 		Kind: "gotify", Display: "Gotify", Transport: "rest", Duplex: false,
+		BannerLabel:   "gotify push",
 		Description:   "Outbound push via a self-hosted Gotify server.",
 		ConfigSection: "gotify", RequiredEnv: []string{"AGEZT_GOTIFY_SERVER", "AGEZT_GOTIFY_TOKEN"},
 		DocsURL: "https://gotify.net",
 	},
 	{
 		Kind: "pushbullet", Display: "Pushbullet", Transport: "rest", Duplex: false,
+		BannerLabel:   "pushbullet push",
 		Description:   "Outbound push notifications via Pushbullet.",
 		ConfigSection: "pushbullet", RequiredEnv: []string{"AGEZT_PUSHBULLET_TOKEN"},
 		DocsURL: "https://www.pushbullet.com",
 	},
 	{
 		Kind: "googlechat", Display: "Google Chat", Transport: "webhook", Duplex: true,
+		BannerLabel:   "googlechat (2way)",
 		Description:   "Google Chat — outbound via an Incoming Webhook, and two-way (app event webhook in) with an inbound addr.",
 		ConfigSection: "googlechat", RequiredEnv: []string{"AGEZT_GOOGLECHAT_WEBHOOK"},
 		DocsURL: "https://developers.google.com/chat/how-tos/webhooks",
 	},
 	{
 		Kind: "mattermost", Display: "Mattermost", Transport: "webhook", Duplex: true,
+		BannerLabel:   "mattermost (2way)",
 		Description:   "Mattermost — outbound via an Incoming Webhook, and two-way (outgoing-webhook in) with an inbound addr.",
 		ConfigSection: "mattermost", RequiredEnv: []string{"AGEZT_MATTERMOST_WEBHOOK"},
 		DocsURL: "https://developers.mattermost.com/integrate/webhooks/incoming/",
 	},
 	{
 		Kind: "rocketchat", Display: "Rocket.Chat", Transport: "webhook", Duplex: false,
+		BannerLabel:   "rocketchat push",
 		Description:   "Outbound messages via a Rocket.Chat Incoming Webhook.",
 		ConfigSection: "rocketchat", RequiredEnv: []string{"AGEZT_ROCKETCHAT_WEBHOOK"},
 		DocsURL: "https://docs.rocket.chat/docs/integrations",
 	},
 	{
 		Kind: "mastodon", Display: "Mastodon", Transport: "rest", Duplex: true,
+		BannerLabel:   "mastodon channel",
 		Description:   "Mastodon — outbound posts, and two-way (polls mention notifications → threaded replies) with an acct allowlist.",
 		ConfigSection: "mastodon", RequiredEnv: []string{"AGEZT_MASTODON_SERVER", "AGEZT_MASTODON_TOKEN"},
 		AddrEnv: "AGEZT_MASTODON_SERVER", AllowlistEnv: "AGEZT_MASTODON_USERS",
@@ -199,12 +258,14 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "zulip", Display: "Zulip", Transport: "rest", Duplex: false,
+		BannerLabel:   "zulip push",
 		Description:   "Outbound messages to a Zulip stream via a bot.",
 		ConfigSection: "zulip", RequiredEnv: []string{"AGEZT_ZULIP_SERVER", "AGEZT_ZULIP_EMAIL", "AGEZT_ZULIP_APIKEY", "AGEZT_ZULIP_STREAM"},
 		DocsURL: "https://zulip.com/api/send-message",
 	},
 	{
 		Kind: "feishu", Display: "Feishu / Lark", Transport: "webhook", Duplex: true,
+		BannerLabel:   "feishu (2way)",
 		Description:   "Feishu/Lark — outbound via a custom bot, and two-way (app event subscription + IM API) with app credentials + an inbound addr.",
 		ConfigSection: "feishu", RequiredEnv: []string{"AGEZT_FEISHU_WEBHOOK"},
 		AddrEnv: "AGEZT_FEISHU_ADDR", AllowlistEnv: "AGEZT_FEISHU_USERS", InboundEnv: []string{"AGEZT_FEISHU_ADDR"},
@@ -213,6 +274,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "dingtalk", Display: "DingTalk", Transport: "webhook", Duplex: true,
+		BannerLabel:   "dingtalk (2way)",
 		Description:   "DingTalk — outbound via a custom robot, and two-way (enterprise robot outgoing webhook → sessionWebhook reply) with an inbound addr.",
 		ConfigSection: "dingtalk", RequiredEnv: []string{"AGEZT_DINGTALK_WEBHOOK"},
 		AddrEnv: "AGEZT_DINGTALK_ADDR", AllowlistEnv: "AGEZT_DINGTALK_USERS", InboundEnv: []string{"AGEZT_DINGTALK_ADDR"},
@@ -220,6 +282,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "wecom", Display: "WeChat Work (WeCom)", Transport: "webhook", Duplex: true,
+		BannerLabel:   "wecom (2way)",
 		Description:   "WeCom — outbound via a group robot, and two-way (AES-encrypted app callback + message-send API) with app credentials + an inbound addr.",
 		ConfigSection: "wecom", RequiredEnv: []string{"AGEZT_WECOM_WEBHOOK"},
 		AddrEnv: "AGEZT_WECOM_ADDR", AllowlistEnv: "AGEZT_WECOM_USERS", InboundEnv: []string{"AGEZT_WECOM_ADDR"},
@@ -228,6 +291,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "qq", Display: "QQ", Transport: "webhook", Duplex: true,
+		BannerLabel:   "qq channel",
 		Description:   "Two-way QQ via a self-hosted OneBot v11 gateway (go-cqhttp / NapCat / Lagrange).",
 		ConfigSection: "qq", RequiredEnv: []string{"AGEZT_QQ_GATEWAY", "AGEZT_QQ_ADDR"},
 		Media:         channel.MediaCaps{ImageIn: true, VoiceIn: true},
@@ -236,6 +300,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "wechat", Display: "WeChat", Transport: "webhook", Duplex: true,
+		BannerLabel:   "wechat channel",
 		Description:   "Two-way personal WeChat via a self-hosted OneBot-compatible gateway (wcf / wechatbot). No first-party API — gateway required.",
 		ConfigSection: "wechat", RequiredEnv: []string{"AGEZT_WECHAT_GATEWAY", "AGEZT_WECHAT_ADDR"},
 		Media:         channel.MediaCaps{ImageIn: true, VoiceIn: true},
@@ -244,6 +309,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "nextcloudtalk", Display: "Nextcloud Talk", Transport: "webhook", Duplex: true,
+		BannerLabel:   "nextcloud talk",
 		Description:   "Two-way Nextcloud Talk via the Talk Bot API (signed webhook in + bot message API out).",
 		ConfigSection: "nextcloudtalk", RequiredEnv: []string{"AGEZT_NEXTCLOUDTALK_URL", "AGEZT_NEXTCLOUDTALK_SECRET"},
 		AddrEnv: "AGEZT_NEXTCLOUDTALK_URL",
@@ -251,24 +317,28 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "nostr", Display: "Nostr", Transport: "socket", Duplex: true,
+		BannerLabel:   "nostr channel",
 		Description:   "Two-way Nostr over relays — answers signed kind-1 mentions and NIP-04 encrypted DMs of the agent's pubkey, with threaded/encrypted replies.",
 		ConfigSection: "nostr", RequiredEnv: []string{"AGEZT_NOSTR_PRIVKEY", "AGEZT_NOSTR_RELAYS"},
 		DocsURL: "https://github.com/nostr-protocol/nips/blob/master/01.md",
 	},
 	{
 		Kind: "zalo", Display: "Zalo", Transport: "webhook", Duplex: true,
+		BannerLabel:   "zalo channel",
 		Description:   "Two-way Zalo via the Official Account API (event webhook + OA message API).",
 		ConfigSection: "zalo", RequiredEnv: []string{"AGEZT_ZALO_TOKEN"},
 		DocsURL: "https://developers.zalo.me/docs/official-account",
 	},
 	{
 		Kind: "synology", Display: "Synology Chat", Transport: "webhook", Duplex: false,
+		BannerLabel:   "synology push",
 		Description:   "Outbound messages via a Synology Chat incoming webhook.",
 		ConfigSection: "synology", RequiredEnv: []string{"AGEZT_SYNOLOGY_WEBHOOK"},
 		DocsURL: "https://kb.synology.com/DSM/help/Chat/chat_integration",
 	},
 	{
 		Kind: "irc", Display: "IRC", Transport: "socket", Duplex: true,
+		BannerLabel: "irc channel", DisabledHint: "disabled (set AGEZT_IRC_SERVER + AGEZT_IRC_NICK)",
 		Description:   "Two-way IRC — connect to any ircd, join channels, chat with the agent.",
 		ConfigSection: "irc", RequiredEnv: []string{"AGEZT_IRC_SERVER", "AGEZT_IRC_NICK"},
 		AddrEnv: "AGEZT_IRC_SERVER", AllowlistEnv: "AGEZT_IRC_CHANNELS",
@@ -276,6 +346,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "twitch", Display: "Twitch", Transport: "socket", Duplex: true,
+		BannerLabel: "twitch channel", DisabledHint: "disabled (set AGEZT_TWITCH_USERNAME + AGEZT_TWITCH_TOKEN)",
 		Description:   "Two-way Twitch chat (IRC) — read and reply in your stream's channels.",
 		ConfigSection: "twitch", RequiredEnv: []string{"AGEZT_TWITCH_USERNAME", "AGEZT_TWITCH_TOKEN"},
 		AllowlistEnv: "AGEZT_TWITCH_CHANNELS",
@@ -283,6 +354,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "whatsappgw", Display: "WhatsApp (Gateway)", Transport: "rest", Duplex: true,
+		BannerLabel: "whatsapp gateway", DisabledHint: "disabled (set AGEZT_WHATSAPPGW_URL)",
 		Description:   "Easy WhatsApp via a self-hosted WAHA / Evolution gateway (QR login, no Meta).",
 		ConfigSection: "whatsappgw", RequiredEnv: []string{"AGEZT_WHATSAPPGW_URL"},
 		AddrEnv: "AGEZT_WHATSAPPGW_URL", AllowlistEnv: "AGEZT_WHATSAPPGW_NUMBERS",
@@ -296,6 +368,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "imessage", Display: "iMessage", Transport: "rest", Duplex: true,
+		BannerLabel: "imessage channel", DisabledHint: "disabled (set AGEZT_IMESSAGE_URL)",
 		Description:   "iMessage via a self-hosted BlueBubbles server (a Mac bridge) — REST send + inbound webhook.",
 		ConfigSection: "imessage", RequiredEnv: []string{"AGEZT_IMESSAGE_URL"},
 		AddrEnv:       "AGEZT_IMESSAGE_URL",
@@ -305,6 +378,7 @@ var manifests = []channel.Manifest{
 	},
 	{
 		Kind: "line", Display: "LINE", Transport: "webhook", Duplex: true,
+		BannerLabel:   "line channel",
 		Description:   "LINE Messaging API — outbound push, and two-way (signed webhook + reply token) with a channel secret + inbound addr.",
 		ConfigSection: "line", RequiredEnv: []string{"AGEZT_LINE_TOKEN"},
 		AddrEnv: "AGEZT_LINE_ADDR", AllowlistEnv: "AGEZT_LINE_USERS", InboundEnv: []string{"AGEZT_LINE_ADDR"},

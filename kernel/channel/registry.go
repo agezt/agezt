@@ -53,6 +53,14 @@ type Manifest struct {
 	// the channel to actually receive inbound traffic. Meaningful only for
 	// Duplex channels; empty means inbound whenever configured.
 	InboundEnv []string `json:"inbound_env,omitempty"`
+
+	// BannerLabel is the short label the daemon's boot banner prints for this
+	// channel (e.g. "webhook channel", "ntfy push"). Empty → Kind is used.
+	BannerLabel string `json:"banner_label,omitempty"`
+	// DisabledHint is the boot-banner line printed when no instance of this
+	// channel is configured (e.g. "disabled (set AGEZT_TELEGRAM_TOKEN)").
+	// Empty → the channel stays silent when unconfigured.
+	DisabledHint string `json:"disabled_hint,omitempty"`
 }
 
 // MediaCaps describes a channel's non-text multimodal reach. Text is always
