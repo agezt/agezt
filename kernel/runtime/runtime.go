@@ -44,6 +44,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/imagetool"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
@@ -51,6 +52,7 @@ import (
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/okr"
 	"github.com/agezt/agezt/kernel/reflect"
+	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -62,6 +64,7 @@ import (
 	"github.com/agezt/agezt/kernel/tenantctx"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/ulid"
+	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/kernel/workflow"
@@ -810,26 +813,26 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	// The market tool needs k.Market (wired by the daemon after Open); register
 	// it now and bind its lazy getter just after k is built (same map k holds).
-	var mktTool *marketTool
+	var mktTool *market.Tool
 	if cfg.MarketTool {
-		mktTool = newMarketTool()
+		mktTool = market.NewTool()
 		effTools["market"] = mktTool
 	}
 	// The voice tool needs the kernel's artifact store (bound just after k is
 	// built) to persist synthesized audio.
-	var vTool *voiceTool
+	var vTool *voicetool.Tool
 	if cfg.Voice != nil {
-		vTool = newVoiceTool(cfg.Voice)
+		vTool = voicetool.New(cfg.Voice)
 		effTools["voice"] = vTool
 	}
 	// image_generate needs the artifact store too (bound just after k is built).
-	var imgTool *imageTool
+	var imgTool *imagetool.Tool
 	if cfg.ImageGenerator != nil {
-		imgTool = newImageTool(cfg.ImageGenerator)
+		imgTool = imagetool.New(cfg.ImageGenerator)
 		effTools["image_generate"] = imgTool
 	}
 	if cfg.Reranker != nil {
-		effTools["rerank"] = newRerankTool(cfg.Reranker)
+		effTools["rerank"] = reranktool.New(cfg.Reranker)
 	}
 
 	catStore := catalog.NewStore(catDir)
@@ -895,13 +898,13 @@ func Open(cfg Config) (*Kernel, error) {
 		awaitTool.await = k.awaitSubAgent
 	}
 	if mktTool != nil {
-		mktTool.manager = k.Market
+		mktTool.Manager = k.Market
 	}
 	if imgTool != nil {
-		imgTool.saveArtifact = k.artifacts.Put
+		imgTool.SaveArtifact = k.artifacts.Put
 	}
 	if vTool != nil {
-		vTool.saveArtifact = k.artifacts.Put
+		vTool.SaveArtifact = k.artifacts.Put
 	}
 
 	// Config Center for agent SDK config access (M???)

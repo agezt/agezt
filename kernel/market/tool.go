@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package market
 
 // Agent-facing capability marketplace tool: lets a running agent discover and
 // install capability packs (skills + MCP servers + CLI-tool requirements) mid-
@@ -18,23 +18,24 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/market"
 )
 
-// marketTool implements agent.Tool. It holds a lazy getter for the marketplace
-// manager because the daemon wires the manager (SetMarket) AFTER Open — the
-// getter is bound to k.Market once the Kernel exists, and resolves at Invoke.
-type marketTool struct {
-	manager func() *market.Manager
+// Tool implements agent.Tool. It holds a lazy getter for the marketplace
+// manager because the daemon wires the manager (SetMarket) AFTER runtime.Open —
+// Manager is bound to Kernel.Market once the Kernel exists, and resolves at
+// Invoke.
+type Tool struct {
+	Manager func() *Manager
 }
 
-func newMarketTool() *marketTool { return &marketTool{} }
+// NewTool returns the `market` agent tool; bind Manager before first Invoke.
+func NewTool() *Tool { return &Tool{} }
 
 // maxMarketSearchRows bounds how many catalogue rows one search returns to the
 // model, so a large catalogue can't flood the context.
 const maxMarketSearchRows = 25
 
-func (t *marketTool) Definition() agent.ToolDef {
+func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "market",
 		Description: "Discover and install capability packs from the marketplace when you lack a capability the task needs. " +
@@ -61,7 +62,7 @@ type marketToolInput struct {
 	Marketplace string `json:"marketplace"`
 }
 
-func (t *marketTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	mgr := t.resolve()
 	if mgr == nil {
 		return agent.Result{Output: "marketplace is not available on this daemon", IsError: true}, nil
@@ -82,14 +83,14 @@ func (t *marketTool) Invoke(ctx context.Context, input json.RawMessage) (agent.R
 	}
 }
 
-func (t *marketTool) resolve() *market.Manager {
-	if t.manager == nil {
+func (t *Tool) resolve() *Manager {
+	if t.Manager == nil {
 		return nil
 	}
-	return t.manager()
+	return t.Manager()
 }
 
-func (t *marketTool) search(mgr *market.Manager, query string) (agent.Result, error) {
+func (t *Tool) search(mgr *Manager, query string) (agent.Result, error) {
 	listings, err := mgr.List(query)
 	if err != nil {
 		return agent.Result{Output: "search failed: " + err.Error(), IsError: true}, nil
@@ -119,7 +120,7 @@ func (t *marketTool) search(mgr *market.Manager, query string) (agent.Result, er
 	return agent.Result{Output: b.String()}, nil
 }
 
-func (t *marketTool) show(mgr *market.Manager, marketplace, pack string) (agent.Result, error) {
+func (t *Tool) show(mgr *Manager, marketplace, pack string) (agent.Result, error) {
 	if strings.TrimSpace(pack) == "" {
 		return agent.Result{Output: "op=show needs a pack name", IsError: true}, nil
 	}
@@ -133,7 +134,7 @@ func (t *marketTool) show(mgr *market.Manager, marketplace, pack string) (agent.
 		fmt.Fprintf(&b, "%s\n", p.Description)
 	}
 	for _, s := range p.Skills {
-		if md, perr := market.SkillSummary(s); perr == nil {
+		if md, perr := SkillSummary(s); perr == nil {
 			fmt.Fprintf(&b, "- skill: %s\n", md)
 		}
 	}
@@ -146,7 +147,7 @@ func (t *marketTool) show(mgr *market.Manager, marketplace, pack string) (agent.
 	return agent.Result{Output: b.String()}, nil
 }
 
-func (t *marketTool) install(ctx context.Context, mgr *market.Manager, marketplace, pack string) (agent.Result, error) {
+func (t *Tool) install(ctx context.Context, mgr *Manager, marketplace, pack string) (agent.Result, error) {
 	if strings.TrimSpace(pack) == "" {
 		return agent.Result{Output: "op=install needs a pack name", IsError: true}, nil
 	}

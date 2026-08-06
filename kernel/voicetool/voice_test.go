@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package voicetool
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func (f fakeVoice) HasSTT() bool { return f.stt }
 func (f fakeVoice) HasTTS() bool { return f.tts }
 
 func TestVoiceToolTranscribe(t *testing.T) {
-	vt := newVoiceTool(fakeVoice{stt: true})
+	vt := New(fakeVoice{stt: true})
 	in, _ := json.Marshal(voiceToolInput{Op: "transcribe", Audio: base64.StdEncoding.EncodeToString([]byte("hi"))})
 	res, err := vt.Invoke(context.Background(), in)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestVoiceToolTranscribe(t *testing.T) {
 
 func TestVoiceToolSpeakNeedsSaver(t *testing.T) {
 	// TTS configured but no artifact saver bound → graceful error, not a panic.
-	vt := newVoiceTool(fakeVoice{tts: true})
+	vt := New(fakeVoice{tts: true})
 	in, _ := json.Marshal(voiceToolInput{Op: "speak", Text: "hello"})
 	res, err := vt.Invoke(context.Background(), in)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestVoiceToolSpeakNeedsSaver(t *testing.T) {
 	}
 
 	// With a saver, it persists and reports the ref.
-	vt.saveArtifact = func(data []byte) (string, error) { return "art-123", nil }
+	vt.SaveArtifact = func(data []byte) (string, error) { return "art-123", nil }
 	res, _ = vt.Invoke(context.Background(), in)
 	if res.IsError || res.Output == "" {
 		t.Fatalf("speak result = %+v", res)
@@ -84,7 +84,7 @@ func TestVoiceToolSpeakNeedsSaver(t *testing.T) {
 }
 
 func TestVoiceToolUnconfiguredHalves(t *testing.T) {
-	vt := newVoiceTool(fakeVoice{}) // neither half
+	vt := New(fakeVoice{}) // neither half
 	in, _ := json.Marshal(voiceToolInput{Op: "transcribe", Audio: "aGk="})
 	res, _ := vt.Invoke(context.Background(), in)
 	if !res.IsError {

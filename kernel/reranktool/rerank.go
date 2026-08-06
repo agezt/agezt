@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Agent-facing rerank tool (M997): lets a running agent reorder a set of
-// candidate documents by relevance to a query, using a dedicated reranking model
-// (more accurate than embedding cosine for final ranking). It drives the
-// daemon-injected rerank adapter (runtime.Config.Reranker — typically the
-// Cohere/Jina-style rerank plugin). The kernel never imports the plugin — only
-// this interface.
+// Package reranktool provides the agent-facing rerank tool (M997): it lets a
+// running agent reorder a set of candidate documents by relevance to a query,
+// using a dedicated reranking model (more accurate than embedding cosine for
+// final ranking). It drives the daemon-injected rerank adapter
+// (runtime.Config.Reranker — typically the Cohere/Jina-style rerank plugin).
+// The kernel never imports the plugin — only this interface.
+package reranktool
 
 import (
 	"context"
@@ -34,7 +33,8 @@ type rerankTool struct {
 	rr Reranker
 }
 
-func newRerankTool(r Reranker) *rerankTool { return &rerankTool{rr: r} }
+// New returns the `rerank` agent tool over the given adapter.
+func New(r Reranker) agent.Tool { return &rerankTool{rr: r} }
 
 func (t *rerankTool) Definition() agent.ToolDef {
 	return agent.ToolDef{

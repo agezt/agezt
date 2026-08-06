@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Agent-facing image tool (M997): lets a running agent GENERATE images from a
-// text prompt. It drives the daemon-injected image adapter (runtime.Config.
-// ImageGenerator — typically the OpenAI-compatible image plugin). Generated
-// images are saved as artifacts (never returned inline to the model), so a
-// channel or the operator can view them — mirroring the voice tool's speak path.
-// The kernel never imports the plugin — only this interface.
+// Package imagetool provides the agent-facing image tool (M997): it lets a
+// running agent GENERATE images from a text prompt. It drives the
+// daemon-injected image adapter (runtime.Config.ImageGenerator — typically the
+// OpenAI-compatible image plugin). Generated images are saved as artifacts
+// (never returned inline to the model), so a channel or the operator can view
+// them — mirroring the voice tool's speak path. The kernel never imports the
+// plugin — only this interface.
+package imagetool
 
 import (
 	"context"
@@ -30,16 +30,17 @@ type ImageGen interface {
 	HasImage() bool
 }
 
-// imageTool implements agent.Tool over an ImageGen adapter. saveArtifact is
-// bound to the kernel's artifact store after Open.
-type imageTool struct {
+// Tool implements agent.Tool over an ImageGen adapter. SaveArtifact is bound to
+// the kernel's artifact store after runtime.Open.
+type Tool struct {
 	gen          ImageGen
-	saveArtifact func(data []byte) (string, error)
+	SaveArtifact func(data []byte) (string, error)
 }
 
-func newImageTool(g ImageGen) *imageTool { return &imageTool{gen: g} }
+// New returns the `image_generate` agent tool over the given adapter.
+func New(g ImageGen) *Tool { return &Tool{gen: g} }
 
-func (t *imageTool) Definition() agent.ToolDef {
+func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "image_generate",
 		Description: "Generate one or more images from a text prompt. The images are saved as artifacts you can attach " +
@@ -66,7 +67,7 @@ type imageToolInput struct {
 	N       int    `json:"n"`
 }
 
-func (t *imageTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	if t.gen == nil || !t.gen.HasImage() {
 		return agent.Result{Output: "image generation is not configured (set AGEZT_IMAGE_URL + AGEZT_IMAGE_MODEL)", IsError: true}, nil
 	}
@@ -84,12 +85,12 @@ func (t *imageTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 	if len(images) == 0 {
 		return agent.Result{Output: "no images were generated", IsError: true}, nil
 	}
-	if t.saveArtifact == nil {
+	if t.SaveArtifact == nil {
 		return agent.Result{Output: fmt.Sprintf("generated %d image(s) of %s, but artifact storage is unavailable to persist them", len(images), mime), IsError: true}, nil
 	}
 	refs := make([]string, 0, len(images))
 	for i, img := range images {
-		ref, err := t.saveArtifact(img)
+		ref, err := t.SaveArtifact(img)
 		if err != nil {
 			return agent.Result{Output: fmt.Sprintf("saving image %d failed: %v", i, err), IsError: true}, nil
 		}
