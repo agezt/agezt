@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package market_test
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func newTestMarketManager(t *testing.T) *market.Manager {
 
 func TestMarketToolSearch(t *testing.T) {
 	mgr := newTestMarketManager(t)
-	tool := &marketTool{manager: func() *market.Manager { return mgr }}
+	tool := &market.Tool{Manager: func() *market.Manager { return mgr }}
 	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"search","query":"web"}`))
 	if err != nil {
 		t.Fatalf("invoke: %v", err)
@@ -44,7 +44,7 @@ func TestMarketToolSearch(t *testing.T) {
 
 func TestMarketToolShow(t *testing.T) {
 	mgr := newTestMarketManager(t)
-	tool := &marketTool{manager: func() *market.Manager { return mgr }}
+	tool := &market.Tool{Manager: func() *market.Manager { return mgr }}
 	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"show","pack":"git-workshop"}`))
 	if err != nil {
 		t.Fatalf("invoke: %v", err)
@@ -58,7 +58,7 @@ func TestMarketToolShow(t *testing.T) {
 }
 
 func TestMarketToolUnavailable(t *testing.T) {
-	tool := &marketTool{} // no manager wired (daemon never called SetMarket)
+	tool := &market.Tool{} // no manager wired (daemon never called SetMarket)
 	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"search"}`))
 	if err != nil {
 		t.Fatalf("invoke: %v", err)
@@ -70,7 +70,7 @@ func TestMarketToolUnavailable(t *testing.T) {
 
 func TestMarketToolUnknownOp(t *testing.T) {
 	mgr := newTestMarketManager(t)
-	tool := &marketTool{manager: func() *market.Manager { return mgr }}
+	tool := &market.Tool{Manager: func() *market.Manager { return mgr }}
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"op":"frobnicate"}`))
 	if !res.IsError {
 		t.Fatalf("expected error for unknown op, got: %s", res.Output)

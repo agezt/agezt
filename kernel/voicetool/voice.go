@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Agent-facing voice tool: lets a running agent HEAR (transcribe inbound audio
-// to text) and SPEAK (synthesize a spoken reply). It drives the daemon-injected
-// voice adapter (runtime.Config.Voice — typically the OpenAI-compatible STT/TTS
-// plugin). Transcription takes a data: URL (or bare base64) so a channel can
-// hand a voice note straight through without a network fetch; synthesis returns
-// the audio saved as an artifact, so a channel or the operator can play it back.
-// The kernel never imports the plugin — only this interface.
+// Package voicetool provides the agent-facing voice tool: it lets a running
+// agent HEAR (transcribe inbound audio to text) and SPEAK (synthesize a spoken
+// reply). It drives the daemon-injected voice adapter (runtime.Config.Voice —
+// typically the OpenAI-compatible STT/TTS plugin). Transcription takes a data:
+// URL (or bare base64) so a channel can hand a voice note straight through
+// without a network fetch; synthesis returns the audio saved as an artifact, so
+// a channel or the operator can play it back. The kernel never imports the
+// plugin — only this interface.
+package voicetool
 
 import (
 	"context"
@@ -32,17 +32,18 @@ type Voice interface {
 	HasTTS() bool
 }
 
-// voiceTool implements agent.Tool over a Voice adapter. saveArtifact is bound to
-// the kernel's artifact store after Open (the audio bytes are persisted there,
-// never returned inline to the model).
-type voiceTool struct {
+// Tool implements agent.Tool over a Voice adapter. SaveArtifact is bound to the
+// kernel's artifact store after runtime.Open (the audio bytes are persisted
+// there, never returned inline to the model).
+type Tool struct {
 	voice        Voice
-	saveArtifact func(data []byte) (string, error)
+	SaveArtifact func(data []byte) (string, error)
 }
 
-func newVoiceTool(v Voice) *voiceTool { return &voiceTool{voice: v} }
+// New returns the `voice` agent tool over the given adapter.
+func New(v Voice) *Tool { return &Tool{voice: v} }
 
-func (t *voiceTool) Definition() agent.ToolDef {
+func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "voice",
 		Description: "Hear and speak. op=transcribe converts inbound audio to text — pass the audio as a data: URL " +
@@ -70,7 +71,7 @@ type voiceToolInput struct {
 	Text     string `json:"text"`
 }
 
-func (t *voiceTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	if t.voice == nil {
 		return agent.Result{Output: "voice is not available on this daemon", IsError: true}, nil
 	}
@@ -88,7 +89,7 @@ func (t *voiceTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 	}
 }
 
-func (t *voiceTool) transcribe(ctx context.Context, in voiceToolInput) (agent.Result, error) {
+func (t *Tool) transcribe(ctx context.Context, in voiceToolInput) (agent.Result, error) {
 	if !t.voice.HasSTT() {
 		return agent.Result{Output: "transcription is not configured (set AGEZT_STT_URL + AGEZT_STT_MODEL)", IsError: true}, nil
 	}
@@ -108,7 +109,7 @@ func (t *voiceTool) transcribe(ctx context.Context, in voiceToolInput) (agent.Re
 	return agent.Result{Output: text, ObservationTrust: agent.ObservationUntrusted, ObservationSource: "voice:transcription"}, nil
 }
 
-func (t *voiceTool) speak(ctx context.Context, in voiceToolInput) (agent.Result, error) {
+func (t *Tool) speak(ctx context.Context, in voiceToolInput) (agent.Result, error) {
 	if !t.voice.HasTTS() {
 		return agent.Result{Output: "synthesis is not configured (set AGEZT_TTS_URL + AGEZT_TTS_MODEL)", IsError: true}, nil
 	}
@@ -119,10 +120,10 @@ func (t *voiceTool) speak(ctx context.Context, in voiceToolInput) (agent.Result,
 	if err != nil {
 		return agent.Result{Output: "speak failed: " + err.Error(), IsError: true}, nil
 	}
-	if t.saveArtifact == nil {
+	if t.SaveArtifact == nil {
 		return agent.Result{Output: fmt.Sprintf("synthesized %d bytes of %s, but artifact storage is unavailable to persist it", len(audio), mime), IsError: true}, nil
 	}
-	ref, err := t.saveArtifact(audio)
+	ref, err := t.SaveArtifact(audio)
 	if err != nil {
 		return agent.Result{Output: "saved synthesis failed: " + err.Error(), IsError: true}, nil
 	}
