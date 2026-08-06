@@ -16,31 +16,38 @@ import (
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/redact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
+	"github.com/agezt/agezt/plugins/builtintools"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
-	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
 	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
 	configtool "github.com/agezt/agezt/plugins/tools/config"
 	counciltool "github.com/agezt/agezt/plugins/tools/council"
 	dbtool "github.com/agezt/agezt/plugins/tools/db"
-	"github.com/agezt/agezt/plugins/tools/fetch"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
-	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/peer"
 	research "github.com/agezt/agezt/plugins/tools/research"
 	"github.com/agezt/agezt/plugins/tools/shell"
-	websearch "github.com/agezt/agezt/plugins/tools/websearch"
 )
 
-// buildTools constructs the first-party tool map for the kernel.
-// Signature is preserved so callers (main.go + tests) see the same shape:
+// buildTools constructs the first-party tool map for the kernel:
 //
-//	tools map + plugin manifest + per-tool policy cap map + human description.
-func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[string]agent.Tool, []kernelruntime.PluginInfo, map[string]string, string, error) {
+//	tools map + registry Set + plugin manifest + per-tool policy cap map +
+//	human description.
+//
+// The *toolreg.Set (Phase 2.2) carries the registry-built specs alongside the
+// map so main.go can drive their post-Open phases (Set.Configure) against the
+// SAME instances the map holds.
+func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[string]agent.Tool, *toolreg.Set, []kernelruntime.PluginInfo, map[string]string, string, error) {
+	// Make the built-in tool specs available to BuildAll below. Idempotent
+	// (Register replaces by name), so tests calling buildTools repeatedly and
+	// the daemon calling it at boot are both fine.
+	builtintools.RegisterAll()
+
 	out := map[string]agent.Tool{}
 	var registered []string
 
@@ -73,7 +80,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	// file — scoped to the same workspace root.
 	ft, err := filetool.NewWithCheckpoint(wsRoot, baseDir)
 	if err != nil {
-		return nil, nil, nil, "", fmt.Errorf("file tool: %w", err)
+		return nil, nil, nil, nil, "", fmt.Errorf("file tool: %w", err)
 	}
 	out["file"] = ft
 	registered = append(registered, "file(root="+ft.Root()+")")
@@ -85,192 +92,31 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	out["config"] = configtool.New(baseDir)
 	registered = append(registered, "config()")
 
-	// http — default-ALLOW (M818, owner law: every capability open unless you opt
-	// out). Any PUBLIC host is reachable out of the box; the opt-OUT is a non-empty
-	// $AGEZT_HTTP_ALLOWED_HOSTS (comma-separated), which RESTRICTS the tool to just
-	// those hosts. The SSRF egress guard (loopback / private / cloud-metadata
-	// refused) is the hard floor and stays on regardless — relaxed only by the
-	// explicit AGEZT_HTTP_ALLOW_* flags below. So "open" means the public internet,
-	// not a pivot into co-located admin surfaces.
-	ht := httptool.New()
-	httpRestricted := false
-	if hostsCSV := os.Getenv(brand.EnvPrefix + "HTTP_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
-		for h := range strings.SplitSeq(hostsCSV, ",") {
-			if h = strings.TrimSpace(h); h != "" {
-				ht.AllowedHosts = append(ht.AllowedHosts, h)
-			}
-		}
-		httpRestricted = len(ht.AllowedHosts) > 0
-	}
-	if !httpRestricted {
-		ht.AllowAll = true // default-allow: no allowlist pinned ⇒ any public host
-	}
-	// Master permissive switch (M611): AGEZT_ALLOW_ALL=1 implies the full open
-	// posture for the network tools too — any host, including loopback and the
-	// private network — so "everything allowed" really means everything. It also
-	// overrides a pinned allowlist back to open.
+	// Registry-built tools (Phase 2.2): the netguard-capable network tools —
+	// http, browser.read, browser.action(+verbs), web_search, fetch — are built
+	// from their plugins/builtintools specs via kernel/toolreg. Construction
+	// logic (env gating, allowlists, egress-guard flags) lives in each spec's
+	// Build; the returned Set is handed to main.go so Set.Configure can wire the
+	// post-Open phases (netguard audit publisher, later Set*-injection).
+	// AGEZT_ALLOW_ALL is the master permissive switch (M611): it implies the
+	// full open posture for the network tools too — any host, including
+	// loopback and the private network.
 	allowAll := os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1"
-	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_ALL") == "1" {
-		ht.AllowAll = true
-		httpRestricted = false
+	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+		BaseDir:       baseDir,
+		WorkspaceRoot: wsRoot,
+		Warden:        ward,
+		Stderr:        stderr,
+		Get:           os.Getenv,
+		AllowAll:      allowAll,
+	})
+	if err != nil {
+		return nil, nil, nil, nil, "", err
 	}
-	// Egress guard (M16): by default the http tool refuses internal/metadata
-	// addresses even for allowlisted/AllowAll hosts. Relax per range for local use.
-	egress := "guarded"
-	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1" {
-		ht.AllowLoopback = true
-		egress = "loopback-ok"
+	for name, tool := range set.Tools() {
+		out[name] = tool
 	}
-	if allowAll || os.Getenv(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1" {
-		ht.AllowPrivate = true
-		if egress == "loopback-ok" {
-			egress = "loopback+private-ok"
-		} else {
-			egress = "private-ok"
-		}
-		fmt.Fprintln(stderr, "WARNING: AGEZT_HTTP_ALLOW_PRIVATE=1 lets the http tool reach the private network.")
-	}
-	out["http"] = ht
-	if httpRestricted {
-		registered = append(registered, fmt.Sprintf("http(hosts=%d, egress=%s)", len(ht.AllowedHosts), egress))
-	} else {
-		registered = append(registered, fmt.Sprintf("http(any host, egress=%s)", egress))
-	}
-
-	// browser.read — same allowlist pattern as http (uses AGEZT_BROWSER_*
-	// env vars; deliberately separate from http's allowlist so operators
-	// can grant browser-read access to a wider domain set than POSTs).
-	// Same default-ALLOW posture as http (M818): any public host out of the box;
-	// a non-empty AGEZT_BROWSER_ALLOWED_HOSTS is the opt-OUT that restricts it.
-	br := browser.New()
-	browserRestricted := false
-	if hostsCSV := os.Getenv(brand.EnvPrefix + "BROWSER_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
-		for h := range strings.SplitSeq(hostsCSV, ",") {
-			if h = strings.TrimSpace(h); h != "" {
-				br.AllowedHosts = append(br.AllowedHosts, h)
-			}
-		}
-		browserRestricted = len(br.AllowedHosts) > 0
-	}
-	if !browserRestricted {
-		br.AllowAll = true // default-allow
-	}
-	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_ALL") == "1" {
-		br.AllowAll = true
-		browserRestricted = false
-	}
-	// Egress guard (M16): browser.read refuses internal/metadata addresses by
-	// default, even for allowlisted/AllowAll hosts. Relax per range for local use.
-	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_LOOPBACK") == "1" {
-		br.AllowLoopback = true
-	}
-	if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ALLOW_PRIVATE") == "1" {
-		br.AllowPrivate = true
-		fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ALLOW_PRIVATE=1 lets browser.read reach the private network.")
-	}
-	// Browser cookies (M1.mm) — handled out-of-band by the browser.cookies tool
-	// (registered when AGEZT_BROWSER_COOKIES=1); left as a no-op here.
-	out["browser.read"] = br
-	if browserRestricted {
-		registered = append(registered, fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts)))
-	} else {
-		registered = append(registered, "browser.read(any host)")
-	}
-
-	// browser.action — opt-in stateless Playwright browser actions. This promotes
-	// the built-in browser-use skill's driver into a first-party governed tool
-	// when the operator has installed Playwright and explicitly enables it.
-	if os.Getenv(brand.EnvPrefix+"BROWSER_ACTIONS") == "1" {
-		driver := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_DRIVER"))
-		if driver == "" {
-			driver = browser.ResolveActionDriverPath()
-		}
-		if driver == "" {
-			fmt.Fprintf(stderr, "WARNING: %sBROWSER_ACTIONS=1 but no browse.mjs driver was found; set %sBROWSER_ACTION_DRIVER.\n", brand.EnvPrefix, brand.EnvPrefix)
-		} else if ba := browser.NewAction(os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_NODE"), driver); ba != nil {
-			actionRestricted := false
-			if hostsCSV := os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
-				for h := range strings.SplitSeq(hostsCSV, ",") {
-					if h = strings.TrimSpace(h); h != "" {
-						ba.AllowedHosts = append(ba.AllowedHosts, h)
-					}
-				}
-				actionRestricted = len(ba.AllowedHosts) > 0
-			}
-			if !actionRestricted {
-				ba.AllowAll = true
-			}
-			if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_ALL") == "1" {
-				ba.AllowAll = true
-				actionRestricted = false
-			}
-			if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_LOOPBACK") == "1" {
-				ba.AllowLoopback = true
-			}
-			if allowAll || os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_PRIVATE") == "1" {
-				ba.AllowPrivate = true
-				fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_PRIVATE=1 lets browser.action reach private-network pages.")
-			}
-			if os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_USER_PROFILE") == "1" {
-				if dir := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_USER_DATA_DIR")); dir != "" {
-					ba.AllowUserProfile = true
-					ba.UserDataDir = dir
-					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_USER_PROFILE=1 lets browser.action run with an operator-configured persistent browser profile.")
-				} else {
-					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_USER_PROFILE=1 ignored because AGEZT_BROWSER_ACTION_USER_DATA_DIR is empty.")
-				}
-			}
-			if os.Getenv(brand.EnvPrefix+"BROWSER_ACTION_ALLOW_REMOTE_CDP") == "1" {
-				if cdpURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_REMOTE_CDP_URL")); cdpURL != "" {
-					ba.AllowRemoteCDP = true
-					ba.RemoteCDPURL = cdpURL
-					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_REMOTE_CDP=1 lets browser.action attach to an operator-configured remote Chrome DevTools endpoint.")
-				} else {
-					fmt.Fprintln(stderr, "WARNING: AGEZT_BROWSER_ACTION_ALLOW_REMOTE_CDP=1 ignored because AGEZT_BROWSER_ACTION_REMOTE_CDP_URL is empty.")
-				}
-			}
-			if sessionDir := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "BROWSER_ACTION_SESSION_DIR")); sessionDir != "" {
-				ba.SessionRoot = sessionDir
-			} else {
-				ba.SessionRoot = filepath.Join(baseDir, "browser-sessions")
-			}
-			out["browser.action"] = ba
-			for _, tool := range browser.NewActionVerbTools(ba) {
-				out[tool.Definition().Name] = tool
-			}
-			if actionRestricted {
-				registered = append(registered, fmt.Sprintf("browser.action+verbs(hosts=%d)", len(ba.AllowedHosts)))
-			} else {
-				registered = append(registered, "browser.action+verbs(any public host)")
-			}
-		}
-	}
-
-	// web_search — keyword search against a public engine, returning result
-	// titles/URLs/snippets. The capability that lets the agent DISCOVER a URL
-	// (then fetch it with http/browser.read), not just fetch one it was handed.
-	// The engine host is fixed, so there's no host allowlist; the egress guard
-	// still refuses internal/metadata addresses (relaxed under ALLOW_ALL for
-	// parity with the other network tools). Always registered — no secret needed.
-	ws := websearch.New()
-	if allowAll {
-		ws.AllowLoopback = true
-		ws.AllowPrivate = true
-	}
-	out["web_search"] = ws
-	registered = append(registered, "web_search(duckduckgo)")
-
-	// fetch — download a URL's bytes and save them as a browsable artifact (M831),
-	// so the agent can keep an image/PDF/file it finds (it shows up in Files). Same
-	// SSRF-guarded egress as the other network tools; the artifact index is injected
-	// after the kernel opens. Always registered.
-	fe := fetch.New()
-	if allowAll {
-		fe.AllowLoopback = true
-		fe.AllowPrivate = true
-	}
-	out["fetch"] = fe
-	registered = append(registered, "fetch(url→artifact)")
+	registered = append(registered, set.Descs()...)
 
 	// artifacts — list/read/delete the files the agent has saved (fetch downloads,
 	// offloaded tool outputs, inbound images), so a file from one run is usable in a
@@ -392,13 +238,13 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if peerSpec != "" || tenantSpec != "" {
 			peers, err := peer.ParsePeers(peerSpec)
 			if err != nil {
-				return nil, nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
+				return nil, nil, nil, nil, "", fmt.Errorf("AGEZT_PEERS: %w", err)
 			}
 			// Per-tenant peer sets (M219): a tenant's runs route against its own peers,
 			// falling back to the global set. Parsed/validated up front like AGEZT_PEERS.
 			tenantPeers, terr := peer.ParseTenantPeers(tenantSpec)
 			if terr != nil {
-				return nil, nil, nil, "", fmt.Errorf("AGEZT_TENANT_PEERS: %w", terr)
+				return nil, nil, nil, nil, "", fmt.Errorf("AGEZT_TENANT_PEERS: %w", terr)
 			}
 			if pt := peer.NewWithTenants(peers, tenantPeers); pt != nil {
 				out["remote_run"] = pt
@@ -430,7 +276,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if pinSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_PINS")); pinSpec != "" {
 			parsed, err := plugin.ParsePinSpec(pinSpec)
 			if err != nil {
-				return nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_PINS: %w", err)
+				return nil, nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_PINS: %w", err)
 			}
 			pins = parsed
 		}
@@ -439,7 +285,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if allowSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_TOOLS")); allowSpec != "" {
 			parsed, err := plugin.ParseToolAllowlistSpec(allowSpec)
 			if err != nil {
-				return nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_TOOLS: %w", err)
+				return nil, nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGIN_TOOLS: %w", err)
 			}
 			allowedTools = parsed
 		}
@@ -451,7 +297,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		// rejecting it surfaces the typo instead.
 		entries, err := plugin.ParsePluginSpec(spec)
 		if err != nil {
-			return nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGINS: %w", err)
+			return nil, nil, nil, nil, "", fmt.Errorf("AGEZT_PLUGINS: %w", err)
 		}
 		usedPrefixes := make([]string, 0, len(entries))
 		// Scrub secrets of known formats from plugin stderr before it reaches the
@@ -520,7 +366,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		}
 	}
 
-	return out, manifestEntries, toolCaps, strings.Join(registered, ", "), nil
+	return out, set, manifestEntries, toolCaps, strings.Join(registered, ", "), nil
 }
 
 // councilSeatName labels the i-th council seat (M837): the first three get

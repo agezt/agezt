@@ -119,6 +119,9 @@ func NewAction(nodePath, driverPath string) *ActionTool {
 // the Files view as durable artifacts.
 func (t *ActionTool) SetIndex(idx actionArtifactIndexer) { t.index = idx }
 
+// SetOnBlock installs the egress-guard audit callback (toolreg.NetguardAware).
+func (t *ActionTool) SetOnBlock(fn func(ip, reason string)) { t.OnBlock = fn }
+
 func (t *ActionTool) Definition() agent.ToolDef {
 	hosts := strings.Join(t.AllowedHosts, ", ")
 	if t.AllowAll {

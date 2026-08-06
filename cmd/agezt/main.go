@@ -75,6 +75,7 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/stt"
 	"github.com/agezt/agezt/kernel/tenant"
+	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/tunnel"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/update"
@@ -102,7 +103,6 @@ import (
 	dbtool "github.com/agezt/agezt/plugins/tools/db"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
-	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
 	"github.com/agezt/agezt/plugins/tools/mcptool"
 	"github.com/agezt/agezt/plugins/tools/notify"
@@ -113,7 +113,6 @@ import (
 	"github.com/agezt/agezt/plugins/tools/sendmedia"
 	skilltool "github.com/agezt/agezt/plugins/tools/skilltool"
 	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
-	"github.com/agezt/agezt/plugins/tools/websearch"
 	"github.com/agezt/agezt/plugins/tools/workboardtool"
 	"github.com/agezt/agezt/plugins/tools/workflowtool"
 )
@@ -318,7 +317,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	edictEng := edict.New(edictOpts)
 
-	tools, pluginManifest, pluginToolCaps, toolsDesc, err := buildTools(baseDir, stderr, ward)
+	tools, toolSet, pluginManifest, pluginToolCaps, toolsDesc, err := buildTools(baseDir, stderr, ward)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
@@ -1196,11 +1195,24 @@ func runDaemon(stdout, stderr io.Writer) int {
 		k.Forge().SetAutoPromote(0, 0)
 		autoPromoteDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOPROMOTE=on to enable)"
 	}
-	// Egress-block audit (M109): when the http/browser tools' guard refuses a
-	// dial, journal a netguard.blocked event so an operator can see attempted
-	// SSRF / metadata reads. Wired here because the tools are built before the
-	// kernel exists (same ordering as gov.SetBus).
-	wireNetguardAudit(tools, k.Bus())
+	// Registry-driven post-Open tool wiring (Phase 2.2): Set.Configure walks the
+	// registry-built specs and wires the egress-block audit (M109) — when a
+	// netguard-guarded tool refuses a dial, a netguard.blocked event is journaled
+	// so an operator can see attempted SSRF / metadata reads. Wired here because
+	// the tools are built before the kernel exists (same ordering as gov.SetBus).
+	if err := toolSet.Configure(toolreg.KernelDeps{
+		K:               k,
+		Bus:             k.Bus(),
+		Artifacts:       k.ArtifactIndex(),
+		Lake:            k.DataLake(),
+		Journal:         k.Journal(),
+		BaseDir:         baseDir,
+		Stdout:          stdout,
+		NetguardPublish: netguardPublish(k.Bus()),
+	}); err != nil {
+		fmt.Fprintf(stderr, "%s: configure tools: %v\n", brand.Binary, err)
+		return 1
+	}
 	// Install the secret redactor on the primary bus before any Run, so no
 	// event is journaled un-scrubbed.
 	if redactor != nil {
@@ -5553,15 +5565,16 @@ func wireArtifactIndexer(ctx context.Context, k *kernelruntime.Kernel) {
 	}()
 }
 
-// wireNetguardAudit points the http/browser tools' egress-guard OnBlock at the
-// kernel bus, so a refused dial (SSRF / metadata attempt) is journaled as a
-// netguard.blocked event (M109). Called after the kernel exists because the
-// tools are built earlier; a nil bus or a missing tool is a harmless no-op.
-func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
+// netguardPublish returns the per-tool egress-block audit publisher handed to
+// toolreg.KernelDeps.NetguardPublish: Set.Configure calls it once per
+// netguard-guarded tool instance, and the returned callback journals a refused
+// dial (SSRF / metadata attempt) as a netguard.blocked event (M109). A nil bus
+// returns nil so Configure skips the wiring (harmless no-op, e.g. in tests).
+func netguardPublish(b *bus.Bus) func(tool string) func(ip, reason string) {
 	if b == nil {
-		return
+		return nil
 	}
-	publish := func(tool string) func(ip, reason string) {
+	return func(tool string) func(ip, reason string) {
 		return func(ip, reason string) {
 			_, _ = b.Publish(event.Spec{
 				Subject: "netguard.block",
@@ -5570,18 +5583,6 @@ func wireNetguardAudit(tools map[string]agent.Tool, b *bus.Bus) {
 				Payload: map[string]any{"ip": ip, "reason": reason, "tool": tool},
 			})
 		}
-	}
-	if ht, ok := tools["http"].(*httptool.Tool); ok {
-		ht.OnBlock = publish("http")
-	}
-	if br, ok := tools["browser.read"].(*browser.Tool); ok {
-		br.OnBlock = publish("browser.read")
-	}
-	if ba, ok := tools["browser.action"].(*browser.ActionTool); ok {
-		ba.OnBlock = publish("browser.action")
-	}
-	if ws, ok := tools["web_search"].(*websearch.Tool); ok {
-		ws.OnBlock = publish("web_search")
 	}
 }
 
