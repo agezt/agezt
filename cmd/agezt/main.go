@@ -41,6 +41,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agezt/internal/daemonconfig"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
@@ -166,6 +167,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// two kernels writing the same journal — `agt` would silently reach
 	// whichever started last. Refuse if a live daemon already answers.
 	// AGEZT_FORCE_START=1 overrides (e.g. to reclaim after a confirmed crash).
+	// (Deliberately NOT in daemonconfig.Load: this read happens before
+	// injectConfig bridges the config store/vault into the env.)
 	if addr, alive := controlplane.ProbeExisting(baseDir); alive {
 		if strings.TrimSpace(os.Getenv(brand.EnvPrefix+"FORCE_START")) != "1" {
 			fmt.Fprintf(stderr, "%s: a daemon is already running at %s (base dir %s)\n", brand.Binary, addr, baseDir)
@@ -215,6 +218,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// channel construction read the env. configPinned (schema vars set in the real env) is
 	// handed to the control plane so the Config Center can show them read-only.
 	configPinned := injectConfig(baseDir, credStore, stdout)
+
+	// Typed boot config (Phase 2.5): one Load call parses every post-inject
+	// AGEZT_* boot setting — parse shapes, defaults, warn-and-degrade messages,
+	// and the historically-fatal cases (which surface here as an error with the
+	// same wording and exit). MUST run after injectConfig so the reads see
+	// operator edits from the Config Center store + vault. Reads that must stay
+	// live at call time (COUNCIL_MEMBERS, DRAIN_TIMEOUT, the tenant lazy-open's
+	// EDICT_DURABLE) or that happen pre-inject (FORCE_START) stay inline —
+	// see the daemonconfig package comment.
+	dcfg, derr := daemonconfig.Load(nil, stderr)
+	if derr != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, derr)
+		return 1
+	}
 
 	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
 	// registers as a live provider once the operator signs in.
@@ -266,13 +283,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	askPolicy, askPolicyDesc := selectAskPolicy()
 	// Operator-extensible hard-deny rules (M17): AGEZT_EDICT_DENY appends
 	// site-specific rules to the built-in set (e.g. "git push;shell:/etc/shadow").
+	// Parsed (and rejected when malformed) by daemonconfig.Load above.
 	hardDeny := edict.DefaultHardDeny()
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EDICT_DENY")); spec != "" {
-		extra, derr := edict.ParseDenyRules(spec)
-		if derr != nil {
-			fmt.Fprintf(stderr, "%s: %sEDICT_DENY: %v\n", brand.Binary, brand.EnvPrefix, derr)
-			return 1
-		}
+	if extra := dcfg.Policy.EdictDeny; len(extra) > 0 {
 		hardDeny = append(hardDeny, extra...)
 		askPolicyDesc += fmt.Sprintf("; +%d operator deny rule(s)", len(extra))
 	}
@@ -283,7 +296,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// catastrophe hard-deny rails (fork-bomb, dd-to-raw-device) deliberately stay,
 	// since they guard against self-destruction rather than gate normal tools, and
 	// are no-ops on Windows anyway. Loud banner so this is never silent.
-	permissive := os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1"
+	permissive := dcfg.Policy.AllowAll
 	if permissive {
 		lv := make(map[edict.Capability]edict.TrustLevel, len(edict.AllCapabilities()))
 		for _, c := range edict.AllCapabilities() {
@@ -364,188 +377,76 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// in-process `memory` tool, and multi-tool runs are auto-distilled into
 	// durable facts. Set AGEZT_MEMORY=off to disable the per-run behaviour
 	// (the store and `agt memory` CLI stay available either way).
-	memOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"MEMORY"), "off")
+	memOn := dcfg.Knowledge.Memory
 	// How many tool calls a run must make before it's worth an auto-distillation
 	// pass (M993). Higher = fewer, more meaningful auto-memories — simple/short
 	// runs no longer each spawn distilled notes. Default 6 (was 4); override with
 	// AGEZT_MEMORY_DISTILL_MIN_TOOLS (0 or negative falls back to the default).
-	distillMinTools := 6
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MEMORY_DISTILL_MIN_TOOLS")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			distillMinTools = n
-		}
-	}
+	distillMinTools := dcfg.Knowledge.MemoryDistillMinTools
 	// Operator profile (M1000): learn who the operator is and inject it into every
 	// run. Requires memory; default on, AGEZT_USER_PROFILE=off disables both the
 	// injection and the daily auto-synthesis.
-	profileOn := memOn && !strings.EqualFold(os.Getenv(brand.EnvPrefix+"USER_PROFILE"), "off")
+	profileOn := dcfg.Knowledge.UserProfile
 	// Taste overlay: inject curated "what good looks like" exemplars into runs.
 	// Default on; AGEZT_TASTE_INJECT=off disables the injection (the store and
 	// `agt taste` CLI stay live regardless).
-	tasteOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"TASTE_INJECT"), "off")
+	tasteOn := dcfg.Knowledge.TasteInject
 	// World-model per-run behaviour (entity injection + the `world` tool).
 	// The graph store and `agt world` CLI always work; this only gates the
 	// in-run wiring. AGEZT_WORLDMODEL=off disables it.
-	worldOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"WORLDMODEL"), "off")
+	worldOn := dcfg.Knowledge.WorldModel
 	// Forge / skills (SPEC-05 §4-5). Active skills inject into runs and Forge
 	// proposes drafts after complex tasks. Store + `agt skill` CLI stay live
 	// regardless. AGEZT_SKILLS=off disables injection; AGEZT_FORGE=off
 	// disables post-run proposal.
-	skillOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILLS"), "off")
-	forgeOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"FORGE"), "off")
+	skillOn := dcfg.Knowledge.Skills
+	forgeOn := dcfg.Knowledge.Forge
 	// Host-environment preamble (M609): on by default — the model needs to know
 	// its OS/shell/workspace to act correctly (esp. on Windows). AGEZT_ENV_INJECT=off
 	// disables it for operators who pin everything via a custom system prompt.
-	envInjectOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"ENV_INJECT"), "off")
+	envInjectOn := dcfg.Misc.EnvInject
 	// Durable run resume (M1002): on by default (default-allow posture). A root
 	// run's dispatch context + conversation snapshot are persisted so a restart
 	// — stop/start, self-update, or hard kill — re-dispatches the run instead of
-	// abandoning it. AGEZT_RESUME=off restores the historical cancel-and-drop.
-	resumeOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"RESUME"), "off")
-	// AGEZT_RESUME_SNAPSHOT_MAX_BYTES caps a serialized ticket; a larger snapshot
-	// is dropped (the run then resumes by intent-replay). 0 → package default.
-	resumeSnapshotMaxBytes := 0
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RESUME_SNAPSHOT_MAX_BYTES")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			resumeSnapshotMaxBytes = n
-		}
-	}
+	// abandoning it. AGEZT_RESUME=off restores the historical cancel-and-drop;
+	// AGEZT_RESUME_SNAPSHOT_MAX_BYTES caps a serialized ticket.
+	resumeOn := dcfg.Lifecycle.Resume
+	resumeSnapshotMaxBytes := dcfg.Lifecycle.ResumeSnapshotMaxBytes
 	// Multi-agent delegation (P6-MULTI-01): the `delegate` tool lets a lead
-	// agent spawn bounded sub-agents. On by default; AGEZT_SUBAGENT=off disables
-	// it, AGEZT_SUBAGENT_DEPTH sets how deep delegation may nest (default 1).
-	subAgentOn := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"SUBAGENT"), "off")
-	// Default depth 3 (M843): a lead agent can decompose a task, delegate the parts
-	// to sub-agents, and THOSE sub-agents can delegate further — a real leader/worker
-	// tree, not just one flat layer. The owner wants agents to "split tasks and run
-	// more agents", and the default-allow posture favours capability; the tree-total
-	// rail below keeps deep delegation bounded. AGEZT_SUBAGENT_DEPTH overrides.
-	subAgentDepth := 3
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_DEPTH")); v != "" {
-		if d, err := strconv.Atoi(v); err == nil && d > 0 {
-			subAgentDepth = d
-		}
-	}
-	// AGEZT_SUBAGENT_FANOUT bounds how many sub-agents a single run may spawn at
-	// its level (M46). 0 / absent = unbounded (the historical default); a
-	// positive value refuses the Nth+1 delegate call with a tool error.
-	subAgentFanout := 0
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_FANOUT")); v != "" {
-		if f, err := strconv.Atoi(v); err == nil && f > 0 {
-			subAgentFanout = f
-		}
-	}
-	// AGEZT_SUBAGENT_SPEND_CAP caps the total spend a single run's sub-agents
-	// may collectively consume (M48), given as a USD amount (matching the
-	// AGEZT_*_DAILY_CEILING convention) and stored as microcents. Once a lead's
-	// delegations have spent past it, the next delegate is refused. 0 / absent =
-	// unbounded; a malformed value is a hard startup error (fast feedback).
-	var subAgentSpendCap int64
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_SPEND_CAP")); v != "" {
-		usd, perr := strconv.ParseFloat(v, 64)
-		if perr != nil || usd < 0 {
-			fmt.Fprintf(stderr, "%s: %sSUBAGENT_SPEND_CAP: want a non-negative USD amount, got %q\n", brand.Binary, brand.EnvPrefix, v)
-			return 1
-		}
-		subAgentSpendCap = int64(usd * 1e9)
-	}
-	// AGEZT_SUBAGENT_MAX_TOTAL caps the total number of sub-agents in one
-	// delegation TREE across all depths (M629) — the rail that makes
-	// AGEZT_SUBAGENT_DEPTH>1 safe, since depth×fan-out alone can't bound a
-	// tree's overall size. 0 / absent = unbounded; a positive value refuses the
-	// (N+1)th spawn anywhere in the tree.
-	subAgentTotal := 0
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "SUBAGENT_MAX_TOTAL")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			subAgentTotal = n
-		}
-	}
-	// With deep delegation on by default (depth>1), give the tree a generous but
-	// finite size rail when the operator hasn't set one (M843) — depth×fan-out
-	// alone can't bound a tree, so an unbounded total + deep recursion risks a
-	// fork-bomb. 48 total sub-agents is far more than any real leader/worker task
-	// needs while still preventing runaway. depth==1 stays unbounded (unchanged);
-	// AGEZT_SUBAGENT_MAX_TOTAL overrides.
-	if subAgentTotal == 0 && subAgentDepth > 1 {
-		subAgentTotal = 48
-	}
+	// agent spawn bounded sub-agents (AGEZT_SUBAGENT / _DEPTH / _FANOUT /
+	// _SPEND_CAP / _MAX_TOTAL — defaults, rails, and the M843 deep-delegation
+	// tree bound live in daemonconfig.Load).
+	subAgentOn := dcfg.SubAgents.Enabled
+	subAgentDepth := dcfg.SubAgents.Depth
+	subAgentFanout := dcfg.SubAgents.Fanout
+	subAgentSpendCap := dcfg.SubAgents.SpendCapMicrocents
+	subAgentTotal := dcfg.SubAgents.MaxTotal
 
-	// Artifact offload threshold (SPEC-04 §3.6): tool outputs larger than this are
-	// stored content-addressed and the journal event carries a raw_ref + preview.
-	// Unset/invalid → the kernel default (agent.DefaultArtifactThreshold).
-	artifactThreshold := 0
-	if v := os.Getenv(brand.EnvPrefix + "ARTIFACT_THRESHOLD"); v != "" {
-		if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
-			artifactThreshold = n
-		} else {
-			fmt.Fprintf(stderr, "%s: %sARTIFACT_THRESHOLD: want a positive byte count, got %q (using default)\n", brand.Binary, brand.EnvPrefix, v)
-		}
-	}
+	// Artifact offload threshold (SPEC-04 §3.6) + context budget caps
+	// (SPEC-04 §3 / SPEC-10 §3 / M395 / M398): parsed (with their
+	// warn-and-degrade messages) by daemonconfig.Load.
+	artifactThreshold := dcfg.Context.ArtifactThreshold
+	contextBudget := dcfg.Context.Budget
+	contextBudgetAuto := dcfg.Context.BudgetAuto
+	contextProtectFirst := dcfg.Context.ProtectFirst
+	contextSummarize := dcfg.Context.Summarize
 
-	// Context budget (SPEC-04 §3 / SPEC-10 §3): cap the assembled-context chars
-	// the loop sends per call; over-budget runs elide their oldest tool outputs.
-	// 0 (unset) = full history (current behaviour).
-	contextBudget := 0
-	contextBudgetAuto := false
-	if v := os.Getenv(brand.EnvPrefix + "CONTEXT_BUDGET"); v != "" {
-		if strings.EqualFold(v, "auto") {
-			contextBudgetAuto = true // derive from the model's catalog context window
-		} else if n, perr := strconv.Atoi(v); perr == nil && n > 0 {
-			contextBudget = n
-		} else {
-			fmt.Fprintf(stderr, "%s: %sCONTEXT_BUDGET: want a positive char count or \"auto\", got %q (ignored)\n", brand.Binary, brand.EnvPrefix, v)
-		}
-	}
-
-	// AGEZT_CONTEXT_PROTECT_FIRST=<n> shields the first n messages from context
-	// compaction so the run's original grounding survives even as the oldest
-	// middle turns are elided (SPEC-10 §3 / M395). 0 (unset) = oldest-first.
-	contextProtectFirst := 0
-	if v := os.Getenv(brand.EnvPrefix + "CONTEXT_PROTECT_FIRST"); v != "" {
-		if n, perr := strconv.Atoi(v); perr == nil && n >= 0 {
-			contextProtectFirst = n
-		} else {
-			fmt.Fprintf(stderr, "%s: %sCONTEXT_PROTECT_FIRST: want a non-negative count, got %q (ignored)\n", brand.Binary, brand.EnvPrefix, v)
-		}
-	}
-
-	// AGEZT_CONTEXT_SUMMARIZE=1 replaces the deterministic head-snippet stub of an
-	// elided tool output with a one-line abstractive summary from a bounded
-	// provider call (SPEC-10 §3 / M398). Off by default — it spends extra (cached,
-	// once-per-output) provider calls, so the operator opts in.
-	contextSummarize := os.Getenv(brand.EnvPrefix+"CONTEXT_SUMMARIZE") == "1"
-
-	// AGEZT_OBSERVATION_DELTAS=on (or 1) makes repeated identical tool/input
-	// observations return a compact delta to the model while the journal keeps
-	// the raw output. Off by default for compatibility.
-	obsDeltasRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "OBSERVATION_DELTAS"))
-	observationDeltas := strings.EqualFold(obsDeltasRaw, "on") || obsDeltasRaw == "1"
-	// AGEZT_EPISTEMIC_ESCALATION=on routes otherwise-allowed tool proposals
-	// through HITL when the runtime's external calibration gate sees matching
-	// historical failures, low effect confidence, temporal sensitivity, or novel
-	// dynamic tool conditions. Off by default; signals are still journaled.
-	epistemicEscalationRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EPISTEMIC_ESCALATION"))
-	epistemicEscalation := strings.EqualFold(epistemicEscalationRaw, "on") || epistemicEscalationRaw == "1"
-	// AGEZT_INTENT_REGRET_GATING=on routes otherwise-allowed tool proposals
-	// through HITL when the user's utterance is underdetermined and the proposed
-	// action has high wrong-action regret. Off by default; intent frames are
-	// still journaled.
-	intentRegretGatingRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "INTENT_REGRET_GATING"))
-	intentRegretGating := strings.EqualFold(intentRegretGatingRaw, "on") || intentRegretGatingRaw == "1"
-	// AGEZT_PROMPT_INJECTION_GUARD selects the guard posture for effectful actions
-	// proposed within the causal window of directive-like untrusted web/file/API
-	// content: unset/anything → warn (allow + journal), "on"/"block" → HITL
-	// approval, "off"/"0" → no active intervention. The observation boundary and
-	// audit metadata remain enabled in all modes.
-	promptInjectionMode := kernelruntime.ParsePromptInjectionMode(os.Getenv(brand.EnvPrefix + "PROMPT_INJECTION_GUARD"))
+	// Run-safety guards: observation deltas, epistemic/intent HITL gating, and
+	// the prompt-injection guard posture (raw value parsed here — unset/unknown
+	// means warn mode; "on"/"block" → HITL approval; "off"/"0" → no active
+	// intervention).
+	observationDeltas := dcfg.Guards.ObservationDeltas
+	epistemicEscalation := dcfg.Guards.EpistemicEscalation
+	intentRegretGating := dcfg.Guards.IntentRegretGating
+	promptInjectionMode := kernelruntime.ParsePromptInjectionMode(dcfg.Guards.PromptInjectionGuard)
 	autoApproveCaps, autoApproveDesc := selectAutoApproveCapabilities()
-	autoPromoteScriptTools := !strings.EqualFold(os.Getenv(brand.EnvPrefix+"TOOLFORGE_AUTO_PROMOTE"), "off")
-	disableHeuristicBypassRaw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DISABLE_HEURISTIC_BYPASS"))
-	disableHeuristicBypass := strings.EqualFold(disableHeuristicBypassRaw, "on") || disableHeuristicBypassRaw == "1"
+	autoPromoteScriptTools := dcfg.Misc.ToolforgeAutoPromote
+	disableHeuristicBypass := dcfg.Guards.DisableHeuristicBypass
 
 	// AGEZT_SKILL_SHADOWEVAL=on judges the shadow skills relevant to a completed
 	// run against what actually happened (SPEC-05 §5.2). Off by default — it spends
 	// extra provider calls per run, so the operator opts in.
-	shadowEval := strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_SHADOWEVAL"), "on")
+	shadowEval := dcfg.Knowledge.SkillShadowEval
 
 	// Provider embeddings for memory recall (M901, DECISIONS C5 opt-in): when
 	// AGEZT_EMBED_URL + AGEZT_EMBED_MODEL are both set, recall ranks by TRUE
@@ -556,13 +457,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Recall falls back to local on any embedder failure, so a wrong URL
 	// degrades quality, never availability.
 	var memEmbedder kernelmemory.Embedder
-	if embedURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMBED_URL")); embedURL != "" {
-		embedModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "EMBED_MODEL"))
-		if embedModel == "" {
-			fmt.Fprintf(stderr, "%s: %sEMBED_URL is set but %sEMBED_MODEL is empty — provider embeddings disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
-		} else {
-			memEmbedder = embed.New(embedURL, embedModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"EMBED_KEY")))
-		}
+	if ec := dcfg.Sidecars.Embed; ec.Enabled() {
+		memEmbedder = embed.New(ec.URL, ec.Model, ec.Key)
 	}
 
 	// Voice adapter (STT + TTS) over an OpenAI-compatible endpoint, same shape as
@@ -577,25 +473,15 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// base URL, so a URL is optional for them. Boot-resilient: a misconfigured
 	// half warns and disables itself rather than failing the daemon.
 	voiceAdapter := &voice.Adapter{}
-	sttProvider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_PROVIDER"))
-	sttURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_URL"))
-	sttModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_MODEL"))
-	if sttURL != "" || voiceProviderIsNative(sttProvider) {
-		if sttModel == "" && !voiceProviderIsNative(sttProvider) {
-			fmt.Fprintf(stderr, "%s: %sSTT_URL is set but %sSTT_MODEL is empty — transcription disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
-		} else if sttClient, err := voice.NewSTT(sttProvider, voice.Config{BaseURL: sttURL, Model: sttModel, APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "STT_KEY"))}); err != nil {
+	if sc := dcfg.Sidecars.STT; sc.Attempt {
+		if sttClient, err := voice.NewSTT(sc.Provider, voice.Config{BaseURL: sc.URL, Model: sc.Model, APIKey: sc.Key}); err != nil {
 			fmt.Fprintf(stderr, "%s: transcription disabled: %v\n", brand.Binary, err)
 		} else {
 			voiceAdapter.STT = sttClient
 		}
 	}
-	ttsProvider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_PROVIDER"))
-	ttsURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_URL"))
-	ttsModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_MODEL"))
-	if ttsURL != "" || voiceProviderIsNative(ttsProvider) {
-		if ttsModel == "" && !voiceProviderIsNative(ttsProvider) {
-			fmt.Fprintf(stderr, "%s: %sTTS_URL is set but %sTTS_MODEL is empty — synthesis disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
-		} else if ttsClient, err := voice.NewTTS(ttsProvider, voice.Config{BaseURL: ttsURL, Model: ttsModel, Voice: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_VOICE")), APIKey: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TTS_KEY"))}); err != nil {
+	if tc := dcfg.Sidecars.TTS; tc.Attempt {
+		if ttsClient, err := voice.NewTTS(tc.Provider, voice.Config{BaseURL: tc.URL, Model: tc.Model, Voice: tc.Voice, APIKey: tc.Key}); err != nil {
 			fmt.Fprintf(stderr, "%s: synthesis disabled: %v\n", brand.Binary, err)
 		} else {
 			voiceAdapter.TTS = ttsClient
@@ -611,24 +497,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// OpenAI-compatible /v1/images/generations endpoint (api.openai.com/v1 +
 	// dall-e-3 + AGEZT_IMAGE_KEY, or a local/compatible gateway). Unset → no tool.
 	var imageCfg kernelruntime.ImageGen
-	if imgURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMAGE_URL")); imgURL != "" {
-		if imgModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "IMAGE_MODEL")); imgModel == "" {
-			fmt.Fprintf(stderr, "%s: %sIMAGE_URL is set but %sIMAGE_MODEL is empty — image generation disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
-		} else {
-			imageCfg = image.New(imgURL, imgModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"IMAGE_KEY")))
-		}
+	if ic := dcfg.Sidecars.Image; ic.Enabled() {
+		imageCfg = image.New(ic.URL, ic.Model, ic.Key)
 	}
 
 	// Reranking (M997): when AGEZT_RERANK_URL + AGEZT_RERANK_MODEL are set, the
 	// `rerank` tool is registered, reordering candidate documents via a
 	// Cohere/Jina-style /rerank endpoint. Unset → no tool.
 	var rerankCfg kernelruntime.Reranker
-	if rrURL := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RERANK_URL")); rrURL != "" {
-		if rrModel := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RERANK_MODEL")); rrModel == "" {
-			fmt.Fprintf(stderr, "%s: %sRERANK_URL is set but %sRERANK_MODEL is empty — reranking disabled\n", brand.Binary, brand.EnvPrefix, brand.EnvPrefix)
-		} else {
-			rerankCfg = rerank.New(rrURL, rrModel, strings.TrimSpace(os.Getenv(brand.EnvPrefix+"RERANK_KEY")))
-		}
+	if rc := dcfg.Sidecars.Rerank; rc.Enabled() {
+		rerankCfg = rerank.New(rc.URL, rc.Model, rc.Key)
 	}
 
 	cfg := kernelruntime.Config{
@@ -639,7 +517,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		ToolCapabilities: pluginToolCaps, // M900: manifest-declared policy axes
 
 		Model:                      model,
-		System:                     os.Getenv(brand.EnvPrefix + "SYSTEM_PROMPT"),
+		System:                     dcfg.Misc.SystemPrompt, // AGEZT_SYSTEM_PROMPT
 		Warden:                     ward,
 		Edict:                      edictEng,
 		AutoApproveCapabilities:    autoApproveCaps,
@@ -697,16 +575,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// A malformed value is a hard startup error (fast feedback over silent
 	// misconfig); a non-positive value is treated as "off".
 	runTimeoutDesc := "disabled (set " + brand.EnvPrefix + "RUN_TIMEOUT, e.g. 5m)"
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RUN_TIMEOUT")); spec != "" {
-		d, derr := time.ParseDuration(spec)
-		if derr != nil {
-			fmt.Fprintf(stderr, "%s: %sRUN_TIMEOUT: want a Go duration (e.g. 90s, 5m), got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
-		if d > 0 {
-			cfg.MaxDuration = d
-			runTimeoutDesc = fmt.Sprintf("%s per run (task.failed reason=timeout on overrun)", d)
-		}
+	if d := dcfg.RunLoop.RunTimeout; d > 0 {
+		cfg.MaxDuration = d
+		runTimeoutDesc = fmt.Sprintf("%s per run (task.failed reason=timeout on overrun)", d)
 	}
 	// Per-run tool-round cap (M824): AGEZT_MAX_ITER sets how many tool-call rounds
 	// a single run may take before it stops with max_iters. Defaults to the agent
@@ -714,12 +585,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// error (fast feedback). Raise it for deep agentic tasks; the chat's "Continue"
 	// affordance resumes a run that still hit the cap.
 	maxIterDesc := fmt.Sprintf("%d per run (default; set %sMAX_ITER to change)", agent.DefaultMaxIter, brand.EnvPrefix)
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MAX_ITER")); spec != "" {
-		n, perr := strconv.Atoi(spec)
-		if perr != nil || n <= 0 {
-			fmt.Fprintf(stderr, "%s: %sMAX_ITER: want a positive integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
+	if n := dcfg.RunLoop.MaxIter; n > 0 {
 		cfg.MaxIter = n
 		maxIterDesc = fmt.Sprintf("%d per run", n)
 	}
@@ -732,12 +598,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// then stops at the cap with max_iters). Set it high for long unattended jobs.
 	// AGEZT_AUTO_CONTINUE_WAIT tunes the breather before each continuation.
 	autoContinueDesc := fmt.Sprintf("%d×%d rounds (default; set %sMAX_AUTO_CONTINUE)", agent.DefaultMaxAutoContinue, cfg.MaxIter, brand.EnvPrefix)
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MAX_AUTO_CONTINUE")); spec != "" {
-		n, perr := strconv.Atoi(spec)
-		if perr != nil {
-			fmt.Fprintf(stderr, "%s: %sMAX_AUTO_CONTINUE: want an integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
+	if dcfg.RunLoop.MaxAutoContinueSet {
+		n := dcfg.RunLoop.MaxAutoContinue
 		cfg.MaxAutoContinue = n
 		switch {
 		case n < 0:
@@ -748,73 +610,38 @@ func runDaemon(stdout, stderr io.Writer) int {
 			autoContinueDesc = fmt.Sprintf("%d×%d rounds", n, cfg.MaxIter)
 		}
 	}
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "AUTO_CONTINUE_WAIT")); spec != "" {
-		d, perr := time.ParseDuration(spec)
-		if perr != nil || d < 0 {
-			fmt.Fprintf(stderr, "%s: %sAUTO_CONTINUE_WAIT: want a non-negative duration, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
-		cfg.AutoContinueWait = d
-	}
+	cfg.AutoContinueWait = dcfg.RunLoop.AutoContinueWait
 
 	// In-turn parallel tool dispatch (M880): AGEZT_PARALLEL_TOOLS caps how many
 	// tool calls from ONE assistant turn execute concurrently. Defaults to the
 	// agent package's DefaultMaxParallelTools; 1 disables (strictly sequential).
-	// Malformed or non-positive is a hard startup error (fast feedback).
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PARALLEL_TOOLS")); spec != "" {
-		n, perr := strconv.Atoi(spec)
-		if perr != nil || n <= 0 {
-			fmt.Fprintf(stderr, "%s: %sPARALLEL_TOOLS: want a positive integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
+	if n := dcfg.RunLoop.MaxParallelTools; n > 0 {
 		cfg.MaxParallelTools = n
 	}
 
 	// Tool discovery (CH-03): AGEZT_TOOL_DISCOVERY_MAX=N trims each provider
 	// request to the N most relevant tool schemas using the built-in lexical
-	// selector. Off by default so existing deployments keep offering every tool;
-	// malformed or negative is a hard startup error.
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TOOL_DISCOVERY_MAX")); spec != "" {
-		n, perr := strconv.Atoi(spec)
-		if perr != nil || n < 0 {
-			fmt.Fprintf(stderr, "%s: %sTOOL_DISCOVERY_MAX: want a non-negative integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
-		cfg.ToolDiscoveryMax = n
-	}
+	// selector. Off by default so existing deployments keep offering every tool.
+	cfg.ToolDiscoveryMax = dcfg.RunLoop.ToolDiscoveryMax
 
 	// Per-tool-call timeout (M34): AGEZT_TOOL_TIMEOUT=<duration> bounds each
 	// individual tool invocation. Unlike the per-run cap, an overrun fails
 	// only that tool call (the model gets an error result and can adapt) —
-	// the run continues. Off by default; malformed = hard startup error.
+	// the run continues. Off by default.
 	toolTimeoutDesc := "disabled (set " + brand.EnvPrefix + "TOOL_TIMEOUT, e.g. 30s)"
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TOOL_TIMEOUT")); spec != "" {
-		d, derr := time.ParseDuration(spec)
-		if derr != nil {
-			fmt.Fprintf(stderr, "%s: %sTOOL_TIMEOUT: want a Go duration (e.g. 30s, 2m), got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
-		if d > 0 {
-			cfg.ToolTimeout = d
-			toolTimeoutDesc = fmt.Sprintf("%s per tool call (error result on overrun; run continues)", d)
-		}
+	if d := dcfg.RunLoop.ToolTimeout; d > 0 {
+		cfg.ToolTimeout = d
+		toolTimeoutDesc = fmt.Sprintf("%s per tool call (error result on overrun; run continues)", d)
 	}
 	// HITL approval window (M100): AGEZT_APPROVAL_TIMEOUT=<duration> sets how long
 	// a prompt-mode approval blocks waiting for an operator before it auto-denies
 	// (DecisionTimeout). Default is approval.DefaultTimeout (5m); right-size it for
 	// the deployment — a short window for unattended runs, longer for an operator
-	// at the console. Malformed = hard startup error; non-positive = use default.
+	// at the console. Non-positive = use default.
 	approvalTimeoutDesc := "default (5m; set " + brand.EnvPrefix + "APPROVAL_TIMEOUT, e.g. 2m)"
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "APPROVAL_TIMEOUT")); spec != "" {
-		d, derr := time.ParseDuration(spec)
-		if derr != nil {
-			fmt.Fprintf(stderr, "%s: %sAPPROVAL_TIMEOUT: want a Go duration (e.g. 2m, 30s), got %q\n", brand.Binary, brand.EnvPrefix, spec)
-			return 1
-		}
-		if d > 0 {
-			cfg.ApprovalTimeout = d
-			approvalTimeoutDesc = fmt.Sprintf("%s per HITL approval (auto-deny on overrun)", d)
-		}
+	if d := dcfg.Policy.ApprovalTimeout; d > 0 {
+		cfg.ApprovalTimeout = d
+		approvalTimeoutDesc = fmt.Sprintf("%s per HITL approval (auto-deny on overrun)", d)
 	}
 	// Secret redaction (M15 / SPEC-06): scrub secrets from every durably-published
 	// event before it enters the hash-chained (permanent) journal. On by default;
@@ -822,7 +649,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// literals) plus built-in high-confidence secret patterns.
 	var redactor *redact.Redactor
 	redactDesc := "disabled (" + brand.EnvPrefix + "REDACT=off)"
-	if !strings.EqualFold(os.Getenv(brand.EnvPrefix+"REDACT"), "off") {
+	if dcfg.Misc.Redact {
 		redactor = redact.New()
 		lits := credSecrets(credStore)
 		redactor.SetSecrets(lits)
@@ -930,6 +757,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// comma-separated model list) overrides. Built like VisionModel — the daemon
 	// owns the registered+credentialed set; never picks an unkeyed model.
 	cfg.CouncilMembers = func() []kernelruntime.CouncilMember {
+		// Deliberately a LIVE env read (not daemonconfig.Load): this closure runs
+		// on every council convocation, and the Config Center live-applies edits
+		// via os.Setenv — capturing at boot would regress restart-free changes.
 		if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "COUNCIL_MEMBERS")); spec != "" {
 			var ms []kernelruntime.CouncilMember
 			for i, part := range strings.Split(spec, ",") {
@@ -971,7 +801,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Ground the Council of Elders in current facts: today's date for every seat
 	// plus a shared web research brief (via the always-registered web_search tool).
 	// Default on; AGEZT_COUNCIL_WEBSEARCH=off convenes the panel with the date only.
-	cfg.CouncilWebSearch = !strings.EqualFold(os.Getenv(brand.EnvPrefix+"COUNCIL_WEBSEARCH"), "off")
+	cfg.CouncilWebSearch = dcfg.Misc.CouncilWebSearch
 
 	var openErr error
 	k, openErr = kernelruntime.Open(cfg)
@@ -996,7 +826,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// with `agt skill promote`). AGEZT_SKILL_AUTOQUARANTINE=off disables it.
 	autoQDesc := fmt.Sprintf("on (pull active skill after ≥%d failures at ≥%.0f%% rate; set %sSKILL_AUTOQUARANTINE=off to disable)",
 		skill.DefaultAutoQuarantineMinFailures, skill.DefaultAutoQuarantineRate*100, brand.EnvPrefix)
-	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOQUARANTINE"), "off") {
+	if !dcfg.Knowledge.SkillAutoQuarantine {
 		k.Forge().SetAutoQuarantine(0, 0)
 		autoQDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOQUARANTINE=on to enable)"
 	}
@@ -1004,7 +834,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// production is opt-in. When on, a freshly-authored draft that passes the
 	// deterministic shadow-test auto-advances to shadow. AGEZT_SKILL_AUTOSHADOW=on.
 	autoShadowDesc := "off (set " + brand.EnvPrefix + "SKILL_AUTOSHADOW=on to auto-stage drafts that pass the shadow-test)"
-	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOSHADOW"), "on") {
+	if dcfg.Knowledge.SkillAutoShadow {
 		k.Forge().SetAutoShadow(true)
 		autoShadowDesc = "on (auto-advance a well-formed draft to shadow on creation)"
 	}
@@ -1019,7 +849,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// shadow evaluation is feeding wins. AGEZT_SKILL_AUTOPROMOTE=off disables it.
 	autoPromoteDesc := fmt.Sprintf("on (promote a shadow skill after ≥%d helpful evals at ≥%.0f%% rate; set %sSKILL_AUTOPROMOTE=off to disable)",
 		skill.DefaultAutoPromoteMinWins, skill.DefaultAutoPromoteRate*100, brand.EnvPrefix)
-	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"SKILL_AUTOPROMOTE"), "off") {
+	if !dcfg.Knowledge.SkillAutoPromote {
 		k.Forge().SetAutoPromote(0, 0)
 		autoPromoteDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOPROMOTE=on to enable)"
 	}
@@ -1058,7 +888,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the engine overlay is a projection of it. Opt-in: a level *loosening*
 	// that silently persisted across a restart would be a footgun, so the
 	// operator asks for it explicitly. MUST run before any Run is dispatched.
-	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"EDICT_DURABLE"), "on") {
+	if dcfg.Policy.EdictDurable {
 		overlay, rerr := replayPolicyOverlay(k)
 		if rerr != nil {
 			fmt.Fprintf(stderr, "%s: replay durable policy: %v\n", brand.Binary, rerr)
@@ -1153,7 +983,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// streaming `agt run` whose client drops (Ctrl-C / killed) cancels its run
 	// server-side instead of running on headless. Off by default so a
 	// backgrounded `agt run &` (client still alive) is unaffected.
-	cancelOnDisconnect := strings.EqualFold(os.Getenv(brand.EnvPrefix+"CANCEL_ON_DISCONNECT"), "on")
+	cancelOnDisconnect := dcfg.Lifecycle.CancelOnDisconnect
 	srv.SetCancelOnDisconnect(cancelOnDisconnect)
 	// Disk-space health (M131): inject the cross-platform disk-usage probe so the
 	// disk handler / doctor check can report free space without controlplane
@@ -1163,37 +993,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// AGEZT_UPDATE_GITHUB_OWNER/REPO is set. When not configured, update
 	// commands report "update is disabled" rather than erroring.
 	var updateSvc *update.Service
-	if endpoint := os.Getenv(brand.EnvPrefix + "UPDATE_ENDPOINT"); endpoint != "" {
+	if endpoint := dcfg.Lifecycle.UpdateEndpoint; endpoint != "" {
 		updateSvc = update.New(update.Config{
-			Source:   update.SourceEndpoint,
-			Endpoint: endpoint,
-			BaseDir:  baseDir,
-			DrainTimeout: func() time.Duration {
-				if t := os.Getenv(brand.EnvPrefix + "UPDATE_DRAIN_TIMEOUT"); t != "" {
-					if d, err := time.ParseDuration(t); err == nil {
-						return d
-					}
-				}
-				return 30 * time.Second
-			}(),
-			CheckInterval: func() time.Duration {
-				if t := os.Getenv(brand.EnvPrefix + "UPDATE_CHECK_INTERVAL"); t != "" {
-					if d, err := time.ParseDuration(t); err == nil && d > 0 {
-						return d
-					}
-				}
-				return 0 // disabled by default
-			}(),
+			Source:        update.SourceEndpoint,
+			Endpoint:      endpoint,
+			BaseDir:       baseDir,
+			DrainTimeout:  dcfg.Lifecycle.UpdateDrainTimeout,  // default 30s
+			CheckInterval: dcfg.Lifecycle.UpdateCheckInterval, // 0 = disabled by default
 		})
-	} else if owner := os.Getenv(brand.EnvPrefix + "UPDATE_GITHUB_OWNER"); owner != "" {
-		repo := os.Getenv(brand.EnvPrefix + "UPDATE_GITHUB_REPO")
-		if repo == "" {
-			repo = brand.Binary // default repo to the binary name
-		}
+	} else if owner := dcfg.Lifecycle.UpdateGitHubOwner; owner != "" {
 		updateSvc = update.New(update.Config{
 			Source:        update.SourceGitHub,
 			GitHubOwner:   owner,
-			GitHubRepo:    repo,
+			GitHubRepo:    dcfg.Lifecycle.UpdateGitHubRepo, // defaulted to the binary name in Load
 			BaseDir:       baseDir,
 			DrainTimeout:  30 * time.Second,
 			CheckInterval: 0,
@@ -1220,34 +1032,24 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// `agt tenant` manages the registry over the control plane.
 	tenantsDesc := "disabled (set " + brand.EnvPrefix + "MULTITENANT=on)"
 	var tenantReg *tenant.Registry
-	if strings.EqualFold(os.Getenv(brand.EnvPrefix+"MULTITENANT"), "on") {
+	if dcfg.Tenancy.Multitenant {
 		// Per-tenant daily spend ceiling (M14 quotas). Each tenant gets its OWN
 		// governor (independent ledger) so one tenant exhausting its cap can
 		// never block another's runs, while the provider pool stays shared. The
 		// ceiling defaults to the primary's; AGEZT_TENANT_DAILY_CEILING (USD)
-		// overrides it for every tenant.
+		// overrides it for every tenant (malformed = daemonconfig.Load error).
 		tenantCeiling := gov.DailyCeilingMicrocents()
 		ceilingDesc := "inherited"
-		if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TENANT_DAILY_CEILING")); spec != "" {
-			usd, perr := strconv.ParseFloat(spec, 64)
-			if perr != nil || usd < 0 {
-				fmt.Fprintf(stderr, "%s: %sTENANT_DAILY_CEILING: want a non-negative USD amount, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-				return 1
-			}
-			tenantCeiling = int64(usd * 1e9)
-			ceilingDesc = fmt.Sprintf("$%.2f/day", usd)
+		if dcfg.Tenancy.DailyCeilingSet {
+			tenantCeiling = dcfg.Tenancy.DailyCeilingMicrocents
+			ceilingDesc = fmt.Sprintf("$%.2f/day", dcfg.Tenancy.DailyCeilingUSD)
 		}
 		// Per-tenant per-minute call rate cap (M14 quotas). 0 = unlimited.
 		tenantRate := 0
 		rateDesc := "unlimited"
-		if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TENANT_RATE_PER_MIN")); spec != "" {
-			n, perr := strconv.Atoi(spec)
-			if perr != nil || n < 0 {
-				fmt.Fprintf(stderr, "%s: %sTENANT_RATE_PER_MIN: want a non-negative integer, got %q\n", brand.Binary, brand.EnvPrefix, spec)
-				return 1
-			}
-			tenantRate = n
-			rateDesc = fmt.Sprintf("%d/min", n)
+		if dcfg.Tenancy.RatePerMinSet {
+			tenantRate = dcfg.Tenancy.RatePerMin
+			rateDesc = fmt.Sprintf("%d/min", tenantRate)
 		}
 		reg, terr := tenant.New(filepath.Join(baseDir, "tenants"), func(id, tdir string) (io.Closer, error) {
 			tgov, gerr := gov.WithLimits(tenantCeiling, tenantRate)
@@ -1274,7 +1076,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// changes survive a restart, exactly as the primary does — each
 			// tenant's journal is its own source of truth. Best-effort: a
 			// journal read error leaves the tenant on its boot policy rather
-			// than failing the lazy open. Gated on the same AGEZT_EDICT_DURABLE.
+			// than failing the lazy open. Gated on the same AGEZT_EDICT_DURABLE —
+			// deliberately a LIVE env read (not daemonconfig.Load): this closure
+			// runs at lazy tenant-open time, and the Config Center live-applies
+			// edits via os.Setenv.
 			if strings.EqualFold(os.Getenv(brand.EnvPrefix+"EDICT_DURABLE"), "on") {
 				if overlay, rerr := replayPolicyOverlay(tk); rerr == nil {
 					tk.Edict().ApplyOverlay(overlay)
@@ -1759,7 +1564,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// operator's configured channels, so a proactive digest reaches them rather than
 	// only landing in the journal. Reuses the channel allowlists + sender.
 	var onScheduledAnswer func(context.Context, string, string)
-	if strings.TrimSpace(os.Getenv(brand.EnvPrefix+"SCHEDULE_NOTIFY")) == "on" && len(notifyTargets) > 0 {
+	if dcfg.Misc.ScheduleNotify && len(notifyTargets) > 0 {
 		onScheduledAnswer = func(dctx context.Context, id, answer string) {
 			deliverScheduled(dctx, channelSend, notifyTargets, id, answer)
 		}
@@ -1795,7 +1600,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		briefTargets[kind] = ids
 	}
 	if _, ok := liveChannels["webhook"]; ok {
-		if wh := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WEBHOOK_CHANNELS")); len(wh) > 0 {
+		if wh := dcfg.Misc.WebhookChannels; len(wh) > 0 {
 			briefTargets["webhook"] = wh
 		}
 	}
@@ -1894,6 +1699,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "  suspend: %d in-flight run(s) marked to resume on restart\n", n)
 		}
 	}
+	// Deliberately a LIVE env read at shutdown time (not daemonconfig.Load):
+	// the Config Center live-applies edits via os.Setenv, so an operator can
+	// retune the drain window without a restart.
 	drainTimeout := 15 * time.Second
 	if v := os.Getenv(brand.EnvPrefix + "DRAIN_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
