@@ -175,3 +175,15 @@ func (s *Server) handleMCPRemove(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})
 }
+
+// registerMCPCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerMCPCommands() {
+	register(
+		commandSpec{Cmd: CmdMCPList, Handler: func(dc *DispatchCtx) { dc.S.handleMCPList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMCPAdd, Handler: func(dc *DispatchCtx) { dc.S.handleMCPAdd(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMCPAttach, Handler: func(dc *DispatchCtx) { dc.S.handleMCPAttach(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMCPDetach, Handler: func(dc *DispatchCtx) { dc.S.handleMCPDetach(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMCPSetEnabled, Handler: func(dc *DispatchCtx) { dc.S.handleMCPSetEnabled(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMCPRemove, Handler: func(dc *DispatchCtx) { dc.S.handleMCPRemove(dc.Conn, dc.Req) }},
+	)
+}

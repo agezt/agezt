@@ -323,3 +323,16 @@ func (s *Server) handleStandingFire(conn net.Conn, req Request) {
 	fired := s.standingFire(id)
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"fired": fired, "id": id}})
 }
+
+// registerStandingCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerStandingCommands() {
+	register(
+		commandSpec{Cmd: CmdStandingList, Handler: func(dc *DispatchCtx) { dc.S.handleStandingList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdStandingAdd, Handler: func(dc *DispatchCtx) { dc.S.handleStandingAdd(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdStandingEdit, Handler: func(dc *DispatchCtx) { dc.S.handleStandingEdit(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdStandingSetEnabled, Handler: func(dc *DispatchCtx) { dc.S.handleStandingSetEnabled(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdStandingRemove, Handler: func(dc *DispatchCtx) { dc.S.handleStandingRemove(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdStandingFire, Handler: func(dc *DispatchCtx) { dc.S.handleStandingFire(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdStandingWhy, Handler: func(dc *DispatchCtx) { dc.S.handleStandingWhy(dc.Conn, dc.Req) }},
+	)
+}

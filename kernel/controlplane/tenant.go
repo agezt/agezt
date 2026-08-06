@@ -274,3 +274,15 @@ func (s *Server) handleTenantStats(conn net.Conn, req Request) {
 		},
 	})
 }
+
+// registerTenantCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerTenantCommands() {
+	register(
+		commandSpec{Cmd: CmdTenantCreate, Handler: func(dc *DispatchCtx) { dc.S.handleTenantCreate(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantList, Handler: func(dc *DispatchCtx) { dc.S.handleTenantList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantRelease, Handler: func(dc *DispatchCtx) { dc.S.handleTenantRelease(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantRemove, Handler: func(dc *DispatchCtx) { dc.S.handleTenantRemove(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantToken, Handler: func(dc *DispatchCtx) { dc.S.handleTenantToken(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantStats, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleTenantStats(dc.Conn, dc.Req) }},
+	)
+}

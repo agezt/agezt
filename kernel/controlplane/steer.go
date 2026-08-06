@@ -154,3 +154,14 @@ func (s *Server) handleRunIntervene(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
+
+// registerSteerCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerSteerCommands() {
+	register(
+		commandSpec{Cmd: CmdRunPause, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRunPause(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdRunResume, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRunResume(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdRunStep, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRunStep(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdRunSteer, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRunSteer(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdRunIntervene, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRunIntervene(dc.Conn, dc.Req) }},
+	)
+}
