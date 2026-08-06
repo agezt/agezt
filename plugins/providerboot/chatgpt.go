@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package main
+package providerboot
 
 // ChatGPT subscription provider wiring ("Sign in with ChatGPT"). The token store
 // + login flow live in kernel/chatgptauth + the control plane; this is the boot/
@@ -46,9 +46,9 @@ func chatgptCatalogEntry() *catalog.Provider {
 	}
 }
 
-// seedChatGPTCatalog adds the chatgpt entry to custom.json once, so it survives
+// SeedChatGPTCatalog adds the chatgpt entry to custom.json once, so it survives
 // reloads and appears in Models. Never clobbers an operator's customisation.
-func seedChatGPTCatalog(store *catalog.Store) {
+func SeedChatGPTCatalog(store *catalog.Store) {
 	if store == nil {
 		return
 	}
@@ -92,8 +92,10 @@ func buildChatGPTPrimary(baseDir, modelOverride string) (prov agent.Provider, de
 
 // registerChatGPTAlternate registers ChatGPT as a model-routable alternate when
 // signed in (and not already the primary). replace uses Registry.Replace (reload
-// path) vs Register (boot). Returns true when registered.
-func registerChatGPTAlternate(reg *governor.Registry, baseDir, primaryName string, replace bool) bool {
+// path) vs Register (boot). The provider is wrapped in the shared M997
+// middleware stack, same as every other registered provider. Returns true when
+// registered.
+func registerChatGPTAlternate(reg *governor.Registry, baseDir, primaryName string, replace bool, mw []agent.Middleware) bool {
 	if primaryName == "chatgpt" {
 		return false
 	}
@@ -103,7 +105,7 @@ func registerChatGPTAlternate(reg *governor.Registry, baseDir, primaryName strin
 	}
 	info := &governor.ProviderInfo{
 		Name:     "chatgpt",
-		Provider: openairesponses.New("chatgpt", chatgptDefaultModel, chatgptTokenFn(mgr)),
+		Provider: agent.Wrap(openairesponses.New("chatgpt", chatgptDefaultModel, chatgptTokenFn(mgr)), mw...),
 		AuthMode: governor.AuthSubscription,
 		Models:   chatgptModels,
 	}

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-package main
+package providerboot
 
-// reconcileAlternateProviders (M928) keeps the hot-reload registry in parity
+// registerAlternates with replace=true (the Reload path, née
+// reconcileAlternateProviders, M928) keeps the hot-reload registry in parity
 // with the boot path: every credentialed+supported catalog provider is
 // registered as a model-routable alternate (with its catalog Models, so
 // per-task model chains route each model to its serving provider), and
@@ -112,7 +113,7 @@ func TestReconcileAlternateProviders_RegistersKeyedAlternates(t *testing.T) {
 	// Reload selected "alpha" as the new primary (the caller installs it via
 	// gov.Replace afterwards); reconcile must register "beta" as an alternate
 	// with its catalog model list and leave "unkeyed" out.
-	reconcileAlternateProviders(reg, cat, reconcileLookup, "alpha", t.TempDir())
+	registerAlternates(reg, Deps{Catalog: cat, Lookup: reconcileLookup, BaseDir: t.TempDir()}, "alpha", nil, true)
 
 	beta, ok := reg.Get("beta")
 	if !ok {
@@ -146,7 +147,7 @@ func TestReconcileAlternateProviders_DropsStaleAlternates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reconcileAlternateProviders(reg, cat, reconcileLookup, "alpha", t.TempDir())
+	registerAlternates(reg, Deps{Catalog: cat, Lookup: reconcileLookup, BaseDir: t.TempDir()}, "alpha", nil, true)
 
 	if _, ok := reg.Get("stale-prov"); ok {
 		t.Error("stale alternate (no longer credentialed/in catalog) was not removed")
