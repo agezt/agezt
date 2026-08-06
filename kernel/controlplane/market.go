@@ -288,3 +288,17 @@ func (s *Server) publishMarket(kind string, payload map[string]any) {
 	}
 	_, _ = s.k.Bus().Publish(event.Spec{Subject: "market", Kind: event.Kind(kind), Actor: "market", Payload: payload})
 }
+
+// registerMarketCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerMarketCommands() {
+	register(
+		commandSpec{Cmd: CmdMarketList, Handler: func(dc *DispatchCtx) { dc.S.handleMarketList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketShow, Handler: func(dc *DispatchCtx) { dc.S.handleMarketShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketInstall, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleMarketInstall(dc.Ctx, dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketUninstall, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleMarketUninstall(dc.Ctx, dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketSources, Handler: func(dc *DispatchCtx) { dc.S.handleMarketSources(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketAddSource, Handler: func(dc *DispatchCtx) { dc.S.handleMarketAddSource(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketRemoveSource, Handler: func(dc *DispatchCtx) { dc.S.handleMarketRemoveSource(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketSync, Handler: func(dc *DispatchCtx) { dc.S.handleMarketSync(dc.Ctx, dc.Conn, dc.Req) }},
+	)
+}

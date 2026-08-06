@@ -4924,3 +4924,26 @@ func configEntryBelongsToAgent(e *configcenter.ConfigEntry, slug string) bool {
 	}
 	return false
 }
+
+// registerRosterCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerRosterCommands() {
+	register(
+		commandSpec{Cmd: CmdAgentList, Handler: func(dc *DispatchCtx) { dc.S.handleAgentList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentAdd, Handler: func(dc *DispatchCtx) { dc.S.handleAgentAdd(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentEdit, Handler: func(dc *DispatchCtx) { dc.S.handleAgentEdit(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentSetEnabled, Handler: func(dc *DispatchCtx) { dc.S.handleAgentSetEnabled(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentRemove, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRemove(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentTaskUpdate, Handler: func(dc *DispatchCtx) { dc.S.handleAgentTaskUpdate(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentImpact, Handler: func(dc *DispatchCtx) { dc.S.handleAgentImpact(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentTombstone, Handler: func(dc *DispatchCtx) { dc.S.handleAgentTombstone(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentGraveyard, Handler: func(dc *DispatchCtx) { dc.S.handleAgentGraveyard(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentActivity, Handler: func(dc *DispatchCtx) { dc.S.handleAgentActivity(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentRepairStatus, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRepairStatus(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentRepair, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRepair(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentEscalations, Handler: func(dc *DispatchCtx) { dc.S.handleAgentEscalations(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentWake, Handler: func(dc *DispatchCtx) { dc.S.handleAgentWake(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentResolve, Handler: func(dc *DispatchCtx) { dc.S.handleAgentResolve(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentRetire, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRetire(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdAgentRevive, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRevive(dc.Conn, dc.Req) }},
+	)
+}

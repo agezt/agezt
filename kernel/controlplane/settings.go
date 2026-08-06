@@ -251,3 +251,14 @@ func (s *Server) handleConfigSchemaUnregister(conn net.Conn, req Request) {
 		"id": id, "removed": existed,
 	}})
 }
+
+// registerSettingsCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerSettingsCommands() {
+	register(
+		commandSpec{Cmd: CmdConfigSchema, Handler: func(dc *DispatchCtx) { dc.S.handleConfigSchema(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdConfigValues, Handler: func(dc *DispatchCtx) { dc.S.handleConfigValues(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdConfigSet, Handler: func(dc *DispatchCtx) { dc.S.handleConfigSet(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdConfigSchemaRegister, Handler: func(dc *DispatchCtx) { dc.S.handleConfigSchemaRegister(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdConfigSchemaUnregister, Handler: func(dc *DispatchCtx) { dc.S.handleConfigSchemaUnregister(dc.Conn, dc.Req) }},
+	)
+}

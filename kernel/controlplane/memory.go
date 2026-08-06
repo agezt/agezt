@@ -620,3 +620,24 @@ func jsonMap(v any) (map[string]any, error) {
 	err = json.Unmarshal(b, &out)
 	return out, err
 }
+
+// registerMemoryCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerMemoryCommands() {
+	register(
+		commandSpec{Cmd: CmdMemoryAdd, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryAdd(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemorySupersede, Handler: func(dc *DispatchCtx) { dc.S.handleMemorySupersede(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryList, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryGet, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryGet(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemorySearch, Handler: func(dc *DispatchCtx) { dc.S.handleMemorySearch(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryConsolidate, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryConsolidate(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdProfileRebuild, Handler: func(dc *DispatchCtx) { dc.S.handleProfileRebuild(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryForget, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryForget(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryPromote, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryPromote(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryPrune, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryPrune(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryTidy, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryTidy(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryBulkForget, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryBulkForget(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryFindRelated, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryFindRelated(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryAudit, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryAudit(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMemoryClean, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryClean(dc.Conn, dc.Req) }},
+	)
+}

@@ -221,3 +221,17 @@ func (s *Server) handleToolforgeRemove(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})
 }
+
+// registerToolforgeCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerToolforgeCommands() {
+	register(
+		commandSpec{Cmd: CmdToolforgeList, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeShow, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeDraft, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeDraft(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeEdit, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeEdit(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeTest, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeTest(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgePromote, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgePromote(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeQuarantine, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeQuarantine(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeRemove, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeRemove(dc.Conn, dc.Req) }},
+	)
+}

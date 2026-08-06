@@ -1114,3 +1114,17 @@ func (s *Server) scheduleFrequencyWarning(e cadence.Entry) string {
 type errString string
 
 func (e errString) Error() string { return string(e) }
+
+// registerScheduleCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerScheduleCommands() {
+	register(
+		commandSpec{Cmd: CmdScheduleAdd, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleAdd(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleList, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleSystemTasks, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleSystemTasks(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleRemove, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleRemove(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleRun, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleRun(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleEnable, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleEnable(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleEdit, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleEdit(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdScheduleTest, Handler: func(dc *DispatchCtx) { dc.S.handleScheduleTest(dc.Conn, dc.Req) }},
+	)
+}

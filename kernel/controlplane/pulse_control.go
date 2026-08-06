@@ -288,3 +288,22 @@ func (s *Server) handlePulseFlush(conn net.Conn, req Request) {
 	n := s.pulse.FlushDigest()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"flushed": n}})
 }
+
+// registerPulseControlCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerPulseControlCommands() {
+	register(
+		commandSpec{Cmd: CmdPulseStatus, Handler: func(dc *DispatchCtx) { dc.S.handlePulseStatus(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseAsks, Handler: func(dc *DispatchCtx) { dc.S.handlePulseAsks(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseAskResolve, Handler: func(dc *DispatchCtx) { dc.S.handlePulseAskResolve(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulsePause, Handler: func(dc *DispatchCtx) { dc.S.handlePulsePause(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseResume, Handler: func(dc *DispatchCtx) { dc.S.handlePulseResume(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseBeat, Handler: func(dc *DispatchCtx) { dc.S.handlePulseBeat(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseCadence, Handler: func(dc *DispatchCtx) { dc.S.handlePulseCadence(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseDial, Handler: func(dc *DispatchCtx) { dc.S.handlePulseDial(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseFlush, Handler: func(dc *DispatchCtx) { dc.S.handlePulseFlush(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseWatch, Handler: func(dc *DispatchCtx) { dc.S.handlePulseWatch(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseProbe, Handler: func(dc *DispatchCtx) { dc.S.handlePulseProbe(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseUnwatch, Handler: func(dc *DispatchCtx) { dc.S.handlePulseUnwatch(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseQuiet, Handler: func(dc *DispatchCtx) { dc.S.handlePulseQuiet(dc.Conn, dc.Req) }},
+	)
+}

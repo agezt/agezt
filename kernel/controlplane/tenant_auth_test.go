@@ -4,8 +4,10 @@ package controlplane_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -325,6 +327,52 @@ func TestWhoami_PrimaryAndTenant(t *testing.T) {
 	}
 	if got, _ := tres["tenant"].(string); got != "acme" {
 		t.Errorf("tenant whoami tenant = %q want acme", got)
+	}
+}
+
+// TestTenantToken_RegistryExhaustive sweeps EVERY registered protocol command
+// with a tenant token, driven by the command registry itself so the sweep can
+// never go stale against the dispatch surface:
+//
+//   - every TenantAllowed spec must get PAST the auth gate — the call may
+//     still fail (missing args, empty journal), but never with the forbidden
+//     envelope;
+//   - every other spec must be rejected with exactly the forbidden envelope.
+//
+// No commands are excluded. Denied commands (which include every StreamLive
+// streaming command) are rejected at the auth gate before any handler runs, so
+// they cannot hang; the only allowed streaming command, run (StreamEvents),
+// fails fast on the missing args.intent. The per-call timeout is a hang safety
+// net, not an exclusion mechanism.
+func TestTenantToken_RegistryExhaustive(t *testing.T) {
+	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	reg := withTenants(t, srv, dir)
+	tok := mustTenant(t, reg, "acme")
+	c := tenantClient(t, dir, tok)
+
+	specs := controlplane.CommandSpecsForTest()
+	sort.Slice(specs, func(i, j int) bool { return specs[i].Cmd < specs[j].Cmd })
+
+	var allowed, denied int
+	for _, sp := range specs {
+		forbidden := fmt.Sprintf("forbidden: a tenant token cannot run %q (primary token required)", sp.Cmd)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, err := c.Call(ctx, sp.Cmd, map[string]any{"tenant": "acme"})
+		cancel()
+		if sp.TenantAllowed {
+			allowed++
+			if err != nil && strings.Contains(err.Error(), forbidden) {
+				t.Errorf("%q is TenantAllowed but the tenant token was forbidden: %v", sp.Cmd, err)
+			}
+		} else {
+			denied++
+			if err == nil || !strings.Contains(err.Error(), forbidden) {
+				t.Errorf("%q is not TenantAllowed: want the exact forbidden envelope %q, got %v", sp.Cmd, forbidden, err)
+			}
+		}
+	}
+	if allowed == 0 || denied == 0 {
+		t.Fatalf("degenerate registry sweep: %d allowed / %d denied commands", allowed, denied)
 	}
 }
 

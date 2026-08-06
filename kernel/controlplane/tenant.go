@@ -51,44 +51,6 @@ func (s *Server) kernelFor(tenantID string) (*runtime.Kernel, error) {
 // when multi-tenancy is enabled.
 func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }
 
-// tenantTokenAllows is the deny-by-default allowlist of commands a TENANT
-// token may invoke (M38). It contains exactly the commands that route to the
-// caller's kernel via kernelFor/edictFor — running and cancelling the
-// tenant's own work, managing the tenant's own Edict policy, and OBSERVING the
-// tenant's own isolated subsystems (M128: every read-only handler that folds the
-// tenant's own journal via kernelFor(tenantOf(req)) — runs, tools, edict,
-// rate-limit, netguard, webhooks, AND memory / world / approvals / plan /
-// provider-routing / schedule-firing / warden, which had been left out so a
-// tenant was wrongly denied its own data). Everything else — tenant-registry
-// management (incl. cross-tenant tenant_stats), daemon-global halt/resume/
-// shutdown, pulse, durable-policy compaction (a mutation), and anything reading
-// the primary kernel — requires the primary token. New tenant-routed commands
-// must be added here explicitly; forgetting to is the safe failure (the tenant
-// is denied, not over-granted). TestTenantAllowlist_* locks both directions.
-func tenantTokenAllows(cmd string) bool {
-	switch cmd {
-	case CmdRun, CmdCancelRun,
-		CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, CmdRunIntervene, // live steering of own runs (M608)
-		CmdRunsList, CmdRunsStats, CmdWhy, CmdWhoami, CmdToolLog, CmdToolStats, CmdCacheStats,
-		CmdExecutionProfiles, CmdExecutionProfileShow, CmdExecutionProfileCheck,
-		CmdRateLimitLog, CmdRateLimitStats, CmdNetguardLog,
-		CmdWebhookLog, CmdWebhookStats,
-		CmdEdictLog, CmdEdictStats, CmdEdictShow, CmdEdictOverlay, CmdEdictTest, CmdEdictDenyList, CmdEdictDenyAdd,
-		CmdEdictDenyRemove, CmdEdictSetLevel, CmdEdictSetMode,
-		// Tenant self-observability (M128) — read-only folds of the tenant's
-		// own journal; each handler reads only kernelFor(tenantOf(req)).
-		CmdMemoryLog, CmdMemoryAudit, CmdMemoryClean, CmdWorldLog,
-		CmdApprovalsLog, CmdApprovalsStats,
-		CmdPlanHistory, CmdPlanStats,
-		CmdProviderLog, CmdProviderStats, CmdProviderRejections,
-		CmdScheduleFires, CmdScheduleStats,
-		CmdWardenLog, CmdWardenStats:
-		return true
-	default:
-		return false
-	}
-}
-
 func (s *Server) handleTenantCreate(conn net.Conn, req Request) {
 	if s.tenants == nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "multi-tenancy is disabled (no tenant registry configured)"})
@@ -273,4 +235,16 @@ func (s *Server) handleTenantStats(conn net.Conn, req Request) {
 			"total_spent_microcents": totalSpent,
 		},
 	})
+}
+
+// registerTenantCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerTenantCommands() {
+	register(
+		commandSpec{Cmd: CmdTenantCreate, Handler: func(dc *DispatchCtx) { dc.S.handleTenantCreate(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantList, Handler: func(dc *DispatchCtx) { dc.S.handleTenantList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantRelease, Handler: func(dc *DispatchCtx) { dc.S.handleTenantRelease(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantRemove, Handler: func(dc *DispatchCtx) { dc.S.handleTenantRemove(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantToken, Handler: func(dc *DispatchCtx) { dc.S.handleTenantToken(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdTenantStats, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleTenantStats(dc.Conn, dc.Req) }},
+	)
 }

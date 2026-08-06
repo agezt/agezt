@@ -277,3 +277,17 @@ func entityView(e worldmodel.Entity) map[string]any {
 	}
 	return v
 }
+
+// registerWorldCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+func registerWorldCommands() {
+	register(
+		commandSpec{Cmd: CmdWorldAdd, Handler: func(dc *DispatchCtx) { dc.S.handleWorldAdd(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldEdit, Handler: func(dc *DispatchCtx) { dc.S.handleWorldEdit(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldRelate, Handler: func(dc *DispatchCtx) { dc.S.handleWorldRelate(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldResolve, Handler: func(dc *DispatchCtx) { dc.S.handleWorldResolve(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldNeighbors, Handler: func(dc *DispatchCtx) { dc.S.handleWorldNeighbors(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldList, Handler: func(dc *DispatchCtx) { dc.S.handleWorldList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldGet, Handler: func(dc *DispatchCtx) { dc.S.handleWorldGet(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorldForget, Handler: func(dc *DispatchCtx) { dc.S.handleWorldForget(dc.Conn, dc.Req) }},
+	)
+}
