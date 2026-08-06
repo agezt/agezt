@@ -9,6 +9,7 @@ package builtinchannels
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -21,8 +22,11 @@ import (
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/irc"
+	linechan "github.com/agezt/agezt/plugins/channels/line"
 	"github.com/agezt/agezt/plugins/channels/matrix"
 	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
+	"github.com/agezt/agezt/plugins/channels/nostr"
+	"github.com/agezt/agezt/plugins/channels/onebot"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
@@ -31,6 +35,7 @@ import (
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
 	"github.com/agezt/agezt/plugins/channels/whatsappgw"
+	"github.com/agezt/agezt/plugins/channels/zalo"
 )
 
 // formatBrief renders a Pulse brief as plain channel text. (Small copy of the
@@ -920,6 +925,179 @@ func buildTeams(d channelwire.Deps) channelwire.Built {
 	})
 
 	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("outbound → %d Teams webhook(s)", len(names))}
+}
+
+// buildLine constructs the two-way LINE channel (official Messaging API) when a
+// channel secret is set. Outbound push uses AGEZT_LINE_TOKEN; inbound (two-way)
+// is served when AGEZT_LINE_ADDR is set and verified with AGEZT_LINE_SECRET.
+//
+//	AGEZT_LINE_TOKEN    channel access token (Bearer for reply/push)
+//	AGEZT_LINE_SECRET   channel secret (verifies inbound signature; enables two-way)  (required)
+//	AGEZT_LINE_USERS    comma-separated allowed sender userIds
+//	AGEZT_LINE_TO       recipient id for Pulse briefs
+//	AGEZT_LINE_ADDR     host:port to serve LINE's webhook (two-way)
+//	AGEZT_LINE_PATH     inbound route (default /line)
+//
+// The outbound-only push LINE entry yields the "line" name to this channel via
+// twoWayLineConfigured in cmd/agezt (which mirrors the secret check here for
+// the DEFAULT instance; the push-suppression cluster migrates in batch D).
+func buildLine(d channelwire.Deps) channelwire.Built {
+	secret := strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_SECRET"))
+	if secret == "" {
+		return channelwire.NotConfigured
+	}
+	users := splitNonEmpty(d.Get(brand.EnvPrefix + "LINE_USERS"))
+	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_ADDR"))
+
+	ch := linechan.New(linechan.Config{
+		Secret:      secret,
+		AccessToken: strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_TOKEN")),
+		Allowlist:   channel.NewAllowlist(users),
+		Bus:         d.Bus,
+		Handler:     d.Handler,
+		Addr:        addr,
+		Path:        strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_PATH")),
+	})
+
+	var sink pulse.BriefSink
+	if to := strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_TO")); to != "" {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			return ch.Send(d.Ctx, channel.Outbound{ChannelID: to, Text: formatBrief(b), Priority: channel.PriorityNotify})
+		})
+	}
+
+	desc := fmt.Sprintf("LINE Messaging API, allowlist=%d user(s)", len(users))
+	if addr == "" {
+		desc += " (outbound-only; set AGEZT_LINE_ADDR for two-way)"
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// oneBotFactory returns the factory for a QQ / WeChat channel over a OneBot v11
+// gateway, enabled when its inbound addr is set. QQ and WeChat have no
+// first-party bot API; a self-hosted gateway (go-cqhttp / NapCat / Lagrange for
+// QQ; wcf / wechatbot for WeChat) speaks OneBot. kind is the channel name;
+// prefix is the env namespace — the parameterization the whole channel-factory
+// refactor aims for: one builder, two registered kinds.
+//
+//	AGEZT_<PREFIX>_GATEWAY  gateway HTTP API base, e.g. http://localhost:5700
+//	AGEZT_<PREFIX>_TOKEN    gateway access token (bearer)
+//	AGEZT_<PREFIX>_SECRET   HMAC-SHA1 secret verifying inbound X-Signature
+//	AGEZT_<PREFIX>_USERS    comma-separated allowed user ids
+//	AGEZT_<PREFIX>_ADDR     host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_<PREFIX>_PATH     inbound route (default /<kind>)
+func oneBotFactory(kind, prefix string) channelwire.Factory {
+	return func(d channelwire.Deps) channelwire.Built {
+		get := func(s string) string { return strings.TrimSpace(d.Get(brand.EnvPrefix + prefix + s)) }
+		addr := get("_ADDR")
+		if addr == "" {
+			return channelwire.NotConfigured
+		}
+		users := splitNonEmpty(d.Get(brand.EnvPrefix + prefix + "_USERS"))
+		ch := onebot.New(onebot.Config{
+			Kind:        kind,
+			APIBase:     get("_GATEWAY"),
+			AccessToken: get("_TOKEN"),
+			Secret:      get("_SECRET"),
+			Allowlist:   channel.NewAllowlist(users),
+			Bus:         d.Bus,
+			Handler:     d.Handler,
+			Addr:        addr,
+			Path:        get("_PATH"),
+		})
+		var sink pulse.BriefSink
+		if len(users) > 0 && get("_GATEWAY") != "" {
+			sink = pulse.SinkFunc(func(b pulse.Brief) error {
+				var firstErr error
+				for _, u := range users {
+					if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: "private:" + u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+						firstErr = err
+					}
+				}
+				return firstErr
+			})
+		}
+		return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("%s via OneBot gateway, allowlist=%d user(s)", kind, len(users))}
+	}
+}
+
+// buildZalo constructs the two-way Zalo channel (Official Account API) when
+// AGEZT_ZALO_ADDR is set. Replies + briefs use the OA message API.
+//
+//	AGEZT_ZALO_APP_ID   OA app id (part of the inbound signature)
+//	AGEZT_ZALO_TOKEN    OA access token (sends)
+//	AGEZT_ZALO_SECRET   OA secret key (verifies the inbound signature)
+//	AGEZT_ZALO_USERS    comma-separated allowed user ids
+//	AGEZT_ZALO_ADDR     host:port to serve the inbound webhook (enables two-way)
+//	AGEZT_ZALO_PATH     inbound route (default /zalo)
+func buildZalo(d channelwire.Deps) channelwire.Built {
+	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "ZALO_ADDR"))
+	if addr == "" {
+		return channelwire.NotConfigured
+	}
+	users := splitNonEmpty(d.Get(brand.EnvPrefix + "ZALO_USERS"))
+	ch := zalo.New(zalo.Config{
+		AppID:       strings.TrimSpace(d.Get(brand.EnvPrefix + "ZALO_APP_ID")),
+		AccessToken: strings.TrimSpace(d.Get(brand.EnvPrefix + "ZALO_TOKEN")),
+		Secret:      strings.TrimSpace(d.Get(brand.EnvPrefix + "ZALO_SECRET")),
+		Allowlist:   channel.NewAllowlist(users),
+		Bus:         d.Bus,
+		Handler:     d.Handler,
+		Addr:        addr,
+		Path:        strings.TrimSpace(d.Get(brand.EnvPrefix + "ZALO_PATH")),
+	})
+	var sink pulse.BriefSink
+	if len(users) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, u := range users {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("Zalo OA, allowlist=%d user(s)", len(users))}
+}
+
+// buildNostr constructs the Nostr channel when AGEZT_NOSTR_PRIVKEY + AGEZT_NOSTR_RELAYS
+// are set. It connects to the relays, answers kind-1 mentions of the agent's
+// pubkey from allowlisted authors, and posts briefs as standalone notes.
+//
+//	AGEZT_NOSTR_PRIVKEY  64-char hex secret key (required)
+//	AGEZT_NOSTR_RELAYS   comma-separated wss:// relay URLs (required)
+//	AGEZT_NOSTR_AUTHORS  comma-separated author pubkeys (hex) allowed to drive the agent
+func buildNostr(d channelwire.Deps) channelwire.Built {
+	priv := strings.TrimSpace(d.Get(brand.EnvPrefix + "NOSTR_PRIVKEY"))
+	relays := splitNonEmpty(d.Get(brand.EnvPrefix + "NOSTR_RELAYS"))
+	if priv == "" || len(relays) == 0 {
+		return channelwire.NotConfigured
+	}
+	authors := splitNonEmpty(d.Get(brand.EnvPrefix + "NOSTR_AUTHORS"))
+	// Authors may be hex or npub… — normalize to hex so the allowlist matches the
+	// hex pubkey on inbound events.
+	norm := make([]string, 0, len(authors))
+	for _, a := range authors {
+		if h, derr := nostr.DecodePubkey(a); derr == nil {
+			norm = append(norm, h)
+		}
+	}
+	ch, err := nostr.New(nostr.Config{
+		PrivKeyHex: priv,
+		Relays:     relays,
+		Allowlist:  channel.NewAllowlist(norm),
+		Bus:        d.Bus,
+		Handler:    d.Handler,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: nostr channel disabled: %v\n", brand.Binary, err)
+		return channelwire.NotConfigured
+	}
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
+	})
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("Nostr, %d relay(s), allowlist=%d author(s)", len(relays), len(authors))}
 }
 
 // parseNamedWebhooks parses a "name=url,name2=url2" spec into a name→url map.

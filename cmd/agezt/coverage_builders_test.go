@@ -49,6 +49,7 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 		"telegram", "slack", "email", "discord", "matrix", "whatsapp",
 		"webhook", "irc", "twitch", "sms", "signal",
 		"whatsappgw", "imessage", "homeassistant", "teams", "nextcloudtalk",
+		"nostr", "zalo", "qq", "wechat", "line",
 	} {
 		f, ok := channelwire.Lookup(kind)
 		if !ok {
@@ -67,13 +68,10 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	// Builders that read os.Getenv directly. None of their env vars are set in
 	// the test process, so each must early-return an empty descriptor.
 	envBuilders := map[string]func() string{
-		"line":     func() string { _, _, d := buildLine(ctx, k); return d },
 		"dingtalk": func() string { _, _, d := buildDingTalk(ctx, k); return d },
 		"feishu":   func() string { _, _, d := buildFeishu(ctx, k); return d },
 		"wecom":    func() string { _, _, d := buildWeCom(ctx, k); return d },
-		"zalo":     func() string { _, _, d := buildZalo(ctx, k); return d },
 		"mastodon": func() string { _, _, d := buildMastodon(ctx, k); return d },
-		"nostr":    func() string { _, _, d := buildNostr(ctx, k); return d },
 	}
 	for name, fn := range envBuilders {
 		if desc := fn(); desc != "" {
@@ -81,12 +79,9 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 		}
 	}
 
-	// kind/prefix builders — a chat webhook + OneBot with an unset prefix.
+	// kind/prefix builder — a chat webhook with an unset prefix.
 	if _, _, d := buildChatWebhook(ctx, k, "custom", "CUSTOM"); d != "" {
 		t.Errorf("chat webhook returned %q when unconfigured", d)
-	}
-	if _, _, d := buildOneBot(ctx, k, "qq", "QQ"); d != "" {
-		t.Errorf("onebot returned %q when unconfigured", d)
 	}
 }
 

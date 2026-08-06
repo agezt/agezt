@@ -38,6 +38,11 @@ func RegisterAll() {
 	channelwire.Register("homeassistant", buildHomeAssistant)
 	channelwire.Register("teams", buildTeams)
 	channelwire.Register("nextcloudtalk", buildNextcloudTalk)
+	channelwire.Register("nostr", buildNostr)
+	channelwire.Register("zalo", buildZalo)
+	channelwire.Register("qq", oneBotFactory("qq", "QQ"))
+	channelwire.Register("wechat", oneBotFactory("wechat", "WECHAT"))
+	channelwire.Register("line", buildLine)
 }
 
 var manifests = []channel.Manifest{

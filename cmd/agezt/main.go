@@ -90,13 +90,9 @@ import (
 	"github.com/agezt/agezt/plugins/channels/chatwebhook"
 	"github.com/agezt/agezt/plugins/channels/dingtalk"
 	"github.com/agezt/agezt/plugins/channels/feishu"
-	linechan "github.com/agezt/agezt/plugins/channels/line"
 	"github.com/agezt/agezt/plugins/channels/mastodon"
-	"github.com/agezt/agezt/plugins/channels/nostr"
-	"github.com/agezt/agezt/plugins/channels/onebot"
 	"github.com/agezt/agezt/plugins/channels/push"
 	"github.com/agezt/agezt/plugins/channels/wecom"
-	"github.com/agezt/agezt/plugins/channels/zalo"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
@@ -1564,7 +1560,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// LINE two-way (official Messaging API) — supersedes the outbound-only push
 	// LINE when a channel secret is set.
-	lnInsts := buildAccountsLegacy(ctx, k, "line", buildLine)
+	lnInsts := wireInstances(channelwire.BuildKind(ctx, "line", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "line", "line channel", "", lnInsts)
 
 	// Two-way Google Chat / Mattermost (incoming webhook out + webhook in) —
@@ -1587,21 +1583,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 	startInstances(ctx, stdout, "wecom", "wecom (2way)", "", wcInsts)
 
 	// QQ / WeChat via a OneBot v11 gateway; Zalo via the Official Account API.
-	qqInsts := buildAccountsLegacy(ctx, k, "qq", func(c context.Context, kk *kernelruntime.Kernel) (*onebot.Channel, pulse.BriefSink, string) {
-		return buildOneBot(c, kk, "qq", "QQ")
-	})
+	qqInsts := wireInstances(channelwire.BuildKind(ctx, "qq", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "qq", "qq channel", "", qqInsts)
-	wxInsts := buildAccountsLegacy(ctx, k, "wechat", func(c context.Context, kk *kernelruntime.Kernel) (*onebot.Channel, pulse.BriefSink, string) {
-		return buildOneBot(c, kk, "wechat", "WECHAT")
-	})
+	wxInsts := wireInstances(channelwire.BuildKind(ctx, "wechat", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "wechat", "wechat channel", "", wxInsts)
-	zlInsts := buildAccountsLegacy(ctx, k, "zalo", buildZalo)
+	zlInsts := wireInstances(channelwire.BuildKind(ctx, "zalo", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "zalo", "zalo channel", "", zlInsts)
 	nctInsts := wireInstances(channelwire.BuildKind(ctx, "nextcloudtalk", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "nextcloudtalk", "nextcloud talk", "", nctInsts)
 	maInsts := buildAccountsLegacy(ctx, k, "mastodon", buildMastodon)
 	startInstances(ctx, stdout, "mastodon", "mastodon channel", "", maInsts)
-	noInsts := buildAccountsLegacy(ctx, k, "nostr", buildNostr)
+	noInsts := wireInstances(channelwire.BuildKind(ctx, "nostr", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "nostr", "nostr channel", "", noInsts)
 
 	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
@@ -2528,50 +2520,12 @@ func extForMime(mime string) string {
 
 // twoWayLineConfigured reports whether the dedicated two-way LINE channel should
 // own the "line" name (a channel secret is set) — in which case buildPushChannels
-// yields LINE to it to avoid a double registration.
+// yields LINE to it to avoid a double registration. The two-way builder itself
+// migrated to the channelwire factory (plugins/builtinchannels); this predicate
+// only concerns the DEFAULT instance and moves with the push-suppression
+// cluster in batch D.
 func twoWayLineConfigured() bool {
 	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"LINE_SECRET")) != ""
-}
-
-// buildLine constructs the two-way LINE channel (official Messaging API) when a
-// channel secret is set. Outbound push uses AGEZT_LINE_TOKEN; inbound (two-way)
-// is served when AGEZT_LINE_ADDR is set and verified with AGEZT_LINE_SECRET.
-//
-//	AGEZT_LINE_TOKEN    channel access token (Bearer for reply/push)
-//	AGEZT_LINE_SECRET   channel secret (verifies inbound signature; enables two-way)  (required)
-//	AGEZT_LINE_USERS    comma-separated allowed sender userIds
-//	AGEZT_LINE_TO       recipient id for Pulse briefs
-//	AGEZT_LINE_ADDR     host:port to serve LINE's webhook (two-way)
-//	AGEZT_LINE_PATH     inbound route (default /line)
-func buildLine(ctx context.Context, k *kernelruntime.Kernel) (*linechan.Channel, pulse.BriefSink, string) {
-	if !twoWayLineConfigured() {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "LINE_USERS"))
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_ADDR"))
-
-	ch := linechan.New(linechan.Config{
-		Secret:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_SECRET")),
-		AccessToken: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_TOKEN")),
-		Allowlist:   channel.NewAllowlist(users),
-		Bus:         k.Bus(),
-		Handler:     makeChannelHandler(k),
-		Addr:        addr,
-		Path:        strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_PATH")),
-	})
-
-	var sink pulse.BriefSink
-	if to := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LINE_TO")); to != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			return ch.Send(ctx, channel.Outbound{ChannelID: to, Text: formatBrief(b), Priority: channel.PriorityNotify})
-		})
-	}
-
-	desc := fmt.Sprintf("LINE Messaging API, allowlist=%d user(s)", len(users))
-	if addr == "" {
-		desc += " (outbound-only; set AGEZT_LINE_ADDR for two-way)"
-	}
-	return ch, sink, desc
 }
 
 // twoWayChatConfigured reports whether the two-way chat-webhook channel for a
@@ -2740,90 +2694,6 @@ func buildWeCom(ctx context.Context, k *kernelruntime.Kernel) (*wecom.Channel, p
 	return ch, sink, fmt.Sprintf("WeCom app, allowlist=%d user(s)", len(users))
 }
 
-// buildOneBot constructs a QQ / WeChat channel over a OneBot v11 gateway when its
-// inbound addr is set. QQ and WeChat have no first-party bot API; a self-hosted
-// gateway (go-cqhttp / NapCat / Lagrange for QQ; wcf / wechatbot for WeChat)
-// speaks OneBot. kind is the channel name; prefix is the env namespace.
-//
-//	AGEZT_<PREFIX>_GATEWAY  gateway HTTP API base, e.g. http://localhost:5700
-//	AGEZT_<PREFIX>_TOKEN    gateway access token (bearer)
-//	AGEZT_<PREFIX>_SECRET   HMAC-SHA1 secret verifying inbound X-Signature
-//	AGEZT_<PREFIX>_USERS    comma-separated allowed user ids
-//	AGEZT_<PREFIX>_ADDR     host:port to serve the inbound webhook (enables two-way)
-//	AGEZT_<PREFIX>_PATH     inbound route (default /<kind>)
-func buildOneBot(ctx context.Context, k *kernelruntime.Kernel, kind, prefix string) (*onebot.Channel, pulse.BriefSink, string) {
-	get := func(s string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + prefix + s)) }
-	addr := get("_ADDR")
-	if addr == "" {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + prefix + "_USERS"))
-	ch := onebot.New(onebot.Config{
-		Kind:        kind,
-		APIBase:     get("_GATEWAY"),
-		AccessToken: get("_TOKEN"),
-		Secret:      get("_SECRET"),
-		Allowlist:   channel.NewAllowlist(users),
-		Bus:         k.Bus(),
-		Handler:     makeChannelHandler(k),
-		Addr:        addr,
-		Path:        get("_PATH"),
-	})
-	var sink pulse.BriefSink
-	if len(users) > 0 && get("_GATEWAY") != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			var firstErr error
-			for _, u := range users {
-				if err := ch.Send(ctx, channel.Outbound{ChannelID: "private:" + u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
-					firstErr = err
-				}
-			}
-			return firstErr
-		})
-	}
-	return ch, sink, fmt.Sprintf("%s via OneBot gateway, allowlist=%d user(s)", kind, len(users))
-}
-
-// buildZalo constructs the two-way Zalo channel (Official Account API) when
-// AGEZT_ZALO_ADDR is set. Replies + briefs use the OA message API.
-//
-//	AGEZT_ZALO_APP_ID   OA app id (part of the inbound signature)
-//	AGEZT_ZALO_TOKEN    OA access token (sends)
-//	AGEZT_ZALO_SECRET   OA secret key (verifies the inbound signature)
-//	AGEZT_ZALO_USERS    comma-separated allowed user ids
-//	AGEZT_ZALO_ADDR     host:port to serve the inbound webhook (enables two-way)
-//	AGEZT_ZALO_PATH     inbound route (default /zalo)
-func buildZalo(ctx context.Context, k *kernelruntime.Kernel) (*zalo.Channel, pulse.BriefSink, string) {
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_ADDR"))
-	if addr == "" {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "ZALO_USERS"))
-	ch := zalo.New(zalo.Config{
-		AppID:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_APP_ID")),
-		AccessToken: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_TOKEN")),
-		Secret:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_SECRET")),
-		Allowlist:   channel.NewAllowlist(users),
-		Bus:         k.Bus(),
-		Handler:     makeChannelHandler(k),
-		Addr:        addr,
-		Path:        strings.TrimSpace(os.Getenv(brand.EnvPrefix + "ZALO_PATH")),
-	})
-	var sink pulse.BriefSink
-	if len(users) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			var firstErr error
-			for _, u := range users {
-				if err := ch.Send(ctx, channel.Outbound{ChannelID: u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
-					firstErr = err
-				}
-			}
-			return firstErr
-		})
-	}
-	return ch, sink, fmt.Sprintf("Zalo OA, allowlist=%d user(s)", len(users))
-}
-
 // twoWayMastodonConfigured reports whether the dedicated two-way Mastodon channel
 // should own the "mastodon" name — true when an acct allowlist is set, signalling
 // the operator wants the agent to answer mentions (not just post).
@@ -2869,45 +2739,6 @@ func buildMastodon(ctx context.Context, k *kernelruntime.Kernel) (*mastodon.Chan
 	return ch, sink, fmt.Sprintf("Mastodon (two-way), allowlist=%d acct(s)", len(users))
 }
 
-// buildNostr constructs the Nostr channel when AGEZT_NOSTR_PRIVKEY + AGEZT_NOSTR_RELAYS
-// are set. It connects to the relays, answers kind-1 mentions of the agent's
-// pubkey from allowlisted authors, and posts briefs as standalone notes.
-//
-//	AGEZT_NOSTR_PRIVKEY  64-char hex secret key (required)
-//	AGEZT_NOSTR_RELAYS   comma-separated wss:// relay URLs (required)
-//	AGEZT_NOSTR_AUTHORS  comma-separated author pubkeys (hex) allowed to drive the agent
-func buildNostr(ctx context.Context, k *kernelruntime.Kernel) (*nostr.Channel, pulse.BriefSink, string) {
-	priv := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "NOSTR_PRIVKEY"))
-	relays := splitNonEmpty(os.Getenv(brand.EnvPrefix + "NOSTR_RELAYS"))
-	if priv == "" || len(relays) == 0 {
-		return nil, nil, ""
-	}
-	authors := splitNonEmpty(os.Getenv(brand.EnvPrefix + "NOSTR_AUTHORS"))
-	// Authors may be hex or npub… — normalize to hex so the allowlist matches the
-	// hex pubkey on inbound events.
-	norm := make([]string, 0, len(authors))
-	for _, a := range authors {
-		if h, derr := nostr.DecodePubkey(a); derr == nil {
-			norm = append(norm, h)
-		}
-	}
-	ch, err := nostr.New(nostr.Config{
-		PrivKeyHex: priv,
-		Relays:     relays,
-		Allowlist:  channel.NewAllowlist(norm),
-		Bus:        k.Bus(),
-		Handler:    makeChannelHandler(k),
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: nostr channel disabled: %v\n", brand.Binary, err)
-		return nil, nil, ""
-	}
-	sink := pulse.SinkFunc(func(b pulse.Brief) error {
-		return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
-	})
-	return ch, sink, fmt.Sprintf("Nostr, %d relay(s), allowlist=%d author(s)", len(relays), len(authors))
-}
-
 // buildPushChannels constructs every configured push-notification channel (ntfy,
 // Pushover, Gotify, Pushbullet, Google Chat, Mattermost). Each is enabled by its
 // own env and added as a distinct outbound channel; a combined Pulse sink fans a
@@ -2950,7 +2781,8 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 	}
 	if env("LINE_TOKEN") != "" && !twoWayLineConfigured() {
 		// When AGEZT_LINE_SECRET is set the dedicated two-way LINE channel owns
-		// the "line" name (see buildLine), so skip the outbound-only push entry.
+		// the "line" name (see the line factory in plugins/builtinchannels), so
+		// skip the outbound-only push entry.
 		add(push.Config{Kind: push.KindLine, Token: env("LINE_TOKEN"), Target: env("LINE_TO")})
 	}
 	if env("ZULIP_APIKEY") != "" {
