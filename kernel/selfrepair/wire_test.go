@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package main
+package selfrepair
 
 import (
 	"context"
@@ -18,7 +18,7 @@ func TestWireAutoRepair_Disabled(t *testing.T) {
 	noNotify := func(board.Message, string) {}
 
 	// Nil kernel → "disabled" (guards the k == nil branch).
-	if got := wireAutoRepair(context.Background(), nil, t.TempDir(), &fakeAutoRepairMailbox{}, noNotify); got != "disabled" {
+	if got := WireAutoRepair(context.Background(), nil, t.TempDir(), &fakeAutoRepairMailbox{}, noNotify); got != "disabled" {
 		t.Errorf("nil kernel = %q, want disabled", got)
 	}
 
@@ -33,7 +33,7 @@ func TestWireAutoRepair_Disabled(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	got := wireAutoRepair(context.Background(), k, t.TempDir(), &fakeAutoRepairMailbox{}, noNotify)
+	got := WireAutoRepair(context.Background(), k, t.TempDir(), &fakeAutoRepairMailbox{}, noNotify)
 	if !strings.HasPrefix(got, "disabled") {
 		t.Errorf("AUTO_REPAIR=off = %q, want a disabled string", got)
 	}
@@ -55,8 +55,8 @@ func TestWireAutoRepair_Armed(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	got := wireAutoRepair(ctx, k, t.TempDir(), &fakeAutoRepairMailbox{}, func(board.Message, string) {})
+	got := WireAutoRepair(ctx, k, t.TempDir(), &fakeAutoRepairMailbox{}, func(board.Message, string) {})
 	if !strings.HasPrefix(got, "armed") {
-		t.Errorf("wireAutoRepair = %q, want an 'armed' string", got)
+		t.Errorf("WireAutoRepair = %q, want an 'armed' string", got)
 	}
 }

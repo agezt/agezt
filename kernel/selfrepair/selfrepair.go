@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-package main
+// Package selfrepair wires the deterministic doctor/auto-repair coordinator
+// (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse
+// observer, claims broken/degraded/routing-unstable agents, drives the
+// overseertool repair source, and escalates through the mailbox + wake chain
+// when a repair fails. The daemon arms it once at boot via WireAutoRepair.
+//
+// Import posture: selfrepair imports kernel/runtime and (like
+// kernel/controlplane) the overseertool plugin as its repair source; nothing in
+// kernel/runtime may ever import selfrepair.
+package selfrepair
 
 import (
 	"context"
@@ -43,7 +52,10 @@ type autoRepairRoutingChainApplier interface {
 	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error)
 }
 
-type autoRepairMailbox interface {
+// Mailbox is the message-board surface auto-repair escalations post through.
+// *board.Store satisfies it; a nil-tolerant caller may pass nil to disable
+// mailbox escalation.
+type Mailbox interface {
 	HelpRequest(from, to, text string, nowMS int64) (board.Message, error)
 	Get(id string) (board.Message, bool)
 	Send(m board.Message, nowMS int64) (board.Message, error)
@@ -112,7 +124,10 @@ type autoRepairCandidate struct {
 	RoutingRollbackToChain   []string
 }
 
-func wireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, baseDir string, mailbox autoRepairMailbox, postNotify func(board.Message, string)) string {
+// WireAutoRepair subscribes the auto-repair coordinator to the reaper pulse
+// subject and launches it on ctx. It returns the boot-banner status string
+// ("armed (…)" or a "disabled (…)" reason) exactly as the daemon prints it.
+func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, baseDir string, mailbox Mailbox, postNotify func(board.Message, string)) string {
 	if k == nil || k.Bus() == nil {
 		return "disabled"
 	}
@@ -165,7 +180,7 @@ func autoRepairRoutingRollbackProbation() time.Duration {
 	return d
 }
 
-func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, k *kernelruntime.Kernel, src autoRepairSource, mailbox autoRepairMailbox, postNotify func(board.Message, string)) {
+func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string)) {
 	defer sub.Cancel()
 	for {
 		select {
@@ -919,13 +934,7 @@ func autoRepairFailedPhase(cand autoRepairCandidate) string {
 	return "failed"
 }
 
-func firstNonEmptyStrings(primary, fallback []string) []string {
-	return strutil.FirstNonEmptySlice(primary, fallback)
-}
-
-func firstNonEmpty(items ...string) string { return strutil.FirstNonEmpty(items...) }
-
-func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox autoRepairMailbox, postNotify func(board.Message, string), cand autoRepairCandidate) {
+func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate) {
 	defer c.release(cand.Slug)
 	if cand.SelfRepairExhausted {
 		err := fmt.Errorf("self-repair attempts exhausted (%d/%d)", cand.SelfRepairAttempt, cand.SelfRepairMaxAttempts)
@@ -963,9 +972,9 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 			"self_repair_attempt":               cand.SelfRepairAttempt,
 			"self_repair_max_attempts":          cand.SelfRepairMaxAttempts,
 			"error":                             err.Error(),
-			"routing_task_type":                 firstNonEmpty(cand.RoutingRollbackTaskType, res.RoutingTaskType),
-			"routing_task_model_chain":          firstNonEmptyStrings(cand.RoutingRollbackToChain, res.RoutingTaskModelChain),
-			"previous_routing_task_model_chain": firstNonEmptyStrings(cand.RoutingRollbackFromChain, res.PreviousRoutingTaskModelChain),
+			"routing_task_type":                 strutil.FirstNonEmpty(cand.RoutingRollbackTaskType, res.RoutingTaskType),
+			"routing_task_model_chain":          strutil.FirstNonEmptySlice(cand.RoutingRollbackToChain, res.RoutingTaskModelChain),
+			"previous_routing_task_model_chain": strutil.FirstNonEmptySlice(cand.RoutingRollbackFromChain, res.PreviousRoutingTaskModelChain),
 			"incident_id":                       autoRepairIncidentIDValue(cand),
 			"root_incident_id":                  autoRepairRootChainID(cand),
 			"parent_incident_id":                strings.TrimSpace(cand.ParentHopID),
@@ -994,7 +1003,7 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 	})
 }
 
-func (c *autoRepairCoordinator) autoEscalate(mailbox autoRepairMailbox, postNotify func(board.Message, string), cand autoRepairCandidate, repairErr error) (*board.Message, error) {
+func (c *autoRepairCoordinator) autoEscalate(mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, repairErr error) (*board.Message, error) {
 	if mailbox == nil {
 		return nil, nil
 	}
@@ -1009,7 +1018,7 @@ func (c *autoRepairCoordinator) autoEscalate(mailbox autoRepairMailbox, postNoti
 	return &msg, nil
 }
 
-func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox autoRepairMailbox, postNotify func(board.Message, string), cand autoRepairCandidate, msg *board.Message, mailboxErr error) {
+func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, msg *board.Message, mailboxErr error) {
 	res, err := autoRepairWakeAgent(ctx, k, cand, msg)
 	if err != nil {
 		publishAutoRepair(b, res.Correlation, map[string]any{
@@ -1143,7 +1152,7 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 			publishAutoRepair(b, res.Correlation, fail)
 		} else if outcome != nil {
 			applied := map[string]any{
-				"phase":                    firstNonEmpty(outcome.Phase, "resolution_applied"),
+				"phase":                    strutil.FirstNonEmpty(outcome.Phase, "resolution_applied"),
 				"agent":                    cand.Slug,
 				"mode":                     cand.Mode,
 				"root_agent":               autoRepairRootAgent(cand),
@@ -1381,7 +1390,7 @@ func plIntAny(v any) int {
 	}
 }
 
-func (c *autoRepairCoordinator) autoReplyEscalation(mailbox autoRepairMailbox, postNotify func(board.Message, string), wake autoRepairWakeResult, msg *board.Message) (*board.Message, error) {
+func (c *autoRepairCoordinator) autoReplyEscalation(mailbox Mailbox, postNotify func(board.Message, string), wake autoRepairWakeResult, msg *board.Message) (*board.Message, error) {
 	if mailbox == nil || msg == nil || strings.TrimSpace(msg.ID) == "" || strings.TrimSpace(wake.Target) == "" {
 		return nil, nil
 	}
@@ -1499,7 +1508,7 @@ func cleanAutoRepairResolution(out *autoRepairResolution) {
 	}
 }
 
-func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox autoRepairMailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
+func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
 	if wake.Resolution == nil || wake.Resolution.Resolution == "" {
 		return nil, nil
 	}
@@ -1578,8 +1587,8 @@ func (c *autoRepairCoordinator) applyForcedRoutingResolution(k *kernelruntime.Ke
 	}
 	return &autoRepairResolutionOutcome{
 		Phase:                          "resolution_applied",
-		RoutingTaskType:                firstNonEmpty(res.RoutingTaskType, taskType),
-		RoutingTaskModelChain:          firstNonEmptyStrings(res.RoutingTaskModelChain, wake.Resolution.TaskModelChain),
+		RoutingTaskType:                strutil.FirstNonEmpty(res.RoutingTaskType, taskType),
+		RoutingTaskModelChain:          strutil.FirstNonEmptySlice(res.RoutingTaskModelChain, wake.Resolution.TaskModelChain),
 		PreviousRoutingTaskModelChain:  res.PreviousRoutingTaskModelChain,
 		RoutingForceGeneration:         nextGeneration,
 		PreviousRoutingForceGeneration: prevGeneration,
@@ -1615,7 +1624,7 @@ func equalStringSlices(a, b []string) bool {
 	return true
 }
 
-func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, mailbox autoRepairMailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
+func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
 	target := strings.TrimSpace(wake.Resolution.DelegateTo)
 	if target == "" {
 		return fmt.Errorf("delegated resolution is missing delegate_to")

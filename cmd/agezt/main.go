@@ -20,20 +20,14 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
-	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
-	stdruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,14 +38,15 @@ import (
 	"github.com/agezt/agezt/cmd/agezt/internal/daemonconfig"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
 	"github.com/agezt/agezt/kernel/artifact"
-	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/cadence/systemtasks"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
@@ -59,30 +54,23 @@ import (
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/market"
 	kernelmemory "github.com/agezt/agezt/kernel/memory"
-	"github.com/agezt/agezt/kernel/netguard"
-	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/redact"
-	"github.com/agezt/agezt/kernel/restapi"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/selfrepair"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/stt"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/toolreg"
-	"github.com/agezt/agezt/kernel/tunnel"
 	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/warden"
-	"github.com/agezt/agezt/kernel/webhook"
-	"github.com/agezt/agezt/kernel/webui"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/builtinguardians"
@@ -1014,6 +1002,33 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if updateSvc != nil {
 		srv.SetUpdateService(updateSvc)
 	}
+	// Record the network-exposed HTTP servers (M137) so `agt status` and the
+	// doctor exposure check can flag a non-loopback bind — the agent reachable
+	// beyond localhost, gated only by a token. Built from the configured addrs
+	// (env-only, so it can run here in the NewServer setter region, Phase 2.6);
+	// the per-server boot banner already warns once, this makes it persistent.
+	var httpBindings []controlplane.HTTPBinding
+	for _, b := range []struct{ name, env string }{
+		{"web ui", "WEB_ADDR"},
+		{"rest api", "REST_ADDR"},
+		{"openai api", "API_ADDR"},
+	} {
+		if addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + b.env)); addr != "" {
+			httpBindings = append(httpBindings, controlplane.HTTPBinding{
+				Name: b.name, Addr: addr, Loopback: isLoopback(addr),
+			})
+		}
+	}
+	srv.SetHTTPBindings(httpBindings)
+	// Record the resolved AWS credential chain (M307) so `agt status` can report
+	// which keyless/ambient layer engaged (IRSA, SSO, assume-role, IMDS) — the
+	// boot banner's credentials line scrolls past, and on EKS an operator wants to
+	// confirm IRSA is live without grepping pod logs.
+	srv.SetCredChain(awsChainDesc)
+	// Record the configured messaging channels (M141) so `agt status` can report
+	// what's listening — the per-channel boot banner scrolls past. Read-only from
+	// the same env the buildX functions consume.
+	srv.SetChannels(collectChannels())
 	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
 	if cancelOnDisconnect {
 		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
@@ -1317,35 +1332,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  rest api         : disabled (set AGEZT_REST_ADDR, e.g. 127.0.0.1:8800)\n")
 	}
 
-	// Record the network-exposed HTTP servers (M137) so `agt status` and the
-	// doctor exposure check can flag a non-loopback bind — the agent reachable
-	// beyond localhost, gated only by a token. Built from the configured addrs;
-	// the per-server boot banner already warns once, this makes it persistent.
-	var httpBindings []controlplane.HTTPBinding
-	for _, b := range []struct{ name, env string }{
-		{"web ui", "WEB_ADDR"},
-		{"rest api", "REST_ADDR"},
-		{"openai api", "API_ADDR"},
-	} {
-		if addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + b.env)); addr != "" {
-			httpBindings = append(httpBindings, controlplane.HTTPBinding{
-				Name: b.name, Addr: addr, Loopback: isLoopback(addr),
-			})
-		}
-	}
-	srv.SetHTTPBindings(httpBindings)
-
-	// Record the resolved AWS credential chain (M307) so `agt status` can report
-	// which keyless/ambient layer engaged (IRSA, SSO, assume-role, IMDS) — the
-	// boot banner's credentials line scrolls past, and on EKS an operator wants to
-	// confirm IRSA is live without grepping pod logs.
-	srv.SetCredChain(awsChainDesc)
-
-	// Record the configured messaging channels (M141) so `agt status` can report
-	// what's listening — the per-channel boot banner scrolls past. Read-only from
-	// the same env the buildX functions consume.
-	srv.SetChannels(collectChannels())
-
 	// Wire operator-initiated outbound (`agt send`, M142) to the live channels.
 	// Built from the channels actually constructed above so a kind only sends when
 	// it's configured; senders journal channel.outbound via each channel's Send.
@@ -1616,7 +1602,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// stop/start, self-update, or hard kill — left mid-flight, so ongoing work
 	// survives the interruption. Runs the roster + run infra armed just above.
 	fmt.Fprintf(stdout, "  run resume       : %s\n", buildResumer(ctx, k))
-	fmt.Fprintf(stdout, "  auto repair      : %s\n", wireAutoRepair(ctx, k, baseDir, boardStore, boardNotify))
+	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, k, baseDir, boardStore, boardNotify))
 
 	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
 	// The runner consults the store live, so canvas/CLI saves take effect
@@ -2360,484 +2346,6 @@ func onOff(b bool) string {
 	return "off"
 }
 
-// buildWebUI starts the Web UI resident when AGEZT_WEB_ADDR is set, on the
-// daemon ctx (so `agt halt`/SIGTERM/`agt shutdown` stop it). It serves the SSE
-// Live Monitor + read panels (SPEC-07) — token-authed and read-only (SPEC-06)
-// — over the same bus and control plane the CLI uses, so the two views are
-// guaranteed consistent. Returns a banner description (the tokenized URL), or
-// "" when disabled.
-type webUISurface struct {
-	desc           string
-	localURL       string
-	token          string
-	passwordOn     bool
-	passwordStrict bool
-	allowHost      func(string)
-}
-
-//	AGEZT_WEB_ADDR  host:port to serve on (e.g. 127.0.0.1:8787); unset = off.
-//
-// We never bind 0.0.0.0 implicitly: the operator supplies the host, and the
-// banner warns if it isn't loopback (public exposure is their explicit choice,
-// SPEC-06).
-func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, stdout io.Writer) webUISurface {
-	// Default-ON (M817): the web console is the product surface, so a bare
-	// `agezt` serves it without ceremony. AGEZT_WEB_ADDR overrides the bind
-	// address; the explicit opt-OUT keywords disable it (mirrors the owner's
-	// allow-by-default posture — you turn it off, you don't turn it on).
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR"))
-	defaulted := false
-	switch {
-	case envDisabled(addr):
-		return webUISurface{}
-	case addr == "":
-		addr = "127.0.0.1:8787"
-		defaulted = true
-	}
-	// Fresh random token, minted like the control plane's (crypto/rand → hex).
-	tokBytes := make([]byte, 32)
-	if _, err := rand.Read(tokBytes); err != nil {
-		fmt.Fprintf(stdout, "  web ui           : disabled (token mint failed: %v)\n", err)
-		return webUISurface{}
-	}
-	token := hex.EncodeToString(tokBytes)
-
-	// Reuse the same control-plane client `agt` builds — every read panel is a
-	// proxied Cmd* call, so there is zero query duplication and full parity.
-	client, err := controlplane.NewClient(baseDir)
-	if err != nil {
-		fmt.Fprintf(stdout, "  web ui           : disabled (control-plane client: %v)\n", err)
-		return webUISurface{}
-	}
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil && defaulted {
-		// The default port is taken (a second daemon, or another app on 8787).
-		// Don't leave the console dark over a port clash — fall back to an
-		// OS-assigned free port on loopback so a bare `agezt` ALWAYS gets a UI.
-		fmt.Fprintf(stdout, "  web ui           : %s busy — using a free port instead\n", addr)
-		ln, err = net.Listen("tcp", "127.0.0.1:0")
-	}
-	if err != nil {
-		fmt.Fprintf(stdout, "  web ui           : disabled (listen %s: %v)\n", addr, err)
-		return webUISurface{}
-	}
-	wsrv := webui.New(k.Bus(), client, token)
-	wsrv.SetAllowedHosts(webAllowedHosts(ln.Addr().String())...)
-	// Console password (M817 → M933): when AGEZT_WEB_PASSWORD is set, a token-less
-	// visit shows the login screen and the password opens the console (alternative
-	// door); the tokened banner URL keeps working alone. Wired as a LIVE source —
-	// re-read from the env per gate decision — so setting the password from Setup /
-	// Config Center applies without a restart. For the default loopback console, a
-	// bare Windows agezt.exe also gets a built-in first password ("agezt") so the
-	// operator can browse to localhost and change it in Setup without env files.
-	webPassword := func() string { return effectiveWebPassword(ln.Addr().String()) }
-	wsrv.SetPasswordFn(webPassword)
-	passwordStrict := strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on")
-	wsrv.SetPasswordStrict(passwordStrict)
-	passwordOn := webPassword() != ""
-	// Wire speech-to-text for the chat mic button (M689) and the console Voice
-	// mode. Prefer the runtime voice adapter so native providers (ElevenLabs /
-	// Deepgram), not just OpenAI-compatible endpoints, drive browser transcription;
-	// fall back to the standalone AGEZT_STT_API_* client. Guard the concrete
-	// pointer in the fallback so a nil never becomes a non-nil interface.
-	if v := k.Voice(); v != nil && v.HasSTT() {
-		wsrv.SetTranscriber(voiceTranscriberShim{v})
-		fmt.Fprintf(stdout, "  voice input      : enabled (chat mic → speech-to-text)\n")
-	} else if t := sttTranscriberFromEnv(); t != nil {
-		wsrv.SetTranscriber(t)
-		fmt.Fprintf(stdout, "  voice input      : enabled (chat mic → speech-to-text)\n")
-	}
-	// Wire text-to-speech for the console Voice Mode (M998) when TTS is configured.
-	// Reuse the kernel's runtime voice adapter (built from AGEZT_TTS_* at boot) — it
-	// already implements webui.Synthesizer (Speak). Guard HasTTS so an STT-only
-	// daemon doesn't advertise a /api/tts that 502s; the browser falls back to its
-	// built-in voice when this stays unwired.
-	if v := k.Voice(); v != nil && v.HasTTS() {
-		wsrv.SetSynthesizer(v)
-		fmt.Fprintf(stdout, "  voice output     : enabled (voice mode → text-to-speech)\n")
-	}
-	httpserver.Start(ctx, ln, wsrv.Handler(), func(err error) {
-		fmt.Fprintf(stdout, "web ui server error: %v\n", err)
-	})
-
-	localURL := "http://" + ln.Addr().String()
-	consoleURL := localURL + "/?token=" + token
-	plainURL := localURL + "/"
-	desc := bannerColor(consoleURL, "1;36")
-	if passwordOn {
-		desc += "  " + bannerColor("(password login enabled at "+plainURL+")", "1;32")
-	}
-	if !isLoopback(addr) {
-		desc += "  " + bannerColor("[WARNING: not loopback — reachable beyond localhost]", "1;33")
-	}
-	if shouldOpenWebUI() {
-		if err := openBrowser(consoleURL); err != nil {
-			desc += "  " + bannerColor("(browser auto-open failed: "+err.Error()+")", "1;33")
-		} else {
-			desc += "  " + bannerColor("(opened in browser)", "1;32")
-		}
-	}
-	return webUISurface{
-		desc:           desc,
-		localURL:       localURL,
-		token:          token,
-		passwordOn:     passwordOn,
-		passwordStrict: passwordStrict,
-		allowHost:      func(host string) { wsrv.SetAllowedHosts(host) },
-	}
-}
-
-func envDisabled(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "off", "disabled", "none", "no", "0", "false":
-		return true
-	default:
-		return false
-	}
-}
-
-func bannerColor(s, code string) string {
-	if !bannerColorEnabled() {
-		return s
-	}
-	return "\x1b[" + code + "m" + s + "\x1b[0m"
-}
-
-func bannerColorEnabled() bool {
-	if os.Getenv("NO_COLOR") != "" {
-		return false
-	}
-	if strings.HasSuffix(os.Args[0], ".test") {
-		return false
-	}
-	return true
-}
-
-const defaultLoopbackWebPassword = "agezt"
-
-func effectiveWebPassword(addr string) string {
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")); v != "" {
-		return v
-	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD_DEFAULT"))) {
-	case "off", "disabled", "none", "no", "0", "false":
-		return ""
-	}
-	if isLoopback(addr) {
-		return defaultLoopbackWebPassword
-	}
-	return ""
-}
-
-func shouldOpenWebUI() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_OPEN"))) {
-	case "off", "disabled", "none", "no", "0", "false":
-		return false
-	}
-	// `go test` must not launch a desktop browser.
-	return !strings.HasSuffix(os.Args[0], ".test")
-}
-
-func openBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch stdruntime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	return cmd.Start()
-}
-
-func webAllowedHosts(bindAddr string) []string {
-	var hosts []string
-	if h, _, err := net.SplitHostPort(bindAddr); err == nil {
-		if ip := net.ParseIP(h); ip == nil || !ip.IsUnspecified() {
-			hosts = append(hosts, h)
-		}
-	}
-	for _, h := range strings.Split(os.Getenv(brand.EnvPrefix+"WEB_ALLOWED_HOSTS"), ",") {
-		if h = strings.TrimSpace(h); h != "" {
-			hosts = append(hosts, h)
-		}
-	}
-	return hosts
-}
-
-// buildTunnel starts a tunnel to a local HTTP service when AGEZT_TUNNEL
-// (cloudflare/cloudflared|ngrok|tailscale|tailscale-funnel) or AGEZT_TUNNEL_CMD
-// (a custom command) is set. It targets AGEZT_TUNNEL_TARGET, else the live Web
-// UI listener, else the REST addr. The supervised binary's remote URL is printed
-// to the daemon log once it connects. Returns "" (disabled) when no tunnel is
-// configured.
-//
-//	AGEZT_TUNNEL         provider preset: cloudflare/cloudflared | ngrok | tailscale | tailscale-funnel
-//	AGEZT_TUNNEL_CMD     explicit command (whitespace-split), overrides the preset
-//	AGEZT_TUNNEL_TARGET  local URL to expose (default: the Web UI, else REST, addr)
-func buildTunnel(ctx context.Context, stdout io.Writer, web webUISurface) string {
-	provider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL"))
-	cmdStr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_CMD"))
-	if provider == "" && cmdStr == "" {
-		return ""
-	}
-
-	target := tunnelTargetFromEnv(web)
-	targetsWebUI := target != "" && sameURLTarget(target, web.localURL)
-
-	cfg := tunnel.Config{
-		Provider:  provider,
-		TargetURL: target,
-		OnURL: func(u string) {
-			if targetsWebUI && web.allowHost != nil {
-				if h := publicURLHost(u); h != "" {
-					web.allowHost(h)
-				}
-			}
-			public := tunnelPublicURL(u, web, targetsWebUI)
-			fmt.Fprintf(stdout, "  tunnel URL       : %s  [the service is now reachable through the tunnel]\n", public)
-			if targetsWebUI && web.passwordOn && web.passwordStrict {
-				fmt.Fprintf(stdout, "  tunnel auth      : Web UI password strict mode is enabled; public host was allowlisted and token+password are required\n")
-			} else if targetsWebUI && web.passwordOn {
-				fmt.Fprintf(stdout, "  tunnel auth      : Web UI password is enabled; public URL opens password login and host was allowlisted automatically\n")
-			} else if targetsWebUI {
-				fmt.Fprintf(stdout, "  tunnel auth      : WARNING Web UI password is not set; access is token-only\n")
-			}
-		},
-	}
-	if cmdStr != "" {
-		cfg.Command = strings.Fields(cmdStr)
-	}
-
-	tun, err := tunnel.New(cfg)
-	if err != nil {
-		fmt.Fprintf(stdout, "  tunnel           : disabled (%v)\n", err)
-		return ""
-	}
-	go tun.Start(ctx)
-
-	what := "custom command"
-	if cmdStr == "" {
-		what = provider
-	}
-	desc := fmt.Sprintf("%s → exposing %s (public URL prints here once connected)", what, target)
-	if target == "" {
-		desc = fmt.Sprintf("%s (custom command; no local target derived)", what)
-	}
-	return desc
-}
-
-func tunnelTargetFromEnv(web webUISurface) string {
-	if target := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_TARGET")); target != "" {
-		return target
-	}
-	if web.localURL != "" {
-		return web.localURL
-	}
-	if webAddr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_ADDR")); webAddr != "" && !envDisabled(webAddr) {
-		return addrToURL(webAddr)
-	}
-	if rest := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "REST_ADDR")); rest != "" && !envDisabled(rest) {
-		return addrToURL(rest)
-	}
-	return ""
-}
-
-func sameURLTarget(a, b string) bool {
-	return strings.EqualFold(strings.TrimRight(strings.TrimSpace(a), "/"), strings.TrimRight(strings.TrimSpace(b), "/"))
-}
-
-func publicURLHost(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Host == "" {
-		return ""
-	}
-	return u.Host
-}
-
-func tunnelPublicURL(raw string, web webUISurface, targetsWebUI bool) string {
-	if targetsWebUI && web.token != "" && (!web.passwordOn || web.passwordStrict) {
-		return urlWithToken(raw, web.token)
-	}
-	return raw
-}
-
-func urlWithToken(raw, token string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return raw
-	}
-	if u.Path == "" {
-		u.Path = "/"
-	}
-	q := u.Query()
-	q.Set("token", token)
-	u.RawQuery = q.Encode()
-	return u.String()
-}
-
-// addrToURL turns a listen addr (host:port, or :port) into a loopback http URL.
-func addrToURL(addr string) string {
-	if strings.HasPrefix(addr, ":") {
-		addr = "127.0.0.1" + addr
-	}
-	return "http://" + addr
-}
-
-// kernelAPIEngine adapts *kernelruntime.Kernel to openaiapi.Engine: it adds
-// DefaultModel/ModelIDs (drawn from the configured model + synced catalog) on
-// top of the run/correlation methods the kernel already exposes.
-type kernelAPIEngine struct{ k *kernelruntime.Kernel }
-
-func (e kernelAPIEngine) NewCorrelation() string        { return e.k.NewCorrelation() }
-func (e kernelAPIEngine) SubjectForRun(c string) string { return e.k.SubjectForRun(c) }
-func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model string, images []string, jsonMode bool) (string, error) {
-	// Honour the requested model for this run (empty → kernel default).
-	ctx = kernelruntime.WithModel(ctx, model)
-	// Structured-output request (M314): a client's response_format flows to the
-	// provider's CompletionRequest.JSONMode. No-op when false.
-	ctx = kernelruntime.WithJSONMode(ctx, jsonMode)
-	// Carry any multimodal attachments (M246) the same way the control plane
-	// does, so a vision request to the OpenAI-compatible API reaches the model.
-	if len(images) > 0 {
-		// Pre-gate vision capability (M255): the API path bypasses the control
-		// plane's M91 gate, so reject a non-vision model here with a clear error
-		// rather than wasting a provider call.
-		if err := visionGate(e.k, model, images); err != nil {
-			return "", err
-		}
-		ctx = kernelruntime.WithImages(ctx, images)
-	}
-	return e.k.RunWith(ctx, corr, intent)
-}
-
-// UsageFor implements openaiapi.UsageReporter (M282): sum the REAL provider
-// token usage for a run by folding its budget.consumed events (each LLM call the
-// governor priced). Returns ok=false when nothing was consumed (a free/local/
-// mock model) so the API falls back to its estimate instead of reporting 0/0.
-func (e kernelAPIEngine) UsageFor(corr string) (int, int, bool) {
-	// Fast path: the Governor keeps a bounded in-memory per-correlation usage
-	// index, so usage for a just-completed run is O(1) instead of an O(journal)
-	// scan per API response (which a client hammering the API could amplify into a
-	// DoS). The journal scan below stays the authoritative fallback for any
-	// correlation not in the bounded index, so the reported numbers are identical.
-	if ur, ok := e.k.Provider().(interface {
-		UsageFor(string) (int, int, bool)
-	}); ok {
-		if in, out, ok := ur.UsageFor(corr); ok && (in != 0 || out != 0) {
-			return in, out, true
-		}
-	}
-	in, out, found := 0, 0, false
-	_ = e.k.Journal().Range(func(ev *event.Event) error {
-		if ev.Kind != event.KindBudgetConsumed {
-			return nil
-		}
-		var p struct {
-			CorrelationID string `json:"correlation_id"`
-			InputTokens   int    `json:"input_tokens"`
-			OutputTokens  int    `json:"output_tokens"`
-		}
-		if json.Unmarshal(ev.Payload, &p) != nil || p.CorrelationID != corr {
-			return nil
-		}
-		in += p.InputTokens
-		out += p.OutputTokens
-		found = true
-		return nil
-	})
-	if !found || (in == 0 && out == 0) {
-		return 0, 0, false
-	}
-	return in, out, true
-}
-
-func (e kernelAPIEngine) DefaultModel() string { return e.k.Model() }
-func (e kernelAPIEngine) ModelIDs() []string {
-	cat := e.k.Catalog()
-	if cat == nil {
-		return nil
-	}
-	var ids []string
-	for _, p := range cat.ProviderList() {
-		for id := range p.Models {
-			ids = append(ids, id)
-		}
-	}
-	sort.Strings(ids)
-	return ids
-}
-
-// EventsForCorrelation returns the journaled events of a run, in order, by
-// ranging the journal (the restapi run-inspection route, P7-API-02). Empty when
-// the correlation is unknown.
-func (e kernelAPIEngine) EventsForCorrelation(corr string) ([]*event.Event, error) {
-	var out []*event.Event
-	err := e.k.Journal().Range(func(ev *event.Event) error {
-		if ev.CorrelationID == corr {
-			out = append(out, ev)
-		}
-		return nil
-	})
-	return out, err
-}
-
-func (e kernelAPIEngine) ArtifactEntries(kind, source, corr string) ([]restapi.ArtifactEntry, error) {
-	idx := e.k.ArtifactIndex()
-	if idx == nil {
-		return nil, fmt.Errorf("artifact index unavailable")
-	}
-	ents := idx.List(artifact.Filter{Kind: kind, Source: source, Corr: corr})
-	out := make([]restapi.ArtifactEntry, 0, len(ents))
-	for _, a := range ents {
-		out = append(out, restArtifactEntry(a))
-	}
-	return out, nil
-}
-
-func (e kernelAPIEngine) ArtifactBytes(id string, maxBytes int64) ([]byte, restapi.ArtifactEntry, error) {
-	idx := e.k.ArtifactIndex()
-	if idx == nil {
-		return nil, restapi.ArtifactEntry{}, fmt.Errorf("artifact index unavailable")
-	}
-	meta, ok := idx.Get(id)
-	if !ok {
-		return nil, restapi.ArtifactEntry{}, restapi.ErrArtifactNotFound
-	}
-	if maxBytes > 0 && meta.Size > maxBytes {
-		return nil, restArtifactEntry(meta), restapi.ErrArtifactTooLarge
-	}
-	data, meta, err := idx.Bytes(id)
-	if err != nil {
-		if errors.Is(err, artifact.ErrNotFound) {
-			return nil, restapi.ArtifactEntry{}, restapi.ErrArtifactNotFound
-		}
-		return nil, restapi.ArtifactEntry{}, err
-	}
-	if maxBytes > 0 && int64(len(data)) > maxBytes {
-		return nil, restArtifactEntry(meta), restapi.ErrArtifactTooLarge
-	}
-	return data, restArtifactEntry(meta), nil
-}
-
-func restArtifactEntry(a artifact.Entry) restapi.ArtifactEntry {
-	return restapi.ArtifactEntry{
-		ID:        a.ID,
-		Ref:       a.Ref,
-		Name:      a.Name,
-		Mime:      a.Mime,
-		Kind:      a.Kind,
-		Source:    a.Source,
-		Sender:    a.Sender,
-		Corr:      a.Corr,
-		Size:      a.Size,
-		CreatedMs: a.CreatedMs,
-		Caption:   a.Caption,
-	}
-}
-
 // replayPolicyOverlay reads the journal, decodes every policy.changed event
 // (runtime deny-rule add/rm + trust-level changes, M18/M19), and projects
 // them into the net overlay to restore onto the engine (M20). The journal is
@@ -3057,273 +2565,6 @@ func extraRedactLiterals() []string {
 		}
 	}
 	return out
-}
-
-// writeAPIListenToken persists the freshly-minted HTTP listen token to a 0600
-// file under the daemon's base directory and returns a short prefix suitable
-// for surfacing in the boot banner without leaking the full secret. Banner
-// leak audit (VULN banner-token-leak): the FULL token must NEVER appear on
-// stdout/stderr or anywhere a log-shipper / `journalctl` / `agt status` will
-// scrape it. Callers are expected to embed `prefix` in the banner and point
-// operators at the file path for the live secret. On a write failure we
-// return the empty prefix AND the error so the caller can fail closed rather
-// than print nothing and silently leave the operator without the secret.
-func writeAPIListenToken(baseDir, filename, token string) (prefix string, err error) {
-	return kernelauth.WriteTokenFile(baseDir, filename, token)
-}
-
-// buildOpenAIAPI starts the OpenAI-compatible HTTP resident when AGEZT_API_ADDR
-// is set, mirroring buildWebUI's lifecycle (daemon ctx, graceful shutdown,
-// minted token, loopback warning). Returns the banner description or "".
-//
-// The minted bearer token is written to <baseDir>/openai.token with 0600 perms
-// and only a short prefix is shown in the banner — the FULL token must NEVER
-// appear on stdout/stderr where a log-shipper or `journalctl` would scrape it
-// (VULN banner-token-leak fix).
-func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, stdout io.Writer) string {
-	addr := os.Getenv(brand.EnvPrefix + "API_ADDR")
-	if addr == "" {
-		return ""
-	}
-	tokBytes := make([]byte, 32)
-	if _, err := rand.Read(tokBytes); err != nil {
-		fmt.Fprintf(stdout, "  openai api       : disabled (token mint failed: %v)\n", err)
-		return ""
-	}
-	token := hex.EncodeToString(tokBytes)
-	prefix, tokErr := writeAPIListenToken(baseDir, "openai.token", token)
-	if tokErr != nil {
-		fmt.Fprintf(stdout, "  openai api       : disabled (token persist failed: %v)\n", tokErr)
-		return ""
-	}
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		fmt.Fprintf(stdout, "  openai api       : disabled (listen %s: %v)\n", addr, err)
-		return ""
-	}
-	api := openaiapi.New(kernelAPIEngine{k}, k.Bus(), token)
-	if reg != nil {
-		// Tenant routing: an X-Agezt-Tenant header serves the request from that
-		// tenant's isolated kernel + bus (opened on demand).
-		api.SetTenantResolver(func(id string) (openaiapi.Engine, *bus.Bus, error) {
-			t, err := reg.Acquire(id, time.Now())
-			if err != nil {
-				return nil, nil, err
-			}
-			tk, ok := t.Kernel.(*kernelruntime.Kernel)
-			if !ok {
-				return nil, nil, fmt.Errorf("tenant %q: unexpected kernel type", id)
-			}
-			return kernelAPIEngine{tk}, tk.Bus(), nil
-		})
-		api.SetTenantAuthorizer(reg.Authorize)
-	}
-	// Speech-to-text upload (POST /v1/audio/transcriptions) — wired when an STT
-	// endpoint is configured (a key, or a custom URL for a local whisper server).
-	// Same source of truth as the Web UI mic button (M689).
-	if t := sttTranscriberFromEnv(); t != nil {
-		api.SetTranscriber(t)
-	}
-	httpserver.Start(ctx, ln, api.Handler(), func(err error) {
-		fmt.Fprintf(stdout, "openai api server error: %v\n", err)
-	})
-
-	desc := "http://" + ln.Addr().String() + "/v1  (Authorization: Bearer " + prefix + "  — full token in " + filepath.Join(baseDir, "openai.token") + ")"
-	if !isLoopback(addr) {
-		desc += "  [WARNING: not loopback — reachable beyond localhost]"
-	}
-	return desc
-}
-
-// buildRESTAPI starts the native REST resident when AGEZT_REST_ADDR is set,
-// mirroring buildOpenAIAPI's lifecycle (daemon ctx, graceful shutdown, minted
-// token, loopback warning). Returns the banner description or "".
-//
-// The minted bearer token is written to <baseDir>/rest.token with 0600 perms
-// and only a short prefix is shown in the banner — the FULL token must NEVER
-// appear on stdout/stderr where a log-shipper or `journalctl` would scrape it
-// (VULN banner-token-leak fix).
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, draining *atomic.Bool, boardStore *board.Store, boardNotify func(board.Message, string), updateSvc *update.Service, stdout io.Writer) string {
-	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
-	if addr == "" {
-		return ""
-	}
-	tokBytes := make([]byte, 32)
-	if _, err := rand.Read(tokBytes); err != nil {
-		fmt.Fprintf(stdout, "  rest api         : disabled (token mint failed: %v)\n", err)
-		return ""
-	}
-	token := hex.EncodeToString(tokBytes)
-	prefix, tokErr := writeAPIListenToken(baseDir, "rest.token", token)
-	if tokErr != nil {
-		fmt.Fprintf(stdout, "  rest api         : disabled (token persist failed: %v)\n", tokErr)
-		return ""
-	}
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		fmt.Fprintf(stdout, "  rest api         : disabled (listen %s: %v)\n", addr, err)
-		return ""
-	}
-	rest := restapi.New(kernelAPIEngine{k}, k.Bus(), token, brand.Version)
-	// Mailbox (M937): the shared message board for SDK apps — the same store
-	// instance the `board` tool writes, so external sends wake standing orders
-	// exactly like agent sends. Nil when the board failed to open.
-	if boardStore != nil {
-		rest.SetMailbox(boardStore, boardNotify)
-	}
-	// Self-update engine (M860): wired when AGEZT_UPDATE_ENDPOINT or
-	// AGEZT_UPDATE_GITHUB_OWNER/REPO is set. Nil when not configured;
-	// the update handlers report that.
-	if updateSvc != nil {
-		rest.SetUpdateService(updateSvc)
-	}
-	// Readiness probe (M134): /readyz reports not-ready while the daemon is
-	// halted, so a load balancer / k8s readiness probe pulls it from rotation
-	// without the process dying. Liveness (/healthz) stays up regardless.
-	rest.SetReadiness(func() (bool, string) {
-		if draining.Load() {
-			return false, "draining"
-		}
-		if k.IsHalted() {
-			return false, "halted"
-		}
-		return true, ""
-	})
-	// Prometheus /metrics (M135): expose the cheap in-memory operational gauges
-	// (same data as status/budget/disk) so the daemon can be wired into Grafana /
-	// alerting. All reads are O(1) or O(segments); no per-scrape journal fold.
-	rest.SetMetrics(func() []restapi.Metric {
-		boolf := func(b bool) float64 {
-			if b {
-				return 1
-			}
-			return 0
-		}
-		schedTotal, schedEnabled := 0, 0
-		if st := k.Schedules(); st != nil {
-			for _, e := range st.List() {
-				schedTotal++
-				if e.Enabled {
-					schedEnabled++
-				}
-			}
-		}
-		headSeq, _ := k.Journal().Head()
-		if headSeq < 0 {
-			headSeq = 0
-		}
-		var spent, ceiling int64
-		if gov, ok := k.Provider().(*governor.Governor); ok {
-			snap := gov.Snapshot()
-			spent, ceiling = snap.SpentMicrocents, snap.CeilingMicrocents
-		}
-		base := k.BaseDir()
-		var journalBytes int64
-		_ = filepath.Walk(filepath.Join(base, "journal"), func(_ string, info os.FileInfo, err error) error {
-			if err == nil && !info.IsDir() {
-				journalBytes += info.Size()
-			}
-			return nil
-		})
-		var diskFree, diskTotal uint64
-		if f, tot, err := pulse.DiskUsage(base); err == nil {
-			diskFree, diskTotal = f, tot
-		}
-		diskRatio := 0.0
-		if diskTotal > 0 {
-			diskRatio = float64(diskFree) / float64(diskTotal)
-		}
-		pending := 0
-		if ap := k.Approvals(); ap != nil {
-			pending = ap.PendingCount()
-		}
-		return []restapi.Metric{
-			{Name: "up", Help: "1 if the daemon is serving", Value: 1},
-			{Name: "halted", Help: "1 if the daemon is halted", Value: boolf(k.IsHalted())},
-			{Name: "uptime_seconds", Help: "seconds since the daemon started", Value: time.Since(k.StartTime()).Seconds()},
-			{Name: "active_runs", Help: "runs currently in flight", Value: float64(k.ActiveRuns())},
-			{Name: "journal_head_seq", Help: "latest journal sequence number", Value: float64(headSeq)},
-			{Name: "memory_records", Help: "live memory records", Value: float64(k.Memory().Count())},
-			{Name: "world_entities", Help: "live world-model entities", Value: float64(k.World().Count())},
-			{Name: "active_skills", Help: "active skills", Value: float64(k.Forge().Count())},
-			{Name: "schedules_total", Help: "scheduled intents", Value: float64(schedTotal)},
-			{Name: "schedules_enabled", Help: "enabled scheduled intents", Value: float64(schedEnabled)},
-			{Name: "pending_approvals", Help: "HITL approvals awaiting an operator", Value: float64(pending)},
-			{Name: "spend_today_microcents", Help: "today's spend in microcents ($1=1e9)", Value: float64(spent)},
-			{Name: "budget_ceiling_microcents", Help: "daily budget ceiling in microcents (0=unbounded)", Value: float64(ceiling)},
-			{Name: "journal_bytes", Help: "journal size on disk in bytes", Value: float64(journalBytes)},
-			{Name: "disk_free_bytes", Help: "free bytes on the journal filesystem", Value: float64(diskFree)},
-			{Name: "disk_free_ratio", Help: "free fraction of the journal filesystem (0..1)", Value: diskRatio},
-		}
-	})
-	if reg != nil {
-		// Tenant routing: an X-Agezt-Tenant header serves the request from that
-		// tenant's isolated kernel + bus (opened on demand).
-		rest.SetTenantResolver(func(id string) (restapi.Engine, *bus.Bus, error) {
-			t, err := reg.Acquire(id, time.Now())
-			if err != nil {
-				return nil, nil, err
-			}
-			tk, ok := t.Kernel.(*kernelruntime.Kernel)
-			if !ok {
-				return nil, nil, fmt.Errorf("tenant %q: unexpected kernel type", id)
-			}
-			return kernelAPIEngine{tk}, tk.Bus(), nil
-		})
-		rest.SetTenantAuthorizer(reg.Authorize)
-	}
-	httpserver.Start(ctx, ln, rest.Handler(), func(err error) {
-		fmt.Fprintf(stdout, "rest api server error: %v\n", err)
-	})
-
-	desc := "http://" + ln.Addr().String() + "/api/v1  (Authorization: Bearer " + prefix + "  — full token in " + filepath.Join(baseDir, "rest.token") + ")"
-	if !isLoopback(addr) {
-		desc += "  [WARNING: not loopback — reachable beyond localhost]"
-	}
-	return desc
-}
-
-// buildWebhooks starts the outbound-webhook dispatcher when AGEZT_WEBHOOKS is
-// set. It subscribes to the bus on the daemon ctx (so halt/shutdown stop it) and
-// POSTs matching events to the configured sinks. Returns the banner description;
-// "" only when the env var is unset (an empty/invalid spec returns a one-line
-// reason so the operator sees the misconfiguration).
-func buildWebhooks(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
-	spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEBHOOKS"))
-	if spec == "" {
-		return ""
-	}
-	sinks, err := webhook.ParseSinks(spec)
-	if err != nil {
-		return "disabled (" + err.Error() + ")"
-	}
-	if len(sinks) == 0 {
-		return ""
-	}
-	// Egress guard (M416, SPEC-06): outbound webhook deliveries are subject to the
-	// same default-deny egress policy as the http/browser tools, so a configured
-	// sink cannot reach loopback / RFC1918 / the cloud-metadata endpoint. Operators
-	// who legitimately deliver to an internal sink opt the range back in.
-	var guardOpts []netguard.Option
-	egress := "guarded"
-	if os.Getenv(brand.EnvPrefix+"WEBHOOK_ALLOW_LOOPBACK") == "1" {
-		guardOpts = append(guardOpts, netguard.AllowLoopback())
-		egress = "loopback-ok"
-	}
-	if os.Getenv(brand.EnvPrefix+"WEBHOOK_ALLOW_PRIVATE") == "1" {
-		guardOpts = append(guardOpts, netguard.AllowPrivate())
-		if egress == "loopback-ok" {
-			egress = "loopback+private-ok"
-		} else {
-			egress = "private-ok"
-		}
-		fmt.Fprintln(stdout, "WARNING: AGEZT_WEBHOOK_ALLOW_PRIVATE=1 lets webhook sinks reach the private network.")
-	}
-	client := netguard.New(guardOpts...).HTTPClient(webhook.DefaultTimeout)
-	webhook.NewDispatcher(k.Bus(), sinks, stdout, webhook.WithClient(client)).Start(ctx)
-	return webhook.Describe(sinks) + " [egress=" + egress + "]"
 }
 
 // buildAnomaly starts the anomaly auto-halt circuit breaker (SPEC-06 §5). It
@@ -3686,7 +2927,7 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 			rctx = kernelruntime.WithAgentProfile(rctx, *prof)
 		}
 		rctx = kernelruntime.WithWakeContext(rctx, kernelruntime.WakeContext{
-			Source:         firstNonEmpty(t.WakeSource, "resume"),
+			Source:         strutil.FirstNonEmpty(t.WakeSource, "resume"),
 			Reason:         "resumed",
 			ScheduleID:     t.WakeScheduleID,
 			StandingID:     t.WakeStandingID,
@@ -3901,7 +3142,7 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 				Payload:       scheduleFiredEventPayload(id, intent, model, ent, prof),
 			})
 			return runScheduledTrackedTarget(mctx, k, corr, ent, intent, func(ctx context.Context) (string, error) {
-				if err := runScheduledSystemTask(ctx, k, corr, id, ent.SystemTask); err != nil {
+				if err := systemtasks.Run(ctx, k, corr, id, ent.SystemTask); err != nil {
 					return "", err
 				}
 				return "system task " + ent.SystemTask + " completed", nil
@@ -4028,7 +3269,7 @@ func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, prof
 		payload["uses_llm"] = true
 	case cadence.TargetSystemTask:
 		payload["system_task"] = ent.SystemTask
-		if info, ok := scheduledSystemTaskInfo(ent.SystemTask); ok {
+		if info, ok := systemtasks.Info(ent.SystemTask); ok {
 			payload["executor"] = info.Executor
 			payload["category"] = info.Category
 			payload["effect_class"] = info.EffectClass
@@ -4055,16 +3296,6 @@ func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, prof
 // identically-shaped runbook through the journal.
 func agentAutonomyRunbookPayload(p roster.Profile) map[string]any {
 	return roster.AutonomyRunbook(p)
-}
-
-func scheduledSystemTaskInfo(name string) (cadence.SystemTaskInfo, bool) {
-	name = strings.TrimSpace(name)
-	for _, info := range cadence.SystemTaskInfos() {
-		if info.Name == name {
-			return info, true
-		}
-	}
-	return cadence.SystemTaskInfo{}, false
 }
 
 func runScheduledTrackedTarget(ctx context.Context, k *kernelruntime.Kernel, corr string, ent cadence.Entry, intent string, run func(context.Context) (string, error)) error {
@@ -4172,312 +3403,6 @@ func truncateScheduledAnswer(s string) string {
 		return s
 	}
 	return s[:max] + "...[truncated]"
-}
-
-func runScheduledSystemTask(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID, task string) error {
-	switch strings.TrimSpace(task) {
-	case cadence.SystemTaskCatalogSync:
-		return runScheduledCatalogSync(ctx, k, corr, scheduleID)
-	case cadence.SystemTaskArtifactCollect:
-		return runScheduledArtifactCollect(ctx, k, corr, scheduleID)
-	case cadence.SystemTaskMemoryClean:
-		return runScheduledMemoryClean(ctx, k, corr, scheduleID)
-	case cadence.SystemTaskMemoryTidy:
-		return runScheduledMemoryTidy(ctx, k, corr, scheduleID)
-	case cadence.SystemTaskLogClean:
-		return runScheduledLogClean(ctx, k, corr, scheduleID)
-	case cadence.SystemTaskGraveyardScan:
-		return runScheduledGraveyardScan(ctx, k, corr, scheduleID)
-	case cadence.SystemTaskProfileDistill:
-		return runScheduledProfileDistill(ctx, k, corr, scheduleID)
-	default:
-		return fmt.Errorf("schedule %s: unknown system task %q", scheduleID, task)
-	}
-}
-
-// runScheduledProfileDistill synthesizes the operator profile from accumulated
-// memory (M1000). LLM-backed (unlike the maintenance tasks), so it runs at a low
-// daily cadence; a no-op until there's enough accumulated memory to learn from.
-func runScheduledProfileDistill(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	if k.Memory() == nil {
-		return fmt.Errorf("schedule %s: memory unavailable", scheduleID)
-	}
-	report, err := k.DistillProfile(ctx, corr)
-	if err != nil {
-		return err
-	}
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "schedule.system_task.profile_distill",
-		Kind:          event.KindInfo,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"schedule_id":    scheduleID,
-			"system_task":    cadence.SystemTaskProfileDistill,
-			"input_records":  report.InputRecords,
-			"facets_written": report.FacetsWritten,
-			"facets":         report.Facets,
-		},
-	})
-	return nil
-}
-
-// graveyardRetentionDays is the retention window for the graveyard scan: retired
-// agents older than this are reported as removal-eligible. 0 (the default) means
-// keep-forever — the scan still reports graveyard size but flags nothing eligible.
-// This task is NOTIFY-ONLY: it never archives or deletes (removal stays an explicit
-// operator action), so a misconfigured window can only over-report, never destroy.
-func graveyardRetentionDays() int {
-	raw := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GRAVEYARD_RETENTION_DAYS"))
-	if raw == "" {
-		return 0
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || n < 0 {
-		return 0
-	}
-	return n
-}
-
-func runScheduledGraveyardScan(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	_ = ctx
-	retentionDays := graveyardRetentionDays()
-	nowMS := time.Now().UnixMilli()
-	cutoffMS := int64(0)
-	if retentionDays > 0 {
-		cutoffMS = nowMS - int64(retentionDays)*24*3600*1000
-	}
-	graveyard := 0
-	eligible := make([]string, 0)
-	for _, p := range k.Roster().List() {
-		if !p.Retired {
-			continue
-		}
-		graveyard++
-		if cutoffMS > 0 && p.RetiredMS > 0 && p.RetiredMS <= cutoffMS {
-			eligible = append(eligible, p.Slug)
-		}
-	}
-	sort.Strings(eligible)
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "schedule.system_task.graveyard_scan",
-		Kind:          event.KindInfo,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"schedule_id":     scheduleID,
-			"system_task":     cadence.SystemTaskGraveyardScan,
-			"retention_days":  retentionDays,
-			"graveyard_count": graveyard,
-			"eligible_count":  len(eligible),
-			"eligible":        eligible,
-			// Explicit: this task only reports — it performs no removal.
-			"action": "report_only",
-		},
-	})
-	return nil
-}
-
-func runScheduledArtifactCollect(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	_ = ctx
-	idx := k.ArtifactIndex()
-	if idx == nil {
-		return fmt.Errorf("schedule %s: artifact index unavailable", scheduleID)
-	}
-	const olderThanDays = 30
-	cutoff := time.Now().Add(-time.Duration(olderThanDays) * 24 * time.Hour).UnixMilli()
-	collected, bytes := idx.Collect(cutoff)
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "schedule.system_task.artifact_collect",
-		Kind:          event.KindInfo,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"schedule_id":     scheduleID,
-			"system_task":     cadence.SystemTaskArtifactCollect,
-			"older_than_days": olderThanDays,
-			"cutoff_ms":       cutoff,
-			"collected":       collected,
-			"bytes":           bytes,
-		},
-	})
-	return nil
-}
-
-func runScheduledMemoryClean(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	_ = ctx
-	if k.Memory() == nil {
-		return fmt.Errorf("schedule %s: memory unavailable", scheduleID)
-	}
-	report, err := k.Memory().CleanLowValue(corr, false)
-	if err != nil {
-		return err
-	}
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "schedule.system_task.memory_clean",
-		Kind:          event.KindInfo,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"schedule_id": scheduleID,
-			"system_task": cadence.SystemTaskMemoryClean,
-			"scanned":     report.Scanned,
-			"rejected":    report.Rejected,
-			"removed":     report.Removed,
-		},
-	})
-	return nil
-}
-
-func runScheduledMemoryTidy(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	_ = ctx
-	if k.Memory() == nil {
-		return fmt.Errorf("schedule %s: memory unavailable", scheduleID)
-	}
-	collapsed, err := k.Memory().DedupeDistilled(corr, false)
-	if err != nil {
-		return err
-	}
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "schedule.system_task.memory_tidy",
-		Kind:          event.KindInfo,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"schedule_id": scheduleID,
-			"system_task": cadence.SystemTaskMemoryTidy,
-			"collapsed":   collapsed,
-		},
-	})
-	return nil
-}
-
-func runScheduledLogClean(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	_ = ctx
-	j := k.Journal()
-	if j == nil {
-		return fmt.Errorf("schedule %s: journal unavailable", scheduleID)
-	}
-	var events int64
-	var oldestMS int64
-	var latestMS int64
-	if err := j.Range(func(e *event.Event) error {
-		events++
-		if oldestMS == 0 || (e.TSUnixMS > 0 && e.TSUnixMS < oldestMS) {
-			oldestMS = e.TSUnixMS
-		}
-		if e.TSUnixMS > latestMS {
-			latestMS = e.TSUnixMS
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	headSeq, headHash := j.Head()
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "schedule.system_task.log_clean",
-		Kind:          event.KindInfo,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"schedule_id":       scheduleID,
-			"system_task":       cadence.SystemTaskLogClean,
-			"events_scanned":    events,
-			"oldest_unix_ms":    oldestMS,
-			"latest_unix_ms":    latestMS,
-			"head_seq":          headSeq,
-			"head_hash":         headHash,
-			"physical_deletion": false,
-			"effect_class":      "log_maintenance",
-		},
-	})
-	return nil
-}
-
-func runScheduledCatalogSync(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	url := envOrDefaultLocal(brand.EnvPrefix+"CATALOG_URL", catalog.DefaultSyncURL)
-	syncer := catalog.NewSyncer()
-	syncer.URL = url
-	raw, cat, res, err := syncer.Sync(ctx)
-	if err != nil {
-		_, _ = k.Bus().Publish(event.Spec{
-			Subject:       "catalog.sync",
-			Kind:          event.KindCatalogSyncFailed,
-			Actor:         "schedule",
-			CorrelationID: corr,
-			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": err.Error()},
-		})
-		return err
-	}
-	if err := k.CatalogStore().SaveAPI(raw, url); err != nil {
-		_, _ = k.Bus().Publish(event.Spec{
-			Subject:       "catalog.sync",
-			Kind:          event.KindCatalogSyncFailed,
-			Actor:         "schedule",
-			CorrelationID: corr,
-			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": "save: " + err.Error()},
-		})
-		return fmt.Errorf("save: %w", err)
-	}
-	freshCat, providersReloaded, provErr := k.Reload()
-	if freshCat == nil {
-		_, _ = k.Bus().Publish(event.Spec{
-			Subject:       "catalog.sync",
-			Kind:          event.KindCatalogSyncFailed,
-			Actor:         "schedule",
-			CorrelationID: corr,
-			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": "reload: " + provErr.Error()},
-		})
-		return fmt.Errorf("reload: %w", provErr)
-	}
-	payload := map[string]any{
-		"url":                url,
-		"schedule_id":        scheduleID,
-		"system_task":        cadence.SystemTaskCatalogSync,
-		"bytes":              res.Bytes,
-		"provider_count":     res.ProviderCount,
-		"model_count":        res.ModelCount,
-		"duration_ms":        res.Duration.Milliseconds(),
-		"providers_reloaded": providersReloaded,
-		"effect_class":       "config_update",
-	}
-	if provErr != nil {
-		payload["provider_reload_error"] = provErr.Error()
-	}
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "catalog.sync",
-		Kind:          event.KindCatalogSynced,
-		Actor:         "schedule",
-		CorrelationID: corr,
-		Payload:       payload,
-	})
-	_ = cat
-	return nil
-}
-
-func envOrDefaultLocal(name, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// isLoopback reports whether the host portion of addr binds to loopback only.
-func isLoopback(addr string) bool {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		host = addr
-	}
-	if host == "" {
-		return false // empty host = all interfaces
-	}
-	if host == "localhost" {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback()
-	}
-	return false
 }
 
 // startUpdateChecker runs the background update checker goroutine (M860).
