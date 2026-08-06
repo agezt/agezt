@@ -87,10 +87,9 @@ import (
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
-	"github.com/agezt/agezt/plugins/providers/compat"
+	"github.com/agezt/agezt/plugins/providerboot"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
-	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
@@ -176,10 +175,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: warning: %sFORCE_START=1 — starting despite a live daemon at %s\n", brand.Binary, brand.EnvPrefix, addr)
 	}
 
-	// Load catalog once; share with buildGovernor + runtime.Config so
+	// Load catalog once; share with providerboot.Boot + runtime.Config so
 	// the daemon and the kernel see the same snapshot. An empty catalog
-	// on disk is fine: selectPrimary will fall through to the offline
-	// mock and surface a hint in the banner.
+	// on disk is fine: provider selection falls through to the unconfigured
+	// sentinel and surfaces a hint in the banner.
 	catStore := catalog.NewStore(filepath.Join(baseDir, "catalog"))
 	// Validate the catalog file loads; the value is reloaded post-seed (below),
 	// so only the error matters here.
@@ -212,14 +211,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Config Center bridge (M693): inject the config store + AGEZT_* vault secrets
 	// into the process environment so the existing os.Getenv consumers (provider,
 	// channels, interfaces) read operator edits unchanged. The real environment
-	// wins; the store/vault only fill gaps. Must run BEFORE buildGovernor + channel
-	// construction read the env. configPinned (schema vars set in the real env) is
+	// wins; the store/vault only fill gaps. Must run BEFORE providerboot.Boot +
+	// channel construction read the env. configPinned (schema vars set in the real env) is
 	// handed to the control plane so the Config Center can show them read-only.
 	configPinned := injectConfig(baseDir, credStore, stdout)
 
 	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
 	// registers as a live provider once the operator signs in.
-	seedChatGPTCatalog(catStore)
+	providerboot.SeedChatGPTCatalog(catStore)
 	cat, _ := catStore.Load()
 
 	// Credential resolution chain (M1.dd):
@@ -247,11 +246,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	credDesc := fmt.Sprintf("vault entries=%d at %s — at-rest: %s — %s", credCount, credStore.Path, atRest, awsChainDesc)
 
-	gov, govDesc, model, err := buildGovernor(cat, credLookup, baseDir)
+	bootRes, err := providerboot.Boot(providerboot.Deps{Catalog: cat, Lookup: credLookup, BaseDir: baseDir, Stderr: stderr})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
 	}
+	gov, govDesc, model := bootRes.Governor, bootRes.Desc, bootRes.Model
 
 	// Warden is constructed before the kernel so tools that close over
 	// it (shell) can be built before runtime.Open. Bus is attached
@@ -355,8 +355,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// inside via `k.Catalog()` once the kernel exists.
 	//
 	// Note that this captures `gov` (the Governor instance), `catStore`,
-	// `credStore`, and rebuilds via the same `selectPrimary` →
-	// `buildFromCatalog` path the boot path uses, so the live
+	// `credStore`, and rebuilds via providerboot.Reload — the same
+	// SelectPrimary → BuildFromCatalog path Boot uses — so the live
 	// post-reload registry matches what a fresh boot would have
 	// produced for the same on-disk state.
 	// Memory-lite (ROADMAP §2.3): on by default. The agent reads recalled
@@ -845,57 +845,23 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if redactor != nil {
 			redactor.SetSecrets(credSecrets(credStore))
 		}
-
-		freshCat := catStore // We hold a *Store reference; pull fresh catalog snapshot
-		// catStore stays stable; the catalog data was reloaded by the
-		// Kernel — but selectPrimary needs the actual *catalog.Catalog.
-		// Re-load locally so we don't depend on Kernel internals.
-		c, err := freshCat.Load()
+		// catStore stays stable; the catalog data was reloaded by the Kernel —
+		// but providerboot needs the actual *catalog.Catalog. Re-load locally so
+		// we don't depend on Kernel internals.
+		c, err := catStore.Load()
 		if err != nil {
 			return fmt.Errorf("catalog: %w", err)
 		}
-		freshLookup, _ := buildAWSCredChain(catalogScopedVaultLookup(c, credStore.Lookup))
-
-		// Re-run the same selection logic the boot path uses. Errors
-		// are surfaced to the operator rather than swallowed — a
-		// missing credential after rotation should be visible
-		// immediately, not next time the daemon happens to dispatch
-		// an LLM call.
-		prov, _, model2, auth, err := selectPrimary(c, freshLookup, baseDir)
+		// providerboot.Reload shares Boot's selection + registration path, so
+		// the live post-reload registry matches what a fresh boot would have
+		// produced for the same on-disk state (M928/M816 parity).
+		model2, err := providerboot.Reload(gov, providerDeps(c, credStore, baseDir, stderr))
 		if err != nil {
-			return fmt.Errorf("select primary: %w", err)
-		}
-		// Demote the stale "unconfigured" sentinel before installing the real one
-		// (M816). When the daemon booted with no AGEZT_PROVIDER, buildGovernor
-		// registered the unconfigured sentinel as the PRIMARY. Registry.Replace
-		// only swaps an entry of the SAME name, so replacing "unconfigured" with
-		// "deepseek" would APPEND deepseek behind the sentinel — leaving the
-		// sentinel at primary[0], still refusing every run (the first-run-wizard
-		// case: add a key + set AGEZT_PROVIDER, reload, but runs still error
-		// "no provider configured"). Remove the sentinel entirely — unlike the old
-		// mock there is no fallback role for it. gov.Replace below rebuilds the
-		// primary/fallback slices from the registry, so order matters: mutate the
-		// registry first, then Replace. If the reload still resolves to the
-		// sentinel (operator added a key but no AGEZT_PROVIDER), we keep it.
-		reg := gov.Registry()
-		if prov.Name() != unconfiguredProviderName {
-			reg.Remove(unconfiguredProviderName) // no-op when absent
-		}
-		reconcileAlternateProviders(reg, c, freshLookup, prov.Name(), baseDir)
-		if err := gov.Replace(&governor.ProviderInfo{
-			Name:     prov.Name(),
-			Provider: prov,
-			AuthMode: auth,
-			Models:   catalogModelIDs(c, prov.Name()),
-		}); err != nil {
-			return fmt.Errorf("registry replace: %w", err)
+			return err
 		}
 		// Hot-swap the live default model to match the freshly-selected provider
-		// (M816). Without this the governor would route to the new provider while
-		// runs still carried the OLD model id — e.g. after the first-run wizard
-		// switches mock→deepseek, requests would carry model "mock" and the real
-		// provider rejects it. k is non-nil whenever Reload runs (control plane
-		// only dispatches it post-Open); guard anyway for safety.
+		// (M816). k is non-nil whenever Reload runs (control plane only
+		// dispatches it post-Open); guard anyway for safety.
 		if k != nil {
 			k.SetModel(model2)
 		}
@@ -903,8 +869,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 
 	// Vision sidecar picker (M821): returns a keyed vision-capable model id the
-	// governor can route to, or ("", false) if none. Eligibility mirrors
-	// buildGovernor's registered set (supported family + credentialed) so the
+	// governor can route to, or ("", false) if none. Eligibility is the shared
+	// providerboot.Eligible predicate (supported family + credentialed) so the
 	// pick is always routable. Uses the LIVE catalog (k.Catalog()) so a freshly
 	// synced/credentialed vision provider is picked up without a restart. Injected
 	// into the runtime so DescribeImages can caption images for non-vision models.
@@ -918,8 +884,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		return cat.VisionCapableAmong(func(provID string) bool {
-			e := cat.Providers[provID]
-			return e != nil && compat.IsSupportedFamily(e.Family()) && e.HasCredentials(lookup)
+			return providerboot.Eligible(cat.Providers[provID], lookup)
 		})
 	}
 
@@ -947,7 +912,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		for _, p := range cat.ProviderList() {
 			e := cat.Providers[p.ID]
-			if e == nil || !compat.IsSupportedFamily(e.Family()) || !e.HasCredentials(lookup) {
+			if !providerboot.Eligible(e, lookup) {
 				continue
 			}
 			if _, ok := e.Models[modelID]; ok {
@@ -987,8 +952,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		models := cat.BestModelsAcross(func(provID string) bool {
-			e := cat.Providers[provID]
-			return e != nil && compat.IsSupportedFamily(e.Family()) && e.HasCredentials(lookup)
+			return providerboot.Eligible(cat.Providers[provID], lookup)
 		}, 3)
 		// No keyed provider listed a model → fall back to the active model so a
 		// single-provider setup still convenes a (degenerate) council.
@@ -1351,10 +1315,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		brand.Name, ver, commit, btime, brand.ProtocolVersion)
 	fmt.Fprintf(stdout, "  base dir         : %s\n", baseDir)
 	fmt.Fprintf(stdout, "  governor         : %s\n", govDesc)
-	// First-run nudge (M816): when the governor degraded to the offline mock
-	// (no credentialed provider), make the fix impossible to miss — point at
-	// both the CLI wizard and the Web UI, which auto-opens its setup screen.
-	if model == "mock" {
+	// First-run nudge (M816): when the daemon booted UNCONFIGURED (no provider
+	// selected — the sentinel primary refuses every LLM run), make the fix
+	// impossible to miss — point at both the CLI wizard and the Web UI, which
+	// auto-opens its setup screen. Keyed off the PRIMARY name, not the model:
+	// the old `model == "mock"` check fired exactly backwards (the sentinel
+	// resolves model "", and "mock" only appears via the explicit
+	// AGEZT_DEMO_ECHO=1 escape hatch, which is a deliberately configured state).
+	if firstRunSetupNeeded(bootRes) {
 		fmt.Fprintf(stdout, "  ⚠ setup needed   : no provider key yet — run `%s quickstart`, or open the Web UI (URL below) to add one\n", brand.CLI)
 	}
 	if adv := modelAdvisory(cat, model); adv != "" {
@@ -4823,543 +4791,6 @@ func healthStatFromJournal(k *kernelruntime.Kernel) pulse.HealthStatFunc {
 	}
 }
 
-// providerMiddleware builds the opt-in provider middleware stack from the
-// environment (M997). It is empty by default, so every provider is registered
-// unwrapped and behaviour is unchanged. Operators opt in to:
-//   - DefaultParams: AGEZT_GEN_TEMPERATURE / AGEZT_GEN_TOP_P / AGEZT_GEN_REASONING_EFFORT
-//     supply per-call sampling defaults filled in only where a request left them unset.
-//   - ExtractReasoning: AGEZT_EXTRACT_REASONING=on pulls inline <think>…</think> out of
-//     the answer into ReasoningContent (for inline-reasoning models on OpenAI-compatible /
-//     Ollama gateways that don't use a dedicated reasoning field).
-//   - SimulateStreaming: AGEZT_SIMULATE_STREAMING=on lets non-streaming providers present
-//     a single-chunk stream for a uniform UI.
-func providerMiddleware() []agent.Middleware {
-	envOn := func(suffix string) bool {
-		v := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + suffix)))
-		return v == "1" || v == "on" || v == "true" || v == "yes"
-	}
-	var mws []agent.Middleware
-
-	var defaults agent.Params
-	if s := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_TEMPERATURE")); s != "" {
-		if f, err := strconv.ParseFloat(s, 64); err == nil {
-			defaults.Temperature = &f
-		}
-	}
-	if s := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_TOP_P")); s != "" {
-		if f, err := strconv.ParseFloat(s, 64); err == nil {
-			defaults.TopP = &f
-		}
-	}
-	defaults.ReasoningEffort = strings.TrimSpace(os.Getenv(brand.EnvPrefix + "GEN_REASONING_EFFORT"))
-	if !defaults.IsZero() {
-		mws = append(mws, agent.DefaultParamsMiddleware(defaults))
-	}
-	if envOn("EXTRACT_REASONING") {
-		mws = append(mws, agent.ExtractReasoningMiddleware("<think>", "</think>"))
-	}
-	if envOn("SIMULATE_STREAMING") {
-		mws = append(mws, agent.SimulateStreamingMiddleware())
-	}
-	return mws
-}
-
-// buildGovernor constructs the routing layer: one primary provider plus every
-// other credentialed catalog provider as a model-routable alternate. Returns the
-// Governor (also serves as agent.Provider), a human-readable banner description,
-// and the run model for the kernel config ("" when none is configured).
-//
-// The daemon has NO default provider, NO credential auto-pick, NO silent offline
-// mock fallback, and NO default model (owner rule: "hiçbir default
-// provider/model"). The only mock path is the explicit AGEZT_DEMO_ECHO=1 e2e /
-// demo escape hatch.
-//
-// **Provider selection (catalog-driven):**
-//
-//	$AGEZT_PROVIDER=<catalog-id>    → e.g. "anthropic", "ollama-local",
-//	                                  "groq", "openai" — any provider in the
-//	                                  synced catalog. The ONLY way to select a
-//	                                  primary. An unknown id is a hard error.
-//	(unset)                          → UNCONFIGURED: a sentinel primary that
-//	                                  fails every LLM call with an actionable
-//	                                  "configure a provider" error. The daemon,
-//	                                  Web UI, and Setup still run.
-//	$AGEZT_DEMO_ECHO=1               → explicit offline demo/e2e mock provider
-//	                                  when $AGEZT_PROVIDER is unset.
-//	$AGEZT_MODEL=<model-id>         → the run model. If unset, runs resolve their
-//	                                  model from per-task routing or a fallback
-//	                                  chain; with neither, the governor returns
-//	                                  ErrNoModelConfigured.
-func buildGovernor(cat *catalog.Catalog, lookup func(string) string, baseDir string) (*governor.Governor, string, string, error) {
-	reg := governor.NewRegistry()
-	mw := providerMiddleware() // M997: opt-in; empty by default → providers registered unwrapped
-	primary, primaryDesc, model, authMode, err := selectPrimary(cat, lookup, baseDir)
-	if err != nil {
-		return nil, "", "", err
-	}
-	primaryName := primary.Name()
-	if err := reg.Register(&governor.ProviderInfo{
-		Name:     primaryName,
-		Provider: agent.Wrap(primary, mw...),
-		AuthMode: authMode,
-		Models:   catalogModelIDs(cat, primaryName),
-	}); err != nil {
-		return nil, "", "", fmt.Errorf("register primary: %w", err)
-	}
-	// Track which catalog providers actually got registered — the eligible
-	// set for cross-provider down-routing (M40). Keyed by catalog provider id,
-	// so it matches catalog lookups. (For the "unconfigured" sentinel this is a
-	// non-catalog name that simply won't match, which is fine.)
-	registered := map[string]bool{primaryName: true}
-
-	// Register every OTHER credentialed + supported catalog provider as a
-	// model-routable alternate (SPEC-15 §1): a request naming one of their
-	// models is routed to that provider (per-request model routing), while the
-	// primary stays the default. Build failures are skipped, never fatal — a
-	// misconfigured alternate must not stop the daemon. Each compat provider's
-	// Name() is its unique catalog id (wrapNamed), so there are no collisions.
-	extraProviders := 0
-	for _, entry := range cat.ProviderList() {
-		if entry.ID == primaryName {
-			continue // already the primary
-		}
-		if !compat.IsSupportedFamily(entry.Family()) || !entry.HasCredentials(lookup) {
-			continue
-		}
-		p, _, _, auth, err := buildFromCatalog(entry, "", lookup)
-		if err != nil {
-			continue
-		}
-		if err := reg.Register(&governor.ProviderInfo{
-			Name:     p.Name(),
-			Provider: agent.Wrap(p, mw...),
-			AuthMode: auth,
-			Models:   catalogModelIDs(cat, entry.ID),
-		}); err != nil {
-			continue // duplicate name or similar — skip gracefully
-		}
-		registered[entry.ID] = true
-		extraProviders++
-	}
-
-	// ChatGPT ("Sign in with ChatGPT") registers as a subscription alternate when
-	// signed in (and not already the primary) — its models route to the Responses
-	// backend adapter.
-	if registerChatGPTAlternate(reg, baseDir, primaryName, false) {
-		registered["chatgpt"] = true
-		extraProviders++
-	}
-
-	// No offline mock fallback: the daemon never silently answers with a mock
-	// (owner rule). When the primary fails and no fallback chain / alternate
-	// serves the request, the governor surfaces the real error.
-	fallbackDesc := ""
-
-	ceiling := governor.DefaultDailyCeilingMicrocents
-
-	// Optional primary call-rate cap (M106): AGEZT_RATE_PER_MIN=<n> bounds how
-	// many completion calls the PRIMARY governor admits per minute (tenants have
-	// AGEZT_TENANT_RATE_PER_MIN). 0 / unset = unlimited. A throttled call is
-	// journaled as rate.limited and surfaced by `agt ratelimit log`. Malformed =
-	// hard startup error (fast feedback, mirrors the other numeric knobs).
-	ratePerMin := 0
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "RATE_PER_MIN")); spec != "" {
-		n, perr := strconv.Atoi(spec)
-		if perr != nil || n < 0 {
-			return nil, "", "", fmt.Errorf("AGEZT_RATE_PER_MIN: want a non-negative integer, got %q", spec)
-		}
-		ratePerMin = n
-	}
-
-	// Optional per-task-type routing override (M1.cc). Operators set
-	// AGEZT_TASK_ROUTES="plan=anthropic;code=anthropic,openai;..." to
-	// pin specific task types to specific providers. Unrecognised
-	// provider names degrade silently to the default chain (see the
-	// TaskRoutes doc), so a typo doesn't take down the daemon — but
-	// a syntactically-malformed entry IS a hard startup error so the
-	// operator gets fast feedback instead of silent misrouting.
-	var taskRoutes governor.TaskRoutes
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TASK_ROUTES")); spec != "" {
-		parsed, err := governor.ParseTaskRoutesEnv(spec)
-		if err != nil {
-			return nil, "", "", fmt.Errorf("AGEZT_TASK_ROUTES: %w", err)
-		}
-		taskRoutes = parsed
-	}
-	// Hard-pin routes (M1.kk). Same env-var syntax; restrictive
-	// rather than preferential semantics.
-	var taskRequires governor.TaskRouteRequires
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TASK_ROUTE_REQUIRES")); spec != "" {
-		parsed, err := governor.ParseTaskRoutesEnv(spec)
-		if err != nil {
-			return nil, "", "", fmt.Errorf("AGEZT_TASK_ROUTE_REQUIRES: %w", err)
-		}
-		taskRequires = governor.TaskRouteRequires(parsed)
-	}
-
-	// Per-task-type model override (M1.ll).
-	var taskModels governor.TaskModelOverrides
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TASK_MODEL_OVERRIDES")); spec != "" {
-		parsed, err := governor.ParseTaskModelOverridesEnv(spec)
-		if err != nil {
-			return nil, "", "", fmt.Errorf("AGEZT_TASK_MODEL_OVERRIDES: %w", err)
-		}
-		taskModels = parsed
-	}
-
-	// Per-task-type model fallback CHAINS (M703): task → ordered model ids tried
-	// in turn. Supersedes TASK_MODEL_OVERRIDES for the same task. Editable live
-	// via the Routing UI / control plane (persisted back into this env var).
-	var taskModelChains governor.TaskModelChains
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TASK_MODEL_CHAINS")); spec != "" {
-		parsed, err := governor.ParseTaskModelChainsEnv(spec)
-		if err != nil {
-			return nil, "", "", fmt.Errorf("AGEZT_TASK_MODEL_CHAINS: %w", err)
-		}
-		taskModelChains = parsed
-	}
-
-	// Named reusable fallback chains (M963): a registry of "@name → [models]"
-	// referenced anywhere a model is chosen, plus an optional default chain for
-	// runs that resolve to none. Editable live via the Chains UI (persisted back
-	// into these env vars).
-	var fallbackChains map[string][]string
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FALLBACK_CHAINS")); spec != "" {
-		parsed, err := governor.ParseFallbackChainsEnv(spec)
-		if err != nil {
-			return nil, "", "", fmt.Errorf("AGEZT_FALLBACK_CHAINS: %w", err)
-		}
-		fallbackChains = parsed
-	}
-	defaultChain := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DEFAULT_CHAIN"))
-
-	// Per-task-type daily budget caps (M1.zz). Layered on top of
-	// DAILY_CEILING; both must pass for a call to proceed.
-	var taskBudgets map[string]int64
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TASK_BUDGETS")); spec != "" {
-		parsed, err := governor.ParseTaskBudgetsEnv(spec)
-		if err != nil {
-			return nil, "", "", fmt.Errorf("AGEZT_TASK_BUDGETS: %w", err)
-		}
-		taskBudgets = parsed
-	}
-
-	// Model capability gate (M25). Opt-in via AGEZT_MODEL_STRICT=on: a
-	// tools-bearing request to a catalog-known model that lacks tool-use is
-	// rejected pre-flight instead of failing deep in the provider call. The
-	// catalog backs the lookup; per-tenant governors inherit it via
-	// WithLimits (the whole Config is copied).
-	strictCaps := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_STRICT"), "on")
-	// Strict pricing (M193/M194). Opt-in via AGEZT_PRICING_STRICT=on: a request
-	// for a model with no known price is refused BEFORE any provider call rather
-	// than charged $0 (which would silently bypass the daily/task budget).
-	// Known-free models (local/mock) still pass. Off by default.
-	strictPricing := strings.EqualFold(os.Getenv(brand.EnvPrefix+"PRICING_STRICT"), "on")
-	// Capability down-routing (M37). Opt-in via AGEZT_MODEL_DOWNROUTE=on: a
-	// tools-bearing request to a tool-incapable model is remapped to a
-	// tool-capable sibling in the same provider instead of being rejected
-	// (M25). Pairs naturally with strict mode (reroute-if-possible, else
-	// reject), but works independently too.
-	// AGEZT_MODEL_DOWNROUTE_CROSS=on widens the substitute search to OTHER
-	// registered+credentialed providers when the model's own provider has no
-	// tool-capable sibling (M40). It implies down-routing. Without it, the
-	// search stays same-provider only (M37).
-	crossDownRoute := strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_DOWNROUTE_CROSS"), "on")
-	downRoute := crossDownRoute || strings.EqualFold(os.Getenv(brand.EnvPrefix+"MODEL_DOWNROUTE"), "on")
-
-	// The alternative finder: same-provider by default, cross-provider (among
-	// the actually-registered providers) when enabled.
-	altFinder := cat.ToolCapableAlternative
-	if crossDownRoute {
-		altFinder = func(model string) (string, bool) {
-			return cat.ToolCapableAlternativeAmong(model, func(provID string) bool { return registered[provID] })
-		}
-	}
-
-	// Opt-in LLM response cache (M888): AGEZT_LLM_CACHE_TTL=<duration> serves
-	// an IDENTICAL completion request from memory within the TTL — no provider
-	// call, no spend. Off when unset (an LLM is not a pure function; chat
-	// regenerate wants fresh samples). Malformed = hard startup error.
-	var respCacheTTL time.Duration
-	if spec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "LLM_CACHE_TTL")); spec != "" {
-		d, derr := time.ParseDuration(spec)
-		if derr != nil || d < 0 {
-			return nil, "", "", fmt.Errorf("%sLLM_CACHE_TTL: want a non-negative Go duration (e.g. 5m), got %q", brand.EnvPrefix, spec)
-		}
-		respCacheTTL = d
-	}
-
-	gov, err := governor.New(governor.Config{
-		Registry:                reg,
-		ResponseCacheTTL:        respCacheTTL,
-		DailyCeilingMicrocents:  ceiling,
-		RateLimitPerMin:         ratePerMin,
-		TaskRoutes:              taskRoutes,
-		TaskRouteRequires:       taskRequires,
-		TaskModelOverrides:      taskModels,
-		TaskModelChains:         taskModelChains,
-		FallbackChains:          fallbackChains,
-		DefaultChain:            defaultChain,
-		TaskBudgets:             taskBudgets,
-		StrictModelCapabilities: strictCaps,
-		StrictPricing:           strictPricing,
-		DownRouteToolModels:     downRoute,
-		ModelToolCapable: func(model string) (bool, bool) {
-			_, m := cat.FindModel(model)
-			if m == nil {
-				return false, false
-			}
-			return m.ToolCall, true
-		},
-		ToolCapableAlternative: altFinder,
-		ModelJSONNative: func(model string) (bool, bool) {
-			p, m := cat.FindModel(model)
-			if p == nil || m == nil {
-				return false, false
-			}
-			return catalog.FamilySupportsNativeJSONMode(p.Family()), true
-		},
-		ModelStrictToolArgsNative: cat.StrictToolArgsNative,
-	})
-	if err != nil {
-		return nil, "", "", err
-	}
-	desc := fmt.Sprintf("primary=%s%s, daily_ceiling=$%.2f",
-		primaryDesc, fallbackDesc, float64(ceiling)/1e9)
-	if strictCaps {
-		desc += ", strict-capabilities"
-	}
-	if downRoute {
-		if crossDownRoute {
-			desc += ", tool-downrouting(cross)"
-		} else {
-			desc += ", tool-downrouting"
-		}
-	}
-	if extraProviders > 0 {
-		desc += fmt.Sprintf(", model-routable_alternates=%d", extraProviders)
-	}
-	if len(taskRoutes) > 0 {
-		desc += fmt.Sprintf(", task_routes=%d", len(taskRoutes))
-	}
-	if len(taskBudgets) > 0 {
-		desc += fmt.Sprintf(", task_budgets=%d", len(taskBudgets))
-	}
-	return gov, desc, model, nil
-}
-
-// reconcileAlternateProviders mirrors buildGovernor's alternate registration on
-// the hot-reload path (M928). buildGovernor registers every other credentialed+
-// supported catalog provider so per-task model chains route each model to its
-// serving provider — but the reload path used to swap only the primary. After
-// the first-run flow (boot catalog-less → mock primary, then catalog sync +
-// vault keys + reload) the other keyed providers stayed unregistered, so a
-// chain model like "glm-5.1" was sent to whatever the primary happened to be
-// until a daemon restart. This drops alternates that lost eligibility (key
-// revoked / provider gone from the catalog) and (re-)registers the eligible
-// set with their catalog Models so per-request model routing works. The caller
-// installs the primary LAST via gov.Replace, which also rebuilds the routing
-// chains over the reconciled registry. Build failures are skipped, never
-// fatal — a misconfigured alternate must not stop the reload (same rule as
-// boot). Fallback entries (the offline mock) are never touched.
-func reconcileAlternateProviders(reg *governor.Registry, c *catalog.Catalog, lookup func(string) string, primaryName, baseDir string) {
-	eligible := map[string]bool{primaryName: true}
-	for _, entry := range c.ProviderList() {
-		if entry.ID == primaryName {
-			continue
-		}
-		if !compat.IsSupportedFamily(entry.Family()) || !entry.HasCredentials(lookup) {
-			continue
-		}
-		p, _, _, auth, err := buildFromCatalog(entry, "", lookup)
-		if err != nil {
-			continue
-		}
-		if err := reg.Replace(&governor.ProviderInfo{
-			Name:     p.Name(),
-			Provider: p,
-			AuthMode: auth,
-			Models:   catalogModelIDs(c, entry.ID),
-		}); err != nil {
-			continue
-		}
-		eligible[entry.ID] = true
-	}
-	// ChatGPT subscription alternate (re-)registered when signed in.
-	if registerChatGPTAlternate(reg, baseDir, primaryName, true) {
-		eligible["chatgpt"] = true
-	}
-	for _, info := range reg.All() {
-		if info.IsFallback || eligible[info.Name] {
-			continue
-		}
-		reg.Remove(info.Name)
-	}
-}
-
-// catalogModelIDs returns the sorted model ids the catalog lists for the given
-// provider id, used to populate ProviderInfo.Models for per-request routing.
-// Returns nil when the catalog or entry is absent (e.g. the mock primary).
-func catalogModelIDs(cat *catalog.Catalog, providerID string) []string {
-	if cat == nil {
-		return nil
-	}
-	entry, ok := cat.Providers[providerID]
-	if !ok || len(entry.Models) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(entry.Models))
-	for m := range entry.Models {
-		ids = append(ids, m)
-	}
-	sort.Strings(ids)
-	return ids
-}
-
-// selectPrimary returns the primary provider, a banner description,
-// the resolved run model id (may be ""), the auth-mode tag for the
-// Governor's registry, and an error.
-//
-// Selection:
-//
-//  1. AGEZT_PROVIDER=<catalog id> → look up in cat; compat.Build it. The ONLY
-//     way to select a real primary; an unknown id is a hard error.
-//  2. AGEZT_PROVIDER unset and AGEZT_DEMO_ECHO=1 → explicit offline e2e/demo
-//     mock provider.
-//  3. AGEZT_PROVIDER unset        → the "unconfigured" sentinel primary. No
-//     auto-pick, no silent mock. The daemon boots so Setup/routing can be
-//     configured, but LLM runs fail fast with an actionable error.
-//
-// The run model comes from AGEZT_MODEL when set; otherwise it is left empty and
-// resolved per-run from routing / a fallback chain (or ErrNoModelConfigured).
-func selectPrimary(cat *catalog.Catalog, lookup func(string) string, baseDir string) (agent.Provider, string, string, governor.AuthMode, error) {
-	// AGEZT_PROVIDER and AGEZT_MODEL are *config*, not credentials —
-	// always read from env directly (operators may want a one-off
-	// override that doesn't sit in the vault).
-	want := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PROVIDER")))
-	modelOverride := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MODEL"))
-
-	// ChatGPT ("Sign in with ChatGPT") is not a compat catalog provider — it uses
-	// the OAuth token store + Responses adapter, so build it directly.
-	if want == "chatgpt" {
-		prov, desc, auth, ok := buildChatGPTPrimary(baseDir, modelOverride)
-		if !ok {
-			return nil, "", "", "", fmt.Errorf(
-				"%sPROVIDER=chatgpt but not signed in — use Setup → Providers → Sign in with ChatGPT first", brand.EnvPrefix)
-		}
-		return prov, desc, modelOverride, auth, nil
-	}
-
-	// Explicit catalog id is the ONLY way to select a primary. The daemon has no
-	// default provider, never auto-picks from credentials, and has no offline mock
-	// fallback (owner rule: "hiçbir default provider/model"). An unknown id is a
-	// hard error so a typo is loud, not silently degraded.
-	if want != "" {
-		entry, ok := cat.Providers[want]
-		if !ok {
-			return nil, "", "", "", fmt.Errorf(
-				"%sPROVIDER=%q not in catalog; run `agt catalog sync` then `agt catalog list`",
-				brand.EnvPrefix, want)
-		}
-		return buildFromCatalog(entry, modelOverride, lookup)
-	}
-
-	if strings.TrimSpace(os.Getenv(brand.EnvPrefix+"DEMO_ECHO")) == "1" {
-		model := modelOverride
-		if model == "" {
-			model = "mock"
-		}
-		return demoEchoProvider(),
-			"demo echo mock (explicit " + brand.EnvPrefix + "DEMO_ECHO=1; offline e2e/demo)",
-			model, governor.AuthLocal, nil
-	}
-
-	// AGEZT_PROVIDER unset → boot UNCONFIGURED. The daemon, Web UI, and Setup all
-	// run so the operator can add a provider + key and configure routing/chains,
-	// but any LLM call fails fast with an actionable error (unconfiguredProvider).
-	// No credential auto-pick, no mock.
-	return unconfiguredProvider{},
-		"unconfigured (no " + brand.EnvPrefix + "PROVIDER set — add a provider + key in Setup → Providers; LLM runs fail until then)",
-		"", governor.AuthLocal, nil
-}
-
-func demoEchoProvider() *mock.Provider {
-	p := mock.New()
-	p.Responder = func(req agent.CompletionRequest) agent.CompletionResponse {
-		text := ""
-		for i := len(req.Messages) - 1; i >= 0; i-- {
-			if req.Messages[i].Role == agent.RoleUser {
-				text = strings.TrimSpace(req.Messages[i].Content)
-				if text != "" {
-					break
-				}
-			}
-		}
-		if text == "" {
-			text = "ok"
-		}
-		return mock.FinalText("[echo] " + text)
-	}
-	return p
-}
-
-// buildFromCatalog finalises a catalog entry into a wire Provider.
-// Shared by both the explicit-id path and the auto-pick path.
-// `lookup` is the chained vault+env credential resolver from runDaemon.
-func buildFromCatalog(entry *catalog.Provider, modelOverride string, lookup func(string) string) (agent.Provider, string, string, governor.AuthMode, error) {
-	// The daemon has NO default run model. AGEZT_MODEL, when set, is the model
-	// every run uses unless per-task routing or a fallback chain overrides it.
-	// When AGEZT_MODEL is empty the returned run model stays "" — so cfg.Model is
-	// empty and the governor refuses any run that doesn't resolve a model via
-	// routing/chain (ErrNoModelConfigured), per the owner's no-default rule.
-	//
-	// compat.Build still needs *a* concrete, catalog-valid model id to construct
-	// the provider wire, so when AGEZT_MODEL is empty we fall back to the first
-	// catalog model as an INERT construction placeholder. It is never surfaced as
-	// a run default (cfg.Model stays "") and is never reached at call time (the
-	// governor guard + per-provider model-required errors fire first).
-	runModel := modelOverride
-	constructModel := modelOverride
-	if constructModel == "" {
-		constructModel = compat.FirstModelID(entry)
-	}
-	if constructModel == "" {
-		return nil, "", "", "", fmt.Errorf("provider %q in catalog has no models; set %sMODEL", entry.ID, brand.EnvPrefix)
-	}
-	// Auto-repair a cross-provider default model (don't hard-fail the boot):
-	// AGEZT_MODEL may name a model this provider's catalog doesn't serve because
-	// it is resolved per-run through routing / a fallback chain on a DIFFERENT
-	// provider (e.g. AGEZT_PROVIDER=minimax-coding-plan + AGEZT_MODEL=gpt-5.4,
-	// where gpt-5.4 rides @new-chain). compat.Build only needs a concrete,
-	// catalog-valid id to construct the wire, so fall back to the inert
-	// placeholder for CONSTRUCTION while keeping runModel as the override — the
-	// governor still resolves the real model per run (or fails that one run with
-	// an actionable error), instead of the whole daemon refusing to start.
-	if modelOverride != "" {
-		if _, ok := entry.Models[modelOverride]; !ok {
-			placeholder := compat.FirstModelID(entry)
-			fmt.Fprintf(os.Stderr,
-				"%s: %sMODEL %q is not in provider %q's catalog — treating it as a routing/fallback-chain model and constructing %q with placeholder %q (set %sMODEL to one of this provider's models to silence)\n",
-				brand.Binary, brand.EnvPrefix, modelOverride, entry.ID, entry.ID, placeholder, brand.EnvPrefix)
-			constructModel = placeholder
-		}
-	}
-	prov, _, err := compat.Build(entry, constructModel, lookup)
-	if err != nil {
-		return nil, "", "", "", err
-	}
-	auth := governor.AuthAPIKey
-	if len(entry.Env) == 0 {
-		auth = governor.AuthLocal
-	}
-	modelDesc := runModel
-	if modelDesc == "" {
-		modelDesc = "(unset — resolved from routing/fallback chain per run)"
-	}
-	desc := fmt.Sprintf("%s(catalog; family=%s, model=%s)", entry.ID, entry.Family(), modelDesc)
-	return prov, desc, runModel, auth, nil
-}
-
 // wireArtifactIndexer subscribes to the bus and indexes every offloaded tool
 // output (M827): a tool.result event with a raw_ref means the agent stored a
 // large output in the blob store, so we add a metadata index entry pointing at
@@ -5640,28 +5071,6 @@ func selectAutoApproveCapabilities() (map[string]bool, string) {
 		}
 		return caps, desc
 	}
-}
-
-// unconfiguredProviderName is the Name() of the sentinel primary registered when
-// no LLM provider is configured. The reload path keys off it to swap in a real
-// provider once the operator configures one.
-const unconfiguredProviderName = "unconfigured"
-
-// unconfiguredProvider is the daemon's primary when NO LLM provider is
-// configured (AGEZT_PROVIDER unset). The daemon ships with no default provider
-// or model (owner rule: "hiçbir default provider/model"), so a fresh install
-// boots with this sentinel: the daemon, Web UI, and Setup all run, but any LLM
-// call fails fast with an actionable message telling the operator to add a
-// provider + key and a model (via AGEZT_MODEL or a routing/fallback chain). It
-// is swapped for a real provider by the reload path once one is configured.
-type unconfiguredProvider struct{}
-
-func (unconfiguredProvider) Name() string { return unconfiguredProviderName }
-func (unconfiguredProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return nil, fmt.Errorf("no LLM provider configured — add a provider and API key (Setup → Providers, or set %sPROVIDER) and a model (%sMODEL, a per-task route, or a fallback chain)", brand.EnvPrefix, brand.EnvPrefix)
 }
 
 // keep import honest

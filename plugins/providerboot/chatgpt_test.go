@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package main
+package providerboot
 
 import (
 	"testing"
@@ -42,12 +42,12 @@ func TestChatGPTCatalogEntry(t *testing.T) {
 // and an already-seeded store (never clobbered).
 func TestSeedChatGPTCatalog(t *testing.T) {
 	// nil store must not panic.
-	seedChatGPTCatalog(nil)
+	SeedChatGPTCatalog(nil)
 
 	store := catalog.NewStore(t.TempDir())
 
 	// First seed adds the chatgpt entry.
-	seedChatGPTCatalog(store)
+	SeedChatGPTCatalog(store)
 	cur, err := store.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -57,7 +57,7 @@ func TestSeedChatGPTCatalog(t *testing.T) {
 	}
 
 	// Second seed is a no-op (already present) — exercises the early return.
-	seedChatGPTCatalog(store)
+	SeedChatGPTCatalog(store)
 	cur2, err := store.Load()
 	if err != nil {
 		t.Fatalf("Load 2: %v", err)
@@ -102,15 +102,15 @@ func TestRegisterChatGPTAlternate_Guards(t *testing.T) {
 	reg := governor.NewRegistry()
 
 	// primaryName == "chatgpt" → refuse (already the primary).
-	if registerChatGPTAlternate(reg, t.TempDir(), "chatgpt", false) {
+	if registerChatGPTAlternate(reg, t.TempDir(), "chatgpt", false, nil) {
 		t.Error("registerChatGPTAlternate should refuse when chatgpt is primary")
 	}
 
 	// Not signed in → refuse.
-	if registerChatGPTAlternate(reg, t.TempDir(), "openai", false) {
+	if registerChatGPTAlternate(reg, t.TempDir(), "openai", false, nil) {
 		t.Error("registerChatGPTAlternate should refuse when not signed in")
 	}
-	if registerChatGPTAlternate(reg, t.TempDir(), "openai", true) {
+	if registerChatGPTAlternate(reg, t.TempDir(), "openai", true, nil) {
 		t.Error("registerChatGPTAlternate should refuse when not signed in (replace path)")
 	}
 }
