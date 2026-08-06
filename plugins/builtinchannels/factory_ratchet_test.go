@@ -10,18 +10,13 @@ import (
 )
 
 // factoryTODO is the RATCHET for the channel-factory migration (Phase 2.1 of
-// docs/REFACTORING-SCAN-2026-08.md): manifest kinds that do NOT yet register
-// a channelwire.Factory and are still hand-wired in cmd/agezt/main.go. Each
-// migration batch DELETES its kinds from this set; a kind present here that
-// gained a factory fails the test (lock in the progress), and a manifest kind
+// docs/REFACTORING-SCAN-2026-08.md). The migration is COMPLETE — every
+// manifest kind registers a channelwire.Factory — so the set is empty; it
+// stays (with the test below) as the permanent drift alarm: a manifest kind
 // in neither the factory registry nor this set fails loudly (the 34-vs-27
-// silent-drift class this migration exists to close — a channel shipped with
-// a manifest but no wiring).
-var factoryTODO = map[string]bool{
-	// push family
-	"ntfy": true, "pushover": true, "gotify": true, "pushbullet": true,
-	"rocketchat": true, "zulip": true, "synology": true,
-}
+// silent-drift class this migration existed to close — a channel shipped
+// with a manifest but no wiring).
+var factoryTODO = map[string]bool{}
 
 // TestEveryManifestHasFactoryOrTODO is the drift alarm: every registered
 // manifest kind must either have a channelwire factory or be an acknowledged

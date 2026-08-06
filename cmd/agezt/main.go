@@ -86,7 +86,6 @@ import (
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
-	"github.com/agezt/agezt/plugins/channels/push"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
@@ -1621,30 +1620,38 @@ func runDaemon(stdout, stderr io.Writer) int {
 	startInstances(ctx, stdout, "signal", "signal channel", "disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)", sgInsts)
 
 	// Push-notification channels (SPEC-04 §1): a family of simple outbound
-	// destinations — ntfy, Pushover, Gotify, Pushbullet, Google Chat, Mattermost —
-	// each enabled by its own env and exposed as a distinct channel. Briefs/`agt
-	// send` POST to the service. Outbound-only.
-	pushChans, pushSink, pushDesc := buildPushChannels(ctx, k)
-	for _, pc := range pushChans {
-		go pc.Start(ctx)
-	}
-	if len(pushChans) > 0 {
-		fmt.Fprintf(stdout, "  push channels    : %s\n", pushDesc)
-	} else {
-		fmt.Fprintf(stdout, "  push channels    : disabled (ntfy/pushover/gotify/pushbullet/googlechat/mattermost)\n")
-	}
+	// destinations, each enabled by its own env and exposed as a distinct
+	// channel. Briefs/`agt send` POST to the service. Outbound-only. The dual
+	// kinds (googlechat/mattermost/mastodon/line/feishu/dingtalk/wecom) fall
+	// back to their push entry inside their own factories when two-way is
+	// unconfigured; these seven are pure push. Silent when unconfigured
+	// (disabledHint ""), matching the old single "push channels: disabled" line.
+	ntInsts := wireInstances(channelwire.BuildKind(ctx, "ntfy", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "ntfy", "ntfy push", "", ntInsts)
+	poInsts := wireInstances(channelwire.BuildKind(ctx, "pushover", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "pushover", "pushover push", "", poInsts)
+	gfInsts := wireInstances(channelwire.BuildKind(ctx, "gotify", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "gotify", "gotify push", "", gfInsts)
+	pbInsts := wireInstances(channelwire.BuildKind(ctx, "pushbullet", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "pushbullet", "pushbullet push", "", pbInsts)
+	rcInsts := wireInstances(channelwire.BuildKind(ctx, "rocketchat", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "rocketchat", "rocketchat push", "", rcInsts)
+	zuInsts := wireInstances(channelwire.BuildKind(ctx, "zulip", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "zulip", "zulip push", "", zuInsts)
+	syInsts := wireInstances(channelwire.BuildKind(ctx, "synology", k.Bus(), chanHandler))
+	startInstances(ctx, stdout, "synology", "synology push", "", syInsts)
 
 	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
 	// alert notifications share the same delivery surface.
-	// All channels are multi-account now: one brief sink per instance, plus the
-	// push family (its own internal multi-destination sink).
+	// All channels are multi-account now: one brief sink per instance.
 	allInsts := [][]chanInstance{
 		tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts,
 		whInsts, ircInsts, twInsts, wgInsts, imInsts, lnInsts, gcInsts, mmInsts,
 		dtInsts, fsInsts, wcInsts, qqInsts, wxInsts, zlInsts, nctInsts, maInsts, noInsts,
 		smInsts, haInsts, tmInsts, sgInsts,
+		ntInsts, poInsts, gfInsts, pbInsts, rcInsts, zuInsts, syInsts,
 	}
-	channelSinks := combineSinks(append(instanceSinks(allInsts...), pushSink)...)
+	channelSinks := combineSinks(instanceSinks(allInsts...)...)
 
 	// Pulse — the proactive heart (SPEC-03). On by default; the resident
 	// engine runs on the daemon ctx so `agt halt`/SIGTERM/`agt shutdown`
@@ -1816,9 +1823,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Every channel is multi-account: register every instance by its instance key
 	// ("telegram", "telegram#bot2", "email#work", …).
 	registerInstances(liveChannels, allInsts...)
-	for _, pc := range pushChans {
-		liveChannels[pc.Name()] = pc
-	}
 	// Record which channels actually started, so the Channels wizard can show
 	// "live" vs merely "configured (restart to start)".
 	liveKinds := make([]string, 0, len(liveChannels))
@@ -2508,120 +2512,6 @@ func extForMime(mime string) string {
 	}
 }
 
-// twoWayLineConfigured reports whether the dedicated two-way LINE channel should
-// own the "line" name (a channel secret is set) — in which case buildPushChannels
-// yields LINE to it to avoid a double registration. The two-way builder itself
-// migrated to the channelwire factory (plugins/builtinchannels); this predicate
-// only concerns the DEFAULT instance — its sole remaining caller is
-// buildPushChannels — and moves with the push family.
-func twoWayLineConfigured() bool {
-	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"LINE_SECRET")) != ""
-}
-
-// twoWayChatConfigured reports whether the two-way chat-webhook channel for a
-// push kind (prefix "GOOGLECHAT" / "MATTERMOST") should own that name — an
-// inbound addr is set — so buildPushChannels yields the outbound-only entry.
-// The two-way builder itself migrated to the channelwire factory
-// (chatWebhookFactory in plugins/builtinchannels); this predicate only concerns
-// the DEFAULT instance and moves with the push-suppression cluster.
-func twoWayChatConfigured(prefix string) bool {
-	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+prefix+"_ADDR")) != ""
-}
-
-// twoWayMastodonConfigured reports whether the dedicated two-way Mastodon channel
-// should own the "mastodon" name — true when an acct allowlist is set, signalling
-// the operator wants the agent to answer mentions (not just post). The two-way
-// builder itself migrated to the channelwire factory (plugins/builtinchannels);
-// this predicate only concerns the DEFAULT instance and moves with the
-// push-suppression cluster.
-func twoWayMastodonConfigured() bool {
-	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"MASTODON_USERS")) != ""
-}
-
-// buildPushChannels constructs every configured push-notification channel (ntfy,
-// Pushover, Gotify, Pushbullet, Google Chat, Mattermost). Each is enabled by its
-// own env and added as a distinct outbound channel; a combined Pulse sink fans a
-// brief out to all of them. Returns nil when none are configured.
-func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Channel, pulse.BriefSink, string) {
-	env := func(s string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + s)) }
-	var chans []*push.Channel
-	add := func(cfg push.Config) {
-		cfg.Bus = k.Bus()
-		if ch, err := push.New(cfg); err == nil {
-			chans = append(chans, ch)
-		}
-	}
-	if t := env("NTFY_TOPIC"); t != "" {
-		add(push.Config{Kind: push.KindNtfy, Server: env("NTFY_SERVER"), Topic: t, Token: env("NTFY_TOKEN")})
-	}
-	if env("PUSHOVER_TOKEN") != "" {
-		add(push.Config{Kind: push.KindPushover, Token: env("PUSHOVER_TOKEN"), User: env("PUSHOVER_USER")})
-	}
-	if env("GOTIFY_TOKEN") != "" {
-		add(push.Config{Kind: push.KindGotify, Server: env("GOTIFY_SERVER"), Token: env("GOTIFY_TOKEN")})
-	}
-	if env("PUSHBULLET_TOKEN") != "" {
-		add(push.Config{Kind: push.KindPushbullet, Token: env("PUSHBULLET_TOKEN")})
-	}
-	if u := env("GOOGLECHAT_WEBHOOK"); u != "" && !twoWayChatConfigured("GOOGLECHAT") {
-		// Two-way Google Chat (AGEZT_GOOGLECHAT_ADDR) owns the name; see
-		// chatWebhookFactory in plugins/builtinchannels.
-		add(push.Config{Kind: push.KindGoogleChat, URL: u})
-	}
-	if u := env("MATTERMOST_WEBHOOK"); u != "" && !twoWayChatConfigured("MATTERMOST") {
-		add(push.Config{Kind: push.KindMattermost, URL: u})
-	}
-	if u := env("ROCKETCHAT_WEBHOOK"); u != "" {
-		add(push.Config{Kind: push.KindRocketChat, URL: u})
-	}
-	if env("MASTODON_TOKEN") != "" && !twoWayMastodonConfigured() {
-		// When an allowlist is set the dedicated two-way Mastodon channel owns the
-		// "mastodon" name (it polls mentions + posts), so skip this outbound entry.
-		add(push.Config{Kind: push.KindMastodon, Server: env("MASTODON_SERVER"), Token: env("MASTODON_TOKEN")})
-	}
-	if env("LINE_TOKEN") != "" && !twoWayLineConfigured() {
-		// When AGEZT_LINE_SECRET is set the dedicated two-way LINE channel owns
-		// the "line" name (see the line factory in plugins/builtinchannels), so
-		// skip the outbound-only push entry.
-		add(push.Config{Kind: push.KindLine, Token: env("LINE_TOKEN"), Target: env("LINE_TO")})
-	}
-	if env("ZULIP_APIKEY") != "" {
-		add(push.Config{Kind: push.KindZulip, Server: env("ZULIP_SERVER"), User: env("ZULIP_EMAIL"), Token: env("ZULIP_APIKEY"), Target: env("ZULIP_STREAM"), Topic: env("ZULIP_TOPIC")})
-	}
-	// Feishu/DingTalk/WeCom: the dedicated two-way channels own the name when
-	// their inbound addr is configured (see the buildFeishu/buildDingTalk/
-	// buildWeCom factories in plugins/builtinchannels).
-	if u := env("FEISHU_WEBHOOK"); u != "" && (env("FEISHU_ADDR") == "" || env("FEISHU_APP_ID") == "") {
-		add(push.Config{Kind: push.KindFeishu, URL: u})
-	}
-	if u := env("DINGTALK_WEBHOOK"); u != "" && env("DINGTALK_ADDR") == "" {
-		add(push.Config{Kind: push.KindDingTalk, URL: u})
-	}
-	if u := env("WECOM_WEBHOOK"); u != "" && (env("WECOM_ADDR") == "" || env("WECOM_CORP_ID") == "") {
-		add(push.Config{Kind: push.KindWeCom, URL: u})
-	}
-	if u := env("SYNOLOGY_WEBHOOK"); u != "" {
-		add(push.Config{Kind: push.KindSynology, URL: u})
-	}
-	if len(chans) == 0 {
-		return nil, nil, ""
-	}
-	names := make([]string, 0, len(chans))
-	for _, ch := range chans {
-		names = append(names, ch.Name())
-	}
-	sink := pulse.SinkFunc(func(b pulse.Brief) error {
-		var firstErr error
-		for _, ch := range chans {
-			if err := ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
-				firstErr = err
-			}
-		}
-		return firstErr
-	})
-	return chans, sink, fmt.Sprintf("outbound → %s", strings.Join(names, ", "))
-}
-
 // collectChannels reports the configured messaging channels for `agt status`
 // (M141), read-only from the same env the buildX functions consume. A channel is
 // listed when its token is set; Inbound reflects whether it can actually receive
@@ -2777,42 +2667,6 @@ func instanceMatch(keys []string, target string) []string {
 	return out
 }
 
-// overlayEnv temporarily sets each base env to its "#label" value for a labelled
-// instance, returning a restore func; for the default instance ("") it's a no-op.
-// It let the legacy buildXxx functions (which read os.Getenv directly) build a
-// labelled account without rewriting them — safe because builds are synchronous
-// and each channel reads its config into a struct before Start runs. The two-way
-// builders have all migrated to channelwire factories; this stays for the
-// remaining os.Getenv-reading push family (buildPushChannels) until it migrates.
-func overlayEnv(baseEnvs []string, label string) func() {
-	if label == "" {
-		return func() {}
-	}
-	type saved struct {
-		key, val string
-		had      bool
-	}
-	prev := make([]saved, 0, len(baseEnvs))
-	for _, base := range baseEnvs {
-		old, had := os.LookupEnv(base)
-		prev = append(prev, saved{base, old, had})
-		if v, ok := os.LookupEnv(base + "#" + label); ok {
-			_ = os.Setenv(base, v)
-		} else {
-			_ = os.Unsetenv(base)
-		}
-	}
-	return func() {
-		for _, s := range prev {
-			if s.had {
-				_ = os.Setenv(s.key, s.val)
-			} else {
-				_ = os.Unsetenv(s.key)
-			}
-		}
-	}
-}
-
 // liveChannelKeys returns the instance keys of the live channel map (used to
 // record per-account live state for the Channels UI).
 func liveChannelKeys(live map[string]channel.Channel) []string {
@@ -2831,14 +2685,6 @@ func briefSink(stdout io.Writer, extra pulse.BriefSink) pulse.BriefSink {
 		return log
 	}
 	return pulse.MultiSink{log, extra}
-}
-
-// formatBrief renders a Pulse brief as plain Telegram text.
-func formatBrief(b pulse.Brief) string {
-	if b.Body != "" {
-		return "📣 " + b.Title + "\n" + b.Body
-	}
-	return "📣 " + b.Title
 }
 
 // splitNonEmpty splits a comma list, trimming and dropping blanks.

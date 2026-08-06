@@ -50,6 +50,13 @@ func RegisterAll() {
 	channelwire.Register("feishu", buildFeishu)
 	channelwire.Register("wecom", buildWeCom)
 	channelwire.Register("mastodon", buildMastodon)
+	channelwire.Register("ntfy", buildNtfy)
+	channelwire.Register("pushover", buildPushover)
+	channelwire.Register("gotify", buildGotify)
+	channelwire.Register("pushbullet", buildPushbullet)
+	channelwire.Register("rocketchat", buildRocketChat)
+	channelwire.Register("zulip", buildZulip)
+	channelwire.Register("synology", buildSynology)
 }
 
 var manifests = []channel.Manifest{

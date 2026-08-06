@@ -54,6 +54,7 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 		"whatsappgw", "imessage", "homeassistant", "teams", "nextcloudtalk",
 		"nostr", "zalo", "qq", "wechat", "line",
 		"googlechat", "mattermost", "dingtalk", "feishu", "wecom", "mastodon",
+		"ntfy", "pushover", "gotify", "pushbullet", "rocketchat", "zulip", "synology",
 	} {
 		f, ok := channelwire.Lookup(kind)
 		if !ok {
@@ -67,16 +68,5 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 		if len(built.Channels) != 0 {
 			t.Errorf("%s factory returned %d channel(s) when unconfigured", kind, len(built.Channels))
 		}
-	}
-}
-
-// TestTwoWayConfigHelpers covers the pure config predicates that gate the
-// two-way (inbound) channel paths. With no env set both must report false.
-func TestTwoWayConfigHelpers(t *testing.T) {
-	if twoWayLineConfigured() {
-		t.Error("twoWayLineConfigured should be false with no LINE env set")
-	}
-	if twoWayChatConfigured("CUSTOM") {
-		t.Error("twoWayChatConfigured should be false with no prefix env set")
 	}
 }

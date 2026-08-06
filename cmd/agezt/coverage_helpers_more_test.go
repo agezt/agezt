@@ -120,12 +120,6 @@ func TestCoverageHelperWebAndBriefFormatting(t *testing.T) {
 	if !strings.Contains(buf.String(), "Heads up") {
 		t.Fatalf("briefSink log output = %q", buf.String())
 	}
-	if got := formatBrief(pulse.Brief{Title: "T", Body: "B"}); got != "📣 T\nB" {
-		t.Fatalf("formatBrief with body = %q", got)
-	}
-	if got := formatBrief(pulse.Brief{Title: "T"}); got != "📣 T" {
-		t.Fatalf("formatBrief without body = %q", got)
-	}
 }
 
 func TestCoverageHelperTunnelAndRedaction(t *testing.T) {

@@ -31,6 +31,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
 	"github.com/agezt/agezt/plugins/channels/nostr"
 	"github.com/agezt/agezt/plugins/channels/onebot"
+	"github.com/agezt/agezt/plugins/channels/push"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
@@ -43,8 +44,7 @@ import (
 	"github.com/agezt/agezt/plugins/channels/zalo"
 )
 
-// formatBrief renders a Pulse brief as plain channel text. (Small copy of the
-// cmd/agezt helper — the legacy builders still there need the original.)
+// formatBrief renders a Pulse brief as plain channel text.
 func formatBrief(b pulse.Brief) string {
 	if b.Body != "" {
 		return "📣 " + b.Title + "\n" + b.Body
@@ -53,7 +53,7 @@ func formatBrief(b pulse.Brief) string {
 }
 
 // splitNonEmpty splits a comma list, trimming and dropping blanks. (Small copy
-// of the cmd/agezt helper — the legacy builders still there need the original.)
+// of the cmd/agezt helper, which collectChannels there still needs.)
 func splitNonEmpty(s string) []string {
 	var out []string
 	for part := range strings.SplitSeq(s, ",") {
@@ -943,12 +943,20 @@ func buildTeams(d channelwire.Deps) channelwire.Built {
 //	AGEZT_LINE_ADDR     host:port to serve LINE's webhook (two-way)
 //	AGEZT_LINE_PATH     inbound route (default /line)
 //
-// The outbound-only push LINE entry yields the "line" name to this channel via
-// twoWayLineConfigured in cmd/agezt (which mirrors the secret check here for
-// the DEFAULT instance; the push-suppression cluster migrates in batch D).
+// Two-way wins the "line" name: when no channel secret is set but a token is,
+// the factory falls back to the outbound-only push entry (needs AGEZT_LINE_TO
+// for the recipient) — the suppression rule cmd/agezt's twoWayLineConfigured
+// predicate used to express, now owned here.
 func buildLine(d channelwire.Deps) channelwire.Built {
 	secret := strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_SECRET"))
 	if secret == "" {
+		if token := strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_TOKEN")); token != "" {
+			return pushBuilt(d, push.Config{
+				Kind:   push.KindLine,
+				Token:  token,
+				Target: strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_TO")),
+			})
+		}
 		return channelwire.NotConfigured
 	}
 	users := splitNonEmpty(d.Get(brand.EnvPrefix + "LINE_USERS"))
@@ -1139,13 +1147,17 @@ func parseNamedWebhooks(spec string) map[string]string {
 //	AGEZT_<PREFIX>_USERS    comma-separated allowed senders (usernames / emails)
 //	AGEZT_<PREFIX>_PATH     inbound route (default /<kind>)
 //
-// The addr gate inlines cmd/agezt's twoWayChatConfigured predicate, which
-// still lives there to yield the outbound-only push entry for the DEFAULT
-// instance (the push-suppression cluster migrates with the push family).
+// Two-way wins the kind's name: when no inbound addr is set but the
+// incoming-webhook URL is, the factory falls back to the outbound-only push
+// entry instead — the suppression rule cmd/agezt's twoWayChatConfigured
+// predicate used to express, now owned by the kind's own factory.
 func chatWebhookFactory(kind, prefix string) channelwire.Factory {
 	return func(d channelwire.Deps) channelwire.Built {
 		get := func(s string) string { return strings.TrimSpace(d.Get(brand.EnvPrefix + prefix + s)) }
 		if get("_ADDR") == "" {
+			if u := get("_WEBHOOK"); u != "" {
+				return pushBuilt(d, push.Config{Kind: kind, URL: u})
+			}
 			return channelwire.NotConfigured
 		}
 		users := splitNonEmpty(d.Get(brand.EnvPrefix + prefix + "_USERS"))
@@ -1189,6 +1201,11 @@ func chatWebhookFactory(kind, prefix string) channelwire.Factory {
 func buildDingTalk(d channelwire.Deps) channelwire.Built {
 	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "DINGTALK_ADDR"))
 	if addr == "" {
+		// Two-way unconfigured — fall back to the outbound-only push entry via
+		// the custom-robot webhook when set (two-way wins the "dingtalk" name).
+		if u := strings.TrimSpace(d.Get(brand.EnvPrefix + "DINGTALK_WEBHOOK")); u != "" {
+			return pushBuilt(d, push.Config{Kind: push.KindDingTalk, URL: u})
+		}
 		return channelwire.NotConfigured
 	}
 	users := splitNonEmpty(d.Get(brand.EnvPrefix + "DINGTALK_USERS"))
@@ -1225,6 +1242,11 @@ func buildFeishu(d channelwire.Deps) channelwire.Built {
 	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "FEISHU_ADDR"))
 	appID := strings.TrimSpace(d.Get(brand.EnvPrefix + "FEISHU_APP_ID"))
 	if addr == "" || appID == "" {
+		// Two-way unconfigured — fall back to the outbound-only push entry via
+		// the custom-bot webhook when set (two-way wins the "feishu" name).
+		if u := strings.TrimSpace(d.Get(brand.EnvPrefix + "FEISHU_WEBHOOK")); u != "" {
+			return pushBuilt(d, push.Config{Kind: push.KindFeishu, URL: u})
+		}
 		return channelwire.NotConfigured
 	}
 	users := splitNonEmpty(d.Get(brand.EnvPrefix + "FEISHU_USERS"))
@@ -1265,6 +1287,11 @@ func buildWeCom(d channelwire.Deps) channelwire.Built {
 	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "WECOM_ADDR"))
 	corp := strings.TrimSpace(d.Get(brand.EnvPrefix + "WECOM_CORP_ID"))
 	if addr == "" || corp == "" {
+		// Two-way unconfigured — fall back to the outbound-only push entry via
+		// the group-robot webhook when set (two-way wins the "wecom" name).
+		if u := strings.TrimSpace(d.Get(brand.EnvPrefix + "WECOM_WEBHOOK")); u != "" {
+			return pushBuilt(d, push.Config{Kind: push.KindWeCom, URL: u})
+		}
 		return channelwire.NotConfigured
 	}
 	users := splitNonEmpty(d.Get(brand.EnvPrefix + "WECOM_USERS"))
@@ -1304,11 +1331,19 @@ func buildWeCom(d channelwire.Deps) channelwire.Built {
 //	AGEZT_MASTODON_USERS   comma-separated acct handles allowed to drive the agent (enables two-way)
 //	AGEZT_MASTODON_POLL    poll interval seconds (default 60)
 //
-// The users gate inlines cmd/agezt's twoWayMastodonConfigured predicate, which
-// still lives there to yield the outbound-only push entry for the DEFAULT
-// instance (the push-suppression cluster migrates with the push family).
+// Two-way wins the "mastodon" name: when no acct allowlist is set but a token
+// is, the factory falls back to the outbound-only push entry (post statuses,
+// don't poll mentions) — the suppression rule cmd/agezt's
+// twoWayMastodonConfigured predicate used to express, now owned here.
 func buildMastodon(d channelwire.Deps) channelwire.Built {
 	if strings.TrimSpace(d.Get(brand.EnvPrefix+"MASTODON_USERS")) == "" {
+		if token := strings.TrimSpace(d.Get(brand.EnvPrefix + "MASTODON_TOKEN")); token != "" {
+			return pushBuilt(d, push.Config{
+				Kind:   push.KindMastodon,
+				Server: strings.TrimSpace(d.Get(brand.EnvPrefix + "MASTODON_SERVER")),
+				Token:  token,
+			})
+		}
 		return channelwire.NotConfigured
 	}
 	server := strings.TrimSpace(d.Get(brand.EnvPrefix + "MASTODON_SERVER"))
@@ -1335,4 +1370,133 @@ func buildMastodon(d channelwire.Deps) channelwire.Built {
 		return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
 	})
 	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("Mastodon (two-way), allowlist=%d acct(s)", len(users))}
+}
+
+// pushBuilt wraps one outbound push.Channel (plugins/channels/push) as a
+// channelwire.Built: the channel itself, a brief sink that delivers via its
+// Send, and a "push → <kind>" desc. Returns NotConfigured when push.New
+// rejects the config — mirroring buildPushChannels' silent skip on a
+// construction error (e.g. LINE token set but no recipient).
+func pushBuilt(d channelwire.Deps, cfg push.Config) channelwire.Built {
+	cfg.Bus = d.Bus
+	ch, err := push.New(cfg)
+	if err != nil {
+		return channelwire.NotConfigured
+	}
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
+	})
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: "push → " + ch.Name()}
+}
+
+// buildNtfy constructs the outbound ntfy push channel when AGEZT_NTFY_TOPIC is
+// set. Briefs/`agt send` POST to the topic. Outbound-only.
+//
+//	AGEZT_NTFY_TOPIC   topic to publish to (required)
+//	AGEZT_NTFY_SERVER  base URL (default https://ntfy.sh)
+//	AGEZT_NTFY_TOKEN   optional bearer token
+func buildNtfy(d channelwire.Deps) channelwire.Built {
+	topic := strings.TrimSpace(d.Get(brand.EnvPrefix + "NTFY_TOPIC"))
+	if topic == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{
+		Kind:   push.KindNtfy,
+		Server: strings.TrimSpace(d.Get(brand.EnvPrefix + "NTFY_SERVER")),
+		Topic:  topic,
+		Token:  strings.TrimSpace(d.Get(brand.EnvPrefix + "NTFY_TOKEN")),
+	})
+}
+
+// buildPushover constructs the outbound Pushover push channel when
+// AGEZT_PUSHOVER_TOKEN is set. Outbound-only.
+//
+//	AGEZT_PUSHOVER_TOKEN  app token (required)
+//	AGEZT_PUSHOVER_USER   user/group key (required by the API)
+func buildPushover(d channelwire.Deps) channelwire.Built {
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "PUSHOVER_TOKEN"))
+	if token == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{
+		Kind:  push.KindPushover,
+		Token: token,
+		User:  strings.TrimSpace(d.Get(brand.EnvPrefix + "PUSHOVER_USER")),
+	})
+}
+
+// buildGotify constructs the outbound Gotify push channel when
+// AGEZT_GOTIFY_TOKEN is set. Outbound-only.
+//
+//	AGEZT_GOTIFY_TOKEN   app token (required)
+//	AGEZT_GOTIFY_SERVER  self-hosted server base URL (required by the API)
+func buildGotify(d channelwire.Deps) channelwire.Built {
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "GOTIFY_TOKEN"))
+	if token == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{
+		Kind:   push.KindGotify,
+		Server: strings.TrimSpace(d.Get(brand.EnvPrefix + "GOTIFY_SERVER")),
+		Token:  token,
+	})
+}
+
+// buildPushbullet constructs the outbound Pushbullet push channel when
+// AGEZT_PUSHBULLET_TOKEN is set. Outbound-only.
+//
+//	AGEZT_PUSHBULLET_TOKEN  access token (required)
+func buildPushbullet(d channelwire.Deps) channelwire.Built {
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "PUSHBULLET_TOKEN"))
+	if token == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{Kind: push.KindPushbullet, Token: token})
+}
+
+// buildRocketChat constructs the outbound Rocket.Chat push channel when
+// AGEZT_ROCKETCHAT_WEBHOOK is set. Outbound-only.
+//
+//	AGEZT_ROCKETCHAT_WEBHOOK  incoming-webhook URL (required)
+func buildRocketChat(d channelwire.Deps) channelwire.Built {
+	u := strings.TrimSpace(d.Get(brand.EnvPrefix + "ROCKETCHAT_WEBHOOK"))
+	if u == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{Kind: push.KindRocketChat, URL: u})
+}
+
+// buildZulip constructs the outbound Zulip push channel when
+// AGEZT_ZULIP_APIKEY is set. Outbound-only (bot posts to a stream).
+//
+//	AGEZT_ZULIP_APIKEY  bot API key (required)
+//	AGEZT_ZULIP_SERVER  Zulip server base URL (required by the API)
+//	AGEZT_ZULIP_EMAIL   bot email (required by the API)
+//	AGEZT_ZULIP_STREAM  stream to post to (required by the API)
+//	AGEZT_ZULIP_TOPIC   topic within the stream (default "agezt")
+func buildZulip(d channelwire.Deps) channelwire.Built {
+	key := strings.TrimSpace(d.Get(brand.EnvPrefix + "ZULIP_APIKEY"))
+	if key == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{
+		Kind:   push.KindZulip,
+		Server: strings.TrimSpace(d.Get(brand.EnvPrefix + "ZULIP_SERVER")),
+		User:   strings.TrimSpace(d.Get(brand.EnvPrefix + "ZULIP_EMAIL")),
+		Token:  key,
+		Target: strings.TrimSpace(d.Get(brand.EnvPrefix + "ZULIP_STREAM")),
+		Topic:  strings.TrimSpace(d.Get(brand.EnvPrefix + "ZULIP_TOPIC")),
+	})
+}
+
+// buildSynology constructs the outbound Synology Chat push channel when
+// AGEZT_SYNOLOGY_WEBHOOK is set. Outbound-only.
+//
+//	AGEZT_SYNOLOGY_WEBHOOK  incoming-webhook URL (required)
+func buildSynology(d channelwire.Deps) channelwire.Built {
+	u := strings.TrimSpace(d.Get(brand.EnvPrefix + "SYNOLOGY_WEBHOOK"))
+	if u == "" {
+		return channelwire.NotConfigured
+	}
+	return pushBuilt(d, push.Config{Kind: push.KindSynology, URL: u})
 }
