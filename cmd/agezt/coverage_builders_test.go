@@ -45,7 +45,10 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	// so every config key resolves to "" and each factory must return
 	// NotConfigured (empty Desc, no channels) without any network work.
 	builtinchannels.RegisterAll()
-	for _, kind := range []string{"telegram", "slack", "email", "discord", "matrix", "whatsapp"} {
+	for _, kind := range []string{
+		"telegram", "slack", "email", "discord", "matrix", "whatsapp",
+		"webhook", "irc", "twitch", "sms", "signal",
+	} {
 		f, ok := channelwire.Lookup(kind)
 		if !ok {
 			t.Errorf("%s: no channelwire factory registered", kind)
@@ -63,9 +66,6 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	// Builders that read os.Getenv directly. None of their env vars are set in
 	// the test process, so each must early-return an empty descriptor.
 	envBuilders := map[string]func() string{
-		"webhook":       func() string { _, _, d := buildWebhook(ctx, k); return d },
-		"irc":           func() string { _, _, d := buildIRC(ctx, k); return d },
-		"twitch":        func() string { _, _, d := buildTwitch(ctx, k); return d },
 		"whatsappgw":    func() string { _, _, d := buildWhatsAppGateway(ctx, k); return d },
 		"imessage":      func() string { _, _, d := buildIMessage(ctx, k); return d },
 		"line":          func() string { _, _, d := buildLine(ctx, k); return d },
@@ -76,10 +76,8 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 		"nextcloudtalk": func() string { _, _, d := buildNextcloudTalk(ctx, k); return d },
 		"mastodon":      func() string { _, _, d := buildMastodon(ctx, k); return d },
 		"nostr":         func() string { _, _, d := buildNostr(ctx, k); return d },
-		"sms":           func() string { _, _, d := buildSMS(ctx, k); return d },
 		"homeassistant": func() string { _, _, d := buildHomeAssistant(ctx, k); return d },
 		"teams":         func() string { _, _, d := buildTeams(ctx, k); return d },
-		"signal":        func() string { _, _, d := buildSignal(ctx, k); return d },
 	}
 	for name, fn := range envBuilders {
 		if desc := fn(); desc != "" {

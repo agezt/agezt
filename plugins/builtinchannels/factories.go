@@ -18,9 +18,13 @@ import (
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
+	"github.com/agezt/agezt/plugins/channels/irc"
 	"github.com/agezt/agezt/plugins/channels/matrix"
+	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
+	"github.com/agezt/agezt/plugins/channels/sms"
 	"github.com/agezt/agezt/plugins/channels/telegram"
+	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
 )
 
@@ -392,6 +396,301 @@ func buildWhatsApp(d channelwire.Deps) channelwire.Built {
 			p = whatsapp.DefaultPath
 		}
 		desc = fmt.Sprintf("inbound at %s%s, allowlist=%d number(s)", addr, p, len(numbers))
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildWebhook constructs the vendor-neutral webhook channel. Enabled when an
+// inbound secret OR an outbound URL is configured. Returns NotConfigured when
+// neither is set.
+//
+//	AGEZT_WEBHOOK_SECRET        HMAC-SHA256 signing key (enables signed inbound)
+//	AGEZT_WEBHOOK_ADDR          local addr to serve the inbound route (fronted by
+//	                            a tunnel/reverse proxy); empty → no inbound listener
+//	AGEZT_WEBHOOK_PATH          inbound route (default /webhook)
+//	AGEZT_WEBHOOK_CHANNELS      comma-separated allowlist of channel ids that may
+//	                            drive the agent AND receive Pulse briefs
+//	AGEZT_WEBHOOK_OUTBOUND_URL  where Send / briefs POST (signed); empty → inbound-only
+//
+// The inbound handler runs the normal agent loop under the channel's correlation,
+// so `agt why`/`agt inbox` link the webhook command to the task.
+func buildWebhook(d channelwire.Deps) channelwire.Built {
+	secret := strings.TrimSpace(d.Get(brand.EnvPrefix + "WEBHOOK_SECRET"))
+	outboundURL := strings.TrimSpace(d.Get(brand.EnvPrefix + "WEBHOOK_OUTBOUND_URL"))
+	if secret == "" && outboundURL == "" {
+		return channelwire.NotConfigured
+	}
+	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "WEBHOOK_ADDR"))
+	path := strings.TrimSpace(d.Get(brand.EnvPrefix + "WEBHOOK_PATH"))
+	channelIDs := splitNonEmpty(d.Get(brand.EnvPrefix + "WEBHOOK_CHANNELS"))
+
+	ch := webhookchan.New(webhookchan.Config{
+		Addr:        addr,
+		Path:        path,
+		Secret:      secret,
+		Allowlist:   channel.NewAllowlist(channelIDs),
+		OutboundURL: outboundURL,
+		Bus:         d.Bus,
+		Handler:     d.Handler,
+	})
+
+	var sink pulse.BriefSink
+	if outboundURL != "" && len(channelIDs) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range channelIDs {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	var desc string
+	switch {
+	case secret == "":
+		desc = fmt.Sprintf("outbound-only → %s, allowlist=%d (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR for inbound)", outboundURL, len(channelIDs))
+	case addr == "":
+		desc = fmt.Sprintf("inbound configured but not listening (set AGEZT_WEBHOOK_ADDR), allowlist=%d", len(channelIDs))
+	default:
+		p := path
+		if p == "" {
+			p = webhookchan.DefaultPath
+		}
+		desc = fmt.Sprintf("inbound at %s%s, allowlist=%d channel(s)", addr, p, len(channelIDs))
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildIRC constructs the two-way IRC channel when AGEZT_IRC_SERVER +
+// AGEZT_IRC_NICK are set. It joins AGEZT_IRC_CHANNELS and acts on inbound from
+// allowlisted sources (the joined channels, plus any AGEZT_IRC_ALLOWLIST nicks/
+// channels); Pulse briefs tee to the joined channels.
+//
+//	AGEZT_IRC_SERVER     host:port (e.g. irc.libera.chat:6697)   (required)
+//	AGEZT_IRC_NICK       the bot's nick                          (required)
+//	AGEZT_IRC_CHANNELS   comma-separated channels to join (#foo) — allowed by default
+//	AGEZT_IRC_PASSWORD   optional server password (PASS)
+//	AGEZT_IRC_TLS        "true" to force TLS (auto for :6697)
+//	AGEZT_IRC_ALLOWLIST  extra allowed sources (nicks for DMs / channels)
+func buildIRC(d channelwire.Deps) channelwire.Built {
+	server := strings.TrimSpace(d.Get(brand.EnvPrefix + "IRC_SERVER"))
+	nick := strings.TrimSpace(d.Get(brand.EnvPrefix + "IRC_NICK"))
+	if server == "" || nick == "" {
+		return channelwire.NotConfigured
+	}
+	chans := splitNonEmpty(d.Get(brand.EnvPrefix + "IRC_CHANNELS"))
+	// The joined channels are allowed by default; extra nicks/channels widen it.
+	allowed := append([]string(nil), chans...)
+	allowed = append(allowed, splitNonEmpty(d.Get(brand.EnvPrefix+"IRC_ALLOWLIST"))...)
+	useTLS := strings.EqualFold(strings.TrimSpace(d.Get(brand.EnvPrefix+"IRC_TLS")), "true") || strings.HasSuffix(server, ":6697")
+
+	ch := irc.New(irc.Config{
+		Server:    server,
+		TLS:       useTLS,
+		Nick:      nick,
+		Password:  strings.TrimSpace(d.Get(brand.EnvPrefix + "IRC_PASSWORD")),
+		Channels:  chans,
+		Allowlist: channel.NewAllowlist(allowed),
+		Bus:       d.Bus,
+		Handler:   d.Handler,
+	})
+
+	var sink pulse.BriefSink
+	if len(chans) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, c := range chans {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: c, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("%s as %s, %d channel(s)", server, nick, len(chans))
+	if len(chans) == 0 {
+		desc = fmt.Sprintf("%s as %s, NO channels (set AGEZT_IRC_CHANNELS)", server, nick)
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildTwitch constructs a Twitch chat channel when AGEZT_TWITCH_USERNAME +
+// AGEZT_TWITCH_TOKEN are set. Twitch chat is IRC, so this reuses the IRC channel
+// pinned to Twitch's server with an "oauth:" PASS; it joins AGEZT_TWITCH_CHANNELS
+// (lowercase #channel) and acts on inbound from those channels by default.
+//
+//	AGEZT_TWITCH_USERNAME  the bot account's login name        (required)
+//	AGEZT_TWITCH_TOKEN     OAuth token ("oauth:" prefix added) (required)
+//	AGEZT_TWITCH_CHANNELS  comma-separated #channels to join — allowed by default
+//	AGEZT_TWITCH_ALLOWLIST extra allowed sources (nicks / channels)
+func buildTwitch(d channelwire.Deps) channelwire.Built {
+	user := strings.TrimSpace(d.Get(brand.EnvPrefix + "TWITCH_USERNAME"))
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "TWITCH_TOKEN"))
+	if user == "" || token == "" {
+		return channelwire.NotConfigured
+	}
+	chans := splitNonEmpty(d.Get(brand.EnvPrefix + "TWITCH_CHANNELS"))
+	allowed := append([]string(nil), chans...)
+	allowed = append(allowed, splitNonEmpty(d.Get(brand.EnvPrefix+"TWITCH_ALLOWLIST"))...)
+	pass := token
+	if !strings.HasPrefix(pass, "oauth:") {
+		pass = "oauth:" + pass
+	}
+
+	ch := irc.New(irc.Config{
+		Kind:      "twitch",
+		Server:    "irc.chat.twitch.tv:6697",
+		TLS:       true,
+		Nick:      strings.ToLower(user),
+		Password:  pass,
+		Channels:  chans,
+		Allowlist: channel.NewAllowlist(allowed),
+		Bus:       d.Bus,
+		Handler:   d.Handler,
+	})
+
+	var sink pulse.BriefSink
+	if len(chans) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, c := range chans {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: c, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("as %s, %d channel(s)", user, len(chans))
+	if len(chans) == 0 {
+		desc = fmt.Sprintf("as %s, NO channels (set AGEZT_TWITCH_CHANNELS)", user)
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildSMS constructs the Twilio SMS channel when AGEZT_SMS_ACCOUNT_SID +
+// AGEZT_SMS_AUTH_TOKEN are set. Inbound (signed Twilio webhook) is served when
+// AGEZT_SMS_ADDR is also set; outbound texts + Pulse briefs to the allowlisted
+// numbers (AGEZT_SMS_NUMBERS) need AGEZT_SMS_FROM.
+//
+//	AGEZT_SMS_ACCOUNT_SID  Twilio Account SID  (required)
+//	AGEZT_SMS_AUTH_TOKEN   Twilio auth token   (required; signs inbound + REST)
+//	AGEZT_SMS_FROM         Twilio number to send from, E.164 (outbound)
+//	AGEZT_SMS_ADDR         host:port for the inbound webhook (inbound)
+//	AGEZT_SMS_PATH         inbound route (default /sms)
+//	AGEZT_SMS_PUBLIC_URL   exact public URL Twilio POSTs to (signature check behind a tunnel)
+//	AGEZT_SMS_NUMBERS      comma-separated allowlist of sender numbers
+func buildSMS(d channelwire.Deps) channelwire.Built {
+	sid := strings.TrimSpace(d.Get(brand.EnvPrefix + "SMS_ACCOUNT_SID"))
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "SMS_AUTH_TOKEN"))
+	if sid == "" || token == "" {
+		return channelwire.NotConfigured
+	}
+	from := strings.TrimSpace(d.Get(brand.EnvPrefix + "SMS_FROM"))
+	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "SMS_ADDR"))
+	path := strings.TrimSpace(d.Get(brand.EnvPrefix + "SMS_PATH"))
+	publicURL := strings.TrimSpace(d.Get(brand.EnvPrefix + "SMS_PUBLIC_URL"))
+	numbers := splitNonEmpty(d.Get(brand.EnvPrefix + "SMS_NUMBERS"))
+
+	ch := sms.New(sms.Config{
+		Addr:       addr,
+		Path:       path,
+		AccountSID: sid,
+		AuthToken:  token,
+		From:       from,
+		PublicURL:  publicURL,
+		Allowlist:  channel.NewAllowlist(numbers),
+		Bus:        d.Bus,
+		Handler:    d.Handler,
+	})
+
+	// Pulse briefs → the allowlisted numbers (needs an outbound From).
+	var sink pulse.BriefSink
+	if from != "" && len(numbers) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range numbers {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	var desc string
+	switch {
+	case addr == "":
+		desc = fmt.Sprintf("outbound-only (set AGEZT_SMS_ADDR for inbound), allowlist=%d number(s)", len(numbers))
+	default:
+		p := path
+		if p == "" {
+			p = sms.DefaultPath
+		}
+		desc = fmt.Sprintf("inbound at %s%s, allowlist=%d number(s)", addr, p, len(numbers))
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildSignal constructs the in-process Signal channel when AGEZT_SIGNAL_API_URL
+// and AGEZT_SIGNAL_NUMBER are set, plus a Pulse brief sink to the allowlisted
+// numbers. Returns NotConfigured when unconfigured. Talks to an operator-run
+// signal-cli-rest-api: long-polls /v1/receive for inbound, POSTs /v2/send for
+// outbound (mirrors buildMatrix).
+//
+//	AGEZT_SIGNAL_API_URL     signal-cli-rest-api base URL (required), e.g. http://127.0.0.1:8080
+//	AGEZT_SIGNAL_NUMBER      the registered Signal number this bot is, E.164 (required)
+//	AGEZT_SIGNAL_RECIPIENTS  comma-separated allowlist of sender numbers (+ brief recipients)
+//	AGEZT_SIGNAL_TOKEN       optional bearer token (a reverse proxy fronting the API)
+//	AGEZT_SIGNAL_POLL_SECS   /v1/receive long-poll seconds (default 10)
+func buildSignal(d channelwire.Deps) channelwire.Built {
+	apiURL := strings.TrimSpace(d.Get(brand.EnvPrefix + "SIGNAL_API_URL"))
+	number := strings.TrimSpace(d.Get(brand.EnvPrefix + "SIGNAL_NUMBER"))
+	if apiURL == "" || number == "" {
+		return channelwire.NotConfigured
+	}
+	recipients := splitNonEmpty(d.Get(brand.EnvPrefix + "SIGNAL_RECIPIENTS"))
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "SIGNAL_TOKEN"))
+	poll := 0
+	if v := strings.TrimSpace(d.Get(brand.EnvPrefix + "SIGNAL_POLL_SECS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			poll = n
+		}
+	}
+
+	ch := signalchan.New(signalchan.Config{
+		APIURL:          apiURL,
+		Number:          number,
+		Token:           token,
+		Allowlist:       channel.NewAllowlist(recipients),
+		Bus:             d.Bus,
+		Handler:         d.Handler,
+		PollTimeoutSecs: poll,
+	})
+
+	// Pulse briefs → the allowlisted numbers. Nil sink when none configured (the
+	// bot can still receive commands once a number is allowlisted, and operators
+	// can still `agt send --channel signal --to <number>`).
+	var sink pulse.BriefSink
+	if len(recipients) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, id := range recipients {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("listening, allowlist=%d number(s)", len(recipients))
+	if len(recipients) == 0 {
+		desc = "listening, NO allowlist (outbound-only; set AGEZT_SIGNAL_RECIPIENTS to allow commands)"
 	}
 	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
 }
