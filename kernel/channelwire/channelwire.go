@@ -51,8 +51,8 @@ type Deps struct {
 
 // Built is a factory's result. Desc == "" means "not configured — skip",
 // which kills the typed-nil-interface landmine that forced a reflect probe
-// on the legacy builders. Channels usually holds one element; the push
-// family returns several from one env family.
+// on the legacy builders. Channels usually holds one element; a factory MAY
+// return several from one env family (extras are keyed by their own Name).
 type Built struct {
 	Channels []channel.Channel
 	Sink     pulse.BriefSink

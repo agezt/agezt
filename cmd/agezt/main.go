@@ -324,24 +324,45 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// Register the built-in channel manifests (Telegram, WhatsApp, …) BEFORE
+	// anything reads the channel registry: notifyTargets just below derives its
+	// env names from the manifests, the Channels wizard lists them, and
+	// collectChannels() derives `agt status`'s configured-channel view from the
+	// registry, so it must be populated by the time srv.SetChannels runs below.
+	// (This call used to sit further down, nested inside an
+	// `if k.Forge() != nil` block — pure registration has no business being
+	// conditional on the Forge.)
+	builtinchannels.RegisterAll()
+
 	// Proactive-messaging tool (`notify`, M143). Register it here — BEFORE the
 	// kernel (and its HTTP servers / channels) start — so the tool map is never
 	// written while the agent loop reads it (a fatal concurrent-map race otherwise).
 	// The sender needs the live channels (built after the kernel), so the tool is
-	// created unbound now and Bind-wired later. Decide registration from env: a
-	// channel kind contributes targets only when its token AND a non-empty allowlist
-	// are set, so a half-configured channel never advertises a tool that can't send.
+	// created unbound now and Bind-wired later. Decide registration from env,
+	// with the env names taken from each kind's manifest (RequiredEnv +
+	// AllowlistEnv, Phase 2.1 PR 8): a channel kind contributes targets only
+	// when its required env AND a non-empty allowlist are set, so a
+	// half-configured channel never advertises a tool that can't send. The
+	// kind list stays deliberately restricted to the three chat channels the
+	// notify/send_media/briefing surface has always targeted.
 	notifyTargets := map[string][]string{}
-	for _, c := range []struct{ kind, tokenEnv, idsEnv string }{
-		{"telegram", "TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"},
-		{"slack", "SLACK_TOKEN", "SLACK_CHANNELS"},
-		{"discord", "DISCORD_TOKEN", "DISCORD_CHANNELS"},
-	} {
-		if strings.TrimSpace(os.Getenv(brand.EnvPrefix+c.tokenEnv)) == "" {
+	for _, kind := range []string{"telegram", "slack", "discord"} {
+		m, ok := channel.LookupManifest(kind)
+		if !ok || m.AllowlistEnv == "" {
 			continue
 		}
-		if ids := splitNonEmpty(os.Getenv(brand.EnvPrefix + c.idsEnv)); len(ids) > 0 {
-			notifyTargets[c.kind] = ids
+		configured := len(m.RequiredEnv) > 0
+		for _, env := range m.RequiredEnv {
+			if strings.TrimSpace(os.Getenv(env)) == "" {
+				configured = false
+				break
+			}
+		}
+		if !configured {
+			continue
+		}
+		if ids := splitNonEmpty(os.Getenv(m.AllowlistEnv)); len(ids) > 0 {
+			notifyTargets[kind] = ids
 		}
 	}
 	var notifyTool *notify.Tool
@@ -1482,174 +1503,30 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  skill shadow-eval: %s\n", shadowEvalDesc)
 	fmt.Fprintf(stdout, "  skill auto-promo.: %s\n", autoPromoteDesc)
 
-	// Register the built-in channel manifests (Telegram, WhatsApp, …) BEFORE
-	// any channel construction or status snapshot: the Channels wizard lists
-	// them, and collectChannels() derives `agt status`'s configured-channel
-	// view from the registry, so it must be populated by the time
-	// srv.SetChannels runs below. (This call used to sit further down, nested
-	// inside an `if k.Forge() != nil` block — pure registration has no
-	// business being conditional on the Forge.)
-	builtinchannels.RegisterAll()
-
 	// The shared inbound handler, built ONCE for every factory-migrated channel
 	// (Phase 2.1): channelwire factories receive it through Deps.Handler.
 	chanHandler := makeChannelHandler(k)
 
-	// Telegram channel (SPEC-04 §1) — duplex when AGEZT_TELEGRAM_TOKEN is
-	// set. Built before Pulse so its brief sink can tee with the log sink.
-	// Telegram channel (SPEC-04 §1) — multi-account: the default instance plus any
-	// "#label" accounts (several bots) are all built and started.
-	tgInsts := wireInstances(channelwire.BuildKind(ctx, "telegram", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "telegram", "telegram", "disabled (set AGEZT_TELEGRAM_TOKEN)", tgInsts)
-
-	// Slack channel (SPEC-04 §1) — duplex when AGEZT_SLACK_TOKEN is set. Serves
-	// the Events API endpoint for inbound (HMAC-verified) and chat.postMessage for
-	// outbound; briefs tee to it like Telegram.
-	slInsts := wireInstances(channelwire.BuildKind(ctx, "slack", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "slack", "slack", "disabled (set AGEZT_SLACK_TOKEN)", slInsts)
-
-	// Discord channel (SPEC-04 §1) — duplex when AGEZT_DISCORD_TOKEN is set.
-	// Serves the Interactions endpoint for inbound slash commands (Ed25519-verified)
-	// and posts via the bot token for outbound; briefs tee to it like the others.
-	dcInsts := wireInstances(channelwire.BuildKind(ctx, "discord", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "discord", "discord", "disabled (set AGEZT_DISCORD_TOKEN)", dcInsts)
-
-	// Generic webhook channel (SPEC-04 §1) — vendor-neutral duplex. Any external
-	// system POSTs a signed JSON message and gets the agent's reply synchronously;
-	// briefs/`agt send` tee to a configured outbound URL. Enabled when a secret
-	// (inbound) or an outbound URL is set.
-	whInsts := wireInstances(channelwire.BuildKind(ctx, "webhook", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "webhook", "webhook channel", "disabled (set AGEZT_WEBHOOK_SECRET + AGEZT_WEBHOOK_ADDR)", whInsts)
-
-	// Email channel (SPEC-04 §1) — outbound-only over SMTP. Briefs/`agt send` mail
-	// the allowlisted recipients. Enabled when AGEZT_EMAIL_SMTP_ADDR is set.
-	// Email channel (SPEC-04 §1) — multi-account: the default instance plus any
-	// "#label" accounts (several mailboxes, each its own SMTP) are all built.
-	emInsts := wireInstances(channelwire.BuildKind(ctx, "email", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "email", "email channel", "disabled (set AGEZT_EMAIL_SMTP_ADDR + AGEZT_EMAIL_FROM)", emInsts)
-
-	// Matrix channel (SPEC-04 §1) — duplex over the open Matrix Client-Server API
-	// when AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN are set. Long-polls /sync
-	// for inbound and PUTs m.room.message for outbound; briefs tee to the
-	// allowlisted rooms like the others.
-	mxInsts := wireInstances(channelwire.BuildKind(ctx, "matrix", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "matrix", "matrix channel", "disabled (set AGEZT_MATRIX_HOMESERVER + AGEZT_MATRIX_TOKEN)", mxInsts)
-
-	// IRC channel (SPEC-04 §1) — two-way over a persistent socket to any ircd.
-	ircInsts := wireInstances(channelwire.BuildKind(ctx, "irc", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "irc", "irc channel", "disabled (set AGEZT_IRC_SERVER + AGEZT_IRC_NICK)", ircInsts)
-
-	// Twitch chat (SPEC-04 §1) — IRC over Twitch's server; reuses the IRC channel.
-	twInsts := wireInstances(channelwire.BuildKind(ctx, "twitch", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "twitch", "twitch channel", "disabled (set AGEZT_TWITCH_USERNAME + AGEZT_TWITCH_TOKEN)", twInsts)
-
-	// WhatsApp via a self-hosted gateway (WAHA/Evolution) — the easy WhatsApp path.
-	wgInsts := wireInstances(channelwire.BuildKind(ctx, "whatsappgw", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "whatsappgw", "whatsapp gateway", "disabled (set AGEZT_WHATSAPPGW_URL)", wgInsts)
-
-	// iMessage via a self-hosted BlueBubbles server — the Mac-bridge iMessage path.
-	imInsts := wireInstances(channelwire.BuildKind(ctx, "imessage", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "imessage", "imessage channel", "disabled (set AGEZT_IMESSAGE_URL)", imInsts)
-
-	// LINE two-way (official Messaging API) — supersedes the outbound-only push
-	// LINE when a channel secret is set.
-	lnInsts := wireInstances(channelwire.BuildKind(ctx, "line", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "line", "line channel", "", lnInsts)
-
-	// Two-way Google Chat / Mattermost (incoming webhook out + webhook in) —
-	// supersede the outbound-only push entries when an inbound addr is set.
-	gcInsts := wireInstances(channelwire.BuildKind(ctx, "googlechat", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "googlechat", "googlechat (2way)", "", gcInsts)
-	mmInsts := wireInstances(channelwire.BuildKind(ctx, "mattermost", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "mattermost", "mattermost (2way)", "", mmInsts)
-
-	// DingTalk / Feishu / WeCom two-way (China enterprise platforms).
-	dtInsts := wireInstances(channelwire.BuildKind(ctx, "dingtalk", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "dingtalk", "dingtalk (2way)", "", dtInsts)
-	fsInsts := wireInstances(channelwire.BuildKind(ctx, "feishu", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "feishu", "feishu (2way)", "", fsInsts)
-	wcInsts := wireInstances(channelwire.BuildKind(ctx, "wecom", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "wecom", "wecom (2way)", "", wcInsts)
-
-	// QQ / WeChat via a OneBot v11 gateway; Zalo via the Official Account API.
-	qqInsts := wireInstances(channelwire.BuildKind(ctx, "qq", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "qq", "qq channel", "", qqInsts)
-	wxInsts := wireInstances(channelwire.BuildKind(ctx, "wechat", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "wechat", "wechat channel", "", wxInsts)
-	zlInsts := wireInstances(channelwire.BuildKind(ctx, "zalo", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "zalo", "zalo channel", "", zlInsts)
-	nctInsts := wireInstances(channelwire.BuildKind(ctx, "nextcloudtalk", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "nextcloudtalk", "nextcloud talk", "", nctInsts)
-	maInsts := wireInstances(channelwire.BuildKind(ctx, "mastodon", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "mastodon", "mastodon channel", "", maInsts)
-	noInsts := wireInstances(channelwire.BuildKind(ctx, "nostr", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "nostr", "nostr channel", "", noInsts)
-
-	// SMS channel (SPEC-04 §1) — duplex over Twilio Programmable Messaging when
-	// AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN are set. Inbound is a signed
-	// Twilio webhook (needs AGEZT_SMS_ADDR); outbound texts go via the REST API
-	// (needs AGEZT_SMS_FROM); briefs tee to the allowlisted numbers.
-	smInsts := wireInstances(channelwire.BuildKind(ctx, "sms", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "sms", "sms channel", "disabled (set AGEZT_SMS_ACCOUNT_SID + AGEZT_SMS_AUTH_TOKEN)", smInsts)
-
-	// WhatsApp channel (SPEC-04 §1) — duplex over Meta's WhatsApp Cloud API when
-	// AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN are set. Inbound is a
-	// signed Meta webhook (needs AGEZT_WHATSAPP_ADDR); outbound goes via the Graph
-	// API (needs AGEZT_WHATSAPP_PHONE_NUMBER_ID); briefs tee to the allowlist.
-	waInsts := wireInstances(channelwire.BuildKind(ctx, "whatsapp", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "whatsapp", "whatsapp channel", "disabled (set AGEZT_WHATSAPP_APP_SECRET + AGEZT_WHATSAPP_ACCESS_TOKEN)", waInsts)
-
-	// Home Assistant channel (SPEC-04 §1) — outbound to HA's notify API when
-	// AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN are set. Briefs/`agt send`
-	// land as phone pushes / TTS / persistent notifications on the allowlisted
-	// notify services. Outbound-only (drive FROM HA via the webhook channel).
-	haInsts := wireInstances(channelwire.BuildKind(ctx, "homeassistant", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "homeassistant", "homeassistant ch", "disabled (set AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN)", haInsts)
-
-	// Teams channel (SPEC-04 §1) — outbound to Microsoft Teams Incoming Webhooks
-	// when AGEZT_TEAMS_WEBHOOKS is set (name=url,name2=url2). Briefs/`agt send`
-	// post a card to the named Teams channel. Outbound-only.
-	tmInsts := wireInstances(channelwire.BuildKind(ctx, "teams", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "teams", "teams channel", "disabled (set AGEZT_TEAMS_WEBHOOKS=name=url,...)", tmInsts)
-
-	// Signal channel (SPEC-04 §1) — duplex via an operator-run signal-cli-rest-api
-	// when AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER are set. Long-polls
-	// /v1/receive for inbound and POSTs /v2/send for outbound; briefs tee to the
-	// allowlisted numbers like the others.
-	sgInsts := wireInstances(channelwire.BuildKind(ctx, "signal", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "signal", "signal channel", "disabled (set AGEZT_SIGNAL_API_URL + AGEZT_SIGNAL_NUMBER)", sgInsts)
-
-	// Push-notification channels (SPEC-04 §1): a family of simple outbound
-	// destinations, each enabled by its own env and exposed as a distinct
-	// channel. Briefs/`agt send` POST to the service. Outbound-only. The dual
-	// kinds (googlechat/mattermost/mastodon/line/feishu/dingtalk/wecom) fall
-	// back to their push entry inside their own factories when two-way is
-	// unconfigured; these seven are pure push. Silent when unconfigured
-	// (disabledHint ""), matching the old single "push channels: disabled" line.
-	ntInsts := wireInstances(channelwire.BuildKind(ctx, "ntfy", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "ntfy", "ntfy push", "", ntInsts)
-	poInsts := wireInstances(channelwire.BuildKind(ctx, "pushover", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "pushover", "pushover push", "", poInsts)
-	gfInsts := wireInstances(channelwire.BuildKind(ctx, "gotify", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "gotify", "gotify push", "", gfInsts)
-	pbInsts := wireInstances(channelwire.BuildKind(ctx, "pushbullet", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "pushbullet", "pushbullet push", "", pbInsts)
-	rcInsts := wireInstances(channelwire.BuildKind(ctx, "rocketchat", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "rocketchat", "rocketchat push", "", rcInsts)
-	zuInsts := wireInstances(channelwire.BuildKind(ctx, "zulip", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "zulip", "zulip push", "", zuInsts)
-	syInsts := wireInstances(channelwire.BuildKind(ctx, "synology", k.Bus(), chanHandler))
-	startInstances(ctx, stdout, "synology", "synology push", "", syInsts)
-
-	// Every configured channel's brief sink, teed: Pulse briefs and (M782)
-	// alert notifications share the same delivery surface.
-	// All channels are multi-account now: one brief sink per instance.
-	allInsts := [][]chanInstance{
-		tgInsts, emInsts, slInsts, dcInsts, mxInsts, waInsts,
-		whInsts, ircInsts, twInsts, wgInsts, imInsts, lnInsts, gcInsts, mmInsts,
-		dtInsts, fsInsts, wcInsts, qqInsts, wxInsts, zlInsts, nctInsts, maInsts, noInsts,
-		smInsts, haInsts, tmInsts, sgInsts,
-		ntInsts, poInsts, gfInsts, pbInsts, rcInsts, zuInsts, syInsts,
+	// Every channel kind, built and started from its registered manifest
+	// (Phase 2.1 PR 8): one uniform loop replaces the 34 hand-written
+	// build+start pairs. The per-kind boot-banner label and the "disabled
+	// (set ...)" hint live on the manifest (BannerLabel / DisabledHint;
+	// empty hint = silent when unconfigured, matching the old push family).
+	// Banner order follows Manifests() (sorted by display name) rather than
+	// the old hand-ordering.
+	//
+	// Every configured channel's brief sink is teed below: Pulse briefs and
+	// (M782) alert notifications share the same delivery surface. All
+	// channels are multi-account now: one brief sink per instance.
+	var allInsts [][]chanInstance
+	for _, m := range channel.Manifests() {
+		insts := wireInstances(channelwire.BuildKind(ctx, m.Kind, k.Bus(), chanHandler))
+		label := m.BannerLabel
+		if label == "" {
+			label = m.Kind
+		}
+		startInstances(ctx, stdout, m.Kind, label, m.DisabledHint, insts)
+		allInsts = append(allInsts, insts)
 	}
 	channelSinks := combineSinks(instanceSinks(allInsts...)...)
 
