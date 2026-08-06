@@ -1,5 +1,28 @@
 # Refactoring Scan 2026-08 — Deep System Scan + Master Action Plan
 
+> **EXECUTION STATUS (2026-08-06): Phases 0–2 COMPLETE and merged.**
+>
+> | Phase | PR | Highlights |
+> |---|---|---|
+> | 0 — correctness (LD-1..8) | #553 | all 8 live defects fixed with regression tests |
+> | 1 — shared primitives | #554 | projectJournal engine · fail/ok helpers · typed-args migration (295→19 annotated residuals + ratchet) · `kernel/jsonstore` behind 13 stores (fixed board.json silent-corrupt-overwrite) |
+> | 2.1 — channel factory | #555 | `kernel/channelwire`; all 34 kinds; main.go channel section = one manifest loop; overlayEnv/buildAccountsLegacy/allInsts deleted; 34-vs-27 wiring drift closed |
+> | 2.2 — tool registry | #556 | `kernel/toolreg`; all 32 boot tools as specs; 15 downcasts + 13 late Binds gone; **fixed live bug: fetch's netguard OnBlock was never wired** |
+> | 2.3 — command registry | #557 | 319 commandSpecs; handleConn 705→~100 lines; tenantTokenAllows deleted; TenantAllowed⟹TenantRouted now a tested invariant; exhaustive tenant-boundary test |
+> | 2.4 — provider bootstrap | #558 | `plugins/providerboot`; one Boot/Reload seam; **fixed 3 live drifts: middleware dropped on reload, frozen down-route eligibility, inverted first-run nudge**; TestBootReloadParity |
+> | 2.5 — daemonconfig | #559 | typed `Load()` for 74 env names/10 clusters; live reads deliberately inline (Config Center os.Setenv semantics) |
+> | 2.6 — boot decomposition | #560 | `kernel/selfrepair` (3.2k lines out) · `kernel/cadence/systemtasks` · HTTP-surface file split · PulseObservers + two-phase Deps/Bind · bootStep table; **fixed: tenant tokens refused during the srv.Start→SetTenants boot window** |
+>
+> main.go: 7,455 → 3,932 lines (−47%). Two plan corrections decided during execution
+> (recorded in plans/phase2.6-boot-decomposition.md): `kernelAPIEngine` stays out of
+> `kernel/restapi` (that package's interface-only posture is deliberate), and `NewServer`
+> does NOT hard-validate deps (11 of 14 nils are legitimate operator configs).
+> Per-phase working plans live in `plans/phase2.*.md`.
+>
+> **Remaining:** Phase 3 (core decomposition, 3.1–3.6), Phase 4 (frontend/hygiene),
+> controlplane subpackage split (2.3 commit C+), webui route tables from registry
+> metadata, and the `apperrors` delete-or-complete owner decision.
+
 > **Generated:** 2026-08-05 · **Baseline:** `main` @ `069fe955` (clean tree)
 > **Method:** 5 parallel deep scans (boot/wiring, controlplane, agentic core, extension
 > surfaces, debt/tests) + import-graph analysis, cross-referenced against

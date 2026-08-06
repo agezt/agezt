@@ -11,6 +11,15 @@ the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
 ## [Unreleased]
 
+### Changed
+- Refactor program 2026-08, Phases 0–2 (#553–#560): new focused packages `kernel/jsonstore`, `kernel/channelwire`, `kernel/toolreg`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `plugins/providerboot`, `cmd/agezt/internal/daemonconfig`; controlplane dispatch, channel wiring, and tool wiring are now registries with permanent drift-alarm tests; `cmd/agezt/main.go` shrank 47% (7,455 → 3,932 lines). Full status table at the top of `docs/REFACTORING-SCAN-2026-08.md`.
+
+### Fixed
+- fetch tool: netguard `OnBlock` was never wired, so fetch's SSRF refusals went unjournaled (found and fixed by the tool-registry migration, #556).
+- Provider reload: generation middleware (`AGEZT_GEN_TEMPERATURE`, `AGEZT_EXTRACT_REASONING`, `AGEZT_SIMULATE_STREAMING`) was silently dropped on every `agt provider reload` until daemon restart; cross-provider down-route eligibility froze at boot; and the first-run "setup needed" nudge fired for demo-echo instead of the actual unconfigured boot (#558).
+- Tenant tokens were refused with "unauthorized" during the boot window between the control plane starting and the tenant registry being attached; the registry is now supplied at server construction (#560).
+- A corrupt `board.json` used to be silently swallowed at open and overwritten on the next post; it now fails boot loudly like every sibling store (#554).
+
 ### Fixed
 - Corrected Overseer tool schema so agent and reason descriptions cover the wake and bulk_retire operations, and added search and wake to the tool description.
 
