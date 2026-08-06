@@ -48,6 +48,7 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	for _, kind := range []string{
 		"telegram", "slack", "email", "discord", "matrix", "whatsapp",
 		"webhook", "irc", "twitch", "sms", "signal",
+		"whatsappgw", "imessage", "homeassistant", "teams", "nextcloudtalk",
 	} {
 		f, ok := channelwire.Lookup(kind)
 		if !ok {
@@ -66,18 +67,13 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	// Builders that read os.Getenv directly. None of their env vars are set in
 	// the test process, so each must early-return an empty descriptor.
 	envBuilders := map[string]func() string{
-		"whatsappgw":    func() string { _, _, d := buildWhatsAppGateway(ctx, k); return d },
-		"imessage":      func() string { _, _, d := buildIMessage(ctx, k); return d },
-		"line":          func() string { _, _, d := buildLine(ctx, k); return d },
-		"dingtalk":      func() string { _, _, d := buildDingTalk(ctx, k); return d },
-		"feishu":        func() string { _, _, d := buildFeishu(ctx, k); return d },
-		"wecom":         func() string { _, _, d := buildWeCom(ctx, k); return d },
-		"zalo":          func() string { _, _, d := buildZalo(ctx, k); return d },
-		"nextcloudtalk": func() string { _, _, d := buildNextcloudTalk(ctx, k); return d },
-		"mastodon":      func() string { _, _, d := buildMastodon(ctx, k); return d },
-		"nostr":         func() string { _, _, d := buildNostr(ctx, k); return d },
-		"homeassistant": func() string { _, _, d := buildHomeAssistant(ctx, k); return d },
-		"teams":         func() string { _, _, d := buildTeams(ctx, k); return d },
+		"line":     func() string { _, _, d := buildLine(ctx, k); return d },
+		"dingtalk": func() string { _, _, d := buildDingTalk(ctx, k); return d },
+		"feishu":   func() string { _, _, d := buildFeishu(ctx, k); return d },
+		"wecom":    func() string { _, _, d := buildWeCom(ctx, k); return d },
+		"zalo":     func() string { _, _, d := buildZalo(ctx, k); return d },
+		"mastodon": func() string { _, _, d := buildMastodon(ctx, k); return d },
+		"nostr":    func() string { _, _, d := buildNostr(ctx, k); return d },
 	}
 	for name, fn := range envBuilders {
 		if desc := fn(); desc != "" {

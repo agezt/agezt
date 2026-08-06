@@ -18,9 +18,6 @@ import (
 // silent-drift class this migration exists to close — a channel shipped with
 // a manifest but no wiring).
 var factoryTODO = map[string]bool{
-	// legacy batch B
-	"whatsappgw": true, "imessage": true, "homeassistant": true,
-	"teams": true, "nextcloudtalk": true,
 	// legacy batch C
 	"nostr": true, "zalo": true, "qq": true, "wechat": true, "line": true,
 	// legacy batch D (push-suppression cluster)

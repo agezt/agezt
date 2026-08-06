@@ -33,6 +33,11 @@ func RegisterAll() {
 	channelwire.Register("twitch", buildTwitch)
 	channelwire.Register("sms", buildSMS)
 	channelwire.Register("signal", buildSignal)
+	channelwire.Register("whatsappgw", buildWhatsAppGateway)
+	channelwire.Register("imessage", buildIMessage)
+	channelwire.Register("homeassistant", buildHomeAssistant)
+	channelwire.Register("teams", buildTeams)
+	channelwire.Register("nextcloudtalk", buildNextcloudTalk)
 }
 
 var manifests = []channel.Manifest{

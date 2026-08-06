@@ -18,14 +18,19 @@ import (
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
+	"github.com/agezt/agezt/plugins/channels/homeassistant"
+	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/irc"
 	"github.com/agezt/agezt/plugins/channels/matrix"
+	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/sms"
+	"github.com/agezt/agezt/plugins/channels/teams"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 	"github.com/agezt/agezt/plugins/channels/whatsapp"
+	"github.com/agezt/agezt/plugins/channels/whatsappgw"
 )
 
 // formatBrief renders a Pulse brief as plain channel text. (Small copy of the
@@ -693,4 +698,249 @@ func buildSignal(d channelwire.Deps) channelwire.Built {
 		desc = "listening, NO allowlist (outbound-only; set AGEZT_SIGNAL_RECIPIENTS to allow commands)"
 	}
 	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildWhatsAppGateway constructs the easy-path WhatsApp channel — a self-hosted
+// WAHA or Evolution API gateway (QR login, no Meta) — when AGEZT_WHATSAPPGW_URL
+// is set. Outbound always; inbound (two-way) when AGEZT_WHATSAPPGW_ADDR points
+// the gateway's webhook at this daemon. Briefs tee to the allowlisted numbers.
+//
+//	AGEZT_WHATSAPPGW_URL      gateway base URL, e.g. http://localhost:3000  (required)
+//	AGEZT_WHATSAPPGW_BACKEND  "waha" (default) or "evolution"
+//	AGEZT_WHATSAPPGW_SESSION  WAHA session / Evolution instance (default "default")
+//	AGEZT_WHATSAPPGW_KEY      gateway API key
+//	AGEZT_WHATSAPPGW_NUMBERS  comma-separated allowed sender numbers
+//	AGEZT_WHATSAPPGW_ADDR     host:port to serve the inbound webhook (two-way)
+//	AGEZT_WHATSAPPGW_PATH     inbound route (default /whatsappgw)
+//	AGEZT_WHATSAPPGW_SECRET   optional shared secret the gateway must echo inbound
+func buildWhatsAppGateway(d channelwire.Deps) channelwire.Built {
+	base := strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_URL"))
+	if base == "" {
+		return channelwire.NotConfigured
+	}
+	numbers := splitNonEmpty(d.Get(brand.EnvPrefix + "WHATSAPPGW_NUMBERS"))
+	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_ADDR"))
+	backend := strings.ToLower(strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_BACKEND")))
+
+	ch := whatsappgw.New(whatsappgw.Config{
+		Backend:   backend,
+		BaseURL:   base,
+		Session:   strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_SESSION")),
+		APIKey:    strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_KEY")),
+		Allowlist: channel.NewAllowlist(numbers),
+		Bus:       d.Bus,
+		Handler:   d.Handler,
+		Addr:      addr,
+		Path:      strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_PATH")),
+		Secret:    strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_SECRET")),
+	})
+
+	var sink pulse.BriefSink
+	if len(numbers) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, n := range numbers {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: n, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	be := backend
+	if be == "" {
+		be = "waha"
+	}
+	desc := fmt.Sprintf("%s via %s, allowlist=%d number(s)", base, be, len(numbers))
+	if addr == "" {
+		desc += " (outbound-only; set AGEZT_WHATSAPPGW_ADDR for two-way)"
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildIMessage constructs the iMessage channel — a self-hosted BlueBubbles
+// server (a Mac bridge; https://bluebubbles.app) — when AGEZT_IMESSAGE_URL is
+// set. Outbound always; inbound (two-way) when AGEZT_IMESSAGE_ADDR points the
+// BlueBubbles webhook back at this channel.
+//
+//	AGEZT_IMESSAGE_URL        BlueBubbles server URL, e.g. http://localhost:1234  (required)
+//	AGEZT_IMESSAGE_PASSWORD   BlueBubbles server password
+//	AGEZT_IMESSAGE_METHOD     "private-api" (default) or "apple-script"
+//	AGEZT_IMESSAGE_ADDRESSES  comma-separated allowed sender addresses (phone/email)
+//	AGEZT_IMESSAGE_ADDR       host:port to serve the inbound webhook (two-way)
+//	AGEZT_IMESSAGE_PATH       inbound route (default /imessage)
+//	AGEZT_IMESSAGE_SECRET     optional shared secret the webhook must echo (X-Webhook-Secret)
+func buildIMessage(d channelwire.Deps) channelwire.Built {
+	base := strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_URL"))
+	if base == "" {
+		return channelwire.NotConfigured
+	}
+	addresses := splitNonEmpty(d.Get(brand.EnvPrefix + "IMESSAGE_ADDRESSES"))
+	addr := strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_ADDR"))
+
+	ch := imessage.New(imessage.Config{
+		BaseURL:   base,
+		Password:  strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_PASSWORD")),
+		Method:    strings.ToLower(strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_METHOD"))),
+		Allowlist: channel.NewAllowlist(addresses),
+		Bus:       d.Bus,
+		Handler:   d.Handler,
+		Addr:      addr,
+		Path:      strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_PATH")),
+		Secret:    strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_SECRET")),
+	})
+
+	var sink pulse.BriefSink
+	if len(addresses) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, a := range addresses {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: a, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("%s via BlueBubbles, allowlist=%d address(es)", base, len(addresses))
+	if addr == "" {
+		desc += " (outbound-only; set AGEZT_IMESSAGE_ADDR for two-way)"
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildNextcloudTalk constructs the Nextcloud Talk channel when AGEZT_NEXTCLOUDTALK_URL
+// + AGEZT_NEXTCLOUDTALK_SECRET are set. Inbound (signed bot webhook) is served when
+// AGEZT_NEXTCLOUDTALK_ADDR is also set; outbound replies + Pulse briefs go to the
+// allowlisted conversation tokens (AGEZT_NEXTCLOUDTALK_TOKENS).
+//
+//	AGEZT_NEXTCLOUDTALK_URL     Nextcloud base URL, e.g. https://cloud.example.com (required)
+//	AGEZT_NEXTCLOUDTALK_SECRET  shared bot secret; signs/verifies (required)
+//	AGEZT_NEXTCLOUDTALK_ADDR    host:port for the inbound webhook (inbound)
+//	AGEZT_NEXTCLOUDTALK_PATH    inbound route (default /nextcloudtalk)
+//	AGEZT_NEXTCLOUDTALK_TOKENS  comma-separated allowlist of conversation tokens
+func buildNextcloudTalk(d channelwire.Deps) channelwire.Built {
+	server := strings.TrimSpace(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_URL"))
+	secret := strings.TrimSpace(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_SECRET"))
+	if server == "" || secret == "" {
+		return channelwire.NotConfigured
+	}
+	tokens := splitNonEmpty(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_TOKENS"))
+	ch := nextcloudtalk.New(nextcloudtalk.Config{
+		ServerURL: server,
+		Secret:    secret,
+		Allowlist: channel.NewAllowlist(tokens),
+		Bus:       d.Bus,
+		Handler:   d.Handler,
+		Addr:      strings.TrimSpace(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_ADDR")),
+		Path:      strings.TrimSpace(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_PATH")),
+	})
+	var sink pulse.BriefSink
+	if len(tokens) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, t := range tokens {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: t, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("Nextcloud Talk, allowlist=%d token(s)", len(tokens))}
+}
+
+// buildHomeAssistant constructs the outbound Home Assistant channel when
+// AGEZT_HOMEASSISTANT_URL + AGEZT_HOMEASSISTANT_TOKEN are set. Pulse briefs +
+// `agt send` go to the allowlisted notify services (AGEZT_HOMEASSISTANT_SERVICES).
+//
+//	AGEZT_HOMEASSISTANT_URL       HA base, e.g. http://homeassistant.local:8123
+//	AGEZT_HOMEASSISTANT_TOKEN     long-lived access token
+//	AGEZT_HOMEASSISTANT_SERVICES  comma-separated notify service allowlist
+//	                              (e.g. mobile_app_phone,persistent_notification)
+func buildHomeAssistant(d channelwire.Deps) channelwire.Built {
+	baseURL := strings.TrimSpace(d.Get(brand.EnvPrefix + "HOMEASSISTANT_URL"))
+	token := strings.TrimSpace(d.Get(brand.EnvPrefix + "HOMEASSISTANT_TOKEN"))
+	if baseURL == "" || token == "" {
+		return channelwire.NotConfigured
+	}
+	services := splitNonEmpty(d.Get(brand.EnvPrefix + "HOMEASSISTANT_SERVICES"))
+
+	ch := homeassistant.New(homeassistant.Config{
+		BaseURL:   baseURL,
+		Token:     token,
+		Allowlist: channel.NewAllowlist(services),
+		Bus:       d.Bus,
+	})
+
+	var sink pulse.BriefSink
+	if len(services) > 0 {
+		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			var firstErr error
+			for _, svc := range services {
+				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: svc, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+					firstErr = err
+				}
+			}
+			return firstErr
+		})
+	}
+
+	desc := fmt.Sprintf("outbound → %s, allowlist=%d service(s)", baseURL, len(services))
+	if len(services) == 0 {
+		desc = fmt.Sprintf("outbound → %s, NO allowlist (set AGEZT_HOMEASSISTANT_SERVICES to notify)", baseURL)
+	}
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: desc}
+}
+
+// buildTeams constructs the outbound Microsoft Teams channel when
+// AGEZT_TEAMS_WEBHOOKS is set. Pulse briefs + `agt send` post a card to the named
+// Teams Incoming Webhooks.
+//
+//	AGEZT_TEAMS_WEBHOOKS  name=url,name2=url2 — named Teams Incoming Webhook URLs;
+//	                      `agt send --channel teams --to <name>` selects one.
+func buildTeams(d channelwire.Deps) channelwire.Built {
+	hooks := parseNamedWebhooks(strings.TrimSpace(d.Get(brand.EnvPrefix + "TEAMS_WEBHOOKS")))
+	if len(hooks) == 0 {
+		return channelwire.NotConfigured
+	}
+	ch := teams.New(teams.Config{Webhooks: hooks, Bus: d.Bus})
+
+	names := ch.Names()
+	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+		var firstErr error
+		for _, name := range names {
+			if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: name, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	})
+
+	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("outbound → %d Teams webhook(s)", len(names))}
+}
+
+// parseNamedWebhooks parses a "name=url,name2=url2" spec into a name→url map.
+// Each entry splits on the FIRST '=' (URLs may contain '='); blank names/urls
+// are dropped. (Moved from cmd/agezt/main.go with buildTeams — its only user.)
+func parseNamedWebhooks(spec string) map[string]string {
+	out := map[string]string{}
+	for _, entry := range strings.Split(spec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		eq := strings.IndexByte(entry, '=')
+		if eq <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(entry[:eq])
+		url := strings.TrimSpace(entry[eq+1:])
+		if name != "" && url != "" {
+			out[name] = url
+		}
+	}
+	return out
 }
