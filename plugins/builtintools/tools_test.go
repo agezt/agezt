@@ -6,14 +6,15 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
 	browsertool "github.com/agezt/agezt/plugins/tools/browser"
+	"github.com/agezt/agezt/plugins/tools/codeexec"
 	fetchtool "github.com/agezt/agezt/plugins/tools/fetch"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	"github.com/agezt/agezt/plugins/tools/websearch"
@@ -108,6 +109,102 @@ func TestRegistryNetguardWiring_CoversEveryNetguardSpec(t *testing.T) {
 	}
 }
 
+// TestRegistryAlwaysOnSpecs_BuildAndConfigure covers the Phase 2.2 PR 3+4
+// specs: every always-on tool must build from an empty environment under its
+// registered name with the right concrete type, and every Configure hook must
+// tolerate a minimal (kernel-less) KernelDeps without error or panic — the
+// tools simply stay unbound, exactly like the pre-registry boot window between
+// construction and wiring. Full wired-kernel coverage stays with cmd/agezt's
+// integration tests (a real *runtime.Kernel can't be cheaply built here).
+func TestRegistryAlwaysOnSpecs_BuildAndConfigure(t *testing.T) {
+	RegisterAll()
+
+	var stderr bytes.Buffer
+	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+		BaseDir: t.TempDir(),
+		Stderr:  &stderr,
+		Get:     mapGet(map[string]string{brand.EnvPrefix + "SANDBOX": "off"}),
+	})
+	if err != nil {
+		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
+	}
+	tools := set.Tools()
+
+	// The Set*-injection batch + the kernel-bound zero-arg tools are always on.
+	alwaysOn := []string{
+		"config", "artifacts", "db", "council", "conductor", "research",
+		"schedule", "runs", "standing", "skill", "introspect", "overseer",
+		"tool_forge", "mcp", "workflow", "workboard",
+	}
+	for _, name := range alwaysOn {
+		tl, ok := tools[name]
+		if !ok {
+			t.Errorf("always-on tool %q not built", name)
+			continue
+		}
+		if got := tl.Definition().Name; got != name {
+			t.Errorf("tool %q Definition().Name = %q — registry key and definition drifted", name, got)
+		}
+	}
+
+	// AGEZT_SANDBOX=off gates code_exec off regardless of host runtimes.
+	if _, ok := tools["code_exec"]; ok {
+		t.Error("code_exec built while AGEZT_SANDBOX=off")
+	}
+
+	// Configure with minimal deps (no kernel, no artifact index, no lake, no
+	// bus) must be a safe no-op for every hook: nothing to bind, no error.
+	if err := set.Configure(toolreg.KernelDeps{}); err != nil {
+		t.Fatalf("Configure with minimal deps: %v", err)
+	}
+
+	// PreOpen with a zero runtime.Config must also be safe — code_exec was
+	// gated off, so no spec should touch cfg.ScriptRunner here.
+	var cfg runtime.Config
+	set.ApplyPreOpen(&cfg)
+	if cfg.ScriptRunner != nil {
+		t.Error("ApplyPreOpen set ScriptRunner while code_exec is gated off")
+	}
+}
+
+// TestRegistryCodeExecGating pins code_exec's env gate: off under
+// AGEZT_SANDBOX=off, and when host runtimes exist it builds, contributes its
+// banner desc, and PreOpen wires cfg.ScriptRunner to the built instance.
+func TestRegistryCodeExecGating(t *testing.T) {
+	RegisterAll()
+
+	var stderr bytes.Buffer
+	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+		BaseDir: t.TempDir(),
+		Stderr:  &stderr,
+		Get:     mapGet(nil),
+	})
+	if err != nil {
+		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
+	}
+	ce, ok := set.Tools()["code_exec"].(*codeexec.Tool)
+	if !ok {
+		t.Skip("no code_exec runtimes on this host — gating covered by TestRegistryAlwaysOnSpecs_BuildAndConfigure")
+	}
+	if len(ce.Languages()) == 0 {
+		t.Error("built code_exec reports no languages")
+	}
+	found := false
+	for _, d := range set.Descs() {
+		if strings.HasPrefix(d, "code_exec(langs=") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Descs() missing code_exec banner: %v", set.Descs())
+	}
+	var cfg runtime.Config
+	set.ApplyPreOpen(&cfg)
+	if got, ok := cfg.ScriptRunner.(*codeexec.Tool); !ok || got != ce {
+		t.Errorf("ApplyPreOpen wired cfg.ScriptRunner = %T, want the built code_exec instance", cfg.ScriptRunner)
+	}
+}
+
 // TestRegistryBrowserActionGatedOff pins the opt-in: without
 // AGEZT_BROWSER_ACTIONS=1 the browser.action spec builds nothing, contributes
 // no verb tools, and — having built nothing — is not a netguard gap.
@@ -132,13 +229,10 @@ func TestRegistryBrowserActionGatedOff(t *testing.T) {
 			t.Errorf("unexpected verb tool %q while browser.action is gated off", name)
 		}
 	}
-	got := make([]string, 0, len(tools))
-	for name := range tools {
-		got = append(got, name)
-	}
-	sort.Strings(got)
-	if want := "fetch,http,web_search"; !strings.Contains(strings.Join(got, ","), want) {
-		t.Errorf("Tools() = %v, want the always-on trio %s present", got, want)
+	for _, want := range []string{"fetch", "http", "web_search"} {
+		if _, ok := tools[want]; !ok {
+			t.Errorf("always-on network tool %q missing from Tools()", want)
+		}
 	}
 	if gaps := set.NetguardGaps(); len(gaps) != 0 {
 		t.Errorf("NetguardGaps() = %v — a spec that built nothing must not be a gap", gaps)

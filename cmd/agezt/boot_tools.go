@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,17 +19,10 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtintools"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
-	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
-	"github.com/agezt/agezt/plugins/tools/codeexec"
 	"github.com/agezt/agezt/plugins/tools/coding"
-	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
-	configtool "github.com/agezt/agezt/plugins/tools/config"
-	counciltool "github.com/agezt/agezt/plugins/tools/council"
-	dbtool "github.com/agezt/agezt/plugins/tools/db"
 	filetool "github.com/agezt/agezt/plugins/tools/file"
 	hatool "github.com/agezt/agezt/plugins/tools/homeassistant"
 	"github.com/agezt/agezt/plugins/tools/peer"
-	research "github.com/agezt/agezt/plugins/tools/research"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
@@ -85,19 +77,18 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	out["file"] = ft
 	registered = append(registered, "file(root="+ft.Root()+")")
 
-	// config — the agent's window into the Config Center: read/write/register
-	// settings (same registry + vault as the `agt config` CLI and HTTP routes).
-	// The kernel is bound after runtime.Open (see bindConfigTool) so live-apply
-	// fields (provider/model) can rebuild the provider in place.
-	out["config"] = configtool.New(baseDir)
-	registered = append(registered, "config()")
-
-	// Registry-built tools (Phase 2.2): the netguard-capable network tools —
-	// http, browser.read, browser.action(+verbs), web_search, fetch — are built
-	// from their plugins/builtintools specs via kernel/toolreg. Construction
-	// logic (env gating, allowlists, egress-guard flags) lives in each spec's
-	// Build; the returned Set is handed to main.go so Set.Configure can wire the
-	// post-Open phases (netguard audit publisher, later Set*-injection).
+	// Registry-built tools (Phase 2.2): everything except the env-gated
+	// stragglers below (coding, acp_agent, homeassistant, remote_run, plugin
+	// host) and the LateDeps trio (notify/send_media/board, still in main.go)
+	// is built from its plugins/builtintools spec via kernel/toolreg —
+	// the netguard-capable network tools, the Set*-injection batch (config,
+	// artifacts, db, council, conductor, research, code_exec), and the
+	// kernel-bound zero-arg tools (schedule, runs, standing, skill, introspect,
+	// overseer, tool_forge, mcp, workflow, workboard). Construction logic (env
+	// gating, allowlists, egress-guard flags) lives in each spec's Build; the
+	// returned Set is handed to main.go so Set.ApplyPreOpen/Set.Configure can
+	// drive the pre-Open and post-Open phases (netguard audit publisher,
+	// ScriptRunner, Set*-injection, kernel Binds).
 	// AGEZT_ALLOW_ALL is the master permissive switch (M611): it implies the
 	// full open posture for the network tools too — any host, including
 	// loopback and the private network.
@@ -118,45 +109,6 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 	}
 	registered = append(registered, set.Descs()...)
 
-	// artifacts — list/read/delete the files the agent has saved (fetch downloads,
-	// offloaded tool outputs, inbound images), so a file from one run is usable in a
-	// later one (M832). A read/list/delete view over the artifact index injected
-	// after the kernel opens. Always registered.
-	af := artifactstool.New()
-	out["artifacts"] = af
-	registered = append(registered, "artifacts(list/read/delete)")
-
-	// db — the Personal Data Lake (M834): agent-built, multi-agent-shared structured
-	// collections (expenses, tasks, notes, contacts, …) the human can also browse in
-	// the Data view. The lake is injected after the kernel opens. Always registered.
-	dbt := dbtool.New()
-	out["db"] = dbt
-	registered = append(registered, "db(data-lake)")
-
-	// council — the Council of Elders (M837): convene a multi-model panel for a
-	// hard decision and get a reconciled consensus. The kernel runner is injected
-	// after Open. Always registered.
-	ct := counciltool.New()
-	out["council"] = ct
-	registered = append(registered, "council(consensus panel)")
-
-	// conductor — the Conductor (M997): an asymmetric, verify-driven panel
-	// (Thinker/Worker/Verifier) that runs the worker's code and loops until it
-	// passes. The kernel runner + code-exec backend are injected after Open.
-	// Always registered.
-	cond := conductortool.New()
-	out["conductor"] = cond
-	registered = append(registered, "conductor(verify-driven panel)")
-
-	// research — the deep-research harness (M1001): decompose a question,
-	// gather independent web sources via web_search + browser.read, and
-	// synthesize a citation-grounded report. The kernel runner is injected
-	// after Open. Always registered; the underlying searches/fetches are each
-	// gated by their own capability inside RunTool.
-	rt := research.New()
-	out["research"] = rt
-	registered = append(registered, "research(deep-research harness)")
-
 	// coding — external coding-agent bridge (P6-CODE). Registered only when
 	// AGEZT_CODING_CMD is set (the command that runs Claude Code / Codex / Aider
 	// / any agent). It operates on a git worktree of the workspace and returns a
@@ -165,26 +117,6 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine) (map[strin
 		if ct := coding.New(codingCmd, coding.AbsRepo(wsRoot)); ct != nil {
 			out["coding"] = ct
 			registered = append(registered, "coding(external agent)")
-		}
-	}
-
-	// code_exec — the agent writes & runs Python/JS/TS in a sandboxed workspace
-	// under <baseDir>/sandbox (M683). Routed through the same warden as shell, with
-	// a scrubbed env (no secrets), per-call ephemeral dirs (or named persistent
-	// projects), and resource caps. Registered when at least one runtime is present,
-	// UNLESS AGEZT_SANDBOX=off. Network is on by default; AGEZT_SANDBOX_NO_NET=1
-	// forces it off. Bound to the kernel bus after it opens (for the code.executed
-	// event), via the returned tools map in the daemon run path.
-	if !strings.EqualFold(strings.TrimSpace(os.Getenv(brand.EnvPrefix+"SANDBOX")), "off") {
-		if rt := codeexec.DetectRuntimes(); len(rt) > 0 {
-			netOn := os.Getenv(brand.EnvPrefix+"SANDBOX_NO_NET") != "1"
-			ce := codeexec.NewWithWarden(ward, filepath.Join(baseDir, "sandbox"), rt, netOn)
-			out["code_exec"] = ce
-			netTag := "net=on"
-			if !netOn {
-				netTag = "net=off"
-			}
-			registered = append(registered, fmt.Sprintf("code_exec(langs=%s, %s)", strings.Join(ce.Languages(), "/"), netTag))
 		}
 	}
 

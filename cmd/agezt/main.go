@@ -93,28 +93,10 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
-	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
-	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
-	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
-	configtool "github.com/agezt/agezt/plugins/tools/config"
-	counciltool "github.com/agezt/agezt/plugins/tools/council"
-	dbtool "github.com/agezt/agezt/plugins/tools/db"
-	"github.com/agezt/agezt/plugins/tools/fetch"
-	"github.com/agezt/agezt/plugins/tools/forgetool"
-	"github.com/agezt/agezt/plugins/tools/introspecttool"
-	"github.com/agezt/agezt/plugins/tools/mcptool"
 	"github.com/agezt/agezt/plugins/tools/notify"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
-	researchtool "github.com/agezt/agezt/plugins/tools/research"
-	"github.com/agezt/agezt/plugins/tools/runstool"
-	scheduletool "github.com/agezt/agezt/plugins/tools/schedule"
 	"github.com/agezt/agezt/plugins/tools/sendmedia"
-	skilltool "github.com/agezt/agezt/plugins/tools/skilltool"
-	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
-	"github.com/agezt/agezt/plugins/tools/workboardtool"
-	"github.com/agezt/agezt/plugins/tools/workflowtool"
 )
 
 func main() {
@@ -376,75 +358,16 @@ func runDaemon(stdout, stderr io.Writer) int {
 		tools["send_media"] = sendMediaTool
 	}
 
-	// Self-scheduling tool (`schedule`, M634): the agent arranges its OWN future
-	// runs in the daemon's cadence store. Registered here (before the kernel
-	// starts, like notify) and Bound to the live store after the kernel opens.
-	// Always available — the schedule store is the kernel's and always exists.
-	scheduleTool := scheduletool.New()
-	tools["schedule"] = scheduleTool
-
-	// Run-introspection tool (`runs`, M644): the agent recalls its OWN past runs
-	// from the journal. Registered now, Bound to the live journal after the kernel
-	// opens. Always available — the journal is the kernel's and always exists.
-	runsTool := runstool.New()
-	tools["runs"] = runsTool
-
-	// Standing-order tool (`standing`, M645): the agent creates durable event/cron
-	// trigger rules that wake an agent later. Registered now, Bound to the kernel
-	// after it opens (the kernel satisfies the tool's journaled standing-CRUD surface).
-	standingToolInst := standingtool.New()
-	tools["standing"] = standingToolInst
-
 	// Board tool (`board`, M647): the shared, persistent message board every agent
 	// can post to and read from, so they can coordinate and talk to each other.
 	// Registered now, Bound to its on-disk store under the daemon base dir after
-	// the kernel opens.
+	// the kernel opens. Still a captured local (like notify/send_media) because
+	// its wiring needs the board store + notifier built late in boot — the other
+	// kernel-bound zero-arg tools (schedule, runs, standing, skill, introspect,
+	// overseer, tool_forge, mcp, workflow, workboard) moved to registry specs in
+	// plugins/builtintools and are wired by toolSet.Configure after Open.
 	boardToolInst := boardtool.New()
 	tools["board"] = boardToolInst
-
-	// Skill tool (`skill`, M648): the agent modifies ITSELF — authoring, promoting,
-	// and retiring its own reusable procedures through Forge. Registered now, Bound
-	// to the kernel's Forge after it opens.
-	skillToolInst := skilltool.New()
-	tools["skill"] = skillToolInst
-
-	// Introspection tool (`introspect`, M682): the agent reads the daemon's OWN
-	// live state — a real health overview plus schedule/standing detail — in one
-	// call, so a "summarise AGEZT's health" task can see everything instead of
-	// guessing. Registered now, Bound to the live kernel after it opens.
-	introspectToolInst := introspecttool.New()
-	tools["introspect"] = introspectToolInst
-
-	// Overseer tool (`overseer`, M850): the brain/overseer agent supervises and
-	// intervenes on the fleet — list/cancel runs, halt/resume the daemon, pause/
-	// retire/revive agents, triage open help. Registered now, Bound after open.
-	overseerToolInst := overseertool.New()
-	tools["overseer"] = overseerToolInst
-
-	// Tool-forge tool (`tool_forge`, M794): the agent builds its OWN tools —
-	// drafts a script, tests it in the code_exec sandbox, and once the operator
-	// promotes it every run can call it as forge_<name>. Registered now, Bound
-	// to the live kernel after it opens.
-	forgeToolInst := forgetool.New()
-	tools["tool_forge"] = forgeToolInst
-
-	// MCP self-install tool (`mcp`, M796): the agent extends its own toolbox —
-	// registering and ATTACHING MCP servers at runtime (Edict mcp.install, Ask
-	// by default). Registered now, Bound to the live kernel after it opens.
-	mcpToolInst := mcptool.New()
-	tools["mcp"] = mcpToolInst
-
-	// Workflow tool (`workflow`, M802): the agent authors and runs durable
-	// workflows in the SAME store the console canvas edits (Edict
-	// workflow.manage, AskFirst by default; tool nodes inside a run re-gate
-	// per call). Registered now, Bound to the live kernel after it opens.
-	workflowToolInst := workflowtool.New()
-	tools["workflow"] = workflowToolInst
-
-	// Workboard tool: agents create and move durable typed work items through the
-	// same journaled runtime path the CLI and control plane use.
-	workboardToolInst := workboardtool.New()
-	tools["workboard"] = workboardToolInst
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -785,12 +708,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SubAgentMaxSpendMicrocents: subAgentSpendCap,
 		SubAgentMaxTotal:           subAgentTotal,
 	}
-	// Script-tool forge runner (M794): forged tools execute through the same
-	// code_exec sandbox (warden isolation, scrubbed env). Only wired when the
-	// sandbox is available — without it the forge reports itself unavailable.
-	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
-		cfg.ScriptRunner = ce
-	}
+	// Pre-Open registry hooks (Phase 2.2): each built spec may mutate the
+	// runtime Config before Open. Today that's code_exec wiring itself in as
+	// cfg.ScriptRunner (M794) — forged tools execute through the same sandbox
+	// (warden isolation, scrubbed env); without the sandbox the forge reports
+	// itself unavailable.
+	toolSet.ApplyPreOpen(&cfg)
 	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
 	// long a single run may take inside a live session. Off by default (only
 	// MaxIter + explicit halt bound a run); a positive duration arms the cap.
@@ -1117,47 +1040,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	defer k.Close()
 
-	// Bind the kernel into the config tool now that it exists, so live-apply
-	// fields (provider/model) rebuild the provider in place via Reload().
-	if ct, ok := tools["config"].(*configtool.Tool); ok {
-		ct.SetKernel(k)
-	}
-	// Inject the artifact index into the fetch tool (M831) now that the kernel
-	// owns it, so downloaded files are saved as browsable artifacts.
-	if fe, ok := tools["fetch"].(*fetch.Tool); ok {
-		fe.SetIndex(k.ArtifactIndex())
-	}
-	// Inject the artifact index into browser.action so screenshots/downloads
-	// become durable Files-view artifacts instead of temp-file-only paths.
-	if ba, ok := tools["browser.action"].(*browser.ActionTool); ok {
-		ba.SetIndex(k.ArtifactIndex())
-	}
-	// Inject the artifact index into the artifacts tool (M832) so the agent can
-	// list/read/delete the files it has saved.
-	if af, ok := tools["artifacts"].(*artifactstool.Tool); ok {
-		af.SetIndex(k.ArtifactIndex())
-	}
-	// Inject the artifact index into code_exec so scripts can intentionally
-	// export durable files by writing them under .agezt-artifacts/.
-	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
-		ce.SetIndex(k.ArtifactIndex())
-	}
-	// Inject the data lake into the db tool (M834).
-	if dbt, ok := tools["db"].(*dbtool.Tool); ok {
-		dbt.SetStore(k.DataLake())
-	}
-	// Inject the kernel into the council tool (M837) as the deliberation runner.
-	if ct, ok := tools["council"].(*counciltool.Tool); ok {
-		ct.SetRunner(k)
-	}
-	// Inject the kernel into the conductor tool (M997) as the orchestration runner.
-	if cond, ok := tools["conductor"].(*conductortool.Tool); ok {
-		cond.SetRunner(k)
-	}
-	// Inject the kernel into the research tool (M1001) as the harness runner.
-	if rt, ok := tools["research"].(*researchtool.Tool); ok {
-		rt.SetRunner(k)
-	}
+	// Post-Open dependency injection (config's kernel, the artifact index for
+	// fetch/browser.action/artifacts/code_exec, the db data lake, the
+	// council/conductor/research runners, the kernel Binds for the zero-arg
+	// tools) is registry-driven: each spec's Configure hook runs in
+	// toolSet.Configure below.
 
 	// Wire the bus into the Governor and the Warden so their events
 	// land in the journal. MUST happen before any Run is dispatched.
@@ -1196,10 +1083,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		autoPromoteDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOPROMOTE=on to enable)"
 	}
 	// Registry-driven post-Open tool wiring (Phase 2.2): Set.Configure walks the
-	// registry-built specs and wires the egress-block audit (M109) — when a
+	// registry-built specs and (a) wires the egress-block audit (M109) — when a
 	// netguard-guarded tool refuses a dial, a netguard.blocked event is journaled
-	// so an operator can see attempted SSRF / metadata reads. Wired here because
-	// the tools are built before the kernel exists (same ordering as gov.SetBus).
+	// so an operator can see attempted SSRF / metadata reads — and (b) runs each
+	// spec's Configure hook: kernel/artifact-index/data-lake/runner injection for
+	// the Set*-injection batch and the kernel Binds for the zero-arg tools
+	// (schedule, runs, standing, skill, introspect, overseer, tool_forge, mcp,
+	// workflow, workboard). Wired here because the tools are built before the
+	// kernel exists (same ordering as gov.SetBus).
 	if err := toolSet.Configure(toolreg.KernelDeps{
 		K:               k,
 		Bus:             k.Bus(),
@@ -1788,23 +1679,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  send_media tool  : enabled (the agent can send images/voice/files to the operator)\n")
 	}
 
-	// Bind the self-scheduling tool to the live cadence store (M634), now that the
-	// kernel (and its store) exist. The store is the same one the schedule engine
-	// ticks, so an agent-created schedule fires like any operator-added one.
-	if sched := k.Schedules(); sched != nil {
-		scheduleTool.Bind(sched)
-		scheduleTool.BindAgentLookup(k.Roster().Get)
+	// The schedule/runs/standing tools were wired to the live kernel by their
+	// registry specs' Configure hooks (toolSet.Configure, just after Open); only
+	// the boot banner remains here so the output is unchanged.
+	if k.Schedules() != nil {
 		fmt.Fprintf(stdout, "  schedule tool    : enabled (the agent can schedule its own future runs)\n")
 	}
-
-	// Bind the run-introspection tool to the live journal (M644).
-	if j := k.Journal(); j != nil {
-		runsTool.Bind(j)
-	}
-
-	// Bind the standing-order tool to the kernel (M645) — it satisfies the tool's
-	// journaled AddStanding / RemoveStanding / Standing() surface.
-	standingToolInst.Bind(k)
 
 	// Bind the shared message board (M647): the SAME store instance the control
 	// plane and REST mailbox write through (opened once, before the servers).
@@ -1820,10 +1700,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
 	}
 
-	// Bind the skill tool to the kernel's Forge (M648), so the agent can author and
-	// manage its OWN skills through the same journaled, reversible state machine.
+	// The skill tool was bound to the kernel's Forge (M648) by its registry
+	// spec's Configure hook; the banner + the Forge-dependent seeding below stay.
 	if fg := k.Forge(); fg != nil {
-		skillToolInst.Bind(fg)
 		fmt.Fprintf(stdout, "  skill tool       : enabled (the agent can author and manage its own skills)\n")
 
 		// Seed the built-in skill bundles baked into the binary (M852), so
@@ -1858,15 +1737,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  marketplace      : enabled (built-in Official + synced remotes; `agt market`)\n")
 	}
 
-	// Bind the introspection tool to the live kernel (M682), so the agent can read
-	// the daemon's own health/schedules/standing-orders in one call.
-	introspectToolInst.Bind(introspecttool.NewKernelSource(k))
+	// The introspect (M682) and overseer (M850) tools were bound to the live
+	// kernel by their registry specs' Configure hooks; banners stay here.
 	fmt.Fprintf(stdout, "  introspect tool  : enabled (the agent can read the daemon's own live state)\n")
-
-	// Bind the overseer tool to the live kernel (M850), so a brain/overseer agent
-	// can supervise and intervene on the fleet — cancel runs, halt/resume, pause/
-	// retire/revive agents, triage open help. baseDir locates the board it reads.
-	overseerToolInst.Bind(overseertool.NewKernelSource(k, baseDir))
 	fmt.Fprintf(stdout, "  overseer tool    : enabled (a brain agent can supervise & intervene on the fleet)\n")
 
 	// Seed the built-in guardian agents (M961): the daemon's internal self-healing
@@ -1890,41 +1763,31 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
-	// Bind the code-execution tool to the live bus (M683) so each run journals a
-	// code.executed event. The tool itself was constructed in buildTools (it needed
-	// the warden + base dir); we reach it through the returned tools map.
+	// code_exec wiring — the bus bind (M683, code.executed events) and the
+	// Conductor's Verifier backend (M997) — moved to its registry spec's
+	// Configure hook. Only the banner remains; the type assertion here is
+	// display-only (Languages() isn't on agent.Tool).
 	if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
-		ce.Bind(k.Bus())
-		// Let the Conductor's Verifier role (M997) actually RUN a worker's code
-		// through the same sandbox. nil-safe: when code_exec is absent the
-		// Verifier falls back to LLM critique.
-		k.SetConductorExec(ce)
 		fmt.Fprintf(stdout, "  code_exec tool   : enabled (the agent can write & run code: %s)\n", strings.Join(ce.Languages(), ", "))
 	}
 
-	// Bind the tool-forge tool to the live kernel (M794), so the agent can draft
-	// and test its own script tools through the journaled scripttool.* lifecycle.
-	forgeToolInst.Bind(k)
+	// The tool_forge tool (M794) was bound to the live kernel by its registry
+	// spec's Configure hook; the banner stays.
 	promoteMode := "auto-promotes tested tools"
 	if !autoPromoteScriptTools {
 		promoteMode = "operator promotes"
 	}
 	fmt.Fprintf(stdout, "  tool_forge tool  : enabled (the agent can build its own tools; %s)\n", promoteMode)
 
-	// Bind the workflow tool (M802): agents author/run workflows themselves;
-	// everything lands in the journaled workflow.* lifecycle the operator sees.
-	workflowToolInst.Bind(k)
+	// The workflow (M802) and workboard tools were bound to the live kernel by
+	// their registry specs' Configure hooks; banners stay.
 	fmt.Fprintf(stdout, "  workflow tool    : enabled (the agent can author & run workflows)\n")
-
-	// Bind the workboard tool: agents can coordinate through durable typed tasks
-	// instead of hiding state in chat.
-	workboardToolInst.Bind(k)
 	fmt.Fprintf(stdout, "  workboard tool   : enabled (agents can coordinate through durable tasks)\n")
 
-	// Bind the MCP self-install tool (M796) and auto-attach every ENABLED
-	// registered server. Per-server failures are reported, never fatal — one
+	// The MCP self-install tool (M796) was bound by its registry spec's
+	// Configure hook; auto-attach every ENABLED registered server here (it needs
+	// the daemon ctx). Per-server failures are reported, never fatal — one
 	// broken server must not take the daemon down.
-	mcpToolInst.Bind(k)
 	if registered := k.MCPStore().Count(); registered > 0 {
 		attached, failures := k.AttachEnabledMCPServers(ctx)
 		fmt.Fprintf(stdout, "  mcp servers      : %d attached of %d registered\n", len(attached), registered)
