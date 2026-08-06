@@ -18,9 +18,6 @@ import (
 // silent-drift class this migration exists to close — a channel shipped with
 // a manifest but no wiring).
 var factoryTODO = map[string]bool{
-	// legacy batch D (push-suppression cluster)
-	"googlechat": true, "mattermost": true, "dingtalk": true,
-	"feishu": true, "wecom": true, "mastodon": true,
 	// push family
 	"ntfy": true, "pushover": true, "gotify": true, "pushbullet": true,
 	"rocketchat": true, "zulip": true, "synology": true,

@@ -33,7 +33,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	stdruntime "runtime"
 	"sort"
 	"strconv"
@@ -87,12 +86,7 @@ import (
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/builtinskills"
-	"github.com/agezt/agezt/plugins/channels/chatwebhook"
-	"github.com/agezt/agezt/plugins/channels/dingtalk"
-	"github.com/agezt/agezt/plugins/channels/feishu"
-	"github.com/agezt/agezt/plugins/channels/mastodon"
 	"github.com/agezt/agezt/plugins/channels/push"
-	"github.com/agezt/agezt/plugins/channels/wecom"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
@@ -1565,21 +1559,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Two-way Google Chat / Mattermost (incoming webhook out + webhook in) —
 	// supersede the outbound-only push entries when an inbound addr is set.
-	gcInsts := buildAccountsLegacy(ctx, k, "googlechat", func(c context.Context, kk *kernelruntime.Kernel) (*chatwebhook.Channel, pulse.BriefSink, string) {
-		return buildChatWebhook(c, kk, chatwebhook.KindGoogleChat, "GOOGLECHAT")
-	})
+	gcInsts := wireInstances(channelwire.BuildKind(ctx, "googlechat", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "googlechat", "googlechat (2way)", "", gcInsts)
-	mmInsts := buildAccountsLegacy(ctx, k, "mattermost", func(c context.Context, kk *kernelruntime.Kernel) (*chatwebhook.Channel, pulse.BriefSink, string) {
-		return buildChatWebhook(c, kk, chatwebhook.KindMattermost, "MATTERMOST")
-	})
+	mmInsts := wireInstances(channelwire.BuildKind(ctx, "mattermost", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "mattermost", "mattermost (2way)", "", mmInsts)
 
 	// DingTalk / Feishu / WeCom two-way (China enterprise platforms).
-	dtInsts := buildAccountsLegacy(ctx, k, "dingtalk", buildDingTalk)
+	dtInsts := wireInstances(channelwire.BuildKind(ctx, "dingtalk", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "dingtalk", "dingtalk (2way)", "", dtInsts)
-	fsInsts := buildAccountsLegacy(ctx, k, "feishu", buildFeishu)
+	fsInsts := wireInstances(channelwire.BuildKind(ctx, "feishu", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "feishu", "feishu (2way)", "", fsInsts)
-	wcInsts := buildAccountsLegacy(ctx, k, "wecom", buildWeCom)
+	wcInsts := wireInstances(channelwire.BuildKind(ctx, "wecom", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "wecom", "wecom (2way)", "", wcInsts)
 
 	// QQ / WeChat via a OneBot v11 gateway; Zalo via the Official Account API.
@@ -1591,7 +1581,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	startInstances(ctx, stdout, "zalo", "zalo channel", "", zlInsts)
 	nctInsts := wireInstances(channelwire.BuildKind(ctx, "nextcloudtalk", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "nextcloudtalk", "nextcloud talk", "", nctInsts)
-	maInsts := buildAccountsLegacy(ctx, k, "mastodon", buildMastodon)
+	maInsts := wireInstances(channelwire.BuildKind(ctx, "mastodon", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "mastodon", "mastodon channel", "", maInsts)
 	noInsts := wireInstances(channelwire.BuildKind(ctx, "nostr", k.Bus(), chanHandler))
 	startInstances(ctx, stdout, "nostr", "nostr channel", "", noInsts)
@@ -2522,8 +2512,8 @@ func extForMime(mime string) string {
 // own the "line" name (a channel secret is set) — in which case buildPushChannels
 // yields LINE to it to avoid a double registration. The two-way builder itself
 // migrated to the channelwire factory (plugins/builtinchannels); this predicate
-// only concerns the DEFAULT instance and moves with the push-suppression
-// cluster in batch D.
+// only concerns the DEFAULT instance — its sole remaining caller is
+// buildPushChannels — and moves with the push family.
 func twoWayLineConfigured() bool {
 	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"LINE_SECRET")) != ""
 }
@@ -2531,212 +2521,21 @@ func twoWayLineConfigured() bool {
 // twoWayChatConfigured reports whether the two-way chat-webhook channel for a
 // push kind (prefix "GOOGLECHAT" / "MATTERMOST") should own that name — an
 // inbound addr is set — so buildPushChannels yields the outbound-only entry.
+// The two-way builder itself migrated to the channelwire factory
+// (chatWebhookFactory in plugins/builtinchannels); this predicate only concerns
+// the DEFAULT instance and moves with the push-suppression cluster.
 func twoWayChatConfigured(prefix string) bool {
 	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+prefix+"_ADDR")) != ""
 }
 
-// buildChatWebhook constructs a two-way Google Chat / Mattermost channel when its
-// inbound addr is set. Outbound + replies use the incoming-webhook URL.
-//
-//	AGEZT_<PREFIX>_WEBHOOK  incoming-webhook URL (outbound + replies)
-//	AGEZT_<PREFIX>_ADDR     host:port to serve the inbound webhook (enables two-way)
-//	AGEZT_<PREFIX>_TOKEN    verification token (Mattermost outgoing-webhook token / Google Chat ?token=)
-//	AGEZT_<PREFIX>_USERS    comma-separated allowed senders (usernames / emails)
-//	AGEZT_<PREFIX>_PATH     inbound route (default /<kind>)
-func buildChatWebhook(ctx context.Context, k *kernelruntime.Kernel, kind, prefix string) (*chatwebhook.Channel, pulse.BriefSink, string) {
-	if !twoWayChatConfigured(prefix) {
-		return nil, nil, ""
-	}
-	get := func(s string) string { return strings.TrimSpace(os.Getenv(brand.EnvPrefix + prefix + s)) }
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + prefix + "_USERS"))
-	webhook := get("_WEBHOOK")
-
-	ch := chatwebhook.New(chatwebhook.Config{
-		Kind:       kind,
-		WebhookURL: webhook,
-		Token:      get("_TOKEN"),
-		Allowlist:  channel.NewAllowlist(users),
-		Bus:        k.Bus(),
-		Handler:    makeChannelHandler(k),
-		Addr:       get("_ADDR"),
-		Path:       get("_PATH"),
-	})
-
-	var sink pulse.BriefSink
-	if webhook != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
-		})
-	}
-
-	desc := fmt.Sprintf("%s two-way, allowlist=%d sender(s)", kind, len(users))
-	if webhook == "" {
-		desc += " (inbound-only; set AGEZT_" + prefix + "_WEBHOOK for replies/briefs)"
-	}
-	return ch, sink, desc
-}
-
-// buildDingTalk constructs the two-way DingTalk channel when AGEZT_DINGTALK_ADDR
-// is set. Replies go to each message's sessionWebhook; briefs use the custom
-// robot webhook (AGEZT_DINGTALK_WEBHOOK).
-//
-//	AGEZT_DINGTALK_WEBHOOK  custom-robot webhook (outbound briefs / agt send)
-//	AGEZT_DINGTALK_SECRET   robot secret (verifies inbound timestamp+sign)
-//	AGEZT_DINGTALK_USERS    comma-separated allowed senderStaffId / nick
-//	AGEZT_DINGTALK_ADDR     host:port to serve the inbound webhook (enables two-way)
-//	AGEZT_DINGTALK_PATH     inbound route (default /dingtalk)
-func buildDingTalk(ctx context.Context, k *kernelruntime.Kernel) (*dingtalk.Channel, pulse.BriefSink, string) {
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_ADDR"))
-	if addr == "" {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "DINGTALK_USERS"))
-	webhook := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_WEBHOOK"))
-	ch := dingtalk.New(dingtalk.Config{
-		WebhookURL: webhook,
-		Secret:     strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_SECRET")),
-		Allowlist:  channel.NewAllowlist(users),
-		Bus:        k.Bus(),
-		Handler:    makeChannelHandler(k),
-		Addr:       addr,
-		Path:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "DINGTALK_PATH")),
-	})
-	var sink pulse.BriefSink
-	if webhook != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
-		})
-	}
-	return ch, sink, fmt.Sprintf("DingTalk robot, allowlist=%d sender(s)", len(users))
-}
-
-// buildFeishu constructs the two-way Feishu / Lark channel when AGEZT_FEISHU_ADDR
-// is set. Replies + briefs use the IM API (tenant_access_token from app id/secret).
-//
-//	AGEZT_FEISHU_APP_ID        app id
-//	AGEZT_FEISHU_APP_SECRET    app secret
-//	AGEZT_FEISHU_VERIFY_TOKEN  event verification token
-//	AGEZT_FEISHU_CHAT          chat_id for proactive briefs
-//	AGEZT_FEISHU_USERS         comma-separated allowed sender open_ids
-//	AGEZT_FEISHU_ADDR          host:port to serve the inbound webhook (enables two-way)
-//	AGEZT_FEISHU_PATH          inbound route (default /feishu)
-func buildFeishu(ctx context.Context, k *kernelruntime.Kernel) (*feishu.Channel, pulse.BriefSink, string) {
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_ADDR"))
-	appID := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_APP_ID"))
-	if addr == "" || appID == "" {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "FEISHU_USERS"))
-	chat := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_CHAT"))
-	ch := feishu.New(feishu.Config{
-		AppID:       appID,
-		AppSecret:   strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_APP_SECRET")),
-		VerifyToken: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_VERIFY_TOKEN")),
-		DefaultChat: chat,
-		Allowlist:   channel.NewAllowlist(users),
-		Bus:         k.Bus(),
-		Handler:     makeChannelHandler(k),
-		Addr:        addr,
-		Path:        strings.TrimSpace(os.Getenv(brand.EnvPrefix + "FEISHU_PATH")),
-	})
-	var sink pulse.BriefSink
-	if chat != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			return ch.Send(ctx, channel.Outbound{ChannelID: chat, Text: formatBrief(b), Priority: channel.PriorityNotify})
-		})
-	}
-	return ch, sink, fmt.Sprintf("Feishu app, allowlist=%d user(s)", len(users))
-}
-
-// buildWeCom constructs the two-way WeCom (WeChat Work) channel when
-// AGEZT_WECOM_ADDR is set. Inbound is an AES-encrypted callback; replies use the
-// app message-send API (access_token from corp id/secret).
-//
-//	AGEZT_WECOM_CORP_ID      corp id
-//	AGEZT_WECOM_CORP_SECRET  app secret
-//	AGEZT_WECOM_AGENT_ID     app agent id
-//	AGEZT_WECOM_TOKEN        callback token
-//	AGEZT_WECOM_AES_KEY      callback EncodingAESKey
-//	AGEZT_WECOM_USERS        comma-separated allowed user ids
-//	AGEZT_WECOM_ADDR         host:port to serve the inbound callback (enables two-way)
-//	AGEZT_WECOM_PATH         inbound route (default /wecom)
-func buildWeCom(ctx context.Context, k *kernelruntime.Kernel) (*wecom.Channel, pulse.BriefSink, string) {
-	addr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_ADDR"))
-	corp := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_CORP_ID"))
-	if addr == "" || corp == "" {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "WECOM_USERS"))
-	ch := wecom.New(wecom.Config{
-		CorpID:     corp,
-		CorpSecret: strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_CORP_SECRET")),
-		AgentID:    strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_AGENT_ID")),
-		Token:      strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_TOKEN")),
-		AESKey:     strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_AES_KEY")),
-		Allowlist:  channel.NewAllowlist(users),
-		Bus:        k.Bus(),
-		Handler:    makeChannelHandler(k),
-		Addr:       addr,
-		Path:       strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WECOM_PATH")),
-	})
-	var sink pulse.BriefSink
-	if len(users) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
-			var firstErr error
-			for _, u := range users {
-				if err := ch.Send(ctx, channel.Outbound{ChannelID: u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
-					firstErr = err
-				}
-			}
-			return firstErr
-		})
-	}
-	return ch, sink, fmt.Sprintf("WeCom app, allowlist=%d user(s)", len(users))
-}
-
 // twoWayMastodonConfigured reports whether the dedicated two-way Mastodon channel
 // should own the "mastodon" name — true when an acct allowlist is set, signalling
-// the operator wants the agent to answer mentions (not just post).
+// the operator wants the agent to answer mentions (not just post). The two-way
+// builder itself migrated to the channelwire factory (plugins/builtinchannels);
+// this predicate only concerns the DEFAULT instance and moves with the
+// push-suppression cluster.
 func twoWayMastodonConfigured() bool {
 	return strings.TrimSpace(os.Getenv(brand.EnvPrefix+"MASTODON_USERS")) != ""
-}
-
-// buildMastodon constructs the two-way Mastodon channel when AGEZT_MASTODON_USERS
-// is set (alongside SERVER + TOKEN). It polls mention notifications and replies as
-// threaded statuses; outbound briefs post standalone statuses.
-//
-//	AGEZT_MASTODON_SERVER  instance base URL (required)
-//	AGEZT_MASTODON_TOKEN   access token, read:notifications + write:statuses (required)
-//	AGEZT_MASTODON_USERS   comma-separated acct handles allowed to drive the agent (enables two-way)
-//	AGEZT_MASTODON_POLL    poll interval seconds (default 60)
-func buildMastodon(ctx context.Context, k *kernelruntime.Kernel) (*mastodon.Channel, pulse.BriefSink, string) {
-	if !twoWayMastodonConfigured() {
-		return nil, nil, ""
-	}
-	server := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MASTODON_SERVER"))
-	token := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MASTODON_TOKEN"))
-	if server == "" || token == "" {
-		return nil, nil, ""
-	}
-	users := splitNonEmpty(os.Getenv(brand.EnvPrefix + "MASTODON_USERS"))
-	poll := 0
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "MASTODON_POLL")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			poll = n
-		}
-	}
-	ch := mastodon.New(mastodon.Config{
-		Server:    server,
-		Token:     token,
-		Allowlist: channel.NewAllowlist(users),
-		Bus:       k.Bus(),
-		Handler:   makeChannelHandler(k),
-		PollSecs:  poll,
-	})
-	sink := pulse.SinkFunc(func(b pulse.Brief) error {
-		return ch.Send(ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
-	})
-	return ch, sink, fmt.Sprintf("Mastodon (two-way), allowlist=%d acct(s)", len(users))
 }
 
 // buildPushChannels constructs every configured push-notification channel (ntfy,
@@ -2765,7 +2564,8 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 		add(push.Config{Kind: push.KindPushbullet, Token: env("PUSHBULLET_TOKEN")})
 	}
 	if u := env("GOOGLECHAT_WEBHOOK"); u != "" && !twoWayChatConfigured("GOOGLECHAT") {
-		// Two-way Google Chat (AGEZT_GOOGLECHAT_ADDR) owns the name; see buildChatWebhook.
+		// Two-way Google Chat (AGEZT_GOOGLECHAT_ADDR) owns the name; see
+		// chatWebhookFactory in plugins/builtinchannels.
 		add(push.Config{Kind: push.KindGoogleChat, URL: u})
 	}
 	if u := env("MATTERMOST_WEBHOOK"); u != "" && !twoWayChatConfigured("MATTERMOST") {
@@ -2789,7 +2589,8 @@ func buildPushChannels(ctx context.Context, k *kernelruntime.Kernel) ([]*push.Ch
 		add(push.Config{Kind: push.KindZulip, Server: env("ZULIP_SERVER"), User: env("ZULIP_EMAIL"), Token: env("ZULIP_APIKEY"), Target: env("ZULIP_STREAM"), Topic: env("ZULIP_TOPIC")})
 	}
 	// Feishu/DingTalk/WeCom: the dedicated two-way channels own the name when
-	// their inbound addr is configured (see buildFeishu/buildDingTalk/buildWeCom).
+	// their inbound addr is configured (see the buildFeishu/buildDingTalk/
+	// buildWeCom factories in plugins/builtinchannels).
 	if u := env("FEISHU_WEBHOOK"); u != "" && (env("FEISHU_ADDR") == "" || env("FEISHU_APP_ID") == "") {
 		add(push.Config{Kind: push.KindFeishu, URL: u})
 	}
@@ -2902,24 +2703,6 @@ type chanInstance struct {
 // (back-compat) instance, "kind#label" for a labelled one.
 func instanceKey(kind, label string) string { return channel.InstanceKey(kind, label) }
 
-// channelLabels returns the configured NON-default instance labels for a channel
-// kind, discovered from the process env (the daemon injects store+vault keys,
-// including "#label" suffixed ones, at boot via injectConfig).
-func channelLabels(kind string) []string {
-	baseEnvs := settings.SectionEnvs(kind)
-	if len(baseEnvs) == 0 {
-		return nil
-	}
-	env := os.Environ()
-	keys := make([]string, 0, len(env))
-	for _, kv := range env {
-		if k, _, ok := strings.Cut(kv, "="); ok {
-			keys = append(keys, k)
-		}
-	}
-	return settings.AccountLabels(keys, baseEnvs)
-}
-
 // wireInstances converts channelwire's built instances (the factory-migrated
 // channels, Phase 2.1) into the daemon's chanInstance shape so the existing
 // startInstances / allInsts / registerInstances wiring stays untouched.
@@ -2996,9 +2779,11 @@ func instanceMatch(keys []string, target string) []string {
 
 // overlayEnv temporarily sets each base env to its "#label" value for a labelled
 // instance, returning a restore func; for the default instance ("") it's a no-op.
-// This lets the legacy buildXxx functions (which read os.Getenv directly) build a
+// It let the legacy buildXxx functions (which read os.Getenv directly) build a
 // labelled account without rewriting them — safe because builds are synchronous
-// and each channel reads its config into a struct before Start runs.
+// and each channel reads its config into a struct before Start runs. The two-way
+// builders have all migrated to channelwire factories; this stays for the
+// remaining os.Getenv-reading push family (buildPushChannels) until it migrates.
 func overlayEnv(baseEnvs []string, label string) func() {
 	if label == "" {
 		return func() {}
@@ -3026,25 +2811,6 @@ func overlayEnv(baseEnvs []string, label string) func() {
 			}
 		}
 	}
-}
-
-// buildAccountsLegacy builds the default + every "#label" instance of a channel
-// whose buildXxx still reads os.Getenv directly, via overlayEnv. A typed-nil
-// return (unconfigured instance) is skipped.
-func buildAccountsLegacy[T channel.Channel](ctx context.Context, k *kernelruntime.Kernel, kind string,
-	f func(context.Context, *kernelruntime.Kernel) (T, pulse.BriefSink, string)) []chanInstance {
-	baseEnvs := settings.SectionEnvs(kind)
-	var out []chanInstance
-	for _, label := range append([]string{""}, channelLabels(kind)...) {
-		restore := overlayEnv(baseEnvs, label)
-		ch, sink, desc := f(ctx, k)
-		restore()
-		if rv := reflect.ValueOf(ch); rv.Kind() == reflect.Ptr && rv.IsNil() {
-			continue
-		}
-		out = append(out, chanInstance{key: instanceKey(kind, label), desc: desc, ch: ch, sink: sink})
-	}
-	return out
 }
 
 // liveChannelKeys returns the instance keys of the live channel map (used to

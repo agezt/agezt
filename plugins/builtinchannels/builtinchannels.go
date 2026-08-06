@@ -12,6 +12,7 @@ package builtinchannels
 import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
+	"github.com/agezt/agezt/plugins/channels/chatwebhook"
 )
 
 // RegisterAll seeds the channel registry with the built-in manifests and the
@@ -43,6 +44,12 @@ func RegisterAll() {
 	channelwire.Register("qq", oneBotFactory("qq", "QQ"))
 	channelwire.Register("wechat", oneBotFactory("wechat", "WECHAT"))
 	channelwire.Register("line", buildLine)
+	channelwire.Register("googlechat", chatWebhookFactory(chatwebhook.KindGoogleChat, "GOOGLECHAT"))
+	channelwire.Register("mattermost", chatWebhookFactory(chatwebhook.KindMattermost, "MATTERMOST"))
+	channelwire.Register("dingtalk", buildDingTalk)
+	channelwire.Register("feishu", buildFeishu)
+	channelwire.Register("wecom", buildWeCom)
+	channelwire.Register("mastodon", buildMastodon)
 }
 
 var manifests = []channel.Manifest{

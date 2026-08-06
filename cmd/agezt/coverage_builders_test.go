@@ -45,11 +45,15 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	// so every config key resolves to "" and each factory must return
 	// NotConfigured (empty Desc, no channels) without any network work.
 	builtinchannels.RegisterAll()
+	// googlechat/mattermost cover the parameterized chatWebhookFactory closure
+	// (which replaced the old generic-prefix buildChatWebhook assertion — the
+	// factory registry only exposes the two registered kind/prefix pairs).
 	for _, kind := range []string{
 		"telegram", "slack", "email", "discord", "matrix", "whatsapp",
 		"webhook", "irc", "twitch", "sms", "signal",
 		"whatsappgw", "imessage", "homeassistant", "teams", "nextcloudtalk",
 		"nostr", "zalo", "qq", "wechat", "line",
+		"googlechat", "mattermost", "dingtalk", "feishu", "wecom", "mastodon",
 	} {
 		f, ok := channelwire.Lookup(kind)
 		if !ok {
@@ -63,25 +67,6 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 		if len(built.Channels) != 0 {
 			t.Errorf("%s factory returned %d channel(s) when unconfigured", kind, len(built.Channels))
 		}
-	}
-
-	// Builders that read os.Getenv directly. None of their env vars are set in
-	// the test process, so each must early-return an empty descriptor.
-	envBuilders := map[string]func() string{
-		"dingtalk": func() string { _, _, d := buildDingTalk(ctx, k); return d },
-		"feishu":   func() string { _, _, d := buildFeishu(ctx, k); return d },
-		"wecom":    func() string { _, _, d := buildWeCom(ctx, k); return d },
-		"mastodon": func() string { _, _, d := buildMastodon(ctx, k); return d },
-	}
-	for name, fn := range envBuilders {
-		if desc := fn(); desc != "" {
-			t.Errorf("%s builder returned a non-empty desc %q when unconfigured", name, desc)
-		}
-	}
-
-	// kind/prefix builder — a chat webhook with an unset prefix.
-	if _, _, d := buildChatWebhook(ctx, k, "custom", "CUSTOM"); d != "" {
-		t.Errorf("chat webhook returned %q when unconfigured", d)
 	}
 }
 
