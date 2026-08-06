@@ -40,6 +40,12 @@ func TestConfigEnvVars_CoversCmdAgeztReads(t *testing.T) {
 		// parsing moved into (the ReadDir scan below is non-recursive, so the
 		// subdirectory needs its own root).
 		filepath.Join(repoRoot, "cmd", "agezt", "internal", "daemonconfig"),
+		// Phase 2.6: the auto-repair coordinator moved to kernel/selfrepair
+		// (AUTO_REPAIR, AUTO_REPAIR_COOLDOWN, ROUTING_ROLLBACK_PROBATION).
+		filepath.Join(repoRoot, "kernel", "selfrepair"),
+		// Phase 2.6: the system-task executors moved to kernel/cadence/systemtasks
+		// (GRAVEYARD_RETENTION_DAYS, CATALOG_URL).
+		filepath.Join(repoRoot, "kernel", "cadence", "systemtasks"),
 		filepath.Join(repoRoot, "plugins", "providerboot"),
 		filepath.Join(repoRoot, "plugins", "builtinchannels"),
 		filepath.Join(repoRoot, "plugins", "builtintools"),
