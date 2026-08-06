@@ -34,7 +34,17 @@ import (
 // the concrete instance their own Build produced — so a Set built from one
 // RegisterAll generation always Configures its OWN instances, never a later
 // generation's.
+//
+// ORDER MATTERS twice over: Set.Descs() follows registration order and feeds
+// the daemon's "tools :" banner line (kept identical to the old hand-assembled
+// order — shell, file, network tools, injection batch, then the env-gated
+// externals and plugins), and the "plugins" spec must stay LAST so its
+// YieldOnConflict drop always loses to every in-process name. The ratchet test
+// (ratchet_test.go) pins the exact ordered list.
 func RegisterAll() {
+	// Workspace pair — first in the boot banner, as always.
+	toolreg.Register(specShell())
+	toolreg.Register(specFile())
 	// Netguard slice (Phase 2.2 PR 2): the egress-guarded network tools.
 	toolreg.Register(toolreg.Spec{Name: "http", Netguard: true, Build: buildHTTP})
 	toolreg.Register(toolreg.Spec{Name: "browser.read", Netguard: true, Build: buildBrowserRead})
@@ -51,7 +61,7 @@ func RegisterAll() {
 	toolreg.Register(specResearch())
 	toolreg.Register(specCodeExec())
 	// Kernel-bound zero-arg tools (Phase 2.2 PR 4): the captured-local Bind
-	// sites that only needed the live kernel (+ baseDir).
+	// sites that only needed the live kernel (+ baseDir). No banner descs.
 	toolreg.Register(specSchedule())
 	toolreg.Register(specRuns())
 	toolreg.Register(specStanding())
@@ -62,6 +72,19 @@ func RegisterAll() {
 	toolreg.Register(specMCP())
 	toolreg.Register(specWorkflow())
 	toolreg.Register(specWorkboard())
+	// Late-bound trio (Phase 2.2 PR 5): wired by Set.ConfigureLate once the
+	// live channels / board store exist. No banner descs — they keep their own
+	// dedicated boot lines in main.go.
+	toolreg.Register(specNotify())
+	toolreg.Register(specSendMedia())
+	toolreg.Register(specBoard())
+	// Env-gated externals (Phase 2.2 PR 6) — banner order preserved.
+	toolreg.Register(specCoding())
+	toolreg.Register(specACPAgent())
+	toolreg.Register(specHomeAssistant())
+	toolreg.Register(specRemoteRun())
+	// External plugin host — LAST, so in-process names always win conflicts.
+	toolreg.Register(specPlugins())
 }
 
 // splitHosts appends the non-empty comma-separated entries of csv to dst.

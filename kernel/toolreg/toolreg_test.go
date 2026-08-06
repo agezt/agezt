@@ -258,6 +258,77 @@ func TestNetguardGapsReportsUnawareNetguardSpec(t *testing.T) {
 	}
 }
 
+// TestBuildAllYieldOnConflictDropsLaterClaimant pins the plugin-host conflict
+// semantics: a YieldOnConflict spec's colliding instances are DROPPED (warning
+// on Stderr, in-process tool kept) instead of aborting the boot, its manifest
+// ToolCount is adjusted to the post-conflict number, and a capability it
+// declared for the shadowed name never leaks onto the surviving in-process
+// tool. Non-yield specs keep the hard collision error
+// (TestBuildAllNameCollisionNamesBothClaimants).
+func TestBuildAllYieldOnConflictDropsLaterClaimant(t *testing.T) {
+	resetRegistryForTest()
+	inproc := &fakeTool{name: "px.shared"}
+	Register(Spec{Name: "first", Build: func(BuildDeps) (Built, error) {
+		return Built{Tool: inproc}, nil
+	}})
+	Register(Spec{Name: "plugins", YieldOnConflict: true, Build: func(BuildDeps) (Built, error) {
+		return Built{
+			Extra: map[string]agent.Tool{
+				"px.shared": &fakeTool{name: "px.shared"}, // collides — must lose
+				"px.other":  &fakeTool{name: "px.other"},  // unique — must load
+			},
+			Caps:  map[string]string{"px.shared": "net.fetch", "px.other": "fs.read"},
+			Infos: []runtime.PluginInfo{{Prefix: "px", ToolCount: 2}},
+		}, nil
+	}})
+
+	var stderr strings.Builder
+	set, err := BuildAll(BuildDeps{Stderr: &stderr})
+	if err != nil {
+		t.Fatalf("BuildAll: %v — a yield spec's collision must not abort", err)
+	}
+	tools := set.Tools()
+	if tools["px.shared"] != inproc {
+		t.Errorf("px.shared = %T, want the in-process instance (in-process wins)", tools["px.shared"])
+	}
+	if _, ok := tools["px.other"]; !ok {
+		t.Error("non-colliding plugin tool px.other missing")
+	}
+	if !strings.Contains(stderr.String(), `"px.shared"`) || !strings.Contains(stderr.String(), "keeping the in-process version") {
+		t.Errorf("expected conflict warning on stderr, got %q", stderr.String())
+	}
+	// Manifest reports the post-conflict count.
+	mf := set.PluginManifest()
+	if len(mf) != 1 || mf[0].Prefix != "px" || mf[0].ToolCount != 1 {
+		t.Errorf("PluginManifest() = %+v, want [{Prefix:px ToolCount:1 …}]", mf)
+	}
+	// The shadowed name's declared cap is dropped; the surviving one kept.
+	caps := set.ToolCapabilities()
+	if _, ok := caps["px.shared"]; ok {
+		t.Error("dropped plugin tool's declared capability leaked onto the in-process tool")
+	}
+	if caps["px.other"] != "fs.read" {
+		t.Errorf("caps[px.other] = %q, want fs.read", caps["px.other"])
+	}
+}
+
+// TestBuildAllInfosOnlySpecStillRecorded pins that a spec yielding only
+// manifest entries (a plugin that spawned but loaded zero tools) is not
+// mistaken for "gated off" — its Infos must surface in PluginManifest.
+func TestBuildAllInfosOnlySpecStillRecorded(t *testing.T) {
+	resetRegistryForTest()
+	Register(Spec{Name: "plugins", YieldOnConflict: true, Build: func(BuildDeps) (Built, error) {
+		return Built{Infos: []runtime.PluginInfo{{Prefix: "empty", ToolCount: 0}}}, nil
+	}})
+	set, err := BuildAll(BuildDeps{})
+	if err != nil {
+		t.Fatalf("BuildAll: %v", err)
+	}
+	if mf := set.PluginManifest(); len(mf) != 1 || mf[0].Prefix != "empty" {
+		t.Fatalf("PluginManifest() = %+v, want the empty plugin's entry", mf)
+	}
+}
+
 func TestApplyPreOpenAndConfigureLate(t *testing.T) {
 	resetRegistryForTest()
 	var calls []string

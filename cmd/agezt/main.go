@@ -93,10 +93,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
-	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
-	"github.com/agezt/agezt/plugins/tools/notify"
-	"github.com/agezt/agezt/plugins/tools/sendmedia"
 )
 
 func main() {
@@ -299,12 +296,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	edictEng := edict.New(edictOpts)
 
-	tools, toolSet, pluginManifest, pluginToolCaps, toolsDesc, err := buildTools(baseDir, stderr, ward)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
-		return 1
-	}
-
 	// Register the built-in channel manifests (Telegram, WhatsApp, …) BEFORE
 	// anything reads the channel registry: notifyTargets just below derives its
 	// env names from the manifests, the Channels wizard lists them, and
@@ -315,17 +306,19 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// conditional on the Forge.)
 	builtinchannels.RegisterAll()
 
-	// Proactive-messaging tool (`notify`, M143). Register it here — BEFORE the
-	// kernel (and its HTTP servers / channels) start — so the tool map is never
-	// written while the agent loop reads it (a fatal concurrent-map race otherwise).
-	// The sender needs the live channels (built after the kernel), so the tool is
-	// created unbound now and Bind-wired later. Decide registration from env,
-	// with the env names taken from each kind's manifest (RequiredEnv +
-	// AllowlistEnv, Phase 2.1 PR 8): a channel kind contributes targets only
-	// when its required env AND a non-empty allowlist are set, so a
-	// half-configured channel never advertises a tool that can't send. The
-	// kind list stays deliberately restricted to the three chat channels the
-	// notify/send_media/briefing surface has always targeted.
+	// Derive the proactive-messaging targets (`notify`/`send_media`, M143)
+	// BEFORE buildTools: the registry specs gate themselves on this map
+	// (empty ⇒ not registered), so the tool map is complete before the kernel
+	// (and its HTTP servers / channels) start and is never written while the
+	// agent loop reads it (a fatal concurrent-map race otherwise). The sender
+	// needs the live channels (built after the kernel), so the tools are built
+	// unbound and wired later by toolSet.ConfigureLate. Env names come from
+	// each kind's manifest (RequiredEnv + AllowlistEnv, Phase 2.1 PR 8): a
+	// channel kind contributes targets only when its required env AND a
+	// non-empty allowlist are set, so a half-configured channel never
+	// advertises a tool that can't send. The kind list stays deliberately
+	// restricted to the three chat channels the notify/send_media/briefing
+	// surface has always targeted.
 	notifyTargets := map[string][]string{}
 	for _, kind := range []string{"telegram", "slack", "discord"} {
 		m, ok := channel.LookupManifest(kind)
@@ -346,28 +339,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 			notifyTargets[kind] = ids
 		}
 	}
-	var notifyTool *notify.Tool
-	var sendMediaTool *sendmedia.Tool
-	if len(notifyTargets) > 0 {
-		notifyTool = notify.New() // unbound; Bind wires the sender once channels exist
-		tools["notify"] = notifyTool
-		// send_media: the attachment-carrying sibling of notify (same allowlist
-		// pinning), so the agent can push an image/voice/file artifact to the
-		// operator. Registered unbound here; Bind wires it once channels exist.
-		sendMediaTool = sendmedia.New()
-		tools["send_media"] = sendMediaTool
-	}
 
-	// Board tool (`board`, M647): the shared, persistent message board every agent
-	// can post to and read from, so they can coordinate and talk to each other.
-	// Registered now, Bound to its on-disk store under the daemon base dir after
-	// the kernel opens. Still a captured local (like notify/send_media) because
-	// its wiring needs the board store + notifier built late in boot — the other
-	// kernel-bound zero-arg tools (schedule, runs, standing, skill, introspect,
-	// overseer, tool_forge, mcp, workflow, workboard) moved to registry specs in
-	// plugins/builtintools and are wired by toolSet.Configure after Open.
-	boardToolInst := boardtool.New()
-	tools["board"] = boardToolInst
+	tools, toolSet, pluginManifest, pluginToolCaps, toolsDesc, err := buildTools(baseDir, stderr, ward, notifyTargets)
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
+		return 1
+	}
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -1656,26 +1633,42 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	srv.SetChannelSender(channelSend)
 
-	// Bind the proactive-messaging tool (`notify`, M143) to the live channels. The
-	// tool itself was registered into the tool map BEFORE the kernel started (see
-	// notifyTool below), so the map is never written while the agent loop reads it;
-	// Bind only wires the sender, synchronized against Invoke. Destinations stay
-	// pinned to each channel's configured allowlist (the agent supplies only text).
-	if notifyTool != nil {
-		notifyTool.Bind(channelSend, notifyTargets)
-		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
+	// Late registry phase (Phase 2.2 PR 5): Set.ConfigureLate wires the specs
+	// that need live infrastructure, at the exact point their hand-wired Binds
+	// used to run. notify (M143) gets the channel sender + operator allowlist
+	// (destinations stay pinned to each channel's configured allowlist — the
+	// agent supplies only text); send_media gets the media sender + the
+	// artifact store so it can resolve a ref to bytes; board (M647) gets the
+	// SAME store instance the control plane and REST mailbox write through
+	// (opened once, before the servers) plus boardNotify, so each post
+	// journals a board.posted event (M656) a standing order can trigger on —
+	// or board.dm.<recipient> for an addressed message (M788) — and one
+	// agent's post wakes another. The posting run's correlation ties into
+	// `agt why`.
+	lateBoard := boardStore
+	if boardErr != nil {
+		lateBoard = nil // spec leaves the tool unbound; error surfaced below
 	}
-	// Bind the proactive media-messaging tool (`send_media`) to the same live
-	// channels + operator allowlist, plus the artifact store so it can resolve a
-	// ref to bytes. Recipients stay pinned to the allowlist (the agent supplies
-	// only the artifact ref + optional caption).
-	if sendMediaTool != nil {
-		sendMediaTool.Bind(channelSendMedia, notifyTargets, func(ref string) ([]byte, error) {
-			if a := k.Artifacts(); a != nil {
-				return a.Get(ref)
-			}
-			return nil, fmt.Errorf("artifact store unavailable")
-		})
+	if err := toolSet.ConfigureLate(toolreg.LateDeps{
+		KernelDeps: toolreg.KernelDeps{
+			K:         k,
+			Bus:       k.Bus(),
+			Artifacts: k.ArtifactIndex(),
+			Lake:      k.DataLake(),
+			Journal:   k.Journal(),
+			BaseDir:   baseDir,
+			Stdout:    stdout,
+		},
+		ChannelSend:      channelSend,
+		ChannelSendMedia: channelSendMedia,
+		Board:            lateBoard,
+		BoardNotify:      boardNotify,
+	}); err != nil {
+		fmt.Fprintf(stderr, "%s: late-configure tools: %v\n", brand.Binary, err)
+		return 1
+	}
+	if len(notifyTargets) > 0 {
+		fmt.Fprintf(stdout, "  notify tool      : enabled (%d channel(s) the agent can ping)\n", len(notifyTargets))
 		fmt.Fprintf(stdout, "  send_media tool  : enabled (the agent can send images/voice/files to the operator)\n")
 	}
 
@@ -1686,17 +1679,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "  schedule tool    : enabled (the agent can schedule its own future runs)\n")
 	}
 
-	// Bind the shared message board (M647): the SAME store instance the control
-	// plane and REST mailbox write through (opened once, before the servers).
-	// Each post journals a board.posted event (M656) via boardNotify, so a
-	// standing order can trigger on a topic — or on board.dm.<recipient> for an
-	// addressed message (M788) — and one agent's post wakes another. The posting
-	// run's correlation ties into `agt why`.
+	// Board banner / failure surface — the bind itself ran in ConfigureLate.
 	if boardErr != nil {
 		fmt.Fprintf(stderr, "%s: board tool unavailable: %v\n", brand.Binary, boardErr)
 	} else {
-		boardToolInst.BindStore(boardStore)
-		boardToolInst.OnPost(boardNotify)
 		fmt.Fprintf(stdout, "  board tool       : enabled (agents share a persistent message board)\n")
 	}
 
@@ -5449,20 +5435,6 @@ func netguardPublish(b *bus.Bus) func(tool string) func(ip, reason string) {
 	}
 }
 
-// pluginLogLine formats a plugin's stderr line for the daemon log, scrubbing
-// any secret of a known format it may have printed (M229). A third-party
-// plugin's stderr is untrusted output that lands directly in the operator's
-// logs — a path the bus redactor (which only covers journaled events) does not
-// touch. Pattern-based redaction is the right fit here: a plugin leaks its OWN
-// secrets, which the daemon doesn't hold as literals but whose formats (sk-,
-// Telegram, Groq, …) the built-in detectors catch.
-func pluginLogLine(r *redact.Redactor, prefix, line string) string {
-	return fmt.Sprintf("[plugin:%s] %s", prefix, r.Redact(line))
-}
-
-// buildTools registers the in-process tools. Each tool gets its own
-// configuration from env vars; defaults are safe (file tool scoped to a
-// per-instance workspace, http tool default-deny). The shell tool runs
 // boardSubjectSlug sanitises a board topic into one subject segment (M656):
 // lowercased, with any run of characters that aren't [a-z0-9_-] collapsed to a
 // single dash, so "Acil Müdahale!" → "acil-m-dahale" and the event subject
@@ -5488,11 +5460,6 @@ func boardSubjectSlug(topic string) string {
 	return s
 }
 
-// every command through the supplied Warden engine.
-// workspaceRoot resolves the directory the file and shell tools share:
-// $AGEZT_WORKSPACE, or <baseDir>/workspace by default. Used by buildTools (to
-// scope the tools) and by the kernel Config (to tell the model where it is via
-// the M609 environment preamble), so the two never drift.
 // voiceProviderIsNative reports whether a STT/TTS provider id names a native
 // (non-OpenAI-compatible) backend that supplies its own default base URL — so a
 // URL isn't required to enable that half.
@@ -5587,6 +5554,10 @@ func injectConfig(baseDir string, vault *creds.Store, stdout io.Writer) map[stri
 	return pinned
 }
 
+// workspaceRoot resolves the directory the file and shell tools share:
+// $AGEZT_WORKSPACE, or <baseDir>/workspace by default. Used by buildTools (to
+// scope the tools) and by the kernel Config (to tell the model where it is via
+// the M609 environment preamble), so the two never drift.
 func workspaceRoot(baseDir string) string {
 	if ws := os.Getenv(brand.EnvPrefix + "WORKSPACE"); ws != "" {
 		return ws

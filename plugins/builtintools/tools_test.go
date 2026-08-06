@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/warden"
 	browsertool "github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	fetchtool "github.com/agezt/agezt/plugins/tools/fetch"
@@ -49,9 +50,11 @@ func TestRegistryNetguardWiring_CoversEveryNetguardSpec(t *testing.T) {
 
 	var stderr bytes.Buffer
 	set, err := toolreg.BuildAll(toolreg.BuildDeps{
-		BaseDir: t.TempDir(),
-		Stderr:  &stderr,
-		Get:     mapGet(env),
+		BaseDir:       t.TempDir(),
+		WorkspaceRoot: t.TempDir(),
+		Warden:        warden.New(nil),
+		Stderr:        &stderr,
+		Get:           mapGet(env),
 	})
 	if err != nil {
 		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
@@ -121,9 +124,11 @@ func TestRegistryAlwaysOnSpecs_BuildAndConfigure(t *testing.T) {
 
 	var stderr bytes.Buffer
 	set, err := toolreg.BuildAll(toolreg.BuildDeps{
-		BaseDir: t.TempDir(),
-		Stderr:  &stderr,
-		Get:     mapGet(map[string]string{brand.EnvPrefix + "SANDBOX": "off"}),
+		BaseDir:       t.TempDir(),
+		WorkspaceRoot: t.TempDir(),
+		Warden:        warden.New(nil),
+		Stderr:        &stderr,
+		Get:           mapGet(map[string]string{brand.EnvPrefix + "SANDBOX": "off"}),
 	})
 	if err != nil {
 		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
@@ -175,9 +180,11 @@ func TestRegistryCodeExecGating(t *testing.T) {
 
 	var stderr bytes.Buffer
 	set, err := toolreg.BuildAll(toolreg.BuildDeps{
-		BaseDir: t.TempDir(),
-		Stderr:  &stderr,
-		Get:     mapGet(nil),
+		BaseDir:       t.TempDir(),
+		WorkspaceRoot: t.TempDir(),
+		Warden:        warden.New(nil),
+		Stderr:        &stderr,
+		Get:           mapGet(nil),
 	})
 	if err != nil {
 		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
@@ -213,9 +220,11 @@ func TestRegistryBrowserActionGatedOff(t *testing.T) {
 
 	var stderr bytes.Buffer
 	set, err := toolreg.BuildAll(toolreg.BuildDeps{
-		BaseDir: t.TempDir(),
-		Stderr:  &stderr,
-		Get:     mapGet(nil),
+		BaseDir:       t.TempDir(),
+		WorkspaceRoot: t.TempDir(),
+		Warden:        warden.New(nil),
+		Stderr:        &stderr,
+		Get:           mapGet(nil),
 	})
 	if err != nil {
 		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())

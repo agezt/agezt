@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -86,8 +87,9 @@ type Built struct {
 	Desc string
 	// Caps maps tool name → declared Edict capability (M900 passthrough).
 	Caps map[string]string
-	// Info is the plugin-manifest entry for external-plugin specs.
-	Info *runtime.PluginInfo
+	// Infos are the plugin-manifest entries for external-plugin specs (one per
+	// spawned plugin; the plugin-host spec yields several from a single Build).
+	Infos []runtime.PluginInfo
 }
 
 // Spec describes one first-party tool: how to build it and which lifecycle
@@ -106,6 +108,14 @@ type Spec struct {
 	// Netguard marks the spec's instances as egress-guarded: Configure wires
 	// NetguardPublish into every instance implementing NetguardAware.
 	Netguard bool
+	// YieldOnConflict makes this spec's instances LOSE a name collision instead
+	// of aborting BuildAll: a tool whose name is already claimed by an
+	// earlier-registered spec is dropped (with a warning on BuildDeps.Stderr)
+	// and the earlier registration kept. This is the external-plugin-host
+	// semantic — in-process tools always win over a plugin's prefixed names —
+	// made explicit; first-party specs leave it false so a genuine duplicate
+	// stays a hard boot error.
+	YieldOnConflict bool
 }
 
 // NetguardAware is implemented by tools whose egress guard can report blocked
@@ -169,17 +179,21 @@ type pair struct {
 // Set holds the (Spec, built instance) pairs produced by BuildAll, and drives
 // the lifecycle phases over them in registration order.
 type Set struct {
-	pairs []pair
-	tools map[string]agent.Tool
-	claim map[string]string // tool name → spec name (collision reporting)
+	pairs   []pair
+	tools   map[string]agent.Tool
+	claim   map[string]string // tool name → spec name (collision reporting)
+	dropped map[string]bool   // names a YieldOnConflict spec lost to an earlier claimant
 }
 
 // BuildAll builds every registered spec against d. A spec whose Build returns
-// a zero Built (nil Tool, no Extra) is skipped; a Build error aborts. Tool
-// names — the primary instance's Definition().Name plus every Extra key — must
-// be unique across the set; a collision is an error naming both claimants.
+// a zero Built (nil Tool, no Extra, no Infos) is skipped; a Build error
+// aborts. Tool names — the primary instance's Definition().Name plus every
+// Extra key — must be unique across the set; a collision is an error naming
+// both claimants, unless the LATER spec is YieldOnConflict, in which case its
+// colliding instance is dropped with a warning on d.Stderr and the earlier
+// registration kept (the plugin-host "in-process wins" semantic).
 func BuildAll(d BuildDeps) (*Set, error) {
-	s := &Set{tools: map[string]agent.Tool{}, claim: map[string]string{}}
+	s := &Set{tools: map[string]agent.Tool{}, claim: map[string]string{}, dropped: map[string]bool{}}
 	for _, sp := range snapshot() {
 		if sp.Build == nil {
 			continue
@@ -188,16 +202,16 @@ func BuildAll(d BuildDeps) (*Set, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tool %s: %w", sp.Name, err)
 		}
-		if b.Tool == nil && len(b.Extra) == 0 {
+		if b.Tool == nil && len(b.Extra) == 0 && len(b.Infos) == 0 {
 			continue // env-gated off
 		}
 		if b.Tool != nil {
-			if err := s.add(b.Tool.Definition().Name, b.Tool, sp.Name); err != nil {
+			if err := s.add(b.Tool.Definition().Name, b.Tool, sp, d); err != nil {
 				return nil, err
 			}
 		}
 		for _, name := range sortedKeys(b.Extra) {
-			if err := s.add(name, b.Extra[name], sp.Name); err != nil {
+			if err := s.add(name, b.Extra[name], sp, d); err != nil {
 				return nil, err
 			}
 		}
@@ -206,11 +220,21 @@ func BuildAll(d BuildDeps) (*Set, error) {
 	return s, nil
 }
 
-func (s *Set) add(name string, tl agent.Tool, specName string) error {
+func (s *Set) add(name string, tl agent.Tool, sp Spec, d BuildDeps) error {
 	if prev, dup := s.claim[name]; dup {
-		return fmt.Errorf("tool name %q claimed by both spec %s and spec %s", name, prev, specName)
+		if sp.YieldOnConflict {
+			// In-process wins: drop the later (plugin) claimant, keep the
+			// earlier registration, and record the drop so PluginManifest /
+			// ToolCapabilities stay post-conflict-accurate.
+			s.dropped[name] = true
+			if d.Stderr != nil {
+				fmt.Fprintf(d.Stderr, "WARNING: spec %q tool %q conflicts with existing tool (spec %s) — keeping the in-process version\n", sp.Name, name, prev)
+			}
+			return nil
+		}
+		return fmt.Errorf("tool name %q claimed by both spec %s and spec %s", name, prev, sp.Name)
 	}
-	s.claim[name] = specName
+	s.claim[name] = sp.Name
 	s.tools[name] = tl
 	return nil
 }
@@ -282,22 +306,37 @@ func (s *Set) Descs() []string {
 	return out
 }
 
-// PluginManifest collects the external-plugin manifest entries.
+// PluginManifest collects the external-plugin manifest entries. Each entry's
+// ToolCount is adjusted down by the conflict drops recorded for its prefix, so
+// the manifest reports the post-conflict count — what the model actually sees —
+// not the raw plugin advertisement (the operator can spot when a conflict
+// shadowed a tool they expected).
 func (s *Set) PluginManifest() []runtime.PluginInfo {
 	var out []runtime.PluginInfo
 	for _, p := range s.pairs {
-		if p.built.Info != nil {
-			out = append(out, *p.built.Info)
+		for _, info := range p.built.Infos {
+			for name := range s.dropped {
+				if strings.HasPrefix(name, info.Prefix+".") && info.ToolCount > 0 {
+					info.ToolCount--
+				}
+			}
+			out = append(out, info)
 		}
 	}
 	return out
 }
 
 // ToolCapabilities merges every built spec's declared capability map (M900).
+// Capabilities declared for a name a YieldOnConflict spec lost are skipped — a
+// plugin's declared cap must never re-scope the in-process tool that shadowed
+// it.
 func (s *Set) ToolCapabilities() map[string]string {
 	var out map[string]string
 	for _, p := range s.pairs {
 		for name, cap := range p.built.Caps {
+			if s.dropped[name] {
+				continue
+			}
 			if out == nil {
 				out = map[string]string{}
 			}
