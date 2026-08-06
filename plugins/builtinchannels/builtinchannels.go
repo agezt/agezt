@@ -9,14 +9,25 @@
 // out-of-tree channel can call channel.RegisterManifest itself.
 package builtinchannels
 
-import "github.com/agezt/agezt/kernel/channel"
+import (
+	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/channelwire"
+)
 
-// RegisterAll seeds the channel registry with the built-in manifests. Called
-// once at daemon start (idempotent).
+// RegisterAll seeds the channel registry with the built-in manifests and the
+// channelwire factories (Phase 2.1) for the migrated kinds. Called once at
+// daemon start (idempotent — manifest registration replaces by Kind, factory
+// Register replaces by kind).
 func RegisterAll() {
 	for _, m := range manifests {
 		channel.RegisterManifest(m)
 	}
+	channelwire.Register("telegram", buildTelegram)
+	channelwire.Register("slack", buildSlack)
+	channelwire.Register("email", buildEmail)
+	channelwire.Register("discord", buildDiscord)
+	channelwire.Register("matrix", buildMatrix)
+	channelwire.Register("whatsapp", buildWhatsApp)
 }
 
 var manifests = []channel.Manifest{

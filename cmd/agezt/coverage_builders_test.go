@@ -6,7 +6,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/channelwire"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -38,37 +40,23 @@ func TestChannelBuilders_NotConfigured(t *testing.T) {
 	k := newBuilderTestKernel(t)
 	ctx := context.Background()
 
-	// Builders that take a config lookup func — feed emptyGet so every key
-	// resolves to "".
-	getBuilders := map[string]func() (interface{}, interface{}, string){
-		"telegram": func() (interface{}, interface{}, string) {
-			c, s, d := buildTelegramInstance(ctx, k, "telegram", emptyGet)
-			return c, s, d
-		},
-		"slack": func() (interface{}, interface{}, string) {
-			c, s, d := buildSlackInstance(ctx, k, "slack", emptyGet)
-			return c, s, d
-		},
-		"email": func() (interface{}, interface{}, string) {
-			c, s, d := buildEmailInstance(ctx, k, "email", emptyGet)
-			return c, s, d
-		},
-		"discord": func() (interface{}, interface{}, string) {
-			c, s, d := buildDiscordInstance(ctx, k, "discord", emptyGet)
-			return c, s, d
-		},
-		"matrix": func() (interface{}, interface{}, string) {
-			c, s, d := buildMatrixInstance(ctx, k, "matrix", emptyGet)
-			return c, s, d
-		},
-		"whatsapp": func() (interface{}, interface{}, string) {
-			c, s, d := buildWhatsAppInstance(ctx, k, "whatsapp", emptyGet)
-			return c, s, d
-		},
-	}
-	for name, fn := range getBuilders {
-		if _, _, desc := fn(); desc != "" {
-			t.Errorf("%s builder returned a non-empty desc %q when unconfigured", name, desc)
+	// Factory-migrated builders (Phase 2.1) — resolved through the channelwire
+	// registry after builtinchannels.RegisterAll seeds it. Deps.Get is emptyGet
+	// so every config key resolves to "" and each factory must return
+	// NotConfigured (empty Desc, no channels) without any network work.
+	builtinchannels.RegisterAll()
+	for _, kind := range []string{"telegram", "slack", "email", "discord", "matrix", "whatsapp"} {
+		f, ok := channelwire.Lookup(kind)
+		if !ok {
+			t.Errorf("%s: no channelwire factory registered", kind)
+			continue
+		}
+		built := f(channelwire.Deps{Ctx: ctx, Bus: k.Bus(), Handler: makeChannelHandler(k), Get: emptyGet})
+		if built.Desc != "" {
+			t.Errorf("%s factory returned a non-empty desc %q when unconfigured", kind, built.Desc)
+		}
+		if len(built.Channels) != 0 {
+			t.Errorf("%s factory returned %d channel(s) when unconfigured", kind, len(built.Channels))
 		}
 	}
 

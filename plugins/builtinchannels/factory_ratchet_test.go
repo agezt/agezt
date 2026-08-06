@@ -18,9 +18,6 @@ import (
 // silent-drift class this migration exists to close — a channel shipped with
 // a manifest but no wiring).
 var factoryTODO = map[string]bool{
-	// modern buildAccounts six (batch: PR 2)
-	"telegram": true, "slack": true, "email": true,
-	"discord": true, "matrix": true, "whatsapp": true,
 	// legacy batch A
 	"webhook": true, "irc": true, "twitch": true, "sms": true, "signal": true,
 	// legacy batch B
