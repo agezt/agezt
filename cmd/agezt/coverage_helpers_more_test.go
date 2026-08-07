@@ -41,13 +41,6 @@ func TestCoverageHelperSinksAndInstances(t *testing.T) {
 		t.Fatal("combineSinks multiple non-nil returned nil")
 	}
 
-	if got := instanceKey("email", "work"); got != "email#work" {
-		t.Fatalf("instanceKey labelled = %q", got)
-	}
-	if got := instanceKey("email", ""); got != "email" {
-		t.Fatalf("instanceKey default = %q", got)
-	}
-
 	started := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

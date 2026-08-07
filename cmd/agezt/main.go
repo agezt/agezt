@@ -2176,15 +2176,11 @@ func combineSinks(sinks ...pulse.BriefSink) pulse.BriefSink {
 
 // chanInstance is one configured account-instance of a channel kind (multi-account).
 type chanInstance struct {
-	key  string // instanceKey(kind, label): bare kind for the default, "kind#label" otherwise
+	key  string // channel.InstanceKey(kind, label): bare kind for the default, "kind#label" otherwise
 	desc string
 	ch   channel.Channel
 	sink pulse.BriefSink
 }
-
-// instanceKey addresses a channel instance: the bare kind for the default
-// (back-compat) instance, "kind#label" for a labelled one.
-func instanceKey(kind, label string) string { return channel.InstanceKey(kind, label) }
 
 // wireInstances converts channelwire's built instances (the factory-migrated
 // channels, Phase 2.1) into the daemon's chanInstance shape so the existing
@@ -3749,18 +3745,6 @@ func boardSubjectSlug(topic string) string {
 		return "untopiced"
 	}
 	return s
-}
-
-// voiceProviderIsNative reports whether a STT/TTS provider id names a native
-// (non-OpenAI-compatible) backend that supplies its own default base URL — so a
-// URL isn't required to enable that half.
-func voiceProviderIsNative(p string) bool {
-	switch strings.ToLower(strings.TrimSpace(p)) {
-	case voice.ProviderElevenLabs, voice.ProviderDeepgram, voice.ProviderCartesia:
-		return true
-	default:
-		return false
-	}
 }
 
 // voiceTranscriberShim adapts the runtime Voice adapter (Transcribe(ctx, audio,
