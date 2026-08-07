@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { clip, prettyJSON, fmtTime, __resetPrettyJSONCacheForTest } from "@/lib/utils";
+import { clip, prettyJSON, fmtTime, fmtWhen, __resetPrettyJSONCacheForTest } from "@/lib/utils";
 
 beforeEach(() => {
   // The cache lives at module scope; reset between tests so the cache
@@ -67,5 +67,27 @@ describe("fmtTime", () => {
   });
   it("formats a real epoch-ms to a non-empty string", () => {
     expect(fmtTime(1_700_000_000_000).length).toBeGreaterThan(0);
+  });
+});
+
+describe("fmtWhen", () => {
+  // Anchor `now` to mid-day so the ±hours offsets stay within the intended day.
+  const now = new Date(2026, 7, 7, 12, 0, 0).getTime();
+
+  it("returns empty for a falsy timestamp", () => {
+    expect(fmtWhen(0, now)).toBe("");
+    expect(fmtWhen(undefined, now)).toBe("");
+  });
+  it("shows a bare clock time for today", () => {
+    const out = fmtWhen(now - 2 * 60 * 60 * 1000, now);
+    expect(out).not.toMatch(/yesterday|,/);
+    expect(out.length).toBeGreaterThan(0);
+  });
+  it("prefixes yesterday's timestamps", () => {
+    expect(fmtWhen(now - 24 * 60 * 60 * 1000, now)).toMatch(/^yesterday /);
+  });
+  it("carries the date for older timestamps", () => {
+    // 3 days back must include a month/day, not read as a bare time.
+    expect(fmtWhen(now - 3 * 24 * 60 * 60 * 1000, now)).toMatch(/,/);
   });
 });

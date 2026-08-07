@@ -198,10 +198,15 @@ export function daemonHalted(events: AgentEvent[]): boolean {
 // AttentionOpts tunes the "needs attention" filtering (M913). nowMs enables the
 // recency window (omit to keep every alert regardless of age); windowMs defaults
 // to a day. The 2nd arg may also be a bare number for the legacy `limit`.
+// `halted` is the daemon's LIVE halt state (from /api/status) — when provided it
+// overrides the event-derived guess: a journal-backfilled halt with no later
+// resume event otherwise reads as "halted" forever, because a daemon restart
+// clears the kernel flag without journaling a resume.
 export interface AttentionOpts {
   limit?: number;
   nowMs?: number;
   windowMs?: number;
+  halted?: boolean;
 }
 
 // attentionFilter drops an alert that no longer needs attention: a "daemon
@@ -230,7 +235,7 @@ export function recentAttentionAlerts(
   const opts =
     typeof limitOrOpts === "number" ? { limit: limitOrOpts } : limitOrOpts;
   const { limit = 5, nowMs, windowMs } = opts;
-  const halted = daemonHalted(events);
+  const halted = opts.halted ?? daemonHalted(events);
   const seen = new Set<string>();
   const out: RankedAlert[] = [];
   for (const e of events) {
@@ -266,7 +271,7 @@ export function attentionAlertCount(
   opts: AttentionOpts = {},
 ): number {
   const { nowMs, windowMs } = opts;
-  const halted = daemonHalted(events);
+  const halted = opts.halted ?? daemonHalted(events);
   const seen = new Set<string>();
   let n = 0;
   for (const e of events) {

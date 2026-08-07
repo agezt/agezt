@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, CheckSquare, Stethoscope, CalendarClock, CheckCircle2, XOctagon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, fmtWhen } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
@@ -19,7 +19,7 @@ interface Status {
   world_entities?: number;
   active_skills?: number;
   schedules?: { total?: number; enabled?: number; running?: number; resident?: boolean };
-  provider_fallbacks?: { count?: number; last_reason?: string };
+  provider_fallbacks?: { count?: number; last_reason?: string; last_ms?: number };
   model_fallbacks?: { count?: number; last_reason?: string };
 }
 interface Stats {
@@ -73,7 +73,24 @@ export function runDiagnostics(
   const pf = st.provider_fallbacks?.count ?? 0;
   if (pf > 0) {
     const why = (st.provider_fallbacks?.last_reason || "").trim();
-    out.push({ id: "provider", level: "warn", title: "A provider is failing over", detail: why ? `${pf} fallback(s); last: ${why}` : `${pf} provider fallback(s) — a primary provider is erroring.`, fixHash: "providers", fixLabel: "Providers" });
+    // The fallback count folds the WHOLE journal, so yesterday's failover storm
+    // would otherwise read as a live incident forever. Anchor the message to
+    // WHEN the last one happened, and only warn while it's recent (24h).
+    // Unknown timestamp (older daemon) counts as recent: we can't prove the
+    // failover is stale, so the honest default is to keep warning.
+    const lastMs = st.provider_fallbacks?.last_ms ?? 0;
+    const recent = lastMs === 0 || Date.now() - lastMs < 24 * 60 * 60 * 1000;
+    const when = lastMs > 0 ? ` (${fmtWhen(lastMs)})` : "";
+    out.push({
+      id: "provider",
+      level: recent ? "warn" : "info",
+      title: recent ? "A provider is failing over" : "Past provider failovers",
+      detail: why
+        ? `${pf} fallback(s); last${when}: ${why}`
+        : `${pf} provider fallback(s)${when} — a primary provider ${recent ? "is" : "was"} erroring.`,
+      fixHash: "providers",
+      fixLabel: "Providers",
+    });
   }
   if (!st.model || !st.model.trim()) {
     out.push({ id: "model", level: "warn", title: "No default model set", detail: "Runs have no model to route to until you pick one.", fixHash: "models", fixLabel: "Models" });
@@ -211,6 +228,7 @@ export function Health() {
           icon={CheckCircle2}
           label="Success rate"
           value={total ? `${successPct}%` : "—"}
+          subvalue={total ? `all time · ${total} runs` : undefined}
           tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
           trend={[]}
         />
@@ -218,6 +236,7 @@ export function Health() {
           icon={XOctagon}
           label="Error rate"
           value={total ? `${errorPct}%` : "—"}
+          subvalue={total ? "all time" : undefined}
           tone={errorPct === 0 ? "good" : errorPct < 10 ? "warn" : "bad"}
         />
         <MetricWidget
@@ -287,7 +306,10 @@ export function Health() {
               ))}
           </div>
           {st?.provider_fallbacks?.last_reason && (
-            <div className="mt-2 text-xs text-muted">last: {st.provider_fallbacks.last_reason}</div>
+            <div className="mt-2 break-words text-xs text-muted">
+              last{st.provider_fallbacks.last_ms ? ` (${fmtWhen(st.provider_fallbacks.last_ms)})` : ""}:{" "}
+              {st.provider_fallbacks.last_reason}
+            </div>
           )}
         </HealthPanel>
       )}
@@ -332,6 +354,9 @@ function HealthPanel({
 }
 
 function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean }) {
+  // Which diagnostic's detail is expanded — the inline row truncates, and a
+  // failover reason is exactly the kind of text you need to read to the end.
+  const [openId, setOpenId] = useState<string | null>(null);
   const worst = worstLevel(diags);
   const healthy = loaded && diags.length === 0;
   const tone =
@@ -351,17 +376,30 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
       {diags.length > 0 && (
         <ul className="space-y-1">
           {diags.map((d) => (
-            <li key={d.id} className="flex items-center gap-2 text-xs">
-              <Badge variant={badgeVariant[d.level]}>{d.level}</Badge>
-              <span className="shrink-0 font-medium text-foreground">{d.title}</span>
-              <span className="min-w-0 flex-1 truncate text-muted">{d.detail}</span>
-              {d.fixHash && (
+            <li key={d.id} className="text-xs">
+              <div className="flex items-center gap-2">
+                <Badge variant={badgeVariant[d.level]}>{d.level}</Badge>
+                <span className="shrink-0 font-medium text-foreground">{d.title}</span>
                 <button
-                  onClick={() => (location.hash = d.fixHash!)}
-                  className="ml-auto shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-accent transition-colors hover:border-accent"
+                  onClick={() => setOpenId((v) => (v === d.id ? null : d.id))}
+                  className="min-w-0 flex-1 truncate text-left text-muted transition-colors hover:text-foreground"
+                  title={openId === d.id ? "Collapse" : "Show the full message"}
                 >
-                  {d.fixLabel || "Fix"} →
+                  {d.detail}
                 </button>
+                {d.fixHash && (
+                  <button
+                    onClick={() => (location.hash = d.fixHash!)}
+                    className="ml-auto shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-accent transition-colors hover:border-accent"
+                  >
+                    {d.fixLabel || "Fix"} →
+                  </button>
+                )}
+              </div>
+              {openId === d.id && (
+                <div className="mt-1 whitespace-pre-wrap break-words rounded-md border border-border bg-panel/60 p-2 text-muted">
+                  {d.detail}
+                </div>
               )}
             </li>
           ))}

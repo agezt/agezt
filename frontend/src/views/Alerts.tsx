@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ShieldAlert, AlertTriangle, Info, Bell, BellOff } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Info, Bell, BellOff, X, RotateCcw } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { getJSON } from "@/lib/api";
 import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
 import { incidentMetaFromEvent, incidentRootId } from "@/lib/incidents";
 import { openIncident } from "@/lib/incidentnav";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtWhen } from "@/lib/utils";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { Badge } from "@/components/ui/badge";
 import { TabNav } from "@/components/ui/tab-nav";
@@ -14,6 +14,29 @@ import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Page } from "@/components/ui/page";
 
 const MAX_ALERTS = 100;
+
+// Dismissed-alert ids persist per browser (there is no server-side alert store —
+// alerts are classified client-side from journal events), so an acknowledged
+// signal stays acknowledged across reloads instead of resurfacing every visit.
+const DISMISSED_KEY = "agezt.alerts.dismissed.v1";
+const DISMISSED_CAP = 400;
+
+export function loadDismissed(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw.filter((v) => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissed(ids: Set<string>) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids].slice(-DISMISSED_CAP)));
+  } catch {
+    /* storage full/blocked: dismissal stays session-only */
+  }
+}
 
 interface AlertRow extends Alert {
   id: string;
@@ -72,7 +95,27 @@ export function Alerts() {
   const { events, subscribe, connected } = useEvents();
   const [rows, setRows] = useState<AlertRow[]>([]);
   const [filter, setFilter] = useState<AlertLevel | "all">("all");
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
+  const [showDismissed, setShowDismissed] = useState(false);
   const seeded = useRef(false);
+
+  function dismiss(id: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      saveDismissed(next);
+      return next;
+    });
+  }
+
+  function restore(id: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      saveDismissed(next);
+      return next;
+    });
+  }
 
   // Seed once from the current firehose buffer, then live-append.
   useEffect(() => {
@@ -107,11 +150,16 @@ export function Alerts() {
     };
   }, []);
 
-  const counts = rows.reduce(
+  // Counts and tabs reflect the LIVE (non-dismissed) alerts so the numbers here
+  // agree with the nav badge; dismissed history stays reachable via the toggle.
+  const live = rows.filter((r) => !dismissed.has(r.id));
+  const dismissedRows = rows.filter((r) => dismissed.has(r.id));
+  const counts = live.reduce(
     (acc, r) => ((acc[r.level] = (acc[r.level] || 0) + 1), acc),
     {} as Record<AlertLevel, number>,
   );
-  const shown = filter === "all" ? rows : rows.filter((r) => r.level === filter);
+  const base = showDismissed ? rows : live;
+  const shown = filter === "all" ? base : base.filter((r) => r.level === filter);
 
   return (
     <Page
@@ -128,7 +176,7 @@ export function Alerts() {
             id: "all",
             label: "All",
             icon: Bell,
-            count: rows.length,
+            count: live.length,
             content: null,
           },
           {
@@ -158,24 +206,43 @@ export function Alerts() {
       />
 
       <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
-        <MetricWidget icon={Bell} label="Total" value={rows.length} tone={rows.length > 0 ? "accent" : "muted"} />
+        <MetricWidget icon={Bell} label="Total" value={live.length} tone={live.length > 0 ? "accent" : "muted"} />
         <MetricWidget icon={ShieldAlert} label="Critical" value={counts.critical || 0} tone={(counts.critical || 0) > 0 ? "bad" : "muted"} />
         <MetricWidget icon={AlertTriangle} label="Warning" value={counts.warning || 0} tone={(counts.warning || 0) > 0 ? "warn" : "muted"} />
         <MetricWidget icon={Info} label="Info" value={counts.info || 0} tone={(counts.info || 0) > 0 ? "accent" : "muted"} />
       </MetricGrid>
 
+      {dismissedRows.length > 0 && (
+        <button
+          onClick={() => setShowDismissed((v) => !v)}
+          className="self-start text-xs font-medium text-muted transition-colors hover:text-foreground"
+        >
+          {showDismissed
+            ? "hide dismissed"
+            : `${dismissedRows.length} dismissed · show`}
+        </button>
+      )}
+
       {shown.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
           <BellOff className="size-8 opacity-40" />
-          <span className="text-sm">{rows.length === 0 ? "no alerts — all quiet" : "none at this level"}</span>
+          <span className="text-sm">{live.length === 0 ? "no alerts — all quiet" : "none at this level"}</span>
         </div>
       ) : (
         <ul className="space-y-1.5">
           {shown.map((r) => {
               const s = LEVEL_STYLE[r.level];
               const Icon = s.icon;
+              const isDismissed = dismissed.has(r.id);
               return (
-                <li key={r.id} className={cn("flex items-start gap-2 rounded-lg border px-3 py-2", s.ring)}>
+                <li
+                  key={r.id}
+                  className={cn(
+                    "group flex items-start gap-2 rounded-lg border px-3 py-2",
+                    s.ring,
+                    isDismissed && "opacity-50",
+                  )}
+                >
                   <Icon className={cn("mt-0.5 size-4 shrink-0", s.text)} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -190,8 +257,25 @@ export function Alerts() {
                         />
                       )}
                       <span className="ml-auto shrink-0 text-xs tabular-nums text-muted">
-                        {r.tsMs ? fmtTime(r.tsMs) : ""}
+                        {r.tsMs ? fmtWhen(r.tsMs) : ""}
                       </span>
+                      {isDismissed ? (
+                        <button
+                          onClick={() => restore(r.id)}
+                          className="shrink-0 text-muted transition-colors hover:text-foreground"
+                          title="Restore this alert"
+                        >
+                          <RotateCcw className="size-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => dismiss(r.id)}
+                          className="shrink-0 text-muted opacity-0 transition-all group-hover:opacity-100"
+                          title="Dismiss — acknowledged, stop showing it"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      )}
                     </div>
                     {r.detail && <div className="mt-0.5 break-words text-xs text-foreground/80">{r.detail}</div>}
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">

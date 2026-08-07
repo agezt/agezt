@@ -131,6 +131,13 @@ function TrendSparkline({
 }
 
 // MetricGrid — lays out MetricWidgets in a responsive grid.
+//
+// `cols` accepts either a CSS grid-template-columns VALUE
+// ("repeat(auto-fill, minmax(140px, 1fr))") or Tailwind grid classes
+// ("grid-cols-2 lg:grid-cols-5"). The class form used to be applied as an
+// inline style — invalid CSS the browser dropped, silently collapsing the grid
+// to one full-width column per widget (the Activity/Insights stacked-cards
+// bug), so the component now detects it and routes it to className.
 export function MetricGrid({
   children,
   cols = "auto-fill",
@@ -140,14 +147,18 @@ export function MetricGrid({
   cols?: string;
   className?: string;
 }) {
+  const isClassList = /(?:^|[\s:])grid-cols-/.test(cols);
   return (
     <div
-      className={cn("stagger-in grid gap-3", className)}
-      style={{
-        gridTemplateColumns: cols === "auto-fill"
-          ? "repeat(auto-fill, minmax(160px, 1fr))"
-          : cols,
-      }}
+      className={cn("stagger-in grid gap-3", isClassList && cols, className)}
+      style={
+        isClassList
+          ? undefined
+          : {
+              gridTemplateColumns:
+                cols === "auto-fill" ? "repeat(auto-fill, minmax(160px, 1fr))" : cols,
+            }
+      }
     >
       {children}
     </div>

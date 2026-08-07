@@ -37,6 +37,28 @@ describe("runDiagnostics (M921)", () => {
     expect(byId.approvals.fixHash).toBe("approvals");
   });
 
+  it("downgrades a provider failover to info once the last one is >24h old", () => {
+    const dayAndBit = 25 * 60 * 60 * 1000;
+    const st = {
+      halted: false,
+      model: "m",
+      provider_fallbacks: { count: 8, last_reason: "400 tools[12].name", last_ms: Date.now() - dayAndBit },
+      pending_approvals: 0,
+      schedules: { running: 0, resident: true },
+    };
+    const d = runDiagnostics(st, { total: 10, failed: 0 }, true);
+    const prov = d.find((x) => x.id === "provider");
+    expect(prov?.level).toBe("info");
+    expect(prov?.title).toBe("Past provider failovers");
+    // A RECENT failover still warns, and the detail carries the clock time.
+    const fresh = {
+      ...st,
+      provider_fallbacks: { count: 1, last_reason: "500", last_ms: Date.now() - 60_000 },
+    };
+    const d2 = runDiagnostics(fresh, { total: 10, failed: 0 }, true);
+    expect(d2.find((x) => x.id === "provider")?.level).toBe("warn");
+  });
+
   it("surfaces active autonomous schedule work as an informational diagnostic", () => {
     const st = {
       halted: false,

@@ -92,7 +92,7 @@ export function Insights() {
           <MetricGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
             <MetricWidget icon={ListTree} label="Runs" value={ins.total} tone="muted" />
             <MetricWidget icon={Wallet} label="Total spend" value={money(ins.totalSpentMc)} tone="warn" />
-            <MetricWidget icon={Activity} label="Success" value={pct(ins.successRate, ins.completed + ins.failed)} tone="good" />
+            <MetricWidget icon={Activity} label="Success" value={pct(ins.successRate, ins.completed + ins.failed)} subvalue={`last ${ins.total} runs`} tone="good" />
             <MetricWidget icon={Timer} label="Avg duration" value={dur(ins.avgDurationMs)} tone="muted" />
             <MetricWidget icon={Repeat} label="Avg iters" value={ins.avgIters ? ins.avgIters.toFixed(1) : "—"} tone="muted" />
           </MetricGrid>

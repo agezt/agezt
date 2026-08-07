@@ -36,7 +36,7 @@ import {
   IncidentBadges,
 } from "@/components/IncidentBadges";
 import { Button } from "@/components/ui/button";
-import { fmtTime, clip } from "@/lib/utils";
+import { fmtTime, fmtWhen, clip } from "@/lib/utils";
 import { Sparkline, BarRow } from "@/components/Widgets";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { TabNav } from "@/components/ui/tab-nav";
@@ -141,7 +141,16 @@ export function Dashboard() {
     if (r.status === "fulfilled")
       setActive(summarizeRoots(r.value.runs || []).filter((x) => x.kind === "running"));
     if (j.status === "fulfilled")
-      setAlerts(recentAttentionAlerts(j.value.events || [], { limit: 4, nowMs: Date.now() }));
+      setAlerts(
+        recentAttentionAlerts(j.value.events || [], {
+          limit: 4,
+          nowMs: Date.now(),
+          // Live halt state beats event archaeology: a daemon restart clears
+          // the halt without journaling a resume, so without this a stale
+          // "daemon halted" from the backfill haunts the cockpit for a day.
+          halted: st.status === "fulfilled" ? Boolean(st.value.halted) : undefined,
+        }),
+      );
     if (a.status === "fulfilled") {
       const messages = bd.status === "fulfilled" ? bd.value.messages || [] : [];
       setFleetOps(dashboardFleetOpsSummary(a.value.profiles || [], messages));
@@ -327,12 +336,24 @@ function OverviewTab({
                   {a.detail && (
                     <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>
                   )}
+                  <span className="ml-auto shrink-0 text-xs tabular-nums text-muted">
+                    {fmtWhen(a.tsMs)}
+                  </span>
                   {incidentRootId(a) && (
                     <button
                       onClick={() => openIncident(incidentRootId(a))}
                       className="shrink-0 text-xs font-medium text-accent transition-colors hover:text-accent/80"
                     >
                       incident →
+                    </button>
+                  )}
+                  {a.correlationId && (
+                    <button
+                      onClick={() => { focusRun(a.correlationId!); location.hash = "runs"; }}
+                      className="shrink-0 text-xs font-medium text-accent transition-colors hover:text-accent/80"
+                      title="Open the run this alert came from"
+                    >
+                      open run →
                     </button>
                   )}
                 </li>
@@ -351,6 +372,7 @@ function OverviewTab({
           icon={CheckCircle2}
           label="Success rate"
           value={`${successPct}%`}
+          subvalue={stats?.total ? `all time · ${stats.total} runs` : undefined}
           tone={successPct >= 90 ? "good" : successPct >= 70 ? "warn" : "bad"}
           trend={[]}
         />

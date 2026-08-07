@@ -33,10 +33,12 @@ import (
 // Each dimension reports its count and most-recent reason. Model-chain events are
 // identified by scope; everything else is a provider fallback.
 type fallbackCounts struct {
-	providerCount int
-	providerLast  string
-	modelCount    int
-	modelLast     string
+	providerCount  int
+	providerLast   string
+	providerLastMS int64
+	modelCount     int
+	modelLast      string
+	modelLastMS    int64
 }
 
 func (s *Server) fallbackCounts() fallbackCounts {
@@ -54,13 +56,18 @@ func (s *Server) fallbackCounts() fallbackCounts {
 		if p.Reason != "" {
 			reason = strutil.Ellipsis(p.Reason, 160, "…")
 		}
+		// last_ms rides along with the count so a dashboard can tell a failover
+		// storm happening NOW from one that ended yesterday — the counts fold the
+		// whole journal and read as current without it (the stale-alarm trap).
 		if p.Scope == "model-chain" {
 			fc.modelCount++
+			fc.modelLastMS = e.TSUnixMS
 			if reason != "" {
 				fc.modelLast = reason
 			}
 		} else {
 			fc.providerCount++
+			fc.providerLastMS = e.TSUnixMS
 			if reason != "" {
 				fc.providerLast = reason
 			}
@@ -140,8 +147,8 @@ func (s *Server) handleStatus(conn net.Conn, req Request) {
 			"resident": schedResident,
 		},
 		"pending_approvals":  pendingApprovals,
-		"provider_fallbacks": map[string]any{"count": fb.providerCount, "last_reason": fb.providerLast},
-		"model_fallbacks":    map[string]any{"count": fb.modelCount, "last_reason": fb.modelLast},
+		"provider_fallbacks": map[string]any{"count": fb.providerCount, "last_reason": fb.providerLast, "last_ms": fb.providerLastMS},
+		"model_fallbacks":    map[string]any{"count": fb.modelCount, "last_reason": fb.modelLast, "last_ms": fb.modelLastMS},
 		"delegation": map[string]any{
 			"enabled":              dl.Enabled,
 			"max_depth":            dl.MaxDepth,

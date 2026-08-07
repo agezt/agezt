@@ -265,6 +265,17 @@ describe("attention de-staling (M913)", () => {
     expect(attentionAlertCount(events)).toBe(1);
   });
 
+  it("live halted=false overrides an event-derived halt (daemon restarted)", () => {
+    // A journal-backfilled halt with no later resume event: a daemon restart
+    // clears the kernel flag without journaling a resume, so the live status
+    // flag must win over event archaeology.
+    const events = [at("h", "halt", 30, { reason: "manual" })];
+    expect(recentAttentionAlerts(events, { halted: false }).map((a) => a.id)).not.toContain("h");
+    expect(attentionAlertCount(events, { halted: false })).toBe(0);
+    // And an explicit true keeps it, matching the derived behavior.
+    expect(attentionAlertCount(events, { halted: true })).toBe(1);
+  });
+
   it("ages out alerts older than the recency window when nowMs is given", () => {
     const now = 1_000_000_000_000;
     const fresh = at("fresh", "task.failed", now - 60_000); // 1 min ago

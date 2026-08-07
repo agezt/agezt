@@ -58,6 +58,24 @@ export function fmtDateTime(ms?: number): string {
   }
 }
 
+// fmtWhen renders a day-aware clock time: today's events show just the time,
+// yesterday's are prefixed, older ones carry the date. For alert/history rows
+// where a bare "7:09 PM" from yesterday would read as current (the stale-alarm
+// trap: an operator sees an old halt and thinks the daemon is down NOW).
+export function fmtWhen(ms?: number, now = Date.now()): string {
+  if (!ms) return "";
+  try {
+    const d = new Date(ms);
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (d.toDateString() === new Date(now).toDateString()) return time;
+    if (d.toDateString() === new Date(now - 86_400_000).toDateString())
+      return `yesterday ${time}`;
+    return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+  } catch {
+    return "";
+  }
+}
+
 // fmtAgo renders a coarse relative time ("3m ago", "2d ago") — for "when was
 // this last used / seen" labels where recency matters more than the exact clock.
 export function fmtAgo(ms?: number): string {
