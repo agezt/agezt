@@ -4,6 +4,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Fixed: six tools were refused by policy on every call.** A tool's policy axis is declared in
+  `kernel/edict`'s name switch — a different package from the tool — and nothing connected the
+  two. A tool whose name never reached that switch resolved to a capability Edict doesn't govern,
+  and an unknown capability is **default-denied**. So forgetting the edict edit didn't degrade a
+  tool, it killed it: every call refused with `no trust level configured for "<tool>"`, on a daemon
+  whose declared posture is allow-everything-unless-turned-off. Dead this way: **`conductor`**
+  (the thinker/worker/verifier tool), **`market`** (the whole capability marketplace, for agents —
+  the CLI and HTTP paths were fine, which is why the loop verified green), **`voice`**,
+  **`image_generate`**, **`rerank`**, and **`file` with `op=glob`** (implemented and advertised in
+  the tool's own schema, but the switch had no case for it). Each now rides a real axis: conductor
+  on `code.exec`, voice/image/rerank on `provider.call`, glob on `file.list`, and the marketplace
+  on a new `market.install` — its own axis rather than borrowing the MCP-specific one, since a pack
+  can carry MCP servers *and* skills *and* host tools. Like every governed capability it ships at
+  L4 (allow) per the max-autonomy posture.
+
+  Two guard tests make the omission fail next to the tool registry instead of at run time: every
+  boot tool must resolve to a governed capability *for every input its schema allows* (that clause
+  is what catches an unmapped `op`), and the runtime's own tool set — which the registry package
+  can't see, and which is where four of the six lived — gets the same check. Both were confirmed
+  red against the old code.
+
+  Worth noting for anyone auditing: `conductor` rides `code.exec` because its verifier runs the
+  worker's code through an in-kernel call that never returns to the policy engine for a second
+  decision. Gating the tool on the code-exec grant is what keeps "deny code.exec" from leaving a
+  path that still executes code.
+
 - **Fixed: a hot-swapped model or persona only reached some of the daemon.** `SetModel` (M816)
   and `SetSystem` (M710) exist so an operator can change the default model or identity without a
   restart — a provider reload after a key rotation calls the first, the persona surface calls the

@@ -381,7 +381,8 @@ func defaultEffectClass(cap edict.Capability) string {
 	case edict.CapNotify, edict.CapHTTPPost, edict.CapRemoteRun:
 		return string(agent.EffectCompensable)
 	case edict.CapShell, edict.CapFileDelete, edict.CapCoding, edict.CapACPAgent,
-		edict.CapHomeAssistantCall, edict.CapCodeExec, edict.CapMCPInstall, edict.CapMCP:
+		edict.CapHomeAssistantCall, edict.CapCodeExec, edict.CapMCPInstall, edict.CapMCP,
+		edict.CapMarket:
 		return string(agent.EffectIrreversible)
 	default:
 		return string(agent.EffectIrreversible)

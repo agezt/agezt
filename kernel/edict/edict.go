@@ -192,6 +192,16 @@ const (
 	// per session, then flow.
 	CapMCP Capability = "mcp.call"
 
+	// CapMarket gates the `market` tool: an agent discovering and installing
+	// capability packs (skills + MCP servers + CLI tools) from the marketplace
+	// mid-task. Self-extension like CapMCPInstall, but a superset — a pack can
+	// carry MCP servers AND skills AND host tools — so it gets its own axis
+	// rather than borrowing the MCP-specific one and misreporting itself in the
+	// audit trail. Search and install share the axis: an operator either lets
+	// agents self-extend from the marketplace or does not, and searching alone
+	// has no effect worth a separate grant.
+	CapMarket Capability = "market.install"
+
 	// CapWorkflow gates the MUTATING ops of the `workflow` tool (M802): an
 	// agent saving, running, or arming durable workflows. Saving installs
 	// standing automation (a cron/event trigger keeps firing after the run
@@ -666,7 +676,7 @@ func AllCapabilities() []Capability {
 		CapHomeAssistantRead, CapHomeAssistantCall,
 		CapBrowserRead, CapBrowserAction, CapMemory, CapWorld, CapWebSearch, CapResearch, CapSchedule, CapRunsRead, CapStanding, CapBoard, CapWorkboard, CapSkill,
 		CapIntrospect, CapOversee, CapCodeExec, CapToolForge, CapMCPInstall, CapMCP, CapConfigRead, CapConfigWrite,
-		CapWorkflow,
+		CapWorkflow, CapMarket,
 	}
 	slices.Sort(caps)
 	return caps

@@ -41,13 +41,18 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		switch p.Op {
 		case "read", "stat", "search":
 			return CapFileRead
-		case "list":
+		case "list", "glob":
+			// glob enumerates the paths matching a pattern — the list axis.
 			return CapFileList
 		case "write", "append", "replace":
 			return CapFileWrite
 		case "delete":
 			return CapFileDelete
 		}
+		// An op the schema does not enumerate cannot reach a real handler, so
+		// naming its axis after it is harmless — and it resolves to an unknown
+		// capability, i.e. default-deny, which is the right answer for a call
+		// nobody can service.
 		return Capability("file." + p.Op)
 	case "browser.read":
 		return CapBrowserRead
@@ -129,6 +134,21 @@ func CapabilityForToolCall(toolName string, input json.RawMessage) Capability {
 		return CapOversee
 	case "code_exec":
 		return CapCodeExec
+	case "conductor":
+		// The Conductor fans out to several models (thinker/worker/verifier) AND
+		// its verifier RUNS the worker's code through the injected sandbox
+		// backend. That execution is an in-kernel call, so it never passes back
+		// through this engine for a second decision — meaning the conductor must
+		// ride the code-exec grant itself, or denying code.exec would leave a
+		// path that still executes code.
+		return CapCodeExec
+	case "market":
+		return CapMarket
+	case "voice", "image_generate", "rerank":
+		// Extra-modality provider calls (M997/M998): speech-to-text and
+		// text-to-speech, image generation, and document reranking are model
+		// invocations, so they share the provider-call axis.
+		return CapProviderCall
 	case "memory":
 		return CapMemory
 	case "db":
