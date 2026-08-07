@@ -77,6 +77,26 @@ export function applyCouncilResult(
   setState({ runs: { ...state.runs, [corr]: next }, activeCorr: state.activeCorr });
 }
 
+// hydrateCouncilRun rebuilds a PAST deliberation from its journaled events and
+// makes it the shown run. Every council.* event is durable, so a convening from
+// last week is fully reconstructable — it was simply unreachable once the live
+// stream moved on (the store only ever held runs from this browser session).
+// Folding through the same foldCouncilEvent as the live path means a replayed
+// council renders identically to one watched in real time.
+export function hydrateCouncilRun(corr: string, events: AgentEvent[]): void {
+  let run = state.runs[corr] ?? newCouncilRun(corr, now());
+  // Journal order is newest-first; fold oldest-first so phases advance forward.
+  const ordered = [...events].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  for (const e of ordered) {
+    if (!e.kind?.startsWith("council.")) continue;
+    run = foldCouncilEvent(run, e, now());
+  }
+  // A replayed convening is finished by definition (its events are history);
+  // without this a run whose consensus event was pruned would spin forever.
+  run = { ...run, thinking: {}, phase: "done", done: true, updatedMs: now() };
+  setState({ runs: { ...state.runs, [corr]: run }, activeCorr: corr });
+}
+
 function getSnapshot(): CouncilState {
   return state;
 }

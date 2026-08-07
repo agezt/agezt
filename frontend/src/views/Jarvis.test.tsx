@@ -19,7 +19,7 @@ vi.mock("@/lib/nav", () => ({
   goToView: (...a: unknown[]) => goToView(...a),
 }));
 
-import { Jarvis } from "@/views/Jarvis";
+import { Jarvis, initiativeRestHint } from "@/views/Jarvis";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {
@@ -72,7 +72,9 @@ describe("Jarvis presence view", () => {
     await waitFor(() => expect(screen.getByText("Acting on its own")).toBeTruthy());
     // Profile pillar counts only the "operator profile:" records (2 of 3).
     expect(screen.getByText(/Knows 2 things about you/)).toBeTruthy();
-    expect(screen.getByText(/expertise/)).toBeTruthy();
+    // The facet appears twice: in the pillar card's top-4 list and in the
+    // full "What it knows about you" panel below.
+    expect(screen.getAllByText(/expertise/).length).toBeGreaterThan(0);
     // Server STT + browser TTS is a usable, explicitly degraded voice path.
     await waitFor(() => expect(screen.getByText("Voice ready")).toBeTruthy());
     // Presence meter: voice + will + profile = 3 of 3.
@@ -172,7 +174,9 @@ describe("Jarvis presence view", () => {
     postAction.mockResolvedValue({ ok: true });
     render(withUI(<Jarvis />));
 
-    await waitFor(() => expect(screen.getByText(/disarmed/)).toBeTruthy());
+    // "disarmed" shows in the pillar banner AND in the recent-initiative
+    // at-rest hint that explains why the feed is empty.
+    await waitFor(() => expect(screen.getAllByText(/disarmed/).length).toBeGreaterThan(0));
     fireEvent.click(screen.getByRole("button", { name: /arm/i }));
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/standing/enable", { id: "ord-1", enabled: "true" }),
@@ -397,5 +401,19 @@ describe("Jarvis presence view", () => {
     expect(screen.getAllByText("an observation")).toHaveLength(2);
     expect(screen.getByText("issue fallback")).toBeTruthy();
     expect(screen.getAllByText("source fallback").length).toBeGreaterThan(0);
+  });
+});
+
+describe("initiativeRestHint", () => {
+  it("distinguishes switched-off from quiet", () => {
+    // Off: the feed will never fill until autonomy is tuned.
+    expect(initiativeRestHint(false, "off", null)).toMatch(/Initiative is off/);
+    expect(initiativeRestHint(false, "", null)).toMatch(/Initiative is off/);
+    // Paused heartbeat is a different fix (resume, not tune).
+    expect(initiativeRestHint(false, "act", null)).toMatch(/paused/);
+    // Live but disarmed: findings ask instead of running.
+    expect(initiativeRestHint(true, "act", { id: "so-1", enabled: false })).toMatch(/disarmed/);
+    // Fully armed and quiet: the honest "nothing yet".
+    expect(initiativeRestHint(true, "act", { id: "so-1", enabled: true })).toMatch(/Nothing flagged yet/);
   });
 });

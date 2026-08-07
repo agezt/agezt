@@ -9,7 +9,10 @@ import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { ModelPicker } from "@/components/ModelPicker";
-import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr } from "@/lib/councilStore";
+import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr, hydrateCouncilRun } from "@/lib/councilStore";
+import type { AgentEvent } from "@/lib/events";
+import { fmtWhen } from "@/lib/utils";
+import { History } from "lucide-react";
 import {
   type CouncilRun,
   seatStatus,
@@ -66,10 +69,46 @@ export function Council() {
   const [editMode, setEditMode] = useState(false);
   const [draftMembers, setDraftMembers] = useState<Member[]>([]);
   const [saving, setSaving] = useState(false);
+  // Past convenings, read from the durable journal (they were unreachable once
+  // the live stream moved on).
+  const [past, setPast] = useState<AgentEvent[]>([]);
+  const [replaying, setReplaying] = useState<string | null>(null);
 
   useEffect(() => {
     loadMembers();
+    loadPast();
   }, []);
+
+  function loadPast() {
+    getJSON<{ events?: AgentEvent[] }>("/api/journal", { kind: "council.convened", limit: "20" })
+      .then((d) => setPast(d.events || []))
+      .catch(() => {});
+  }
+
+  // Reload the history strip once a fresh deliberation finishes, so the run you
+  // just watched is immediately re-openable.
+  useEffect(() => {
+    if (run?.done) loadPast();
+  }, [run?.done]);
+
+  // Replay one past convening: pull its council.* events and fold them through
+  // the same reducer the live view uses.
+  async function replay(corr: string) {
+    if (!corr || replaying) return;
+    setReplaying(corr);
+    try {
+      const d = await getJSON<{ events?: AgentEvent[] }>("/api/journal", {
+        correlation_id: corr,
+        limit: "400",
+      });
+      hydrateCouncilRun(corr, d.events || []);
+      setCorr(corr);
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setReplaying(null);
+    }
+  }
 
   function loadMembers() {
     getJSON<{ members: Member[] }>("/api/council/members")
@@ -187,6 +226,21 @@ export function Council() {
         </div>
       )}
 
+      {/* One seat is a monologue, not a council: the whole point is DIFFERENT
+          models disagreeing, so say so instead of quietly degrading. */}
+      {!editMode && members.length === 1 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
+          <AlertTriangle className="size-4 shrink-0 text-warn" />
+          <span className="min-w-0 flex-1 text-foreground/85">
+            One seat means one opinion — a council needs at least two different models to disagree and
+            reach consensus.
+          </span>
+          <Button size="sm" variant="accent" onClick={enterEdit}>
+            <Plus className="size-3.5" /> Add a seat
+          </Button>
+        </div>
+      )}
+
       {/* Edit mode: per-member model picker */}
       {editMode && (
         <CouncilModal title="Council seats" icon={Users} onClose={cancelEdit}>
@@ -295,6 +349,50 @@ export function Council() {
         {!run && members.length === 0 && !error && (
           <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted">
             No keyed providers — add an API key for at least one provider and the council will convene.
+          </div>
+        )}
+
+        {/* Past convenings — every deliberation is journaled, so re-open one and
+            it renders exactly as it did live. */}
+        {past.length > 0 && (
+          <div className="glass rounded-xl p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted">
+              <History className="size-3.5" /> Past convenings
+              <span className="tabular-nums opacity-70">{past.length}</span>
+            </div>
+            <ul className="divide-y divide-border/50">
+              {past.map((e, i) => {
+                const p: any = e.payload || {};
+                const seats: string[] = Array.isArray(p.seats) ? p.seats : [];
+                const corrId = e.correlation_id || "";
+                const shown = corrId && corrId === shownCorr;
+                return (
+                  <li key={e.id || i}>
+                    <button
+                      onClick={() => replay(corrId)}
+                      disabled={!corrId || replaying === corrId}
+                      className={cn(
+                        "flex w-full items-center gap-2 py-1.5 text-left text-sm transition-colors hover:text-accent disabled:opacity-60",
+                        shown && "text-accent",
+                      )}
+                      title={p.question || corrId}
+                    >
+                      {replaying === corrId ? (
+                        <Loader2 className="size-3.5 shrink-0 animate-spin text-accent" />
+                      ) : (
+                        <Gavel className="size-3.5 shrink-0 text-muted" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{p.question || "(no question recorded)"}</span>
+                      <span className="shrink-0 text-xs text-muted">
+                        {seats.length > 0 ? `${seats.length} seat${seats.length === 1 ? "" : "s"}` : ""}
+                        {typeof p.rounds === "number" ? ` · ${p.rounds}r` : ""}
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted">{fmtWhen(e.ts_unix_ms)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
       </div>

@@ -444,40 +444,94 @@ export function Jarvis() {
         </Pillar>
       </div>
 
-      {/* Recent initiative — what Jarvis flagged/acted on lately (M1003), so armed
-          autonomy isn't a black box. Hidden until there's something to show. */}
-      {recent.length > 0 && (
+      {/* Evidence the pillars are alive: what it DID on its own, and what it
+          KNOWS about you. Both panels stay mounted when empty — the page used to
+          end at the pillar row, leaving half a screen of nothing and no hint of
+          what would ever appear there. */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* Recent initiative — what Jarvis flagged/acted on lately (M1003), so
+            armed autonomy isn't a black box. */}
         <div className="glass rounded-lg p-4">
           <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-normal text-muted-foreground">
             <Zap className="size-3.5" /> Recent initiative
+            {recent.length > 0 && <span className="tabular-nums opacity-70">{recent.length}</span>}
           </div>
-          <ul className="divide-y divide-border/60">
-            {recent.map((e, i) => {
-              const asked = (e.subject || "").endsWith(".ask");
-              const p = e.payload || {};
-              return (
-                <li key={e.id || i} className="flex items-center gap-2 py-1.5 text-sm">
-                  <span
-                    className={cn(
-                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
-                      asked ? "bg-amber-500/15 text-amber-500" : "bg-[var(--good)]/15 text-[var(--good)]",
-                    )}
-                  >
-                    {asked ? "asked" : "acted"}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate" title={p.reason || p.summary}>
-                    {p.summary || p.source || p.issue_key || "an observation"}
-                  </span>
-                  {p.source && <span className="shrink-0 text-xs text-muted-foreground">{p.source}</span>}
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{agoLabel(e.ts_unix_ms)}</span>
-                </li>
-              );
-            })}
-          </ul>
+          {recent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{initiativeRestHint(willLive, init, responder)}</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {recent.map((e, i) => {
+                const asked = (e.subject || "").endsWith(".ask");
+                const p = e.payload || {};
+                return (
+                  <li key={e.id || i} className="flex items-center gap-2 py-1.5 text-sm">
+                    <span
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                        asked ? "bg-amber-500/15 text-amber-500" : "bg-[var(--good)]/15 text-[var(--good)]",
+                      )}
+                    >
+                      {asked ? "asked" : "acted"}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate" title={p.reason || p.summary}>
+                      {p.summary || p.source || p.issue_key || "an observation"}
+                    </span>
+                    {p.source && <span className="shrink-0 text-xs text-muted-foreground">{p.source}</span>}
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{agoLabel(e.ts_unix_ms)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
-      )}
+
+        {/* What it knows about you — the full distilled profile. The pillar card
+            above only has room for four facets. */}
+        <div className="glass rounded-lg p-4">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-normal text-muted-foreground">
+            <UserRound className="size-3.5" /> What it knows about you
+            {profile.length > 0 && <span className="tabular-nums opacity-70">{profile.length}</span>}
+          </div>
+          {profile.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nothing distilled yet. Facets are synthesized daily from accumulated memory (and on demand via
+              Rebuild) — every non-system run then starts knowing who it works for.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {profile.map((r) => (
+                <li key={r.id} className="py-1.5 text-sm">
+                  <span className="font-medium capitalize text-foreground">
+                    {r.subject!.slice(PROFILE_PREFIX.length)}
+                  </span>
+                  <span className="text-muted-foreground"> — {r.content}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </Page>
   );
+}
+
+// initiativeRestHint explains WHY the initiative feed is empty, in terms of the
+// switch that governs it — a bare "nothing yet" leaves the operator unable to
+// tell "quiet system" from "switched off".
+export function initiativeRestHint(
+  willLive: boolean,
+  init: string,
+  responder: StandingOrder | null,
+): string {
+  if (!willLive) {
+    return init === "off" || init === ""
+      ? "Initiative is off — the heartbeat observes but never acts. Tune autonomy to ask or act and its findings land here."
+      : "The heartbeat is paused, so nothing is being noticed right now. Resume it on the Autonomy page.";
+  }
+  if (responder && !responder.enabled) {
+    return "Nothing flagged yet. The responder is disarmed, so a finding will wait for your approval instead of running.";
+  }
+  return "Nothing flagged yet — when a heartbeat finds something actionable, the action it took appears here.";
 }
 
 // Pillar — one glass card. Glows and shows a live dot when its pillar is active.

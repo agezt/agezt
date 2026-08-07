@@ -54,6 +54,71 @@ describe("Council", () => {
     expect(screen.queryByRole("dialog", { name: "Council seats" })).toBeNull();
   });
 
+  it("lists past convenings from the journal and replays one on click", async () => {
+    const convened = {
+      id: "ev-1",
+      seq: 10,
+      kind: "council.convened",
+      correlation_id: "wc-old",
+      ts_unix_ms: Date.now() - 3_600_000,
+      payload: { question: "Postgres or SQLite?", seats: ["Planner", "Critic"], rounds: 2 },
+    };
+    getJSON.mockImplementation((path: string, params?: Record<string, string>) => {
+      if (path === "/api/council/members")
+        return Promise.resolve({ members: [{ seat: "Planner", model: "gpt-4o" }, { seat: "Critic", model: "claude-opus" }] });
+      if (path === "/api/journal" && params?.kind === "council.convened")
+        return Promise.resolve({ events: [convened] });
+      if (path === "/api/journal" && params?.correlation_id === "wc-old")
+        return Promise.resolve({
+          events: [
+            convened,
+            {
+              id: "ev-2",
+              seq: 11,
+              kind: "council.consensus",
+              correlation_id: "wc-old",
+              payload: { consensus: "SQLite for a single node.", has_dissent: false },
+            },
+          ],
+        });
+      return Promise.resolve({});
+    });
+
+    render(
+      <UIProvider>
+        <Council />
+      </UIProvider>,
+    );
+
+    // The history strip shows the past question with its seat/round shape.
+    await waitFor(() => expect(screen.getByText("Postgres or SQLite?")).toBeTruthy());
+    expect(screen.getByText(/2 seats · 2r/)).toBeTruthy();
+
+    // Replaying folds its journaled events back into the live view.
+    fireEvent.click(screen.getByTitle("Postgres or SQLite?"));
+    await waitFor(() =>
+      expect(getJSON).toHaveBeenCalledWith("/api/journal", expect.objectContaining({ correlation_id: "wc-old" })),
+    );
+    await waitFor(() => expect(screen.getByText("SQLite for a single node.")).toBeTruthy());
+  });
+
+  it("nudges for a second seat when the council is a monologue", async () => {
+    getJSON.mockImplementation((path: string) =>
+      path === "/api/council/members"
+        ? Promise.resolve({ members: [{ seat: "Elder Alpha", model: "gpt-4o" }] })
+        : Promise.resolve({}),
+    );
+    render(
+      <UIProvider>
+        <Council />
+      </UIProvider>,
+    );
+    await waitFor(() => expect(screen.getByText(/One seat means one opinion/)).toBeTruthy());
+    // The nudge opens the same seats modal as the Edit action.
+    fireEvent.click(screen.getByRole("button", { name: /Add a seat/ }));
+    expect(screen.getByRole("dialog", { name: "Council seats" })).toBeTruthy();
+  });
+
   it("convenes with the selected round count from the segmented control", async () => {
     render(
       <UIProvider>
