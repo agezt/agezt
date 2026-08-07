@@ -84,7 +84,10 @@ const SETUP_STEPS: { id: Exclude<Step, "done">; label: string; detail: string; i
 
 const STEP_ORDER: Step[] = ["catalog", "access", "provider", "model", "routing", "telegram", "done"];
 const DEFAULT_WEB_PASSWORD = "agezt";
-const CHATGPT_DEFAULT_MODEL = "gpt-5-codex";
+// Only used when the daemon can't tell us what the backend serves (offline, or
+// discovery failed). The live default comes from the sign-in response, since
+// OpenAI retires Codex model ids on its own cadence.
+const CHATGPT_FALLBACK_MODEL = "gpt-5.6-sol";
 
 function setupStepIndex(step: Step): number {
   return step === "done" ? SETUP_STEPS.length : Math.max(0, SETUP_STEPS.findIndex((s) => s.id === step));
@@ -221,20 +224,26 @@ export function Setup({
       setChatGPT({ busy: true, status: "Waiting for ChatGPT authorization…", error: undefined });
       for (let i = 0; i < 150; i++) {
         await new Promise((res) => setTimeout(res, 2000));
-        const st = await postJSON<{ status?: string; connected?: boolean; email?: string; account?: string; error?: string }>(
-          "/api/provider/oauth/status",
-          { state: r.state },
-        );
+        const st = await postJSON<{
+          status?: string;
+          connected?: boolean;
+          email?: string;
+          account?: string;
+          error?: string;
+          models?: string[];
+          default_model?: string;
+        }>("/api/provider/oauth/status", { state: r.state });
         if (st.status === "done" || st.connected) {
+          const model = (st.default_model || st.models?.[0] || "").trim() || CHATGPT_FALLBACK_MODEL;
           await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: "chatgpt" });
-          await postJSON("/api/config/set", { name: "AGEZT_MODEL", value: CHATGPT_DEFAULT_MODEL });
+          await postJSON("/api/config/set", { name: "AGEZT_MODEL", value: model });
           await postAction("/api/provider/reload", {});
           const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
           if (fresh) {
             setCat(fresh);
             setPicked(fresh.providers?.find((p) => p.id === "chatgpt") || null);
           }
-          setSelectedModel(CHATGPT_DEFAULT_MODEL);
+          setSelectedModel(model);
           setProviderReadyText(st.email ? `ChatGPT signed in as ${st.email}` : "ChatGPT signed in");
           setChatGPT({ busy: false, status: "Connected", error: undefined });
           setStep("routing");
@@ -566,7 +575,7 @@ export function Setup({
                   ChatGPT subscription login
                 </div>
                 <p className="mt-1 text-xs text-muted">
-                  Sign in with ChatGPT, then AGEZT uses the ChatGPT provider and {CHATGPT_DEFAULT_MODEL}.
+                  Sign in with ChatGPT, then AGEZT uses the ChatGPT provider and the newest model your plan serves.
                 </p>
               </div>
               <Button size="sm" variant="accent" onClick={startChatGPTLogin} disabled={busy || chatGPT.busy} aria-label="Sign in with ChatGPT">

@@ -4,6 +4,40 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Fix: ChatGPT/Codex provider rejected every request that offered a dotted tool name.** The
+  `openairesponses` adapter sent `agent.ToolDef` names verbatim, so `browser.read` / `browser.action`
+  drew `400 "Invalid 'tools[N].name': string does not match pattern '^[a-zA-Z0-9_-]+$'"` — the whole
+  request failed, and with ChatGPT as the only arm the run died with `all providers failed`. Every other
+  tool-calling adapter (OpenAI, Anthropic, Bedrock, Cohere, Google, Vertex) already routes names through
+  `plugins/providers/internal/toolname`; this one never adopted it. Now it does: `toolname.Maps` on
+  encode for both the `tools` array and replayed `function_call` items, `toolname.RestoreCalls` on the
+  response so a `tool_call` still routes to the real tool. Verified live: a request offering
+  `browser.read` + `browser.action` is accepted and the model's call comes back as `browser.read`.
+
+- **Fix: "Sign in with ChatGPT" served a frozen, dead model list.** The provider's models were a
+  constant written when the adapter shipped (`gpt-5-codex`, `gpt-5`, `gpt-5-mini`) and `SeedChatGPTCatalog`
+  wrote the catalog entry exactly once, so a signed-in install kept offering ids the backend had
+  retired — the default `gpt-5-codex` now answers `400 "The 'gpt-5-codex' model is not supported when
+  using Codex with a ChatGPT account."` (verified live), which the governor reads as unservable, taking
+  the whole provider down. Model ids are now **discovered**:
+  - `openairesponses.ListModels` calls `GET /backend-api/codex/models?client_version=…` — the same call
+    Codex CLI makes (the `client_version` query param is required; omitting it is a 400) — with the same
+    401 refresh-and-retry as `Complete`, and orders the reply by the backend's own priority.
+  - `providerboot` resolves the surface from the backend, else the Codex CLI's `models_cache.json`, else
+    a builtin snapshot; hidden (`visibility: "hide"`) entries stay out of the picker; results are memoized
+    for 6h so reloads and sign-in status polls don't mean a request per call. A discovery failure degrades
+    to the next source and never blocks boot.
+  - `SeedChatGPTCatalog` now **refreshes** an existing entry when the set is authoritative (a builtin/offline
+    set still never clobbers what's on disk), and a sign-in triggers a catalog refresh via the new
+    `controlplane.Deps.ChatGPTSync` hook — the kernel still never imports the provider layer.
+  - Per-model prompts: the backend now serves distinct `base_instructions` per model, so the adapter sends
+    each model its own and falls back to the vendored `instructions.md` only for models discovery missed.
+  - The sign-in responses carry `models` + `default_model`, so Setup pins a live model instead of the
+    hardcoded `gpt-5-codex`, and `agt provider chatgpt status` prints the served list.
+  - Verified live against a real subscription in an isolated home: 7 models discovered (default
+    `gpt-5.6-sol`, 17.7 KB of per-model instructions), and a completion on the discovered default returns
+    normally where `gpt-5-codex` 400s.
+
 - **Fix frontend `lib/language.ts` regressions introduced during the C2 P2 `lib/languages.ts → lib/language.ts` rename.** The rename collapsed three behavioural guarantees that downstream tests (`languages.test.ts`) and consumers (`markdown.ts` inline file-mention parser, `FileMention.tsx`) depended on:
   - `extOf(".gitignore")` returned `"gitignore"` — restored to `""` (a leading dotfile has no extension).
   - `extOf("foo.dir/bar")` returned `"dir"` — restored to `""` (when the last `/` comes after the last `.`, the segment is a directory, not an extension).

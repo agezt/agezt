@@ -137,6 +137,14 @@ func chatgptStatus(stdout, stderr io.Writer) int {
 	if connected, _ := res["connected"].(bool); connected {
 		email, _ := res["email"].(string)
 		fmt.Fprintf(stdout, "connected%s\n", acctSuffix(email))
+		// The served model ids are discovered, not fixed — print them so an
+		// operator pinning AGEZT_MODEL sees what the backend currently accepts.
+		if models := toStringSlice(res["models"]); len(models) > 0 {
+			fmt.Fprintf(stdout, "models   : %s\n", strings.Join(models, ", "))
+		}
+		if def, _ := res["default_model"].(string); def != "" {
+			fmt.Fprintf(stdout, "default  : %s\n", def)
+		}
 	} else {
 		fmt.Fprintf(stdout, "not connected — run `%s provider chatgpt login`\n", brand.CLI)
 	}

@@ -105,3 +105,59 @@ func TestProviderOAuthImport(t *testing.T) {
 		t.Fatalf("still connected after logout: %v", st)
 	}
 }
+
+// TestProviderOAuthModelSurface checks that a signed-in account's served models
+// reach the console. The model ids OpenAI serves over the Codex backend change
+// over time, so the sign-in reply — not a constant in the UI — is what the
+// console pins as the model.
+func TestProviderOAuthModelSurface(t *testing.T) {
+	t.Setenv("AGEZT_VAULT_PASSPHRASE", "test-pass")
+	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+
+	var syncs int
+	srv.SetChatGPTSync(func() ([]string, string) {
+		syncs++
+		return []string{"gpt-5.6-sol", "gpt-5.4"}, "gpt-5.6-sol"
+	})
+
+	authPath := filepath.Join(t.TempDir(), "auth.json")
+	id := makeJWT(map[string]any{"email": "owner@example.com"})
+	blob := `{"tokens":{"access_token":"at","refresh_token":"rt","id_token":"` + id + `","account_id":"acc-x"}}`
+	if err := os.WriteFile(authPath, []byte(blob), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := c.Call(ctx, controlplane.CmdProviderOAuthImport, map[string]any{"path": authPath})
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if res["default_model"] != "gpt-5.6-sol" {
+		t.Errorf("import default_model = %v, want gpt-5.6-sol", res["default_model"])
+	}
+	if models, _ := res["models"].([]any); len(models) != 2 {
+		t.Errorf("import models = %v, want 2 entries", res["models"])
+	}
+
+	// The status poll reports the same surface while connected.
+	st, err := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": ""})
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if st["connected"] != true || st["default_model"] != "gpt-5.6-sol" {
+		t.Errorf("status = %v", st)
+	}
+	if syncs < 2 {
+		t.Errorf("sync hook called %d times, want >= 2 (import + status)", syncs)
+	}
+
+	// Disconnected: no model surface (and no pointless discovery).
+	if _, err := c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	before := syncs
+	st, _ = c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": ""})
+	if st["default_model"] != "" || syncs != before {
+		t.Errorf("status after logout = %v (syncs %d → %d)", st, before, syncs)
+	}
+}

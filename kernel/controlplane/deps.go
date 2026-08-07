@@ -55,6 +55,9 @@ type Deps struct {
 	CredChain string
 	// Channels lists the configured messaging channels for `agt status` (M141).
 	Channels []ChannelInfo
+	// ChatGPTSync refreshes the chatgpt catalog entry after a sign-in and
+	// reports the served model surface; nil disables both.
+	ChatGPTSync ChatGPTSyncFunc
 }
 
 // NewServerWithDeps constructs a Server with its early dependencies applied,
@@ -70,6 +73,7 @@ func NewServerWithDeps(k *runtime.Kernel, baseDir string, d Deps) *Server {
 	s.SetHTTPBindings(d.HTTPBindings)
 	s.SetCredChain(d.CredChain)
 	s.SetChannels(d.Channels)
+	s.SetChatGPTSync(d.ChatGPTSync)
 	return s
 }
 
