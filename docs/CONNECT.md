@@ -20,8 +20,14 @@ provider only goes live once you connect it.
 
 Use a **ChatGPT Plus/Pro subscription** as an LLM provider — **no API key**. This
 is the same "Sign in with ChatGPT" that the Codex CLI offers, exposed as a
-first-class Agezt provider (catalog id `chatgpt`, models `gpt-5-codex`, `gpt-5`,
-`gpt-5-mini`).
+first-class Agezt provider (catalog id `chatgpt`).
+
+The **model ids are discovered**, not fixed: on sign-in — and on each daemon boot
+while connected — Agezt asks the backend which models your plan serves and
+rewrites the catalog entry from the answer. OpenAI retires Codex model ids on its
+own cadence, so run `agt provider chatgpt status` to see the current list before
+pinning `AGEZT_MODEL`. Offline, Agezt falls back to the Codex CLI's own
+`models_cache.json`, then to a built-in snapshot.
 
 > ⚠️ **Important — this is an unofficial path.** There is no public OpenAI product
 > for "use my subscription via API". Agezt obtains it the way Codex does: it
@@ -65,11 +71,11 @@ over API-key providers. To actually route runs to it:
 
 - Set it as the default provider/model:
   ```bash
-  AGEZT_PROVIDER=chatgpt AGEZT_MODEL=gpt-5-codex agezt   # (or set in your config)
+  AGEZT_PROVIDER=chatgpt AGEZT_MODEL=gpt-5.6-sol agezt   # use a model from `agt provider chatgpt status`
   ```
 - …or leave your existing primary and route specific tasks/agents to a ChatGPT
   model via per-task **routing** / **fallback chains** (System → Routing in the
-  UI) — a request naming `gpt-5-codex` is sent to the `chatgpt` provider.
+  UI) — a request naming a served model id is sent to the `chatgpt` provider.
 
 ### How it works (for the curious / for debugging)
 
@@ -84,11 +90,18 @@ over API-key providers. To actually route runs to it:
 - **Wire**: requests go to `https://chatgpt.com/backend-api/codex/responses` using
   the OpenAI **Responses API** (not chat/completions), with the `chatgpt-account-id`
   header and Codex's own system instructions (the backend validates them; the
-  prompt is vendored under Apache-2.0). Agezt translates its chat-shaped requests
-  and tool calls to/from Responses items and streams the reply.
-  (`plugins/providers/openairesponses`)
-- **Live application**: a successful sign-in triggers a kernel reload, so the
-  provider appears **without restarting** the daemon.
+  prompt is vendored under Apache-2.0). The backend now serves a **per-model**
+  system prompt, so Agezt sends each model its own discovered `base_instructions`
+  and only falls back to the vendored prompt for a model discovery didn't cover.
+  Agezt translates its chat-shaped requests and tool calls to/from Responses items
+  and streams the reply. (`plugins/providers/openairesponses`)
+- **Models**: `GET /backend-api/codex/models?client_version=…` (the call Codex
+  CLI makes) lists what your plan serves, ordered by the backend's own priority —
+  the first listed entry is the default Agezt pins. Hidden entries stay out of the
+  picker.
+- **Live application**: a successful sign-in triggers a kernel reload **and** a
+  catalog refresh, so the provider and its current models appear **without
+  restarting** the daemon.
 
 ### Troubleshooting
 
@@ -96,7 +109,7 @@ over API-key providers. To actually route runs to it:
 |---|---|
 | `cannot bind 127.0.0.1:1455` | Something else holds the port (e.g. a running `codex login`). Close it and retry, or use `agt provider chatgpt import`. |
 | Browser can't reach the redirect | The listener is on the **daemon** host. See [remote daemons](#remote-daemons-and-port-1455). |
-| `not signed in` when routing to `gpt-5-codex` | Connect first (UI card / `agt provider chatgpt login`). The provider is only registered while signed in. |
+| `not signed in` when routing to a ChatGPT model | Connect first (UI card / `agt provider chatgpt login`). The provider is only registered while signed in. |
 | Worked before, now `400`/`403` from the backend | OpenAI changed the unofficial backend or required prompt. This is expected fragility; an update to `plugins/providers/openairesponses` may be needed. |
 | `AGEZT_PROVIDER=chatgpt but not signed in` at boot | You pinned ChatGPT as primary but no tokens are stored — sign in, or unset `AGEZT_PROVIDER`. |
 

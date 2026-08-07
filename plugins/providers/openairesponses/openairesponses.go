@@ -31,6 +31,7 @@ import (
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
+	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
 //go:embed instructions.md
@@ -60,7 +61,12 @@ type Provider struct {
 	BaseURL         string
 	Token           TokenFunc
 	ReasoningEffort string // "" omits the reasoning field; default "medium"
-	newSession      func() string
+	// Instructions holds each model's own base_instructions, as served by
+	// /models (see ListModels). The backend ships a distinct system prompt per
+	// model; the vendored instructions.md is only the fallback for models
+	// discovery didn't cover. Set at construction; never mutated after.
+	Instructions map[string]string
+	newSession   func() string
 }
 
 // New builds a provider with id (catalog name), default model, and a token source.
@@ -121,7 +127,14 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 		}
 		return nil, fmt.Errorf("openairesponses: backend status %d: %s", status, msg)
 	}
-	return parseSSE(resp)
+	out, err := parseSSE(resp)
+	if err != nil {
+		return nil, err
+	}
+	// The model calls tools by their wire name; map them back so the call routes
+	// to the real tool.
+	toolname.RestoreCalls(out, toolname.Reverse(req.Tools))
+	return out, nil
 }
 
 // send performs one POST, returning the raw body bytes + status. When force, it
@@ -201,16 +214,26 @@ type reqBody struct {
 	TopP        *float64 `json:"top_p,omitempty"`
 }
 
-func (p *Provider) buildBody(req agent.CompletionRequest, model string) ([]byte, error) {
-	instructions := codexInstructions
-	if s := strings.TrimSpace(req.System); s != "" {
-		instructions = codexInstructions + "\n\n" + s
+// instructionsFor returns the model's own base_instructions when discovery
+// supplied them, else the vendored Codex prompt.
+func (p *Provider) instructionsFor(model string) string {
+	if s := strings.TrimSpace(p.Instructions[model]); s != "" {
+		return s
 	}
+	return codexInstructions
+}
+
+func (p *Provider) buildBody(req agent.CompletionRequest, model string) ([]byte, error) {
+	instructions := p.instructionsFor(model)
+	if s := strings.TrimSpace(req.System); s != "" {
+		instructions += "\n\n" + s
+	}
+	fwd, _ := toolname.Maps(req.Tools)
 	b := reqBody{
 		Model:        model,
 		Instructions: instructions,
-		Input:        toInput(req.Messages),
-		Tools:        toTools(req.Tools),
+		Input:        toInput(req.Messages, fwd),
+		Tools:        toTools(req.Tools, fwd),
 		Store:        false,
 		Stream:       true,
 	}
@@ -242,8 +265,18 @@ func contentText(kind, text string) map[string]any {
 	return map[string]any{"type": kind, "text": text}
 }
 
-// toInput maps AGEZT messages to Responses input items.
-func toInput(msgs []agent.Message) []any {
+// Tool-name conformance (the Responses API validates against
+// ^[a-zA-Z0-9_-]+$) lives in the shared plugins/providers/internal/toolname
+// package: toolname.Maps builds the injective original↔wire mapping,
+// toolname.Wire applies it on encode, and toolname.RestoreCalls reverses it on
+// the response so a tool_call still routes to the real tool. Agezt exposes names
+// like "browser.read", which the backend rejects with a 400 that kills this
+// provider's arm of a routing chain.
+
+// toInput maps AGEZT messages to Responses input items. fwd is the tool-name
+// mapping, so a replayed function_call goes out under the same wire name the
+// tool was offered under.
+func toInput(msgs []agent.Message, fwd map[string]string) []any {
 	out := make([]any, 0, len(msgs))
 	for _, m := range msgs {
 		switch m.Role {
@@ -270,7 +303,7 @@ func toInput(msgs []agent.Message) []any {
 					args = "{}"
 				}
 				out = append(out, map[string]any{
-					"type": "function_call", "name": tc.Name,
+					"type": "function_call", "name": toolname.Wire(fwd, tc.Name),
 					"arguments": args, "call_id": tc.ID,
 				})
 			}
@@ -283,7 +316,7 @@ func toInput(msgs []agent.Message) []any {
 	return out
 }
 
-func toTools(defs []agent.ToolDef) []toolDef {
+func toTools(defs []agent.ToolDef, fwd map[string]string) []toolDef {
 	if len(defs) == 0 {
 		return nil
 	}
@@ -294,7 +327,7 @@ func toTools(defs []agent.ToolDef) []toolDef {
 			params = json.RawMessage(`{"type":"object"}`)
 		}
 		out = append(out, toolDef{
-			Type: "function", Name: d.Name, Description: d.Description, Parameters: params,
+			Type: "function", Name: toolname.Wire(fwd, d.Name), Description: d.Description, Parameters: params,
 		})
 	}
 	return out

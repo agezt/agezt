@@ -172,7 +172,14 @@ type Server struct {
 	chatgpt     *chatgptauth.Manager
 	provLoginMu sync.Mutex
 	provLogin   *providerLogin
+	chatgptSync ChatGPTSyncFunc
 }
+
+// ChatGPTSyncFunc refreshes the chatgpt catalog entry from the backend after a
+// sign-in and reports the resulting model surface: ids most-preferred first plus
+// the model to pin when the operator hasn't chosen one. The kernel never imports
+// the provider layer, so the daemon supplies this (see Deps.ChatGPTSync).
+type ChatGPTSyncFunc func() (models []string, defaultModel string)
 
 // ChannelSender delivers text out a named channel kind to a channel/chat id. The
 // daemon wires it to the live channels' Send methods.
@@ -204,6 +211,11 @@ func (s *Server) SetChannels(c []ChannelInfo) { s.channels = c }
 // SetChannelSender wires operator-initiated outbound (`agt send`) to the live
 // channels. Nil leaves `agt send` reporting "no channels configured".
 func (s *Server) SetChannelSender(send ChannelSender) { s.channelSend = send }
+
+// SetChatGPTSync wires the post-sign-in catalog refresh + model-surface lookup.
+// Nil leaves the sign-in responses without a model list (the console then falls
+// back to whatever the catalog already holds).
+func (s *Server) SetChatGPTSync(fn ChatGPTSyncFunc) { s.chatgptSync = fn }
 
 // SetCredChain records the resolved AWS credential-chain description so
 // `agt status` can report which credential layer engaged (M307).

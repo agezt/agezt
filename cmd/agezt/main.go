@@ -223,8 +223,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 
 	// Make ChatGPT ("Sign in with ChatGPT") discoverable in Models; it only
-	// registers as a live provider once the operator signs in.
-	providerboot.SeedChatGPTCatalog(catStore)
+	// registers as a live provider once the operator signs in. When signed in
+	// this also refreshes the served model ids from the backend, so the entry
+	// tracks OpenAI's Codex model cadence instead of freezing at first boot.
+	providerboot.SeedChatGPTCatalog(catStore, baseDir)
 	cat, _ := catStore.Load()
 
 	// Credential resolution chain (M1.dd):
@@ -1116,6 +1118,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 		HTTPBindings:       httpBindings,       // M137: exposure check + `agt status`
 		CredChain:          awsChainDesc,       // M307: which AWS credential layer engaged
 		Channels:           collectChannels(),  // M141: configured channels for `agt status`
+		// Post-sign-in ChatGPT catalog refresh + model surface. The kernel never
+		// imports the provider layer, so the hook is supplied here.
+		ChatGPTSync: func() ([]string, string) { return providerboot.SyncChatGPTCatalog(catStore, baseDir) },
 	})
 	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
 	if cancelOnDisconnect {

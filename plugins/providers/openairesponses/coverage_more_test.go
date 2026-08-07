@@ -73,7 +73,7 @@ func TestOpenAIResponsesCoverageToInputAllRoles(t *testing.T) {
 		{Role: agent.RoleAssistant, Content: "assistant text", ToolCalls: []agent.ToolCall{{ID: "call-1", Name: "lookup", Input: json.RawMessage(`{"q":"x"}`)}}},
 		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "call-empty", Name: "noop"}}},
 		{Role: agent.RoleTool, ToolCallID: "call-1", Content: "tool output"},
-	})
+	}, nil)
 	b, _ := json.Marshal(items)
 	text := string(b)
 	for _, want := range []string{"developer", "input_text", "output_text", "function_call", "lookup", `\"q\":\"x\"`, "call-empty", "{}", "function_call_output", "tool output"} {

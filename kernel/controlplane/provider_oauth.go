@@ -119,10 +119,13 @@ func (s *Server) providerCallback(w http.ResponseWriter, r *http.Request, login 
 		return
 	}
 	s.setProviderLoginStatus(login, "done", "")
-	// Bring the provider live without a restart.
+	// Bring the provider live without a restart, then refresh the catalog from
+	// the backend — the served Codex model ids change over time, and a stale
+	// entry leaves the console offering models the backend no longer knows.
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}
+	s.syncChatGPTModels()
 	providerLoginPage(w, true, "")
 	go s.deferredClose(login)
 }
@@ -151,6 +154,15 @@ func (s *Server) stopProviderLogin() {
 	}
 }
 
+// syncChatGPTModels refreshes the catalog entry from the backend and returns the
+// served model surface. Safe to call with no hook wired (returns nothing).
+func (s *Server) syncChatGPTModels() (models []string, defaultModel string) {
+	if s.chatgptSync == nil {
+		return nil, ""
+	}
+	return s.chatgptSync()
+}
+
 // handleProviderOAuthStatus reports the active login's terminal state plus the
 // connected account (best-effort). args: state.
 func (s *Server) handleProviderOAuthStatus(conn net.Conn, req Request) {
@@ -166,12 +178,22 @@ func (s *Server) handleProviderOAuthStatus(conn net.Conn, req Request) {
 		errMsg = login.errMsg
 	}
 	email, account := s.chatgptMgr().Account()
+	connected := s.chatgptMgr().HasTokens()
+	// Report the models the backend actually serves so the console can pin a live
+	// default instead of a hardcoded id.
+	var models []string
+	var defaultModel string
+	if connected {
+		models, defaultModel = s.syncChatGPTModels()
+	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"status":    status,
-		"error":     errMsg,
-		"connected": s.chatgptMgr().HasTokens(),
-		"email":     email,
-		"account":   account,
+		"status":        status,
+		"error":         errMsg,
+		"connected":     connected,
+		"email":         email,
+		"account":       account,
+		"models":        models,
+		"default_model": defaultModel,
 	}})
 }
 
@@ -185,9 +207,11 @@ func (s *Server) handleProviderOAuthImport(conn net.Conn, req Request) {
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}
+	models, defaultModel := s.syncChatGPTModels()
 	email, account := s.chatgptMgr().Account()
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
 		"ok": true, "connected": true, "email": email, "account": account,
+		"models": models, "default_model": defaultModel,
 	}})
 }
 
