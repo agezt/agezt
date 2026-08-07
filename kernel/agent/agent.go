@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/agezt/agezt/internal/apperrors"
@@ -862,35 +861,10 @@ func truncateForJournal(s string) string {
 //
 // Every step is durable-before-publish through cfg.Bus.
 func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string, runErr error) {
-	if cfg.Provider == nil {
-		return "", errors.New("agent: provider required")
+	if err := validateLoopConfig(cfg); err != nil {
+		return "", err
 	}
-	if cfg.Bus == nil {
-		return "", errors.New("agent: bus required")
-	}
-	if cfg.Actor == "" {
-		return "", errors.New("agent: actor required")
-	}
-	if cfg.MaxIter <= 0 {
-		cfg.MaxIter = DefaultMaxIter
-	}
-	if cfg.MaxIdenticalToolCalls == 0 {
-		cfg.MaxIdenticalToolCalls = DefaultMaxIdenticalToolCalls
-	}
-	// M833: 0 → default auto-continue budget; negative → disabled (old
-	// fail-at-MaxIter behaviour). Resolved once here so the loop math is simple.
-	if cfg.MaxAutoContinue == 0 {
-		cfg.MaxAutoContinue = DefaultMaxAutoContinue
-	}
-	if cfg.MaxAutoContinue < 0 {
-		cfg.MaxAutoContinue = 0
-	}
-	if cfg.AutoContinueWait == 0 {
-		cfg.AutoContinueWait = DefaultAutoContinueWait
-	}
-	if cfg.Tools == nil {
-		cfg.Tools = map[string]Tool{}
-	}
+	normalizeLoopConfig(&cfg)
 
 	subject := func(suffix string) string {
 		// Every event in this run shares an "agent.<actor>.<suffix>"
@@ -908,40 +882,9 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		})
 	}
 
-	// 1. task.received — records the intent and, when present, the count of
-	// image attachments (M93) so the run's provenance shows it had vision input.
-	received := map[string]any{"intent": userIntent}
-	if len(cfg.Images) > 0 {
-		received["images"] = len(cfg.Images)
-	}
-	// Tag the run with the named agent it executes AS (M854), so a per-agent
-	// activity timeline can attribute runs — "what did researcher do?". Empty for
-	// the daemon's default identity.
-	if cfg.Agent != "" {
-		received["agent"] = cfg.Agent
-	}
-	if cfg.WakeSource != "" {
-		received["wake_source"] = cfg.WakeSource
-	}
-	if cfg.WakeReason != "" {
-		received["wake_reason"] = cfg.WakeReason
-	}
-	if cfg.ScheduleID != "" {
-		received["schedule_id"] = cfg.ScheduleID
-	}
-	if cfg.StandingID != "" {
-		received["standing_id"] = cfg.StandingID
-	}
-	if cfg.StandingName != "" {
-		received["standing_name"] = cfg.StandingName
-	}
-	if cfg.TriggerSubject != "" {
-		received["trigger_subject"] = cfg.TriggerSubject
-	}
-	if cfg.ParentCorrelation != "" {
-		received["parent_correlation"] = cfg.ParentCorrelation
-	}
-	if _, err := publish(event.KindTaskReceived, "task", received); err != nil {
+	// 1. task.received — the intent plus the run's provenance (image count,
+	// agent attribution, wake source, the schedule/standing order that fired it).
+	if _, err := publish(event.KindTaskReceived, "task", taskReceivedPayload(cfg, userIntent)); err != nil {
 		return "", apperrors.Wrap(ctx, "agent: publish task.received", err)
 	}
 
@@ -978,85 +921,27 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		}
 	}()
 
-	messages := []Message{
-		{Role: RoleUser, Content: userIntent, Images: cfg.Images},
-	}
-	if len(cfg.PriorMessages) > 0 {
-		// Resume (M1002): continue the interrupted conversation rather than
-		// starting fresh. The snapshot already opens with the original intent turn,
-		// so adopt it as-is instead of prepending a duplicate. Copy so a caller's
-		// backing array is never mutated by the loop's appends.
-		messages = append([]Message(nil), cfg.PriorMessages...)
+	messages := initialMessages(cfg, userIntent)
+
+	tools, err := buildToolDefs(cfg.Tools)
+	if err != nil {
+		return "", err
 	}
 
-	tools := make([]ToolDef, 0, len(cfg.Tools))
-	for name, t := range cfg.Tools {
-		def := t.Definition()
-		if err := LintToolSchema(def); err != nil {
-			return "", fmt.Errorf("agent: tool %q schema lint failed: %w", name, err)
-		}
-		tools = append(tools, def)
-	}
-
-	// callCounts tracks how many times each exact (tool, input) has been
-	// requested in this run, for the M116 loop guard.
-	callCounts := map[string]int{}
-
-	// observations tracks the last successful output for each exact tool/input
-	// pair so repeated observations can be delivered to the model as deltas.
-	observations := map[string]string{}
-
-	// toolDenials tracks how many times each tool has been refused by policy
-	// this run. Once a tool reaches maxToolDenials (or is hard-denied even once)
-	// it is dropped from the set offered to the model on later iterations — so
-	// the model stops burning iterations (and tokens) requesting a call the
-	// policy will always refuse (M605). The M116 guard only catches an identical
-	// (tool,input) repeat; this catches the same tool tried with new inputs.
-	toolDenials := map[string]int{}
-	const maxToolDenials = 2
-
-	// untrustedTaint carries external-observation provenance forward to policy.
-	// It is set by the tool-result boundary, not by the model, so a hostile web
-	// page cannot erase that it was the source of a downstream proposal.
-	var untrustedTaint UntrustedObservationTaint
-	// directiveObsIter is the loop iteration at which the most recent
-	// directive-like untrusted observation arrived (-1 = none yet). The
-	// directive flag threaded to policy is ACTIVE only while a proposed action is
-	// within directiveWindow iterations of that observation — the causal window
-	// in which the model could be acting on the injected instruction. After the
-	// window the run keeps its audit provenance (Sources/Matches) but the gate no
-	// longer fires, so one suspicious search early in a run stops forcing
-	// approval on every later action (the run-wide-sticky-taint fix).
-	directiveObsIter := -1
-	directiveWindow := cfg.DirectiveTaintWindow
-	if directiveWindow <= 0 {
-		directiveWindow = DefaultDirectiveTaintWindow
-	}
+	// Mutable per-run state — the loop guard's counters, the policy denial
+	// tallies, the observation cache, and the prompt-injection causal window —
+	// lives in one documented struct (see run_tools.go) rather than a dozen
+	// loop-locals captured by closures.
+	st := newRunState(cfg, publish)
 
 	// spentMicrocents accumulates this run's provider spend for the per-run cost
 	// cap (M166). A local stack variable — no shared state, no lifecycle, no
 	// cleanup — so the cap adds zero concurrency surface.
 	var spentMicrocents int64
 
-	// summarizeElided wraps cfg.SummarizeElided (M398) with a per-run cache keyed
-	// by the output so each distinct tool output is summarised at most once, and
-	// swallows ctx/errors into "" so compaction always falls back to the head
-	// snippet. nil when no summarizer is configured — zero extra provider calls.
-	var summarizeElided func(string) string
-	if cfg.SummarizeElided != nil {
-		summaryCache := map[string]string{}
-		summarizeElided = func(output string) string {
-			if s, ok := summaryCache[output]; ok {
-				return s
-			}
-			s, err := cfg.SummarizeElided(ctx, output)
-			if err != nil {
-				s = "" // fall back to the head snippet for this output
-			}
-			summaryCache[output] = s
-			return s
-		}
-	}
+	// Per-run cached summarizer for elided tool outputs (M398); nil when the
+	// caller configured none.
+	summarizeElided := newElisionSummarizer(ctx, cfg)
 
 	// Auto-continue (M833): the loop runs in SEGMENTS of cfg.MaxIter rounds. When a
 	// segment exhausts without a final answer, instead of failing immediately we
@@ -1172,20 +1057,8 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			}
 		}
 
-		// Offer only the tools the policy hasn't repeatedly refused this run
-		// (M605). A no-op until a tool crosses the denial threshold, so the
-		// common case allocates nothing.
-		offered := tools
-		if len(toolDenials) > 0 {
-			filtered := make([]ToolDef, 0, len(tools))
-			for _, t := range tools {
-				if toolDenials[t.Name] >= maxToolDenials {
-					continue
-				}
-				filtered = append(filtered, t)
-			}
-			offered = filtered
-		}
+		// Offer only the tools the policy hasn't repeatedly refused this run (M605).
+		offered := st.offeredTools(tools)
 		toolsBeforeDiscovery := len(offered)
 		toolDiscovery := false
 		if cfg.ToolSelector != nil {
@@ -1224,99 +1097,10 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			return "", apperrors.Wrap(ctx, "agent: publish llm.request", err)
 		}
 
-		req := CompletionRequest{
-			Model:               cfg.Model,
-			System:              cfg.System,
-			Messages:            messages,
-			Tools:               offered,
-			MaxTokens:           cfg.MaxTokens,
-			TaskType:            cfg.TaskType,   // M703: per-task model routing hint
-			ModelChain:          cfg.ModelChain, // M787: per-agent model fallback chain
-			Agent:               cfg.Agent,      // M793: identity for the per-agent ledger
-			AgentDailyCeilingMc: cfg.AgentDailyCeilingMc,
-			CorrelationID:       cfg.CorrelationID, // M47: attribute spend to this run
-			JSONMode:            cfg.JSONMode,      // M314: structured-output request
-			Params:              cfg.Params,        // M997: per-request sampling knobs
-		}
-		var resp *CompletionResponse
-		// Use the streaming path when the provider advertises it
-		// (M1.q.y). Each text fragment is published as an ephemeral
-		// KindLLMToken event so the CLI can render tokens inline;
-		// the canonical llm.response (durable) still publishes below
-		// with the assembled message + final usage. Streaming
-		// failures fall back to fail-the-call rather than retry via
-		// Complete — the StreamingProvider contract guarantees same-
-		// response semantics, so any error is a real upstream
-		// problem worth surfacing.
-		if sp, ok := cfg.Provider.(StreamingProvider); ok {
-			tokenIter := iter
-			r, err := sp.CompleteStream(ctx, req, func(c Chunk) error {
-				// Reasoning delta (M317): stream a reasoning model's chain of
-				// thought as an ephemeral llm.reasoning event so it's visible
-				// live (agt pulse) without bloating the durable journal.
-				if c.ReasoningDelta != "" {
-					_, _ = cfg.Bus.PublishStreaming(event.Spec{
-						Subject:       subject("llm"),
-						Kind:          event.KindLLMReasoning,
-						Actor:         cfg.Actor,
-						CorrelationID: cfg.CorrelationID,
-						Payload: map[string]any{
-							"iter": tokenIter,
-							"text": c.ReasoningDelta,
-						},
-					})
-				}
-				if c.TextDelta == "" {
-					return nil
-				}
-				_, _ = cfg.Bus.PublishStreaming(event.Spec{
-					Subject:       subject("llm"),
-					Kind:          event.KindLLMToken,
-					Actor:         cfg.Actor,
-					CorrelationID: cfg.CorrelationID,
-					Payload: map[string]any{
-						"iter": tokenIter,
-						"text": c.TextDelta,
-					},
-				})
-				return nil
-			})
-			if err != nil {
-				return "", apperrors.Wrapf(ctx, "agent: provider %s (stream)", err, cfg.Provider.Name())
-			}
-			resp = r
-		} else {
-			r, err := cfg.Provider.Complete(ctx, req)
-			if err != nil {
-				return "", apperrors.Wrapf(ctx, "agent: provider %s", err, cfg.Provider.Name())
-			}
-			resp = r
-			// A non-streaming provider returns the reasoning whole, with no deltas
-			// (M325). Emit it as one ephemeral llm.reasoning event so a reasoning
-			// model's chain of thought reaches the same consumers (agt pulse, the
-			// ACP thought-chunk relay, the OpenAI-compatible API's reasoning_content)
-			// that the streaming branch above already feeds live — otherwise only
-			// reasoning_chars on llm.response below would record that it existed.
-			if r != nil && r.ReasoningContent != "" {
-				_, _ = cfg.Bus.PublishStreaming(event.Spec{
-					Subject:       subject("llm"),
-					Kind:          event.KindLLMReasoning,
-					Actor:         cfg.Actor,
-					CorrelationID: cfg.CorrelationID,
-					Payload: map[string]any{
-						"iter": iter,
-						"text": r.ReasoningContent,
-					},
-				})
-			}
-		}
-		// A provider must return a non-nil response with a nil error (the Provider
-		// contract). An out-of-process plugin is third-party code that can break
-		// that — e.g. (nil, nil) on an unexpected empty upstream body. Guard it:
-		// every field access below assumes a non-nil resp, and a nil deref here
-		// would panic the run (and, without a recover, the whole daemon).
-		if resp == nil {
-			return "", fmt.Errorf("agent: provider %s returned a nil response without an error", cfg.Provider.Name())
+		req := completionRequestFor(cfg, messages, offered)
+		resp, err := callProvider(ctx, cfg, req, iter)
+		if err != nil {
+			return "", err
 		}
 
 		// 2c. llm.response
@@ -1368,311 +1152,18 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			return resp.Message.Content, nil
 		}
 
-		// 2e. tool calls — three phases (M880). Phase 1 gates each call
-		// sequentially in call order (loop guard, policy) and journals
-		// policy.decision / tool.invoked, so the audit trail and any HITL
-		// approval prompts stay deterministic. Phase 2 executes the allowed
-		// invocations, concurrently when the turn carries more than one (up
-		// to MaxParallelTools). Phase 3 journals tool.result and appends the
-		// tool messages in the ORIGINAL call order, so the conversation the
-		// model sees is identical to the sequential build.
-		type toolJob struct {
-			tc           ToolCall
-			tool         Tool // non-nil ⇒ phase 2 executes it
-			result       Result
-			invokeErr    error
-			toolTimedOut bool
-			panicked     bool
-			memoEligible bool
-			memoHit      bool
-			memoSource   *toolJob
+		// 2e. tool calls — gate (in call order), execute (concurrently when the
+		// turn carries more than one), finalize (journal + append in the original
+		// order). See run_tools.go for why the three phases exist and how they
+		// share the causal window.
+		jobs, err := st.gateToolCalls(ctx, resp.Message.ToolCalls, iter)
+		if err != nil {
+			return "", err
 		}
-		jobs := make([]*toolJob, 0, len(resp.Message.ToolCalls))
-		memoPending := map[string]*toolJob{}
-		for _, tc := range resp.Message.ToolCalls {
-			if err := ctx.Err(); err != nil {
-				return "", err
-			}
-			job := &toolJob{tc: tc}
-			jobs = append(jobs, job)
-
-			tool, ok := cfg.Tools[tc.Name]
-			if !ok {
-				job.result = Result{
-					Output:  fmt.Sprintf("tool %q is not available", tc.Name),
-					IsError: true,
-				}
-				continue
-			}
-			def := tool.Definition()
-			if err := ValidateToolInput(def, tc.Input); err != nil {
-				job.result = Result{
-					Output:  "tool call rejected by schema: " + err.Error(),
-					IsError: true,
-				}
-				continue
-			}
-
-			// Loop guard (M116): if the model has already invoked this EXACT
-			// (tool, input) the cap number of times in this run, refuse to run it
-			// again — re-executing a stuck/failing call produces the same result
-			// and wastes work (and money). Feed back a clear nudge so the model
-			// changes approach instead of looping to MaxIter. Identical-input
-			// only, so a legitimate re-call with different args is unaffected. A
-			// negative cap disables the guard.
-			if cfg.MaxIdenticalToolCalls > 0 {
-				callKey := tc.Name + "\x00" + string(tc.Input)
-				callCounts[callKey]++
-				if callCounts[callKey] > cfg.MaxIdenticalToolCalls {
-					job.result = Result{
-						Output:  fmt.Sprintf("loop guard: %q was already called with this exact input %d times in this run; the result will not change. Use different input or stop and give your answer.", tc.Name, cfg.MaxIdenticalToolCalls),
-						IsError: true,
-					}
-					continue
-				}
-			}
-
-			// Policy gate (Edict). Publishes a policy.decision event even
-			// when no Policy is configured, so the journal makes the
-			// gating posture explicit. A Deny verdict short-circuits the
-			// invocation and synthesises a tool result the model sees.
-			verdict := PolicyVerdict{Allow: true, Capability: tc.Name, Reason: "no policy configured"}
-			if cfg.Policy != nil {
-				policyCtx := WithPolicyToolDef(ctx, def)
-				// Thread the taint with DirectiveLike scoped to the causal window:
-				// active only while this action is within directiveWindow iterations
-				// of the directive-like observation. Provenance (Sources/Matches)
-				// is always carried for audit; only the gating flag decays.
-				scopedTaint := untrustedTaint
-				scopedTaint.DirectiveLike = directiveObsIter >= 0 && iter-directiveObsIter <= directiveWindow
-				policyCtx = WithUntrustedObservationTaint(policyCtx, scopedTaint)
-				verdict = cfg.Policy(policyCtx, tc)
-			}
-			if _, err := publish(event.KindPolicyDecision, "policy", map[string]any{
-				"tool":                  tc.Name,
-				"call_id":               tc.ID,
-				"capability":            verdict.Capability,
-				"allow":                 verdict.Allow,
-				"reason":                verdict.Reason,
-				"would_ask":             verdict.WouldAsk,
-				"hard_denied":           verdict.HardDenied,
-				"effect_class":          verdict.EffectClass,
-				"affected_resources":    verdict.AffectedResources,
-				"epistemic_action":      verdict.EpistemicAction,
-				"epistemic_reason":      verdict.EpistemicReason,
-				"epistemic_signals":     verdict.EpistemicSignals,
-				"epistemic_confidence":  verdict.EpistemicConfidence,
-				"failure_matches":       verdict.FailureMatches,
-				"weighted_failures":     verdict.WeightedFailures,
-				"schema_hash":           verdict.SchemaHash,
-				"input_shape":           verdict.InputShape,
-				"temporal_sensitive":    verdict.TemporalSensitive,
-				"novel_tool":            verdict.NovelTool,
-				"untrusted_observation": verdict.UntrustedObservation,
-				"observation_sources":   verdict.ObservationSources,
-				"directive_like":        verdict.ObservationDirectiveLike,
-				"directive_matches":     verdict.ObservationDirectiveMatches,
-			}); err != nil {
-				return "", apperrors.Wrap(ctx, "agent: publish policy.decision", err)
-			}
-
-			if !verdict.Allow {
-				// Count the refusal so a tool that's hard-denied (never allowed)
-				// or repeatedly refused is dropped from later iterations (M605).
-				if verdict.HardDenied {
-					toolDenials[tc.Name] = maxToolDenials
-				} else {
-					toolDenials[tc.Name]++
-				}
-				job.result = Result{
-					Output:  "tool call denied by policy: " + verdict.Reason,
-					IsError: true,
-				}
-				continue // skip tool.invoked when the call never runs
-			}
-			if cfg.ToolMemo != nil && (verdict.EffectClass == string(EffectReadOnly) || def.Effect.Class == EffectReadOnly) {
-				if cached, ok := cfg.ToolMemo.Get(tc.Name, tc.Input); ok {
-					job.result = cached
-					job.memoHit = true
-					continue
-				}
-				job.memoEligible = true
-				key := memoKey(tc.Name, tc.Input)
-				if source, ok := memoPending[key]; ok {
-					job.memoSource = source
-					job.memoHit = true
-					continue
-				}
-				memoPending[key] = job
-			}
-			if _, err := publish(event.KindToolInvoked, "tool", map[string]any{
-				"tool":    tc.Name,
-				"call_id": tc.ID,
-				"input":   tc.Input,
-			}); err != nil {
-				return "", apperrors.Wrap(ctx, "agent: publish tool.invoked", err)
-			}
-			job.tool = tool
-		}
-
-		// Phase 2: execute. invoke runs ONE job; identical semantics to the
-		// historical inline invocation, including the per-tool wall-clock
-		// (M34): bound this single invocation without bounding the whole run.
-		// Whether the tool's OWN per-call deadline fired is captured BEFORE
-		// cancelling — calling toolCancel() would flip a not-yet-expired
-		// toolCtx to Canceled and mask the distinction. We key on toolCtx's
-		// state rather than the returned error so a tool that wraps its error
-		// without the DeadlineExceeded sentinel (e.g. the warden's "context
-		// deadline exceeded" string) is still classified cleanly.
-		invoke := func(job *toolJob) {
-			toolCtx := WithCorrelation(ctx, cfg.CorrelationID)
-			var toolCancel context.CancelFunc
-			if cfg.ToolTimeout > 0 {
-				toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)
-			}
-			job.result, job.invokeErr = job.tool.Invoke(toolCtx, job.tc.Input)
-			job.toolTimedOut = cfg.ToolTimeout > 0 && toolCtx.Err() == context.DeadlineExceeded
-			if toolCancel != nil {
-				toolCancel()
-			}
-		}
-		var toExec []*toolJob
-		for _, job := range jobs {
-			if job.tool != nil {
-				toExec = append(toExec, job)
-			}
-		}
-		maxPar := cfg.MaxParallelTools
-		if maxPar == 0 {
-			maxPar = DefaultMaxParallelTools
-		}
-		if len(toExec) <= 1 || maxPar <= 1 {
-			// Single call (the common case) or parallelism disabled: invoke
-			// inline on this goroutine — Run's panic firewall (M168) covers it.
-			for _, job := range toExec {
-				invoke(job)
-			}
-		} else {
-			// Concurrent fan-out. Each worker needs its own panic recovery:
-			// Run's firewall only guards Run's goroutine, and an unrecovered
-			// panic on a spawned goroutine would crash the whole daemon. A
-			// captured panic is surfaced in phase 3 as the run's terminal
-			// error — exactly what the sequential path would have produced.
-			sem := make(chan struct{}, maxPar)
-			var wg sync.WaitGroup
-			for _, job := range toExec {
-				wg.Add(1)
-				go func(job *toolJob) {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							job.panicked = true
-							job.invokeErr = fmt.Errorf("%w: %v", ErrPanic, r)
-						}
-					}()
-					sem <- struct{}{}
-					defer func() { <-sem }()
-					invoke(job)
-				}(job)
-			}
-			wg.Wait()
-		}
-
-		// Phase 3: classify, journal, and append in the original call order.
-		for _, job := range jobs {
-			if job.memoSource != nil {
-				job.result = job.memoSource.result
-			}
-			if job.tool != nil {
-				switch {
-				case job.panicked:
-					return "", job.invokeErr
-				case job.invokeErr == nil:
-					// job.result already holds the tool's output.
-				case ctx.Err() != nil:
-					// The RUN context itself ended (operator halt, M32
-					// cancel, or the M31 per-run deadline) — a run-level
-					// terminal, not a tool fault. Propagate so the run
-					// fails with the correct reason instead of limping on.
-					return "", ctx.Err()
-				case job.toolTimedOut:
-					// The tool overran its own budget while the run is fine:
-					// hand the model a clear error and keep the run going.
-					job.result = Result{
-						Output:  fmt.Sprintf("tool %q exceeded its %s timeout", job.tc.Name, cfg.ToolTimeout),
-						IsError: true,
-					}
-				default:
-					job.result = Result{Output: job.invokeErr.Error(), IsError: true}
-				}
-				if job.memoEligible && !job.result.IsError {
-					cfg.ToolMemo.Set(job.tc.Name, job.tc.Input, job.result)
-				}
-			}
-
-			modelOutput := job.result.Output
-			observationDelta := false
-			if cfg.ObservationDeltas && !job.result.IsError {
-				key := job.tc.Name + "\x00" + string(job.tc.Input)
-				if prev, ok := observations[key]; ok {
-					if delta, changed := DiffObservation(prev, job.result.Output); changed {
-						modelOutput = delta
-						observationDelta = true
-					}
-				}
-				observations[key] = job.result.Output
-			}
-
-			observationBoundary := ObservationBoundaryForTool(job.tc.Name, job.result, modelOutput)
-			if observationBoundary.Trust == ObservationUntrusted {
-				untrustedTaint = MergeUntrustedObservationTaint(untrustedTaint, observationBoundary)
-				if observationBoundary.DirectiveLike {
-					// Remember WHEN the directive-like observation arrived so the
-					// gate can decay after directiveWindow iterations.
-					directiveObsIter = iter
-				}
-				modelOutput = RenderObservationForModel(job.tc.Name, observationBoundary, modelOutput)
-			}
-
-			// Offload a large output out of the journal event (SPEC-04 §3.6 /
-			// SPEC-01 §10.2): the event carries a preview + raw_ref. The model
-			// gets the raw output by default, or the observation delta when the
-			// optional CH-04 delta layer is enabled for a repeated observation.
-			eventOutput, rawRef, fullBytes, offloaded := offloadToolOutput(cfg.Artifacts, cfg.ArtifactThreshold, job.result.Output)
-			resultPayload := map[string]any{
-				"tool":               job.tc.Name,
-				"call_id":            job.tc.ID,
-				"output":             eventOutput,
-				"error":              job.result.IsError,
-				"observation_trust":  observationBoundary.Trust,
-				"observation_source": observationBoundary.Source,
-				"directive_like":     observationBoundary.DirectiveLike,
-				"directive_matches":  observationBoundary.Matches,
-			}
-			if offloaded {
-				resultPayload["raw_ref"] = rawRef
-				resultPayload["output_bytes"] = fullBytes
-			}
-			if observationDelta {
-				resultPayload["observation_delta"] = true
-				resultPayload["model_output_bytes"] = len(modelOutput)
-				resultPayload["raw_output_bytes"] = len(job.result.Output)
-			}
-			if job.memoHit {
-				resultPayload["memo_hit"] = true
-			}
-			if _, err := publish(event.KindToolResult, "tool", resultPayload); err != nil {
-				return "", apperrors.Wrap(ctx, "agent: publish tool.result", err)
-			}
-			if cfg.ToolResultHook != nil && job.tool != nil {
-				cfg.ToolResultHook(ctx, job.tc, job.result)
-			}
-
-			messages = append(messages, Message{
-				Role:       RoleTool,
-				Content:    modelOutput,
-				ToolCallID: job.tc.ID,
-			})
+		executeToolJobs(ctx, cfg, jobs)
+		messages, err = st.finalizeToolJobs(ctx, jobs, iter, messages)
+		if err != nil {
+			return "", err
 		}
 	}
 
