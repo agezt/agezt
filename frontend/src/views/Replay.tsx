@@ -3,6 +3,7 @@ import { Clapperboard, RefreshCw, Radio } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { mergeEvents } from "@/lib/rundetail";
+import { humanizeIntent } from "@/lib/intent";
 import { buildReplay } from "@/lib/replay";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -113,7 +114,9 @@ export function Replay() {
                 )}
               >
                 {r.status === "running" ? <Radio className="size-3.5 animate-pulse" /> : <Clapperboard className="size-3.5" />}
-                <span className="truncate">{r.intent || id || "run"}</span>
+                <span className="truncate" title={r.intent || undefined}>
+                  {humanizeIntent(r.intent) || id || "run"}
+                </span>
               </button>
             );
           })}

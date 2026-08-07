@@ -21,6 +21,7 @@ import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
 import { cn, fmtTime } from "@/lib/utils";
+import { humanizeIntent } from "@/lib/intent";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
@@ -98,7 +99,9 @@ function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: Li
       >
         {open ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
         <Badge variant={statusVariant(run.status)}>{run.status || "?"}</Badge>
-        <span className="truncate">{run.intent || run.correlation_id || "run"}</span>
+        <span className="truncate" title={run.intent || undefined}>
+          {humanizeIntent(run.intent) || run.correlation_id || "run"}
+        </span>
         {livePhase && (
           <span
             className="hidden shrink-0 items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent sm:inline-flex"

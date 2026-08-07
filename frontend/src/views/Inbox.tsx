@@ -13,6 +13,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { BlobArtifact, type ArtifactEntry } from "@/views/Files";
 import { focusRun } from "@/lib/runfocus";
+import { goToView } from "@/lib/nav";
 
 // COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;
 // the field stays free-text so an unlisted kind still works.
@@ -176,7 +177,13 @@ export function Inbox() {
       ) : threads.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted">
           <InboxIcon className="size-8 opacity-40" />
-          <span className="text-sm">no conversations — connect a channel (Telegram, Slack, …) to chat with the agent</span>
+          <span className="text-sm">no conversations yet — messages from your channels (Telegram, Slack, email, …) land here</span>
+          <button
+            onClick={() => goToView("channels")}
+            className="mt-1 rounded-md border border-accent px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent hover:text-white"
+          >
+            Connect a channel →
+          </button>
         </div>
       ) : (
         <div className="min-h-0 flex-1 space-y-3 overflow-auto">

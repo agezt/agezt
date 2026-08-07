@@ -108,6 +108,11 @@ export function ApprovalsHistory() {
         <Muted>no resolved approvals yet — decisions you make above will be recorded here</Muted>
       ) : (
         <>
+          {/* Zero resolved rows but more history exists: say so instead of a
+              bare "Load 50 more" under an apparently-empty (0) list. */}
+          {rows.length === 0 && (
+            <Muted>no resolved approvals in the loaded pages — load more to search further back</Muted>
+          )}
           {rows.length > 0 && (
             <ul className="space-y-1">
               {rows.map((a, i) => (

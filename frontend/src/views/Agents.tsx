@@ -29,6 +29,7 @@ import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
 import { cn, clip, fmtTime } from "@/lib/utils";
+import { humanizeIntent } from "@/lib/intent";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -404,7 +405,7 @@ export function Agents() {
                     {pickedNode.root ? "lead" : `sub-agent · L${pickedNode.depth}`}
                   </div>
                   <div className="truncate text-xs font-medium" title={pickedNode.intent || pickedNode.id}>
-                    {clip(pickedNode.intent || pickedNode.id, 80)}
+                    {clip(humanizeIntent(pickedNode.intent) || pickedNode.id, 80)}
                   </div>
                 </div>
                 <button
@@ -738,7 +739,11 @@ function FleetLiveColumn({
                     </button>
                   )}
                 </div>
-                {ev.intent && <div className="truncate text-foreground/90">{clip(ev.intent, 80)}</div>}
+                {ev.intent && (
+                  <div className="truncate text-foreground/90" title={ev.intent}>
+                    {clip(humanizeIntent(ev.intent), 80)}
+                  </div>
+                )}
                 {ev.agent && !agentFilter && <div className="truncate text-muted">{ev.agent}</div>}
               </div>
             </li>
@@ -776,7 +781,7 @@ function RunCard({ r, onOpen }: { r: RootSummary; onOpen: () => void }) {
       </div>
 
       <div className="line-clamp-2 min-h-[2.4em] text-xs font-medium text-foreground/90" title={r.intent || r.id}>
-        {r.intent ? clip(r.intent, 160) : <span className="font-mono text-muted">{clip(r.id, 40)}</span>}
+        {r.intent ? clip(humanizeIntent(r.intent), 160) : <span className="font-mono text-muted">{clip(r.id, 40)}</span>}
       </div>
 
       {r.answerPreview && (

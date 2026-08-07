@@ -12,6 +12,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { cn, fmtTime } from "@/lib/utils";
+import { humanizeIntent } from "@/lib/intent";
 import { money } from "@/lib/format";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -322,8 +323,8 @@ function RunRow({
               {child && (
                 <CornerDownRight className="size-3.5 shrink-0 text-muted" />
               )}
-              <span className="truncate text-sm font-medium">
-                {run.intent || <span className="text-muted">(no intent)</span>}
+              <span className="truncate text-sm font-medium" title={run.intent || undefined}>
+                {humanizeIntent(run.intent) || <span className="text-muted">(no intent)</span>}
               </span>
             </span>
             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
