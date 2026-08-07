@@ -59,31 +59,38 @@ func TestWithAgentProfile_RetryPolicyAppliesToContext(t *testing.T) {
 	}
 }
 
+// Each value KIND in the override table parses and lands on its Config field.
+// Asserted through applyAgentOverrides — the same function a live run resolves
+// its config with — so a parser that works here cannot be one a run ignores.
 func TestAgentConfigOverrideParsers(t *testing.T) {
-	ctx := WithAgentProfile(context.Background(), roster.Profile{
-		Slug: "guarded",
-		ConfigOverrides: map[string]string{
-			"AGEZT_MODEL":                    "agent-model",
-			"AGEZT_MAX_ITER":                 "7",
-			"AGEZT_OBSERVATION_DELTAS":       "enabled",
-			"AGEZT_AUTO_CONTINUE_WAIT":       "3s",
-			"AGEZT_DISABLE_HEURISTIC_BYPASS": "disabled",
-		},
-	})
-	if got, ok := agentConfigStringOverride(ctx, "AGEZT_MODEL"); !ok || got != "agent-model" {
-		t.Fatalf("string override = %q/%v", got, ok)
+	overrides := map[string]string{
+		"AGEZT_MODEL":                    "agent-model",
+		"AGEZT_MAX_ITER":                 "7",
+		"AGEZT_OBSERVATION_DELTAS":       "enabled",
+		"AGEZT_AUTO_CONTINUE_WAIT":       "3s",
+		"AGEZT_DISABLE_HEURISTIC_BYPASS": "disabled",
 	}
-	if got, ok := agentConfigIntOverride(ctx, "AGEZT_MAX_ITER"); !ok || got != 7 {
-		t.Fatalf("int override = %d/%v", got, ok)
+	// A profile carries the overrides via context in production; check the
+	// context plumbing hands back exactly what was set.
+	ctx := WithAgentProfile(context.Background(), roster.Profile{Slug: "guarded", ConfigOverrides: overrides})
+	var cfg Config
+	if issues := applyAgentOverrides(&cfg, AgentConfigOverrides(ctx)); len(issues) != 0 {
+		t.Fatalf("well-formed values reported as issues: %+v", issues)
 	}
-	if got, ok := agentConfigBoolOverride(ctx, "AGEZT_OBSERVATION_DELTAS"); !ok || !got {
-		t.Fatalf("bool override = %v/%v", got, ok)
+	if cfg.Model != "agent-model" {
+		t.Errorf("Model = %q, want agent-model", cfg.Model)
 	}
-	if got, ok := agentConfigDurationOverride(ctx, "AGEZT_AUTO_CONTINUE_WAIT"); !ok || got != 3*time.Second {
-		t.Fatalf("duration override = %v/%v", got, ok)
+	if cfg.MaxIter != 7 {
+		t.Errorf("MaxIter = %d, want 7", cfg.MaxIter)
 	}
-	if got, ok := agentConfigBoolOverride(ctx, "AGEZT_DISABLE_HEURISTIC_BYPASS"); !ok || got {
-		t.Fatalf("bool off override = %v/%v", got, ok)
+	if !cfg.ObservationDeltas {
+		t.Error(`ObservationDeltas: "enabled" must parse as true`)
+	}
+	if cfg.AutoContinueWait != 3*time.Second {
+		t.Errorf("AutoContinueWait = %v, want 3s", cfg.AutoContinueWait)
+	}
+	if cfg.DisableHeuristicBypass {
+		t.Error(`DisableHeuristicBypass: "disabled" must parse as false`)
 	}
 }
 

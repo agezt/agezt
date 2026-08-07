@@ -390,7 +390,12 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	if taskType == "" {
 		taskType = "delegate"
 	}
-	subModel := k.cfg.Model
+	// The live daemon default (k.Model(), hot-swapped on provider reload — M816),
+	// not the boot seed: a delegation falling back to the boot model would keep
+	// asking for whatever the daemon started with, which after a key rotation is
+	// typically the model that just stopped being servable.
+	defaultModel := k.Model()
+	subModel := defaultModel
 	if model != "" {
 		subModel = model
 	}
@@ -414,7 +419,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		}
 	}
 	if avail := k.cfg.ModelAvailable; avail != nil {
-		subModel, modelChain = delegation.KeyedModelChain(subModel, modelChain, avail, k.cfg.Model)
+		subModel, modelChain = delegation.KeyedModelChain(subModel, modelChain, avail, defaultModel)
 	}
 
 	depth := delegation.DepthFromCtx(ctx)
@@ -560,8 +565,13 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	switch {
 	case prof != nil && agentProfileSystem(*prof) != "":
 		system += "\n\n" + agentProfileSystem(*prof)
-	case k.cfg.System != "":
-		system += "\n\n" + k.cfg.System
+	default:
+		// The LIVE default identity (SetSystem, M710) — an operator editing the
+		// persona expects delegated runs to inherit the edit, not the prompt the
+		// daemon booted with.
+		if live := k.System(); live != "" {
+			system += "\n\n" + live
+		}
 	}
 
 	// The profile's per-run spend ceiling bounds this sub-agent's own run

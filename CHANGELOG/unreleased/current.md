@@ -4,6 +4,37 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Fixed: a hot-swapped model or persona only reached some of the daemon.** `SetModel` (M816)
+  and `SetSystem` (M710) exist so an operator can change the default model or identity without a
+  restart — a provider reload after a key rotation calls the first, the persona surface calls the
+  second. But six call sites read those fields off the boot config instead of the live one, so
+  after such a change **delegated sub-agents, workflow LLM nodes, workflow drafting, and both
+  memory-consolidation passes kept requesting the model the daemon started with**, and delegated
+  runs kept appending the persona it started with. The usual reason to switch models is that the
+  old one stopped being servable, which made this fail in the least legible way possible: chat
+  worked, delegation and workflows failed on a model the operator thought they had replaced, and
+  `KeyedModelChain`'s last-resort fallback fell back to the same dead model. All six now resolve
+  through the run's effective config (below). Pinned by mutation-verified tests — both were
+  confirmed red against the old code, one showing the lead on the new model and its child on the
+  old one in the same run.
+
+- **Refactor (Phase 3.3): one table for per-agent config overrides, one `effectiveConfig` per run.**
+  A named agent can retune runtime knobs for its own runs via `ConfigOverrides`, and that surface
+  was described in three separate places: a list of valid keys, a validation switch mapping each
+  key to a value type, and a hand-written lookup at each point of use. Nothing tied them together,
+  so a key could be advertised, pass the agent doctor, and then be silently ignored at run
+  time — and the per-site lookups are what let the boot-vs-live drift above accumulate unnoticed.
+  Replaced by a single `agentOverrides` table (key, the message the doctor shows, and one `Apply`
+  that both validates and assigns), so validation and application cannot disagree about what a
+  value means, and by `k.effectiveConfig(ctx)`, which returns the config a run actually sees:
+  daemon-wide config, then the operator's live edits, then this agent's overrides. Consumers read
+  resolved fields, so reading `k.cfg` inside a run is now the thing that looks wrong. Four
+  single-key context wrappers deleted. Operator-visible behaviour is unchanged except the fixes
+  above: doctor messages are byte-identical, and a malformed value is still reported and skipped
+  rather than zeroing the knob (now covered by a test, along with sibling-typo isolation). The
+  plan's other half — grouping `Config`'s field clusters into sub-structs — was dropped
+  deliberately; the reasoning is recorded in `docs/REFACTORING-SCAN-2026-08.md`.
+
 - **Refactor (Phase 3.2): `agent.Run` decomposed, 833 → 309 lines.** The agent loop was one
   function carrying twelve concerns, including the system's most safety-critical logic. Split into
   `run_setup.go` (the prologue as pure functions — config validate/normalize, the `task.received`

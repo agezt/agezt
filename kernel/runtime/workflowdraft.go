@@ -104,12 +104,15 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 		return workflow.Workflow{}, errors.New("workflow " + mode + ": no provider configured")
 	}
 	prompt := basePrompt
+	// The LIVE default model, not the boot seed — drafting must follow a
+	// hot-swapped default (M816) like every other provider call does.
+	model := k.effectiveConfig(ctx).Model
 	var lastErr error
 	for attempt := 1; attempt <= 2; attempt++ {
 		// completeAux stamps CorrelationID (previously dropped here, leaving
 		// draft spend unattributable) alongside the workflow routing class.
 		resp, err := k.completeAux(ctx, corr, "workflow", agent.CompletionRequest{
-			Model:    k.cfg.Model,
+			Model:    model,
 			System:   workflowDraftSystem,
 			Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 		})

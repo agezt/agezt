@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -621,6 +622,126 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 	}
 	if pl.TaskType != "delegate" {
 		t.Errorf("spawn task_type = %q, want the \"delegate\" default", pl.TaskType)
+	}
+}
+
+// A delegation must follow a HOT-SWAPPED default model (SetModel, M816), not the
+// one the daemon booted with. This used to read Config.Model — the boot seed —
+// so after the operator rotated a provider key or switched models, root runs
+// moved to the new model while every delegation kept asking for the old one,
+// which is typically the model that just stopped being servable.
+func TestSubAgent_ModelFollowsLiveDefault(t *testing.T) {
+	prov := mock.New(
+		testToolUse("c1", "delegate", map[string]any{"task": "do it"}),
+		mock.FinalText("child done"),
+		mock.FinalText("lead done"),
+	)
+	var mu sync.Mutex
+	var models []string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		mu.Lock()
+		models = append(models, req.Model)
+		mu.Unlock()
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Model:            "boot-model",
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 1,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	// What a provider reload does: swap the live default in place, no restart.
+	k.SetModel("live-model")
+
+	col := &collector{}
+	col.watch(k)
+	if _, _, err := k.Run(context.Background(), "go"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	seen := append([]string(nil), models...)
+	mu.Unlock()
+	for _, m := range seen {
+		if m != "live-model" {
+			t.Errorf("request used %q, want live-model for every request incl. the child (all: %v)", m, seen)
+			break
+		}
+	}
+
+	spawns := col.ofKind(event.KindSubAgentSpawned)
+	if len(spawns) != 1 {
+		t.Fatalf("expected 1 spawn, got %d", len(spawns))
+	}
+	var pl struct {
+		Model string `json:"model"`
+	}
+	_ = json.Unmarshal(spawns[0].Payload, &pl)
+	if pl.Model != "live-model" {
+		t.Errorf("journaled spawn model = %q, want live-model — the record must match what ran", pl.Model)
+	}
+}
+
+// The same for the default identity: an operator editing the persona (SetSystem,
+// M710) expects delegated runs to inherit the edit, not the boot prompt.
+func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
+	prov := mock.New(
+		testToolUse("c1", "delegate", map[string]any{"task": "do it"}),
+		mock.FinalText("child done"),
+		mock.FinalText("lead done"),
+	)
+	var mu sync.Mutex
+	var systems []string
+	prov.OnRequest = func(req agent.CompletionRequest) {
+		mu.Lock()
+		systems = append(systems, req.System)
+		mu.Unlock()
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:          t.TempDir(),
+		Provider:         prov,
+		Model:            "m",
+		System:           "boot persona",
+		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		SubAgentTool:     true,
+		SubAgentMaxDepth: 1,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	k.SetSystem("live persona")
+
+	if _, _, err := k.Run(context.Background(), "go"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	seen := append([]string(nil), systems...)
+	mu.Unlock()
+	for _, s := range seen {
+		if strings.Contains(s, "boot persona") {
+			t.Fatalf("a request still carries the boot persona: %q", s)
+		}
+	}
+	// The child's prompt is the delegation preamble plus the live persona.
+	child := false
+	for _, s := range seen {
+		if strings.Contains(s, "live persona") && s != "live persona" {
+			child = true
+		}
+	}
+	if !child {
+		t.Errorf("no delegated request carried the live persona under the sub-agent preamble: %q", seen)
 	}
 }
 

@@ -2062,11 +2062,11 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// timeline and walkable by `agt why`.
 	runCtx = warden.WithCorrelation(runCtx, corr)
 
-	disableHeuristicBypass := k.cfg.DisableHeuristicBypass
-	if v, ok := agentConfigBoolOverride(runCtx, "AGEZT_DISABLE_HEURISTIC_BYPASS"); ok {
-		disableHeuristicBypass = v
-	}
-	if !disableHeuristicBypass {
+	// What THIS run's config actually is: daemon-wide, plus the operator's live
+	// edits, plus the running agent's own overrides (see effectiveConfig).
+	ecfg := k.effectiveConfig(runCtx)
+
+	if !ecfg.DisableHeuristicBypass {
 		if answer, ok := deterministicHeuristicBypass(intent, time.Now()); ok {
 			if err := k.publishHeuristicBypass(runCtx, corr, actor, intent, answer); err != nil {
 				return "", err
@@ -2080,18 +2080,7 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// profile/taste/memory/world/skill injection (buildRunPrompt).
 	system, activatedSkillIDs := k.buildRunPrompt(runCtx, corr, actor, intent, systemAgent, skillDirective)
 
-	// Per-run model override (WithModel) — used by the OpenAI-compatible API and
-	// the Chat picker to honour the request's `model`. Falls back to the live
-	// default model (k.Model(), hot-swappable via SetModel on provider reload —
-	// M816).
-	model := k.Model()
-	modelExplicit := false
-	if m := modelFromCtx(runCtx); m != "" {
-		model = m
-		modelExplicit = true
-	} else if m, ok := agentConfigStringOverride(runCtx, "AGEZT_MODEL"); ok {
-		model = m
-	}
+	model, modelExplicit := resolveRunModel(runCtx, ecfg)
 	// An EXPLICIT pick must actually serve the run (M931): the governor's
 	// per-task chain ("chat" here) supersedes req.Model, so an operator choosing
 	// a model in the Chat picker / `agt run --model` / the OpenAI-compat `model`

@@ -527,38 +527,6 @@ func AgentConfigOverrides(ctx context.Context) map[string]string {
 	return cloneStringMap(v)
 }
 
-func agentConfigStringOverride(ctx context.Context, key string) (string, bool) {
-	v, ok := agentConfigOverrideRaw(AgentConfigOverrides(ctx), key)
-	if !ok {
-		return "", false
-	}
-	return agentConfigStringValue(v)
-}
-
-func agentConfigBoolOverride(ctx context.Context, key string) (bool, bool) {
-	raw, ok := agentConfigStringOverride(ctx, key)
-	if !ok {
-		return false, false
-	}
-	return agentConfigBoolValue(raw)
-}
-
-func agentConfigIntOverride(ctx context.Context, key string) (int, bool) {
-	raw, ok := agentConfigStringOverride(ctx, key)
-	if !ok {
-		return 0, false
-	}
-	return agentConfigIntValue(raw)
-}
-
-func agentConfigDurationOverride(ctx context.Context, key string) (time.Duration, bool) {
-	raw, ok := agentConfigStringOverride(ctx, key)
-	if !ok {
-		return 0, false
-	}
-	return agentConfigDurationValue(raw)
-}
-
 // WithModelChain sets the run's per-agent ordered model fallback chain (M787):
 // the Governor tries these models in order, overriding the task type's
 // configured chain. Carries a named agent's own fallbacks (roster M783).

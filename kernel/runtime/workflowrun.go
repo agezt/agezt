@@ -468,13 +468,11 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		}
 		model := strings.TrimSpace(c.Model)
 		if model == "" {
-			if m := modelFromCtx(ctx); m != "" {
-				model = m
-			} else if m, ok := agentConfigStringOverride(ctx, "AGEZT_MODEL"); ok {
-				model = m
-			} else {
-				model = k.cfg.Model
-			}
+			// Same ladder every other run path uses. This used to end at
+			// k.cfg.Model — the BOOT model — so after a provider reload
+			// hot-swapped the default (M816), an LLM node kept requesting the
+			// model the daemon started with, usually the one just de-keyed.
+			model, _ = resolveRunModel(ctx, k.effectiveConfig(ctx))
 		}
 		// completeAux stamps CorrelationID (previously dropped here, leaving
 		// llm-node spend unattributable) alongside the workflow routing class.

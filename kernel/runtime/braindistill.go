@@ -27,7 +27,8 @@ func (k *Kernel) DistillBrain(ctx context.Context, corr string) (memory.BrainDis
 	if halted {
 		return memory.BrainDistillReport{}, ErrHalted
 	}
-	return k.memory.DistillBrain(ctx, corr, k.cfg.Provider, k.cfg.Model)
+	cfg := k.effectiveConfig(ctx) // the LIVE model, not the boot seed (M816)
+	return k.memory.DistillBrain(ctx, corr, cfg.Provider, cfg.Model)
 }
 
 // DistillProfile runs one operator-profile distillation pass (M1000): synthesize
@@ -42,5 +43,6 @@ func (k *Kernel) DistillProfile(ctx context.Context, corr string) (memory.Profil
 	if halted {
 		return memory.ProfileReport{}, ErrHalted
 	}
-	return k.memory.DistillProfile(ctx, corr, k.cfg.Provider, k.cfg.Model)
+	cfg := k.effectiveConfig(ctx) // the LIVE model, not the boot seed (M816)
+	return k.memory.DistillProfile(ctx, corr, cfg.Provider, cfg.Model)
 }

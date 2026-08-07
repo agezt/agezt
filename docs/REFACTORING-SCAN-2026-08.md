@@ -15,6 +15,7 @@
 >
 > | 3.1 — runtime.go split | #562 | runtime.go −40%; `{voice,market,mcp,image,rerank,script}tool.go` moved to their own packages |
 > | 3.2 — `agent.Run` decomposition | b9787f01 | `run_setup.go` (pure prologue) · `run_provider.go` (`callProvider` collapses the streaming/non-streaming duplication) · `run_tools.go` (gate/execute/finalize on a `runState` that owns the prompt-injection causal window). Run: 833 → 309 lines; agent.go 1,712 → 1,203; coverage 79.5% → 80.5%. `runState` deliberately does NOT hold the conversation (dual-source-of-truth risk — finalize takes and returns it, pinned by a test) |
+> | 3.3 — per-run config resolution | (this commit) | one `agentOverrides` table (key + doctor message + apply) replaces three copies of the same knowledge · `k.effectiveConfig(ctx)` = daemon config + live edits + agent overrides · **fixed 6 live boot-vs-live drifts: delegated sub-agents, workflow LLM nodes, workflow drafting, and memory/profile distillation all used the BOOT model after a provider reload hot-swapped it, and delegations appended the BOOT persona** · 4 single-key ctx wrappers deleted. Field-grouping half NOT done — see the correction below |
 >
 > main.go: 7,455 → 3,932 lines (−47%). Two plan corrections decided during execution
 > (recorded in plans/phase2.6-boot-decomposition.md): `kernelAPIEngine` stays out of
@@ -22,7 +23,7 @@
 > does NOT hard-validate deps (11 of 14 nils are legitimate operator configs).
 > Per-phase working plans live in `plans/phase2.*.md`.
 >
-> **Remaining:** Phase 3.3–3.6, Phase 4 (frontend/hygiene), controlplane subpackage
+> **Remaining:** Phase 3.4–3.6, Phase 4 (frontend/hygiene), controlplane subpackage
 > split (2.3 commit C+), webui route tables from registry metadata, and the
 > `apperrors` delete-or-complete owner decision.
 
@@ -143,7 +144,15 @@ The channel gap is the sharpest: `kernel/channel/registry.go:55` claims "no cent
 
 - **3.1 `runtime.go` split along existing seams** (~1,400 lines out, near-zero behavior risk): `runctx.go` (24 context keys), `prompt.go` (promptBuilder: 8 injectors + the 220-line injection block in RunWith), `policy.go` (policyHook + approval bundles), `provenance` (Why/Causes → journal package). Then finish July B1: move `{voice,market,mcp,image,rerank,script}tool.go` to their homes; fold `streamlimit` into governor (July B2).
 - **3.2 `agent.Run` decomposition** — `gateToolCalls` / `executeToolJobs` / `finalizeToolJobs` / `callProvider` (collapses streaming/non-streaming duplication); hoist the ~10 loop-locals into a `runState` struct so the prompt-injection causal window is reviewable in one place.
-- **3.3 `runtime.Config` grouping** — sub-structs for the existing clusters (Memory*, Skill*, World*, ContextBudget*, SubAgent*, Guards*); one `effectiveConfig(ctx)` replacing the 9 ad-hoc per-run override lookups.
+- **3.3 `runtime.Config` grouping** — ~~sub-structs for the existing clusters (Memory*, Skill*, World*, ContextBudget*, SubAgent*, Guards*)~~; one `effectiveConfig(ctx)` replacing the 9 ad-hoc per-run override lookups.
+
+  **PLAN CORRECTION (decided during execution): the field grouping is not worth its cost; the override consolidation is, and it was the part hiding real bugs.**
+
+  *Why the grouping was dropped.* `Config` is ~425 lines, but ~85% of that is doc comments, and grouping moves the comments along with the fields — the reading burden barely changes. Against that: `Config` is the kernel's public construction API, so the rename touches `cmd/agezt`, `daemonconfig`, and 15 test files, and every out-of-tree embedder. It buys no behavioral correctness, which is what Phase 3 is for.
+
+  *What the override half actually found.* The same key→type→field knowledge lived in three places (a key list, a validation switch, and a hand-written lookup at each point of use), so a key could pass the doctor and then be silently ignored at run time. Worse, the *reason* those lookups were ad-hoc — every consumer reaching into `k.cfg` directly — meant six of them were reading the BOOT seed of fields that are hot-swappable at run time (`SetModel`/M816, `SetSystem`/M710). After an operator rotated a provider key or switched models, root runs moved to the new model while **delegated sub-agents, workflow LLM nodes, workflow drafting, and memory/profile distillation kept requesting the old one** — normally the model that had just stopped being servable, so those paths failed while chat looked healthy. Delegations likewise appended the boot persona, ignoring persona edits.
+
+  Fixed by making the correct read the easy one: `k.effectiveConfig(ctx)` returns the config a run actually sees (daemon-wide → live edits → this agent's overrides), and reading `k.cfg` inside a run is now the thing that looks wrong. Pinned by mutation-verified tests (`TestSubAgent_ModelFollowsLiveDefault`, `TestSubAgent_SystemFollowsLivePersona` — both confirmed red against the old code).
 - **3.4 `ToolDef.Capability`** — capability declared on the tool definition; `edict.CapabilityForToolCall` name-switch becomes fallback only. Retires the `Config.ToolCapabilities` side-channel and the `forge_`/`mcp_` prefix hacks; adding a tool stops requiring an edit in another package.
 - **3.5 `roster.go` split** — `roster_crud` / `roster_status` (projection + cache) / `roster_activity_text` (UI copy — move toward the presentation layer) / `agent_repair` (state machine) / `agent_cascade` with a `CascadeTarget` interface replacing 18 hand-written impact/mutate function pairs.
 - **3.6 Governor polish** — `[]gate` slice for the 245-line `preflightAndRoute` cascade; unify the 3 budget-scope implementations; make pricing catalog per-Governor instead of the package-level `liveCatalog` global (multi-tenant correctness).
