@@ -173,7 +173,9 @@ describe("Channels", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
 
     render(withUI(<Channels />));
-    await screen.findByText("Slack");
+    // Nothing is configured, so the start-here hero ALSO renders a "Slack"
+    // chip above the card — match on the multiple, then use the card button.
+    await screen.findAllByText("Slack");
     fireEvent.click(screen.getByRole("button", { name: /connect/i })); // expand (not configured)
     fireEvent.click(await screen.findByRole("button", { name: /^edit$/i })); // open the account form
     fireEvent.change(await screen.findByLabelText("OAuth client id"), { target: { value: "cid" } });

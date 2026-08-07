@@ -13,7 +13,7 @@ import { NewAgentForm, usdToMc } from "@/views/Roster";
 import { NewScheduleForm } from "@/views/Schedules";
 import { NewServerForm } from "@/views/Mcp";
 import { NewOrderForm } from "@/views/Standing";
-import { ConnectForm, type ChannelRow } from "@/views/Channels";
+import { ConnectForm, POPULAR_CHANNELS, type ChannelRow } from "@/views/Channels";
 
 // Wizards (M949) is the "get things done without hunting through menus" hub:
 // guided, step-by-step flows that complete a whole task in a focused overlay.
@@ -120,11 +120,6 @@ function StandingWizard({ onClose }: { onClose: () => void }) {
     />
   );
 }
-
-// The channels most operators wire first — shown as big cards before the
-// searchable long tail (the Channels page lists all ~34; the wizard leads with
-// the likely answer instead of a wall).
-const POPULAR_CHANNELS = ["telegram", "email", "slack", "discord", "whatsapp"];
 
 function ChannelWizard({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<ChannelRow[] | null>(null);

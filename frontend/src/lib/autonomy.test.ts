@@ -10,6 +10,9 @@ import {
   doctorIncidentSourceLabel,
   doctorIncidentTreeOpsSummary,
   doctorIncidentTrees,
+  groupConsecutive,
+  groupDetail,
+  type AutonomyItem,
   filterDoctorAutonomy,
 } from "@/lib/autonomy";
 
@@ -362,5 +365,44 @@ describe("autonomy helpers", () => {
         phase: "delegation_failed",
       }),
     ).toEqual({ label: "delegate failed", tone: "bad" });
+  });
+});
+
+describe("groupConsecutive", () => {
+  const mk = (seq: number, category: string, title: string, detail = ""): AutonomyItem =>
+    ({ seq, category, title, detail, kind: "" }) as AutonomyItem;
+
+  it("folds adjacent same-title runs and keeps singletons", () => {
+    const items = [
+      mk(9, "schedule", "a schedule fired", "health sweep"),
+      mk(8, "skill", "a skill was promoted", "ssh-remote"),
+      mk(7, "skill", "a skill was promoted", "git-ops"),
+      mk(6, "skill", "a skill was promoted", "pdf-tools"),
+      mk(5, "skill", "a skill was quarantined", "git-ops"),
+    ];
+    const groups = groupConsecutive(items);
+    expect(groups.map((g) => g.items.length)).toEqual([1, 3, 1]);
+    expect(groups[1].head.title).toBe("a skill was promoted");
+    expect(groupDetail(groups[1])).toBe("ssh-remote, git-ops, pdf-tools");
+  });
+
+  it("never folds doctor items (each carries incident lineage)", () => {
+    const items = [
+      mk(2, "doctor", "doctor run failed", "a"),
+      mk(1, "doctor", "doctor run failed", "b"),
+    ];
+    expect(groupConsecutive(items)).toHaveLength(2);
+  });
+
+  it("dedupes and caps the combined detail", () => {
+    const g = groupConsecutive([
+      mk(3, "skill", "t", "same"),
+      mk(2, "skill", "t", "same"),
+      mk(1, "skill", "t", "x".repeat(300)),
+    ])[0];
+    const detail = groupDetail(g);
+    expect(detail.startsWith("same, ")).toBe(true);
+    expect(detail.endsWith("…")).toBe(true);
+    expect(detail.length).toBeLessThanOrEqual(161);
   });
 });

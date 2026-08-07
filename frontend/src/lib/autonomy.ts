@@ -52,6 +52,51 @@ export function autonomyEventMatches(ev: AgentEvent): boolean {
   return AUTONOMY_KINDS.has(String(ev.kind || ""));
 }
 
+// One rendered timeline row: a single item, or a burst of consecutive
+// same-shaped items folded together.
+export interface AutonomyGroup {
+  head: AutonomyItem;
+  items: AutonomyItem[];
+}
+
+// groupConsecutive folds runs of adjacent items that share a category + title
+// into one row. Bulk operations (16 built-in skills promoted at boot, a batch
+// of standing orders created) otherwise render as a wall of identical lines
+// that buries the interesting singleton events between them. Doctor items are
+// never folded — each carries distinct incident lineage.
+export function groupConsecutive(items: AutonomyItem[]): AutonomyGroup[] {
+  const out: AutonomyGroup[] = [];
+  for (const it of items) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      it.category !== "doctor" &&
+      prev.head.category === it.category &&
+      prev.head.title === it.title
+    ) {
+      prev.items.push(it);
+      continue;
+    }
+    out.push({ head: it, items: [it] });
+  }
+  return out;
+}
+
+// groupDetail renders a folded row's combined detail: the distinct member
+// details (e.g. the skill names), deduped, joined, and capped.
+export function groupDetail(g: AutonomyGroup, max = 160): string {
+  const parts: string[] = [];
+  const seen = new Set<string>();
+  for (const it of g.items) {
+    const d = (it.detail || "").trim();
+    if (!d || seen.has(d)) continue;
+    seen.add(d);
+    parts.push(d);
+  }
+  const joined = parts.join(", ");
+  return joined.length > max ? `${joined.slice(0, max).trimEnd()}…` : joined;
+}
+
 export function filterDoctorAutonomy(
   items: AutonomyItem[] | null | undefined,
   limit = 8,

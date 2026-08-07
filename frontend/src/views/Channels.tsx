@@ -133,6 +133,11 @@ function RoundtripBadge({ probe }: { probe?: ChannelProbe }) {
   return <Badge variant="warn" title={probe.note || "setup required"}>setup first</Badge>;
 }
 
+// POPULAR_CHANNELS are the ones operators wire first — they lead the grid (and
+// the connect wizard) so the likely answer isn't buried in an alphabetical wall
+// of ~34 identical "needs setup" cards.
+export const POPULAR_CHANNELS = ["telegram", "email", "slack", "discord", "whatsapp"];
+
 // accountsOf returns a row's accounts, falling back to a synthetic default
 // account built from the top-level fields (back-compat with an older daemon).
 function accountsOf(r: ChannelRow): ChannelAccount[] {
@@ -626,6 +631,12 @@ export function Channels() {
 
   const liveCount = useMemo(() => (rows || []).filter((r) => r.live).length, [rows]);
   const configuredCount = useMemo(() => (rows || []).filter((r) => r.configured).length, [rows]);
+  // Grid order: what's live/configured first (yours), then the popular five
+  // (the likely next connect), then the long tail alphabetically.
+  const ordered = useMemo(() => {
+    const rank = (r: ChannelRow) => (r.live ? 0 : r.configured ? 1 : POPULAR_CHANNELS.includes(r.kind) ? 2 : 3);
+    return [...(rows || [])].sort((a, b) => rank(a) - rank(b) || a.display.localeCompare(b.display));
+  }, [rows]);
   const roundtripReadyCount = useMemo(() => (rows || []).filter((r) => r.probe?.roundtrip_status === "ready").length, [rows]);
   const mediaCount = useMemo(
     () => (rows || []).filter((r) => !!(r.media?.image_in || r.media?.image_out || r.media?.voice_in || r.media?.voice_out)).length,
@@ -679,8 +690,29 @@ export function Channels() {
       ) : rows === null ? (
         <SkeletonList count={6} lines={2} />
       ) : (
+        <>
+        {configuredCount === 0 && (
+          <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
+            <div className="text-sm font-medium">Nothing connected yet — start with one of these:</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {POPULAR_CHANNELS.map((kind) => {
+                const r = rows.find((x) => x.kind === kind);
+                if (!r) return null;
+                return (
+                  <button
+                    key={kind}
+                    onClick={() => setOpenKind(kind)}
+                    className="rounded-md border border-accent/40 bg-card px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent hover:text-white"
+                  >
+                    {r.display}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((r) => {
+          {ordered.map((r) => {
             const accts = accountsOf(r);
             const liveAccts = accts.filter((a) => a.live).length;
             const open = openKind === r.kind;
@@ -729,6 +761,7 @@ export function Channels() {
             );
           })}
         </div>
+        </>
       )}
 
       <LogHistoryPanel

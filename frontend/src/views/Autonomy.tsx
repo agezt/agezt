@@ -26,7 +26,7 @@ import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtWhen } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -38,6 +38,8 @@ import { Disclosure } from "@/components/ui/disclosure";
 import {
   autonomyEventMatches,
   doctorIncidentTrees,
+  groupConsecutive,
+  groupDetail,
   type AutonomyItem,
 } from "@/lib/autonomy";
 
@@ -202,12 +204,15 @@ export function Autonomy() {
         </Muted>
       ) : (
         <ul className="space-y-1.5">
-          {items.map((it) => {
+          {groupConsecutive(items).map((g) => {
+              const it = g.head;
               const meta = catMeta[it.category] || {
                 icon: Waves,
                 tone: "text-muted",
               };
               const Icon = meta.icon;
+              const burst = g.items.length > 1;
+              const detail = burst ? groupDetail(g) : it.detail;
               return (
                 <li
                   key={it.seq}
@@ -217,17 +222,25 @@ export function Autonomy() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{it.title}</span>
+                      {burst && (
+                        <span
+                          className="rounded-full bg-accent/10 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-accent"
+                          title={`${g.items.length} consecutive “${it.title}” events folded together`}
+                        >
+                          ×{g.items.length}
+                        </span>
+                      )}
                       <span className="rounded bg-panel px-1.5 py-0.5 text-xs uppercase tracking-normal text-muted">
                         {it.category}
                       </span>
                       {it.category === "doctor" && <IncidentBadges item={it} />}
                       <span className="ml-auto font-mono text-xs text-muted opacity-70">
-                        {fmtTime(it.ts_unix_ms)}
+                        {fmtWhen(it.ts_unix_ms)}
                       </span>
                     </div>
-                    {it.detail && (
-                      <p className="mt-0.5 truncate text-xs text-foreground/80">
-                        {it.detail}
+                    {detail && (
+                      <p className="mt-0.5 truncate text-xs text-foreground/80" title={detail}>
+                        {detail}
                       </p>
                     )}
                   </div>
@@ -503,7 +516,7 @@ export function PulseControl() {
           {st.observers != null
             ? ` · ${st.observers.length} observer${st.observers.length === 1 ? "" : "s"}`
             : ""}
-          {st.last_tick_ms ? ` · last ${fmtTime(st.last_tick_ms)}` : ""}
+          {st.last_tick_ms ? ` · last ${fmtWhen(st.last_tick_ms)}` : ""}
         </span>
         <div
           className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border bg-panel p-1"
