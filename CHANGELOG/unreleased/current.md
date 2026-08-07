@@ -4,6 +4,79 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Refactor (Phase 3.2): `agent.Run` decomposed, 833 → 309 lines.** The agent loop was one
+  function carrying twelve concerns, including the system's most safety-critical logic. Split into
+  `run_setup.go` (the prologue as pure functions — config validate/normalize, the `task.received`
+  provenance map, tool-schema linting, the cached elision summarizer), `run_provider.go`
+  (`callProvider` collapses the streaming and non-streaming branches to their one real difference —
+  when the reasoning text is known — so the nil-response contract check, error wrapping, and
+  ephemeral `llm.token`/`llm.reasoning` publishing are shared by construction rather than by two
+  copies staying in sync), and `run_tools.go` (the three tool phases as methods on a new `runState`).
+  `runState` owns the prompt-injection causal window, which is a two-sided invariant — finalize
+  records *when* a directive-like untrusted observation arrived, gate decides whether a proposed
+  action is still inside the window — and reviewing it used to mean reading 300 interleaved lines;
+  `directiveActive` is now four lines with a unit test. It deliberately does **not** hold the
+  conversation: the loop appends to that from four places and compaction rewrites it wholesale, so a
+  second copy would silently drop turns; `finalizeToolJobs` takes it and returns it, pinned by a
+  test. New internal tests cover what previously needed a whole run to reach (causal-window decay,
+  the M605 denial ladder, loop-guard refusal, refusals short-circuiting execution,
+  tool-error-vs-panic classification). Behaviour held constant: kernel + plugins + cmd suites green,
+  `kernel/agent` coverage 79.5% → 80.5%.
+
+- **Console: the trust layer.** Alarm surfaces were lying about time and currency. Alerts and the
+  dashboard's "Needs attention" now carry day-aware timestamps (`fmtWhen`: bare clock today,
+  "yesterday HH:MM", date beyond) and alerts are dismissable (persisted per browser, with a
+  show/restore toggle). A journal-backfilled "daemon halted" with no later resume event haunted the
+  cockpit after every restart — a restart clears the kernel flag without journaling a resume — so
+  the attention helpers now accept the live `halted` flag from `/api/status`, which wins over event
+  archaeology. Provider/model fallback status reports `last_ms`; Health anchors its failover message
+  to *when* it last happened and downgrades to info past 24h, so yesterday's failover storm no
+  longer reads as a live incident. Success/error-rate cards on Dashboard, Health, and Insights label
+  their windows, so the three pages stop appearing to contradict each other.
+
+- **Fix: `MetricGrid`'s Tailwind-class `cols` were applied as an invalid inline
+  `grid-template-columns` value,** which the browser dropped — silently collapsing the Activity and
+  Insights metric rows to one full-width card each. The class form now routes to `className`
+  (regression-tested).
+
+- **Fix: the web console forwarded every query argument as a string,** but the control plane's typed
+  accessors (`argLimit`/`argFloat64`/`scheduleArgNumber`) reject string numbers. Memory's list
+  hard-failed with `502 args.limit must be a number`, Overseer showed "0/0 agents" because its
+  `/api/agents?limit=200` call was rejected, and every other `limit`/`since_ms`/`count` query arg
+  silently fell back to its default (so "load more" page sizes never applied). Known numeric keys
+  are now coerced at the proxy; an unparseable value still rides through as a string so the server's
+  error names the real problem.
+
+- **Console: humane run titles.** Chat-transcript intents ("User: … Assistant: … User: …") now title
+  by their newest user message and composed prompts ("== QUESTION ==") by the actual ask, in Runs,
+  Activity, Replay, and the Agents run cards — the lists used to open with
+  "You are AGEZT's observability analyst, embedded in a running agent operating system…". Search
+  still matches the raw intent; the full text stays in the hover title.
+
+- **Console declutter sweep.** Policy's 36 identical `L4` rows read as one sentence
+  ("all 36 capabilities at L4 · allow") with the grid behind a disclosure, and a mixed posture leads
+  with the exceptions. Catalog cards show a tool's first sentence with the full doc folded. Roster
+  guardian cards dropped the remedy sentence each of them repeated (it lives in the roll-up panel
+  that owns the quiet action). Board chips stopped saying the same thing three times, and
+  "All agents ()" lost its empty parens. Autonomy folds consecutive same-shaped events (the 16
+  built-in skills promoted at boot) into one row with a ×N badge.
+
+- **Console: pages that carry information at rest.** Mission Control's rolling rates were all zeros
+  when idle — it now also shows active runs (click-through to Runs) and a recent-activity panel of
+  notable events. Jarvis ended at the pillar row, leaving half a screen empty: the initiative feed is
+  permanent and explains *why* it is empty in terms of the switch that governs it (off vs paused vs
+  disarmed vs armed-quiet), and the distilled operator profile gets a full panel. Council gained a
+  "Past convenings" strip — every deliberation is journaled but was unreachable once the live stream
+  moved on, and re-opening one folds its events through the same reducer as the live path, so it
+  renders identically; a single-seat council now says it is a monologue instead of quietly degrading.
+
+- **Console: connect-a-channel wizard.** A new guided flow leads with the five channels operators
+  wire first, searches the full ~34-channel tail, and drills into the existing Channels connect form
+  (reused, not reimplemented) — completing the journey the Inbox empty state now starts with a
+  "Connect a channel" button. The Channels page itself orders live/configured first, then the popular
+  five, and offers a start-here hero when nothing is connected. Models sorts keyed providers first,
+  so the one provider you can actually use is not buried among ~180 catalog entries.
+
 - **Fix: ChatGPT/Codex provider rejected every request that offered a dotted tool name.** The
   `openairesponses` adapter sent `agent.ToolDef` names verbatim, so `browser.read` / `browser.action`
   drew `400 "Invalid 'tools[N].name': string does not match pattern '^[a-zA-Z0-9_-]+$'"` — the whole

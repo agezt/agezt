@@ -13,15 +13,18 @@
 > | 2.5 — daemonconfig | #559 | typed `Load()` for 74 env names/10 clusters; live reads deliberately inline (Config Center os.Setenv semantics) |
 > | 2.6 — boot decomposition | #560 | `kernel/selfrepair` (3.2k lines out) · `kernel/cadence/systemtasks` · HTTP-surface file split · PulseObservers + two-phase Deps/Bind · bootStep table; **fixed: tenant tokens refused during the srv.Start→SetTenants boot window** |
 >
+> | 3.1 — runtime.go split | #562 | runtime.go −40%; `{voice,market,mcp,image,rerank,script}tool.go` moved to their own packages |
+> | 3.2 — `agent.Run` decomposition | b9787f01 | `run_setup.go` (pure prologue) · `run_provider.go` (`callProvider` collapses the streaming/non-streaming duplication) · `run_tools.go` (gate/execute/finalize on a `runState` that owns the prompt-injection causal window). Run: 833 → 309 lines; agent.go 1,712 → 1,203; coverage 79.5% → 80.5%. `runState` deliberately does NOT hold the conversation (dual-source-of-truth risk — finalize takes and returns it, pinned by a test) |
+>
 > main.go: 7,455 → 3,932 lines (−47%). Two plan corrections decided during execution
 > (recorded in plans/phase2.6-boot-decomposition.md): `kernelAPIEngine` stays out of
 > `kernel/restapi` (that package's interface-only posture is deliberate), and `NewServer`
 > does NOT hard-validate deps (11 of 14 nils are legitimate operator configs).
 > Per-phase working plans live in `plans/phase2.*.md`.
 >
-> **Remaining:** Phase 3 (core decomposition, 3.1–3.6), Phase 4 (frontend/hygiene),
-> controlplane subpackage split (2.3 commit C+), webui route tables from registry
-> metadata, and the `apperrors` delete-or-complete owner decision.
+> **Remaining:** Phase 3.3–3.6, Phase 4 (frontend/hygiene), controlplane subpackage
+> split (2.3 commit C+), webui route tables from registry metadata, and the
+> `apperrors` delete-or-complete owner decision.
 
 > **Generated:** 2026-08-05 · **Baseline:** `main` @ `069fe955` (clean tree)
 > **Method:** 5 parallel deep scans (boot/wiring, controlplane, agentic core, extension
