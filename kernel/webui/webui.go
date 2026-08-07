@@ -35,6 +35,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1609,6 +1610,30 @@ func (s *Server) proxy(cmd string) http.HandlerFunc {
 	}
 }
 
+// numericQueryArgs are the route arg keys whose control-plane handlers expect
+// JSON numbers (argLimit/argFloat64/scheduleArgNumber all reject strings). A
+// query string only carries text, so the query-arg proxies coerce these keys
+// before forwarding; a value that doesn't parse rides through as the string so
+// the server's "must be a number" error still names the real problem.
+var numericQueryArgs = map[string]bool{
+	"limit":           true,
+	"since_ms":        true,
+	"min_cost_mc":     true,
+	"max_cost_mc":     true,
+	"offset":          true,
+	"older_than_days": true,
+	"count":           true,
+}
+
+func queryArgValue(k, v string) any {
+	if numericQueryArgs[k] {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return v
+}
+
 // readArgsProxy returns a GET handler for one allowlisted READ command that
 // takes query arguments. It forwards only the route's allowlisted args (so the
 // browser cannot pass arbitrary parameters) and relays the JSON result. Unlike
@@ -1618,7 +1643,7 @@ func (s *Server) readArgsProxy(rr writeRoute) http.HandlerFunc {
 		args := map[string]any{}
 		for _, k := range rr.args {
 			if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
-				args[k] = v
+				args[k] = queryArgValue(k, v)
 			}
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -1645,7 +1670,7 @@ func (s *Server) writeProxy(wr writeRoute) http.HandlerFunc {
 		args := map[string]any{}
 		for _, k := range wr.args {
 			if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
-				args[k] = v
+				args[k] = queryArgValue(k, v)
 			}
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

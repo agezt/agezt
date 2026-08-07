@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -637,7 +638,7 @@ func TestPolicyLogRouteForwardsLimit(t *testing.T) {
 	if len(fc.calls) != 1 || fc.calls[0] != "edict_log" {
 		t.Fatalf("expected one edict_log call, got %v", fc.calls)
 	}
-	if fc.lastArgs["limit"] != "40" {
+	if fc.lastArgs["limit"] != float64(40) {
 		t.Errorf("limit not forwarded: %v", fc.lastArgs)
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
@@ -660,7 +661,7 @@ func TestToolLogRouteForwardsLimit(t *testing.T) {
 	if len(fc.calls) != 1 || fc.calls[0] != "tool_log" {
 		t.Fatalf("expected one tool_log call, got %v", fc.calls)
 	}
-	if fc.lastArgs["limit"] != "40" {
+	if fc.lastArgs["limit"] != float64(40) {
 		t.Errorf("limit not forwarded: %v", fc.lastArgs)
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
@@ -683,7 +684,7 @@ func TestProviderLogRouteForwardsLimit(t *testing.T) {
 	if len(fc.calls) != 1 || fc.calls[0] != "provider_log" {
 		t.Fatalf("expected one provider_log call, got %v", fc.calls)
 	}
-	if fc.lastArgs["limit"] != "40" {
+	if fc.lastArgs["limit"] != float64(40) {
 		t.Errorf("limit not forwarded: %v", fc.lastArgs)
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
@@ -707,12 +708,12 @@ func TestJournalSearchForwardsFullFilterSet(t *testing.T) {
 	if len(fc.calls) != 1 || fc.calls[0] != "journal_grep" {
 		t.Fatalf("expected one journal_grep call, got %v", fc.calls)
 	}
-	for k, want := range map[string]string{
+	for k, want := range map[string]any{
 		"pattern": "denied", "kind": "policy.decision", "actor": "agent-1",
-		"subject": "governor", "correlation_id": "run-9", "limit": "50",
+		"subject": "governor", "correlation_id": "run-9", "limit": float64(50),
 	} {
 		if fc.lastArgs[k] != want {
-			t.Errorf("%s not forwarded: got %v want %q", k, fc.lastArgs[k], want)
+			t.Errorf("%s not forwarded: got %v want %v", k, fc.lastArgs[k], want)
 		}
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
@@ -738,7 +739,7 @@ func TestJournalRouteForwardsKind(t *testing.T) {
 	if fc.lastArgs["kind"] != "provider.fallback" {
 		t.Errorf("kind not forwarded: %v", fc.lastArgs)
 	}
-	if fc.lastArgs["limit"] != "30" {
+	if fc.lastArgs["limit"] != float64(30) {
 		t.Errorf("limit not forwarded: %v", fc.lastArgs)
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
@@ -1093,7 +1094,9 @@ func TestSessionControlRoutesWired(t *testing.T) {
 			t.Errorf("%s issued %v want [%s]", tc.path, fc.calls, tc.cmd)
 		}
 		for k, v := range tc.wantArgs {
-			if got, _ := fc.lastArgs[k].(string); got != v {
+			// Compare stringified: numericQueryArgs keys (e.g. `count`) are
+			// coerced to JSON numbers by the proxy, the rest stay strings.
+			if got := fmt.Sprint(fc.lastArgs[k]); got != v {
 				t.Errorf("%s arg %s = %v want %q", tc.path, k, fc.lastArgs[k], v)
 			}
 		}
@@ -1767,7 +1770,9 @@ func TestFlowHistoryForwardsLimit(t *testing.T) {
 	if len(fc.calls) != 1 || fc.calls[0] != "plan_history" {
 		t.Fatalf("expected one plan_history call, got %v", fc.calls)
 	}
-	if fc.lastArgs["limit"] != "5" || fc.lastArgs["status"] != "failed" {
+	// `limit` is a numericQueryArgs key: the proxy coerces it to a JSON number
+	// (the control-plane accessors reject string numbers); `status` stays text.
+	if fc.lastArgs["limit"] != float64(5) || fc.lastArgs["status"] != "failed" {
 		t.Errorf("args not forwarded: %v", fc.lastArgs)
 	}
 	if _, leaked := fc.lastArgs["evil"]; leaked {
