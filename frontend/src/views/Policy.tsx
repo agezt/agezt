@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { RefreshCw, ShieldCheck, Trash2, Plus, FlaskConical, EyeOff, ShieldAlert, X, SlidersHorizontal, CheckCircle2, XCircle, type LucideIcon } from "lucide-react";
 import { Panel, Row, Count } from "@/components/Panel";
+import { Disclosure } from "@/components/ui/disclosure";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,84 @@ function LevelSummary({ levels }: { levels: [string, string][] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// CapabilityLevels renders the per-capability trust grid with the declutter
+// law applied: in the default-allow posture every capability sits at the same
+// level, and 36 identical rows read like a ledger while saying one sentence.
+// Lead with that sentence and any EXCEPTIONS (the rows that differ from the
+// dominant level — the only ones worth a glance); the uniform majority folds
+// under a Disclosure for the operator who asks.
+function CapabilityLevels({
+  levels,
+  busy,
+  onEdit,
+}: {
+  levels: [string, string][];
+  busy: string | null;
+  onEdit: (capability: string, level: string) => void;
+}) {
+  const counts: Record<string, number> = {};
+  for (const [, lvl] of levels) counts[lvl] = (counts[lvl] || 0) + 1;
+  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+  const exceptions = levels.filter(([, lvl]) => lvl !== dominant);
+  const uniform = levels.filter(([, lvl]) => lvl === dominant);
+  const dominantLabel = LEVELS.find((l) => l.value === dominant)?.label || dominant;
+
+  const grid = (rows: [string, string][]) => (
+    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+      {rows.map(([cap, lvl]) => (
+        <div
+          key={cap}
+          className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
+        >
+          <span className="truncate font-mono text-xs">{cap}</span>
+          <button
+            className={cn("ml-auto rounded-md border bg-card px-2 py-1 text-xs tabular-nums transition-colors hover:border-accent disabled:opacity-50", levelTone(lvl))}
+            disabled={busy === cap}
+            onClick={() => onEdit(cap, lvl)}
+            title={`Edit ${cap} trust level`}
+          >
+            {lvl}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Mixed posture: exceptions deserve the page; the uniform majority folds.
+  if (exceptions.length > 0) {
+    return (
+      <>
+        {grid(exceptions)}
+        {uniform.length > 0 && (
+          <Disclosure
+            className="mt-1.5"
+            summary={
+              <span className="text-xs text-muted">
+                {uniform.length} more at {dominantLabel}
+              </span>
+            }
+          >
+            <div className="pt-1.5">{grid(uniform)}</div>
+          </Disclosure>
+        )}
+      </>
+    );
+  }
+
+  // Uniform posture: one honest sentence, full list on request.
+  return (
+    <Disclosure
+      summary={
+        <span className="text-xs text-muted">
+          all {levels.length} capabilities at <span className={cn("font-semibold", LEVEL_BAR[dominant]?.text)}>{dominantLabel}</span> — expand to adjust one
+        </span>
+      }
+    >
+      <div className="pt-1.5">{grid(levels)}</div>
+    </Disclosure>
   );
 }
 
@@ -167,24 +246,7 @@ export function Policy() {
       ) : (
         <PolicyPanel icon={ShieldCheck} title="Capabilities" status={`${levels.length} governed`} tone="accent">
           <LevelSummary levels={levels} />
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {levels.map(([cap, lvl]) => (
-              <div
-                key={cap}
-                className="flex items-center gap-2 rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5"
-              >
-                <span className="truncate font-mono text-xs">{cap}</span>
-                <button
-                  className={cn("ml-auto rounded-md border bg-card px-2 py-1 text-xs tabular-nums transition-colors hover:border-accent disabled:opacity-50", levelTone(lvl))}
-                  disabled={busy === cap}
-                  onClick={() => setEditingCap({ capability: cap, level: lvl })}
-                  title={`Edit ${cap} trust level`}
-                >
-                  {lvl}
-                </button>
-              </div>
-            ))}
-          </div>
+          <CapabilityLevels levels={levels} busy={busy} onEdit={(capability, level) => setEditingCap({ capability, level })} />
           {/* Dry-run a decision (M753) */}
           <div className="mt-2 border-t border-border pt-2">
             <Button size="sm" variant="ghost" onClick={() => setTestOpen(true)}>

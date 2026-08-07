@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { joinCatalog, levelTone } from "@/lib/catalog";
+import { joinCatalog, levelTone, splitDescription } from "@/lib/catalog";
 
 describe("joinCatalog", () => {
   const tools = [
@@ -46,5 +46,35 @@ describe("levelTone", () => {
     expect(levelTone("L1")).toContain("warn");
     expect(levelTone("L2")).toContain("muted");
     expect(levelTone("")).toContain("muted");
+  });
+});
+
+describe("splitDescription", () => {
+  it("returns empty parts for a blank description", () => {
+    expect(splitDescription("")).toEqual({ gist: "", rest: "" });
+    expect(splitDescription("   ")).toEqual({ gist: "", rest: "" });
+  });
+
+  it("keeps a short single-sentence doc whole with no fold", () => {
+    expect(splitDescription("Fetch a web page.")).toEqual({ gist: "Fetch a web page.", rest: "" });
+  });
+
+  it("cuts at the first sentence and folds the rest", () => {
+    const doc = "Write and run code, then read its output. Languages: deno, node, python. Each call runs in its own scratch directory.";
+    const { gist, rest } = splitDescription(doc);
+    expect(gist).toBe("Write and run code, then read its output.");
+    expect(rest).toBe("Languages: deno, node, python. Each call runs in its own scratch directory.");
+  });
+
+  it("does not split on dots inside identifiers", () => {
+    const doc = "Reads config.json values. Second sentence here.";
+    expect(splitDescription(doc).gist).toBe("Reads config.json values.");
+  });
+
+  it("truncates an endless first sentence and folds the full text", () => {
+    const doc = `${"word ".repeat(80).trim()} and then some more`;
+    const { gist, rest } = splitDescription(doc);
+    expect(gist.endsWith("…")).toBe(true);
+    expect(rest).toBe(doc);
   });
 });

@@ -9,11 +9,35 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
-import { joinCatalog, levelTone, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
+import { joinCatalog, levelTone, splitDescription, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
+import { Disclosure } from "@/components/ui/disclosure";
 
 // The edict trust ladder (L0 deny … L4 allow). Mirrors the Policy view so a
 // tool's permission can be granted/restricted from the catalog directly.
 const LEVELS = ["L0", "L1", "L2", "L3", "L4"];
+
+// CatalogDescription applies the declutter law to a tool's documentation:
+// cards used to print the ENTIRE doc (op lists, examples, caveats — often 10+
+// lines each), turning the catalog into a wall of prose. The first sentence is
+// the glanceable gist; the full text folds behind a disclosure.
+function CatalogDescription({ description }: { description: string }) {
+  const { gist, rest } = splitDescription(description);
+  if (!gist) return <p className="mt-1.5 text-xs leading-snug text-foreground/85">—</p>;
+  return (
+    <>
+      <p className="mt-1.5 text-xs leading-snug text-foreground/85">{gist}</p>
+      {rest && (
+        <Disclosure
+          className="mt-0.5"
+          summaryClassName="px-0 py-0.5 text-xs text-muted"
+          summary={<span className="text-xs font-normal text-muted">details</span>}
+        >
+          <p className="whitespace-pre-wrap pt-1 text-xs leading-snug text-foreground/75">{rest}</p>
+        </Disclosure>
+      )}
+    </>
+  );
+}
 
 // Catalog is the agent's capability surface: every tool it can call, what the
 // tool does, the Edict capability that governs it, the current trust level
@@ -146,7 +170,7 @@ export function Catalog() {
                     <Badge variant="default">policy</Badge>
                   </div>
                 )}
-                <p className="mt-1.5 text-xs leading-snug text-foreground/85">{r.description || "—"}</p>
+                <CatalogDescription description={r.description} />
               </li>
             ))}
         </ul>

@@ -70,9 +70,12 @@ export function systemGuardianNoiseContract(
   const scheduleIssue = frequent > 0 ? `${frequent}/${schedule.active || frequent} frequent schedule${frequent === 1 ? "" : "s"}` : "";
   const allIssues = [...issues, scheduleIssue].filter(Boolean);
   if (allIssues.length > 0) {
+    // Just the issues: the "quiet action does X, Y, Z" remedy sentence lives in
+    // the Guardian-noise roll-up panel — repeating it on every card drowned the
+    // per-agent specifics (the operator saw 7 near-identical warning banners).
     return {
       label: "guardian noise review",
-      detail: `${allIssues.join(", ")} · quiet action disables memory writes, raises notify threshold/cooldown, caps spend, lowers trust, and pauses frequent schedules`,
+      detail: allIssues.join(", "),
       tone: "warn",
       issues: allIssues,
     };

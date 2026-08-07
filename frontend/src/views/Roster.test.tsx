@@ -342,7 +342,7 @@ describe("systemGuardianSafetySummary", () => {
       { active: 2, frequent: 1, detail: "schedule pressure: 1/2 frequent · fastest 1h" },
     )).toEqual({
       label: "guardian noise review",
-      detail: "success notifications enabled, memory writes enabled, notify below warning, notify cooldown <8h, no daily cap, no run cap, trust above L2, memory scope not isolated, 1/2 frequent schedule · quiet action disables memory writes, raises notify threshold/cooldown, caps spend, lowers trust, and pauses frequent schedules",
+      detail: "success notifications enabled, memory writes enabled, notify below warning, notify cooldown <8h, no daily cap, no run cap, trust above L2, memory scope not isolated, 1/2 frequent schedule",
       tone: "warn",
       issues: [
         "success notifications enabled",

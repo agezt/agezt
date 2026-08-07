@@ -56,3 +56,24 @@ export function levelTone(level: string): string {
   if (level === "L1") return "text-warn border-warn/40";
   return "text-muted border-border";
 }
+
+// splitDescription cuts a tool's documentation into a one-line gist and the
+// rest. Catalog cards used to print the ENTIRE tool doc (op lists, examples,
+// caveats — 10+ lines each), turning the page into a wall of prose; the gist
+// is the first sentence, the rest folds behind a disclosure.
+const GIST_CAP = 220;
+
+export function splitDescription(desc: string): { gist: string; rest: string } {
+  const raw = (desc || "").trim();
+  if (!raw) return { gist: "", rest: "" };
+  const firstLine = raw.split(/\r?\n/, 1)[0] ?? "";
+  // First sentence boundary within the first line ("." followed by space/end;
+  // also ! and ?). Falls back to the whole first line.
+  const m = firstLine.match(/^[\s\S]*?[.!?](?=\s|$)/);
+  let gist = (m ? m[0] : firstLine).trim();
+  if (gist.length > GIST_CAP) gist = `${gist.slice(0, GIST_CAP).trimEnd()}…`;
+  // A truncated gist ("…") no longer prefixes raw — fold the FULL text then,
+  // so nothing is lost between the teaser and the disclosure.
+  const rest = raw.startsWith(gist) ? raw.slice(gist.length).trim() : raw;
+  return { gist, rest };
+}

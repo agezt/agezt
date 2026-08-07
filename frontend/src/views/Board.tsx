@@ -1283,12 +1283,16 @@ function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string
   );
 }
 
+// agentLabel keeps the filter chips readable: the display name IS the slug in
+// human form, so repeating both ("Guardian · Initiative (guardian-initiative)")
+// says everything twice, and tagging "(system)" on 7 of 8 chips is noise.
+// Only operational state (retired/paused) earns a suffix. The synthetic
+// "All agents" entry has an empty slug — it must not render as "All agents ()".
 function agentLabel(agent: BoardAgent): string {
   const flags = [
     agent.retired ? "retired" : "",
     agent.enabled === false ? "paused" : "",
-    agent.kind === "system" ? "system" : "",
   ].filter(Boolean);
-  const base = agent.name ? `${agent.name} (${agent.slug})` : agent.slug;
+  const base = agent.name || agent.slug;
   return flags.length ? `${base} (${flags.join(", ")})` : base;
 }
