@@ -145,7 +145,15 @@ export function Models() {
     }
   }
 
-  const providers = data?.providers || [];
+  // Keyed providers first: the one or two providers you can actually USE
+  // shouldn't be buried alphabetically among ~180 unkeyed catalog entries.
+  const providers = useMemo(() => {
+    const list = data?.providers || [];
+    return [...list].sort((a, b) => {
+      if (!!a.credentialed !== !!b.credentialed) return a.credentialed ? -1 : 1;
+      return (a.name || a.id).localeCompare(b.name || b.id);
+    });
+  }, [data]);
   const totalModels = useMemo(() => providers.reduce((n, p) => n + (p.model_count ?? p.models?.length ?? 0), 0), [providers]);
   const syncedAt = syncedMs(data?.api_synced_at);
 

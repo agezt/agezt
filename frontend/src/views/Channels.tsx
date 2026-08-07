@@ -18,7 +18,7 @@ import { useWebhookLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 // One account field of a channel (mirrors kernel/settings.Field + set-state).
-interface ChannelField {
+export interface ChannelField {
   env: string;
   label: string;
   secret?: boolean;
@@ -47,7 +47,7 @@ interface ChannelProbe {
 }
 
 // One configured account-instance of a channel (default = empty label).
-interface ChannelAccount {
+export interface ChannelAccount {
   label: string;
   configured?: boolean;
   live?: boolean;
@@ -55,7 +55,7 @@ interface ChannelAccount {
   fields: ChannelField[];
 }
 
-interface ChannelRow {
+export interface ChannelRow {
   kind: string;
   display: string;
   description?: string;
@@ -142,7 +142,9 @@ function accountsOf(r: ChannelRow): ChannelAccount[] {
 
 // ConnectForm — the guided "what you'll need" + field entry for one account.
 // New accounts take an optional label; editing keeps the account's label.
-function ConnectForm({
+// Exported so the Wizards hub can reuse the exact flow (M949 pattern: a wizard
+// is sequencing over EXISTING forms, never a parallel implementation).
+export function ConnectForm({
   row,
   account,
   isNew,

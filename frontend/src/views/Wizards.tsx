@@ -1,15 +1,19 @@
-import { useState, type ReactNode } from "react";
-import { Wand2, X, Bot, CalendarClock, KeyRound, Check, ArrowRight, Plug, Anchor, Wallet, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Wand2, X, Bot, CalendarClock, KeyRound, Check, ArrowRight, ArrowLeft, Plug, Anchor, Wallet, Radio, type LucideIcon } from "lucide-react";
 import { Page } from "@/components/ui/page";
-import { postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
+import { goToView } from "@/lib/nav";
 import { Setup } from "@/views/Setup";
 import { QuickConnect } from "@/views/QuickConnect";
 import { NewAgentForm, usdToMc } from "@/views/Roster";
 import { NewScheduleForm } from "@/views/Schedules";
 import { NewServerForm } from "@/views/Mcp";
 import { NewOrderForm } from "@/views/Standing";
+import { ConnectForm, type ChannelRow } from "@/views/Channels";
 
 // Wizards (M949) is the "get things done without hunting through menus" hub:
 // guided, step-by-step flows that complete a whole task in a focused overlay.
@@ -117,6 +121,103 @@ function StandingWizard({ onClose }: { onClose: () => void }) {
   );
 }
 
+// The channels most operators wire first — shown as big cards before the
+// searchable long tail (the Channels page lists all ~34; the wizard leads with
+// the likely answer instead of a wall).
+const POPULAR_CHANNELS = ["telegram", "email", "slack", "discord", "whatsapp"];
+
+function ChannelWizard({ onClose }: { onClose: () => void }) {
+  const [rows, setRows] = useState<ChannelRow[] | null>(null);
+  const [err, setErr] = useState("");
+  const [picked, setPicked] = useState<ChannelRow | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    getJSON<{ channels?: ChannelRow[] }>("/api/channels")
+      .then((r) => setRows(r.channels || []))
+      .catch((e) => setErr((e as Error).message));
+  }, []);
+
+  if (done) return <DoneState message={done} onAnother={() => { setDone(null); setPicked(null); }} onClose={onClose} />;
+
+  if (picked) {
+    return (
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => setPicked(null)}
+          className="inline-flex items-center gap-1 self-start text-xs font-medium text-muted transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-3" /> pick another channel
+        </button>
+        <ConnectForm
+          row={picked}
+          account={{ label: "", fields: picked.fields.map((f) => ({ ...f, value: "", set: false })) }}
+          isNew
+          onClose={() => setPicked(null)}
+          onSaved={() => setDone(`${picked.display} saved — it goes live on the next daemon restart, and its messages land in the Inbox.`)}
+        />
+      </div>
+    );
+  }
+
+  if (err) return <p className="text-sm text-bad">{err}</p>;
+  if (!rows) return <p className="text-sm text-muted">loading channels…</p>;
+
+  const query = q.trim().toLowerCase();
+  const matches = query
+    ? rows.filter((r) => r.display.toLowerCase().includes(query) || r.kind.includes(query) || (r.description || "").toLowerCase().includes(query))
+    : [];
+  const popular = POPULAR_CHANNELS.map((kind) => rows.find((r) => r.kind === kind)).filter(Boolean) as ChannelRow[];
+  const shown = query ? matches : popular;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted">
+        Pick where you want to talk to the agent. Saved settings apply on the next restart; incoming messages land in the Inbox.
+      </p>
+      <Input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={`Search all ${rows.length} channels…`}
+        aria-label="Search channels"
+        className="h-8"
+      />
+      {shown.length === 0 ? (
+        <p className="text-xs text-muted">nothing matches “{q.trim()}”</p>
+      ) : (
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {shown.map((r) => (
+            <li key={r.kind}>
+              <button
+                onClick={() => setPicked(r)}
+                className="flex h-full w-full flex-col gap-1 rounded-lg border border-border bg-panel/40 p-3 text-left transition-colors hover:border-accent"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{r.display}</span>
+                  {r.live ? <Badge variant="good">live</Badge> : r.configured ? <Badge variant="warn">configured</Badge> : null}
+                </span>
+                <span className="line-clamp-2 text-xs text-muted">{r.description || ""}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!query && (
+        <button
+          onClick={() => {
+            onClose();
+            goToView("channels");
+          }}
+          className="inline-flex items-center gap-1 self-start text-xs font-medium text-accent transition-colors hover:text-accent/80"
+        >
+          browse all {rows.length} channels <ArrowRight className="size-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function BudgetWizard({ onClose }: { onClose: () => void }) {
   const ui = useUI();
   const [draft, setDraft] = useState("");
@@ -185,6 +286,14 @@ const WIZARDS: WizardDef[] = [
     icon: Plug,
     hue: "#2563eb",
     render: () => <QuickConnect />,
+  },
+  {
+    id: "channel",
+    title: "Connect a channel",
+    desc: "Wire Telegram, email, Slack and more to the agent — messages land in the Inbox and answers flow back.",
+    icon: Radio,
+    hue: "#22d3ee",
+    render: (close) => <ChannelWizard onClose={close} />,
   },
   {
     id: "agent",
