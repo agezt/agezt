@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
@@ -55,7 +56,8 @@ func (t *Tool) current() Kernel {
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "workboard",
+		Name:       "workboard",
+		Capability: agent.ToolCapability{Name: string(edict.CapWorkboard)},
 		Description: "Use AGEZT's durable typed workboard: list/show tasks, create new tasks, claim work, heartbeat while running, comment, block/unblock, complete, archive, link runs/artifacts/workflows, declare dependencies, and reclaim stale claims. " +
 			"Tasks are not agents; they are visible durable work records with status, priority, assignee, tenant, idempotency key, comments, links, claims, and journaled transitions. " +
 			"Use this when work must survive restarts, be picked up by another agent, or be reviewed later instead of hiding it in chat.",

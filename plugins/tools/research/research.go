@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -42,7 +43,8 @@ func (t *Tool) SetRunner(r Runner) { t.runner = r }
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "research",
+		Name:       "research",
+		Capability: agent.ToolCapability{Name: string(edict.CapResearch)},
 		Description: "Run the deep-research harness: break a question into sub-questions, gather " +
 			"independent web sources (search + fetch), and return a synthesized answer where every claim " +
 			"cites a numbered source [S1], [S2], .... Use it for open questions needing current, " +

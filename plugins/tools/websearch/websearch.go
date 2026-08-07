@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -109,7 +110,8 @@ func (t *Tool) client() *stdhttp.Client {
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "web_search",
+		Name:       "web_search",
+		Capability: agent.ToolCapability{Name: string(edict.CapWebSearch)},
 		Description: "Search the web for a keyword query and return the top results " +
 			"as a list of {title, url, snippet}. Use this to DISCOVER pages when you " +
 			"don't already have a URL; then fetch the most relevant one with the " +

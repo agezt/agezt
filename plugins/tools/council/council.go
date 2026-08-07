@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -39,7 +40,8 @@ func (t *Tool) SetRunner(r Runner) { t.runner = r }
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "council",
+		Name:       "council",
+		Capability: agent.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Convene the Council of Elders — a panel of several advisors, each on a DIFFERENT " +
 			"model, that debate your question and return a CONSENSUS (plus any dissent). Use it for hard, " +
 			"high-stakes, or contested decisions where one model's answer isn't enough. Returns " +

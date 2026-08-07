@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/mcp"
 )
 
@@ -61,6 +62,16 @@ func (t *Tool) current() Kernel {
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "mcp",
+		Capability: agent.ToolCapability{
+			// list only reads registrations and live attachments. add/attach/detach/
+			// remove — and anything unrecognised — is self-install, the gated axis, so
+			// a garbled call lands on the grant rather than flowing.
+			Name:  string(edict.CapMCPInstall),
+			Field: "op",
+			ByValue: map[string]string{
+				"list": string(edict.CapIntrospect),
+			},
+		},
 		Description: "Extend your own toolbox by installing MCP (Model Context Protocol) servers at runtime. " +
 			"op=add registers a server (a stdio command, e.g. command \"npx\" args [\"-y\",\"@modelcontextprotocol/server-everything\"]); " +
 			"op=attach spawns it and discovers its tools — from your NEXT run they are callable as mcp_<name>_<tool>; " +

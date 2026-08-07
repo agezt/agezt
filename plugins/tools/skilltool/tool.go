@@ -9,13 +9,15 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/skill"
 )
 
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "skill",
+		Name:       "skill",
+		Capability: agent.ToolCapability{Name: string(edict.CapSkill)},
 		Description: "Teach yourself a reusable procedure and manage your own skills. " +
 			"op=learn distills a repeatable how-to into a named, versioned skill (a draft); " +
 			"op=list shows your skills with their status and usage; op=show returns one skill's " +

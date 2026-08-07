@@ -46,6 +46,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // DefaultTimeout caps a single HA request.
@@ -104,6 +105,15 @@ func (t *Tool) Definition() agent.ToolDef {
 	}
 	return agent.ToolDef{
 		Name: "homeassistant",
+		Capability: agent.ToolCapability{
+			// get_states — and anything unrecognised — is the read axis. Actuating the
+			// physical world must never be what an unparsed call falls back to.
+			Name:  string(edict.CapHomeAssistantRead),
+			Field: "operation",
+			ByValue: map[string]string{
+				"call_service": string(edict.CapHomeAssistantCall),
+			},
+		},
 		Description: "Read smart-home entity states and call Home Assistant services to control the house " +
 			"(lights, climate, switches, locks, …). Enabled here: " + avail + ". " +
 			"You can only read allow-listed entities and call allow-listed services; anything else is refused.",

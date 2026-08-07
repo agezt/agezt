@@ -51,14 +51,39 @@ func validatedToolCaps(declared map[string]string) map[string]edict.Capability {
 	return out
 }
 
-func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
-	// Declared-capability overlay (M900): a plugin tool whose manifest joined
-	// a known policy axis is classified there; everything else falls through
-	// to the built-in name/input classification.
-	cap, declared := k.toolCaps[tc.Name]
-	if !declared {
-		cap = edict.CapabilityForToolCall(tc.Name, tc.Input)
+// capabilityFor resolves the policy axis one tool call is gated on, in order of
+// how specific the source is:
+//
+//  1. The tool's own ToolDef.Capability — the authoritative declaration, made in
+//     the tool's package next to the behaviour it describes.
+//  2. Config.ToolCapabilities (M900) — the same declaration arriving through a
+//     plugin's capability manifest, for a tool whose ToolDef crossed a process
+//     boundary and so cannot carry Go fields.
+//  3. edict.CapabilityForToolCall — the name switch, now a fallback. It still
+//     owns the DYNAMIC surfaces no static declaration can cover: forged
+//     `forge_<name>` script tools and bridged `mcp_<server>_<tool>` calls.
+//
+// A declaration naming a capability Edict does not govern is IGNORED rather than
+// honoured, and resolution continues down the list. This matters: an unknown
+// capability is default-denied, so honouring a typo would silently kill the tool
+// — the exact failure this field was introduced to end. Same rule the plugin
+// manifest overlay already applied (a tool may join an existing axis, never
+// invent one), now applied to in-tree declarations too.
+func (k *Kernel) capabilityFor(tc agent.ToolCall, def agent.ToolDef) edict.Capability {
+	if !def.Capability.IsZero() {
+		if cap := def.Capability.For(tc.Input); edict.KnownCapability(cap) {
+			return edict.Capability(cap)
+		}
 	}
+	if cap, ok := k.toolCaps[tc.Name]; ok {
+		return cap
+	}
+	return edict.CapabilityForToolCall(tc.Name, tc.Input)
+}
+
+func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
+	def, _ := agent.PolicyToolDefFromContext(ctx)
+	cap := k.capabilityFor(tc, def)
 	var out edict.Outcome
 	if ceiling, ok := trustCeilingFromCtx(ctx); ok {
 		out = k.edict.DecideWithCeiling(cap, string(tc.Input), ceiling) // SPEC-16 §4 initiative ceiling
@@ -73,7 +98,6 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 		WouldAsk:   out.WouldAsk,
 		HardDenied: out.HardDenied,
 	}
-	def, _ := agent.PolicyToolDefFromContext(ctx)
 	bundle := k.approvalDecisionBundle(tc.Name, out.Capability, tc.Input, def)
 	verdict.EffectClass = bundle.EffectClass
 	verdict.AffectedResources = append([]string(nil), bundle.AffectedResources...)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // DepthKey is a context key for tracking sub-agent nesting depth.
@@ -80,6 +81,7 @@ func NewSubAgentTool() *SubAgentTool { return &SubAgentTool{} }
 func (t *SubAgentTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name:        "delegate",
+		Capability:  agent.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Spawns a sub-agent to complete a focused task and waits for its result. The sub-agent gets its own tools, budget, and context window. Use this for independent subtasks that would benefit from parallel reasoning or when the main agent's context is full.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
@@ -130,6 +132,7 @@ func NewSubAgentAwaitTool() *SubAgentAwaitTool { return &SubAgentAwaitTool{} }
 func (t *SubAgentAwaitTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name:        "delegate_await",
+		Capability:  agent.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Awaits the result of a previously spawned async sub-agent by its spawn_id. Returns the result once the sub-agent completes.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",

@@ -4,6 +4,32 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Refactor (Phase 3.4): a tool now declares its own policy axis.** New `ToolDef.Capability`,
+  governance metadata like `Effect` so it stays off the provider wire. All 39 built-in tools
+  declare; `edict.CapabilityForToolCall`'s name switch drops to a fallback for the surfaces no
+  static declaration can cover — forged `forge_<name>` script tools and bridged
+  `mcp_<server>_<tool>` calls, whose defs are synthesized per attachment. Adding a tool no longer
+  requires an edit in the policy package, which is what let six tools ship dead (above).
+
+  A capability isn't always a constant: eight tools pick their axis from an input field, so the
+  declaration carries an optional field name plus a value→axis map. Choosing the fallback is a real
+  decision, and the tool's author is the one placed to make it — `artifacts` falls back to its READ
+  axis so a garbled call can't gain delete, `mcp` falls back to its INSTALL axis so a garbled call
+  can't slip past the grant. `file` deliberately declares no fallback: an op outside its map is
+  also outside its schema enum, so deferring leaves it on the unknown-capability path, which
+  denies — the right answer for a call nobody can service.
+
+  Resolution order is declaration → plugin capability manifest (M900, for tools whose def crossed
+  a process boundary) → name switch. A declaration naming an axis Edict doesn't govern is
+  **ignored**, not honoured, and resolution continues: honouring a typo would resolve to an unknown
+  capability, i.e. default-deny, silently killing the tool — exactly the failure this field exists
+  to end. Tested per-call, so one bogus value in a multi-axis map degrades that call to the
+  fallback while its siblings keep working.
+
+  Two parity guards make the migration verifiable rather than hopeful: for every real boot tool and
+  every input its schema allows, and again over the runtime-registered set, what the tool declares
+  must equal what the switch resolved before. Both held green through all 39 annotations.
+
 - **Fixed: six tools were refused by policy on every call.** A tool's policy axis is declared in
   `kernel/edict`'s name switch — a different package from the tool — and nothing connected the
   two. A tool whose name never reached that switch resolved to a capability Edict doesn't govern,

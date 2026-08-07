@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -770,7 +771,8 @@ func (m *Manager) Tool() agent.Tool { return memoryTool{mgr: m} }
 
 func (t memoryTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "memory",
+		Name:       "memory",
+		Capability: agent.ToolCapability{Name: string(edict.CapMemory)},
 		Description: "Persist and retrieve durable knowledge across tasks. " +
 			"action=remember stores a fact (subject, content); " +
 			"action=recall searches stored memory (query); " +

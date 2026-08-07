@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/envscrub"
 )
 
@@ -83,7 +84,8 @@ func New(cmd, cwd string) *Tool {
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "acp_agent",
+		Name:       "acp_agent",
+		Capability: agent.ToolCapability{Name: string(edict.CapACPAgent)},
 		Description: "Delegate a task to an EXTERNAL agent that speaks the Agent Client Protocol " +
 			"(Claude Code, Codex, Gemini CLI, …) and return its answer. The external agent runs in " +
 			"its own sandbox with the workspace as its working directory; use it to hand off work to " +

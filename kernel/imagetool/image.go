@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // ImageGen is the seam the `image_generate` tool drives. Its method set uses
@@ -42,7 +43,8 @@ func New(g ImageGen) *Tool { return &Tool{gen: g} }
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "image_generate",
+		Name:       "image_generate",
+		Capability: agent.ToolCapability{Name: string(edict.CapProviderCall)},
 		Description: "Generate one or more images from a text prompt. The images are saved as artifacts you can attach " +
 			"to a message — they are not returned inline. Use a vivid, specific prompt. Optional: size (e.g. 1024x1024), " +
 			"quality (standard|hd), n (number of images, default 1).",

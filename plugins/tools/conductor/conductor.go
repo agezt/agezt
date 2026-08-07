@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -40,7 +41,8 @@ func (t *Tool) SetRunner(r Runner) { t.runner = r }
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "conductor",
+		Name:       "conductor",
+		Capability: agent.ToolCapability{Name: string(edict.CapCodeExec)},
 		Description: "Run the Conductor — three roles on (usually) DIFFERENT models collaborate to solve a hard, " +
 			"verifiable task: a THINKER plans, a WORKER writes the solution, and a VERIFIER checks it (RUNNING the " +
 			"worker's code when it can), looping until the verifier accepts or the round cap is hit. Best for coding, " +

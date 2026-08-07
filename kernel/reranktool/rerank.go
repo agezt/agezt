@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Reranker is the seam the `rerank` tool drives. Its method set uses only stdlib
@@ -38,7 +39,8 @@ func New(r Reranker) agent.Tool { return &rerankTool{rr: r} }
 
 func (t *rerankTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "rerank",
+		Name:       "rerank",
+		Capability: agent.ToolCapability{Name: string(edict.CapProviderCall)},
 		Description: "Reorder candidate documents by relevance to a query using a dedicated reranking model — more " +
 			"accurate than embedding similarity for picking the best few of many candidates. Returns the documents in " +
 			"descending relevance order with scores. Optional top_n caps how many are returned.",

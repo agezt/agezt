@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -56,7 +57,8 @@ func (t *Tool) Bind(h history) {
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "runs",
+		Name:       "runs",
+		Capability: agent.ToolCapability{Name: string(edict.CapRunsRead)},
 		Description: "Recall your OWN past runs from the journal: op=recent lists recent " +
 			"runs (intent, status, cost, when); op=stats gives aggregate totals " +
 			"(completed/failed/success-rate/spend); op=search finds past runs whose intent " +

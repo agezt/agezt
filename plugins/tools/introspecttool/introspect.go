@@ -23,6 +23,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -139,7 +140,8 @@ func (t *Tool) Bind(s Source) {
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "introspect",
+		Name:       "introspect",
+		Capability: agent.ToolCapability{Name: string(edict.CapIntrospect)},
 		Description: "Read THIS daemon's OWN live state — use this to report on AGEZT's health " +
 			"instead of guessing. op=overview (default) gives the at-a-glance snapshot: version, " +
 			"model, uptime, halted, active runs, registered tools, memory/world/skill counts, " +

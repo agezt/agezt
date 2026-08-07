@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
@@ -40,6 +41,17 @@ func (t *Tool) SetKernel(k *kernelruntime.Kernel) { t.kernel = k }
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "config",
+		Capability: agent.ToolCapability{
+			// schema/get — and anything unrecognised — is the read axis, so a garbled
+			// call cannot silently gain write.
+			Name:  string(edict.CapConfigRead),
+			Field: "op",
+			ByValue: map[string]string{
+				"set":        string(edict.CapConfigWrite),
+				"register":   string(edict.CapConfigWrite),
+				"unregister": string(edict.CapConfigWrite),
+			},
+		},
 		Description: "Read, write, and register configuration in the Config Center. " +
 			"Ops: schema (list editable settings), get (read one — secrets report presence only; scope can be effective/global/agent), " +
 			"set (write one; empty value clears it; scope=agent writes to the acting agent's private override map, scope=global writes the daemon config; provider/model apply live only for global writes), " +

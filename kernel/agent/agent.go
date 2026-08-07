@@ -67,6 +67,67 @@ type ToolDef struct {
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"input_schema"`
 	Effect      ToolEffect      `json:"-"`
+	// Capability declares which policy axis this tool's calls are gated on.
+	// Governance metadata like Effect, so it stays off the provider wire.
+	//
+	// Declare it. The alternative is a name switch in the policy package, which
+	// is a different package from the tool — and a tool missing from that switch
+	// resolves to a capability the engine doesn't know, which is DEFAULT-DENIED.
+	// That is not a degraded tool, it is a dead one, and it fails silently at run
+	// time rather than at build time. Six tools shipped that way before this
+	// field existed.
+	Capability ToolCapability `json:"-"`
+}
+
+// ToolCapability is a tool's declared policy axis.
+//
+// Most tools exercise one capability for every call and set only Name. A tool
+// whose risk depends on what the call ASKS FOR — reading a file versus deleting
+// one — also names the input field that selects the axis and maps its values.
+type ToolCapability struct {
+	// Name is the axis for any call ByValue does not match.
+	//
+	// For a single-axis tool it is the whole declaration. For a multi-axis one it
+	// is the fallback, and choosing it is a real decision the tool's author is
+	// best placed to make: a reader should fall back to its READ axis so a
+	// garbled call cannot gain write access, while an installer should fall back
+	// to its GATED axis so a garbled call cannot slip past the grant. Leaving it
+	// empty is not neutral — it defers to the policy package's name switch.
+	Name string
+	// Field is the top-level input field whose value picks the axis, e.g. "op",
+	// "method", or "operation". Empty means single-axis.
+	Field string
+	// ByValue maps a Field value to its axis. Lookup trims and lower-cases, so
+	// entries should be lower-case; a value absent here falls back to Name.
+	ByValue map[string]string
+}
+
+// IsZero reports whether a tool declared no capability, in which case the
+// caller must fall back to its own classification.
+func (c ToolCapability) IsZero() bool {
+	return c.Name == "" && len(c.ByValue) == 0
+}
+
+// For resolves the capability one call exercises. Unparseable input resolves to
+// Name — the tool author's declared fallback — rather than failing, because the
+// policy layer must reach a decision for every call the model makes, including
+// a malformed one.
+func (c ToolCapability) For(input json.RawMessage) string {
+	if c.Field == "" || len(c.ByValue) == 0 {
+		return c.Name
+	}
+	var probe map[string]any
+	if err := json.Unmarshal(input, &probe); err != nil {
+		return c.Name
+	}
+	raw, ok := probe[c.Field].(string)
+	if !ok {
+		return c.Name
+	}
+	if cap, ok := c.ByValue[strings.ToLower(strings.TrimSpace(raw))]; ok {
+		return cap
+	}
+	return c.Name
 }
 
 // EffectClass classifies a tool call by operational reversibility. It is

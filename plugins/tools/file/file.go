@@ -33,6 +33,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // MaxReadBytes caps how much of a single file the tool will return so a
@@ -112,6 +113,24 @@ func (t *Tool) Root() string { return t.root }
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "file",
+		Capability: agent.ToolCapability{
+			// No fallback axis on purpose: an op outside this map is also outside the
+			// schema enum above, so it cannot reach a handler. Deferring leaves it on
+			// the policy engine's unknown-capability path, which denies — the right
+			// answer for a call nobody can service.
+			Field: "op",
+			ByValue: map[string]string{
+				"read":    string(edict.CapFileRead),
+				"stat":    string(edict.CapFileRead),
+				"search":  string(edict.CapFileRead),
+				"list":    string(edict.CapFileList),
+				"glob":    string(edict.CapFileList),
+				"write":   string(edict.CapFileWrite),
+				"append":  string(edict.CapFileWrite),
+				"replace": string(edict.CapFileWrite),
+				"delete":  string(edict.CapFileDelete),
+			},
+		},
 		Description: "Read, write, list, search, and edit files in the workspace. " +
 			"All paths are relative to the workspace root; absolute paths or `..` " +
 			"escape are rejected. Prefer `replace` for small edits over rewriting a whole file.",

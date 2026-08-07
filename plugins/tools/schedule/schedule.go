@@ -26,6 +26,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -85,7 +86,8 @@ func (t *Tool) current() (store, func() time.Time, func(string) (roster.Profile,
 func (t *Tool) Definition() agent.ToolDef {
 	systemTaskEnum, _ := json.Marshal(cadence.SystemTasks())
 	return agent.ToolDef{
-		Name: "schedule",
+		Name:       "schedule",
+		Capability: agent.ToolCapability{Name: string(edict.CapSchedule)},
 		Description: "Schedule future work: run your own agent task later, wake a workflow, " +
 			"run a system task, or invoke a registered tool on a cadence. Use typed targets " +
 			"instead of embedding execution instructions in the task/label.",

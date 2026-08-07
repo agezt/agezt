@@ -3,10 +3,14 @@
 package builtintools
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // A tool's policy axis is declared in kernel/edict's name switch, a different
@@ -83,6 +87,68 @@ func TestBootTools_ResolveToGovernedCapabilities(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Phase 3.4 commit B moves the axis from edict's name switch onto the tool's own
+// ToolDef.Capability. This is the parity net for that move: for every real boot
+// tool and every input its schema allows, what the tool DECLARES must equal what
+// the switch resolved before. A wrong annotation silently re-gates a tool — onto
+// a looser axis in the worst case — so the migration is only safe with this held
+// green tool by tool.
+//
+// A tool that has not been annotated yet is skipped (it still falls through to
+// the switch, unchanged). TestBootTools_DeclareTheirCapability is what stops
+// "not yet annotated" from becoming permanent.
+func TestBootTools_DeclaredCapabilityMatchesTheNameSwitch(t *testing.T) {
+	for name, tool := range buildRealBootTools(t) {
+		declared := tool.Definition().Capability
+		if declared.IsZero() {
+			continue
+		}
+		for _, probe := range probesFor(name) {
+			in, err := json.Marshal(probe)
+			if err != nil {
+				t.Fatalf("%s: marshal probe: %v", name, err)
+			}
+			want := edict.CapabilityForToolCall(name, in)
+			if got := declared.For(in); got != string(want) {
+				t.Errorf("%s with input %v: declares %q but the name switch resolves %q — "+
+					"the declaration must reproduce today's gating exactly, or this tool's policy "+
+					"axis changes as a side effect of the refactor", name, probe, got, want)
+			}
+		}
+	}
+}
+
+// Every boot tool must declare its axis, so the switch is a fallback for the
+// DYNAMIC surfaces only (forge_<name>, mcp_<server>_<tool>) rather than the
+// place in-tree tools are classified.
+func TestBootTools_DeclareTheirCapability(t *testing.T) {
+	for name, tool := range buildRealBootTools(t) {
+		if tool.Definition().Capability.IsZero() {
+			t.Errorf("tool %q declares no Capability — set ToolDef.Capability in the tool's own "+
+				"package so its policy axis lives next to its behaviour", name)
+		}
+	}
+}
+
+// buildRealBootTools builds the actual boot registry so the guards read each
+// tool's real ToolDef rather than a hand-maintained copy of it.
+func buildRealBootTools(t *testing.T) map[string]agent.Tool {
+	t.Helper()
+	RegisterAll()
+	var stderr bytes.Buffer
+	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+		BaseDir:       t.TempDir(),
+		WorkspaceRoot: t.TempDir(),
+		Warden:        warden.New(nil),
+		Stderr:        &stderr,
+		Get:           func(string) string { return "" },
+	})
+	if err != nil {
+		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
+	}
+	return set.Tools()
 }
 
 // And every governed capability must be allowed by default — the owner's

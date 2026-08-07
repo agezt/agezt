@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -43,12 +44,14 @@ func (stubReranker) Rerank(context.Context, string, []string, int) ([]int, []flo
 }
 func (stubReranker) HasRerank() bool { return true }
 
-func TestRuntimeTools_ResolveToGovernedCapabilities(t *testing.T) {
+// openFullToolKernel opens a kernel with every in-process-tool knob on, so the
+// guards below see the whole runtime tool surface rather than whatever this
+// test's defaults happen to be.
+func openFullToolKernel(t *testing.T) map[string]agent.Tool {
+	t.Helper()
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(mock.FinalText("ok")),
-		// Every knob that registers an in-process tool, so the guard sees the
-		// whole surface rather than whatever this test's defaults happen to be.
+		BaseDir:        t.TempDir(),
+		Provider:       mock.New(mock.FinalText("ok")),
 		MemoryTool:     true,
 		WorldTool:      true,
 		SubAgentTool:   true,
@@ -63,20 +66,43 @@ func TestRuntimeTools_ResolveToGovernedCapabilities(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	tools := k.Tools()
-	// Guard the guard: if a rename made these knobs no-ops, an empty set would
-	// pass vacuously.
+	// Guard the guard: if a rename made those knobs no-ops, an empty set would
+	// let every check below pass vacuously.
 	for _, want := range []string{"memory", "world", "delegate", "delegate_await", "market", "voice", "image_generate", "rerank"} {
 		if _, ok := tools[want]; !ok {
-			t.Fatalf("tool %q not registered — this guard is only meaningful over the real tool set", want)
+			t.Fatalf("tool %q not registered — these guards are only meaningful over the real tool set", want)
 		}
 	}
+	return tools
+}
 
-	for name := range tools {
+func TestRuntimeTools_ResolveToGovernedCapabilities(t *testing.T) {
+	for name := range openFullToolKernel(t) {
 		cap := edict.CapabilityForToolCall(name, json.RawMessage(`{}`))
 		if !edict.KnownCapability(string(cap)) {
 			t.Errorf("tool %q resolves to capability %q, which Edict does not govern — an unknown "+
 				"capability is DEFAULT-DENIED, so every call to this tool is refused. Map it in "+
 				"kernel/edict/toolmap.go.", name, cap)
+		}
+	}
+}
+
+// The runtime-side half of the Phase 3.4 commit-B parity net: for every tool
+// Open registers, what the tool DECLARES must equal what edict's name switch
+// resolved before the declaration existed, and every one of them must declare.
+// A wrong annotation would silently re-gate a tool, possibly onto a looser axis.
+func TestRuntimeTools_DeclarationMatchesTheNameSwitch(t *testing.T) {
+	for name, tool := range openFullToolKernel(t) {
+		declared := tool.Definition().Capability
+		if declared.IsZero() {
+			t.Errorf("tool %q declares no Capability — set ToolDef.Capability in the tool's own "+
+				"package so its policy axis lives next to its behaviour", name)
+			continue
+		}
+		in := json.RawMessage(`{}`)
+		want := edict.CapabilityForToolCall(name, in)
+		if got := declared.For(in); got != string(want) {
+			t.Errorf("%s: declares %q but the name switch resolves %q", name, got, want)
 		}
 	}
 }

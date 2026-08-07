@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Tool implements agent.Tool. It holds a lazy getter for the marketplace
@@ -37,7 +38,8 @@ const maxMarketSearchRows = 25
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "market",
+		Name:       "market",
+		Capability: agent.ToolCapability{Name: string(edict.CapMarket)},
 		Description: "Discover and install capability packs from the marketplace when you lack a capability the task needs. " +
 			"A pack bundles skills, MCP servers, and CLI tools; installing it makes those available to you from your next step on. " +
 			"op=search lists packs (optional query); op=show inspects one pack's contents; op=install materializes a pack. " +

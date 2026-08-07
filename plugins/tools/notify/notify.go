@@ -34,6 +34,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Sender delivers text out a named channel kind to a specific channel/chat id.
@@ -93,7 +94,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		avail = "(none configured yet)"
 	}
 	return agent.ToolDef{
-		Name: "notify",
+		Name:       "notify",
+		Capability: agent.ToolCapability{Name: string(edict.CapNotify)},
 		Description: "Proactively send a short message to the operator over a configured chat channel " +
 			"(" + avail + ") — e.g. progress on a long task, or an alert. " +
 			"The message goes ONLY to the operator's pre-configured chats; you cannot choose arbitrary " +

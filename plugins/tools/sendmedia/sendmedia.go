@@ -31,6 +31,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // MediaSender delivers an attachment (plus optional caption) out a named channel
@@ -92,7 +93,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		avail = "(none configured yet)"
 	}
 	return agent.ToolDef{
-		Name: "send_media",
+		Name:       "send_media",
+		Capability: agent.ToolCapability{Name: string(edict.CapNotify)},
 		Description: "Send an image, voice clip or file to the operator over a configured chat channel " +
 			"(" + avail + "). Reference the content by its artifact ref (e.g. an image you rendered or a " +
 			"clip you produced this run) and optionally add a caption. The media goes ONLY to the operator's " +

@@ -30,6 +30,7 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/meshctx"
 	"github.com/agezt/agezt/kernel/tenantctx"
 )
@@ -153,7 +154,8 @@ func (t *Tool) cachedModels(ctx context.Context, p Peer) ([]string, error) {
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "remote_run",
+		Name:       "remote_run",
+		Capability: agent.ToolCapability{Name: string(edict.CapRemoteRun)},
 		Description: "Delegate a self-contained task to a PEER Agezt node and return its answer. " +
 			"The peer runs the task through its own governed agent loop (its tools, its policy) and " +
 			"reports back. Use to hand work to a node with different capabilities, data access, or " +

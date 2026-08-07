@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -131,6 +132,13 @@ func (t *Tool) Definition() agent.ToolDef {
 	}
 	return agent.ToolDef{
 		Name: "http",
+		Capability: agent.ToolCapability{
+			Name:  string(edict.CapHTTPGet),
+			Field: "method",
+			ByValue: map[string]string{
+				"post": string(edict.CapHTTPPost),
+			},
+		},
 		Description: "Fetch a URL (GET) or POST a JSON/text body to it. " +
 			"Hosts must be in the tool's allowlist; otherwise the call is denied.",
 		Effect: agent.ToolEffect{

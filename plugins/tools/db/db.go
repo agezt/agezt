@@ -20,6 +20,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/datalake"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Store is the slice of *datalake.Lake the tool needs — an interface so the tool
@@ -50,7 +51,8 @@ func (t *Tool) SetStore(s Store) { t.lake = s }
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "db",
+		Name:       "db",
+		Capability: agent.ToolCapability{Name: string(edict.CapMemory)},
 		Description: "Your Personal Data Lake — real databases you can build and use. Collections are " +
 			"shared with other agents and the human (they can read your data from chat / the Files-style " +
 			"Data view). Ops: list_collections; create_collection {name, title?, icon?, view?, fields?}; " +

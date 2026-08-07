@@ -19,6 +19,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/toolforge"
 )
 
@@ -60,6 +61,15 @@ func (t *Tool) current() Kernel {
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "tool_forge",
+		Capability: agent.ToolCapability{
+			// op=test RUNS the draft's code in the sandbox — a real code execution, so
+			// it rides code.exec rather than the authoring axis.
+			Name:  string(edict.CapToolForge),
+			Field: "op",
+			ByValue: map[string]string{
+				"test": string(edict.CapCodeExec),
+			},
+		},
 		Description: "Build your own durable tools out of code. " +
 			"op=draft saves a named script (python/node/deno) as a DRAFT tool; " +
 			"op=test runs the draft once in the sandbox with a sample JSON input (your script reads it from ./stdin.txt and must print its result to stdout); " +

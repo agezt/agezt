@@ -11,12 +11,14 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "board",
+		Name:       "board",
+		Capability: agent.ToolCapability{Name: string(edict.CapBoard)},
 		Description: "A shared mailbox every agent on this daemon uses to coordinate: " +
 			"op=post leaves a message on a topic; op=read returns recent messages (optionally for " +
 			"one topic); op=topics lists the active topics. Direct agent-to-agent messaging: " +

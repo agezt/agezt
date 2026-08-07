@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -519,7 +520,8 @@ func (g *Graph) Tool() agent.Tool { return worldTool{g: g} }
 
 func (t worldTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "world",
+		Name:       "world",
+		Capability: agent.ToolCapability{Name: string(edict.CapWorld)},
 		Description: "Read and grow the world model — the graph of the operator's projects, repos, " +
 			"people and topics and how they relate. action=add records an entity (kind, name, aliases); " +
 			"action=relate links two entities (from, verb, to); action=resolve looks up what a phrase " +

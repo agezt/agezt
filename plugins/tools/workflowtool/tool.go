@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/workflow"
 )
@@ -60,6 +61,16 @@ func (t *Tool) current() Kernel {
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "workflow",
+		Capability: agent.ToolCapability{
+			// list/show read the library. save/run/enable — and anything
+			// unrecognised — installs or fires automation, so that is the fallback.
+			Name:  string(edict.CapWorkflow),
+			Field: "op",
+			ByValue: map[string]string{
+				"list": string(edict.CapIntrospect),
+				"show": string(edict.CapIntrospect),
+			},
+		},
 		Description: "Author and run durable workflows — typed-node graphs (trigger/tool/llm/condition/transform/delay/http/code/map/filter/switch/merge/approval/subworkflow) that can start manually, on a cron, or on a journal event. " +
 			"Workflows are reusable chains, not agent identities; users, agents, schedules, and webhooks can run the same saved graph. " +
 			"op=save validates and stores a whole graph (upsert by name; new workflows arrive DISABLED); " +

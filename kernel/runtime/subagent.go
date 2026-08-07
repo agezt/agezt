@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contextselect"
 	"github.com/agezt/agezt/kernel/delegation"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
@@ -33,7 +34,8 @@ func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
 
 func (t *subAgentTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "delegate",
+		Name:       "delegate",
+		Capability: agent.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Delegate a focused subtask to a fresh sub-agent that works " +
 			"autonomously (its own tool-loop) and returns a concise result. LEAD the work: " +
 			"break a big task into parts and delegate each — your sub-agents can delegate " +
@@ -129,6 +131,9 @@ func newSubAgentAwaitTool() *subAgentAwaitTool { return &subAgentAwaitTool{} }
 func (t *subAgentAwaitTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "delegate_await",
+		// Collecting an async delegation's result is the same axis as spawning
+		// it (M881) — no new capability, it inherits the delegate grant.
+		Capability: agent.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Wait for an async delegation (delegate with async=true) to finish and " +
 			"return its result. Call it once per spawn_id; issue several delegate_await calls " +
 			"in one turn to collect a whole fan-out. If it reports the sub-agent is still " +

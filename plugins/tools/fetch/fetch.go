@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -96,7 +97,8 @@ func (t *Tool) client() *stdhttp.Client {
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "fetch",
+		Name:       "fetch",
+		Capability: agent.ToolCapability{Name: string(edict.CapHTTPGet)},
 		Description: "Download a URL and SAVE its bytes as an artifact (file) — use this to keep " +
 			"an image, PDF, or other file from the web (it appears in the Files view and can be " +
 			"downloaded). Returns the artifact {id, mime, size, name}. For reading a page's TEXT " +

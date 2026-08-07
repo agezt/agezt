@@ -21,6 +21,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // MaxReadBytes caps how much of a text artifact `read` returns inline, so pulling
@@ -55,6 +56,15 @@ func (t *Tool) SetIndex(idx Index) { t.index = idx }
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name: "artifacts",
+		Capability: agent.ToolCapability{
+			// list/read — and anything unrecognised — only READ stored files, so the
+			// read axis is the fallback: a garbled call cannot gain delete.
+			Name:  string(edict.CapFileRead),
+			Field: "op",
+			ByValue: map[string]string{
+				"delete": string(edict.CapFileDelete),
+			},
+		},
 		Description: "List, read, or delete the files saved in the artifact store / Files view — " +
 			"the images, downloads (from `fetch`), and offloaded tool outputs you've produced. " +
 			"op=list returns metadata {id, name, mime, kind, source, size} (filter by kind/source/corr); " +

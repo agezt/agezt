@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
@@ -51,7 +52,8 @@ func (t *Tool) Bind(h host) {
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "standing",
+		Name:       "standing",
+		Capability: agent.ToolCapability{Name: string(edict.CapStanding)},
 		Description: "Create durable event/cron wake rules for this agent. " +
 			"A standing order is not an agent identity: it binds event/cron triggers to the bound " +
 			"agent's governed task plan. op=create_event fires the plan whenever a matching journal " +

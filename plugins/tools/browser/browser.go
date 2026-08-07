@@ -37,6 +37,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -161,7 +162,8 @@ func (t *Tool) EnableCookies() error {
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "browser.read",
+		Name:       "browser.read",
+		Capability: agent.ToolCapability{Name: string(edict.CapBrowserRead)},
 		Description: "Fetch a web page and return its visible text content " +
 			"(scripts, styles, and most markup stripped; HTML entities " +
 			"decoded). Use this for reading articles, documentation, blog " +

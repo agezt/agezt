@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Voice is the seam the `voice` tool drives. Implemented by the daemon's voice
@@ -45,7 +46,8 @@ func New(v Voice) *Tool { return &Tool{voice: v} }
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "voice",
+		Name:       "voice",
+		Capability: agent.ToolCapability{Name: string(edict.CapProviderCall)},
 		Description: "Hear and speak. op=transcribe converts inbound audio to text — pass the audio as a data: URL " +
 			"(e.g. a voice note delivered by a channel) or bare base64. op=speak synthesizes a spoken reply from text " +
 			"and saves it as an audio artifact you can attach to a message. Use transcribe to understand voice messages; " +

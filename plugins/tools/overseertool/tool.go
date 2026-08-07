@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -19,7 +20,8 @@ const defaultHelpLimit = 20
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "overseer",
+		Name:       "overseer",
+		Capability: agent.ToolCapability{Name: string(edict.CapOversee)},
 		Description: "Supervise and intervene on the whole system — the brain/overseer's controls. " +
 			"op=status shows the daemon's health (halted?, active runs, agent count, open help); " +
 			"op=agents lists every agent with its state (enabled/paused/retired) and model; " +

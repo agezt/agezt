@@ -28,6 +28,7 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/envscrub"
 )
 
@@ -64,7 +65,8 @@ func New(cmd, repo string) *Tool {
 
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{
-		Name: "coding",
+		Name:       "coding",
+		Capability: agent.ToolCapability{Name: string(edict.CapCoding)},
 		Description: "Delegate a focused coding task to an external coding agent running in an " +
 			"ISOLATED git worktree, and return the resulting diff for review. It never commits to " +
 			"or merges the working branch — you get the proposed patch back; applying it is a " +

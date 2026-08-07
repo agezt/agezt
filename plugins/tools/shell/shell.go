@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -88,7 +89,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		workDir = "process working directory"
 	}
 	return agent.ToolDef{
-		Name: "shell",
+		Name:       "shell",
+		Capability: agent.ToolCapability{Name: string(edict.CapShell)},
 		Description: "Run a command in the operating system's default shell. " +
 			"Returns combined stdout+stderr. Output is truncated to 64 KiB.",
 		Effect: agent.ToolEffect{
