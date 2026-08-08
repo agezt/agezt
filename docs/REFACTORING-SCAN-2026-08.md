@@ -16,6 +16,7 @@
 > | 3.1 — runtime.go split | #562 | runtime.go −40%; `{voice,market,mcp,image,rerank,script}tool.go` moved to their own packages |
 > | 3.2 — `agent.Run` decomposition | b9787f01 | `run_setup.go` (pure prologue) · `run_provider.go` (`callProvider` collapses the streaming/non-streaming duplication) · `run_tools.go` (gate/execute/finalize on a `runState` that owns the prompt-injection causal window). Run: 833 → 309 lines; agent.go 1,712 → 1,203; coverage 79.5% → 80.5%. `runState` deliberately does NOT hold the conversation (dual-source-of-truth risk — finalize takes and returns it, pinned by a test) |
 > | 3.4 — `ToolDef.Capability` | baf30aa4 + (this commit) | **A: fixed 6 tools that policy refused on EVERY call** — `conductor`, `market`, `voice`, `image_generate`, `rerank`, `file` `op=glob` — each resolved to a capability Edict does not govern, and unknown ⇒ default-DENY. New `market.install` axis; guards mutation-verified. **B:** axis declared on `ToolDef` (all 39 tools), name switch demoted to a fallback for the dynamic `forge_`/`mcp_` surfaces; typo'd declarations are ignored rather than honoured into default-deny; parity guards held green across the migration |
+> | 3.5 — `roster.go` split | (this commit) | `controlplane/roster.go` 4,949 → 2,957. Four responsibilities to their own files: `roster_status.go` (journal projection), `roster_activity_text.go` (event→English UI copy), `roster_cascade.go` (read-only teardown preview, now a `cascadeSubsystems` table — 8 character-identical sub-agent listers collapsed into one fan-out, 40-key map literal derived), `roster_teardown.go` (the mutations). `agent_impact` wire payload pinned (mutation-verified) — the console empties a row rather than erroring when a key is renamed |
 > | 3.3 — per-run config resolution | 658b53ff | one `agentOverrides` table (key + doctor message + apply) replaces three copies of the same knowledge · `k.effectiveConfig(ctx)` = daemon config + live edits + agent overrides · **fixed 6 live boot-vs-live drifts: delegated sub-agents, workflow LLM nodes, workflow drafting, and memory/profile distillation all used the BOOT model after a provider reload hot-swapped it, and delegations appended the BOOT persona** · 4 single-key ctx wrappers deleted. Field-grouping half NOT done — see the correction below |
 >
 > main.go: 7,455 → 3,932 lines (−47%). Two plan corrections decided during execution
@@ -24,7 +25,7 @@
 > does NOT hard-validate deps (11 of 14 nils are legitimate operator configs).
 > Per-phase working plans live in `plans/phase2.*.md`.
 >
-> **Remaining:** Phase 3.5–3.6, Phase 4 (frontend/hygiene), controlplane subpackage
+> **Remaining:** Phase 3.6, Phase 4 (frontend/hygiene), controlplane subpackage
 > split (2.3 commit C+), webui route tables from registry metadata, and the
 > `apperrors` delete-or-complete owner decision.
 
@@ -165,7 +166,9 @@ The channel gap is the sharpest: `kernel/channel/registry.go:55` claims "no cent
   Resolution: declaration → plugin manifest (`Config.ToolCapabilities`, M900) → name switch. A declaration naming an axis Edict does not govern is **ignored**, not honoured, and resolution continues — honouring a typo would resolve to an unknown capability, i.e. default-deny, silently killing the tool, which is the bug this field exists to end. Validated per-call, so one bogus value in a multi-axis map degrades that call only.
 
   Two parity guards made the 39-tool migration verifiable rather than hopeful: declared == what the switch resolved, for every boot tool × every schema-allowed input, and again over the runtime-registered set. Held green throughout. **Not retired:** `Config.ToolCapabilities` stays — it is how an out-of-process plugin declares its axis, which a Go struct field cannot do.
-- **3.5 `roster.go` split** — `roster_crud` / `roster_status` (projection + cache) / `roster_activity_text` (UI copy — move toward the presentation layer) / `agent_repair` (state machine) / `agent_cascade` with a `CascadeTarget` interface replacing 18 hand-written impact/mutate function pairs.
+- **3.5 `roster.go` split** — ✅ DONE. `roster_status` / `roster_activity_text` / `roster_cascade` / `roster_teardown` extracted; roster.go 4,949 → 2,957. The 18 hand-written impact functions became a `cascadeSubsystems` table plus one `subagentImpact` fan-out (the 8 sub-agent listers were character-identical apart from the lister they called), and `agentImpactResult`'s 40-key map literal is derived from it.
+
+  **SCOPE CALL:** the table drives the read-only PREVIEW only, not the removal. Two subsystems (workflow refs, mailbox threads) are previewed but deliberately never cleaned — a workflow node or a message thread belongs to the workflow or the conversation, not to the agent that names it — so one table cannot honestly drive both. `handleAgentRemove`'s parent/child unrolling was left alone: its duplication costs readability, not correctness, and it is the destructive path, where a restructuring mistake deletes the wrong thing instead of showing the wrong number. `agent_repair`'s state machine was also left in roster.go — unlike the other four it is non-contiguous, interleaved with the handlers it serves.
 - **3.6 Governor polish** — `[]gate` slice for the 245-line `preflightAndRoute` cascade; unify the 3 budget-scope implementations; make pricing catalog per-Governor instead of the package-level `liveCatalog` global (multi-tenant correctness).
 
 ## Phase 4 — Product/frontend + hygiene

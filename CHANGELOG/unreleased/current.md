@@ -4,6 +4,27 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Refactor (Phase 3.5): `controlplane/roster.go` 4,949 → 2,957 lines.** One file fused six
+  responsibilities. Four are now their own: the journal projection behind the roster's status
+  column (`roster_status.go`), the event→English copy for an agent's activity timeline
+  (`roster_activity_text.go` — presentation, so a wording change no longer sits in the same file as
+  a policy change), the read-only teardown preview (`roster_cascade.go`), and the teardown
+  mutations that actually delete (`roster_teardown.go`).
+
+  The preview also stopped being copy-paste. Each subsystem an agent teardown touches used to be
+  four hand-written things — a lister, a sub-agent lister that differed only in which lister it
+  called, and two payload keys wired into a forty-entry map literal — so adding one meant four
+  edits with nothing checking them against each other. Now one `cascadeSubsystems` entry, and the
+  eight character-identical sub-agent listers collapsed into a single fan-out. Kept separate from
+  the removal path on purpose: two subsystems (workflow references, mailbox threads) are reported
+  but deliberately never cleaned, because a workflow node or a message thread belongs to the
+  workflow or the conversation rather than to the agent that names it.
+
+  Guarded by pinning the `agent_impact` wire payload. That matters more than it sounds: the console
+  defaults a missing key to an empty list, so a renamed key doesn't error — it silently empties one
+  subsystem's row in the confirmation dialog an operator is reading to decide whether a removal is
+  safe. Mutation-verified.
+
 - **Refactor (Phase 3.4): a tool now declares its own policy axis.** New `ToolDef.Capability`,
   governance metadata like `Effect` so it stays off the provider wire. All 39 built-in tools
   declare; `edict.CapabilityForToolCall`'s name switch drops to a fallback for the surfaces no
