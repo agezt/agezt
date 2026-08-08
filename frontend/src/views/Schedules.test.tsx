@@ -14,6 +14,12 @@ vi.mock("@/lib/api", () => ({
 import {
   NewScheduleForm,
   Schedules,
+  scheduleSelectedAgentIssue,
+  scheduleIntentFieldHint,
+  schedulePayloadContract,
+  scheduleFormCadenceLabel,
+} from "@/views/Schedules";
+import {
   parseSchedulesJSON,
   scheduleActionTitle,
   untilLabel,
@@ -27,18 +33,14 @@ import {
   scheduleNeedsAttention,
   scheduleFireMeta,
   scheduleAgentManaged,
-  scheduleSelectedAgentIssue,
   scheduleToolAgentIssue,
   systemTaskExecutionLabel,
   systemTaskDisplayName,
   scheduleTargetHealthPassport,
   scheduleFrequencyIssue,
-  scheduleIntentFieldHint,
-  schedulePayloadContract,
-  scheduleFormCadenceLabel,
   scheduleSystemTaskPresetLabel,
   DUE_SOON_MS,
-} from "@/views/Schedules";
+} from "@/views/schedules/shared";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 

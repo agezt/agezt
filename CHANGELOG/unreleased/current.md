@@ -4,6 +4,17 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Refactor (Phase 4.1): `Schedules.tsx` 2,124 → 1,556 lines.** The view's data model and its
+  derivations — the wire shapes the schedule endpoints return, and the pure functions that turn
+  them into counts, labels, attention reasons, health passports and filters — moved to
+  `views/schedules/shared.ts`, mirroring the existing `views/roster/`. Nothing in there renders, so
+  a derivation and its test can now be read without scrolling past six hundred lines of JSX.
+
+  It also fixed a layering inversion: `lib/snapshot.ts` was importing `parseSchedulesJSON` from a
+  *view*. Library code depending on a view is backwards; it now imports the model directly. The
+  test suite was split the same way, so the twenty pure helpers are tested against the module that
+  owns them rather than through the view that happens to render them.
+
 - **Fixed: a daemon-wide budget breach was invisible to anything filtering by scope.** The three
   daily ceilings — daemon-wide, per-task-type, per-agent — each built their own `budget.exceeded`
   payload, and they had drifted: the task and agent ones carried a `"scope"` field, the global one
