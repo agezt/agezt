@@ -4,6 +4,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Fixed: a daemon-wide budget breach was invisible to anything filtering by scope.** The three
+  daily ceilings — daemon-wide, per-task-type, per-agent — each built their own `budget.exceeded`
+  payload, and they had drifted: the task and agent ones carried a `"scope"` field, the global one
+  did not. An operator or observer filtering budget events by scope therefore saw task and agent
+  breaches but never a global one, which is the most important of the three. All three now report
+  their scope.
+
+- **Refactor (Phase 3.6): the governor's pre-dispatch cascade is a table.** `preflightAndRoute` was
+  245 lines of eight sequential concerns, and their ORDER is load-bearing but was discoverable only
+  by reading the whole function — down-routing must precede the strict capability gate so a
+  remappable request is remapped rather than rejected, and the rate gate must precede the budget
+  gates so a call blocked on frequency never touches the spend ledger. Both are now stated where
+  the order lives. Each step is its own named, independently testable method in `preflight.go`.
+
+  The three budget ceilings collapsed into one `budgetScope` shape (`budgetgate.go`). They were
+  three different shapes for the same decision: two returned `(exceeded, spent, ceiling)` triples
+  that each caller unpacked and journaled itself, and the third was written inline in the middle of
+  the cascade — which is how the payload drift above went unnoticed. `budgetExceeded` and
+  `taskBudgetExceeded` survive as thin wrappers over the table, deliberately: the existing boundary
+  tests drive them directly, and keeping them means those tests still exercise the real path.
+  Guarded by a test that every scope journals its identity, mutation-verified against the old shape.
+
 - **Refactor (Phase 3.5): `controlplane/roster.go` 4,949 → 2,957 lines.** One file fused six
   responsibilities. Four are now their own: the journal projection behind the roster's status
   column (`roster_status.go`), the event→English copy for an agent's activity timeline

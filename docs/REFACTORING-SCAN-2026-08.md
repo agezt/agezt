@@ -16,6 +16,7 @@
 > | 3.1 — runtime.go split | #562 | runtime.go −40%; `{voice,market,mcp,image,rerank,script}tool.go` moved to their own packages |
 > | 3.2 — `agent.Run` decomposition | b9787f01 | `run_setup.go` (pure prologue) · `run_provider.go` (`callProvider` collapses the streaming/non-streaming duplication) · `run_tools.go` (gate/execute/finalize on a `runState` that owns the prompt-injection causal window). Run: 833 → 309 lines; agent.go 1,712 → 1,203; coverage 79.5% → 80.5%. `runState` deliberately does NOT hold the conversation (dual-source-of-truth risk — finalize takes and returns it, pinned by a test) |
 > | 3.4 — `ToolDef.Capability` | baf30aa4 + (this commit) | **A: fixed 6 tools that policy refused on EVERY call** — `conductor`, `market`, `voice`, `image_generate`, `rerank`, `file` `op=glob` — each resolved to a capability Edict does not govern, and unknown ⇒ default-DENY. New `market.install` axis; guards mutation-verified. **B:** axis declared on `ToolDef` (all 39 tools), name switch demoted to a fallback for the dynamic `forge_`/`mcp_` surfaces; typo'd declarations are ignored rather than honoured into default-deny; parity guards held green across the migration |
+> | 3.6 — governor polish | (this commit) | `preflightAndRoute` 245 lines → an ordered `preflightSteps` table of 8 named methods (the load-bearing order is now stated where it lives); the 3 daily ceilings collapsed into one `budgetScope` shape. **Fixed: the global budget breach was the only one journaled WITHOUT a `scope` field**, so anything filtering `budget.exceeded` by scope never saw the daemon-wide cap fire. `liveCatalog` left global — see the correction below |
 > | 3.5 — `roster.go` split | (this commit) | `controlplane/roster.go` 4,949 → 2,957. Four responsibilities to their own files: `roster_status.go` (journal projection), `roster_activity_text.go` (event→English UI copy), `roster_cascade.go` (read-only teardown preview, now a `cascadeSubsystems` table — 8 character-identical sub-agent listers collapsed into one fan-out, 40-key map literal derived), `roster_teardown.go` (the mutations). `agent_impact` wire payload pinned (mutation-verified) — the console empties a row rather than erroring when a key is renamed |
 > | 3.3 — per-run config resolution | 658b53ff | one `agentOverrides` table (key + doctor message + apply) replaces three copies of the same knowledge · `k.effectiveConfig(ctx)` = daemon config + live edits + agent overrides · **fixed 6 live boot-vs-live drifts: delegated sub-agents, workflow LLM nodes, workflow drafting, and memory/profile distillation all used the BOOT model after a provider reload hot-swapped it, and delegations appended the BOOT persona** · 4 single-key ctx wrappers deleted. Field-grouping half NOT done — see the correction below |
 >
@@ -25,7 +26,7 @@
 > does NOT hard-validate deps (11 of 14 nils are legitimate operator configs).
 > Per-phase working plans live in `plans/phase2.*.md`.
 >
-> **Remaining:** Phase 3.6, Phase 4 (frontend/hygiene), controlplane subpackage
+> **Remaining:** Phase 4 (frontend/hygiene), controlplane subpackage
 > split (2.3 commit C+), webui route tables from registry metadata, and the
 > `apperrors` delete-or-complete owner decision.
 
@@ -169,7 +170,13 @@ The channel gap is the sharpest: `kernel/channel/registry.go:55` claims "no cent
 - **3.5 `roster.go` split** — ✅ DONE. `roster_status` / `roster_activity_text` / `roster_cascade` / `roster_teardown` extracted; roster.go 4,949 → 2,957. The 18 hand-written impact functions became a `cascadeSubsystems` table plus one `subagentImpact` fan-out (the 8 sub-agent listers were character-identical apart from the lister they called), and `agentImpactResult`'s 40-key map literal is derived from it.
 
   **SCOPE CALL:** the table drives the read-only PREVIEW only, not the removal. Two subsystems (workflow refs, mailbox threads) are previewed but deliberately never cleaned — a workflow node or a message thread belongs to the workflow or the conversation, not to the agent that names it — so one table cannot honestly drive both. `handleAgentRemove`'s parent/child unrolling was left alone: its duplication costs readability, not correctness, and it is the destructive path, where a restructuring mistake deletes the wrong thing instead of showing the wrong number. `agent_repair`'s state machine was also left in roster.go — unlike the other four it is non-contiguous, interleaved with the handlers it serves.
-- **3.6 Governor polish** — `[]gate` slice for the 245-line `preflightAndRoute` cascade; unify the 3 budget-scope implementations; make pricing catalog per-Governor instead of the package-level `liveCatalog` global (multi-tenant correctness).
+- **3.6 Governor polish** — ✅ DONE for the first two. `preflightAndRoute` is an ordered `preflightSteps` table (`preflight.go`); the three budget scopes are one `budgetScope` shape (`budgetgate.go`), which surfaced and fixed a real payload drift — the daemon-wide breach was the only one journaled without a `scope` field.
+
+  **PLAN CORRECTION — `liveCatalog` stays a package global.** The multi-tenant concern was checked against the source and is THEORETICAL today, not live: tenants inherit the primary's pre-loaded `cfg.Catalog` pointer (`tcfg := cfg` in the lazy tenant-open closure), so every `SetCatalog` stores the same value, and `handleCatalogSync` deliberately uses `s.k` (the primary) rather than `kernelFor(tenantOf(req))` — catalog sync is a daemon-wide operation by design, which is exactly what a global models.
+
+  Moving it per-Governor is not cheap: `priceFor`/`modelIsPriced` are package functions, and `governor.CostMicrocents` is handed to the agent loop as a bare `agent.LoopConfig.CostFn` value with no receiver. Making pricing per-instance means threading a Governor through the loop's cost contract — an architectural change to `kernel/agent` for a bug nobody can currently reach.
+
+  The invariant the safety rests on is worth knowing if this is ever revisited: **if a tenant ever opens with `Catalog: nil` and its own `CatalogDir`, it loads an EMPTY catalog from a fresh tenant dir and `SetCatalog` wipes pricing globally** — every model unpriced, so every call costs $0 (and under `StrictPricing`, is refused) for the primary and every other tenant.
 
 ## Phase 4 — Product/frontend + hygiene
 
