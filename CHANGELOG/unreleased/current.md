@@ -4,6 +4,21 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Removed: `internal/apperrors`.** All four of its functions were `fmt.Errorf("%s: %w", …)` with a
+  nil guard, `Wrap` and `Wrapf` took a `context.Context` they discarded, and the `Code` type it
+  exported along with eight error-code constants had zero references anywhere in the tree. At 43
+  call sites against roughly 250 error returns it was neither a convention nor an abstraction —
+  just a second way to spell the first one, and the half-adoption meant a reader had to know both.
+
+  All 43 sites now use `fmt.Errorf` directly; error strings are byte-identical. The nil guard was
+  dead weight too — every one of the 43 was already inside an `if err != nil`, including the three
+  that returned it bare from a helper (checked individually rather than assumed, since a nil there
+  would have turned a `nil` return into a `%!w(<nil>)` error).
+
+  The prose convention the package documented — package-prefixed messages, `Err*` sentinels,
+  always `%w` — was the part worth keeping, so it moved to `docs/ARCHITECTURE.md` § Error
+  Convention, where it applies to all of the code instead of a sixth of it.
+
 - **Refactor (Phase 4.1): `Schedules.tsx` 2,124 → 1,556 lines.** The view's data model and its
   derivations — the wire shapes the schedule endpoints return, and the pure functions that turn
   them into counts, labels, attention reasons, health passports and filters — moved to

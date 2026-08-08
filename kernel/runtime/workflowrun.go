@@ -24,8 +24,6 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
-
-	"github.com/agezt/agezt/internal/apperrors"
 )
 
 // Workflows returns the durable workflow store (M798). Always non-nil after
@@ -286,7 +284,7 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 			Payload:       nodePayload,
 		})
 		if err != nil && !handled {
-			return res, apperrors.WrapSimplef("node %s", err, id)
+			return res, fmt.Errorf("node %s: %w", id, err)
 		}
 
 		data[id] = map[string]any{"output": output}
@@ -679,7 +677,7 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		subCtx := context.WithValue(ctx, wfDepthKey{}, depth+1)
 		subRes, err := k.RunWorkflow(subCtx, corr, c.Workflow, subPayload)
 		if err != nil {
-			return nil, "", apperrors.WrapSimplef("subworkflow %s", err, c.Workflow)
+			return nil, "", fmt.Errorf("subworkflow %s: %w", c.Workflow, err)
 		}
 		return map[string]any{"executed": subRes.Executed, "outputs": subRes.Outputs}, "", nil
 

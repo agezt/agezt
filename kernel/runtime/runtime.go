@@ -69,8 +69,6 @@ import (
 	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
-
-	"github.com/agezt/agezt/internal/apperrors"
 )
 
 // PluginInfo is the daemon-supplied manifest entry for one
@@ -632,12 +630,12 @@ func Open(cfg Config) (*Kernel, error) {
 		for i := len(closers) - 1; i >= 0; i-- {
 			_ = closers[i].Close()
 		}
-		return nil, apperrors.WrapSimple(prefix, err)
+		return nil, fmt.Errorf("%s: %w", prefix, err)
 	}
 
 	j, err := journal.Open(filepath.Join(cfg.BaseDir, "journal"), journal.Options{})
 	if err != nil {
-		return nil, apperrors.WrapSimple("runtime: journal", err)
+		return nil, fmt.Errorf("runtime: journal: %w", err)
 	}
 	closers = append(closers, j)
 	st, err := state.Open(filepath.Join(cfg.BaseDir, "state"))
@@ -1485,7 +1483,7 @@ func (k *Kernel) Reload() (*catalog.Catalog, bool, error) {
 		return cat, false, nil
 	}
 	if err := k.cfg.OnReload(); err != nil {
-		return cat, false, apperrors.WrapSimple("runtime: provider reload", err)
+		return cat, false, fmt.Errorf("runtime: provider reload: %w", err)
 	}
 	return cat, true, nil
 }
@@ -2312,13 +2310,13 @@ func (k *Kernel) publishHeuristicBypass(ctx context.Context, corr, actor, intent
 		return err
 	}
 	if err := publish(event.KindTaskReceived, "task", map[string]any{"intent": intent}); err != nil {
-		return apperrors.Wrap(ctx, "runtime: publish heuristic task.received", err)
+		return fmt.Errorf("runtime: publish heuristic task.received: %w", err)
 	}
 	if err := publish(event.KindInfo, "heuristic", map[string]any{
 		"bypass": "deterministic",
 		"reason": "known-safe fast path",
 	}); err != nil {
-		return apperrors.Wrap(ctx, "runtime: publish heuristic bypass", err)
+		return fmt.Errorf("runtime: publish heuristic bypass: %w", err)
 	}
 	if err := publish(event.KindTaskCompleted, "task", map[string]any{
 		"iters":   0,
@@ -2326,7 +2324,7 @@ func (k *Kernel) publishHeuristicBypass(ctx context.Context, corr, actor, intent
 		"stopped": "heuristic_bypass",
 		"answer":  truncateHeuristicAnswer(answer),
 	}); err != nil {
-		return apperrors.Wrap(ctx, "runtime: publish heuristic task.completed", err)
+		return fmt.Errorf("runtime: publish heuristic task.completed: %w", err)
 	}
 	return nil
 }

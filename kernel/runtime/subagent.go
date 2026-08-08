@@ -18,8 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"
-
-	"github.com/agezt/agezt/internal/apperrors"
 )
 
 // subAgentTool is the in-process `delegate` tool (P6-MULTI-01). Its runners
@@ -718,7 +716,7 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		k.forge.RecordOutcome(p.childCorr, activatedSkillIDs, err == nil)
 	}
 	if err != nil {
-		return "", apperrors.WrapSimplef("sub-agent %s", err, p.childCorr)
+		return "", fmt.Errorf("sub-agent %s: %w", p.childCorr, err)
 	}
 	k.completeAgentLifecycle(p.childCtx, p.childCorr)
 	return answer, nil

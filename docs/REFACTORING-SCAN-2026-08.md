@@ -28,8 +28,7 @@
 > Per-phase working plans live in `plans/phase2.*.md`.
 >
 > **Remaining:** Phase 4 (frontend/hygiene), controlplane subpackage
-> split (2.3 commit C+), webui route tables from registry metadata, and the
-> `apperrors` delete-or-complete owner decision.
+> split (2.3 commit C+) and webui route tables from registry metadata.
 
 > **Generated:** 2026-08-05 · **Baseline:** `main` @ `069fe955` (clean tree)
 > **Method:** 5 parallel deep scans (boot/wiring, controlplane, agentic core, extension
@@ -133,7 +132,7 @@ The channel gap is the sharpest: `kernel/channel/registry.go:55` claims "no cent
 - **1.1 `kernel/jsonstore.Store[T]`** — generic mutex-guarded JSON store (`Open`, `Get/Put/Delete`, atomicfile-backed). Migrate the 11 store packages one PR each. ~600 lines deleted; durability uniform.
 - **1.2 Controlplane response/arg hygiene** — add `s.ok(conn, req, result)` / `s.fail(conn, req, err)` (single place for redaction + error codes, ~800 lines of noise removed); finish the abandoned `argString/argBool/...` migration (295 raw casts → typed), delete the competing `strArg` in `market.go`.
 - **1.3 Journal-projection framework** — `s.projectJournal(req, kinds, decode)` replacing the 15 identical `*_log.go` scanners (~1,500 lines removed; pagination semantics fixed once).
-- **1.4 `internal/apperrors` decision** — delete it (keep the prose convention) or give it `errors.Is/As` teeth. Current 7/247 adoption with an ignored `ctx` param is the worst of both.
+- **1.4 `internal/apperrors` decision** — ✅ DELETED (owner decision, 2026-08-09). All four functions were `fmt.Errorf("%s: %w", …)` plus a nil guard; `Wrap`/`Wrapf` took a `ctx` they discarded; the `Code` type and its eight constants had ZERO references anywhere. 43 call sites inlined to `fmt.Errorf` — every one was already inside an `if err != nil`, so the nil guard was dead weight too. Error strings are byte-identical. The prose convention it documented was worth keeping and moved to `docs/ARCHITECTURE.md` § Error Convention.
 
 ## Phase 2 — Registry-fication (kills the God-surfaces' growth)
 

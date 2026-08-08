@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -196,7 +195,7 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			verdict = s.cfg.Policy(policyCtx, tc)
 		}
 		if _, err := s.publish(event.KindPolicyDecision, "policy", policyDecisionPayload(tc, verdict)); err != nil {
-			return nil, apperrors.Wrap(ctx, "agent: publish policy.decision", err)
+			return nil, fmt.Errorf("agent: publish policy.decision: %w", err)
 		}
 
 		if !verdict.Allow {
@@ -233,7 +232,7 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			"call_id": tc.ID,
 			"input":   tc.Input,
 		}); err != nil {
-			return nil, apperrors.Wrap(ctx, "agent: publish tool.invoked", err)
+			return nil, fmt.Errorf("agent: publish tool.invoked: %w", err)
 		}
 		job.tool = tool
 	}
@@ -428,7 +427,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 			resultPayload["memo_hit"] = true
 		}
 		if _, err := s.publish(event.KindToolResult, "tool", resultPayload); err != nil {
-			return nil, apperrors.Wrap(ctx, "agent: publish tool.result", err)
+			return nil, fmt.Errorf("agent: publish tool.result: %w", err)
 		}
 		if s.cfg.ToolResultHook != nil && job.tool != nil {
 			s.cfg.ToolResultHook(ctx, job.tc, job.result)

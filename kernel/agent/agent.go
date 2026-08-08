@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -946,7 +945,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// 1. task.received — the intent plus the run's provenance (image count,
 	// agent attribution, wake source, the schedule/standing order that fired it).
 	if _, err := publish(event.KindTaskReceived, "task", taskReceivedPayload(cfg, userIntent)); err != nil {
-		return "", apperrors.Wrap(ctx, "agent: publish task.received", err)
+		return "", fmt.Errorf("agent: publish task.received: %w", err)
 	}
 
 	// From here the run has started: any error return is a run that began
@@ -1034,7 +1033,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				"of":           cfg.MaxAutoContinue,
 				"iters_so_far": iter,
 			}); err != nil {
-				return "", apperrors.Wrap(ctx, "agent: publish task.continued", err)
+				return "", fmt.Errorf("agent: publish task.continued: %w", err)
 			}
 			// Breather before pressing on (ctx-aware so a halt during the wait
 			// ends the run immediately rather than after the sleep).
@@ -1086,7 +1085,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 					"directive": d.Text,
 					"mode":      mode,
 				}); err != nil {
-					return "", apperrors.Wrap(ctx, "agent: publish run.steered", err)
+					return "", fmt.Errorf("agent: publish run.steered: %w", err)
 				}
 			}
 		}
@@ -1113,7 +1112,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 					payload["skill_rescued_chars"] = stats.RescuedChars
 				}
 				if _, err := publish(event.KindContextCompacted, "context", payload); err != nil {
-					return "", apperrors.Wrap(ctx, "agent: publish context.compacted", err)
+					return "", fmt.Errorf("agent: publish context.compacted: %w", err)
 				}
 			}
 		}
@@ -1155,7 +1154,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			reqPayload["tools_before_discovery"] = toolsBeforeDiscovery
 		}
 		if _, err := publish(event.KindLLMRequest, "llm", reqPayload); err != nil {
-			return "", apperrors.Wrap(ctx, "agent: publish llm.request", err)
+			return "", fmt.Errorf("agent: publish llm.request: %w", err)
 		}
 
 		req := completionRequestFor(cfg, messages, offered)
@@ -1173,7 +1172,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 			"reasoning_chars": len(resp.ReasoningContent), // M317: reasoning size (content streamed separately)
 			"tool_calls":      len(resp.Message.ToolCalls),
 		}); err != nil {
-			return "", apperrors.Wrap(ctx, "agent: publish llm.response", err)
+			return "", fmt.Errorf("agent: publish llm.response: %w", err)
 		}
 
 		// Per-run cost cap (M166): add this call's spend and stop if the run has
@@ -1208,7 +1207,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				"stopped": resp.StopReason,
 				"answer":  truncateForJournal(resp.Message.Content),
 			}); err != nil {
-				return "", apperrors.Wrap(ctx, "agent: publish task.completed", err)
+				return "", fmt.Errorf("agent: publish task.completed: %w", err)
 			}
 			return resp.Message.Content, nil
 		}

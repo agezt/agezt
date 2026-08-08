@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -58,13 +57,13 @@ func callProvider(ctx context.Context, cfg LoopConfig, req CompletionRequest, it
 			return nil
 		})
 		if err != nil {
-			return nil, apperrors.Wrapf(ctx, "agent: provider %s (stream)", err, cfg.Provider.Name())
+			return nil, fmt.Errorf("agent: provider %s (stream): %w", cfg.Provider.Name(), err)
 		}
 		resp = r
 	} else {
 		r, err := cfg.Provider.Complete(ctx, req)
 		if err != nil {
-			return nil, apperrors.Wrapf(ctx, "agent: provider %s", err, cfg.Provider.Name())
+			return nil, fmt.Errorf("agent: provider %s: %w", cfg.Provider.Name(), err)
 		}
 		resp = r
 		// A non-streaming provider returns the reasoning whole, with no deltas

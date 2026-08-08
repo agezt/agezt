@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/apperrors"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -35,7 +34,7 @@ func NewClient(baseDir string) (*Client, error) {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("controlplane: daemon not running (no %s)", addrPath)
 		}
-		return nil, apperrors.WrapSimple("controlplane: read addr", err)
+		return nil, fmt.Errorf("controlplane: read addr: %w", err)
 	}
 	// Token resolution: AGEZT_TOKEN overrides the on-disk primary token, so a
 	// tenant operator can present their tenant token (M38) — `AGEZT_TOKEN=<tok>
@@ -47,7 +46,7 @@ func NewClient(baseDir string) (*Client, error) {
 	if token == "" {
 		tokenBytes, rerr := os.ReadFile(tokenPath)
 		if rerr != nil {
-			return nil, apperrors.WrapSimple("controlplane: read token", rerr)
+			return nil, fmt.Errorf("controlplane: read token: %w", rerr)
 		}
 		token = strings.TrimSpace(string(tokenBytes))
 	}
@@ -149,7 +148,7 @@ func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (
 		Error  string          `json:"error"`
 	}
 	if err := json.Unmarshal(line, &resp); err != nil {
-		return nil, apperrors.Wrap(ctx, "controlplane: parse response", err)
+		return nil, fmt.Errorf("controlplane: parse response: %w", err)
 	}
 	if resp.Type == RespError {
 		return nil, &ErrServerError{Msg: resp.Error}
@@ -183,7 +182,7 @@ func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, on
 		}
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
-			return nil, apperrors.Wrap(ctx, "controlplane: parse response", err)
+			return nil, fmt.Errorf("controlplane: parse response: %w", err)
 		}
 		switch resp.Type {
 		case RespEvent:
@@ -241,11 +240,11 @@ func (c *Client) StreamUntilCancel(ctx context.Context, cmd string, args map[str
 			if ctx.Err() != nil {
 				return nil // operator cancellation; not a failure
 			}
-			return apperrors.Wrap(ctx, "controlplane: read", err)
+			return fmt.Errorf("controlplane: read: %w", err)
 		}
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
-			return apperrors.Wrap(ctx, "controlplane: parse response", err)
+			return fmt.Errorf("controlplane: parse response: %w", err)
 		}
 		switch resp.Type {
 		case RespEvent:
@@ -299,7 +298,7 @@ func setReadDeadlineFromCtx(conn net.Conn, ctx context.Context) error {
 // is a genuine network issue and we pass it through.
 func mapNetTimeoutToCtxError(ctx context.Context, err error) error {
 	if !isNetTimeout(err) {
-		return apperrors.Wrap(ctx, "controlplane: read", err)
+		return fmt.Errorf("controlplane: read: %w", err)
 	}
 	// The read deadline was derived from ctx, so an i/o timeout here means
 	// the ctx deadline expired. ctx.Err() may be nil due to a scheduling
@@ -312,7 +311,7 @@ func mapNetTimeoutToCtxError(ctx context.Context, err error) error {
 	}
 	// No context deadline set — the read timed out for a different reason
 	// (e.g. a fixed write deadline in writeRequest). Return as-is.
-	return apperrors.Wrap(ctx, "controlplane: read", err)
+	return fmt.Errorf("controlplane: read: %w", err)
 }
 
 // isNetTimeout reports whether err is a net-level timeout (as opposed to
@@ -338,12 +337,12 @@ func writeRequest(conn net.Conn, cmd string, args map[string]any, token string) 
 	}
 	enc, err := json.Marshal(req)
 	if err != nil {
-		return apperrors.WrapSimple("controlplane: marshal request", err)
+		return fmt.Errorf("controlplane: marshal request: %w", err)
 	}
 	enc = append(enc, '\n')
 	_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	if _, err := conn.Write(enc); err != nil {
-		return apperrors.WrapSimple("controlplane: write", err)
+		return fmt.Errorf("controlplane: write: %w", err)
 	}
 	return nil
 }
@@ -352,11 +351,11 @@ func readOneResponse(conn net.Conn) (*Response, error) {
 	reader := bufio.NewReader(conn)
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
-		return nil, apperrors.WrapSimple("controlplane: read", err)
+		return nil, fmt.Errorf("controlplane: read: %w", err)
 	}
 	var resp Response
 	if err := json.Unmarshal(line, &resp); err != nil {
-		return nil, apperrors.WrapSimple("controlplane: parse response", err)
+		return nil, fmt.Errorf("controlplane: parse response: %w", err)
 	}
 	return &resp, nil
 }

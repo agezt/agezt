@@ -288,6 +288,28 @@ Important design rule:
 - Mailbox/audit and workflow references should generally be retained or explicitly marked as retained by design, not silently deleted.
 - Private/owned memory, skills, config, workspace, standing orders, and schedules can be cascade-cleaned.
 
+## Error Convention
+
+Plain Go. `fmt.Errorf` with `%w`, and a prefix naming the package and the
+operation:
+
+```go
+return fmt.Errorf("controlplane: listen: %w", err)
+return fmt.Errorf("agent: provider %s: %w", name, err)
+```
+
+- Sentinel errors are package-level `errors.New`, named `Err*`, and carry the
+  same prefix: `var ErrNotFound = errors.New("controlplane: not found")`.
+- Validation failures return the sentinel directly — no wrapping.
+- Always `%w`, never `%v`, so `errors.Is`/`errors.As` keep working up the chain.
+
+This used to live behind an `internal/apperrors` wrapper. It was deleted
+(2026-08): all four of its functions were `fmt.Errorf("%s: %w", …)` with a nil
+guard, two took a `ctx` they discarded, and its error-code half was never used
+by anything. At 43 call sites out of ~250 error returns it was neither a
+convention nor an abstraction — just a second way to spell the first one. The
+convention is the part worth keeping, so it lives here instead of in code.
+
 ## Permissions And Capability Control
 
 Agent capability is not just tools. It includes:
