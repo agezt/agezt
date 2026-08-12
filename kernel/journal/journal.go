@@ -66,13 +66,42 @@ type Journal struct {
 	curIndex int // current segment number (1-based)
 }
 
+// Permissions for the journal directory and its segments (EXPOSE-001,
+// 2026-08-12). The journal holds full prompts, raw tool arguments, tool outputs
+// and captured HTTP Authorization / Set-Cookie headers — the most sensitive
+// at-rest data the daemon owns — and it shipped world-readable (0644 segments in
+// a 0755 directory) while the vault, artifacts, auth tokens and datalake all
+// used 0600/0700. Any other local user could read the entire history with no
+// credential.
+//
+// The journal is append-only with no purge path, so a redaction miss is
+// permanent; that makes the at-rest mode the cheapest defence available and the
+// one worth getting right.
+const (
+	journalDirPerm     = 0o700
+	journalSegmentPerm = 0o600
+)
+
 // Open opens or creates a journal at dir. If dir contains existing segments,
 // it scans them to recover the head sequence and hash. A chain break in any
 // existing segment is reported as an error.
 func Open(dir string, opt Options) (*Journal, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, journalDirPerm); err != nil {
 		return nil, fmt.Errorf("journal: mkdir %s: %w", dir, err)
 	}
+	// MkdirAll is a no-op on an existing directory, so a journal created before
+	// this change would keep its 0755 forever. Tighten in place: without this,
+	// the constants above only protect fresh installs and every existing one
+	// stays exposed.
+	//
+	// Best-effort on purpose. My first version returned the error, which would
+	// have refused to open the journal — and therefore failed daemon boot — on
+	// any filesystem where chmod cannot succeed (some network mounts, some
+	// container ownership setups). Refusing to start over a permissions nicety
+	// inverts the cost: the operator loses the daemon entirely instead of losing
+	// one hardening measure, and it contradicts the boot-resilience rule that a
+	// recoverable mismatch warns and degrades rather than hard-failing.
+	_ = os.Chmod(dir, journalDirPerm)
 	j := &Journal{
 		dir:      dir,
 		segBytes: opt.SegmentBytes,
@@ -93,6 +122,15 @@ func Open(dir string, opt Options) (*Journal, error) {
 	segs, err := listSegments(dir)
 	if err != nil {
 		return nil, err
+	}
+	// Tighten segments written before this change. The directory mode above
+	// already stops a fresh traversal, but a segment path that leaked (a backup,
+	// a support bundle, a symlink) would still be world-readable, and the
+	// journal has no purge path — history written yesterday is history forever.
+	// Best-effort per file: a chmod failure must not make an otherwise healthy
+	// journal unopenable.
+	for _, s := range segs {
+		_ = os.Chmod(s.path, journalSegmentPerm)
 	}
 	if len(segs) == 0 {
 		// Fresh journal: start at segment 1.
@@ -366,7 +404,7 @@ func Restore(dir string, events []*event.Event) (headSeq int64, headHash string,
 		expectedSeq++
 	}
 
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, journalDirPerm); err != nil {
 		return 0, "", fmt.Errorf("journal: mkdir %s: %w", dir, err)
 	}
 	existing, err := listSegments(dir)
@@ -378,7 +416,7 @@ func Restore(dir string, events []*event.Event) (headSeq int64, headHash string,
 	}
 
 	path := filepath.Join(dir, fmt.Sprintf("%0*d%s", segmentDigits, 1, segmentExt))
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, journalSegmentPerm)
 	if err != nil {
 		return 0, "", fmt.Errorf("journal: create segment %s: %w", path, err)
 	}
@@ -491,7 +529,7 @@ func (j *Journal) writeAndSync(line []byte) error {
 // close-then-open order could strand j.curFile on a closed file). Caller holds
 // j.mu. A non-nil return leaves all state unchanged.
 func (j *Journal) rotate() error {
-	next, err := os.OpenFile(j.segmentPath(j.curIndex+1), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	next, err := os.OpenFile(j.segmentPath(j.curIndex+1), os.O_WRONLY|os.O_CREATE|os.O_EXCL, journalSegmentPerm)
 	if err != nil {
 		return fmt.Errorf("journal: open next segment: %w", err)
 	}
@@ -514,7 +552,7 @@ func (j *Journal) openCurrent(appendMode bool) error {
 		flag |= os.O_EXCL
 	}
 	path := j.segmentPath(j.curIndex)
-	f, err := os.OpenFile(path, flag, 0o644)
+	f, err := os.OpenFile(path, flag, journalSegmentPerm)
 	if err != nil {
 		return fmt.Errorf("journal: open %s: %w", path, err)
 	}

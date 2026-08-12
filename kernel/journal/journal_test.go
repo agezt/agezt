@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -690,5 +691,91 @@ func TestRestore_RefusesTamperedChain(t *testing.T) {
 	// Nothing should have been written (validation precedes any disk write).
 	if entries, _ := os.ReadDir(dst); len(entries) != 0 {
 		t.Errorf("tampered restore wrote %d file(s), want 0", len(entries))
+	}
+}
+
+// TestOpen_TightensPermissions is the EXPOSE-001 regression test.
+//
+// The journal holds full prompts, raw tool arguments, tool outputs and captured
+// HTTP Authorization / Set-Cookie headers — the most sensitive at-rest data the
+// daemon owns — and it shipped 0644 segments in a 0755 directory while the
+// vault, artifacts, auth tokens and datalake all used 0600/0700.
+//
+// The migration half matters as much as the constants: the journal is
+// append-only with no purge path, so an install created before the fix would
+// otherwise keep world-readable history forever. MkdirAll is a no-op on an
+// existing directory, which is exactly how that would have happened.
+func TestOpen_TightensPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Go's permission bits are largely ignored by Windows ACLs")
+	}
+	dir := filepath.Join(t.TempDir(), "j")
+
+	// Simulate a pre-fix install: loose directory with a loose segment.
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("setup dir: %v", err)
+	}
+	j, err := Open(dir, Options{})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := j.Append(event.Spec{Subject: "t", Kind: "info", Actor: "test"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := j.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Loosen both, as a pre-fix daemon would have left them.
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatalf("loosen dir: %v", err)
+	}
+	segs, err := listSegments(dir)
+	if err != nil || len(segs) == 0 {
+		t.Fatalf("listSegments: %v (%d segments)", err, len(segs))
+	}
+	for _, s := range segs {
+		if err := os.Chmod(s.path, 0o644); err != nil {
+			t.Fatalf("loosen segment: %v", err)
+		}
+	}
+
+	// Re-opening must tighten both in place.
+	j2, err := Open(dir, Options{})
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer j2.Close()
+
+	di, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("stat dir: %v", err)
+	}
+	if got := di.Mode().Perm(); got != journalDirPerm {
+		t.Errorf("directory mode = %#o, want %#o (an existing install stayed world-readable)", got, journalDirPerm)
+	}
+	for _, s := range segs {
+		fi, err := os.Stat(s.path)
+		if err != nil {
+			t.Fatalf("stat segment: %v", err)
+		}
+		if got := fi.Mode().Perm(); got != journalSegmentPerm {
+			t.Errorf("segment %s mode = %#o, want %#o", s.path, got, journalSegmentPerm)
+		}
+	}
+
+	// And a NEW segment written after the migration is created tight, not
+	// merely chmod-ed on the next open.
+	if _, err := j2.Append(event.Spec{Subject: "t2", Kind: "info", Actor: "test"}); err != nil {
+		t.Fatalf("append after reopen: %v", err)
+	}
+	after, _ := listSegments(dir)
+	for _, s := range after {
+		fi, err := os.Stat(s.path)
+		if err != nil {
+			t.Fatalf("stat: %v", err)
+		}
+		if got := fi.Mode().Perm(); got != journalSegmentPerm {
+			t.Errorf("segment %s created with mode %#o, want %#o", s.path, got, journalSegmentPerm)
+		}
 	}
 }
