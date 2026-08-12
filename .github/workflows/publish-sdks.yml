@@ -75,7 +75,7 @@ jobs:
       - name: Build + pack (dry-run validates packaging)
         run: |
           cd sdk/typescript
-          npm ci
+          npm ci --ignore-scripts
           npm run build
           npm pack --dry-run
       - name: Publish to npm (only if the token is set)

@@ -199,10 +199,22 @@ jobs:
           node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # --ignore-scripts on every `npm ci` in this file and in publish-sdks.yml
+      # (CICD-001, 2026-08-12). Dependabot opens weekly npm bumps for /frontend
+      # and /sdk/typescript; those branches live in THIS repo, so they pass the
+      # fork guard and run here — on a SELF-HOSTED, non-ephemeral runner. Without
+      # the flag, an install script from a freshly-bumped transitive package
+      # executes on that runner before any human reads the diff.
+      #
+      # It costs nothing: the only package in either lockfile declaring an
+      # install script is fsevents (optional, os: darwin), which never installs
+      # on the Linux runners. Deliberately NOT a repo-level .npmrc — that would
+      # also skip fsevents for macOS developers locally and quietly drop vite's
+      # native file watching.
       - name: Build the Web UI bundle
         run: |
           cd frontend
-          npm ci
+          npm ci --ignore-scripts
           npm run build
       - name: Verify no drift
         run: |
@@ -255,7 +267,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           cd frontend
-          npm ci
+          npm ci --ignore-scripts
           npm run build
       - name: Commit drift if the rebuild changed dist
         if: github.ref == 'refs/heads/main'
@@ -292,7 +304,7 @@ jobs:
       - name: Unit-test the Web UI logic (Vitest)
         run: |
           cd frontend
-          npm ci
+          npm ci --ignore-scripts
           npm run deadcode
           npm test
           npm run test:coverage:voice
@@ -322,7 +334,7 @@ jobs:
       - name: Install Web UI deps + Playwright browser
         run: |
           cd frontend
-          npm ci
+          npm ci --ignore-scripts
           npx playwright install --with-deps chromium
       - name: Web UI e2e (real daemon, headless browser)
         run: bash scripts/webui-e2e.sh /tmp/agezt /tmp/agt
@@ -362,7 +374,7 @@ jobs:
       - name: Test the TypeScript SDK
         run: |
           cd sdk/typescript
-          npm ci
+          npm ci --ignore-scripts
           npm test
 
   rust-sdk:
