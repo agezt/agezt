@@ -566,14 +566,23 @@ func autoRepairReason(issues []string) string {
 	return base + ": " + text
 }
 
-func autoRepairDegradedFingerprint(row kernelruntime.DegradedAgent) string {
-	return autoRepairFingerprint(
-		"degraded",
-		fmt.Sprintf("failures=%d", row.Failures),
-		fmt.Sprintf("window=%d", row.Window),
-		fmt.Sprintf("threshold=%d", row.Threshold),
-		row.LastReason,
-	)
+// A fingerprint identifies the REPAIR TARGET — this agent, this kind of
+// problem — so the cooldown and the MaxAttempts cap can recognise the same
+// incident recurring. It must therefore contain only STABLE identity.
+//
+// Until 2026-08-12 every one of these embedded the incident's live metrics
+// (`failures=%d`, `count=%d`, a generation counter) and `LastReason`, the newest
+// error string. All of those change on each recurrence, so the fingerprint was
+// different every time: `prev.fingerprint == cand.Fingerprint` never matched and
+// `previousAutoRepairAttempts` always returned 0. Both guards were inert — an
+// agent could be auto-repaired without cooldown and without limit (SR-001). The
+// `misconfigured` path built its fingerprint from stable issue strings and
+// worked, which is the contrast that gave it away.
+//
+// The detail lives in the `reason` string, which is journaled alongside; it does
+// not belong in the identity.
+func autoRepairDegradedFingerprint(_ kernelruntime.DegradedAgent) string {
+	return autoRepairFingerprint("degraded")
 }
 
 func autoRepairDegradedReason(row kernelruntime.DegradedAgent) string {
@@ -587,14 +596,8 @@ func autoRepairDegradedReason(row kernelruntime.DegradedAgent) string {
 	return base
 }
 
-func autoRepairRetryFingerprint(row kernelruntime.RetryPressureAgent) string {
-	return autoRepairFingerprint(
-		"retry_pressure",
-		fmt.Sprintf("count=%d", row.Count),
-		fmt.Sprintf("threshold=%d", row.Threshold),
-		fmt.Sprintf("max_attempts=%d", row.MaxAttempts),
-		row.LastReason,
-	)
+func autoRepairRetryFingerprint(_ kernelruntime.RetryPressureAgent) string {
+	return autoRepairFingerprint("retry_pressure")
 }
 
 func autoRepairRetryReason(row kernelruntime.RetryPressureAgent) string {
@@ -611,16 +614,12 @@ func autoRepairRetryReason(row kernelruntime.RetryPressureAgent) string {
 	return base
 }
 
+// The routing kinds keep TaskType: it names WHICH routing table a repair would
+// rewrite, so two task types are genuinely separate targets. The chain contents
+// and the failing/next model are deliberately excluded — they change precisely
+// BECAUSE repair rewrote them, which is the flapping the guard exists to damp.
 func autoRepairRoutingFingerprint(row kernelruntime.RoutingPressureAgent) string {
-	return autoRepairFingerprint(
-		"routing",
-		fmt.Sprintf("count=%d", row.Count),
-		fmt.Sprintf("threshold=%d", row.Threshold),
-		row.TaskType,
-		row.LastFailedModel,
-		row.LastNextModel,
-		row.LastReason,
-	)
+	return autoRepairFingerprint("routing", row.TaskType)
 }
 
 func autoRepairRoutingReason(row kernelruntime.RoutingPressureAgent) string {
@@ -643,12 +642,7 @@ func autoRepairRoutingReason(row kernelruntime.RoutingPressureAgent) string {
 func autoRepairRoutingUnstableFingerprint(row kernelruntime.RoutingUnstableAgent) string {
 	return autoRepairFingerprint(
 		"routing_unstable",
-		fmt.Sprintf("count=%d", row.Count),
-		fmt.Sprintf("threshold=%d", row.Threshold),
 		row.TaskType,
-		strings.Join(row.CurrentChain, "->"),
-		strings.Join(row.PreviousChain, "->"),
-		row.LastReason,
 	)
 }
 
@@ -675,11 +669,7 @@ func autoRepairRoutingUnstableReason(row kernelruntime.RoutingUnstableAgent) str
 func autoRepairRoutingForcedFailedFingerprint(row kernelruntime.RoutingForcedFailedAgent) string {
 	return autoRepairFingerprint(
 		"routing_forced_failed",
-		fmt.Sprintf("count=%d", row.Count),
-		fmt.Sprintf("threshold=%d", row.Threshold),
 		row.TaskType,
-		strings.Join(row.ForcedChain, "->"),
-		row.LastReason,
 	)
 }
 
@@ -703,12 +693,7 @@ func autoRepairRoutingForcedFailedReason(row kernelruntime.RoutingForcedFailedAg
 func autoRepairRoutingForcedExhaustedFingerprint(row kernelruntime.RoutingForcedExhaustedAgent) string {
 	return autoRepairFingerprint(
 		"routing_forced_exhausted",
-		fmt.Sprintf("count=%d", row.Count),
-		fmt.Sprintf("threshold=%d", row.Threshold),
-		fmt.Sprintf("generation=%d", row.ForceGeneration),
 		row.TaskType,
-		strings.Join(row.ForcedChain, "->"),
-		row.LastReason,
 	)
 }
 

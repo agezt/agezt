@@ -1125,3 +1125,85 @@ func mustEvent(t *testing.T, subject string, payload map[string]any) *event.Even
 	}
 	return &event.Event{Subject: subject, Payload: raw}
 }
+
+// TestAutoRepairFingerprints_StableAcrossRecurrences is the SR-001 regression
+// test. The cooldown compares `prev.fingerprint == cand.Fingerprint` and
+// previousAutoRepairAttempts counts prior attempts BY fingerprint, so both
+// guards are inert the moment a fingerprint varies between recurrences of the
+// same problem.
+//
+// Every one of these used to embed the incident's live metrics (`failures=%d`,
+// `count=%d`, a generation counter) and LastReason, the newest error string —
+// all of which change on each recurrence. An agent could therefore be
+// auto-repaired with no cooldown and no attempt cap, which is the multiplier in
+// the injectable-content -> model-chosen-routing -> persisted-global-config
+// chain.
+//
+// The test drives each builder twice with DIFFERENT counters and reasons — the
+// shape a second occurrence actually takes — and requires an identical result.
+func TestAutoRepairFingerprints_StableAcrossRecurrences(t *testing.T) {
+	if got, want := autoRepairDegradedFingerprint(kernelruntime.DegradedAgent{
+		Failures: 3, Window: 10, Threshold: 3, LastReason: "provider 500",
+	}), autoRepairDegradedFingerprint(kernelruntime.DegradedAgent{
+		Failures: 7, Window: 10, Threshold: 3, LastReason: "context deadline exceeded",
+	}); got != want {
+		t.Errorf("degraded fingerprint drifted between recurrences: %q vs %q", got, want)
+	}
+
+	if got, want := autoRepairRetryFingerprint(kernelruntime.RetryPressureAgent{
+		Count: 3, Threshold: 3, MaxAttempts: 5, LastReason: "429",
+	}), autoRepairRetryFingerprint(kernelruntime.RetryPressureAgent{
+		Count: 9, Threshold: 3, MaxAttempts: 5, LastReason: "connection reset",
+	}); got != want {
+		t.Errorf("retry fingerprint drifted between recurrences: %q vs %q", got, want)
+	}
+
+	if got, want := autoRepairRoutingFingerprint(kernelruntime.RoutingPressureAgent{
+		Count: 2, Threshold: 2, TaskType: "plan", LastFailedModel: "a", LastNextModel: "b", LastReason: "x",
+	}), autoRepairRoutingFingerprint(kernelruntime.RoutingPressureAgent{
+		Count: 8, Threshold: 2, TaskType: "plan", LastFailedModel: "c", LastNextModel: "d", LastReason: "y",
+	}); got != want {
+		t.Errorf("routing fingerprint drifted between recurrences: %q vs %q", got, want)
+	}
+
+	if got, want := autoRepairRoutingUnstableFingerprint(kernelruntime.RoutingUnstableAgent{
+		Count: 2, Threshold: 2, TaskType: "plan", CurrentChain: []string{"a"}, PreviousChain: []string{"b"}, LastReason: "x",
+	}), autoRepairRoutingUnstableFingerprint(kernelruntime.RoutingUnstableAgent{
+		Count: 5, Threshold: 2, TaskType: "plan", CurrentChain: []string{"c"}, PreviousChain: []string{"d"}, LastReason: "y",
+	}); got != want {
+		t.Errorf("routing_unstable fingerprint drifted between recurrences: %q vs %q", got, want)
+	}
+
+	if got, want := autoRepairRoutingForcedFailedFingerprint(kernelruntime.RoutingForcedFailedAgent{
+		Count: 1, Threshold: 1, TaskType: "plan", ForcedChain: []string{"a"}, LastReason: "x",
+	}), autoRepairRoutingForcedFailedFingerprint(kernelruntime.RoutingForcedFailedAgent{
+		Count: 4, Threshold: 1, TaskType: "plan", ForcedChain: []string{"b"}, LastReason: "y",
+	}); got != want {
+		t.Errorf("routing_forced_failed fingerprint drifted between recurrences: %q vs %q", got, want)
+	}
+
+	// ForceGeneration increments on every forced re-route, so it was the most
+	// reliably-varying field of the lot.
+	if got, want := autoRepairRoutingForcedExhaustedFingerprint(kernelruntime.RoutingForcedExhaustedAgent{
+		Count: 1, Threshold: 1, ForceGeneration: 1, TaskType: "plan", ForcedChain: []string{"a"}, LastReason: "x",
+	}), autoRepairRoutingForcedExhaustedFingerprint(kernelruntime.RoutingForcedExhaustedAgent{
+		Count: 6, Threshold: 1, ForceGeneration: 9, TaskType: "plan", ForcedChain: []string{"b"}, LastReason: "y",
+	}); got != want {
+		t.Errorf("routing_forced_exhausted fingerprint drifted between recurrences: %q vs %q", got, want)
+	}
+}
+
+// TestAutoRepairFingerprints_DistinguishRealTargets keeps the fix from
+// overshooting: stability must not collapse genuinely different repair targets
+// into one bucket, which would let one task type's cooldown suppress another's.
+func TestAutoRepairFingerprints_DistinguishRealTargets(t *testing.T) {
+	plan := autoRepairRoutingFingerprint(kernelruntime.RoutingPressureAgent{TaskType: "plan"})
+	code := autoRepairRoutingFingerprint(kernelruntime.RoutingPressureAgent{TaskType: "code"})
+	if plan == code {
+		t.Errorf("different task types must be different repair targets, both = %q", plan)
+	}
+	if degraded, retry := autoRepairDegradedFingerprint(kernelruntime.DegradedAgent{}),
+		autoRepairRetryFingerprint(kernelruntime.RetryPressureAgent{}); degraded == retry {
+		t.Errorf("different incident kinds must not share a fingerprint, both = %q", degraded)
+	}
+}
