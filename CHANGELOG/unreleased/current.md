@@ -488,6 +488,40 @@ This file holds the active `[Unreleased]` working set.
   auth, tenant header, and the full mailbox surface.
 
 ### Fixed
+- **Secrets scoped to the isolated execution tier were delivered into an
+  un-isolated child process.** `shell` and `code_exec` chose their credential
+  bucket from the isolation profile they *requested*, never from what the host
+  would actually run. The requested profile defaults to `namespace`, but every
+  non-Linux host downgrades that to no isolation at all — so on **Windows and
+  macOS, on the default path**, `*_WARDEN` secret files and secret env vars (the
+  ones an operator put in the isolated tier precisely because they did not trust
+  the code) were mounted into a plain `cmd /S /C` child. The same held for a
+  `*_DOCKER` bucket whenever the container backend was unavailable. The bucket
+  now follows the *effective* profile. **Behaviour change, deliberately
+  fail-closed:** on a host that cannot isolate, `*_WARDEN`/`*_DOCKER` secrets now
+  stay home rather than arriving un-isolated — move such entries to `*_LOCAL`,
+  which is an accurate statement of what was already happening. The engine is
+  still asked for the original profile, so the existing
+  `warden.profile_downgraded` event remains the operator's notice.
+- **A vault could dictate its own unlock cost, without an upper bound.** Vault
+  decryption validated a *floor* on the envelope's stored `kdf_iter` and then
+  derived the key with that same attacker-supplied number. PBKDF2 is O(iterations)
+  by design, so `kdf_iter: 2000000000` was not a slow unlock but a hang — and
+  because the vault is opened during daemon **boot**, one edited integer wedged
+  the entire service with no error. There is now a ceiling as well as a floor,
+  checked before the derivation, with 50× headroom so a future release can raise
+  the shipped count without stranding vaults it already wrote.
+- **The ChatGPT sign-in status poll raced the OAuth callback.** The handler took
+  the mutex, copied the login pointer out, released it, and only then read the
+  `status`/`errMsg` fields the callback goroutine writes under that same mutex.
+  Both reads moved inside the critical section. (Confirmed by Go's race detector.)
+- **`kernel/warden`'s package doc promised isolation it does not implement.** The
+  profile table read as a description of behaviour — "`ProfileNamespace`: Linux
+  namespaces + cgroups + seccomp" — when what ships is `setpgid` plus best-effort
+  `prlimit` on Linux, and nothing whatsoever anywhere else. `warden_linux.go` was
+  already explicit about this; the package header a reader hits first was not, and
+  it is the document that made the credential-bucket bug above look safe. Now
+  states what each profile actually does on each platform.
 - **A panicking auto-repair or detached workflow run took the whole daemon
   down.** Completes the WF-001 panic-firewall sweep at the three sites the
   workflow-runner fix explicitly left open. **Auto-repair** (`kernel/selfrepair`)

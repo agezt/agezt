@@ -6,19 +6,36 @@
 // to run external work without caring about the underlying OS
 // mechanism.
 //
-// Profiles (SPEC-06 §2):
+// Profiles (SPEC-06 §2) — the SPEC's intent, NOT a description of what
+// this package implements today. What each one actually does is below.
 //
 //	ProfileNone        in-process / direct exec, no isolation
 //	ProfileNamespace   Linux namespaces + cgroups + seccomp
 //	ProfileContainer   OCI container (Docker / Podman)
 //	ProfileMicroVM     lightweight VM (firecracker-class)
 //
-// **M1.c ships ProfileNone universally on every platform; stronger
-// profiles are documented and *requested*, but transparently downgraded
-// to ProfileNone with a `warden.profile_downgraded` event so the operator
-// knows the actual isolation level.** Real Linux namespace + cgroups
-// implementation lands in M1.d behind a `//go:build linux` partition;
-// container/microvm backends are M2+ optional plugins (SPEC-06 §2.2).
+// # What ships today (RCE-002)
+//
+// Read this before scoping anything to a profile. The table above is a
+// roadmap and was previously easy to mistake for a guarantee.
+//
+//   - **On Linux**, ProfileNamespace engages `setpgid` (so kill-on-timeout
+//     sweeps grandchildren) plus best-effort prlimit(2) caps on CPU,
+//     address space, open files and file size. There are **no namespaces
+//     (CLONE_NEWUSER/NEWNS/NEWPID), no seccomp BPF and no cgroup v2** —
+//     see the header of warden_linux.go, which is the authority. Container
+//     and MicroVM downgrade to this.
+//   - **On every other platform**, including Windows and macOS, ALL
+//     profiles resolve to ProfileNone. Nothing is isolated. Windows job
+//     objects and macOS sandbox-exec are not implemented.
+//
+// EffectiveProfile reports the resolution and every Run emits
+// `warden.profile_downgraded`, so the honest answer is always available at
+// runtime — but callers must ASK. Keying a credential bucket off the
+// requested profile instead of the effective one is exactly how secrets
+// scoped to the isolated tier ended up in an un-isolated child (RCE-001).
+//
+// Container/microvm backends remain M2+ optional plugins (SPEC-06 §2.2).
 //
 // What the cross-platform Engine already enforces today:
 //
