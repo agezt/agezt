@@ -6,11 +6,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -69,6 +72,53 @@ func TestProviderOAuthStartStatus(t *testing.T) {
 	if _, err := c.Call(ctx, controlplane.CmdProviderOAuthStart, map[string]any{"provider": "telegram"}); err == nil {
 		t.Fatal("telegram should not support provider oauth")
 	}
+}
+
+// GO-001: provLoginMu guards providerLogin.status/errMsg, but the status handler
+// used to copy the pointer out under the lock and then dereference it after the
+// unlock — which protects nothing. An operator polling sign-in status while the
+// browser callback lands raced on both fields. Reproduces under `-race`; the
+// callback's error branch is the externally reachable writer.
+func TestProviderOAuthStatus_ConcurrentWithCallback(t *testing.T) {
+	t.Setenv("AGEZT_VAULT_PASSPHRASE", "test-pass")
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	ctx := context.Background()
+	t.Cleanup(func() { _, _ = c.Call(ctx, controlplane.CmdProviderOAuthLogout, nil) })
+
+	res, err := c.Call(ctx, controlplane.CmdProviderOAuthStart, map[string]any{"provider": "chatgpt"})
+	if err != nil {
+		if strings.Contains(err.Error(), "is it in use?") {
+			t.Skipf("port 1455 in use — likely a leaked listener from a previous run: %v", err)
+		}
+		t.Fatalf("start: %v", err)
+	}
+	state, _ := res["state"].(string)
+
+	// The callback closes its own listener ~800ms after the first hit, so both
+	// loops have to run inside that window to overlap at all.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { // writer: each callback sets status+errMsg under the mutex
+		defer wg.Done()
+		client := &http.Client{Timeout: 2 * time.Second}
+		for i := 0; i < 40; i++ {
+			resp, err := client.Get("http://" + chatgptauth.CallbackAddr + "/auth/callback?error=denied")
+			if err != nil {
+				return // listener closed; the reads below still had something to race with
+			}
+			_ = resp.Body.Close()
+		}
+	}()
+	go func() { // reader: the operator polling the console
+		defer wg.Done()
+		for i := 0; i < 40; i++ {
+			if _, err := c.Call(ctx, controlplane.CmdProviderOAuthStatus, map[string]any{"state": state}); err != nil {
+				t.Errorf("status poll: %v", err)
+				return
+			}
+		}
+	}()
+	wg.Wait()
 }
 
 // TestProviderOAuthImport drives the Codex-CLI import path end-to-end.

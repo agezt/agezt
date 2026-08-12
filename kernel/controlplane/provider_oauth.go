@@ -167,16 +167,22 @@ func (s *Server) syncChatGPTModels() (models []string, defaultModel string) {
 // connected account (best-effort). args: state.
 func (s *Server) handleProviderOAuthStatus(conn net.Conn, req Request) {
 	state := strings.TrimSpace(stringArg(req.Args, "state"))
-	s.provLoginMu.Lock()
-	login := s.provLogin
-	s.provLoginMu.Unlock()
 
+	// Read the fields INSIDE the critical section, not just the pointer (GO-001).
+	// provLoginMu guards providerLogin.status/errMsg — setProviderLoginStatus and
+	// the TTL expiry goroutine both write them under it — so copying the pointer
+	// out and dereferencing after the unlock protected nothing: an operator
+	// polling status while the browser callback lands raced on both fields.
+	// (state and verifier are safe unlocked: written once before the callback
+	// server goroutine starts, so the `go` statement orders them.)
 	status := "unknown"
 	errMsg := ""
-	if login != nil && (state == "" || state == login.state) {
+	s.provLoginMu.Lock()
+	if login := s.provLogin; login != nil && (state == "" || state == login.state) {
 		status = login.status
 		errMsg = login.errMsg
 	}
+	s.provLoginMu.Unlock()
 	email, account := s.chatgptMgr().Account()
 	connected := s.chatgptMgr().HasTokens()
 	// Report the models the backend actually serves so the console can pin a live
