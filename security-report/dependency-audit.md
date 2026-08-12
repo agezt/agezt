@@ -6,6 +6,27 @@
 > CVE/version flags are **based on version heuristics — verify against a live advisory DB
 > (osv.dev, GitHub Advisories, govulncheck) before acting.**
 
+## Re-verified 2026-08-12 · `main` @ `905432d3`
+
+The body below was written against `99d2e426`. What was re-measured today:
+
+| Check | Result |
+|---|---|
+| `govulncheck ./...` (v1.4.0, live advisory DB) | **no vulnerabilities found** — this supersedes every version heuristic below |
+| `go run ./tools/depscheck` | OK — 24 core dependencies, all justified against a 28-line allowlist |
+| Go direct dependencies (`go.mod`) | **5 direct, 7 indirect** — `btcec/v2`, `coder/websocket`, `go-imap/v2`, `golang.org/x/net`, `blake3` |
+| Frontend (`frontend/package.json`) | 13 runtime, 15 dev; `overrides` pins `dompurify ^3.4.11`, `undici ^7.28.0` |
+| SDK dependency counts | Python 0, Rust 0, TypeScript dev-only (`typescript`) — unchanged |
+| `gitleaks detect` (v8.30.1, CI's pin) | clean after fixing one stale allowlist gap — see `SECURITY-REPORT.md` |
+
+**Correction to the Scope table below: DEP-001 is resolved and the table is wrong.**
+`frontend/pnpm-lock.yaml` is no longer present and no longer tracked — it was removed 2026-07-26
+and is `.gitignore`d by name. npm's `package-lock.json` is the single source of truth, as the
+Makefile and CI both assume. The "both present" note describes a state that no longer exists.
+
+The Go dependency surface remains deliberately tiny for a project of this size: 5 direct modules,
+no web framework, no ORM, no database driver, and `CGO_ENABLED=0` throughout.
+
 ## Scope
 
 Manifests audited (worktree copies under `.claude/worktrees/*` and `.worktrees/*` and

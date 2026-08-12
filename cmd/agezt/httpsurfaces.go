@@ -58,7 +58,12 @@ type webUISurface struct {
 	allowHost      func(string)
 }
 
-//	AGEZT_WEB_ADDR  host:port to serve on (e.g. 127.0.0.1:8787); unset = off.
+//	AGEZT_WEB_ADDR  host:port to serve on; UNSET = ON at 127.0.0.1:8787.
+//	                Set an explicit opt-out keyword ("off") to disable it —
+//	                allow-by-default, like every other capability. (This line
+//	                read "unset = off" until 2026-08-12, contradicting the
+//	                switch sixteen lines below and the Config Center help; the
+//	                security threat model had inherited the same error.)
 //
 // We never bind 0.0.0.0 implicitly: the operator supplies the host, and the
 // banner warns if it isn't loopback (public exposure is their explicit choice,

@@ -17,6 +17,20 @@
 > | Dependency allowlist | `go run ./tools/depscheck` | 24 deps, all justified |
 > | Secret scan | `gitleaks detect` (v8.30.1, as CI pins) | **1 leak → fixed, now clean** |
 >
+> **Phase 1 regenerated 2026-08-12** against `905432d3`: `architecture.md` and `dependency-audit.md`
+> are current. **Phase 2–4 are NOT** — the 40+ domain hunt, the verifier pass, and every finding
+> below still describe `ef7b412d`. The tree has changed by 1,396 files (+147k/−55k) since the scan
+> that produced them, and fourteen packages now exist that no assessment has ever seen, including
+> `kernel/auth` and `kernel/httpserver` — through which every `/api/v1` authorisation decision now
+> flows. `architecture.md` §6 ranks what a re-hunt should cover first.
+>
+> **Threat-model correction.** The paragraph below states that every network listener is "off by
+> default and loopback-bound". Measured at `cmd/agezt/httpsurfaces.go`, the **Web UI console is ON
+> by default** at `127.0.0.1:8787`; only the REST and OpenAI-compatible APIs are blank-means-off.
+> It is loopback-bound and credential-gated, so this is not an exposure — but "off by default" was
+> load-bearing in the reasoning below and is not true of that surface. The daemon's own source
+> comment claimed the opposite of its own code and was corrected in this pass.
+>
 > The secret scan was **not** clean, contrary to the "`gitleaks` came back empty (`[]`)" claim in the summary
 > below. `kernel/auth/auth_test.go:75` tripped `generic-api-key` on the synthetic fixture
 > `"0123456789abcdef"`-twice, whose only job is to prove `WriteTokenFile` truncates a token to `0123…cdef`.
