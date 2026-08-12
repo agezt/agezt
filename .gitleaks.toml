@@ -26,6 +26,13 @@ Test fixtures only. These files intentionally embed secret-shaped strings:
                                  secret classifier (M939)
   - kernel/controlplane/workflow_test.go  "wrong-secret-123" webhook-HMAC
                                  negative fixture
+  - kernel/auth/auth_test.go     "0123456789abcdef" written twice — a 32-char
+                                 hex token whose only job is to prove
+                                 WriteTokenFile truncates it to "0123…cdef".
+                                 The package arrived with the 2026-07-26
+                                 route-auth centralisation, after this
+                                 allowlist was written, so the scan had been
+                                 failing on it since.
 All values are obviously synthetic; no real secret is committed. The allowlist is
 scoped to these test paths so any secret introduced anywhere in production code,
 or in any other test, still trips the scan.
@@ -37,4 +44,5 @@ paths = [
   '''kernel/agentgw/gateway_test\.go$''',
   '''kernel/configcenter/configcenter_test\.go$''',
   '''kernel/controlplane/workflow_test\.go$''',
+  '''kernel/auth/auth_test\.go$''',
 ]
