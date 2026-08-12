@@ -92,6 +92,12 @@ func builtinSections() []Section {
 			Fields: []Field{
 				{Env: "AGEZT_PROVIDER", Label: "Provider", Type: TypeText, Apply: ApplyLive, Help: "Catalog provider id, e.g. deepseek, openai, anthropic. Required to dispatch LLM calls — blank leaves the daemon unconfigured."},
 				{Env: "AGEZT_MODEL", Label: "Model", Type: TypeText, Apply: ApplyLive, Help: "Model id for runs. Blank = resolved per run from routing / a fallback chain; there is no built-in default model."},
+				{Env: "AGEZT_ANTHROPIC_THINKING_BUDGET", Label: "Anthropic thinking budget", Type: TypeNumber, Apply: ApplyRestart, Help: "Extended-thinking token budget for Anthropic models. Blank/0 = off (thinking costs extra tokens); when set, the chain of thought is captured into ReasoningContent."},
+				{Env: "AGEZT_GOOGLE_THINKING_BUDGET", Label: "Google thinking budget", Type: TypeNumber, Apply: ApplyRestart, Help: "Thinking token budget for the Gemini Generative Language API. Blank = off."},
+				{Env: "AGEZT_GOOGLE_VERTEX_THINKING_BUDGET", Label: "Vertex thinking budget", Type: TypeNumber, Apply: ApplyRestart, Help: "Thinking token budget for Gemini via Vertex AI — a separate surface from the Generative Language API above, so it has its own budget."},
+				{Env: "AGEZT_AZURE_API_VERSION", Label: "Azure OpenAI api-version", Type: TypeText, Apply: ApplyRestart, Help: "api-version query parameter for Azure OpenAI deployments. Blank = 2024-10-21; override only for a cutting-edge preview."},
+				{Env: "AGEZT_CHATGPT_OAUTH", Label: "ChatGPT sign-in", Type: TypePassword, Secret: true, ReadOnly: true, Apply: ApplyRestart,
+					Help: "Read-only: the OAuth token blob written by 'Sign in with ChatGPT'. Shown so you can see whether a subscription sign-in exists; use the sign-in flow to change it, never a pasted value."},
 			},
 		},
 		{
@@ -458,6 +464,9 @@ func builtinSections() []Section {
 					Help: "on = token AND password both required on every request (two factors) — for consoles exposed beyond loopback. Default: password OR token opens the console."},
 				{Env: "AGEZT_API_ADDR", Label: "OpenAI-compatible API addr", Type: TypeText, Apply: ApplyRestart},
 				{Env: "AGEZT_REST_ADDR", Label: "REST API addr", Type: TypeText, Apply: ApplyRestart},
+				{Env: "AGEZT_AGENTGW_SOCKET", Label: "Agent gateway socket", Type: TypeText, Apply: ApplyRestart, Help: "Override the agent-gateway socket path. Blank = the default under the AGEZT base directory; set a TCP address to reach the gateway across hosts."},
+				pw("AGEZT_AGENTGW_TOKEN_SECRET", "Agent gateway token secret",
+					"HMAC signing key shared by the daemon (which validates gateway tokens) and the `agt` CLI (which mints them). Blank = a per-install secret generated and persisted at <base>/agentgw.secret — set this only to distribute one key out-of-band when daemon and CLI run on different hosts."),
 			},
 		},
 		{
@@ -578,6 +587,24 @@ func builtinSections() []Section {
 				{Env: "AGEZT_TOOLFORGE_AUTO_PROMOTE", Label: "Tool Forge auto-promote", Type: TypeBool, Apply: ApplyRestart, Help: "on/default = tested agent-forged tools go live when the agent requests promotion; off = require operator promotion."},
 				{Env: "AGEZT_PROMPT_INJECTION_GUARD", Label: "Prompt-injection guard", Type: TypeSelect, Apply: ApplyRestart, Options: []string{"", "warn", "on", "block", "off"}, Help: "warn/default journals directive-like untrusted content without blocking; on/block routes downstream effectful actions to HITL."},
 				{Env: "AGEZT_ALLOW_ALL", Label: "Allow all (DANGEROUS)", Type: TypeBool, Apply: ApplyRestart, Help: "Master permissive switch — grants every capability and opens the network tools."},
+				{Env: "AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED", Label: "Allow AWS credential_process", Type: TypeBool, Apply: ApplyRestart, Help: "off/default = a profile's credential_process entry is ignored. on = the daemon EXECUTES that binary (aws-vault, 1Password wrappers, …) with its own privileges to mint credentials. Opt-in because a profile you did not write can name any command."},
+			},
+		},
+		{
+			ID: "files", Name: "File Browser",
+			Help: "The workspace directory the console's file routes serve. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_FILE_ROOT", Label: "Workspace root", Type: TypeText, Apply: ApplyRestart, Help: "Directory the file routes serve; a leading ~/ expands to your home. Blank = ~/agezt/workspace. Created with 0700 permissions on first access if missing."},
+				{Env: "AGEZT_FILE_ROOT_MAX_BYTES", Label: "Max read size (bytes)", Type: TypeNumber, Apply: ApplyRestart, Help: "Cap on a single raw file read. Blank = 4 MiB."},
+				{Env: "AGEZT_FILE_ROOT_MAX_ENTRIES", Label: "Max entries per listing", Type: TypeNumber, Apply: ApplyRestart, Help: "Cap on how many entries one tree response returns; the rest are truncated. Blank = 500."},
+			},
+		},
+		{
+			ID: "run-health", Name: "Run Health",
+			Help: "How much provider retrying marks an agent as under pressure in the health projection. Restart to apply.",
+			Fields: []Field{
+				{Env: "AGEZT_RETRY_PRESSURE_THRESHOLD", Label: "Retry pressure threshold", Type: TypeNumber, Apply: ApplyRestart, Help: "Retries within the window before an agent counts as retry-pressured. Blank = 3."},
+				{Env: "AGEZT_RETRY_PRESSURE_WINDOW", Label: "Retry pressure window", Type: TypeText, Apply: ApplyRestart, Help: "How far back retries are counted, as a duration (e.g. 6h). Blank = 24h."},
 			},
 		},
 	}
