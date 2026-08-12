@@ -92,6 +92,20 @@ const (
 	// so refuse it. (The previous floor was 1000 — 200× below policy.)
 	KDFIterMinAccepted = 100000
 
+	// KDFIterMaxAccepted is the CEILING for an envelope's stored iteration count
+	// on decrypt (SEC-002). The floor above stops a stolen vault being made cheap
+	// to crack; this stops the mirror-image attack. Decrypt derives with the
+	// envelope's OWN KDFIter, which is attacker-controlled the moment anyone can
+	// write the vault file — and PBKDF2 is O(iter) by design, so `kdf_iter:
+	// 2000000000` is not a slow unlock, it is a hang. That matters more here than
+	// in a typical app: the vault is opened during daemon BOOT, so a single edited
+	// integer wedges the whole service, and the legacy HMAC chain is equally O(n).
+	//
+	// 50× the shipped count. Generous enough that a future release can raise
+	// KDFIterations several times over without stranding vaults it wrote, while
+	// bounding a hostile envelope to seconds instead of days.
+	KDFIterMaxAccepted = 10000000
+
 	// KDFIterations is the iteration count for key derivation.
 	// 200000 is enough to cost ~100ms on commodity hardware in 2026;
 	// brute-forcing a high-entropy passphrase remains infeasible.
@@ -214,6 +228,12 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 		// A vault claiming a low iteration count is either malformed or an
 		// adversary trying to make a stolen vault cheap to crack. Refuse.
 		return nil, fmt.Errorf("creds: kdf_iter %d implausibly low (min %d)", env.KDFIter, KDFIterMinAccepted)
+	}
+	if env.KDFIter > KDFIterMaxAccepted {
+		// The mirror image: refuse BEFORE deriving, because the derivation is the
+		// denial of service (SEC-002). Checked here rather than clamped, since a
+		// count this high means the envelope is not one we wrote.
+		return nil, fmt.Errorf("creds: kdf_iter %d implausibly high (max %d)", env.KDFIter, KDFIterMaxAccepted)
 	}
 	salt, err := base64.StdEncoding.DecodeString(env.KDFSalt)
 	if err != nil {

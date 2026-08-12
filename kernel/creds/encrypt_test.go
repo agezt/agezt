@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEncryptDecrypt_RoundTrip(t *testing.T) {
@@ -127,6 +128,34 @@ func TestDecrypt_RejectsLowIterationCount(t *testing.T) {
 	_, err := decryptVault(tampered, "p")
 	if err == nil || !strings.Contains(err.Error(), "kdf_iter") {
 		t.Errorf("err = %v, want kdf_iter-too-low rejection", err)
+	}
+}
+
+func TestDecrypt_RejectsHighIterationCount(t *testing.T) {
+	// SEC-002, the mirror image of the low-count case above: decrypt derives with
+	// the ENVELOPE's own KDFIter, and PBKDF2 is O(iter) by design. The vault is
+	// opened during daemon boot, so an edited integer here is not a slow unlock —
+	// it wedges the service. The refusal has to land BEFORE the derivation, which
+	// is what this test's runtime proves: an unbounded build would still be
+	// grinding a billion SHA-256 rounds when the deadline fires.
+	env, _ := encryptVault(map[string]string{"K": "V"}, "p")
+	var e encryptedEnvelope
+	_ = json.Unmarshal(env, &e)
+	e.KDFIter = 2_000_000_000
+	tampered, _ := json.Marshal(e)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := decryptVault(tampered, "p")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "kdf_iter") {
+			t.Errorf("err = %v, want kdf_iter-too-high rejection", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("decrypt is still deriving — the envelope's iteration count is unbounded (SEC-002)")
 	}
 }
 
