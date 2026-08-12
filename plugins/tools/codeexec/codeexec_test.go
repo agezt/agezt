@@ -82,7 +82,7 @@ func (f *fakeWarden) EffectiveProfile(p warden.Profile) warden.Profile {
 	}
 	return warden.ProfileNone
 }
-func (f *fakeWarden) SetBus(*bus.Bus)                                {}
+func (f *fakeWarden) SetBus(*bus.Bus) {}
 
 func newTool(t *testing.T, runtimes map[string]string, net bool) (*Tool, *fakeWarden) {
 	t.Helper()

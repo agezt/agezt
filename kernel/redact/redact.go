@@ -140,6 +140,38 @@ var templatedPatterns = []templatedPattern{
 		re:   regexp.MustCompile(`(?i)(aws[_-]?secret[_-]?access[_-]?key["']?\s*[=:]\s*["']?)[A-Za-z0-9/+]{40}`),
 		repl: "${1}" + Placeholder,
 	},
+	// Incoming-webhook URLs where the PATH IS the credential (EXPOSE-003). For
+	// Slack, Discord and Teams, possession of the URL is full authority to post
+	// as that integration — there is no separate token — so a sink URL in the
+	// journal or on /api/webhook_log is a live credential, and none of the
+	// token-shaped rules above match a bare https:// URL.
+	//
+	// Templated rather than full-match on purpose: an operator's whole reason for
+	// reading the webhook log is "which sink is failing?", and blanking the URL
+	// would answer that with nothing. The host and the non-secret identifiers
+	// survive; only the secret tail is masked.
+	{
+		name: "slack-webhook-url",
+		// https://hooks.slack.com/services/T…/B…/<24-char secret>. The whole
+		// three-segment path is the credential, so keep only the host + /services.
+		re:   regexp.MustCompile(`(?i)(https://hooks\.slack\.com/services)/[A-Za-z0-9/_-]+`),
+		repl: "${1}/" + Placeholder,
+	},
+	{
+		name: "discord-webhook-url",
+		// https://discord(app).com/api/webhooks/<id>/<token>. The numeric id is not
+		// secret and identifies the sink; the token after it is. Keep through the id.
+		re:   regexp.MustCompile(`(?i)(https://(?:canary\.|ptb\.)?discord(?:app)?\.com/api/webhooks/[0-9]+)/[A-Za-z0-9._-]+`),
+		repl: "${1}/" + Placeholder,
+	},
+	{
+		name: "teams-webhook-url",
+		// https://<tenant>.webhook.office.com/webhookb2/<guid>@<guid>/IncomingWebhook/<hash>/<guid>
+		// Everything after /webhookb2/ authorises posting. The tenant host is the
+		// useful part for an operator and is not itself a credential.
+		re:   regexp.MustCompile(`(?i)(https://[A-Za-z0-9.-]+\.webhook\.office(?:365)?\.com/webhook(?:b2)?)/[^\s"']+`),
+		repl: "${1}/" + Placeholder,
+	},
 }
 
 // patterns is the detector list used by Redact, derived from namedPatterns so

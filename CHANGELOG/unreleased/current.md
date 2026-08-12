@@ -488,6 +488,18 @@ This file holds the active `[Unreleased]` working set.
   auth, tenant header, and the full mailbox surface.
 
 ### Fixed
+- **Outbound webhook sink URLs were journaled and served verbatim, and for the
+  three most common providers the URL *is* the credential.** A Slack, Discord or
+  Teams incoming-webhook URL carries no separate token — possession of the URL is
+  full authority to post as that integration — and none of the redactor's
+  token-shaped rules matched a bare `https://` URL, so every sink appeared in the
+  journal and on `/api/webhook_log` in full. Three templated redactor rules now
+  mask the credential-bearing tail. Fixed in the redactor rather than at the API,
+  so it applies before the journal write and covers `agt journal` and every other
+  reader. The host and non-secret identifiers survive, because *which* sink failed
+  is the whole point of the webhook log. **Note:** the journal is append-only and
+  hash-chained, so URLs logged before this change cannot be scrubbed — rotate any
+  sink URL that was already recorded.
 - **Secrets scoped to the isolated execution tier were delivered into an
   un-isolated child process.** `shell` and `code_exec` chose their credential
   bucket from the isolation profile they *requested*, never from what the host
