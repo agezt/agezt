@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import socket
+import sys
 import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional
@@ -43,6 +44,29 @@ __all__ = ["AgentClient", "AsyncAgentClient", "AgentError", "Capability"]
 
 # Default socket path for the agent gateway
 DEFAULT_SOCKET_PATH = "@agezt/agentgw.sock"
+
+
+def _resolve_socket_path(path: str) -> "str | bytes":
+    """Translate a leading "@" into the abstract-socket form CPython understands.
+
+    The daemon binds this with Go's ``net.Listen("unix", "@agezt/agentgw.sock")``,
+    and Go maps a leading "@" to the Linux ABSTRACT namespace. CPython does not:
+    it copies the string verbatim into ``sun_path``, making
+    "@agezt/agentgw.sock" a CWD-RELATIVE FILE PATH. Two consequences, and the
+    second is why this exists (SDK-001, 2026-08-12):
+
+      1. Untranslated, the SDK can never reach the daemon on Linux.
+      2. It fails OPEN into a credential leak — an agent subprocess whose CWD is
+         attacker-writable can have "./@agezt/agentgw.sock" planted there, and
+         every request then hands the capability token to whoever is listening.
+
+    CPython's abstract form is a ``bytes`` address with a leading NUL. The
+    abstract namespace is Linux-only; elsewhere the literal path is what Go binds
+    too, so leaving it alone keeps both ends in agreement.
+    """
+    if path.startswith("@") and sys.platform.startswith("linux"):
+        return b"\0" + path[1:].encode("utf-8")
+    return path
 
 
 @dataclass
@@ -129,7 +153,7 @@ class _SocketClient:
             host, port_str = addr.rsplit(":", 1)
             sock.connect((host, int(port_str)))
         else:
-            sock.connect(self.socket_path)
+            sock.connect(_resolve_socket_path(self.socket_path))
 
     def _request(
         self,

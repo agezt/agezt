@@ -42,6 +42,34 @@ import { ConfigAccessError } from "./errors.js";
 /** Default socket path for the agent gateway. */
 export const DEFAULT_SOCKET_PATH = "@agezt/agentgw.sock";
 
+/**
+ * Translate a leading "@" into the abstract-socket form Node actually understands.
+ *
+ * The daemon binds this path with Go's `net.Listen("unix", "@agezt/agentgw.sock")`,
+ * and Go maps a leading "@" to the Linux ABSTRACT namespace. Node does not: libuv
+ * copies the string verbatim into `sun_path`, so "@agezt/agentgw.sock" is a
+ * CWD-RELATIVE FILE PATH. Two consequences, and the second is the reason this
+ * function exists (SDK-001, 2026-08-12):
+ *
+ *   1. Untranslated, the SDK can never reach the daemon on Linux — it fails
+ *      ENOENT against a file that does not exist.
+ *   2. It fails OPEN into a credential leak. An agent subprocess whose CWD is
+ *      attacker-writable can have "./@agezt/agentgw.sock" planted there; every
+ *      request then hands `Authorization: Bearer <capability token>` to whoever
+ *      is listening, who can replay it and feed forged tool results back as a
+ *      prompt-injection channel.
+ *
+ * Node's abstract form is a leading NUL byte. The abstract namespace is
+ * Linux-only, so on every other platform the literal path is what Go binds too —
+ * leave it alone there and the two ends stay in agreement.
+ */
+export function resolveSocketPath(path: string): string {
+  if (path.startsWith("@") && process.platform === "linux") {
+    return "\0" + path.slice(1);
+  }
+  return path;
+}
+
 /** Capability constants for agent subprocess tokens. */
 export const Capability = {
   // Eventbus capabilities
@@ -195,7 +223,7 @@ export class AgentClient {
       const options: http.RequestOptions = {
         path,
         method,
-        socketPath: this.socketPath,
+        socketPath: resolveSocketPath(this.socketPath),
         timeout: this.timeoutMs,
         headers: {
           Accept: "application/json",

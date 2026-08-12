@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/test/client.test.js dist/test/mailbox.test.js"
+    "test": "tsc -p tsconfig.json && node --test dist/test/client.test.js dist/test/mailbox.test.js dist/test/agent.test.js"
   },
   "keywords": [
     "agezt",
