@@ -24,14 +24,19 @@ import (
 // configEnvVars is the canonical set of AGEZT_* env vars the daemon
 // reads at startup. Surface PRESENCE only; the values can contain
 // secrets (passphrases) or noisy details (catalog URLs that include
-// auth in path). Sorted so the response key order is stable for
-// snapshot tests.
+// auth in path). Grouped in thematic clusters, each labelled — NOT
+// alphabetical, despite how much of the head of the list looks it.
 //
-// Source-of-truth: every Getenv("AGEZT_...") in cmd/agezt/ (plus the
-// daemon's kernel/plugin reads). New vars MUST be added here when
-// introduced — TestConfigEnvVars_CoversCmdAgeztReads (M127) enforces
-// this by scanning cmd/agezt and failing if any read var is absent,
-// so the inventory can no longer silently rot.
+// Source-of-truth: every AGEZT_* read under kernel/, plugins/, internal/
+// and cmd/agezt. cmd/agt is deliberately out of scope — CLI-only vars are
+// not daemon configuration. New vars MUST be added here when introduced;
+// TestConfigEnvVars_CoversCmdAgeztReads (M127) enforces it by walking
+// those trees and failing on any read var that is absent.
+//
+// The promise above used to overreach: the guard scanned a hand-maintained
+// list of eight directories, so "plus the daemon's kernel/plugin reads" was
+// aspirational and 31 vars had drifted out of sight. The scan is now an
+// exclusion list, so a new package is covered by default.
 var configEnvVars = []string{
 	"AGEZT_ACP_AGENT_CMD",
 	"AGEZT_ALERT_NOTIFY",
@@ -433,6 +438,52 @@ var configEnvVars = []string{
 	"AGEZT_TTS_VOICE",
 	"AGEZT_TTS_KEY",
 	"AGEZT_VOICE_REPLY",
+	// Vars the inventory guard could not see until its scan was inverted from
+	// an eight-directory inclusion list to a whole-tree walk (2026-08-12). Every
+	// one is read by the daemon; each was invisible to `agt config show` for as
+	// long as its package sat outside the old root list.
+	//
+	// Agent gateway (M939).
+	"AGEZT_AGENTGW_SOCKET",
+	"AGEZT_AGENTGW_TOKEN_SECRET",
+	// AWS credential_process opt-in (kernel/creds) — gates executing an
+	// external command to mint credentials.
+	"AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED",
+	// ChatGPT subscription auth (kernel/chatgptauth).
+	"AGEZT_CHATGPT_OAUTH",
+	// Per-provider knobs the compat adapter reads directly.
+	"AGEZT_ANTHROPIC_THINKING_BUDGET",
+	"AGEZT_GOOGLE_THINKING_BUDGET",
+	"AGEZT_GOOGLE_VERTEX_THINKING_BUDGET",
+	"AGEZT_AZURE_API_VERSION",
+	// Remote execution profiles (kernel/executionprofile): the three backends
+	// plus the secret policy and artifact-return cap.
+	"AGEZT_EXEC_DAYTONA",
+	"AGEZT_EXEC_DAYTONA_SANDBOX",
+	"AGEZT_EXEC_DAYTONA_WORKDIR",
+	"AGEZT_EXEC_K8S",
+	"AGEZT_EXEC_K8S_CONTAINER",
+	"AGEZT_EXEC_K8S_CONTEXT",
+	"AGEZT_EXEC_K8S_NAMESPACE",
+	"AGEZT_EXEC_K8S_POD",
+	"AGEZT_EXEC_K8S_WORKDIR",
+	"AGEZT_EXEC_MODAL",
+	"AGEZT_EXEC_MODAL_ADD_PYTHON",
+	"AGEZT_EXEC_MODAL_ENVIRONMENT",
+	"AGEZT_EXEC_MODAL_IMAGE",
+	"AGEZT_EXEC_MODAL_REF",
+	"AGEZT_EXEC_MODAL_WORKDIR",
+	"AGEZT_EXEC_REMOTE_SECRET_POLICY",
+	"AGEZT_REMOTE_ARTIFACT_BYTES",
+	// How much of a remote run's event arc is mirrored locally.
+	"AGEZT_REMOTE_EVENT_MIRROR",
+	// Web UI file browser root and its listing caps.
+	"AGEZT_FILE_ROOT",
+	"AGEZT_FILE_ROOT_MAX_BYTES",
+	"AGEZT_FILE_ROOT_MAX_ENTRIES",
+	// Run-reaper retry-pressure window (kernel/runtime).
+	"AGEZT_RETRY_PRESSURE_THRESHOLD",
+	"AGEZT_RETRY_PRESSURE_WINDOW",
 }
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {
