@@ -488,6 +488,24 @@ This file holds the active `[Unreleased]` working set.
   auth, tenant header, and the full mailbox surface.
 
 ### Fixed
+- **A panicking auto-repair or detached workflow run took the whole daemon
+  down.** Completes the WF-001 panic-firewall sweep at the three sites the
+  workflow-runner fix explicitly left open. **Auto-repair** (`kernel/selfrepair`)
+  had no `recover()` anywhere: its coordinator loop runs on a bare `go`, and each
+  repair is dispatched on another one, driving providers, tools, plugin
+  subprocesses, MCP servers and a mailbox post — so a panic in the fleet's own
+  healer terminated the process. Both are now firewalled, and because `dispatch`
+  is also what releases the per-agent in-flight claim, a contained panic no
+  longer leaks the claim and wedges every later repair of that agent; the tick
+  recover releases any candidate that was claimed but never launched. **Detached
+  workflow runs** (`kernel/controlplane`) — the webhook fire-and-return path and
+  `async: true` runs — reach the engine on a bare `go` *without* passing through
+  the runner's `safeFire`, so one bad node killed the daemon after the caller had
+  already been answered "accepted". A contained auto-repair panic is journaled as
+  the new `selfrepair.panic` kind; a detached workflow panic reuses
+  `workflow.panic`. Both regression tests were verified to fail without the fix,
+  and they assert containment rather than survival: the auto-repair test requires
+  the *next* repair to actually run, not merely that the process is still alive.
 - **Governor routing/capability/budget events are now linked to their run.** The
   Governor's per-call decision events — `routing.decision`, `provider.fallback`,
   `rate.limited`, `budget.exceeded`, `capability.rerouted`, `capability.rejected`

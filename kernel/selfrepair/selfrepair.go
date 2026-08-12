@@ -193,28 +193,72 @@ func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, 
 			if !autoRepairShouldHandle(ev) {
 				continue
 			}
-			cut := c.now().Add(-autoRepairReaperWindow).UnixMilli()
-			rep := k.ReaperScan(cut, cut)
-			for _, cand := range c.claim(k, rep, k.Roster().List()) {
-				publishAutoRepair(k.Bus(), "", map[string]any{
-					"phase":                             autoRepairQueuedPhase(cand),
-					"agent":                             cand.Slug,
-					"mode":                              cand.Mode,
-					"issues":                            cand.Issues,
-					"reason":                            cand.Reason,
-					"fingerprint":                       cand.Fingerprint,
-					"self_repair_attempt":               cand.SelfRepairAttempt,
-					"self_repair_max_attempts":          cand.SelfRepairMaxAttempts,
-					"routing_task_type":                 cand.RoutingRollbackTaskType,
-					"routing_task_model_chain":          cand.RoutingRollbackToChain,
-					"previous_routing_task_model_chain": cand.RoutingRollbackFromChain,
-					"incident_id":                       autoRepairIncidentIDValue(cand),
-					"root_incident_id":                  autoRepairRootChainID(cand),
-					"parent_incident_id":                strings.TrimSpace(cand.ParentHopID),
-				})
-				go c.dispatch(ctx, k, k.Bus(), src, mailbox, postNotify, cand)
-			}
+			c.handleTick(ctx, k, src, mailbox, postNotify)
 		}
+	}
+}
+
+// handleTick scans the reaper window and dispatches one repair per claimed
+// candidate. It is a separate frame purely so the panic firewall (WF-001) is
+// scoped to ONE tick: run() is launched with a bare `go` from WireAutoRepair, so
+// a panic in ReaperScan or claim used to take the daemon down with it. Recovering
+// per tick rather than around the whole loop also keeps auto-repair ARMED after a
+// bad event — disarming the fleet's healer on one malformed pulse would be a
+// silent, permanent degradation.
+func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string)) {
+	// claim() marks candidates in-flight and dispatch() is what releases them, so
+	// a panic between the two would leak the claim and wedge every future repair
+	// of that agent. Track the hand-off point and release whatever never made it.
+	var (
+		pending  []autoRepairCandidate
+		launched int
+	)
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		for _, cand := range pending[launched:] {
+			c.release(cand.Slug)
+		}
+		fmt.Fprintf(os.Stderr, "auto-repair tick panicked: %v\n", r)
+		if k == nil || k.Bus() == nil {
+			return
+		}
+		_, _ = k.Bus().Publish(event.Spec{
+			Subject: autoRepairPulseSubject,
+			Kind:    event.KindSelfRepairPanic,
+			Actor:   "selfrepair",
+			Payload: map[string]any{
+				"phase":     "tick",
+				"panic":     fmt.Sprintf("%v", r),
+				"abandoned": len(pending) - launched,
+			},
+		})
+	}()
+
+	cut := c.now().Add(-autoRepairReaperWindow).UnixMilli()
+	rep := k.ReaperScan(cut, cut)
+	pending = c.claim(k, rep, k.Roster().List())
+	for _, cand := range pending {
+		publishAutoRepair(k.Bus(), "", map[string]any{
+			"phase":                             autoRepairQueuedPhase(cand),
+			"agent":                             cand.Slug,
+			"mode":                              cand.Mode,
+			"issues":                            cand.Issues,
+			"reason":                            cand.Reason,
+			"fingerprint":                       cand.Fingerprint,
+			"self_repair_attempt":               cand.SelfRepairAttempt,
+			"self_repair_max_attempts":          cand.SelfRepairMaxAttempts,
+			"routing_task_type":                 cand.RoutingRollbackTaskType,
+			"routing_task_model_chain":          cand.RoutingRollbackToChain,
+			"previous_routing_task_model_chain": cand.RoutingRollbackFromChain,
+			"incident_id":                       autoRepairIncidentIDValue(cand),
+			"root_incident_id":                  autoRepairRootChainID(cand),
+			"parent_incident_id":                strings.TrimSpace(cand.ParentHopID),
+		})
+		go c.dispatch(ctx, k, k.Bus(), src, mailbox, postNotify, cand)
+		launched++
 	}
 }
 
@@ -920,6 +964,36 @@ func autoRepairFailedPhase(cand autoRepairCandidate) string {
 }
 
 func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate) {
+	// Panic firewall (WF-001). dispatch is launched with a bare `go` from the
+	// coordinator loop, so nothing above can recover it — and it drives a full
+	// governed run: provider calls, tools, plugin subprocesses, MCP servers, then
+	// a mailbox post over the network. Any of those can panic, and a repair
+	// attempt taking the daemon down is the worst possible failure mode for the
+	// component whose entire job is keeping the fleet healthy.
+	//
+	// Registered BEFORE the release defer so it runs last, after the slug lock is
+	// returned: a contained panic must not also leak the in-flight claim and
+	// wedge every future repair of this agent.
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "auto-repair for %q panicked: %v\n", cand.Slug, r)
+		if b != nil {
+			_, _ = b.Publish(event.Spec{
+				Subject: autoRepairPulseSubject,
+				Kind:    event.KindSelfRepairPanic,
+				Actor:   "selfrepair",
+				Payload: map[string]any{
+					"agent":       cand.Slug,
+					"mode":        cand.Mode,
+					"incident_id": autoRepairIncidentIDValue(cand),
+					"panic":       fmt.Sprintf("%v", r),
+				},
+			})
+		}
+	}()
 	defer c.release(cand.Slug)
 	if cand.SelfRepairExhausted {
 		err := fmt.Errorf("self-repair attempts exhausted (%d/%d)", cand.SelfRepairAttempt, cand.SelfRepairMaxAttempts)

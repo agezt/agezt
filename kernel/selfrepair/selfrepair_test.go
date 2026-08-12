@@ -120,6 +120,66 @@ func TestAutoRepairCoordinatorClaim_ExhaustsAfterProfileMaxAttempts(t *testing.T
 	}
 }
 
+// A repair run drives providers, tools, plugin subprocesses and MCP servers, and
+// it is launched with a bare `go` from the coordinator loop — so before the
+// firewall (WF-001) a panic in any of them took the whole daemon down with it.
+// Containment is not enough on its own: dispatch is also what RELEASES the
+// in-flight claim, so a leaked claim would silently wedge every future repair of
+// that agent. Assert the next repair actually lands, not just that we survived.
+func TestAutoRepairDispatch_PanicIsContainedAndNextRepairStillLands(t *testing.T) {
+	coord := newAutoRepairCoordinator(time.Hour)
+	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
+	src := &panickingAutoRepairSource{}
+	box := &fakeAutoRepairMailbox{}
+	profiles := []roster.Profile{{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}}
+	report := func(issue string) kernelruntime.ReaperReport {
+		return kernelruntime.ReaperReport{
+			MisconfiguredAgents: []kernelruntime.MisconfiguredAgent{{Slug: "builder", Issues: []string{issue}}},
+		}
+	}
+
+	first := coord.claim(k, report("AGEZT_MAX_ITER: must be integer"), profiles)
+	if len(first) != 1 {
+		t.Fatalf("first claim = %+v, want 1 candidate", first)
+	}
+	if _, busy := coord.inflight["builder"]; !busy {
+		t.Fatal("claim did not mark builder in-flight; the release assertion below would be vacuous")
+	}
+
+	coord.dispatch(context.Background(), k, k.Bus(), src, box, nil, first[0])
+
+	if src.calls != 1 {
+		t.Fatalf("RepairAgent calls = %d, want 1 (the panicking attempt)", src.calls)
+	}
+	if _, busy := coord.inflight["builder"]; busy {
+		t.Fatal("panicking repair leaked the in-flight claim; every later repair of builder would be skipped")
+	}
+
+	// Different fingerprint so the cooldown does not legitimately dedupe it.
+	second := coord.claim(k, report("AGEZT_MODEL: must be non-empty"), profiles)
+	if len(second) != 1 {
+		t.Fatalf("claim after contained panic = %+v, want 1 candidate", second)
+	}
+	coord.dispatch(context.Background(), k, k.Bus(), src, box, nil, second[0])
+	if src.calls != 2 {
+		t.Fatalf("RepairAgent calls = %d, want 2 — the repair after a contained panic must still run", src.calls)
+	}
+}
+
+// A panic in the tick body (the reaper scan and claim, which run inline on the
+// coordinator's own goroutine) must not take the daemon down either. Recovering
+// per tick rather than around the whole loop is deliberate: disarming the fleet's
+// healer on one bad event would be a silent, permanent degradation.
+func TestAutoRepairHandleTick_PanicIsContained(t *testing.T) {
+	coord := newAutoRepairCoordinator(time.Hour)
+	// A nil kernel panics inside ReaperScan, before anything is claimed.
+	coord.handleTick(context.Background(), nil, &countingAutoRepairSource{}, &fakeAutoRepairMailbox{}, nil)
+
+	// Still armed: a healthy tick after the bad one is processed normally.
+	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
+	coord.handleTick(context.Background(), k, &countingAutoRepairSource{}, &fakeAutoRepairMailbox{}, nil)
+}
+
 func TestAutoRepairDispatch_ExhaustedAttemptsEscalatesWithoutRepairRun(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
@@ -1053,6 +1113,21 @@ type fakeAutoRepairSource struct {
 
 type countingAutoRepairSource struct {
 	calls int
+}
+
+// panickingAutoRepairSource panics on the first RepairAgent call and behaves
+// normally afterwards, so a test can prove the SECOND repair still lands rather
+// than merely that the process survived the first.
+type panickingAutoRepairSource struct {
+	calls int
+}
+
+func (f *panickingAutoRepairSource) RepairAgent(ref, reason string) (overseertool.RepairResult, error) {
+	f.calls++
+	if f.calls == 1 {
+		panic("repair tool exploded")
+	}
+	return overseertool.RepairResult{Agent: ref, Answer: reason}, nil
 }
 
 func (f *countingAutoRepairSource) RepairAgent(ref, reason string) (overseertool.RepairResult, error) {

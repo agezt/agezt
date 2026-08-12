@@ -260,6 +260,14 @@ const (
 	KindBriefingSent  Kind = "briefing.sent"
 	KindPulsePaused   Kind = "pulse.paused"
 	KindPulseResumed  Kind = "pulse.resumed"
+	// KindSelfRepairPanic records a RECOVERED panic in the auto-repair
+	// coordinator, which subscribes to the pulse observer and dispatches a
+	// governed repair run on a bare `go`. That run drives providers, tools,
+	// plugin subprocesses and a mailbox post, so before the firewall (WF-001) a
+	// panic anywhere in the fleet's own healer took the whole daemon down.
+	// Journaled so a contained crash stays diagnosable, mirroring
+	// KindStandingError and KindWorkflowPanic.
+	KindSelfRepairPanic Kind = "selfrepair.panic"
 
 	// Channels (SPEC-04 §1). Inbound/outbound messages normalized to
 	// UnifiedMessage; the Unified Inbox folds these by correlation.

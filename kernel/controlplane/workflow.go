@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -308,17 +309,50 @@ func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
 
 	// Fire-and-return: a webhook caller gets an immediate accept; the run
 	// proceeds under its own deadline and the journal carries the arc.
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
-		defer cancel()
-		ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "webhook", TriggerSubject: "webhook:" + w.Name})
-		_, _ = s.k.RunWorkflow(ctx, corr, w.Name, payload) // failures land in workflow.failed
-	}()
+	go s.runWorkflowDetached(kernelruntime.WakeContext{Source: "webhook", TriggerSubject: "webhook:" + w.Name}, corr, w.Name, payload)
 	s.writeResp(conn, Response{
 		ID:     req.ID,
 		Type:   RespResult,
 		Result: map[string]any{"accepted": true, "correlation_id": corr, "workflow": w.Name},
 	})
+}
+
+// runWorkflowDetached runs a workflow on its own deadline, disconnected from the
+// caller's connection: the webhook and async-run handlers both answer "accepted"
+// immediately and let the journal carry the arc.
+//
+// Panic firewall (WF-001). These are the two paths that reach the engine on a
+// bare `go` WITHOUT passing through the trigger runner's safeFire, so they had no
+// recover of their own — and a workflow executes third-party code (plugin
+// subprocesses, MCP servers, scripts), so one bad node took the daemon down. The
+// caller has already been answered by the time this runs, which is exactly why
+// the panic must be journaled: there is no request left to return an error on.
+func (s *Server) runWorkflowDetached(wake kernelruntime.WakeContext, corr, name string, payload any) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "workflow %q (%s) panicked: %v\n", name, wake.Source, r)
+		if s.k == nil || s.k.Bus() == nil {
+			return
+		}
+		_, _ = s.k.Bus().Publish(event.Spec{
+			Subject:       "workflow." + name,
+			Kind:          event.KindWorkflowPanic,
+			Actor:         "controlplane",
+			CorrelationID: corr,
+			Payload: map[string]any{
+				"workflow": name,
+				"source":   wake.Source,
+				"panic":    fmt.Sprintf("%v", r),
+			},
+		})
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
+	defer cancel()
+	ctx = kernelruntime.WithWakeContext(ctx, wake)
+	_, _ = s.k.RunWorkflow(ctx, corr, name, payload) // failures land in workflow.failed
 }
 
 // handleWorkflowTemplates (M807) returns the built-in gallery — curated,
@@ -666,12 +700,7 @@ func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
 			return
 		}
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
-			defer cancel()
-			ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "manual"})
-			_, _ = s.k.RunWorkflow(ctx, corr, w.Name, payload) // failures land in workflow.failed
-		}()
+		go s.runWorkflowDetached(kernelruntime.WakeContext{Source: "manual"}, corr, w.Name, payload)
 		s.writeResp(conn, Response{
 			ID:     req.ID,
 			Type:   RespResult,

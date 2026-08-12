@@ -28,6 +28,70 @@ func (t *wireEchoTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Res
 	return agent.Result{Output: `{"status":"done"}`}, nil
 }
 
+// panickingTool is the tool-node double for the detached-run firewall test.
+type panickingTool struct{ calls int }
+
+func (t *panickingTool) Definition() agent.ToolDef {
+	return agent.ToolDef{Name: "boom", Description: "panics", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (t *panickingTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
+	t.calls++
+	panic("node exploded")
+}
+
+// An async workflow run is detached from the caller's connection: the operator
+// has already been answered "accepted" by the time the engine executes, and a
+// workflow runs third-party code (plugin subprocesses, MCP servers, scripts).
+// Those two paths reach the engine on a bare `go` WITHOUT passing through the
+// trigger runner's safeFire, so before the firewall (WF-001) one bad node took
+// the whole daemon down. Containment means the NEXT request still gets served.
+func TestWorkflow_AsyncRunPanicDoesNotKillTheDaemon(t *testing.T) {
+	tool := &panickingTool{}
+	k, _, c, _ := startPairWithConfig(t, runtime.Config{
+		Provider: mock.New(mock.FinalText("unused")),
+		Tools:    map[string]agent.Tool{"boom": tool},
+	})
+	k.Edict().SetLevel("boom", edict.LevelAllow)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	graph := map[string]any{
+		"name": "boom-flow",
+		"nodes": []any{
+			map[string]any{"id": "start", "type": "trigger"},
+			map[string]any{"id": "call", "type": "tool", "config": map[string]any{"tool": "boom"}},
+		},
+		"edges": []any{map[string]any{"from": "start", "to": "call"}},
+	}
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	res, err := c.Call(ctx, controlplane.CmdWorkflowRun, map[string]any{"ref": "boom-flow", "async": true})
+	if err != nil {
+		t.Fatalf("async run: %v", err)
+	}
+	if accepted, _ := res["accepted"].(bool); !accepted {
+		t.Fatalf("async run = %v, want accepted", res)
+	}
+
+	// Wait for the detached run to reach (and blow up in) the tool.
+	deadline := time.Now().Add(10 * time.Second)
+	for tool.calls == 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if tool.calls == 0 {
+		t.Fatal("detached run never reached the tool; the panic assertion below would be vacuous")
+	}
+
+	// The daemon is still serving: an unrecovered panic in the detached
+	// goroutine would have taken the whole process down before this lands.
+	if _, err := c.Call(ctx, controlplane.CmdWorkflowList, nil); err != nil {
+		t.Fatalf("control plane died with the panicking workflow: %v", err)
+	}
+}
+
 // TestWorkflow_WireRoundTrip drives the full operator pipeline over the
 // wire: save (validated) → list → show (full graph) → run with a payload
 // (templates resolve, outputs come back) → disable → remove. Exactly what
