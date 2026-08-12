@@ -121,8 +121,33 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	// operator can browse to localhost and change it in Setup without env files.
 	webPassword := func() string { return effectiveWebPassword(ln.Addr().String()) }
 	wsrv.SetPasswordFn(webPassword)
-	passwordStrict := strings.EqualFold(os.Getenv(brand.EnvPrefix+"WEB_PASSWORD_STRICT"), "on")
-	wsrv.SetPasswordStrict(passwordStrict)
+	// A wildcard bind (0.0.0.0 / ::) reaches every interface, yet registers NO
+	// allowed host — webAllowedHosts skips unspecified IPs — so the auto-raise
+	// inside SetAllowedHosts never fires, even though hostAllowed accepts any IP
+	// literal and the console is therefore LAN-reachable. Treat it as the
+	// exposure it is.
+	if h, _, splitErr := net.SplitHostPort(ln.Addr().String()); splitErr == nil {
+		if ip := net.ParseIP(h); ip != nil && ip.IsUnspecified() {
+			wsrv.SetPasswordStrict(true)
+		}
+	}
+	// AGEZT_WEB_PASSWORD_STRICT is an explicit operator override in BOTH
+	// directions — but only when actually set. An unset variable must not clear
+	// the flag the exposure checks above just raised.
+	//
+	// AUTH-001 (2026-08-12): this used to assign unconditionally, one line after
+	// SetAllowedHosts had auto-raised strict mode for a non-loopback host. The
+	// env default is false, so an operator who set AGEZT_WEB_PASSWORD and bound
+	// beyond loopback believed they had "token AND password" and silently got
+	// "token OR password" — password alone then opened /api/run, /api/files/*
+	// and /api/config/set.
+	if raw, ok := os.LookupEnv(brand.EnvPrefix + "WEB_PASSWORD_STRICT"); ok {
+		wsrv.SetPasswordStrict(strings.EqualFold(strings.TrimSpace(raw), "on"))
+	}
+	// Read the EFFECTIVE value back rather than re-deriving it from the env —
+	// re-deriving is exactly what went wrong above. It feeds the boot banner and
+	// the tunnel URL decision.
+	passwordStrict := wsrv.PasswordStrict()
 	passwordOn := webPassword() != ""
 	// Wire speech-to-text for the chat mic button (M689) and the console Voice
 	// mode. Prefer the runtime voice adapter so native providers (ElevenLabs /

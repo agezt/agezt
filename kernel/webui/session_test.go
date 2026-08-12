@@ -228,3 +228,53 @@ func postLogin(t *testing.T, s *Server, body string) *httptest.ResponseRecorder 
 	s.Handler().ServeHTTP(rec, req)
 	return rec
 }
+
+// TestSetAllowedHosts_AutoRaisesStrict pins the auto-raise that AUTH-001
+// silently defeated: registering any non-loopback host must turn on strict mode
+// (token AND password), because the console is then reachable beyond localhost
+// and a guessed password alone must not open data routes.
+//
+// The bug was never in this method — it was that cmd/agezt called
+// SetPasswordStrict(envDefault) one line later, unconditionally, clearing what
+// this raised. Nothing asserted the resulting EFFECTIVE value, which is why the
+// downgrade was invisible. PasswordStrict() exists so the caller reads the
+// effective value back instead of re-deriving it.
+func TestSetAllowedHosts_AutoRaisesStrict(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		host string
+		want bool
+	}{
+		{"loopback ip stays lax", "127.0.0.1", false},
+		{"localhost stays lax", "localhost", false},
+		{"ipv6 loopback stays lax", "::1", false},
+		{"lan ip raises strict", "192.168.1.5", true},
+		{"public hostname raises strict", "console.example.com", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := &fakeCaller{result: map[string]any{"ok": true}}
+			s, _ := newServer(t, fc, "secret")
+			s.SetAllowedHosts(tc.host)
+			if got := s.PasswordStrict(); got != tc.want {
+				t.Fatalf("after SetAllowedHosts(%q): PasswordStrict() = %v, want %v", tc.host, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSetPasswordStrict_ExplicitOverrideStillWins keeps the documented escape
+// hatch working: an operator who deliberately sets the env var to off must be
+// able to lower an auto-raised flag. The fix must not turn strict into a
+// one-way latch — only stop an UNSET variable from clearing it.
+func TestSetPasswordStrict_ExplicitOverrideStillWins(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	s.SetAllowedHosts("192.168.1.5")
+	if !s.PasswordStrict() {
+		t.Fatal("precondition: a LAN host should have auto-raised strict")
+	}
+	s.SetPasswordStrict(false)
+	if s.PasswordStrict() {
+		t.Fatal("an explicit SetPasswordStrict(false) must still lower the flag")
+	}
+}

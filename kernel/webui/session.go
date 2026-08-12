@@ -141,6 +141,13 @@ func (s *Server) SetPasswordStrict(on bool) {
 	s.hostPolicyMu.Unlock()
 }
 
+// PasswordStrict reports the EFFECTIVE strict setting, including a value
+// auto-raised by SetAllowedHosts. Callers describing the console's posture (the
+// boot banner, the tunnel URL) must read this rather than re-deriving it from
+// the environment: the env var is only one of the inputs, and re-deriving is
+// what produced AUTH-001.
+func (s *Server) PasswordStrict() bool { return s.passwordStrictOn() }
+
 func (s *Server) passwordStrictOn() bool {
 	s.hostPolicyMu.RLock()
 	defer s.hostPolicyMu.RUnlock()
