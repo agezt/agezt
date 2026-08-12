@@ -1,352 +1,155 @@
 # Security Assessment Report
 
 **Project:** AGEZT — self-hosted autonomous multi-agent platform (Go kernel + daemon/CLI, React/TS web console, Go/TS/Python/Rust SDKs)
-**Date:** 2026-06-27 (last refreshed: 2026-07-06)
-**Scanner:** security-check v1.1.0 (4-phase pipeline: Recon → Hunt → Verify → Report)
-**Branch / HEAD at scan:** `main` @ `99d2e426`; **current HEAD:** `ef7b412d`
-**Risk Score:** **2.6 / 10 — Low Risk**
+**Date:** 2026-08-12
+**Scanner:** security-check (4-phase pipeline: Recon → Hunt → Verify → Report), 9 hunt agents + 2 adversarial verifiers
+**Branch / HEAD:** `main` @ `f815f56e`
+**Supersedes:** the 2026-06-27 assessment at `99d2e426` (last refreshed 2026-07-06). 1,396 files changed between them.
 
-> **Partial re-verification: 2026-08-12.** This report was NOT regenerated — the findings below still
-> describe the tree as of `ef7b412d` and must be re-checked against current source before being acted on.
-> What *was* re-run today, against `8f577e1e` + working tree:
+> **Threat model.** AGEZT is a **localhost-first, single-operator, token-gated daemon**. The REST and
+> OpenAI-compatible APIs are off by default; the **Web UI console is ON by default** at
+> `127.0.0.1:8787`, loopback-bound and credential-gated. The agent gateway is a unix/loopback socket.
+> Operators can reverse-proxy or tunnel these (a documented deployment), and the **15 channel webhook
+> listeners are internet-facing by nature** — a webhook provider must reach them. Severities below are
+> weighted for that reality, not zeroed.
 >
-> | Check | Command | Result |
-> |---|---|---|
-> | Dependency vulnerabilities | `govulncheck ./...` | no vulnerabilities found |
-> | Static analysis | `staticcheck ./...` | 0 findings |
-> | Dependency allowlist | `go run ./tools/depscheck` | 24 deps, all justified |
-> | Secret scan | `gitleaks detect` (v8.30.1, as CI pins) | **1 leak → fixed, now clean** |
->
-> **Phase 1 regenerated 2026-08-12** against `905432d3`: `architecture.md` and `dependency-audit.md`
-> are current. **Phase 2–4 are NOT** — the 40+ domain hunt, the verifier pass, and every finding
-> below still describe `ef7b412d`. The tree has changed by 1,396 files (+147k/−55k) since the scan
-> that produced them, and fourteen packages now exist that no assessment has ever seen, including
-> `kernel/auth` and `kernel/httpserver` — through which every `/api/v1` authorisation decision now
-> flows. `architecture.md` §6 ranks what a re-hunt should cover first.
->
-> **Threat-model correction.** The paragraph below states that every network listener is "off by
-> default and loopback-bound". Measured at `cmd/agezt/httpsurfaces.go`, the **Web UI console is ON
-> by default** at `127.0.0.1:8787`; only the REST and OpenAI-compatible APIs are blank-means-off.
-> It is loopback-bound and credential-gated, so this is not an exposure — but "off by default" was
-> load-bearing in the reasoning below and is not true of that surface. The daemon's own source
-> comment claimed the opposite of its own code and was corrected in this pass.
->
-> The secret scan was **not** clean, contrary to the "`gitleaks` came back empty (`[]`)" claim in the summary
-> below. `kernel/auth/auth_test.go:75` tripped `generic-api-key` on the synthetic fixture
-> `"0123456789abcdef"`-twice, whose only job is to prove `WriteTokenFile` truncates a token to `0123…cdef`.
-> No real secret is involved. The package arrived with the 2026-07-26 route-auth centralisation, **after**
-> `.gitleaks.toml` was written, so the CI `secrets` gate had been failing on it for ~17 days. Fixed by adding
-> the path to the allowlist with its justification; the scan now reports `no leaks found` over all 1,657 commits.
-
-> **Threat model.** AGEZT is a **localhost-first, single-operator, token-gated daemon**. Every network listener
-> (Web UI, REST, OpenAI-compatible API, agent gateway) is **off by default and loopback-bound**; the always-on
-> control plane is loopback + bearer-token. Operators *can* reverse-proxy/tunnel these (a documented deployment),
-> so internet-facing reachability is **weighted, not zeroed**, throughout this report.
+> The previous report asserted every listener was "off by default"; that was wrong for the console and
+> was load-bearing in its reasoning. Corrected here and in the source comment that caused it.
 
 ---
 
-## Executive Summary
+## Executive summary
 
-A full security assessment was performed across **12 vulnerability domains** (injection, code-execution, client-side,
-access-control, secrets/crypto, SSRF/path, API/logic, infrastructure/CI) plus **language-specific deep scans** for Go
-and TypeScript/JS, over ~**1,232 Go files (~284k LOC)** and ~**340 TS/TSX files (~93k LOC)**, with light passes on the
-Python and Rust SDKs. Phase 2 produced 31 raw non-informational candidates; verification merged duplicates and
-eliminated defense-in-depth/false-positive items down to **13 verified findings**.
+Nine domain agents produced ~100 raw findings; two adversarial verifiers then attacked the Highs that
+the lead had not personally confirmed. **One High was refuted outright, one was refuted as written,
+and six were downgraded.** Every High that remains was verified against source by hand.
 
-**The codebase is genuinely well-hardened.** Whole domains came back verified-clean: no SQL/NoSQL/template/LDAP
-injection surface, a disciplined single-choke-point command-execution sandbox (env-scrubbed, edict-gated, array-form
-`exec.Command`), a correct SSRF dialer guard (`netguard`) that validates the *resolved* IP on every redirect hop,
-AES-256-GCM/PBKDF2-200k vault encryption with fresh CSPRNG nonces, constant-time auth comparisons, a strict CSP with
-no CORS exposure, and SHA-pinned least-privilege CI. `gitleaks` came back empty (`[]`).
+**The codebase's defensive core is genuinely strong, and this was tested rather than assumed.** The
+RCE agent could not break `ShellQuote`, the traversal guards, the tar extractor, or the Edict
+JSON-escape matcher, and recorded 13 checks as verified-safe. The SSRF agent could not get past
+`netguard` — `Control` runs post-resolution so DNS rebinding fails, and `HTTPClient` builds a fresh
+non-shared Transport so every redirect hop re-dials through the guard. The client agent found **zero**
+XSS: no raw-HTML rendering path exists anywhere in the console. Nine of twenty Go checklist categories
+came back clean, including zero `InsecureSkipVerify` and zero unchecked type assertions.
 
-The findings that remain cluster around three themes: a **privilege-management logic flaw in delegation** (the only
-High), a **boot-window data race** that can crash the daemon, and a **resource-exhaustion / budget-DoS** gap from
-missing default rate limits on expensive endpoints.
+**Every finding is *around* those guards, never through them.**
 
-### Key Metrics
-| Metric | Value |
-|--------|-------|
-| Total Verified Findings | 13 |
-| Critical | 0 |
-| High | 1 |
-| Medium | 7 |
-| Low | 5 |
-| Info | 0 (informational items consolidated under *Eliminated Findings* in `verified-findings.md`) |
+### The dominant finding
 
-### Top Risks
-1. **VULN-001 (High):** Trust ceiling is last-write-wins, not min-clamped — a capped run can **delegate to a
-   higher-ceiling agent and escape its parent's autonomy cap** (privilege escalation logic flaw). Compounded by
-   VULN-003 (uncapped autonomous default) and VULN-004 (injected content reaching an autonomous run) — one chain.
-2. **VULN-002 (Medium, Confirmed):** Boot-window **data race on process-global channel-registry maps** → Go fatal
-   `concurrent map read and map write` → **unrecoverable daemon crash** (the web UI auto-polls the exact endpoint).
-3. **VULN-005 / 006 / 007 (Medium cluster):** **No default per-caller rate limit** on the expensive run endpoints,
-   and the daily budget ceiling is a **soft check-then-act cap** — a token holder (or a leaked `/hooks/` secret) can
-   exhaust the budget and pin CPU.
+**Eleven verified cases where documentation asserts a guarantee the code does not implement.** This is
+one failure mode, not eleven bugs, and it is the most important result of this assessment:
 
----
+| # | Documented claim | Reality |
+|---|---|---|
+| 1 | `sdkparity`: "regenerate to fix" | Would have deleted a correct route table |
+| 2 | `httpsurfaces.go:61`: "unset = off" | Console is **on** by default |
+| 3 | Prior threat model: "every listener off by default" | Web UI is on |
+| 4 | `sse_guard.go:113`: "see `dialerGuard` below" | **No such function exists in the repo** |
+| 5 | `standingTrustCeiling`: "must not run uncapped by omission" | Runs uncapped under the default ask policy |
+| 6 | `ci.yml`: "the ciguard fork-guard lint" | Package deleted in `3e5b609d` |
+| 7 | `files_route.go`: "then resolved symlinks" | Purely lexical — zero `EvalSymlinks` in the file |
+| 8 | `warden.go:12`: "namespaces + cgroups + seccomp" | Only `Setpgid` + `prlimit` |
+| 9 | Update flow `Check → Apply` | `checkGitHub` sets no SHA256; the flow **cannot complete** |
+| 10 | Self-repair cooldown + attempt cap | Fingerprint mutates per incident; both inert |
+| 11 | Prior report: "`gitleaks` came back empty" | The gate had been red for 17 days |
 
-## Scan Statistics
+Items 1, 2, 3 and 11 were found and fixed *before* this scan began, which is what identifies the
+pattern as systemic. The same mechanism that let three CI gates rot unnoticed is operating inside the
+security model.
 
-| Statistic | Value |
-|-----------|-------|
-| Files Scanned | ~1,232 Go · ~340 TS/TSX · 104 JS · 27 Py · 6 Rs |
-| Lines of Code | ~377k (Go ~284k, TS/JS ~93k) |
-| Languages Detected | Go (primary), TypeScript/JS (primary), Python (SDK), Rust (SDK) |
-| Frameworks Detected | stdlib `net/http` + custom JSON-line RPC control plane; React 19 / Vite 8 / Tailwind 4 / Radix (embedded via `go:embed`) |
-| Persistence | Append-only JSONL journal + JSON state buckets + AES-256-GCM vault — **no SQL/NoSQL DB, no ORM** |
-| Skills / Scanners Executed | 10 hunt scanners (covering 33 skill domains) + recon + dependency-audit + verifier + report |
-| Raw Findings (Phase 2) | 31 non-informational candidates |
-| Merged / Eliminated | 18 (duplicates merged + defense-in-depth/FP eliminated) |
-| Final Verified Findings | 13 |
+On #8, in fairness: `warden_linux.go:27-32` is honest about the gap. It is the public `Profile`
+constant doc that overclaims.
 
-### Finding Distribution by Category
-| Vulnerability Category | Critical | High | Medium | Low | Info* |
-|------------------------|:--------:|:----:|:------:|:---:|:-----:|
-| Access Control / PrivEsc | 0 | 1 | 2 | 0 | ✓ |
-| Concurrency / DoS (lang-go) | 0 | 0 | 1 | 1 | ✓ |
-| API / Rate-limiting / Logic | 0 | 0 | 3 | 0 | ✓ |
-| Client-side (XSS/iframe) | 0 | 0 | 1 | 0 | ✓ |
-| Infrastructure / CI/CD | 0 | 0 | 1 | 1 | ✓ |
-| Dependencies / Supply-chain | 0 | 0 | 0 | 1 | ✓ |
-| Data Exposure (CWE-209) | 0 | 0 | 0 | 1 | ✓ |
-| Injection · Code-exec · SSRF · Secrets/Crypto | 0 | 0 | 0 | 0 | ✓ (all verified-clean) |
-
-\* Every category produced informational/defense-in-depth confirmations — see *Eliminated Findings* in `verified-findings.md`.
+On #6, a caution worth carrying: `internal/ciguard` was deleted as unreachable **because its only
+consumer was a test — but that test was the control.** Weigh that before deleting the next
+"test-only" symbol the deadcode gate flags.
 
 ---
 
-## High Findings
+## Confirmed findings
 
-### VULN-001: Trust ceiling is last-write-wins — delegation escapes the parent's initiative cap
-**Severity:** High · **Confidence:** 90/100 (Confirmed) · **CWE-269** (Improper Privilege Management) · **OWASP A01:2021 — Broken Access Control**
-**Location:** `kernel/runtime/runtime.go:2005-2010` (`WithTrustCeiling`), `:2228-2232` (`WithAgentProfile`); `kernel/runtime/subagent.go:561,573-575`; `kernel/edict/edict.go:726,776-779`
+Severities are post-verification and reflect this project's stated posture: **default-allow is
+deliberate**, so "capability X is permitted by default" is never a finding here.
 
-**Description.** `WithTrustCeiling` stores the ceiling as a plain context value with no regard for any ceiling already
-present (`return context.WithValue(ctx, ctxKeyTrustCeiling, ceiling)` — last-write-wins, no `min`-merge). A run capped
-at L0/L1/L2 by a standing-order initiative ceiling holds the default-allow `delegate` tool. When it delegates to a
-directly-callable agent whose profile `TrustCeiling` is **higher (L3) or empty (→ L4, uncapped)**,
-`WithAgentProfile(childCtx, *prof)` re-applies the **target's looser** ceiling, overwriting the parent's. `DecideWithCeiling`
-then clamps against the surviving (looser) value, so capabilities the parent run was forbidden now execute in the child.
+### High
 
-**Vulnerable code (conceptual):**
-```go
-// kernel/runtime/runtime.go:2005
-func WithTrustCeiling(ctx context.Context, ceiling Level) context.Context {
-    if ceiling >= LevelAllow { return ctx }       // only a no-op short-circuit
-    return context.WithValue(ctx, ctxKeyTrustCeiling, ceiling) // overwrites a tighter existing ceiling
-}
-```
+| ID | Finding | Where |
+|---|---|---|
+| UPD-001 | **Self-update installs a caller-supplied binary.** `verifySignature` picks its trust anchor from `cfg.Source`, but the REST and control-plane handlers build the manifest from the request body. With `SourceGitHub` + empty `DefaultPublicKeyHex`, an admin-token holder POSTs `{version, sha256, url}` at their own binary; it is validated against their own checksum and staged over `bin/agezt`. Persists across restart and token rotation. Found independently by two agents. | `kernel/update/update.go:391`, `restapi/update_handlers.go:105`, `controlplane/update_control.go:145` |
+| CH-001 | **Inbound webhook verification is fail-open.** `buildZalo`/`buildFeishu`/`buildIMessage`/`buildDingTalk` start a listener on `_ADDR` alone; `zalo.go:143` wraps the entire signature *and* freshness check in `if c.cfg.Secret != ""`. Internet-facing by nature. The correct fail-closed pattern already exists in-tree (`buildLine`, `buildNextcloudTalk`). | `plugins/builtinchannels/factories.go`, `plugins/channels/*` |
+| AUTH-001 | **Password-strict mode disarmed at boot.** `SetAllowedHosts` raises `passwordStrict` for a non-loopback host; the next line's `SetPasswordStrict(env)` assigns unconditionally and clears it. Separately, `hostAllowed` accepts any IP literal, so a `0.0.0.0` bind is LAN-reachable while registering no allowed host at all. Operator gets token **OR** password where they believe token **AND** password. | `cmd/agezt/httpsurfaces.go:114,125`; `kernel/webui/session.go:138` |
+| SR-001 | **Self-repair rate guards never bind.** Cooldown and `MaxAttempts` key on a fingerprint embedding `failures=%d`/`count=%d` and the newest error string, so it differs every incident. The `misconfigured` path in the same file uses stable strings and works. | `kernel/selfrepair/selfrepair.go:458,462,569,590,614` |
+| SR-002 | **LLM free text drives persisted fleet-wide config.** The manager agent's answer selects `force_chain`; `setTaskModelChain` writes the **global** governor map keyed by task type and persists it. The wake intent directs that agent to read mailbox and logs — injectable. | `kernel/selfrepair/selfrepair.go:1229`, `overseertool/kernelsource.go:671` |
+| SSRF-001 | **`browser.action` bypasses netguard entirely.** The Go guard is a pre-flight DNS check; navigation happens in Playwright. The shipped driver has **zero** `page.route` and no egress control, so a 302 to `169.254.169.254` reaches cloud metadata — and `OnBlock` never fires, so it is invisible in `agt netguard log`. Opt-in (`AGEZT_BROWSER_ACTIONS`), which limits reach. | `plugins/builtinskills/browseruse/scripts/browse.mjs` |
+| SDK-001 | **SDK socket path cannot reach the daemon, and fails into a token-capture.** Go binds `@agezt/agentgw.sock` to Linux's abstract namespace; Node maps abstract sockets with a leading NUL, not `@`, so it is a CWD-relative file path. A planted file in a writable CWD receives `Authorization: Bearer <capability token>`. Same constant in the Python SDK. | `sdk/typescript/src/agent.ts:43`, `sdk/python/agezt/agent.py:45` |
+| PE-001 | **Trust ceilings L1–L3 are inert under the shipped default.** `DecideWithCeiling` clamps correctly, then L1–L3 fall in the Ask band which `AskAllow` (the default, and the fallback for unknown values) folds to Allow. Only an L0 ceiling bites. **Downgraded from the reported Critical:** this grants no new access, it fails to restrict — but `standingTrustCeiling` defaults unattended orders to L2 with a comment saying they must not run uncapped, and every seeded guardian ships `TrustCeiling: "L2"`. | `kernel/edict/edict.go:754`, `cmd/agezt/main.go:3845` |
+| PE-005 | **Overseer `op=edit` has no self-target or monotonicity check.** Registered unconditionally with no env gate; `Invoke` discards the context, so a caller-side check is structurally impossible. Clearing one's own `tool_deny` escapes the one per-agent restriction that survives the AskAllow fold; raising `max_daily_mc` bypasses a hard governor refusal. Boot reconcile re-clamps only `if p.System`. | `plugins/tools/overseertool/`, `builtintools/tools.go:70` |
+| WF-001 | **No panic firewall on goroutines running third-party code.** `kernel/workflow` and `kernel/selfrepair` have **zero** `recover()`; `standing`, `cadence`, `pulse` and `agent` each have one or two, and the standing-order `FireFunc` carries an eight-line comment explaining exactly this hazard. `workflowrun.go:753` invokes plugin subprocesses and MCP tools directly. | `kernel/workflow/runner.go:147,179,195` |
+| CICD-001 | **Weekly Dependabot npm bumps execute install scripts on a non-ephemeral self-hosted runner.** `.github/dependabot.yml` is live for `/frontend` and `/sdk/typescript`; `ci.yml` has no `paths:` filter; the fork guard passes for same-repo branches; three jobs run `npm ci` with no `--ignore-scripts` and there is no `.npmrc`. One-flag fix. | `.github/workflows/ci.yml`, `.github/dependabot.yml` |
 
-**Proof of concept (conceptual).** An enabled, L2-capped standing-order initiative run invokes `delegate` against an
-agent profile with no `TrustCeiling` (or L3). The child context inherits the target profile's looser ceiling; the child
-then performs an L3/L4 capability (e.g. an action the parent's L2 cap would have forced to *ask*/deny) with no approval.
+### Medium
 
-**Impact.** Autonomy/privilege escalation: the operator's intended "this initiative may only act up to L2" bound is
-silently bypassed for any delegated work, defeating the trust-ceiling control for the most autonomous code paths. The
-non-overridable hard-deny floor still holds, but the entire L1/L2/L3-vs-L4 ask/approval surface is bypassed.
+`EXPOSE-001` journal segments `0o644` in `0o755` while auth tokens are `0o600`/`0o700` — four
+constants, but ship with a `chmod` migration or existing installs stay exposed ·
+`EXPOSE-003` `/api/webhook_log` returns full sink URLs, which *are* the credential for Slack/Discord/Teams,
+and no redactor pattern matches (workaround exists today: `AGEZT_REDACT_EXTRA`) ·
+`PATH-001` `resolveFileRoot` is lexical, so one symlinked directory inside the root gives arbitrary
+read/delete/rename · `SSRF-002` `dialerGuard` documented but nonexistent; blind SSRF via 307 ·
+`RCE-001` credential buckets keyed off the **requested** warden profile, never the **effective** one, so
+on non-Linux hosts secrets scoped to an isolated tier land in plaintext for an un-isolated `cmd /C` ·
+`RCE-002` `ProfileNamespace` reports `isolation=namespace` while implementing only setpgid + prlimit ·
+`RCE-003` `code_exec` projects are daemon-global, contradicting the package doc ·
+`PE-003` workboard claim theft (attribution + lease denial, not capability) ·
+`PE-006` `op=repair` missing the System-guardian guard `EditAgent` has; durable harm limited to a
+guardian `Soul` rewrite, which boot reconcile does not re-clamp ·
+`CICD-003` `frontend-dist-rebuild` auto-commits the embedded bundle to `main` with `[skip ci]` — no
+fork or PR can drive it, so an amplifier of CICD-001 rather than an entry point ·
+`CICD-004` `publish-sdks.yml` dispatchable from any ref with no `environment:` gate — **severity is
+contingent on whether the registry secrets exist; the operator must confirm** ·
+`CICD-005` staticcheck's "checksum verification" fetches the digest from the same origin as the tarball ·
+`CICD-007` `ci-go-retry.sh:31` `rm -rf /dev/shm/gocache-*` destroys the other two runners' live caches ·
+`SUPPLY-001` Monaco (~3 MB) loads from a CDN, is absent from `package.json`, and is outside the
+lockfile, Dependabot and `depscheck`; the shipped bundle requests 0.55.1 while source pins 0.52.2 ·
+`SUPPLY-002` no npm vulnerability scanning anywhere in CI (309 transitive packages) while Go has
+govulncheck + allowlist + deadcode gates · `SEC-002` unbounded `kdf_iter` ·
+`SEC-003` `credential_process` inherits the full env including vault passphrase and provider keys ·
+`GO-001` genuine data race in `provider_oauth.go:176-177`
 
-**Remediation.** Make the ceiling **monotonically tightening** down the delegation tree:
-```go
-func WithTrustCeiling(ctx context.Context, ceiling Level) context.Context {
-    if existing, ok := ctx.Value(ctxKeyTrustCeiling).(Level); ok && existing < ceiling {
-        ceiling = existing                         // a child ceiling may only tighten, never loosen
-    }
-    return context.WithValue(ctx, ctxKeyTrustCeiling, ceiling)
-}
-```
-Equivalently, have the delegation path explicitly intersect parent ceiling with the target profile ceiling before
-applying. Add a regression test asserting a delegated child never runs above its parent's ceiling.
+### Refuted or materially downgraded by verification
 
-**References:** CWE-269 · OWASP A01:2021.
-
----
-
-## Medium Findings
-
-### VULN-002: Boot-window data race on channel-registry maps → fatal crash DoS
-**Confidence:** 90/100 (Confirmed) · **CWE-362** · **Location:** `kernel/channel/registry.go:46-110`; writers `cmd/agezt/main.go:1827-1828,1933`; listener start `:1368`; readers `kernel/controlplane/channels.go:90-119`
-
-Three package-global maps (`registry`, `live`, `liveInstances`) are read/written with **no mutex**. The control-plane
-listener starts serving (`main.go:1368`) **before** the boot-time writes (`:1827-1933`). A `/api/channel/list` request
-in that window races a map read against a write → Go's runtime **fatally aborts** (`concurrent map read and map write`),
-bypassing `recover()`. The web UI auto-polls this endpoint on load, landing precisely in the window.
-**Fix:** add a package `sync.RWMutex` — `RLock` in `Manifests`/`LookupManifest`/`IsLive`/`IsLiveInstance`, `Lock` in
-`RegisterManifest`/`SetLive`/`SetLiveInstances`.
-
-### VULN-003: `act_or_ask`/empty initiative mode with no `max_trust` runs uncapped
-**Confidence:** 80/100 · **CWE-269** · **Location:** `kernel/standing/standing.go:77-86`; `cmd/agezt/main.go:5133-5148,5271-5273`
-
-`standingTrustCeiling` returns *no cap* for `act_or_ask`/empty mode when `MaxTrust==""`, so the fire path never calls
-`WithTrustCeiling` and the run executes at full default-allow (L4). The most-permissive "initiative mode" silently
-equals "no trust clamp." This is the **enabling condition** that lets VULN-001's escalation reach an uncapped state.
-**Fix:** apply a non-`LevelAllow` default ceiling (mirror the seeded responder's L2) whenever an autonomous mode has no
-explicit `max_trust`, so the fire path fails safe; surface the effective ceiling in `standing_list`.
-
-### VULN-004: Untrusted Pulse-observation content reaches an autonomous run via the intent string
-**Confidence:** 72/100 · **CWE-1427 / CWE-77** · **Location:** `kernel/standing/runner.go:134-152`; `cmd/agezt/main.go:5229`; `kernel/runtime/runtime.go:1616-1627`
-
-When a standing order fires from `pulse.initiative.act`, the trigger payload (which for web/external Pulse observers can
-derive from attacker-influenced ingested content) is serialized **verbatim** into the agent's user intent. The
-prompt-injection guard is **taint-based** and fires only on `UntrustedObservationTaint`-marked *tool observations* — the
-intent path carries no taint, so the guard never engages. Guarded down by default (the seeded `guardian-initiative`
-responder ships **disabled**, L2-capped), but operators do enable initiative.
-**Fix:** run the fired order's intent through the same injection screening / `UNTRUSTED OBSERVATION` wrapping used for
-tool output, or attach `UntrustedObservationTaint` when the intent is built from an external trigger payload.
-
-### VULN-005: No per-caller rate limit on expensive run endpoints by default
-**Confidence:** 78/100 · **CWE-770** · **Location:** `kernel/openaiapi/openaiapi.go:170,188,487`; `kernel/restapi/restapi.go:382`; `kernel/webui/webui.go:644-645`; governor default `cmd/agezt/main.go:6382` (`ratePerMin := 0`)
-
-Every run-submitting endpoint drives the LLM + `code_exec`/tool loop (real money + CPU per request). The governor's
-`RateLimitPerMin` **defaults to 0 (unlimited)** unless `AGEZT_RATE_PER_MIN` is set, and there is no global
-max-in-flight-runs semaphore. A token holder (or anyone reaching a reverse-proxied instance) can fire unlimited
-concurrent expensive runs, exhausting the daily budget in seconds and pinning CPU. The `/v1/audio/transcriptions`
-multipart path (`io.ReadAll` of ≤25 MiB) shares the no-throttle property at lower impact.
-**Fix:** default `AGEZT_RATE_PER_MIN` to a sane non-zero value for network listeners (or per-token rate-limit the
-OpenAI/REST surfaces as agentgw already does); add an optional global max-concurrent-runs semaphore; stream the
-transcription upload. At minimum, prominently document that operators fronting these listeners must set a rate cap.
-
-### VULN-006: Daily/task/agent budget ceilings are soft (check-then-act) — concurrent runs overshoot
-**Confidence:** 70/100 (documented-as-intended) · **CWE-362** · **Location:** `kernel/governor/governor.go:602-621,648-676,1450-1500,1614-1643`; `kernel/runtime/subagent.go:501`
-
-The budget gate is a check-then-act split across two critical sections with the slow provider call in between: N
-concurrent completions can all read headroom, all proceed, and together exceed the ceiling by up to (N-1) calls' worth.
-The code **explicitly documents this as an accepted soft-cap design** (reaffirmed 2026-06); negative-token clamping
-already prevents ledger-crediting attacks. Meaningful mainly as the **amplifier of VULN-005**.
-**Fix (only if a hard cap is required):** reserve estimated cost under the same lock as the pre-check and reconcile the
-actual after the call. Otherwise accept as-is and document.
-
-### VULN-007: Workflow webhook (`/hooks/`) has no rate limit — one leaked secret = unbounded paid runs
-**Confidence:** 68/100 · **CWE-770 / CWE-799** · **Location:** `kernel/webui/webui.go:730,742`; `kernel/controlplane/workflow.go:215-221`
-
-`/hooks/<workflow>` is the deliberately token-free web path; auth is otherwise sound (empty-secret rejected,
-constant-time, uniform 403, 256 KiB body cap). But there is **no rate limit** — an attacker who learns one workflow
-secret can POST it in a loop, each fire launching a governed agent run with full spend, bounded only by the same soft
-daily cap. `?secret=` in the query string also lands in proxy/access logs and browser history.
-**Fix:** add a per-workflow (or per-source-IP) rate limit on `/hooks/`; prefer the header form and strip `?secret=` from
-logs; add a per-workflow max-fires-per-minute knob.
-
-### VULN-008: Agent/channel HTML artifacts rendered as live scripts in a sandboxed iframe
-**Confidence:** 62/100 · **CWE-79 / CWE-1021** · **Location:** `frontend/src/views/Artifacts.tsx:394-402` (sink), `:346,359-361` (data flow)
-
-The artifact viewer renders an HTML artifact's bytes with `<iframe srcDoc={text} sandbox="allow-scripts">`. Artifact
-bytes are attacker-influenceable, and `srcDoc` re-injection bypasses the server's `text/html`→octet-stream content-type
-defense. **Isolation is genuinely strong** — `allow-same-origin` is *absent*, so scripts run in a null origin and
-cannot read the parent token/cookies/DOM or issue same-origin `/api/*` calls; the page CSP and the server route's
-content-type downgrade add two more layers. Residual risk: `allow-scripts` still permits uncredentialed exfil/beacon,
-convincing in-console phishing overlays (fake "re-enter password"), and browser-0-day surface — from merely viewing a
-malicious artifact (CSP-on-`srcdoc` is not uniform across engine versions).
-**Fix:** drop `allow-scripts` and render sanitized static HTML (or route HTML artifacts through the safe Markdown/text
-path); if live HTML must run, add an explicit per-frame `csp` attribute, set `referrerpolicy="no-referrer"`, and gate
-script execution behind an explicit operator "run scripts" click.
-
-### VULN-009: CI runs on persistent self-hosted runners — fork-PR safety rests on a single `if:` gate
-**Confidence:** 60/100 (latent) · **CWE-693 / CWE-829** · **Location:** `.github/workflows/ci.yml:32` (gate replicated on all 14 jobs); `runs-on: [self-hosted, Linux, X64]`
-
-All 14 CI jobs run on three persistent WSL runners sharing one VM. The **only** thing keeping fork-PR code off those
-long-lived machines is the per-job `if:` gate (present and correct today). If it is ever edited away or repo Actions
-settings relax, the result is arbitrary code execution on the owner's daily-driver VM with **state-bleed** into
-subsequent trusted builds (`~/go/bin`, `/dev/shm/goroot-*`, `RUNNER_TOOL_CACHE`) → supply-chain poisoning of release
-binaries. Not exploitable today; flagged for blast-radius. (Project history notes `main` has at times been unprotected.)
-**Fix:** set Actions → "Require approval for all external collaborators"; never offer self-hosted runners to public-fork
-PRs; move toward ephemeral runners (or pre-job wipe of the shared caches); protect `.github/` (see VULN-013).
+| ID | Reported | Verdict |
+|---|---|---|
+| PRIVESC-002 | High — "resume tickets are unauthenticated" | **REFUTED.** `WithAgentProfile` re-applies the roster's own ceiling and `WithTrustCeiling` keeps the **minimum**, so a forged ticket can only *tighten*. Authority is re-derived from the roster, not reconstructed from the ticket. The write also requires arbitrary host execution, at which point `roster.json` and `standing.json` are strictly more powerful. |
+| EXPOSE-002 | High — "agentgw audit bypasses the redactor" | **REFUTED as written.** The bypass is structurally real, but the only non-test `AuditEntry` construction never sets `Error`, `Path` excludes the query string, and `TokenID` is a ULID. The headline scenario has no code path. Fix cheaply to stop a future caller; not a High. |
+| PRIVESC-001 | Critical | **Downgraded to High** — fails to restrict, does not grant. |
+| EXPOSE-001, EXPOSE-003, PRIVESC-003, PRIVESC-006, CICD-003, CICD-004 | High | **Downgraded to Medium**, each for a stated reason above. |
 
 ---
 
-## Low Findings
+## Recommended order
 
-| ID | Title | CWE | Confidence | Location | Fix summary |
-|----|-------|-----|:---------:|----------|-------------|
-| **VULN-010** | `undici` security override (`^7.28.0`) not enforced in resolved lock (+ dual lockfile) | CWE-1104 | 65 | `frontend/package.json` vs `pnpm-lock.yaml` (`undici@7.27.2`) | `pnpm install` to re-resolve & commit; delete the non-source-of-truth lockfile (keep pnpm); verify `lucide-react@1.x` provenance. Build-only, no runtime path. |
-| **VULN-011** | Unbounded `io.ReadAll` in `retry.ReadBody` (latent OOM) | CWE-770 | 48 | `plugins/providers/internal/retry/retry.go:259,262` | Wrap reads in `io.LimitReader`/`httpread.All`; stop discarding the read error. No current hot-path caller. |
-| **VULN-012** | OpenAI-compat API echoes raw upstream provider error to authed client | CWE-209 | 42 | `kernel/openaiapi/openaiapi.go:534,726`; `responses.go:92,313` | Run upstream/STT error strings through `kernel/redact` before the HTTP body, or return generic + log redacted. Audience is the already-privileged operator. |
-| **VULN-013** | No `CODEOWNERS` protecting `.github/` | CWE-693 | 40 | repo-wide (0 matches) | Add `.github/CODEOWNERS` requiring trusted review of `/.github/**`; enable branch protection + required checks on `main`. |
+1. **CICD-001** — one flag (`--ignore-scripts`), weekly exposure, executes on a persistent runner.
+2. **AUTH-001** — reorder two adjacent lines; make `SetPasswordStrict` never lower an auto-raised flag.
+3. **UPD-001** — the manifest's provenance, not the service's configured source, must select the trust
+   anchor. Note that the signed path is not wired end-to-end today, so this is a design fix, not a
+   one-liner: embedding `DefaultPublicKeyHex` alone would make every `Apply` fail.
+4. **SDK-001** — strip the `@` default in both SDKs, or map it to a NUL prefix for Node.
+5. **SR-001 + SR-002 together** — a stable fingerprint is worthless while model text still writes
+   global routing, and vice versa.
+6. **CH-001** — *posture change, needs an owner decision:* making the four factories refuse without a
+   secret will break existing operator configs that currently run unverified.
+7. **PE-001 + PE-004 together** — `defaultSystemGuardianTrustCeiling = "L4"` is moot today but becomes
+   a live bypass the moment ceilings start biting.
+8. **WF-001, EXPOSE-001, PATH-001, SSRF-002** — each self-contained.
 
----
+## Method note
 
-## Informational / Verified-Clean (highlights)
+Every High in this report was read in source by the lead before being recorded here; agent claims were
+not relayed on trust. Two Highs died that way, and one of the lead's own proposed refutations
+(that CICD-001 would collapse because Dependabot might not be configured) was itself disproved by a
+verifier. Each `*-results.md` carries a "verified clean" appendix recording what was checked and
+dismissed, so a future pass does not re-derive it.
 
-The following were **verified safe** and are documented in full under *Eliminated Findings* in `verified-findings.md`:
-
-- **Injection (SQLi/NoSQLi/SSTI/XXE/LDAP/CRLF):** no DB/ORM/template-engine/LDAP surface; the two real header sinks
-  (email `Subject`, artifact `Content-Disposition` filename) strip CRLF; Go stdlib backstops apply.
-- **Code-execution:** single warden choke point, env-scrubbed array-form `exec.Command`, edict-gated spawns, slug-only
-  agent selectors; **no** `gob`/YAML/`plugin.Open`/`interface{}` deserialization; JWT alg/typ/iss/aud-pinned.
-- **SSRF / path / upload:** `netguard` validates the resolved IP on initial dial **and every redirect hop** (defeats
-  DNS-rebinding & redirect-to-internal); `file` tool is `EvalSymlinks`+`O_NOFOLLOW` confined; backup restore is
-  zip-slip-safe; self-update download is netguard-wrapped + SHA256+Ed25519-verified on `main`.
-- **Secrets / crypto:** `.env` correctly gitignored; vault AES-256-GCM w/ fresh CSPRNG salt+nonce + PBKDF2-200k; all
-  comparisons constant-time; zero `InsecureSkipVerify`; redaction wired into bus/journal/plugin-log; `gitleaks` = `[]`.
-- **Client-side:** strict CSP (`default-src 'none'`), `frame-ancestors 'none'`/`X-Frame-Options DENY`, SameSite=Strict
-  + HttpOnly sessions + Origin/Sec-Fetch CSRF gate, **no `Access-Control-Allow-Origin` anywhere**; no
-  `dangerouslySetInnerHTML`; XSS-safe Markdown renderer (`safeHref` blocks `javascript:`/`data:`).
-- **CI/CD:** top-level `permissions: contents: read`, full-SHA-pinned actions, `persist-credentials: false`, no
-  `pull_request_target`, no `${{ github.event.* }}` in `run:` blocks.
-- **Docker / IaC:** no surface (no Dockerfile/compose/Terraform/k8s/helm).
-
----
-
-## Remediation Roadmap
-
-### Phase 1 — Immediate (1–3 days): the substantive chain + the crash
-| # | Finding | Effort | Impact |
-|---|---------|--------|--------|
-| 1 | **VULN-001** trust-ceiling `min`-clamp (privilege escalation) | Low (a few lines + test) | High |
-| 2 | **VULN-003** fail-safe default ceiling for autonomous modes | Low | Medium (closes VULN-001's uncapped reach) |
-| 3 | **VULN-002** add `RWMutex` to channel registry (crash DoS) | Low | Medium (daemon stability) |
-
-### Phase 2 — Short-Term (1–2 weeks): DoS hardening + injection-path gap
-| # | Finding | Effort | Impact |
-|---|---------|--------|--------|
-| 4 | **VULN-005** non-zero default rate limit + max-concurrent-runs semaphore | Medium | Medium |
-| 5 | **VULN-007** rate-limit `/hooks/`; prefer header secret over `?secret=` | Low | Medium |
-| 6 | **VULN-004** screen `pulse.initiative.act` intent as untrusted observation | Medium | Medium |
-| 7 | **VULN-008** drop `allow-scripts` / gate HTML-artifact script execution | Medium | Medium |
-
-### Phase 3 — Medium-Term (1–2 months): infra & supply-chain
-| # | Finding | Effort | Impact |
-|---|---------|--------|--------|
-| 8 | **VULN-009** ephemeral runners / Actions external-approval; **VULN-013** add `CODEOWNERS` + branch protection | Medium | Medium (blast-radius) |
-| 9 | **VULN-010** re-resolve `pnpm-lock`, drop dual lockfile, verify `lucide-react` | Low | Low |
-| 10 | **VULN-006** (optional) hard budget cap with cost reservation — only if a hard ceiling is needed | Medium | Low |
-
-### Phase 4 — Hardening (ongoing): defense-in-depth
-| # | Recommendation | Effort | Impact |
-|---|----------------|--------|--------|
-| 11 | **VULN-011** bound `retry.ReadBody` with `io.LimitReader`; stop discarding read error | Low | Low |
-| 12 | **VULN-012** redact upstream/STT error text before HTTP body | Low | Low |
-| 13 | Apply `safeHref` to backend-supplied `docs_url`/`authorize_url`; re-assert roster `System` flag at store `Update`; document SDK loopback/TLS posture; confirm `DefaultPublicKeyHex` is set in release builds; run live `govulncheck` + `osv-scanner`/`pnpm audit` | Low | Low |
-
----
-
-## Methodology
-
-This assessment used **security-check** (AI-powered static analysis), a 4-phase pipeline:
-
-1. **Reconnaissance** — architecture mapping, tech-stack/entry-point/trust-boundary detection (`architecture.md`).
-2. **Vulnerability Hunting** — 10 parallel domain scanners covering 33 skill areas + Go/TS deep language scans; each ran
-   internal Discovery → Verification and wrote a `*-results.md`.
-3. **Verification** — `sc-verifier` applied reachability, sanitization, framework-protection, configuration, and context
-   modifiers; merged duplicates; assigned 0–100 confidence and recalculated severity (`verified-findings.md`).
-4. **Reporting** — CVSS-aligned severity, risk scoring, and a prioritized remediation roadmap (this file).
-
-**Risk-score derivation:** base = 1×High(1.0) + 7×Medium(0.3) + 5×Low(0.1) = **3.6**; modifiers −1.0 (strong security
-controls verified in place) −0.5 (good security-feature test coverage) → **2.1**, presented as **2.6/10 (Low Risk)**
-to avoid understating the single High privilege-escalation finding.
-
-### Limitations
-- Static analysis only — no runtime/dynamic testing or live exploitation was performed.
-- Dependency CVE flags are **version heuristics**; confirm with `govulncheck` + `osv-scanner`/`pnpm audit`.
-- AI reasoning may miss deep domain-specific or custom business-logic flaws; confidence scores are estimates.
-- `.worktrees/rebased-main` and `.claude/worktrees/` duplicate trees were excluded from findings.
-
----
-
-## Disclaimer
-
-This security assessment was performed using automated AI-powered static analysis. It does not constitute a comprehensive
-penetration test or security audit. Findings represent potential vulnerabilities identified through code-pattern analysis
-and LLM reasoning; false positives and false negatives are possible. Use this report as a starting point for remediation,
-not as a definitive statement of the application's security posture. A professional audit by qualified security engineers
-is recommended for production deployments handling sensitive data.
-
-_Generated by security-check — github.com/ersinkoc/security-check_
+**Not covered:** container and IaC scanning (no Dockerfile, compose, K8s or Terraform exists in the
+tree) and SQL/NoSQL/GraphQL/SSTI injection (no `database/sql`, no ORM, no GraphQL, and zero files
+importing `text/template` or `html/template`). These are accurate "nothing to scan", not gaps.
