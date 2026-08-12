@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -300,4 +301,99 @@ func TestFiles_DirTraversalOnReadRefusesEscapes(t *testing.T) {
 	if rec.Code == http.StatusOK {
 		t.Fatalf("URL-encoded traversal succeeded: body=%s", rec.Body.String())
 	}
+}
+
+// TestFiles_SymlinkedDirectoryRefused is the PATH-001 regression test.
+//
+// The existing symlink tests all link the FINAL component, which the handlers'
+// os.Lstat guards catch. The gap was a symlinked DIRECTORY: lstat only inspects
+// the last element and follows every directory component before it, while
+// resolveFileRoot was purely lexical — its comment claimed "then resolved
+// symlinks" and nothing resolved anything.
+//
+// So `escape/secret.txt`, where `escape` is a link out of the root, passed the
+// string check, passed the final-component lstat (secret.txt is a real file),
+// and gave arbitrary read — plus delete and rename, which had no link check at
+// all. The most ordinary trigger is not an attacker: it is pointing
+// AGEZT_FILE_ROOT at a pnpm project, whose node_modules links into a store
+// outside the root.
+func TestFiles_SymlinkedDirectoryRefused(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics on Windows vary; covered by the resolver tests")
+	}
+	root := t.TempDir()
+	withFileRoot(t, root)
+	outsideDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outsideDir, "secret.txt"), []byte("OWNED\n"), 0o600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// The link is a DIRECTORY inside the root; the file it exposes is real.
+	if err := os.Symlink(outsideDir, filepath.Join(root, "escape")); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		url    string
+		body   string
+	}{
+		{"raw read", http.MethodGet, "/api/files/raw?path=escape/secret.txt&token=secret", ""},
+		{"tree listing", http.MethodGet, "/api/files/tree?path=escape&token=secret", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httpJSON(t, s.Handler(), tc.method, tc.url, tc.body)
+			if rec.Code == http.StatusOK {
+				t.Fatalf("traversal through a symlinked directory returned 200; body=%s", rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "OWNED") {
+				t.Fatalf("response leaked the out-of-root file: %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+// TestFiles_ResolverAllowsCreationPaths guards the fix from overshooting.
+// filepath.EvalSymlinks fails on a path that does not exist, but mkdir and
+// first-write legitimately name one. If the resolver refused those, the file
+// manager would be unable to create anything — a self-inflicted outage in the
+// name of security.
+func TestFiles_ResolverAllowsCreationPaths(t *testing.T) {
+	root := t.TempDir()
+	if err := verifyResolvedWithinRoot(root, filepath.Join(root, "does", "not", "exist", "yet.txt")); err != nil {
+		t.Fatalf("a not-yet-created path under the root must be allowed: %v", err)
+	}
+	if err := verifyResolvedWithinRoot(root, root); err != nil {
+		t.Fatalf("the root itself must be allowed: %v", err)
+	}
+	// And it still refuses a lexically-contained path whose real location is out.
+	outside := t.TempDir()
+	if err := linkDir(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("cannot create a directory link on this host: %v", err)
+	}
+	if err := verifyResolvedWithinRoot(root, filepath.Join(root, "link", "x.txt")); err == nil {
+		t.Fatal("a path through a linked directory must be refused")
+	}
+}
+
+// linkDir creates a directory link, falling back to a Windows JUNCTION when
+// os.Symlink is refused — creating a symlink on Windows needs Developer Mode or
+// elevation, but `mklink /J` needs neither, so a junction is what an ordinary
+// Windows user (or a package manager) actually produces.
+//
+// That distinction is load-bearing rather than cosmetic. Verified against a real
+// junction: filepath.EvalSymlinks returns a junction's path UNCHANGED and
+// os.Lstat reports it as ModeIrregular, not ModeSymlink — so the first version
+// of this fix, which relied on EvalSymlinks alone, passed its POSIX tests and
+// still let the traversal through on Windows. Only os.Readlink resolves it.
+func linkDir(target, link string) error {
+	if err := os.Symlink(target, link); err == nil {
+		return err
+	}
+	if runtime.GOOS != "windows" {
+		return os.Symlink(target, link)
+	}
+	return exec.Command("cmd", "/c", "mklink", "/J", link, target).Run()
 }
