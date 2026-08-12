@@ -231,3 +231,72 @@ func TestCronTrigger_IntervalAndDaily(t *testing.T) {
 		t.Fatalf("fires by name = %v", names)
 	}
 }
+
+// TestTriggerRunner_PanicIsContained is the WF-001 regression test.
+//
+// A fired workflow runs arbitrary third-party code — plugin subprocesses, MCP
+// servers, scripts — and the runner dispatches every fire with a bare `go`.
+// Nothing above a bare goroutine can recover it, so before safeFire a single
+// panicking node terminated the whole daemon. kernel/standing, kernel/cadence,
+// kernel/pulse and kernel/agent all had this firewall; kernel/workflow did not.
+//
+// The test panics inside the FireFunc and then requires the runner to still be
+// alive and firing. Without the recover this test does not fail — it takes the
+// whole test binary down, which is exactly the production symptom.
+func TestTriggerRunner_PanicIsContained(t *testing.T) {
+	b := openBus(t)
+	store, _ := OpenStore(t.TempDir())
+	if _, _, err := store.Save(eventTriggeredFlow("boomer", "task.failed")); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	var mu sync.Mutex
+	calls := 0
+	fire := func(_ context.Context, _ Workflow, _ any, _ string) {
+		mu.Lock()
+		calls++
+		n := calls
+		mu.Unlock()
+		if n == 1 {
+			panic("node exploded")
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Cooldown short enough that the second publish is not suppressed.
+	if err := StartTriggers(ctx, b, store, RunnerConfig{EventCooldown: time.Millisecond, Tick: time.Hour}, fire); err != nil {
+		t.Fatalf("StartTriggers: %v", err)
+	}
+
+	pub := func() {
+		if _, err := b.Publish(event.Spec{Subject: "task.failed", Kind: "task.failed", Actor: "test"}); err != nil {
+			t.Fatalf("Publish: %v", err)
+		}
+	}
+
+	// First fire panics and must be contained.
+	pub()
+	waitUntil(t, func() bool { mu.Lock(); defer mu.Unlock(); return calls >= 1 })
+
+	// The runner must still be armed afterwards — containment, not just
+	// survival: a recover that killed the subscription would pass a
+	// "daemon still alive" check while silently disarming every trigger.
+	time.Sleep(10 * time.Millisecond)
+	pub()
+	waitUntil(t, func() bool { mu.Lock(); defer mu.Unlock(); return calls >= 2 })
+}
+
+// waitUntil polls cond for up to two seconds so the panic test does not depend
+// on goroutine scheduling order.
+func waitUntil(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("condition not met within 2s")
+}

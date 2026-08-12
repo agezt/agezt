@@ -408,6 +408,14 @@ const (
 	KindWorkflowNode      Kind = "workflow.node" // one node executed (ok/error, fired port)
 	KindWorkflowCompleted Kind = "workflow.completed"
 	KindWorkflowFailed    Kind = "workflow.failed"
+	// KindWorkflowPanic records a RECOVERED panic while running a fired
+	// workflow — distinct from workflow.failed, which is a node returning an
+	// error. A workflow executes third-party code (plugin subprocesses, MCP
+	// servers, scripts) on a bare `go`, so without the firewall in
+	// kernel/workflow's runner a single bad node took the daemon down (WF-001).
+	// Journaled so a contained crash stays diagnosable via `agt journal`,
+	// mirroring KindStandingError.
+	KindWorkflowPanic Kind = "workflow.panic"
 	// KindWorkflowDrafted (M802): the copilot turned a plain-language
 	// description into a validated (but UNSAVED) workflow graph.
 	KindWorkflowDrafted Kind = "workflow.drafted"

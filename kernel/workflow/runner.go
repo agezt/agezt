@@ -15,6 +15,8 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +56,7 @@ func StartTriggers(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConf
 		cfg.Now = time.Now
 	}
 	r := &triggerRunner{
-		store: store, cfg: cfg, fire: fire,
+		store: store, cfg: cfg, fire: fire, bus: b,
 		lastEvent: map[string]time.Time{},
 		lastCron:  map[string]time.Time{},
 		lastDay:   map[string]string{},
@@ -98,12 +100,52 @@ type triggerRunner struct {
 	store *Store
 	cfg   RunnerConfig
 	fire  FireFunc
+	bus   *bus.Bus // may be nil; used only to journal a contained panic
 
 	mu        sync.Mutex
 	lastEvent map[string]time.Time // workflow id → last event-fire
 	lastCron  map[string]time.Time // workflow id → last interval-fire
 	lastDay   map[string]string    // workflow id → last daily_at fire day (YYYY-MM-DD)
 	armedAt   time.Time
+}
+
+// safeFire runs one triggered workflow behind a panic firewall (WF-001).
+//
+// A fired workflow executes arbitrary third-party code — plugin subprocesses,
+// MCP servers, scripts — through nodes this package never sees. Every fire is
+// dispatched with a bare `go`, so no caller above can recover it: one bad node
+// took the whole daemon down.
+//
+// Containment belongs HERE, not in each FireFunc, because the runner is what
+// spawns the goroutine. Wrapping at the dispatch point gives every caller of
+// StartTriggers the guarantee — the daemon's wfFire closure and any future one.
+//
+// kernel/standing, kernel/cadence, kernel/pulse and kernel/agent all already do
+// this; the standing-order FireFunc carries an eight-line comment explaining
+// this exact hazard. kernel/workflow was the gap.
+func (r *triggerRunner) safeFire(ctx context.Context, wf Workflow, payload map[string]any, reason string) {
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "workflow %q (%s) panicked: %v\n", wf.Name, wf.ID, rec)
+		if r.bus == nil {
+			return
+		}
+		_, _ = r.bus.Publish(event.Spec{
+			Subject: "workflow." + wf.ID,
+			Kind:    event.KindWorkflowPanic,
+			Actor:   "workflow",
+			Payload: map[string]any{
+				"id":     wf.ID,
+				"name":   wf.Name,
+				"reason": reason,
+				"panic":  fmt.Sprintf("%v", rec),
+			},
+		})
+	}()
+	r.fire(ctx, wf, payload, reason)
 }
 
 // onEvent matches one journal event against every enabled event trigger.
@@ -144,7 +186,7 @@ func (r *triggerRunner) onEvent(ctx context.Context, ev *event.Event) {
 			}
 		}
 		wf := w
-		go r.fire(ctx, wf, payload, "event "+ev.Subject)
+		go r.safeFire(ctx, wf, payload, "event "+ev.Subject)
 	}
 }
 
@@ -176,7 +218,7 @@ func (r *triggerRunner) onTick(ctx context.Context) {
 			r.mu.Unlock()
 			if due {
 				wf := w
-				go r.fire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, "cron interval")
+				go r.safeFire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, "cron interval")
 			}
 		case spec.DailyAt != "":
 			hhmm := now.Format("15:04")
@@ -192,7 +234,7 @@ func (r *triggerRunner) onTick(ctx context.Context) {
 			r.mu.Unlock()
 			if !already {
 				wf := w
-				go r.fire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, "cron daily "+spec.DailyAt)
+				go r.safeFire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, "cron daily "+spec.DailyAt)
 			}
 		}
 	}
