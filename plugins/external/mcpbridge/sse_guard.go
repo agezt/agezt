@@ -22,11 +22,15 @@ package main
 //
 // This file gates the announced `postURL` against the *trusted* origin
 // (the operator-supplied `sseURL`) and against the network ranges the
-// bridge should refuse to talk to by default. It is the SSE equivalent of
-// the kernel netguard policy (`kernel/netguard`); kept in this package
-// because the bridge is a deliberately kernel-free binary — duplicating
-// the small set of IP-classification helpers here is cheaper than
-// importing the kernel package.
+// bridge should refuse to talk to by default.
+//
+// It DELEGATES that classification to `kernel/netguard` (2026-08-12). This
+// comment used to say the bridge was "a deliberately kernel-free binary" and
+// that "duplicating the small set of IP-classification helpers here is cheaper
+// than importing the kernel package". The duplicate was not cheaper: it drifted,
+// losing the zero-block and v4-broadcast cases the kernel guard had grown
+// (SSRF-003). The bridge is a separate binary, not a separate module, so the
+// import costs nothing at runtime and buys one implementation instead of two.
 //
 // Two operator opt-ins are supported:
 //
@@ -42,6 +46,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 // envOrEmpty returns the trimmed value of name, or "" if unset. Kept local
@@ -96,6 +102,35 @@ func buildSSEEndpointPolicy(sseURL string) (sseEndpointPolicy, error) {
 	}, nil
 }
 
+// netguardPolicyOpts maps the operator opt-ins onto netguard options. Split out
+// from netguardOptsFor so the one-shot endpoint classification can share the
+// exact policy without also installing the dialer's stderr logger.
+func netguardPolicyOpts(policy sseEndpointPolicy) []netguard.Option {
+	var opts []netguard.Option
+	if policy.allowLoopback {
+		opts = append(opts, netguard.AllowLoopback())
+	}
+	if policy.allowPrivate {
+		opts = append(opts, netguard.AllowPrivate())
+	}
+	return opts
+}
+
+// netguardOptsFor translates this package's endpoint policy into kernel/netguard
+// options, so the per-dial guard honours exactly the same operator opt-ins as
+// the one-shot endpoint check above. Keeping one classifier is the point: this
+// package used to carry its own copy, and the copy had drifted (SSRF-003).
+func netguardOptsFor(policy sseEndpointPolicy) []netguard.Option {
+	opts := netguardPolicyOpts(policy)
+	// Surface refusals on stderr. A blocked dial that logs nothing is
+	// indistinguishable from a request that was never made — the same
+	// invisibility that made browser.action's bypass hard to notice.
+	opts = append(opts, netguard.OnBlock(func(ip, reason string) {
+		fmt.Fprintf(os.Stderr, "mcpbridge: netguard blocked dial to %s: %s\n", ip, reason)
+	}))
+	return opts
+}
+
 // resolveEndpoint validates an announced postURL against the policy and
 // returns the canonical postURL the transport should dial. Three checks:
 //
@@ -110,7 +145,14 @@ func buildSSEEndpointPolicy(sseURL string) (sseEndpointPolicy, error) {
 // also resolves to an internal IP via split-horizon DNS" pivot as well
 // as the simpler "announced http://127.0.0.1/..." pivot. Resolution
 // happens here at the time the endpoint event arrives (cheap, one-shot)
-// and is enforced again per-POST via the dialer — see dialerGuard below.
+// and is enforced again on every dial by the netguard-backed client the
+// transport builds — see netguardOptsFor in sse_transport.go.
+//
+// That second half used to say "see dialerGuard below". There was no
+// dialerGuard, anywhere in the repo: the transport used a bare
+// &http.Client{}, so this one-shot check was the ONLY check and a 307 or a
+// DNS rebind walked past it (SSRF-002, fixed 2026-08-12). A guard that
+// exists only in the comment describing it is worse than no comment.
 func resolveEndpoint(sseURL, announced string, policy sseEndpointPolicy) (string, error) {
 	postURL := strings.TrimSpace(announced)
 	if postURL == "" {
@@ -197,83 +239,26 @@ func classifyHost(host string, policy sseEndpointPolicy) error {
 	return nil
 }
 
-// ipPolicyReason returns a non-empty reason when ip is in a range the
-// bridge refuses to dial given the policy, or "" when the address is
-// permitted. The list intentionally mirrors the categories
-// `kernel/netguard` blocks by default — a hostile MCP server is the same
-// threat model as a hostile model-issued HTTP call.
+// ipPolicyReason returns a non-empty reason when ip is in a range the bridge
+// refuses to dial given the policy, or "" when the address is permitted.
+//
+// It DELEGATES to kernel/netguard rather than restating its category list. This
+// function used to carry its own switch, described as "intentionally mirroring"
+// netguard's defaults — and mirroring by intention is what drifts. The copy had
+// already fallen behind on the zero-block and v4-broadcast cases (SSRF-003).
+// Delegation cannot drift, and it means the one-shot endpoint check and the
+// per-dial guard now decide with one implementation instead of two.
 func ipPolicyReason(ip net.IP, policy sseEndpointPolicy) string {
 	if ip == nil {
 		return "unparseable address"
 	}
-	// Collapse IPv6 forms that embed an IPv4 address (NAT64 / IPv4-compat)
-	// so a v4 metadata IP isn't smuggled past the v4 checks as a v6 literal.
-	if v4 := collapseEmbeddedV4(ip); v4 != nil {
-		ip = v4
-	}
-	switch {
-	case ip.IsUnspecified():
-		return "unspecified address"
-	case ip.IsLoopback():
-		if policy.allowLoopback {
-			return ""
-		}
-		return "loopback"
-	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
-		return "link-local (cloud metadata / autoconf)"
-	case ip.IsMulticast():
-		return "multicast"
-	case ip.IsPrivate() || isCGNAT(ip):
-		if policy.allowPrivate {
-			return ""
-		}
-		return "private network (RFC1918 / ULA / CGNAT)"
+	if ok, reason := netguard.New(netguardPolicyOpts(policy)...).Allowed(ip); !ok {
+		return reason
 	}
 	return ""
 }
 
-// collapseEmbeddedV4 returns the IPv4 address embedded in an IPv6 literal
-// for the forms that actually route to it (NAT64 well-known prefix
-// 64:ff9b::/96, and IPv4-compatible ::/96), or nil when ip carries no
-// such embedding. :: and ::1 are excluded so they keep their own
-// (unspecified / loopback) reasons.
-func collapseEmbeddedV4(ip net.IP) net.IP {
-	if ip.To4() != nil {
-		return nil
-	}
-	v6 := ip.To16()
-	if v6 == nil {
-		return nil
-	}
-	// NAT64 well-known prefix 64:ff9b::/96.
-	if v6[0] == 0x00 && v6[1] == 0x64 && v6[2] == 0xff && v6[3] == 0x9b && allZero(v6[4:12]) {
-		return net.IPv4(v6[12], v6[13], v6[14], v6[15])
-	}
-	// IPv4-compatible ::/96 (first 96 bits zero), excluding :: and ::1.
-	if allZero(v6[:12]) {
-		v4 := net.IPv4(v6[12], v6[13], v6[14], v6[15])
-		if v4.Equal(net.IPv4zero) || v4.Equal(net.IPv4(0, 0, 0, 1)) {
-			return nil
-		}
-		return v4
-	}
-	return nil
-}
-
-// allZero reports whether every byte of b is zero.
-func allZero(b []byte) bool {
-	for _, x := range b {
-		if x != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// isCGNAT matches carrier-grade-NAT space 100.64.0.0/10, which
-// net.IP.IsPrivate does not cover but several cloud / overlay fabrics use
-// internally. Refused by default (RFC1918-class).
-func isCGNAT(ip net.IP) bool {
-	v4 := ip.To4()
-	return v4 != nil && v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127
-}
+// The IP classification helpers that used to live here — collapseEmbeddedV4,
+// allZero and isCGNAT — were deleted on 2026-08-12 when ipPolicyReason began
+// delegating to kernel/netguard, which implements all three cases and several
+// this copy had never grown (SSRF-003).

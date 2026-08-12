@@ -4,6 +4,68 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Security: the update service trusted the wrong thing.** `verifySignature` chose its trust anchor
+  from `s.cfg.Source`. With the shipping default — `SourceGitHub`, no embedded signing key — it
+  accepted *any* manifest, on the reasoning that GitHub's TLS pipeline was the anchor and the
+  manifest's SHA256 was merely informational.
+
+  The premise silently failed. Both `POST /api/v1/update/apply` and its control-plane twin build an
+  `UpdateInfo` entirely from a request body, so the GitHub anchor was being asserted for a URL that
+  never came from GitHub, and the downloaded binary was checked against a hash the same caller
+  supplied. An admin-token holder could stage an arbitrary executable over `<baseDir>/bin/agezt`,
+  persistent across restart and token rotation.
+
+  Provenance now travels *with* the manifest — set only by `checkGitHub` and `checkEndpoint`, never
+  by a caller. The zero value is the untrusted one, and that is the whole fix: `Source` has
+  `SourceGitHub` at `iota` 0, so adding a `Source` field to `UpdateInfo` would have made every
+  hand-built struct inherit the trusted origin by default and reproduced the bug somewhere new.
+
+  **This closes self-update on stock builds** — `Apply` now refuses without a signing key. It was
+  never open by a legitimate route: `checkGitHub` populates neither `SHA256` nor `Signature`, and
+  `validateSHA256` rejects an empty hash, so `Check → Apply` could not complete either. The only
+  functioning path was the unverified one. Wiring the signed path end to end is release engineering.
+
+- **Security: boot cleared the console's strict-password flag one line after raising it.**
+  `SetAllowedHosts` auto-raises strict mode (token AND password) for any non-loopback host, because
+  the console is then reachable beyond localhost and a guessed password alone must not open data
+  routes. Boot then called `SetPasswordStrict(env)` unconditionally, and the env default is false.
+
+  An operator who set `AGEZT_WEB_PASSWORD` and bound beyond loopback believed they had two factors
+  and had one; the password alone then opened `/api/run`, `/api/files/*` and `/api/config/set`. A
+  wildcard bind was worse still: `webAllowedHosts` skips unspecified IPs, so `0.0.0.0` registered no
+  allowed host and the auto-raise never even evaluated — while `hostAllowed` accepts any IP literal,
+  leaving the console LAN-reachable. Both paths are fixed, and the env var remains an explicit
+  override in *both* directions; it is simply only applied when actually set.
+
+  Boot now reads the effective value back rather than re-deriving it from the environment, since
+  re-deriving is what went wrong. That value also feeds the boot banner and the tunnel URL, which
+  were therefore describing the wrong posture too.
+
+- **Security: the SDK socket default could not reach the daemon, and failed open.** Both the
+  TypeScript and Python SDKs default to `@agezt/agentgw.sock` and passed it straight to `connect`.
+  Go maps a leading `@` to the Linux **abstract** namespace; neither Node nor CPython does — both
+  copy the string into `sun_path`, making it a CWD-relative *file path*. So the SDKs could never
+  reach the daemon on Linux, and an agent subprocess whose working directory an attacker can write
+  to would hand `Authorization: Bearer <capability token>` to whatever was planted at that path.
+  Both SDKs now translate to the platform's abstract form on Linux and leave the literal alone
+  elsewhere, where Go binds the literal too.
+
+- **Security: `npm ci` ran install scripts on the self-hosted runners.** Dependabot opens weekly npm
+  bumps for `frontend/` and `sdk/typescript/`; those branches live in this repo, so they pass every
+  fork guard and run the full pipeline on persistent, non-ephemeral runners. Six `npm ci`
+  invocations lacked `--ignore-scripts`, so an install script from a freshly-bumped transitive
+  package executed there before any human read the diff. The flag costs nothing here: the only
+  package in either lockfile declaring an install script is `fsevents`, which is optional and
+  darwin-only.
+
+- **Security: auto-repair's cooldown and attempt cap never bound.** Both guards key on a fingerprint
+  that is supposed to identify the repair *target*, but all six builders embedded the incident's live
+  metrics — `failures=%d`, `count=%d`, a generation counter that increments on every forced re-route
+  — plus the newest error string. Every one of those changes on recurrence, so the fingerprint
+  differed each time, the cooldown never matched, and the attempt count was always zero. An agent
+  could be auto-repaired with no delay and no limit. Fingerprints now carry only stable identity;
+  the detail lives on in the journaled reason string.
+
 - **Fixed: three `make check` gates were red, and one of them told you to delete a correct document.**
   A full-tree scan found the running system healthy — build, tests, static analysis, vulnerability
   scan, real-daemon e2e and the embedded SPA all green — while the layer that guards it had rotted

@@ -22,8 +22,13 @@ package main
 
 import (
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 func TestSSEResolveEndpoint_SameOriginRelative(t *testing.T) {
@@ -278,35 +283,35 @@ func TestIPPolicyReason_OptInsLift(t *testing.T) {
 	}
 }
 
-func TestCollapseEmbeddedV4(t *testing.T) {
-	cases := []struct {
-		in        string
-		outIsV4   bool // true if the result is a non-nil IPv4
-		outString string
-	}{
-		// Plain IPv4 returns nil (handled by To4 in the caller).
-		{"127.0.0.1", false, ""},
-		// NAT64 well-known prefix with an embedded address.
-		{"64:ff9b::a9fe:a9fe", true, "169.254.169.254"},
-		// Plain IPv6 loopback — not collapsed.
-		{"::1", false, ""},
-		// Plain IPv6 unspecified — not collapsed.
-		{"::", false, ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.in, func(t *testing.T) {
-			got := collapseEmbeddedV4(parseIP(t, tc.in))
-			if tc.outIsV4 {
-				if got == nil {
-					t.Fatalf("collapseEmbeddedV4(%s) = nil, want %s", tc.in, tc.outString)
-				}
-				if got.String() != tc.outString {
-					t.Errorf("collapseEmbeddedV4(%s) = %s, want %s", tc.in, got.String(), tc.outString)
-				}
-			} else if got != nil {
-				t.Errorf("collapseEmbeddedV4(%s) = %s, want nil", tc.in, got.String())
+// TestIPPolicyReason_EmbeddedV4NotSmuggled replaces the old
+// TestCollapseEmbeddedV4. That test drove a private helper this package no
+// longer owns — ipPolicyReason now delegates to kernel/netguard, which
+// implements the collapsing itself.
+//
+// The INVARIANT it protected is real and is kept here, asserted one level up at
+// the boundary that actually decides: an IPv4 metadata address wrapped in an
+// IPv6 form must not reach the allow path. Deleting the helper's test without
+// re-homing the invariant would have quietly dropped that coverage.
+func TestIPPolicyReason_EmbeddedV4NotSmuggled(t *testing.T) {
+	// Opt in to everything an operator can opt in to; link-local has no opt-in,
+	// so the metadata address must stay refused however it is spelled.
+	policy := sseEndpointPolicy{allowLoopback: true, allowPrivate: true}
+	for _, spelling := range []string{
+		"169.254.169.254",        // plain v4
+		"64:ff9b::a9fe:a9fe",     // NAT64 well-known prefix
+		"::ffff:169.254.169.254", // v4-mapped
+	} {
+		t.Run(spelling, func(t *testing.T) {
+			if got := ipPolicyReason(parseIP(t, spelling), policy); got == "" {
+				t.Errorf("metadata address spelled %s was allowed; want refused", spelling)
 			}
 		})
+	}
+
+	// Sanity: an ordinary public address is still permitted, so the test above
+	// is not passing because everything is refused.
+	if got := ipPolicyReason(parseIP(t, "93.184.216.34"), policy); got != "" {
+		t.Errorf("public address refused: %q", got)
 	}
 }
 
@@ -319,4 +324,50 @@ func parseIP(t *testing.T, s string) net.IP {
 	}
 	t.Fatalf("net.ParseIP(%q) = nil", s)
 	return nil
+}
+
+// TestNetguardClient_BlocksRedirectHop is the SSRF-002 regression test.
+//
+// resolveEndpoint's comment promised the announced endpoint was "enforced again
+// per-POST via the dialer — see dialerGuard below". No dialerGuard existed
+// anywhere in the repo; the transport used a bare &http.Client{}. The endpoint
+// check was therefore ONE-SHOT, at the moment the endpoint event arrived, and a
+// 307 walked straight past it into whatever the redirect named.
+//
+// This drives the exact bypass: loopback is opted in (so the first hop is
+// allowed and reaches a real server), private ranges are NOT, and the server
+// redirects into 10.0.0.0/8. A one-shot check passes the first hop and never
+// sees the second; a dialer-level guard refuses it.
+func TestNetguardClient_BlocksRedirectHop(t *testing.T) {
+	redirected := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirected = true
+		http.Redirect(w, r, "http://10.0.0.1/internal", http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+
+	// Loopback allowed (the trusted first hop), private refused (the pivot).
+	policy := sseEndpointPolicy{allowLoopback: true, allowPrivate: false}
+	client := netguard.New(netguardOptsFor(policy)...).HTTPClient(5 * time.Second)
+
+	resp, err := client.Get(srv.URL)
+	if err == nil {
+		resp.Body.Close()
+		t.Fatal("a redirect into 10.0.0.0/8 must be refused at the dialer; the request succeeded")
+	}
+	if !redirected {
+		t.Fatal("precondition: the trusted first hop should have been reached and issued the redirect")
+	}
+
+	// And the guard must not be blocking indiscriminately — the same client
+	// still reaches the allowed loopback origin when nothing redirects it.
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer plain.Close()
+	ok, err := client.Get(plain.URL)
+	if err != nil {
+		t.Fatalf("allowed loopback origin must still be reachable: %v", err)
+	}
+	ok.Body.Close()
 }

@@ -40,6 +40,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/netguard"
 )
 
 type sseTransport struct {
@@ -78,11 +80,25 @@ func newSSETransport(ctx context.Context, sseURL string, deliver transportDelive
 		return nil, fmt.Errorf("sse mcp: %w", err)
 	}
 	t := &sseTransport{
-		httpClient: &http.Client{
-			// No client-side timeout: the SSE stream is long-lived
-			// by design. Per-request POSTs use a fresh client below
-			// with their own context.
-		},
+		// Dial through kernel/netguard rather than a bare client (SSRF-002,
+		// 2026-08-12). resolveEndpoint's comment promised the announced endpoint
+		// was "enforced again per-POST via the dialer — see dialerGuard below",
+		// but no dialerGuard ever existed anywhere in the repo: the transport
+		// used `&http.Client{}`, so the host classification was ONE-SHOT at the
+		// moment the endpoint event arrived and a 307 or a DNS rebind walked
+		// straight past it.
+		//
+		// netguard.Control runs at the dialer, after resolution and before
+		// connect, so it sees the resolved IP on EVERY hop — which is what makes
+		// the promise true. Reusing the kernel guard also retires this package's
+		// drifted private copy of the classifier (SSRF-003): that copy had
+		// fallen behind on the zero-block and v4-broadcast cases.
+		//
+		// Timeout 0: the SSE stream is long-lived by design, and per-request
+		// POSTs carry their own context deadline.
+		httpClient: netguard.New(
+			netguardOptsFor(policy)...,
+		).HTTPClient(0),
 		sseURL:        sseURL,
 		deliver:       deliver,
 		policy:        policy,
