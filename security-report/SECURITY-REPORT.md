@@ -159,10 +159,32 @@ any row — this table goes stale the same way the finding tables do.
 | PATH-001 | **Fixed.** Resolution is no longer lexical. Also walks components with `os.Readlink`, because on Windows a directory **junction** is `ModeIrregular` and `EvalSymlinks` returns it unchanged — `EvalSymlinks` alone passed a real junction in local testing. | `d009dc14` |
 | EXPOSE-001 | **Fixed.** Journal directories `0o700`, segments `0o600`, plus a best-effort `chmod` migration for existing installs (best-effort, not fatal, per the boot-resilience law). | `44be317a` |
 | WF-001 | **Fixed, all four sites.** `kernel/workflow`'s runner first (`899ed24c`), then the three that commit explicitly left open: both `kernel/selfrepair` goroutines and the two detached run paths in `kernel/controlplane/workflow.go`. | `899ed24c`, `50ce6a58` |
+| GO-001 | **Fixed.** The sign-in status handler took `provLoginMu`, copied the `*providerLogin` out, unlocked, and *then* read `status`/`errMsg` — locking the pointer while racing the fields it points at. Both reads moved inside the critical section. | `9a943f82` |
+| SEC-002 | **Fixed.** `kdf_iter` now has a ceiling as well as a floor, checked *before* the derivation. Decrypt derived with the envelope's own attacker-supplied count, and PBKDF2 is O(iter) by design — on a file opened at daemon boot, that is a wedge, not a slow unlock. | `09bdc83d` |
 | CH-001 | **Blocked on an owner decision** — see item 6 above; fail-closed breaks existing operator configs. | — |
 | SR-002 | **Blocked on an owner decision.** Scoping the write, approval-gating it, and restricting it by task type are three different products, not three spellings of one fix. | — |
 | PE-001 + PE-004 | **Blocked on an owner decision**, and must ship together. Interacts directly with the default-allow posture law. | — |
-| CICD-004 | **Unresolved input needed:** whether the `publish-sdks` registry secrets actually exist decides whether this is latent-Low or live-High. | — |
+| CICD-004 | **Resolved to latent-Low, no owner input needed after all.** `PYPI_API_TOKEN`, `NPM_TOKEN` and `CARGO_REGISTRY_TOKEN` do not exist: `repos/agezt/agezt/actions/secrets` and `.../actions/organization-secrets` both return `total_count: 0`, and the repo has no environments. There is nothing for an unauthorised dispatch to exfiltrate today. The missing `environment:` gate is still worth adding *before* the secrets are created, not after. | — |
+| CICD-007 | **REFUTED — the citation is fabricated.** `.github/scripts/ci-go-retry.sh` does not exist and never has (`git log --all` on that path is empty; there is no `.github/scripts/` directory). No `rm -rf /dev/shm/gocache-*` wildcard appears anywhere in `.github/`. The real staging in `setup-go-safe/action.yml:186` is already per-runner — `gocache-${RUNNER_NAME}` — and carries a comment explaining precisely the three-runners-share-one-`/dev/shm` collision this finding describes. See the Medium-tier note below. | — |
+| SUPPLY-001 | **Materially corrected; the core concern stands.** Two of the three claims are wrong: Monaco is *not* absent from `package.json` (`@monaco-editor/react` is a declared dependency), and the bundle does *not* request 0.55.1 — `lib/monaco.ts` calls `loader.config()` at module scope and `MonacoView` imports it statically, while `Editor` is `lazy()`, so the pin is applied strictly before `init()` runs. The `0.55.1` literal in the vendor chunk is `@monaco-editor/loader`'s **overridden default**; `0.52.2` is in the Markdown chunk and wins. What remains true and unfixed: the ~3 MB editor **core** is fetched from jsDelivr at runtime, is outside the lockfile, Dependabot and `depscheck`, and carries no integrity check. | — |
+
+### The Medium tier was not hand-verified, and it shows
+
+The Method note below is precise about its own scope: **every High** was read in source before being
+recorded. The Mediums were not, and a later verification pass over their citations found the tier is
+measurably less reliable than the tier above it:
+
+- **CICD-007 cites a file that has never existed in this repository.** Not moved, not renamed — no
+  such path in `git log --all`. The hazard it describes is real in the abstract and the repo already
+  defends against it, with a comment saying so.
+- **SUPPLY-001 got two of its three factual claims wrong** in the direction of alarm, while its
+  actual concern (a CDN-loaded dependency outside the lockfile, with no integrity check) is sound.
+- **CICD-004's "the operator must confirm"** needed no operator: two API calls settled it.
+
+Treat an unverified Medium as a lead, not a finding. Where a Medium is cheap to check, check it — two
+of the four examined here did not survive contact with the source, and one of those was pure
+fabrication. This is the same failure mode as the report's own dominant finding (a claim asserted
+without the thing it claims), turned back on the report.
 
 ## Method note
 
