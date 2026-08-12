@@ -33,6 +33,13 @@ type fakeWarden struct {
 	calls     int
 	inspect   func(warden.Spec)
 	resultFor func(warden.Spec) (warden.Result, bool)
+	// effective models what this host would ACTUALLY run a request as. Nil means
+	// "nothing stronger than ProfileNone is available", which is the honest
+	// default and matches every non-Linux host. A test that needs to exercise a
+	// stronger tier's credential bucket must say so explicitly (RCE-001) — the
+	// bucket now follows the effective profile, so a fake that silently
+	// downgrades can no longer be used to assert isolated-tier behaviour.
+	effective func(warden.Profile) warden.Profile
 }
 
 func (f *fakeWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, error) {
@@ -69,7 +76,12 @@ func (f *fakeWarden) Run(_ context.Context, s warden.Spec) (*warden.Result, erro
 	}
 	return &r, nil
 }
-func (f *fakeWarden) EffectiveProfile(warden.Profile) warden.Profile { return warden.ProfileNone }
+func (f *fakeWarden) EffectiveProfile(p warden.Profile) warden.Profile {
+	if f.effective != nil {
+		return f.effective(p)
+	}
+	return warden.ProfileNone
+}
 func (f *fakeWarden) SetBus(*bus.Bus)                                {}
 
 func newTool(t *testing.T, runtimes map[string]string, net bool) (*Tool, *fakeWarden) {
@@ -620,6 +632,9 @@ func TestEnv_AddsProfileEnvPassthrough(t *testing.T) {
 	t.Setenv("PATH", "/usr/bin")
 
 	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	// Model a host that can actually deliver ProfileContainer — the env
+	// passthrough bucket follows the effective profile (RCE-001).
+	fw.effective = func(p warden.Profile) warden.Profile { return p }
 	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileContainer)
 	runWithContext(t, tl, ctx, map[string]any{"language": "python", "code": "x"})
 	joined := strings.Join(fw.last.Env, "\n")
@@ -651,6 +666,10 @@ func TestEnv_AddsVaultSecretFileMounts(t *testing.T) {
 
 	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
 	tl.BaseDir = baseDir
+	// Model a host that can actually deliver ProfileContainer. The docker secret
+	// bucket is keyed to the EFFECTIVE profile (RCE-001), so without this the
+	// request downgrades to ProfileNone and these secrets correctly stay home.
+	fw.effective = func(p warden.Profile) warden.Profile { return p }
 	var hostPath string
 	fw.inspect = func(s warden.Spec) {
 		for _, kv := range s.Env {
@@ -674,6 +693,56 @@ func TestEnv_AddsVaultSecretFileMounts(t *testing.T) {
 	}
 	if _, err := os.Stat(hostPath); !os.IsNotExist(err) {
 		t.Fatalf("secret file should be cleaned after run, stat err=%v", err)
+	}
+}
+
+// RCE-001: the credential bucket must follow the EFFECTIVE profile, not the
+// requested one. This is the same setup as the test above with one thing changed
+// — the host cannot deliver container isolation, which is the default on every
+// non-Linux machine — and the isolated-tier secret must therefore not travel.
+// The old code keyed on the request, so it mounted a docker-scoped credential
+// into a child running with no isolation whatsoever.
+func TestEnv_SecretMountsDoNotFollowADowngradedProfile(t *testing.T) {
+	baseDir := t.TempDir()
+	vault := creds.NewStore(baseDir)
+	if err := vault.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Set("OPENAI_API_KEY", "sk-test-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := vault.Save(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(executionprofile.SecretFilesDocker, "OPENAI_API_KEY:openai.key")
+
+	tl, fw := newTool(t, map[string]string{LangPython: "/usr/bin/python3"}, true)
+	tl.BaseDir = baseDir
+	// fw.effective stays nil: this host downgrades everything to ProfileNone.
+
+	var sawSecretEnv, sawSecretFile bool
+	fw.inspect = func(s warden.Spec) {
+		for _, kv := range s.Env {
+			if strings.HasPrefix(kv, "SECRET_FILE_OPENAI_API_KEY=") {
+				sawSecretEnv = true
+			}
+		}
+		if _, err := os.Stat(filepath.Join(s.WorkDir, ".agezt-secrets", "openai.key")); err == nil {
+			sawSecretFile = true
+		}
+	}
+	ctx := warden.WithProfileOverride(context.Background(), warden.ProfileContainer)
+	if out, isErr := runWithContext(t, tl, ctx, map[string]any{
+		"language": "python", "code": "x", "project": "secret project",
+	}); isErr {
+		t.Fatalf("unexpected error result: %s", out)
+	}
+
+	if sawSecretFile {
+		t.Error("a docker-scoped secret FILE was mounted for a run that downgraded to no isolation (RCE-001)")
+	}
+	if sawSecretEnv {
+		t.Error("a docker-scoped secret ENV var reached a run that downgraded to no isolation (RCE-001)")
 	}
 }
 

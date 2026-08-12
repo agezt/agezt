@@ -230,7 +230,19 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if override, ok := warden.ProfileOverrideFrom(ctx); ok {
 		profile = override
 	}
-	profileID := executionprofile.ProfileIDForWardenProfile(profile)
+	// Key the credential bucket off what will ACTUALLY run, not what we asked
+	// for (RCE-001). The requested profile defaults to ProfileNamespace, but
+	// resolveEffectiveProfile returns ProfileNone on every non-Linux host — so
+	// keying on the request handed secrets an operator had scoped to the isolated
+	// "warden" tier straight into a completely un-isolated `cmd /S /C` child.
+	// Windows and macOS hit that on the DEFAULT path, not an exotic one.
+	//
+	// The engine is still asked for the ORIGINAL profile below: it does its own
+	// downgrade and emits warden.profile_downgraded, and that honest-downgrade
+	// signal is the operator's notice. This only decides which bucket's secrets
+	// are willing to travel — and an isolated-tier secret must not follow a
+	// request that silently became un-isolated.
+	profileID := executionprofile.ProfileIDForWardenProfile(w.EffectiveProfile(profile))
 
 	// Per-agent workdir (M792): a named agent's commands run inside its
 	// workspace subdirectory (created lazily on first use). Anchored under the

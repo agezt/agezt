@@ -250,11 +250,17 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if override, ok := warden.ProfileOverrideFrom(ctx); ok {
 		profile = override
 	}
-	profileID := executionprofile.ProfileIDForWardenProfile(profile)
 	w := t.Warden
 	if w == nil {
 		w = warden.New(nil)
 	}
+	// Key the credential bucket off what will ACTUALLY run, not what we asked
+	// for (RCE-001). The requested profile defaults to ProfileNamespace, but
+	// resolveEffectiveProfile returns ProfileNone on every non-Linux host — so
+	// keying on the request handed secrets an operator had scoped to the isolated
+	// "warden" tier straight into an un-isolated child. Windows and macOS hit
+	// that on the DEFAULT path. See the matching comment in plugins/tools/shell.
+	profileID := executionprofile.ProfileIDForWardenProfile(w.EffectiveProfile(profile))
 
 	timeout := resolveTimeout(in.TimeoutMS)
 	if sshMode {
