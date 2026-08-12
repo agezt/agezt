@@ -56,12 +56,47 @@ const (
 	SourceEndpoint               // Custom check.agezt.com-style endpoint
 )
 
+// Provenance records where an UpdateInfo CAME FROM, so the trust anchor is
+// chosen by the manifest's own origin rather than by the service's configured
+// Source.
+//
+// The distinction is load-bearing (UPD-001, 2026-08-12). verifySignature used
+// to branch on s.cfg.Source, and with the shipping default (SourceGitHub, no
+// embedded key) it accepted anything — reasoning that GitHub's TLS pipeline was
+// the anchor. But the REST and control-plane handlers build an UpdateInfo
+// entirely from a request body, so that premise silently failed: the URL never
+// came from GitHub, and the SHA256 it was validated against was supplied by the
+// same caller. An admin-token holder could stage an arbitrary binary over
+// bin/agezt, surviving restart and token rotation.
+//
+// The zero value is deliberately the UNTRUSTED one. Source has SourceGitHub at
+// iota 0, so a hand-built struct would have inherited the trusted origin by
+// default — exactly the bug. A caller-assembled manifest now earns no trust it
+// did not come by honestly.
+type Provenance int
+
+const (
+	// ProvenanceUnverified is the zero value: a manifest assembled by a caller
+	// (a REST body, a CLI flag, a test) rather than fetched from a release
+	// source. Requires a signature under a configured key.
+	ProvenanceUnverified Provenance = iota
+	// ProvenanceGitHubRelease is set ONLY by checkGitHub, for a manifest whose
+	// URL came from the GitHub Releases API over TLS.
+	ProvenanceGitHubRelease
+	// ProvenanceEndpoint is set ONLY by checkEndpoint. Signature verification is
+	// mandatory for it: a self-supplied checksum is not a trust anchor.
+	ProvenanceEndpoint
+)
+
 // UpdateInfo describes a available update.
 type UpdateInfo struct {
 	Version string // semver, e.g. "1.2.3"
 	SHA256  string // lowercase hex SHA256 of the binary archive
 	URL     string // direct download URL
 	Notes   string // release notes (optional)
+	// Provenance is where this manifest came from. Set by Check; left at the
+	// zero value (ProvenanceUnverified) by anything that builds one by hand.
+	Provenance Provenance
 	// Signature is the hex Ed25519 signature over "<version>\n<sha256>",
 	// attesting the release under the trusted public key (UPD-001). Empty
 	// when the endpoint does not sign releases; Apply rejects an unsigned
@@ -249,7 +284,7 @@ func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(co
 	// or invalid signatures. GitHub-source updates rely on GitHub
 	// Releases' own TLS + asset integrity, so the verifier still runs
 	// for them but tolerates a missing key + signature.
-	if err := s.verifySignature(info, s.cfg.Source); err != nil {
+	if err := s.verifySignature(info); err != nil {
 		os.Remove(stagingPath)
 		return fmt.Errorf("update: signature verification failed: %w", err)
 	}
@@ -319,7 +354,7 @@ var ErrSignatureMissing = errors.New("update: release is not signed but a public
 // supplied the binary is not a trust anchor (UPD-001). GitHub-sourced
 // updates are exempt because their trust anchor is GitHub Releases' TLS
 // + asset integrity, not the supplied SHA256 alone.
-var ErrSignatureKeyNotConfigured = errors.New("update: no release-signing public key configured; endpoint-sourced updates require one — embed DefaultPublicKeyHex at build time (e.g. `go build -ldflags '-X github.com/agezt/agezt/kernel/update.DefaultPublicKeyHex=<hex>'`)")
+var ErrSignatureKeyNotConfigured = errors.New("update: no release-signing public key configured; only a manifest fetched from a GitHub release may apply without one — an endpoint-sourced or caller-supplied manifest (e.g. a version/sha256/url posted to /api/v1/update/apply) requires a signature, because nothing else attests its download URL. Embed DefaultPublicKeyHex at build time and sign releases (`go build -ldflags '-X github.com/agezt/agezt/kernel/update.DefaultPublicKeyHex=<hex>'`)")
 
 // ErrSignatureInvalid is returned when the manifest's signature does not verify
 // under the configured public key (wrong key, tampered version/hash, or a
@@ -388,18 +423,20 @@ func signedMessage(version, sumHex string) []byte {
 //     configured it returns nil (signed manifests are still verified
 //     when a key is embedded; unsigned GitHub releases continue to
 //     apply).
-func (s *Service) verifySignature(info *UpdateInfo, source Source) error {
+func (s *Service) verifySignature(info *UpdateInfo) error {
 	pub := resolvePublicKey()
 	if pub == nil {
-		// No trusted key. Behaviour depends on the source:
-		//   - Endpoint: refuse. A self-supplied checksum with no
-		//     signature is exactly the vulnerability UPD-001 names —
-		//     a compromised endpoint serves {malicious binary,
-		//     matching sha256} and nothing checks it.
-		//   - GitHub: accept. Releases are signed by GitHub's TLS
-		//     pipeline; the SHA256 in the manifest is informational
-		//     (we still validate it against the downloaded bytes).
-		if source == SourceEndpoint {
+		// No trusted key. Behaviour depends on where THIS MANIFEST came from —
+		// not on how the service happens to be configured:
+		//   - GitHub release: accept. The URL came from the Releases API over
+		//     TLS, so GitHub's pipeline is the anchor and the manifest SHA256 is
+		//     informational (still validated against the downloaded bytes).
+		//   - Endpoint: refuse. A self-supplied checksum with no signature is
+		//     exactly the vulnerability UPD-001 names — a compromised endpoint
+		//     serves {malicious binary, matching sha256} and nothing checks it.
+		//   - Unverified (the zero value): refuse. The manifest was assembled by
+		//     a caller, so nothing about its URL is attested.
+		if info.Provenance != ProvenanceGitHubRelease {
 			return ErrSignatureKeyNotConfigured
 		}
 		return nil
@@ -487,9 +524,10 @@ func (s *Service) checkGitHub(ctx context.Context) (*CheckResult, error) {
 	return &CheckResult{
 		Current: CurrentVersion,
 		Update: &UpdateInfo{
-			Version: version,
-			URL:     downloadURL,
-			Notes:   gh.Body,
+			Version:    version,
+			URL:        downloadURL,
+			Notes:      gh.Body,
+			Provenance: ProvenanceGitHubRelease,
 		},
 	}, nil
 }
@@ -531,11 +569,12 @@ func (s *Service) checkEndpoint(ctx context.Context) (*CheckResult, error) {
 	return &CheckResult{
 		Current: CurrentVersion,
 		Update: &UpdateInfo{
-			Version:   m.Version,
-			SHA256:    m.SHA256,
-			URL:       m.URL,
-			Notes:     m.Notes,
-			Signature: m.Signature,
+			Version:    m.Version,
+			SHA256:     m.SHA256,
+			URL:        m.URL,
+			Notes:      m.Notes,
+			Signature:  m.Signature,
+			Provenance: ProvenanceEndpoint,
 		},
 	}, nil
 }

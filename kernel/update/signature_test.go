@@ -79,14 +79,14 @@ func TestVerifySignature_NoKeyConfigured(t *testing.T) {
 
 	t.Run("github source accepts no-key unsigned", func(t *testing.T) {
 		info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum} // no Signature
-		if err := svc.verifySignature(info, SourceGitHub); err != nil {
+		if err := svc.verifySignature(prov(info, ProvenanceGitHubRelease)); err != nil {
 			t.Errorf("verifySignature(GitHub, no key): got %v, want nil", err)
 		}
 	})
 
 	t.Run("endpoint source refuses no-key unsigned", func(t *testing.T) {
 		info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum} // no Signature
-		if err := svc.verifySignature(info, SourceEndpoint); !errors.Is(err, ErrSignatureKeyNotConfigured) {
+		if err := svc.verifySignature(prov(info, ProvenanceEndpoint)); !errors.Is(err, ErrSignatureKeyNotConfigured) {
 			t.Errorf("verifySignature(Endpoint, no key): got %v, want ErrSignatureKeyNotConfigured", err)
 		}
 	})
@@ -101,7 +101,7 @@ func TestVerifySignature_Valid(t *testing.T) {
 		SHA256:    fakeSum,
 		Signature: signHex(t, priv, "1.2.3", fakeSum),
 	}
-	if err := svc.verifySignature(info, SourceEndpoint); err != nil {
+	if err := svc.verifySignature(prov(info, ProvenanceEndpoint)); err != nil {
 		t.Errorf("verifySignature(valid): got %v, want nil", err)
 	}
 }
@@ -111,7 +111,7 @@ func TestVerifySignature_Missing(t *testing.T) {
 	withKey(t)
 	svc := New(Config{})
 	info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum}
-	if err := svc.verifySignature(info, SourceEndpoint); !errors.Is(err, ErrSignatureMissing) {
+	if err := svc.verifySignature(prov(info, ProvenanceEndpoint)); !errors.Is(err, ErrSignatureMissing) {
 		t.Errorf("verifySignature(missing sig): got %v, want ErrSignatureMissing", err)
 	}
 }
@@ -127,7 +127,7 @@ func TestVerifySignature_TamperedHash(t *testing.T) {
 		SHA256:    other, // differs from what was signed
 		Signature: signHex(t, priv, "1.2.3", fakeSum),
 	}
-	err := svc.verifySignature(info, SourceEndpoint)
+	err := svc.verifySignature(prov(info, ProvenanceEndpoint))
 	var invalid *ErrSignatureInvalid
 	if !errors.As(err, &invalid) {
 		t.Errorf("verifySignature(tampered hash): got %v, want *ErrSignatureInvalid", err)
@@ -147,7 +147,7 @@ func TestVerifySignature_WrongKey(t *testing.T) {
 		SHA256:    fakeSum,
 		Signature: signHex(t, priv, "1.2.3", fakeSum), // signed by the first key
 	}
-	if err := svc.verifySignature(info, SourceEndpoint); err == nil {
+	if err := svc.verifySignature(prov(info, ProvenanceEndpoint)); err == nil {
 		t.Error("verifySignature(wrong key): got nil, want *ErrSignatureInvalid")
 	}
 }
@@ -157,7 +157,7 @@ func TestVerifySignature_BadHex(t *testing.T) {
 	withKey(t)
 	svc := New(Config{})
 	info := &UpdateInfo{Version: "1.2.3", SHA256: fakeSum, Signature: "not-hex!!"}
-	if err := svc.verifySignature(info, SourceEndpoint); err == nil {
+	if err := svc.verifySignature(prov(info, ProvenanceEndpoint)); err == nil {
 		t.Error("verifySignature(bad hex): got nil, want *ErrSignatureInvalid")
 	}
 }
@@ -304,8 +304,78 @@ func TestApply_GitHubSourceAcceptsNoKey(t *testing.T) {
 	defer srv.Close()
 
 	svc := New(Config{Source: SourceGitHub, BaseDir: t.TempDir()})
-	info := &UpdateInfo{Version: "9.9.9", SHA256: sum, URL: srv.URL} // no Signature
+	// Provenance, not cfg.Source, is what earns the no-key exemption now
+	// (UPD-001). This is the manifest checkGitHub produces — its URL came from
+	// the Releases API over TLS, which is the actual trust anchor. Before the
+	// fix this test passed WITHOUT the Provenance field, which is precisely the
+	// hole: a hand-assembled manifest was indistinguishable from a fetched one.
+	info := &UpdateInfo{
+		Version:    "9.9.9",
+		SHA256:     sum,
+		URL:        srv.URL,
+		Provenance: ProvenanceGitHubRelease,
+	} // no Signature
 	if err := svc.Apply(context.Background(), info, noDrain); err != nil {
-		t.Fatalf("Apply(GitHub, no key): %v", err)
+		t.Fatalf("Apply(GitHub release manifest, no key): %v", err)
+	}
+}
+
+// prov stamps a manifest's origin so a test can exercise verifySignature the way
+// Check would have produced it. Provenance replaced the old `source Source`
+// argument in the UPD-001 fix: the trust anchor now follows the manifest, not
+// the service's configuration.
+func prov(info *UpdateInfo, p Provenance) *UpdateInfo {
+	info.Provenance = p
+	return info
+}
+
+// TestVerifySignature_CallerSuppliedManifestIsUntrusted is the UPD-001
+// regression test, and the reason Provenance exists at all.
+//
+// verifySignature used to branch on s.cfg.Source. With the shipping default
+// (SourceGitHub, no embedded key) it returned nil for ANY manifest — while
+// restapi/update_handlers.go and controlplane/update_control.go build one
+// entirely from a request body. The GitHub trust anchor was asserted for a URL
+// that never came from GitHub, and the SHA256 was validated against a hash the
+// same caller supplied, so an admin-token holder could stage an arbitrary
+// binary over bin/agezt that survived restart and token rotation.
+//
+// The zero value carries the whole fix: Source has SourceGitHub at iota 0, so a
+// hand-built UpdateInfo would have inherited the TRUSTED origin by default.
+// ProvenanceUnverified is 0 instead.
+func TestVerifySignature_CallerSuppliedManifestIsUntrusted(t *testing.T) {
+	prev := DefaultPublicKeyHex
+	_ = SetPublicKey("")
+	DefaultPublicKeyHex = ""
+	t.Cleanup(func() { DefaultPublicKeyHex = prev })
+
+	// A service configured exactly as shipped: GitHub source, no embedded key.
+	svc := New(Config{Source: SourceGitHub})
+
+	// What the REST handler builds — note nothing sets Provenance.
+	info := &UpdateInfo{
+		Version: "9.9.9",
+		SHA256:  fakeSum,
+		URL:     "https://attacker.example/agezt",
+	}
+	if info.Provenance != ProvenanceUnverified {
+		t.Fatalf("a hand-built manifest must default to ProvenanceUnverified, got %v", info.Provenance)
+	}
+	if err := svc.verifySignature(info); !errors.Is(err, ErrSignatureKeyNotConfigured) {
+		t.Fatalf("caller-supplied manifest under a GitHub-configured service: got %v, want ErrSignatureKeyNotConfigured", err)
+	}
+
+	// The service's own configuration must not launder it either: flipping
+	// cfg.Source is precisely what the old code trusted.
+	svcEndpoint := New(Config{Source: SourceEndpoint})
+	if err := svcEndpoint.verifySignature(info); !errors.Is(err, ErrSignatureKeyNotConfigured) {
+		t.Fatalf("cfg.Source must not affect the verdict: got %v", err)
+	}
+
+	// And a genuine GitHub-sourced manifest still applies with no key, which is
+	// the behaviour the original design intended to allow.
+	fromGitHub := &UpdateInfo{Version: "9.9.9", SHA256: fakeSum, Provenance: ProvenanceGitHubRelease}
+	if err := svc.verifySignature(fromGitHub); err != nil {
+		t.Fatalf("a real GitHub release manifest must still verify with no key: %v", err)
 	}
 }
