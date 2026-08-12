@@ -89,8 +89,7 @@ type Server struct {
 	// M768) at runtime. The daemon injects an adapter over the live engine via
 	// SetPulseObservers (it owns the DiskUsage func and the warden, keeping this
 	// package decoupled from kernel/pulse). Nil when pulse is disabled; the
-	// handlers report that. The legacy SetDiskWatch/SetProbeWatch setters wrap
-	// their funcs in a funcObservers shim stored here.
+	// handlers report that.
 	observers PulseObservers
 
 	// tenants is the optional multi-tenant registry, injected by the daemon

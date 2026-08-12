@@ -3,6 +3,13 @@
 // Command deadcodecheck runs the Go deadcode analyzer and fails on new
 // repository-local unreachable code. The public Go SDK is allowlisted because
 // repository-local reachability cannot see external SDK consumers.
+//
+// The analyzer runs WITHOUT -test on purpose, so "reachable" means "reachable
+// from a binary". That strictness is the point: it is what surfaced
+// Set.NetguardGaps — a drift alarm that looked healthy because its own unit
+// test called it, while boot never did. Adding -test would clear most findings
+// in one line and permanently hide that class. The narrow escape hatch for
+// symbols a test in another package must reach is testOnlyCrossPackageSeams.
 package main
 
 import (
@@ -57,13 +64,16 @@ func main() {
 func runChecker(stdout io.Writer, stderr io.Writer, cmdOut []byte, cmdErr error) int {
 	lines := findingLines(cmdOut)
 	var unexpected []string
-	var allowed int
+	var allowed, seams int
 	for _, line := range lines {
-		if isAllowedSDKFinding(line) {
+		switch {
+		case isAllowedSDKFinding(line):
 			allowed++
-			continue
+		case isAllowedTestOnlySeam(line):
+			seams++
+		default:
+			unexpected = append(unexpected, line)
 		}
-		unexpected = append(unexpected, line)
 	}
 
 	if len(unexpected) > 0 {
@@ -77,8 +87,8 @@ func runChecker(stdout io.Writer, stderr io.Writer, cmdOut []byte, cmdErr error)
 		fmt.Fprintf(stderr, "deadcodecheck: analyzer failed: %v\n%s", cmdErr, cmdOut)
 		return 1
 	}
-	if allowed > 0 {
-		fmt.Fprintf(stdout, "OK: no unexpected dead code; %d public SDK findings allowlisted.\n", allowed)
+	if allowed > 0 || seams > 0 {
+		fmt.Fprintf(stdout, "OK: no unexpected dead code; %d public SDK findings and %d cross-package test seams allowlisted.\n", allowed, seams)
 		return 0
 	}
 	fmt.Fprintln(stdout, "OK: no dead code findings.")
@@ -94,6 +104,46 @@ func findingLines(out []byte) []string {
 		}
 	}
 	return lines
+}
+
+// testOnlyCrossPackageSeams are symbols with no binary caller whose ONLY
+// consumer is a test in a DIFFERENT package. Those cannot be moved into a
+// _test.go beside their user — a test can only reach another package through
+// its exported API — so they have to stay in production files and the
+// analyzer will always report them.
+//
+// This is deliberately narrow. A same-package test-only helper does NOT belong
+// here: move it into a _test.go in its own package instead, which states what
+// it is and keeps the gate strict. Three were moved that way on 2026-08-12
+// (channelwire.Kinds, toolreg.Lookup, the governor budget probes) and only one
+// symbol genuinely could not be.
+//
+// Keyed by "file|symbol" rather than a directory prefix on purpose: a package
+// prefix would also hide the NEXT dead function in the same package, which is
+// how a gate quietly stops gating.
+var testOnlyCrossPackageSeams = map[string]bool{
+	// toolreg.Names pins the exact ordered boot tool surface for
+	// plugins/builtintools/ratchet_test.go, so the tool list cannot change
+	// silently. toolreg cannot import the package that registers the specs
+	// (that is the dependency direction), so the seam stays exported.
+	"kernel/toolreg/toolreg.go|Names": true,
+}
+
+// isAllowedTestOnlySeam reports whether a finding is a pinned cross-package
+// test seam. The finding shape is "path:line:col: unreachable func: Symbol".
+func isAllowedTestOnlySeam(line string) bool {
+	const marker = ": unreachable func: "
+	normalized := strings.ReplaceAll(line, `\`, "/")
+	i := strings.Index(normalized, marker)
+	if i < 0 {
+		return false
+	}
+	symbol := normalized[i+len(marker):]
+	file := normalized[:i]
+	if j := strings.Index(file, ":"); j >= 0 {
+		file = file[:j]
+	}
+	return testOnlyCrossPackageSeams[file+"|"+symbol]
 }
 
 func isAllowedSDKFinding(line string) bool {

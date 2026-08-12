@@ -143,15 +143,13 @@ func Register(sp Spec) {
 	registry[sp.Name] = sp
 }
 
-// Lookup returns the spec registered under name.
-func Lookup(name string) (Spec, bool) {
-	regMu.RLock()
-	defer regMu.RUnlock()
-	sp, ok := registry[name]
-	return sp, ok
-}
-
-// Names returns the registered spec names in registration order.
+// Names returns the registered spec names in registration order. It exists
+// for the cross-package boot ratchet (plugins/builtintools/ratchet_test.go),
+// which pins the exact ordered spec list so the boot tool surface cannot
+// change silently. No binary calls it, so deadcodecheck allowlists it by name
+// — see tools/deadcodecheck. A same-package accessor would have moved into a
+// _test.go instead; this one cannot, because the ratchet lives in the package
+// that registers the specs and toolreg cannot import it back.
 func Names() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()

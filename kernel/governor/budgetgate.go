@@ -119,27 +119,12 @@ func (g *Governor) evalBudgetScope(scope budgetScope, req *agent.CompletionReque
 	return spent >= ceiling, spent, ceiling
 }
 
-func budgetScopeNamed(name string) budgetScope {
-	for _, s := range budgetScopes {
-		if s.Name == name {
-			return s
-		}
-	}
-	panic("governor: unknown budget scope " + name) // table is a compile-time constant
-}
-
-// budgetExceeded reports the daemon-wide ceiling's state. Kept as a named
-// helper because it is the boundary the budget tests drive directly — the
-// decision itself lives in the table.
-func (g *Governor) budgetExceeded() (bool, int64, int64) {
-	return g.evalBudgetScope(budgetScopeNamed("global"), &agent.CompletionRequest{})
-}
-
-// taskBudgetExceeded reports the per-task-type ceiling's state (M1.zz).
-// (false, 0, 0) when no cap is configured for that type.
-func (g *Governor) taskBudgetExceeded(taskType string) (bool, int64, int64) {
-	return g.evalBudgetScope(budgetScopeNamed("task"), &agent.CompletionRequest{TaskType: taskType})
-}
+// The single-scope probes the budget tests drive — budgetScopeNamed,
+// budgetExceeded, taskBudgetExceeded — live in budget_boundary_internal_test.go.
+// They were here until 2026-08-12, described as "kept as a named helper because
+// it is the boundary the budget tests drive directly", which was true and is
+// exactly why no binary reached them: production goes through gateBudgets,
+// which walks the whole table. Test-only helpers now sit with their tests.
 
 // gateBudgets refuses the call if any applicable ceiling is already spent.
 func (g *Governor) gateBudgets(req *agent.CompletionRequest) error {

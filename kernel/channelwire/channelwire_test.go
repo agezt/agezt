@@ -4,6 +4,7 @@ package channelwire
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/channel"
@@ -15,6 +16,23 @@ func (f fakeChannel) Name() string                                     { return 
 func (f fakeChannel) Start(ctx context.Context) error                  { <-ctx.Done(); return ctx.Err() }
 func (f fakeChannel) Send(_ context.Context, _ channel.Outbound) error { return nil }
 
+// registeredKinds lists the registered factory kinds, sorted. It lives in the
+// test file on purpose: it was an exported Kinds() in channelwire.go until
+// 2026-08-12, but no binary ever called it — only this test did, so
+// deadcodecheck flagged it every run. Keeping a test-only accessor in the
+// production file would have meant an allowlist entry to hide a true report;
+// moving it here says what it actually is.
+func registeredKinds() []string {
+	mu.RLock()
+	defer mu.RUnlock()
+	out := make([]string, 0, len(factories))
+	for k := range factories {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func TestRegisterLookupKinds(t *testing.T) {
 	Register("wiretest-a", func(Deps) Built { return NotConfigured })
 	Register("wiretest-b", func(Deps) Built { return NotConfigured })
@@ -25,11 +43,11 @@ func TestRegisterLookupKinds(t *testing.T) {
 		t.Fatal("unregistered factory found")
 	}
 	seen := map[string]bool{}
-	for _, k := range Kinds() {
+	for _, k := range registeredKinds() {
 		seen[k] = true
 	}
 	if !seen["wiretest-a"] || !seen["wiretest-b"] {
-		t.Fatalf("Kinds() missing test kinds: %v", Kinds())
+		t.Fatalf("registeredKinds() missing test kinds: %v", registeredKinds())
 	}
 }
 
@@ -85,18 +103,10 @@ func TestBuildKind_MultiChannelKeysByName(t *testing.T) {
 	}
 }
 
-func TestMissingFactories_ListsUnwiredManifests(t *testing.T) {
-	channel.RegisterManifest(channel.Manifest{
-		Kind: "wiretest-manifest-only", Display: "WireTest", Description: "t",
-		Transport: "rest", RequiredEnv: []string{"AGEZT_WIRETEST_TOKEN"},
-	})
-	found := false
-	for _, k := range MissingFactories() {
-		if k == "wiretest-manifest-only" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("manifest without factory should be reported missing")
-	}
-}
+// The "manifest with no factory" case is deliberately NOT tested here any
+// more. It used to be, against a synthetic wiretest manifest and a
+// MissingFactories() helper that no binary called. The assertion that matters
+// runs in plugins/builtinchannels: TestEveryManifestHasFactoryOrTODO checks
+// every REAL manifest, and catches the inverse too (a factoryTODO entry whose
+// manifest vanished). A fixture-only copy here added no coverage and kept a
+// production function alive for a test's sake.

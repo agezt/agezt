@@ -51,6 +51,21 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTarg
 	if err != nil {
 		return nil, nil, nil, nil, "", err
 	}
+
+	// Arm the netguard drift alarm against the REAL built Set (2026-08-12).
+	// Set.NetguardGaps reports egress-guarded specs whose built instances do
+	// not implement NetguardAware — their SSRF refusals never reach the
+	// journal, so a blocked request looks identical to one that was never
+	// made. The check existed since Phase 2.2 but only its unit test ever
+	// called it, against a fixture Set; a real gap at boot was undetectable.
+	//
+	// Warn and continue rather than refuse: an unjournaled refusal is a
+	// visibility loss, not an open door (the guard still blocks), and a
+	// recoverable mismatch must degrade rather than take the daemon down.
+	if gaps := set.NetguardGaps(); len(gaps) > 0 {
+		fmt.Fprintf(stderr, "warning: netguard-guarded tools not journaling their refusals: %s\n", strings.Join(gaps, ", "))
+	}
+
 	return set.Tools(), set, set.PluginManifest(), set.ToolCapabilities(), strings.Join(set.Descs(), ", "), nil
 }
 

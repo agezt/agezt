@@ -2,9 +2,14 @@
 
 // Package channelwire is the channel FACTORY layer (Phase 2.1 of
 // docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory
-// that builds its configured instances from a Deps bundle, and BuildAll walks
-// the manifest registry so the daemon's channel section is one loop instead
+// that builds its configured instances from a Deps bundle, and the daemon
+// walks the manifest registry calling BuildKind per kind — one loop instead
 // of 27 hand-listed builder call sites (the allInsts drift surface).
+//
+// The walk lives at the call site (cmd/agezt/main.go) rather than here: a
+// BuildAll wrapper over the same three lines existed until 2026-08-12 and
+// never had a caller, so it was deleted rather than left as a second way to
+// say the same thing.
 //
 // This package — not kernel/channel — owns the factory types because a
 // factory returns a pulse.BriefSink: importing pulse into kernel/channel
@@ -15,9 +20,7 @@ package channelwire
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 
@@ -85,18 +88,6 @@ func Lookup(kind string) (Factory, bool) {
 	defer mu.RUnlock()
 	f, ok := factories[kind]
 	return f, ok
-}
-
-// Kinds returns the registered factory kinds, sorted.
-func Kinds() []string {
-	mu.RLock()
-	defer mu.RUnlock()
-	out := make([]string, 0, len(factories))
-	for k := range factories {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // Instance is one built, keyed channel instance — the unit the daemon
@@ -168,37 +159,10 @@ func BuildKind(ctx context.Context, kind string, b *bus.Bus, handler channel.Inb
 	return out
 }
 
-// BuildAll builds every configured instance of every manifest-registered
-// kind that has a factory. The daemon's whole channel section reduces to
-// this walk once every builder has migrated (the ratchet below tracks that).
-func BuildAll(ctx context.Context, b *bus.Bus, handler channel.InboundHandler) []Instance {
-	var out []Instance
-	for _, m := range channel.Manifests() {
-		out = append(out, BuildKind(ctx, m.Kind, b, handler)...)
-	}
-	return out
-}
-
-// MissingFactories reports manifest kinds with no registered factory —
-// the migration ratchet's raw material and, post-migration, the drift alarm
-// that a new channel shipped a manifest but no wiring.
-func MissingFactories() []string {
-	var out []string
-	for _, m := range channel.Manifests() {
-		if _, ok := Lookup(m.Kind); !ok {
-			out = append(out, m.Kind)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// Describe renders the standard one-line boot-banner desc for an instance
-// ("telegram#work : 2 chats allowed"). Shared so banner formatting stays
-// uniform as builders migrate.
-func Describe(in Instance) string {
-	if in.Label == "" {
-		return fmt.Sprintf("%s : %s", in.Kind, in.Desc)
-	}
-	return fmt.Sprintf("%s#%s : %s", in.Kind, in.Label, in.Desc)
-}
+// The manifest-vs-factory drift alarm — "a channel shipped a manifest but no
+// wiring" — is NOT here. A MissingFactories() helper lived at this spot until
+// 2026-08-12 with no production caller; the check that actually runs is
+// TestEveryManifestHasFactoryOrTODO in plugins/builtinchannels, which asserts
+// it against the REAL manifest set rather than a synthetic fixture and also
+// catches the inverse (a stale factoryTODO entry). One alarm, armed where the
+// manifests are.

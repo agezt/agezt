@@ -53,6 +53,17 @@ func (f *fakeGuarded) block(ip, reason string) {
 	}
 }
 
+// lookupSpec returns the spec registered under name. It was an exported
+// Lookup() in toolreg.go until 2026-08-12, but nothing outside this test ever
+// called it — the registry is consumed through BuildAll and the resulting Set,
+// not by name. Test-only, so it lives with the test.
+func lookupSpec(name string) (Spec, bool) {
+	regMu.RLock()
+	defer regMu.RUnlock()
+	sp, ok := registry[name]
+	return sp, ok
+}
+
 func TestRegisterLookupNames(t *testing.T) {
 	resetRegistryForTest()
 	Register(Spec{Name: "a"})
@@ -61,11 +72,11 @@ func TestRegisterLookupNames(t *testing.T) {
 	if got := Names(); strings.Join(got, ",") != "a,b" {
 		t.Fatalf("Names() = %v, want [a b]", got)
 	}
-	if _, ok := Lookup("a"); !ok {
-		t.Fatal("Lookup(a) missing")
+	if _, ok := lookupSpec("a"); !ok {
+		t.Fatal("lookupSpec(a) missing")
 	}
-	if _, ok := Lookup("zzz"); ok {
-		t.Fatal("Lookup(zzz) unexpectedly found")
+	if _, ok := lookupSpec("zzz"); ok {
+		t.Fatal("lookupSpec(zzz) unexpectedly found")
 	}
 }
 

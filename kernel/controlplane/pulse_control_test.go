@@ -13,6 +13,23 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// fakePulseObservers is a stand-in controlplane.PulseObservers — the same
+// registry seam the daemon injects at boot. It names each observer after what
+// it watches so the handler tests can assert the name round-trips, and records
+// the probe argv so the command→argv split stays pinned.
+type fakePulseObservers struct {
+	probeArgv []string
+}
+
+func (f *fakePulseObservers) AddDiskObserver(path string, minPct float64) (string, bool) {
+	return "disk:" + path, minPct > 0
+}
+
+func (f *fakePulseObservers) AddProbeObserver(name string, argv []string) (string, bool) {
+	f.probeArgv = argv
+	return "probe:" + name, true
+}
+
 // fakePulse is a stand-in PulseController so the control-plane tests don't
 // need a live engine.
 type fakePulse struct {
@@ -232,8 +249,12 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Fatalf("flush should have called the engine once, got %d", fp.flushed)
 	}
 
-	// SetDiskWatch + pulse_watch (M767): the wired callback builds + names the observer.
-	srv.SetDiskWatch(func(path string, minPct float64) (string, bool) { return "disk:" + path, minPct > 0 })
+	// pulse_watch (M767) + pulse_probe (M768) both go through the injected
+	// PulseObservers registry — the same seam the daemon wires at boot. The two
+	// per-capability setters this used to drive were a compatibility shim with
+	// no production caller and were deleted 2026-08-12.
+	obs := &fakePulseObservers{}
+	srv.SetPulseObservers(obs)
 	wres, err := c.Call(ctx, controlplane.CmdPulseWatch, map[string]any{"path": "/data", "min_pct": 10})
 	if err != nil {
 		t.Fatalf("pulse_watch: %v", err)
@@ -246,10 +267,8 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 		t.Error("min_pct of 150 should be rejected")
 	}
 
-	// SetProbeWatch + pulse_probe (M768): the command is split into argv and the
-	// wired callback names the observer.
-	var probeArgv []string
-	srv.SetProbeWatch(func(name string, argv []string) (string, bool) { probeArgv = argv; return "probe:" + name, true })
+	// pulse_probe (M768): the command is split into argv and the registry names
+	// the observer.
 	pres, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci", "command": "make test"})
 	if err != nil {
 		t.Fatalf("pulse_probe: %v", err)
@@ -257,8 +276,8 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	if obs, _ := pres["observer"].(string); obs != "probe:ci" {
 		t.Fatalf("expected observer probe:ci, got %v", pres["observer"])
 	}
-	if len(probeArgv) != 2 || probeArgv[0] != "make" || probeArgv[1] != "test" {
-		t.Fatalf("command not split into argv: %v", probeArgv)
+	if len(obs.probeArgv) != 2 || obs.probeArgv[0] != "make" || obs.probeArgv[1] != "test" {
+		t.Fatalf("command not split into argv: %v", obs.probeArgv)
 	}
 	// Missing command is rejected.
 	if _, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci"}); err == nil {

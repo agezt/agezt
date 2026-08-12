@@ -103,7 +103,43 @@ func TestRunChecker_NoFindingsAllAllowed(t *testing.T) {
 	if stderr.Len() > 0 {
 		t.Errorf("stderr = %q, want empty", stderr.String())
 	}
-	if want := "OK: no unexpected dead code; 2 public SDK findings allowlisted.\n"; stdout.String() != want {
+	if want := "OK: no unexpected dead code; 2 public SDK findings and 0 cross-package test seams allowlisted.\n"; stdout.String() != want {
+		t.Errorf("stdout = %q, want %q", stdout.String(), want)
+	}
+}
+
+func TestIsAllowedTestOnlySeam(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{"pinned seam", "kernel/toolreg/toolreg.go:153:6: unreachable func: Names", true},
+		{"pinned seam, windows separators", `kernel\toolreg\toolreg.go:153:6: unreachable func: Names`, true},
+		// The entry is keyed file|symbol, not by directory: a NEW dead function
+		// in the very same file must still be reported. This is the property
+		// that stops one escape hatch from silently covering a whole package.
+		{"other symbol in the same file", "kernel/toolreg/toolreg.go:200:6: unreachable func: Something", false},
+		{"same symbol in another file", "kernel/other/other.go:1:1: unreachable func: Names", false},
+		{"not an unreachable-func line", "kernel/toolreg/toolreg.go:153:6: unreachable type: Names", false},
+		{"empty", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isAllowedTestOnlySeam(tc.line); got != tc.want {
+				t.Errorf("isAllowedTestOnlySeam(%q) = %v, want %v", tc.line, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunChecker_TestOnlySeamAllowed(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	out := []byte("kernel/toolreg/toolreg.go:153:6: unreachable func: Names\n")
+	if code := runChecker(&stdout, &stderr, out, nil); code != 0 {
+		t.Errorf("runChecker = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if want := "OK: no unexpected dead code; 0 public SDK findings and 1 cross-package test seams allowlisted.\n"; stdout.String() != want {
 		t.Errorf("stdout = %q, want %q", stdout.String(), want)
 	}
 }

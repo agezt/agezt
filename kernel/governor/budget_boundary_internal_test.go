@@ -5,6 +5,8 @@ package governor
 import (
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/agent"
 )
 
 // The spend-enforcement checks use `>=` (spend AT the ceiling is over budget). The
@@ -18,6 +20,32 @@ import (
 // The Governor is built directly (not via New, which requires a registry) because
 // budgetExceeded / taskBudgetExceeded touch only the spend ledger. `today` is pre-set
 // to the current UTC day so rolloverIfNeededLocked does not reset the installed spend.
+
+// budgetScopeNamed / budgetExceeded / taskBudgetExceeded are single-scope
+// probes over the budgetScopes table. They lived in budgetgate.go until
+// 2026-08-12 with a comment explaining they were "kept as a named helper
+// because it is the boundary the budget tests drive directly" — which is
+// precisely why no binary reached them: production calls gateBudgets, which
+// walks every scope. They belong with the tests that are their only caller.
+func budgetScopeNamed(name string) budgetScope {
+	for _, s := range budgetScopes {
+		if s.Name == name {
+			return s
+		}
+	}
+	panic("governor: unknown budget scope " + name) // table is a compile-time constant
+}
+
+// budgetExceeded reports the daemon-wide ceiling's state.
+func (g *Governor) budgetExceeded() (bool, int64, int64) {
+	return g.evalBudgetScope(budgetScopeNamed("global"), &agent.CompletionRequest{})
+}
+
+// taskBudgetExceeded reports the per-task-type ceiling's state (M1.zz).
+// (false, 0, 0) when no cap is configured for that type.
+func (g *Governor) taskBudgetExceeded(taskType string) (bool, int64, int64) {
+	return g.evalBudgetScope(budgetScopeNamed("task"), &agent.CompletionRequest{TaskType: taskType})
+}
 
 func newBudgetGov(cfg Config) *Governor {
 	if cfg.Now == nil {
