@@ -142,6 +142,28 @@ govulncheck + allowlist + deadcode gates · `SEC-002` unbounded `kdf_iter` ·
    a live bypass the moment ceilings start biting.
 8. **WF-001, EXPOSE-001, PATH-001, SSRF-002** — each self-contained.
 
+## Remediation status
+
+Tracked here rather than by editing the findings above, so the assessment stays a snapshot of what was
+true at scan time and this section carries what changed since. Verify against source before acting on
+any row — this table goes stale the same way the finding tables do.
+
+| ID | Status | Commit |
+|---|---|---|
+| CICD-001 | **Fixed.** `--ignore-scripts` on every `npm ci` in `ci.yml` and `publish-sdks.yml`. Deliberately *not* a repo-level `.npmrc`, which would also skip `fsevents` for macOS developers locally and quietly drop vite's native file watching. | `3987bf7c` |
+| AUTH-001 | **Fixed.** An unspecified-address bind now raises `passwordStrict` from the listener's own resolved address, and the env var only ever *overrides* when explicitly set — it can no longer silently clear an auto-raised flag. | `ebb1e4df` |
+| UPD-001 | **Fixed.** The trust anchor is selected by a new `Provenance` on the manifest whose **zero value is untrusted**, so a body-built manifest cannot inherit `SourceGitHub` by omission. Only `checkGitHub`/`checkEndpoint` set it. | `ca2366f0` |
+| SDK-001 | **Fixed.** Both SDKs map a leading `@` to a NUL-prefixed abstract socket on Linux and leave it alone elsewhere, so the default no longer resolves to a CWD-relative file that could capture a bearer token. | `03694cdf` |
+| SR-001 | **Fixed.** All six fingerprint builders stripped of the mutating fields (`failures=`, `count=`, newest error string); cooldown and `MaxAttempts` now key on a stable incident identity, matching the `misconfigured` path that already worked. | `e6d45e0e` |
+| SSRF-002 / SSRF-003 | **Fixed.** The documented-but-nonexistent `dialerGuard` is now real: the SSE transport dials through `netguard`, and the package's drifted classifier copy was deleted in favour of delegating to `netguard.Allowed`. | `cb344a08` |
+| PATH-001 | **Fixed.** Resolution is no longer lexical. Also walks components with `os.Readlink`, because on Windows a directory **junction** is `ModeIrregular` and `EvalSymlinks` returns it unchanged — `EvalSymlinks` alone passed a real junction in local testing. | `d009dc14` |
+| EXPOSE-001 | **Fixed.** Journal directories `0o700`, segments `0o600`, plus a best-effort `chmod` migration for existing installs (best-effort, not fatal, per the boot-resilience law). | `44be317a` |
+| WF-001 | **Fixed, all four sites.** `kernel/workflow`'s runner first (`899ed24c`), then the three that commit explicitly left open: both `kernel/selfrepair` goroutines and the two detached run paths in `kernel/controlplane/workflow.go`. | `899ed24c`, `50ce6a58` |
+| CH-001 | **Blocked on an owner decision** — see item 6 above; fail-closed breaks existing operator configs. | — |
+| SR-002 | **Blocked on an owner decision.** Scoping the write, approval-gating it, and restricting it by task type are three different products, not three spellings of one fix. | — |
+| PE-001 + PE-004 | **Blocked on an owner decision**, and must ship together. Interacts directly with the default-allow posture law. | — |
+| CICD-004 | **Unresolved input needed:** whether the `publish-sdks` registry secrets actually exist decides whether this is latent-Low or live-High. | — |
+
 ## Method note
 
 Every High in this report was read in source by the lead before being recorded here; agent claims were
