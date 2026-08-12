@@ -4,6 +4,82 @@ This file holds the active `[Unreleased]` working set.
 
 ### Unclassified
 
+- **Fixed: three `make check` gates were red, and one of them told you to delete a correct document.**
+  A full-tree scan found the running system healthy — build, tests, static analysis, vulnerability
+  scan, real-daemon e2e and the embedded SPA all green — while the layer that guards it had rotted
+  in three places, all invisible because the CI runners were not reporting.
+
+  `tools/sdkparity` extracted the daemon's REST routes by grepping for `mux.HandleFunc("…")`.
+  The 2026-07-26 route-auth centralisation changed every registration to
+  `router.Handle(path, policy, handler)`, so the pattern matched **nothing** and the generator
+  produced an empty route table. `-check` then reported the (still correct) `docs/SDK-PARITY.md` as
+  stale and printed a remedy — regenerate with `-out` — that would have deleted all thirteen routes
+  and rewritten every SDK's coverage from `9/11` to `0/0`. The extractor now matches the call shape
+  rather than one receiver name, and a guard test asserts a non-empty extraction against the real
+  `restapi.go`: the absence of that single assertion is what let a seventeen-day regression pass for
+  a documentation problem.
+
+  `gitleaks` had been failing since the same commit, on the same day, for a related reason: the new
+  `kernel/auth/auth_test.go` carries a synthetic `"0123456789abcdef"`-twice token proving
+  `WriteTokenFile` truncates to `0123…cdef`, and `.gitleaks.toml`'s fixture allowlist predates the
+  package. One commit took out two gates. The path is now allowlisted with its justification.
+
+  `deadcodecheck` reported fifteen unreachable functions, addressed below.
+
+- **The netguard drift alarm was never armed.** `toolreg.Set.NetguardGaps` reports egress-guarded
+  tools whose built instances do not implement `NetguardAware` — their SSRF refusals never reach the
+  journal, so a blocked request looks identical to one that was never made. It shipped with Phase 2.2
+  and only its own unit test ever called it, against a fixture `Set`; boot never ran it, so a real
+  gap was undetectable. It now runs against the real built `Set` in `buildTools` and warns on stderr:
+  an unjournaled refusal is a visibility loss, not an open door, so it degrades rather than refusing
+  to boot. Against the current tree it fires nothing.
+
+  Found because `deadcodecheck` runs the analyzer **without** `-test`, so "reachable" means
+  "reachable from a binary". Adding `-test` would have cleared thirteen of fifteen findings in one
+  line and hidden this class of bug permanently, so the strictness stays.
+
+  Deleted rather than kept: `channelwire.BuildAll` (a duplicate of the manifest walk `main.go`
+  already performs), `channelwire.Describe` (zero references anywhere), `channelwire.MissingFactories`
+  (the real manifest-vs-factory check runs in `plugins/builtinchannels` against actual manifests),
+  and the legacy pulse observer shim — `funcObservers`, `SetDiskWatch`, `SetProbeWatch` and the type
+  switch they forced on every availability check, which collapses `diskWatchAvailable` and
+  `probeWatchAvailable` into one method. Same-package test-only helpers moved into `_test.go` files
+  instead of being allowlisted; exactly one symbol could not move (`toolreg.Names`, whose consumer is
+  a ratchet in the package that registers its specs) and is pinned by `file|symbol`, never by
+  directory, so the next dead function in that file is still reported.
+
+- **Fixed: 31 environment variables the daemon reads were in no configuration surface at all.**
+  Neither `agt config show` nor the Config Center knew about them, including
+  `AGEZT_AGENTGW_TOKEN_SECRET` (the gateway token signing key) and
+  `AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED` (which permits executing an external binary to mint
+  credentials).
+
+  The cause was structural. `TestConfigEnvVars_CoversCmdAgeztReads` scanned a hand-maintained list of
+  eight directories, each added reactively after a refactor moved env-reading code somewhere new, so
+  every extraction quietly shrank the guard's coverage — the test's own comment already recorded the
+  invariant rotting once before. The scan is now an **exclusion** list over `kernel/`, `plugins/`,
+  `internal/` and `cmd/agezt`: a new package is covered by default. Its matcher also widened past
+  `os.Getenv(…)`, which had been blind to `const TokenSecretEnv = "AGEZT_…"` and
+  `envLookup(lookup, "AGEZT_…")` — that blindness is why the hand count was 13 and the real number
+  was 31.
+
+  All 31 are in `configEnvVars` (presence only; values are never echoed) and all 31 now have Config
+  Center fields, across `provider`, `interfaces`, `security` and two new sections, `files` and
+  `run-health`. `AGEZT_CHATGPT_OAUTH` is the one exception to editability: it is the vault key
+  holding the OAuth blob that "Sign in with ChatGPT" writes, so it renders read-only rather than
+  inviting a pasted token.
+
+- **Every nav view is now mounted against a real daemon.** `frontend/e2e/views.spec.ts` walks all
+  eight sections, opens every view the nav offers, and asserts each renders a non-empty `<main>` and
+  logs no console error, attributing errors to the view that produced them. Item labels are read from
+  the DOM, so a view added to `src/nav.tsx` is covered the day it lands. 66 views, 0 blank, 0 errors.
+
+  It exists for a regression that already happened: a design sweep left `ui/tab-nav.tsx` uncontrolled
+  and Dashboard, Runs and Status Overview shipped a blank panel while every unit test passed. The
+  components were correct in isolation; only mounting them in a browser against a live daemon showed
+  it. The spec prints its own coverage count and guards a floor, because a breadth test that quietly
+  stops covering things is worse than one that fails.
+
 - **Removed: `internal/apperrors`.** All four of its functions were `fmt.Errorf("%s: %w", …)` with a
   nil guard, `Wrap` and `Wrapf` took a `context.Context` they discarded, and the `Code` type it
   exported along with eight error-code constants had zero references anywhere in the tree. At 43

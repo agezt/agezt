@@ -6,6 +6,24 @@
 **Branch / HEAD at scan:** `main` @ `99d2e426`; **current HEAD:** `ef7b412d`
 **Risk Score:** **2.6 / 10 — Low Risk**
 
+> **Partial re-verification: 2026-08-12.** This report was NOT regenerated — the findings below still
+> describe the tree as of `ef7b412d` and must be re-checked against current source before being acted on.
+> What *was* re-run today, against `8f577e1e` + working tree:
+>
+> | Check | Command | Result |
+> |---|---|---|
+> | Dependency vulnerabilities | `govulncheck ./...` | no vulnerabilities found |
+> | Static analysis | `staticcheck ./...` | 0 findings |
+> | Dependency allowlist | `go run ./tools/depscheck` | 24 deps, all justified |
+> | Secret scan | `gitleaks detect` (v8.30.1, as CI pins) | **1 leak → fixed, now clean** |
+>
+> The secret scan was **not** clean, contrary to the "`gitleaks` came back empty (`[]`)" claim in the summary
+> below. `kernel/auth/auth_test.go:75` tripped `generic-api-key` on the synthetic fixture
+> `"0123456789abcdef"`-twice, whose only job is to prove `WriteTokenFile` truncates a token to `0123…cdef`.
+> No real secret is involved. The package arrived with the 2026-07-26 route-auth centralisation, **after**
+> `.gitleaks.toml` was written, so the CI `secrets` gate had been failing on it for ~17 days. Fixed by adding
+> the path to the allowlist with its justification; the scan now reports `no leaks found` over all 1,657 commits.
+
 > **Threat model.** AGEZT is a **localhost-first, single-operator, token-gated daemon**. Every network listener
 > (Web UI, REST, OpenAI-compatible API, agent gateway) is **off by default and loopback-bound**; the always-on
 > control plane is loopback + bearer-token. Operators *can* reverse-proxy/tunnel these (a documented deployment),
