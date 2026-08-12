@@ -67,18 +67,28 @@ func main() {
 	_, _ = os.Stdout.Write(report)
 }
 
+// routeRegistration matches a route registration's path literal. It is
+// deliberately tied to the CALL SHAPE (a `.Handle`/`.HandleFunc` whose first
+// argument is an `/api/v1/…` literal) rather than to one receiver name: the
+// server has already changed receivers once — `mux.HandleFunc(path, h)` became
+// `router.Handle(path, policy, h)` in c7dded37 — and the old pattern named
+// `mux` explicitly, so it silently matched nothing for seventeen days while
+// `-check` reported the (still correct) report as stale. Matching the shape
+// survives that rename; TestExtractRoutes_FindsLiveRoutes is the backstop that
+// fails loudly if the shape itself ever changes.
+var routeRegistration = regexp.MustCompile(`\.Handle(?:Func)?\("(/api/v1/[^"]*)"`)
+
 func extractRoutes(path string) ([]route, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	re := regexp.MustCompile(`mux\.HandleFunc\("([^"]+)"`)
-	matches := re.FindAllStringSubmatch(string(b), -1)
+	matches := routeRegistration.FindAllStringSubmatch(string(b), -1)
 	seen := map[string]bool{}
 	var out []route
 	for _, m := range matches {
 		p := m[1]
-		if !strings.HasPrefix(p, "/api/v1/") || seen[p] {
+		if seen[p] {
 			continue
 		}
 		seen[p] = true
