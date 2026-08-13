@@ -528,7 +528,6 @@ class _AgentClient:
         timeout: float = 30.0,
     ) -> None:
         self.token = token
-        self.socket_path = socket_path
         self.timeout = timeout
         self._sock = _SocketClient(socket_path, timeout)
 
@@ -538,6 +537,17 @@ class _AgentClient:
         self.log = _LogHandle(self)
         self.agent = _AgentHandle(self)
         self.config = _ConfigHandle(self)
+
+    @property
+    def socket_path(self) -> str:
+        """The gateway address, owned by the transport and read-only here.
+
+        This used to be a second copy of the address held alongside
+        ``_sock``, and ``_subscribe`` connected to that copy — reaching around
+        ``_SocketClient._connect`` and therefore around ``_resolve_socket_path``
+        (SDK-002). One field, one connect helper, no second source of truth.
+        """
+        return self._sock.socket_path
 
     def _get(self, path: str) -> Dict[str, Any]:
         """Send GET request."""
@@ -566,10 +576,15 @@ class _AgentClient:
 
     def _subscribe(self, path: str) -> Iterator[Dict[str, Any]]:
         """Subscribe to SSE stream."""
-        # SSE subscription requires special handling
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        # SSE needs its own long-lived connection rather than _request's
+        # request/response cycle, but it must still be opened by the SAME two
+        # helpers: _create_socket picks the family (and falls back off Linux),
+        # _connect applies _resolve_socket_path. Connecting by hand here is
+        # what leaked the capability token to "./@agezt/agentgw.sock" in an
+        # attacker-writable CWD (SDK-002).
+        sock = self._sock._create_socket()
         sock.settimeout(self.timeout)
-        sock.connect(self.socket_path)
+        self._sock._connect(sock)
 
         try:
             # Build HTTP request for SSE

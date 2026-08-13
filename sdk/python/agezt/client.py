@@ -69,6 +69,49 @@ def _mails(raw: Any) -> List[Mail]:
     return [Mail._from(m) for m in raw or [] if isinstance(m, dict)]
 
 
+_ALLOWED_SCHEMES = ("http", "https")
+
+
+def _origin(url: str) -> tuple:
+    """Return ``(scheme, host, port)`` with the port defaulted, for comparison."""
+    parts = urllib.parse.urlsplit(url)
+    scheme = (parts.scheme or "").lower()
+    try:
+        port = parts.port
+    except ValueError:  # malformed port in the authority
+        port = None
+    if port is None:
+        port = 443 if scheme == "https" else 80
+    return (scheme, (parts.hostname or "").lower(), port)
+
+
+class _SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuse any redirect that leaves the origin the Client was pointed at.
+
+    urllib's default handler copies every header except ``Content-Length`` /
+    ``Content-Type`` onto the redirected request with no same-origin check, so
+    a hostile or compromised daemon — or, over plaintext ``http``, anyone on
+    the path — answers 302 with a foreign ``Location`` and is handed the bearer
+    token, which is full agent-level control of the daemon (PY-002).
+
+    This is the outer of two guards. The inner one is that ``_request`` attaches
+    the token with ``add_unredirected_header``, so even a redirect that *is*
+    same-origin does not carry it onward through urllib's copying.
+    """
+
+    def __init__(self, origin: tuple) -> None:
+        self._origin = origin
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if _origin(newurl) != self._origin:
+            raise APIError(
+                code,
+                "cross_origin_redirect",
+                "refusing to follow a redirect off " + str(self._origin) + " to " + newurl,
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 @dataclass
 class StreamEvent:
     """One Server-Sent Event from a streaming run.
@@ -89,6 +132,11 @@ class Client:
         token: the bearer token (the daemon's admin token or a tenant token).
         timeout: per-request timeout in seconds.
         tenant: optional tenant id, sent as the ``X-Agezt-Tenant`` header.
+
+    Raises:
+        ValueError: if ``base_url`` is not ``http``/``https``. Anything else
+            (``file://``, ``ftp://``) would otherwise reach urllib's default
+            opener and be handled locally (PY-006).
     """
 
     def __init__(
@@ -98,10 +146,21 @@ class Client:
         timeout: float = 30.0,
         tenant: Optional[str] = None,
     ) -> None:
+        scheme = urllib.parse.urlsplit(base_url).scheme.lower()
+        if scheme not in _ALLOWED_SCHEMES:
+            raise ValueError(
+                "agezt: base_url must be http:// or https://, got "
+                + (scheme + "://" if scheme else repr(base_url))
+            )
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
         self.tenant = tenant
+        # Every request goes through this opener, never the module-level
+        # urlopen, so the same-origin redirect guard cannot be bypassed.
+        self._opener = urllib.request.build_opener(
+            _SameOriginRedirectHandler(_origin(self.base_url))
+        )
 
     # --- public API -------------------------------------------------------
 
@@ -135,7 +194,7 @@ class Client:
         data = json.dumps(body).encode("utf-8")
         req = self._request("POST", "/api/v1/runs", data=data, accept="text/event-stream")
         try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout)
+            resp = self._opener.open(req, timeout=self.timeout)
         except urllib.error.HTTPError as e:
             raise self._api_error(e) from None
         with resp:
@@ -143,7 +202,9 @@ class Client:
 
     def get_run(self, correlation_id: str) -> Dict[str, Any]:
         """Return the journaled event arc of a past run."""
-        return self._get("/api/v1/runs/" + urllib.parse.quote(correlation_id))
+        # safe="" — quote's default leaves "/" unescaped, which would let an id
+        # of "../../…" rewrite which endpoint is called (PY-005).
+        return self._get("/api/v1/runs/" + urllib.parse.quote(correlation_id, safe=""))
 
     # --- mailbox (the shared inter-agent message board) --------------------
 
@@ -201,13 +262,17 @@ class Client:
         """Mark a message read for one reader (it leaves that reader's inbox
         without a reply). Per-reader and idempotent."""
         self._post_json(
-            "/api/v1/mailbox/messages/" + urllib.parse.quote(message_id) + "/ack",
+            "/api/v1/mailbox/messages/" + urllib.parse.quote(message_id, safe="") + "/ack",
             {"by": by},
         )
 
     def mailbox_replies(self, message_id: str, limit: int = 0) -> List[Mail]:
         """Return the answers to a sent message, oldest first."""
-        path = "/api/v1/mailbox/messages/" + urllib.parse.quote(message_id) + "/replies"
+        path = (
+            "/api/v1/mailbox/messages/"
+            + urllib.parse.quote(message_id, safe="")
+            + "/replies"
+        )
         if limit > 0:
             path += "?limit=" + str(limit)
         return _mails(self._get(path).get("replies"))
@@ -249,7 +314,7 @@ class Client:
             path += "?" + urllib.parse.urlencode(q)
         req = self._request("GET", path, accept="text/event-stream")
         try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout)
+            resp = self._opener.open(req, timeout=self.timeout)
         except urllib.error.HTTPError as e:
             raise self._api_error(e) from None
         with resp:
@@ -267,7 +332,10 @@ class Client:
         accept: str = "application/json",
     ) -> urllib.request.Request:
         req = urllib.request.Request(self.base_url + path, data=data, method=method)
-        req.add_header("Authorization", "Bearer " + self.token)
+        # UNredirected: urllib copies plain headers onto a redirected request,
+        # which would hand the bearer token to whatever host answers a 302
+        # (PY-002). _SameOriginRedirectHandler is the outer guard.
+        req.add_unredirected_header("Authorization", "Bearer " + self.token)
         req.add_header("Accept", accept)
         if data is not None:
             req.add_header("Content-Type", "application/json")
@@ -284,7 +352,7 @@ class Client:
 
     def _do(self, req: urllib.request.Request) -> Dict[str, Any]:
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with self._opener.open(req, timeout=self.timeout) as resp:
                 raw = resp.read()
         except urllib.error.HTTPError as e:
             raise self._api_error(e) from None

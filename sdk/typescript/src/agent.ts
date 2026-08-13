@@ -202,6 +202,27 @@ export class AgentClient {
     this.config = new ConfigHandle(this);
   }
 
+  /**
+   * @internal The gateway address in the form Node can actually connect to.
+   *
+   * Every connect site — `request()` below and `EventbusHandle.subscribe()`,
+   * which needs its own long-lived SSE connection — MUST read the address from
+   * here. `subscribe()` used to reach around this class with
+   * `(client as unknown as { socketPath: string }).socketPath`, which is the
+   * raw, unresolved value: on Linux a CWD-relative file path an attacker can
+   * plant a listener at, and the capability token goes to whoever is listening
+   * (SDK-002). One accessor, no cast, and a future third connect path cannot
+   * repeat it.
+   */
+  get resolvedSocketPath(): string {
+    return resolveSocketPath(this.socketPath);
+  }
+
+  /** @internal The Authorization header value. Companion to {@link resolvedSocketPath}. */
+  get bearer(): string {
+    return `Bearer ${this.token}`;
+  }
+
   /** @internal Make a GET request to the gateway. */
   async get<T>(path: string): Promise<T> {
     return this.request<T>("GET", path);
@@ -223,11 +244,11 @@ export class AgentClient {
       const options: http.RequestOptions = {
         path,
         method,
-        socketPath: resolveSocketPath(this.socketPath),
+        socketPath: this.resolvedSocketPath,
         timeout: this.timeoutMs,
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${this.token}`,
+          Authorization: this.bearer,
           "Content-Type": "application/json",
         },
       };
@@ -400,10 +421,10 @@ export class EventbusHandle {
     const options: http.RequestOptions = {
       path: url.pathname + url.search,
       method: "GET",
-      socketPath: (this.client as unknown as { socketPath: string }).socketPath,
+      socketPath: this.client.resolvedSocketPath,
       headers: {
         Accept: "text/event-stream",
-        Authorization: `Bearer ${(this.client as unknown as { token: string }).token}`,
+        Authorization: this.client.bearer,
       },
     };
 
