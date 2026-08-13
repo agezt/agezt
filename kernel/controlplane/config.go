@@ -447,8 +447,11 @@ var configEnvVars = []string{
 	"AGEZT_AGENTGW_SOCKET",
 	"AGEZT_AGENTGW_TOKEN_SECRET",
 	// AWS credential_process opt-in (kernel/creds) — gates executing an
-	// external command to mint credentials.
+	// external command to mint credentials, and names the EXTRA environment
+	// variables that command is allowed to see (its environment is scrubbed of
+	// the daemon's secrets by default — SEC-003).
 	"AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED",
+	"AGEZT_AWS_CREDENTIAL_PROCESS_ENV",
 	// ChatGPT subscription auth (kernel/chatgptauth).
 	"AGEZT_CHATGPT_OAUTH",
 	// Per-provider knobs the compat adapter reads directly.

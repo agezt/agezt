@@ -488,6 +488,20 @@ This file holds the active `[Unreleased]` working set.
   auth, tenant header, and the full mailbox surface.
 
 ### Fixed
+- **An AWS `credential_process` helper inherited the daemon's entire
+  environment.** `cmd.Env` was never set, so an external credential helper — very
+  often a third-party binary named by a config file, invoked *precisely* because
+  the daemon should not hold the credential itself — was handed the vault
+  passphrase, every provider API key and the console password. Its environment is
+  now scrubbed. The non-secret AWS selectors that tell a helper *which* identity
+  to produce (`AWS_PROFILE`, `AWS_REGION`, the config-file paths, …) are still
+  forwarded, since dropping them would break the feature rather than secure it;
+  `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` deliberately are
+  not, because producing those is the helper's job. Helpers configured through
+  their own environment (a Vault-backed helper needing `VAULT_ADDR`, say) can be
+  accommodated without weakening the default via the new
+  `AGEZT_AWS_CREDENTIAL_PROCESS_ENV`, a comma-separated allowlist of extra names.
+  The feature remains opt-in behind `AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED`.
 - **Outbound webhook sink URLs were journaled and served verbatim, and for the
   three most common providers the URL *is* the credential.** A Slack, Discord or
   Teams incoming-webhook URL carries no separate token — possession of the URL is
