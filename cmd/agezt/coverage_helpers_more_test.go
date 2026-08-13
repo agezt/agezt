@@ -81,15 +81,15 @@ func TestCoverageHelperWebAndBriefFormatting(t *testing.T) {
 		t.Fatalf("bannerColor with NO_COLOR = %q", got)
 	}
 
-	if got := effectiveWebPassword("127.0.0.1:8080"); got != defaultLoopbackWebPassword {
+	if got := effectiveWebPassword("minted-per-install", "127.0.0.1:8080"); got != "minted-per-install" {
 		t.Fatalf("loopback default password = %q", got)
 	}
 	t.Setenv(brand.EnvPrefix+"WEB_PASSWORD_DEFAULT", "off")
-	if got := effectiveWebPassword("127.0.0.1:8080"); got != "" {
+	if got := effectiveWebPassword("minted-per-install", "127.0.0.1:8080"); got != "" {
 		t.Fatalf("disabled default password = %q", got)
 	}
 	t.Setenv(brand.EnvPrefix+"WEB_PASSWORD", "secret")
-	if got := effectiveWebPassword("0.0.0.0:8080"); got != "secret" {
+	if got := effectiveWebPassword("minted-per-install", "0.0.0.0:8080"); got != "secret" {
 		t.Fatalf("explicit password = %q", got)
 	}
 

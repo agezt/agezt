@@ -24,8 +24,9 @@ import (
 //      operator hasn't synced yet (`agt catalog sync`) and offline
 //      tests. Lives only for that bootstrap window; once the catalog
 //      is populated it wins on every lookup.
-//   3. Unknown model → 0 (free). Recorded in the budget.consumed event
-//      so the operator can see "model X had no price entry".
+//   3. Unknown model → unpricedFallbackPrice, NOT free (BIZ-001). Every
+//      such call also journals budget.unpriced so the operator can see
+//      "model X had no price entry and was charged the fallback rate".
 //
 // The catalog pointer is read via atomic.Pointer to keep the hot path
 // (every Complete) lock-free. Swapping the catalog (post-sync) just
@@ -111,16 +112,51 @@ func init() {
 	})
 }
 
-// priceFor looks up a model's price.
+// unpricedFallbackPrice is what a model with NO known price costs (BIZ-001).
+//
+// It used to be zero, which defeated every spend ceiling at once: recordUsage
+// added 0 to spentToday, spentByTaskToday and spentByAgentToday, so the daily,
+// per-task-type and per-agent caps all compared `spent >= ceiling` against a
+// ledger that never moved. And the model id is agent-reachable — the schedule
+// tool takes a free-text model override, and AGEZT_TASK_MODEL_CHAINS is
+// writable through the config tool — so "pick a model the catalog doesn't know"
+// was a complete budget bypass rather than the accepted soft-cap overshoot
+// documented in budgetgate.go.
+//
+// The rate is Sonnet-class ($3/MTok in, $15/MTok out): a mid-tier frontier
+// price, deliberately NOT the most expensive entry in the table. The security
+// property that matters is only that it is non-zero — any positive rate makes
+// an unpriced model consume ledger headroom and eventually trip the ceiling.
+// Beyond that the choice is a usability trade: a local Ollama tag the fallback
+// table doesn't recognise is genuinely free, and billing it at flagship rates
+// would exhaust an operator's daily cap on calls that cost nothing. Mid-tier
+// keeps the ceiling real without making unknown-but-free models unusable.
+//
+// Operators who want unpriced models refused outright rather than estimated
+// still have AGEZT_PRICING_STRICT=on, which is checked before the call.
+var unpricedFallbackPrice = modelPrice{
+	InputMicrocentsPerMTok:  300_000_000,
+	OutputMicrocentsPerMTok: 1_500_000_000,
+}
+
+// priceFor looks up a model's price for BILLING.
 //
 // Order: live catalog (exact match across providers) → fallback table
-// (exact, then case-insensitive prefix) → zero.
+// (exact, then case-insensitive prefix) → unpricedFallbackPrice.
 //
-// Unknown models cost nothing so we never block on a missing-price
-// entry — but the model name lands in budget.consumed so the operator
-// can see the gap.
+// The empty model is the one case that still costs zero: it means "no model
+// was named", not "a model we cannot price" — gateStrictPricing exempts it for
+// the same reason, and the request path refuses it with ErrNoModelConfigured
+// before any provider is called.
+//
+// Callers that need to distinguish a known-free model from an unknown one must
+// use priceForOk / modelIsPriced; this function deliberately erases that
+// difference, because for the ledger both are just a number.
 func priceFor(model string) modelPrice {
-	p, _ := priceForOk(model)
+	p, ok := priceForOk(model)
+	if !ok && model != "" {
+		return unpricedFallbackPrice
+	}
 	return p
 }
 

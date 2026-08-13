@@ -117,9 +117,36 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	// door); the tokened banner URL keeps working alone. Wired as a LIVE source —
 	// re-read from the env per gate decision — so setting the password from Setup /
 	// Config Center applies without a restart. For the default loopback console, a
-	// bare Windows agezt.exe also gets a built-in first password ("agezt") so the
-	// operator can browse to localhost and change it in Setup without env files.
-	webPassword := func() string { return effectiveWebPassword(ln.Addr().String()) }
+	// bare Windows agezt.exe also gets a built-in first password so the operator
+	// can browse to localhost and change it in Setup without env files.
+	//
+	// That built-in is MINTED PER INSTALL and persisted 0600 (SECRET-002). Until
+	// 2026-08-13 it was `const defaultLoopbackWebPassword = "agezt"` — a
+	// compile-time credential in a public repository, on a console that is ON by
+	// default. In the default (non-strict) mode the password is a SUFFICIENT
+	// credential, not a second factor (`authorized()` is token OR session), so
+	// anything that could reach loopback — a second OS user, any local
+	// non-operator process on a machine whose whole purpose is running
+	// LLM-directed code — held every mutating route.
+	//
+	// The mint happens once, here, rather than inside the per-request password
+	// function: the console password must be stable for the process, and the auth
+	// gate must not touch the filesystem on every request.
+	builtinPassword, mintedPassword := "", ""
+	if isLoopback(ln.Addr().String()) && !webPasswordDefaultDisabled() {
+		pw, minted, perr := ensureConsolePassword(baseDir)
+		if perr != nil {
+			// Fail CLOSED: no built-in password at all rather than a guessable
+			// one. The tokened URL below still opens the console.
+			fmt.Fprintf(stdout, "  console password : unavailable (%v) — use the tokened URL below\n", perr)
+		} else {
+			builtinPassword = pw
+			if minted {
+				mintedPassword = pw
+			}
+		}
+	}
+	webPassword := func() string { return effectiveWebPassword(builtinPassword, ln.Addr().String()) }
 	wsrv.SetPasswordFn(webPassword)
 	// A wildcard bind (0.0.0.0 / ::) reaches every interface, yet registers NO
 	// allowed host — webAllowedHosts skips unspecified IPs — so the auto-raise
@@ -181,6 +208,16 @@ func buildWebUI(ctx context.Context, k *kernelruntime.Kernel, baseDir string, st
 	if passwordOn {
 		desc += "  " + bannerColor("(password login enabled at "+plainURL+")", "1;32")
 	}
+	// Show a FRESHLY minted built-in password once — on the boot that minted it,
+	// and only when it is the password actually in force (an explicitly
+	// configured AGEZT_WEB_PASSWORD outranks it). The operator has no other way
+	// to learn it, and unlike the API listen tokens this banner already carries a
+	// full credential by design: the tokened console URL a line above.
+	// Subsequent boots point at the 0600 file rather than reprint the secret.
+	if mintedPassword != "" && webPassword() == mintedPassword {
+		desc += "  " + bannerColor("first-boot password: "+mintedPassword, "1;33") +
+			bannerColor(" (shown once — stored in "+filepath.Join(baseDir, consolePasswordFile)+")", "1;32")
+	}
 	if !isLoopback(addr) {
 		desc += "  " + bannerColor("[WARNING: not loopback — reachable beyond localhost]", "1;33")
 	}
@@ -227,18 +264,70 @@ func bannerColorEnabled() bool {
 	return true
 }
 
-const defaultLoopbackWebPassword = "agezt"
+// consolePasswordFile holds the per-install built-in console password, beside
+// the other 0600 credential files under the daemon's base directory.
+const consolePasswordFile = "web-password"
 
-func effectiveWebPassword(addr string) string {
+// consolePasswordBytes is the entropy of a minted console password. 96 bits,
+// rendered as 24 hex characters — shorter than a 256-bit listen token because a
+// human pastes this one into a login form, and far beyond guessing for a
+// credential that gates the whole control plane.
+const consolePasswordBytes = 12
+
+// ensureConsolePassword returns this install's built-in console password,
+// minting and persisting one (0600) the first time it is asked. minted reports
+// whether THIS call created it, which is what lets the caller print a fresh
+// password in the boot banner exactly once.
+//
+// A read failure is returned rather than swallowed: minting a second password
+// over a file we could not read would lock the operator out of the one already
+// in force. An empty file is treated as absent (mint), which also self-heals a
+// truncated write.
+func ensureConsolePassword(baseDir string) (password string, minted bool, err error) {
+	existing, err := kernelauth.ReadTokenFile(baseDir, consolePasswordFile)
+	if err != nil {
+		return "", false, err
+	}
+	if existing != "" {
+		return existing, false, nil
+	}
+	raw := make([]byte, consolePasswordBytes)
+	if _, err := rand.Read(raw); err != nil {
+		return "", false, fmt.Errorf("mint console password: %w", err)
+	}
+	pw := hex.EncodeToString(raw)
+	if _, err := kernelauth.WriteTokenFile(baseDir, consolePasswordFile, pw); err != nil {
+		return "", false, err
+	}
+	return pw, true, nil
+}
+
+// webPasswordDefaultDisabled reports the operator's explicit opt-out of the
+// BUILT-IN password (AGEZT_WEB_PASSWORD_DEFAULT). Consulted both where the
+// password is minted and where it is resolved, so the daemon never persists a
+// credential it has been told not to use.
+func webPasswordDefaultDisabled() bool {
+	return envDisabled(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD_DEFAULT"))
+}
+
+// effectiveWebPassword resolves the console password for one bind. Precedence,
+// highest first: an explicitly configured AGEZT_WEB_PASSWORD (re-read per gate
+// decision, so Setup / Config Center apply live); the opt-out keyword on
+// AGEZT_WEB_PASSWORD_DEFAULT, which turns the built-in off entirely; otherwise
+// the per-install builtin, but only on a loopback bind — a console reachable
+// beyond localhost gets no built-in password at all.
+//
+// builtin comes from ensureConsolePassword and is "" when the daemon could not
+// mint one, which correctly degrades to "token only" rather than to a default.
+func effectiveWebPassword(builtin, addr string) string {
 	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")); v != "" {
 		return v
 	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD_DEFAULT"))) {
-	case "off", "disabled", "none", "no", "0", "false":
+	if webPasswordDefaultDisabled() {
 		return ""
 	}
 	if isLoopback(addr) {
-		return defaultLoopbackWebPassword
+		return builtin
 	}
 	return ""
 }

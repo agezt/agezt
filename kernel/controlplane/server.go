@@ -1449,9 +1449,10 @@ executionProfileDone:
 	defer sub.Cancel()
 
 	// Cost-cap inert advisory (M169): a per-run cost cap can only trip if the run
-	// accrues PRICED spend. On a model with no known pricing (unknown to the catalog
-	// AND absent from the fallback table, or a free/local model) the spend computes
-	// as $0, so the cap never binds. Journal an advisory tied to this run's
+	// accrues PRICED spend. That is now narrower than it was: since BIZ-001 an
+	// unrecognised model bills at the unpriced fallback rate, so only a KNOWN-free
+	// or local model still computes as $0 and leaves the cap unable to bind.
+	// Journal an advisory tied to this run's
 	// correlation so `agt why <run>` shows the guardrail was inert — the run-time
 	// counterpart to the dry-run "will not bind" warning. Best-effort.
 	if maxCost > 0 && !modelPriced(effModel) {

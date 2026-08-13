@@ -85,7 +85,7 @@ func cmdBudget(args []string, stdout, stderr io.Writer) int {
 	if strict, _ := res["strict_pricing"].(bool); strict {
 		fmt.Fprintln(stdout, "  pricing  strict: models with no known price are refused")
 	} else {
-		fmt.Fprintf(stdout, "  pricing  lax: unpriced models are charged $0 (set %sPRICING_STRICT=on to refuse)\n", brand.EnvPrefix)
+		fmt.Fprintf(stdout, "  pricing  lax: unpriced models are charged a fallback rate (set %sPRICING_STRICT=on to refuse)\n", brand.EnvPrefix)
 	}
 
 	rows, _ := res["per_task"].([]any)

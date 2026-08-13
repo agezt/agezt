@@ -3,7 +3,9 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +37,33 @@ func WriteTokenFile(baseDir, filename, token string) (string, error) {
 		return "", fmt.Errorf("auth: write token file: %w", err)
 	}
 	return TokenPrefix(token), nil
+}
+
+// ReadTokenFile returns the credential WriteTokenFile persisted under baseDir,
+// trimmed of the trailing newline it appends. It applies the same filename
+// validation as the writer, so a caller-controlled name still cannot read
+// outside the credential directory.
+//
+// A MISSING file is not an error: it returns ("", nil). That is what makes the
+// pair usable as read-or-mint — an absent file means "no credential yet", which
+// is a first-boot state, not a failure. Every other read error is returned so a
+// caller can fail closed rather than silently mint a second credential over an
+// unreadable one.
+func ReadTokenFile(baseDir, filename string) (string, error) {
+	if strings.TrimSpace(baseDir) == "" {
+		return "", fmt.Errorf("auth: token file base directory is required")
+	}
+	if !validTokenFilename(filename) {
+		return "", fmt.Errorf("auth: token filename must be one non-empty path segment")
+	}
+	data, err := os.ReadFile(filepath.Join(baseDir, filename))
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("auth: read token file: %w", err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 // TokenPrefix returns a short credential fingerprint suitable for diagnostics.

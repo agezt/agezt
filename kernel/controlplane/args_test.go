@@ -5,14 +5,22 @@ package controlplane
 import "testing"
 
 // TestModelPriced — the authoritative "can a cost cap bind?" check (M169): priced
-// in the catalog/fallback table → true; free/local/unknown → false.
+// in the catalog/fallback table → true; KNOWN free/local → false.
+//
+// An unrecognised model used to land in the second group, and this test asserted
+// it. BIZ-001 moved it: billing an unknown model $0 defeated every spend ceiling
+// at once, so it now bills at the unpriced fallback rate — which means a cost cap
+// binds for it, and the "cap inert" advisory must no longer fire. The cases below
+// are the two groups that remain genuinely distinct.
 func TestModelPriced(t *testing.T) {
-	if !modelPriced("claude-sonnet-4-6") {
-		t.Error("claude-sonnet-4-6 should be priced (fallback table)")
+	for _, priced := range []string{"claude-sonnet-4-6", "totally-unknown-model"} {
+		if !modelPriced(priced) {
+			t.Errorf("%q should be priced — a cost cap must be able to bind for it", priced)
+		}
 	}
-	for _, free := range []string{"mock", "llama3.2", "totally-unknown-model"} {
+	for _, free := range []string{"mock", "llama3.2"} {
 		if modelPriced(free) {
-			t.Errorf("%q should price to $0 (cap inert)", free)
+			t.Errorf("%q is known-free and should price to $0 (cap inert)", free)
 		}
 	}
 }

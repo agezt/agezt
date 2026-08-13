@@ -108,10 +108,13 @@ const (
 	// run-time counterpart to the dry-run "will not bind" warning. Payload:
 	// {model, cap_microcents}.
 	KindBudgetCapInert Kind = "budget.cap_inert"
-	// KindBudgetUnpriced records that strict-pricing mode (M193) refused a request
-	// because its model has no known price (catalog + fallback table miss). Without
-	// strict pricing such a model is charged $0, silently bypassing the budget; this
-	// event makes the refusal auditable. Payload: {model}.
+	// KindBudgetUnpriced records that a model had no known price (catalog +
+	// fallback table miss). In strict-pricing mode (M193) the request was refused;
+	// otherwise it was billed at the unpriced fallback rate so it still consumes
+	// ledger headroom — charging $0 there silently bypassed every spend ceiling
+	// (BIZ-001). Emitted in BOTH modes, so an operator can see which models are
+	// missing prices before turning strict mode on. Payload: {model} in strict
+	// mode; {model, charged_microcents, in_rate, out_rate, reason} when billed.
 	KindBudgetUnpriced Kind = "budget.unpriced"
 	// KindBudgetCeilingSet records that an operator adjusted the global daily
 	// spend ceiling at runtime (M607) via the control plane / Web UI cockpit —

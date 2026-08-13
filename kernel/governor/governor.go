@@ -131,11 +131,14 @@ type Config struct {
 	StrictModelCapabilities bool
 
 	// StrictPricing turns an unpriced model into a hard pre-flight error
-	// (M193). Off by default. When off, a model with no known price
-	// (missing from the catalog AND the fallback table) is charged $0, so
-	// it silently bypasses the daily/task budget — fail-open. When on, such
-	// a request is refused with ErrUnpricedModel BEFORE any provider call,
-	// so an operator can guarantee every billed call is accounted for.
+	// (M193). Off by default. When off, a model with no known price (missing
+	// from the catalog AND the fallback table) is charged the conservative
+	// unpricedFallbackPrice and journals budget.unpriced, so it consumes
+	// ledger headroom like any other model — it used to be charged $0, which
+	// silently bypassed the daily, per-task and per-agent budgets at once
+	// (BIZ-001). When on, such a request is refused with ErrUnpricedModel
+	// BEFORE any provider call, so an operator who would rather stop than
+	// bill an estimate can guarantee every billed call has a real price.
 	// Known-FREE models (local/mock, present in the table at price 0) are
 	// still allowed — only genuinely unknown models are refused. An empty
 	// req.Model (provider picks its default) is not gated, since there is
@@ -1299,6 +1302,28 @@ func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, res
 	// token counts that go into budget.consumed below, so a fast-path hit equals
 	// the journal sum exactly.
 	g.indexUsageTokens(req.CorrelationID, inTok, outTok)
+
+	// An unpriced model was just billed at the fallback rate (BIZ-001). Journal
+	// it on EVERY such call, not only under strict pricing: the operator's
+	// ledger is now moving on an estimate rather than a real price, and the only
+	// way to see that — and to fix it with `agt catalog sync` or a table entry —
+	// is for the daemon to say so each time. Emitted before budget.consumed so a
+	// journal fold reads the explanation ahead of the charge.
+	if model != "" && !modelIsPriced(model) {
+		g.publish(event.Spec{
+			Subject:       "governor.budget",
+			Kind:          event.KindBudgetUnpriced,
+			Actor:         "governor",
+			CorrelationID: req.CorrelationID,
+			Payload: map[string]any{
+				"model":                   model,
+				"charged_microcents":      cost,
+				"fallback_input_mc_mtok":  unpricedFallbackPrice.InputMicrocentsPerMTok,
+				"fallback_output_mc_mtok": unpricedFallbackPrice.OutputMicrocentsPerMTok,
+				"reason":                  "no catalog or fallback-table price; charged at the conservative fallback rate so the model still consumes budget",
+			},
+		})
+	}
 
 	g.publish(event.Spec{
 		Subject: "governor.budget",

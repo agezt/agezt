@@ -183,10 +183,14 @@ func (g *Governor) gateRate(req *agent.CompletionRequest) error {
 }
 
 // gateStrictPricing refuses a model the governor cannot price, BEFORE spending
-// real money on it (M193). Off by default; when on, an unpriced model (catalog
-// and fallback table both miss) would otherwise be charged $0 and silently
-// bypass every budget. Known-free models (in the table at price 0) pass, and an
-// empty req.Model (provider default) is not gated.
+// real money on it (M193). Off by default. Known-free models (in the table at
+// price 0) pass, and an empty req.Model (provider default) is not gated.
+//
+// Since BIZ-001 an unpriced model is no longer charged $0 in the lax mode — it
+// bills at unpricedFallbackPrice and journals budget.unpriced, so the ceilings
+// hold either way. This gate is now the stricter of two live protections rather
+// than the only one: it refuses an unpriced model instead of ESTIMATING its
+// cost, for operators who would rather stop than bill a guess.
 func (g *Governor) gateStrictPricing(req *agent.CompletionRequest) error {
 	if !g.cfg.StrictPricing || req.Model == "" || modelIsPriced(req.Model) {
 		return nil

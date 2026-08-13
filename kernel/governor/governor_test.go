@@ -631,10 +631,20 @@ func TestPricing_KnownModelHasCost(t *testing.T) {
 	}
 }
 
-func TestPricing_UnknownModelIsFree(t *testing.T) {
+// This test used to be TestPricing_UnknownModelIsFree and asserted cost == 0,
+// pinning the behaviour BIZ-001 names: a model the governor cannot price added
+// nothing to the ledger, so the daily, per-task and per-agent ceilings were all
+// compared against a counter that never moved. An unpriced model now bills at
+// the conservative fallback rate instead.
+func TestPricing_UnknownModelIsChargedFallbackRate(t *testing.T) {
 	c := costMicrocentsForTest("some-unknown-model-9000", 999_999, 999_999)
-	if c != 0 {
-		t.Errorf("unknown model cost=%d want 0", c)
+	if c <= 0 {
+		t.Fatalf("unknown model cost=%d — a zero charge defeats every spend ceiling at once", c)
+	}
+	// Same math as a priced model, at the fallback rate: near-1 MTok in and out.
+	want := (int64(999_999)*300_000_000 + int64(999_999)*1_500_000_000) / 1_000_000
+	if c != want {
+		t.Errorf("unknown model cost=%d want %d (fallback rate)", c, want)
 	}
 }
 
