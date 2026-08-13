@@ -446,6 +446,42 @@ func TestRepairAgent(t *testing.T) {
 	}
 }
 
+// PE-006: op=edit refuses a System guardian but op=repair did not, so an
+// arbitrary agent could go around the edit guard rather than through it. A repair
+// RUNS the target against a brief and the resolution can rewrite its Soul, which
+// boot reconcile does not re-clamp — so the fleet that supervises the agents was
+// reachable for behavioural defanging by the agents it supervises.
+func TestRepairAgent_RefusesSystemGuardian(t *testing.T) {
+	f := &fakeSource{
+		getOK:     true,
+		getResult: roster.Profile{Slug: "system-doctor", System: true},
+		repairRes: RepairResult{Agent: "system-doctor", Correlation: "corr-1"},
+	}
+	out, isErr := invoke(t, newTool(f), map[string]any{"op": "repair", "agent": "system-doctor", "reason": "defang"})
+	if !isErr {
+		t.Fatalf("op=repair on a system guardian must be refused, got %+v", out)
+	}
+	if f.repaired != "" {
+		t.Fatalf("the repair still ran against %q — the guard must refuse BEFORE dispatching", f.repaired)
+	}
+}
+
+// The operator's own console/CLI repair goes through kernelSource.RepairAgent
+// directly, not this tool, so guarding here must not touch ordinary agents.
+func TestRepairAgent_AllowsOrdinaryAgent(t *testing.T) {
+	f := &fakeSource{
+		getOK:     true,
+		getResult: roster.Profile{Slug: "builder"},
+		repairRes: RepairResult{Agent: "builder", Correlation: "corr-1"},
+	}
+	if out, isErr := invoke(t, newTool(f), map[string]any{"op": "repair", "agent": "builder", "reason": "misconfigured"}); isErr {
+		t.Fatalf("repair of a non-system agent must still work: %v", out)
+	}
+	if f.repaired != "builder" {
+		t.Fatalf("repair target = %q, want builder", f.repaired)
+	}
+}
+
 func TestDeleteAgent(t *testing.T) {
 	f := &fakeSource{deleteOK: true}
 	tool := newTool(f)

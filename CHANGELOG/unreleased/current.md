@@ -488,6 +488,23 @@ This file holds the active `[Unreleased]` working set.
   auth, tenant header, and the full mailbox surface.
 
 ### Fixed
+- **`overseer op=repair` could target a protected system guardian.** `op=edit`
+  has refused System agents for exactly this reason, but `op=repair` did not — and
+  a repair *runs* the target against a brief whose resolution can rewrite that
+  agent's own `Soul`, which boot reconcile does not re-clamp. So an arbitrary
+  agent could aim a repair at a guardian and behaviourally defang the fleet that
+  supervises it, going around the `op=edit` guard rather than through it.
+  Auto-repair already excluded System agents; the agent-reachable tool path now
+  matches. Guarded in the tool layer, not in the shared kernel source: the
+  operator's console/CLI repair button uses the same method, and an operator
+  repairing their own guardian is legitimate — the same split `op=edit` documents.
+- **The operator "Repair" button ran on an unguarded goroutine.** A fourth
+  WF-001 site, missed in the original sweep because it is a closure inside a
+  roster handler rather than in one of the runner packages: it answers "accepted"
+  immediately and then drives a full governed run with nothing above it able to
+  recover. A contained panic now reports as a `failed` phase on the same
+  `agent.repair` operator-action event, so the console shows a failure instead of
+  a request that never completes.
 - **An AWS `credential_process` helper inherited the daemon's entire
   environment.** `cmd.Env` was never set, so an external credential helper — very
   often a third-party binary named by a config file, invoked *precisely* because

@@ -324,6 +324,25 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		if ref == "" {
 			return errResult(`op=repair needs "agent" (the target slug)`), nil
 		}
+		// System guardians are off-limits to the agent-reachable path (PE-006),
+		// matching op=edit. A repair RUNS the target agent against a brief, and
+		// the resolution it produces can rewrite the target's own Soul — which
+		// boot reconcile does not re-clamp. So without this, an arbitrary agent
+		// could aim a repair at a guardian and behaviourally defang the very
+		// fleet that supervises it, going around the op=edit guard rather than
+		// through it. Auto-repair already excludes System agents for the same
+		// reason (kernel/selfrepair's claim filter).
+		//
+		// Guarded HERE and not in kernelSource.RepairAgent: the operator's
+		// console/CLI repair button goes through that same method, and an
+		// operator repairing their own guardian is legitimate. Only the
+		// agent-reachable tool path is restricted — the same split op=edit
+		// documents.
+		if target, found, err := s.GetAgent(ref); err != nil {
+			return errResult(err.Error()), nil
+		} else if found && target.System {
+			return errResult("agent " + target.Slug + " is a protected system guardian — it can be repaired only by an operator, not via the overseer tool"), nil
+		}
 		res, err := s.RepairAgent(ref, strings.TrimSpace(in.Reason))
 		if err != nil {
 			return errResult(err.Error()), nil

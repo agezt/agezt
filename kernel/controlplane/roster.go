@@ -1361,6 +1361,27 @@ func (s *Server) handleAgentRepair(conn net.Conn, req Request) {
 		"parent_incident_id": lineage.parentIncidentID,
 	})
 	go func() {
+		// Panic firewall (WF-001). This is the operator's "Repair" button: it
+		// answers "accepted" immediately and drives a full governed run — provider
+		// calls, tools, plugin subprocesses — on a bare `go`, with nothing above it
+		// able to recover. Missed in the original sweep because the goroutine is a
+		// closure in a roster handler rather than in one of the runner packages.
+		defer func() {
+			r := recover()
+			if r == nil {
+				return
+			}
+			fmt.Fprintf(os.Stderr, "operator repair of %q panicked: %v\n", p.Slug, r)
+			publishOperatorAction(s.k, "agent.repair", corr, map[string]any{
+				"phase":              "failed",
+				"agent":              p.Slug,
+				"reason":             reason,
+				"error":              fmt.Sprintf("repair panicked: %v", r),
+				"incident_id":        lineage.incidentID,
+				"root_incident_id":   lineage.rootIncidentID,
+				"parent_incident_id": lineage.parentIncidentID,
+			})
+		}()
 		src := overseertool.NewKernelSource(s.k, s.baseDir)
 		res, err := src.RepairAgent(p.Slug, reason)
 		if err != nil {
