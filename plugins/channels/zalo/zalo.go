@@ -140,14 +140,12 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m, ts, ok := parseEvent(body)
-	if c.cfg.Secret != "" {
-		// Verify the signature AND reject stale timestamps (±5 min) so a captured
-		// signed event can't be replayed indefinitely. (msg_id replay is also
-		// caught by the dedup ring in dispatch.)
-		if !c.validSignature(body, ts, r.Header.Get("X-ZEvent-Signature")) || !freshTimestamp(ts) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
+	// Verify the signature AND reject stale timestamps (±5 min) so a captured
+	// signed event can't be replayed indefinitely. (msg_id replay is also
+	// caught by the dedup ring in dispatch.)
+	if !c.validSignature(body, ts, r.Header.Get("X-ZEvent-Signature")) || !freshTimestamp(ts) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	if ok {
@@ -281,8 +279,13 @@ func freshTimestamp(ts string) bool {
 }
 
 // validSignature checks Zalo's signature: sha256(appId + body + timestamp +
-// secret), hex, optionally prefixed "mac=".
+// secret), hex, optionally prefixed "mac=". An empty secret fails closed (no
+// unsigned inbound) — the factory gates the listener on the ADDR, not on the
+// secret, and an empty secret would otherwise make the digest attacker-computable.
 func (c *Channel) validSignature(body []byte, timestamp, header string) bool {
+	if c.cfg.Secret == "" || strings.TrimSpace(header) == "" {
+		return false
+	}
 	header = strings.TrimSpace(strings.TrimPrefix(header, "mac="))
 	h := sha256.New()
 	h.Write([]byte(c.cfg.AppID))

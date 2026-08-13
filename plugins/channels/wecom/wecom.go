@@ -157,6 +157,16 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	sig, timestamp, nonce := q.Get("msg_signature"), q.Get("timestamp"), q.Get("nonce")
 
+	// Fail closed on an unconfigured callback token: `signature` below is a plain
+	// SHA-1 over the sorted (token, timestamp, nonce, payload) tuple, so an empty
+	// token makes the expected digest attacker-computable and the comparison
+	// below a no-op. (Decryption is a second gate, not this one.) A missing
+	// msg_signature is already rejected by that comparison once a token is set.
+	if c.cfg.Token == "" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	// GET: URL verification — decrypt echostr and echo the plaintext.
 	if r.Method == http.MethodGet {
 		echo := q.Get("echostr")

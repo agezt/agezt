@@ -153,10 +153,12 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 
 // verify checks the inbound is authentic per platform. Mattermost outgoing
 // webhooks carry a `token` form field; Google Chat callers append ?token= to the
-// endpoint URL. If no Token is configured the check is skipped.
+// endpoint URL. An empty configured token fails closed (no unauthenticated
+// inbound) — the listener must never accept anonymous requests just because the
+// operator set an ADDR and skipped the token.
 func (c *Channel) verify(r *http.Request, body []byte) bool {
 	if c.cfg.Token == "" {
-		return true
+		return false
 	}
 	var got string
 	if c.cfg.Kind == KindMattermost {
@@ -165,6 +167,9 @@ func (c *Channel) verify(r *http.Request, body []byte) bool {
 		}
 	} else {
 		got = r.URL.Query().Get("token")
+	}
+	if got == "" {
+		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(got), []byte(c.cfg.Token)) == 1
 }

@@ -136,7 +136,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	if c.cfg.Secret != "" && !validSign(c.cfg.Secret, r.Header.Get("timestamp"), r.Header.Get("sign")) {
+	if !validSign(c.cfg.Secret, r.Header.Get("timestamp"), r.Header.Get("sign")) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -271,9 +271,10 @@ func (c *Channel) seenBefore(id string) bool {
 
 // validSign verifies DingTalk's outgoing signature:
 // sign = base64(HMAC-SHA256(secret, timestamp + "\n" + secret)). The timestamp
-// must be within ±5 minutes of now (DingTalk's window) to block replay.
+// must be within ±5 minutes of now (DingTalk's window) to block replay. An
+// empty secret fails closed (no unsigned inbound).
 func validSign(secret, timestamp, sign string) bool {
-	if timestamp == "" || sign == "" {
+	if secret == "" || timestamp == "" || sign == "" {
 		return false
 	}
 	ms, err := strconv.ParseInt(timestamp, 10, 64)

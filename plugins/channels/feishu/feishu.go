@@ -150,7 +150,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 	}
 	// url_verification handshake: echo the challenge.
 	if challenge, tok, ok := urlVerification(body); ok {
-		if c.cfg.VerifyToken != "" && subtle.ConstantTimeCompare([]byte(tok), []byte(c.cfg.VerifyToken)) != 1 {
+		if !c.validToken(tok) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -159,7 +159,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m, tok, ok := parseEvent(body)
-	if c.cfg.VerifyToken != "" && subtle.ConstantTimeCompare([]byte(tok), []byte(c.cfg.VerifyToken)) != 1 {
+	if !c.validToken(tok) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -167,6 +167,17 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		c.dispatch(r.Context(), m)
 	}
+}
+
+// validToken constant-time compares the event's "token" against the configured
+// verification token. An empty configured token fails closed (no unverified
+// inbound) — an operator who set an ADDR but skipped AGEZT_FEISHU_VERIFY_TOKEN
+// must not end up accepting anonymous events.
+func (c *Channel) validToken(tok string) bool {
+	if c.cfg.VerifyToken == "" || tok == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(tok), []byte(c.cfg.VerifyToken)) == 1
 }
 
 func (c *Channel) dispatch(ctx context.Context, m inbound) {

@@ -150,12 +150,9 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if c.cfg.Secret != "" {
-		got := r.Header.Get("X-Webhook-Secret")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(c.cfg.Secret)) != 1 {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
+	if !c.verify(r.Header.Get("X-Webhook-Secret")) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxBody))
 	if err != nil {
@@ -174,6 +171,17 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 	for _, m := range msgs {
 		c.dispatch(r.Context(), m)
 	}
+}
+
+// verify constant-time compares the X-Webhook-Secret header against the
+// configured shared secret. An empty configured secret fails closed (no
+// unauthenticated inbound) — the factory gates the listener on the ADDR, not on
+// the secret, so this is the layer that has to hold the invariant.
+func (c *Channel) verify(got string) bool {
+	if c.cfg.Secret == "" || got == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(c.cfg.Secret)) == 1
 }
 
 func (c *Channel) dispatch(ctx context.Context, m inbound) {

@@ -145,7 +145,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	if c.cfg.Secret != "" && !validSignature(c.cfg.Secret, body, r.Header.Get("X-Line-Signature")) {
+	if !validSignature(c.cfg.Secret, body, r.Header.Get("X-Line-Signature")) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -339,7 +339,13 @@ func (c *Channel) fetchContent(ctx context.Context, messageID, kind string) stri
 }
 
 // validSignature checks X-Line-Signature = base64(HMAC-SHA256(secret, body)).
+// An empty secret fails closed (no unsigned inbound). buildLine already refuses
+// to construct the two-way channel without a secret; this keeps the invariant in
+// the layer that enforces it, not only in the layer that configures it.
 func validSignature(secret string, body []byte, header string) bool {
+	if secret == "" || strings.TrimSpace(header) == "" {
+		return false
+	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	want := base64.StdEncoding.EncodeToString(mac.Sum(nil))

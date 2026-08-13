@@ -160,7 +160,7 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad body", http.StatusBadRequest)
 		return
 	}
-	if c.cfg.Secret != "" && !validSignature(c.cfg.Secret, body, r.Header.Get("X-Signature")) {
+	if !validSignature(c.cfg.Secret, body, r.Header.Get("X-Signature")) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -322,7 +322,12 @@ func splitTarget(target string) (mtype, id string) {
 }
 
 // validSignature checks X-Signature = "sha1=" + hex(HMAC-SHA1(secret, body)).
+// An empty secret fails closed (no unsigned inbound) — the factory gates the
+// listener on the ADDR, not on the secret.
 func validSignature(secret string, body []byte, header string) bool {
+	if secret == "" || strings.TrimSpace(header) == "" {
+		return false
+	}
 	header = strings.TrimSpace(strings.TrimPrefix(header, "sha1="))
 	mac := hmac.New(sha1.New, []byte(secret))
 	mac.Write(body)

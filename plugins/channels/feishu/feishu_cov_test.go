@@ -97,11 +97,11 @@ func TestStartServesInboundThenShutsDown(t *testing.T) {
 }
 
 func TestHandlerServesRoute(t *testing.T) {
-	c := New(Config{})
+	c := New(Config{VerifyToken: "vt"})
 	srv := httptest.NewServer(c.Handler())
 	defer srv.Close()
 	resp, err := http.Post(srv.URL+DefaultPath, "application/json",
-		strings.NewReader(`{"challenge":"chal","token":"","type":"url_verification"}`))
+		strings.NewReader(`{"challenge":"chal","token":"vt","type":"url_verification"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,9 +170,10 @@ func TestHandleInboundDispatchesEvent(t *testing.T) {
 
 	done := make(chan struct{}, 1)
 	c := New(Config{
-		Allowlist:  channel.NewAllowlist([]string{"ou_1"}),
-		APIBase:    apiSrv.URL,
-		HTTPClient: apiSrv.Client(),
+		VerifyToken: "vt",
+		Allowlist:   channel.NewAllowlist([]string{"ou_1"}),
+		APIBase:     apiSrv.URL,
+		HTTPClient:  apiSrv.Client(),
 		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
 			handled = true
 			done <- struct{}{}
@@ -181,7 +182,7 @@ func TestHandleInboundDispatchesEvent(t *testing.T) {
 	})
 	srv := httptest.NewServer(c.Handler())
 	defer srv.Close()
-	body := `{"header":{"event_id":"E1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_1"}},"message":{"message_id":"m1","chat_id":"oc_1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`
+	body := `{"header":{"event_id":"E1","token":"vt","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_1"}},"message":{"message_id":"m1","chat_id":"oc_1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`
 	resp, err := http.Post(srv.URL+DefaultPath, "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -197,12 +198,13 @@ func TestHandleInboundDispatchesEvent(t *testing.T) {
 }
 
 func TestHandleInboundBadBody(t *testing.T) {
-	c := New(Config{})
+	c := New(Config{VerifyToken: "vt"})
 	srv := httptest.NewServer(c.Handler())
 	defer srv.Close()
-	// A non-JSON body that isn't url_verification nor a valid event just
+	// An authenticated body that isn't url_verification nor a message event just
 	// yields 200 with no dispatch (parseEvent returns ok=false).
-	resp, err := http.Post(srv.URL+DefaultPath, "application/json", strings.NewReader(`not json`))
+	resp, err := http.Post(srv.URL+DefaultPath, "application/json",
+		strings.NewReader(`{"header":{"token":"vt","event_type":"something.else"}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
