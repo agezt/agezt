@@ -149,17 +149,24 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 
 	requiresApproval := out.RequiresApproval
 	approvalReason := out.Reason
+	// guardRaised names the fail-closed guard that routed this call to approval,
+	// as opposed to the Edict Ask axis (out.RequiresApproval). The session
+	// auto-approve grant below satisfies the Ask axis only: a guard the operator
+	// armed deliberately must not be answered by a blanket capability grant.
+	guardRaised := ""
 	if k.cfg.EpistemicEscalation && verdict.Allow && ep.escalates() {
 		requiresApproval = true
 		approvalReason = ep.Reason
 		verdict.Allow = false
 		verdict.WouldAsk = true
+		guardRaised = "epistemic escalation"
 	}
 	if k.cfg.IntentRegretGating && verdict.Allow && hasIntentFrame && intentmodel.RequiresConfirmation(intentFrame, regretAxes) {
 		requiresApproval = true
 		approvalReason = confirmationPrompt
 		verdict.Allow = false
 		verdict.WouldAsk = true
+		guardRaised = "intent/regret gating"
 		k.publishIntentConfirmationRequired(correlationFromCtx(ctx), actorFromCtx(ctx), intentFrame, regretAxes, confirmationPrompt)
 	}
 	// Prompt-injection guard: an effectful action within the causal window of a
@@ -174,6 +181,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 			approvalReason = "prompt-injection guard: effectful action is downstream of directive-like untrusted observation from " + strings.Join(taint.Sources, ", ")
 			verdict.Allow = false
 			verdict.WouldAsk = true
+			guardRaised = "prompt-injection guard"
 		} else {
 			k.publishPromptInjectionWarned(correlationFromCtx(ctx), actorFromCtx(ctx), tc.Name, string(out.Capability), taint.Sources, trustedObservations(ctx))
 		}
@@ -184,7 +192,14 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 	// approval without prompting and journal it as an auto-grant (WouldAsk stays
 	// true so `agt why` shows it would have asked). Hard-denies never reach here
 	// (they resolve to deny, not approval), so this can't override the F4 floor.
-	if requiresApproval && autoApproveCap(ctx, string(out.Capability)) {
+	//
+	// It does not satisfy a fail-closed guard either. The grant answers the Edict
+	// Ask axis; the guards above (epistemic escalation, intent/regret gating, the
+	// prompt-injection guard) are each armed by their own opt-in setting, and a
+	// blanket capability grant is not an answer to a question they asked for a
+	// different reason. Such a call falls through to live HITL carrying the
+	// guard's own reason string, so the operator sees which guard stopped it.
+	if requiresApproval && guardRaised == "" && autoApproveCap(ctx, string(out.Capability)) {
 		verdict.Allow = true
 		verdict.WouldAsk = true
 		k.publishAutoApprove(correlationFromCtx(ctx), actorFromCtx(ctx), string(out.Capability), tc.Name)

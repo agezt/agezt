@@ -259,9 +259,11 @@ type Config struct {
 
 	// AutoApproveCapabilities is a daemon-wide operator grant for capabilities
 	// that should not block in live HITL mode. It is applied to every run and
-	// inherited by sub-agents. It only satisfies approvals the policy already
-	// routed to HITL; it never overrides hard-deny, explicit tool-deny, SSRF,
-	// budgets, or other fail-closed guards.
+	// inherited by sub-agents. It satisfies only approvals raised by the Edict
+	// Ask axis; it never overrides hard-deny, explicit tool-deny, SSRF, budgets,
+	// or other fail-closed guards — including the prompt-injection guard,
+	// epistemic escalation, and intent/regret gating, each of which routes to
+	// live HITL regardless of this grant.
 	AutoApproveCapabilities map[string]bool
 
 	// AutoPromoteScriptTools lets a tested tool_forge draft go live immediately
