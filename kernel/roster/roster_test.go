@@ -442,6 +442,58 @@ func TestUpdate_ProtectsIdentity(t *testing.T) {
 	}
 }
 
+// TestUpdate_ProtectsSystemFlag guards MASS-003.
+//
+// System marks a SHIPPED guardian and gates the protections at roster.go:212
+// and :497. It is kernel-owned: nothing on a mutation path may set or clear
+// it. The clamp in Update restored id/slug/created/enabled and the graveyard
+// fields but omitted System, so a mutator that assigned the whole struct
+// (`*dst = in`) could promote an ordinary agent into a protected guardian, or
+// strip the flag off a real one. No mutator does that today — this test is
+// what keeps it that way.
+func TestUpdate_ProtectsSystemFlag(t *testing.T) {
+	s := openStore(t)
+
+	// A plain agent cannot promote itself.
+	if _, err := s.Add(Profile{Slug: "ops"}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	got, err := s.Update("ops", func(dst *Profile) {
+		dst.Soul = "v2"
+		dst.System = true
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.System {
+		t.Error("System was set through Update: an ordinary agent promoted itself to a protected guardian (MASS-003)")
+	}
+	if got.Soul != "v2" {
+		t.Errorf("Soul = %q, want the mutation to have applied", got.Soul)
+	}
+	if cur, _ := s.Get("ops"); cur.System {
+		t.Error("System persisted as true in the store")
+	}
+
+	// A real guardian cannot be demoted.
+	if _, err := s.Add(Profile{Slug: "guardian", System: true}); err != nil {
+		t.Fatalf("Add(guardian): %v", err)
+	}
+	if cur, _ := s.Get("guardian"); !cur.System {
+		t.Fatal("fixture guardian did not retain System on Add")
+	}
+	demoted, err := s.Update("guardian", func(dst *Profile) { dst.System = false })
+	if err != nil {
+		t.Fatalf("Update(guardian): %v", err)
+	}
+	if !demoted.System {
+		t.Error("System was cleared through Update: a protected guardian lost its protection (MASS-003)")
+	}
+	if cur, _ := s.Get("guardian"); !cur.System {
+		t.Error("System cleared in the store for a protected guardian")
+	}
+}
+
 // TestSetEnabled_And_Remove: pause/resume round-trips; remove by slug works
 // and reports existence.
 func TestSetEnabled_And_Remove(t *testing.T) {

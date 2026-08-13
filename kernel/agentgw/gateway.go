@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -125,6 +126,32 @@ func (g *Gateway) SetConfigCenter(center *configcenter.Center) {
 	g.configHandler = NewConfigHandler(center, g.capCheck)
 }
 
+// listenTarget maps a configured socket path onto the (network, address) pair
+// to hand net.ListenConfig.Listen. Three forms select a unix domain socket —
+// a leading '@' (abstract namespace, the default), an explicit "unix://"
+// prefix, and a plain absolute path — and anything else is treated as TCP.
+//
+// Split out of Listen so each transport branch is assertable without binding a
+// real socket: AC-007 was a dead "unix://" branch (a 6-byte slice compared to
+// the 7-byte literal) that silently downgraded filesystem sockets to cleartext
+// TCP, and nothing covered the mapping.
+func listenTarget(sockPath string) (network, addr string) {
+	switch {
+	case strings.HasPrefix(sockPath, "@"):
+		// Abstract unix socket (the default, e.g. @agezt/agentgw.sock). Go maps
+		// the leading @ to the abstract namespace on Linux; without this case it
+		// fell through to net.Listen("tcp", ...) and failed everywhere.
+		return "unix", sockPath
+	case strings.HasPrefix(sockPath, "unix://"):
+		return "unix", strings.TrimPrefix(sockPath, "unix://")
+	case len(sockPath) >= 4 && sockPath[0] == '/' && sockPath[1] != '/':
+		// Plain absolute path.
+		return "unix", sockPath
+	default:
+		return "tcp", sockPath
+	}
+}
+
 // Listen starts the gateway server.
 // Supports both Unix domain sockets and TCP sockets.
 // Use tcp://host:port format for TCP, or a Unix socket path otherwise.
@@ -172,10 +199,6 @@ func (g *Gateway) Listen(ctx context.Context) error {
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
-	var ln net.Listener
-	var err error
-
-	// Support both TCP (tcp://host:port) and Unix socket (unix:/path or /path)
 	// Use a ListenConfig with SO_REUSEADDR so that consecutive test runs
 	// (-count=N) don't fail with "address already in use" when the
 	// previous listener's abstract socket hasn't fully released yet.
@@ -183,24 +206,8 @@ func (g *Gateway) Listen(ctx context.Context) error {
 		Control: setSockOpt,
 	}
 
-	switch {
-	case len(g.sockPath) >= 1 && g.sockPath[0] == '@':
-		// Abstract unix socket (the default, e.g. @agezt/agentgw.sock). Go maps
-		// the leading @ to the abstract namespace on Linux; without this case it
-		// fell through to net.Listen("tcp", ...) and failed everywhere.
-		ln, err = lc.Listen(ctx, "unix", g.sockPath)
-	case len(g.sockPath) >= 7 && g.sockPath[:6] == "unix://":
-		// Unix socket with explicit prefix
-		socketPath := g.sockPath[6:]
-		ln, err = lc.Listen(ctx, "unix", socketPath)
-	case len(g.sockPath) >= 4 && g.sockPath[0] == '/' && g.sockPath[1] != '/':
-		// Unix socket path (starts with / but not //)
-		ln, err = lc.Listen(ctx, "unix", g.sockPath)
-	default:
-		// TCP socket
-		ln, err = lc.Listen(ctx, "tcp", g.sockPath)
-	}
-
+	network, addr := listenTarget(g.sockPath)
+	ln, err := lc.Listen(ctx, network, addr)
 	if err != nil {
 		return fmt.Errorf("agentgw: listen: %w", err)
 	}
@@ -446,8 +453,11 @@ func (g *Gateway) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 		MaxRate:       maxRate,
 		MaxBurst:      maxBurst,
 		ExpiresAt:     exp,
-		ParentTokenID: parent.RunID,
-		SubprocessID:  req.SubID,
+		ParentTokenID: parent.TokenID, // the parent TOKEN, not its run — all children of a
+		// run share one RunID, so recording that here loses token-level
+		// attribution in auditAccess (JWT-002). CreateSubprocessToken, the same
+		// operation in the library, has always used parent.TokenID.
+		SubprocessID: req.SubID,
 	}
 
 	token, err := g.tokenMgr.CreateToken(claims)

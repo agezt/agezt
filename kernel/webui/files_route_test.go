@@ -5,8 +5,10 @@ package webui
 import (
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -146,6 +148,72 @@ func TestFiles_Raw_StreamsBytesAndHonoursCap(t *testing.T) {
 	rec = httpJSON(t, s.Handler(), http.MethodGet, "/api/files/raw?path=snippet.go&token=secret", "")
 	if rec.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("over-cap: code=%d, want 413", rec.Code)
+	}
+}
+
+// TestFiles_Raw_DownloadFilenameIsSanitized guards INJ-003.
+//
+// The raw download built `attachment; filename="<base>"` by concatenation. A
+// filename containing a double quote — legal on Linux and macOS, and an agent
+// can create one — closes the quoted string early and lets the rest of the
+// name supply attacker-chosen Content-Disposition parameters, so the browser
+// saves the file under a spoofed name. The sibling artifact route has always
+// run the same value through sanitizeFilename; this one did not.
+//
+// Response splitting is separately impossible here (Go rewrites CR/LF in
+// header values), so the quote breakout is the whole finding.
+func TestFiles_Raw_DownloadFilenameIsSanitized(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip(`Windows does not permit '"' in a filename, so the breakout cannot be staged here`)
+	}
+	root := t.TempDir()
+	withFileRoot(t, root)
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+
+	// A quote closes the quoted-string; the tail then reads as extra
+	// Content-Disposition parameters naming a different, executable file.
+	const evil = `report".txt"; filename="pwn.sh`
+	if err := os.WriteFile(filepath.Join(root, evil), []byte("x\n"), 0o600); err != nil {
+		t.Skipf("cannot stage a quoted filename on this filesystem: %v", err)
+	}
+
+	rec := httpJSON(t, s.Handler(), http.MethodGet,
+		"/api/files/raw?path="+url.QueryEscape(evil)+"&download=1&token=secret", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("raw: code=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	cd := rec.Header().Get("Content-Disposition")
+	if cd == "" {
+		t.Fatal("missing Content-Disposition on a download=1 request")
+	}
+
+	// The header must still parse as one well-formed disposition carrying a
+	// single filename. Unsanitized, it reads as
+	//   attachment; filename="report".txt"; filename="pwn.sh"
+	// where the quote ends the value early and the tail becomes extra
+	// parameters.
+	typ, params, err := mime.ParseMediaType(cd)
+	if err != nil {
+		t.Fatalf("Content-Disposition = %q does not parse: %v — the filename broke out of its quoted string (INJ-003)", cd, err)
+	}
+	if typ != "attachment" {
+		t.Errorf("disposition type = %q, want %q", typ, "attachment")
+	}
+	if len(params) != 1 {
+		t.Errorf("Content-Disposition = %q yielded %d parameters %v, want exactly 1 (filename) — the value broke out (INJ-003)", cd, len(params), params)
+	}
+	// The whole hostile name must survive as ONE inert filename value, with the
+	// quote neutralised rather than honoured as a delimiter.
+	if got, want := params["filename"], sanitizeFilename(evil); got != want {
+		t.Errorf("filename = %q, want %q (sanitizeFilename output)", got, want)
+	}
+	if strings.Contains(params["filename"], `"`) {
+		t.Errorf("filename %q still contains a raw quote", params["filename"])
+	}
+	// And the route must reuse the existing helper rather than invent a second policy.
+	if want := `attachment; filename="` + sanitizeFilename(evil) + `"`; cd != want {
+		t.Errorf("Content-Disposition = %q, want %q", cd, want)
 	}
 }
 

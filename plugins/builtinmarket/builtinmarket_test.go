@@ -39,6 +39,61 @@ func TestNew_IncludesCombos(t *testing.T) {
 	}
 }
 
+// TestSeededPacks_ReferenceOnlyPublishedPackages guards DEP-006.
+//
+// The web-research-pro combo seeded `npx -y @modelcontextprotocol/server-fetch`,
+// a name that has never been published to npm — the fetch server ships on PyPI
+// as mcp-server-fetch, which is exactly what the UI catalog in Mcp.tsx already
+// launches. Functionally the preset just failed; structurally it is a shipped
+// reference to an unpublished name, the shape of a dependency-confusion
+// foothold if scope ownership ever changed.
+func TestSeededPacks_ReferenceOnlyPublishedPackages(t *testing.T) {
+	// Names verified absent from their registry. A seeded pack must not launch
+	// any of them.
+	unpublished := []string{
+		"@modelcontextprotocol/server-fetch",
+	}
+
+	for _, p := range New().packs {
+		for _, srv := range p.MCPServers {
+			for _, arg := range srv.Args {
+				for _, bad := range unpublished {
+					if arg == bad {
+						t.Errorf("pack %q launches %s %v, which references the unpublished package %q (DEP-006)",
+							p.Name, srv.Command, srv.Args, bad)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestWebResearchPro_UsesThePyPIFetchServer pins the specific replacement, so a
+// future edit cannot quietly revert to the npm spelling.
+func TestWebResearchPro_UsesThePyPIFetchServer(t *testing.T) {
+	var found bool
+	for _, p := range New().packs {
+		if p.Name != "web-research-pro" {
+			continue
+		}
+		for _, srv := range p.MCPServers {
+			if srv.Name != "fetch" {
+				continue
+			}
+			found = true
+			if srv.Command != "uvx" {
+				t.Errorf("fetch server Command = %q, want %q — the fetch MCP server is a PyPI artifact (DEP-006)", srv.Command, "uvx")
+			}
+			if len(srv.Args) != 1 || srv.Args[0] != "mcp-server-fetch" {
+				t.Errorf("fetch server Args = %v, want [mcp-server-fetch]", srv.Args)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("web-research-pro no longer declares a fetch MCP server; update this test deliberately")
+	}
+}
+
 func TestLibrary_Marketplaces_ReturnsOfficialCatalogue(t *testing.T) {
 	l := New()
 	mps := l.Marketplaces()

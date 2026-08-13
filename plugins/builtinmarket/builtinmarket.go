@@ -60,9 +60,11 @@ type combo struct {
 var combos = []combo{
 	{
 		name: "web-research-pro", skills: []string{"webresearch"}, category: "web", featured: true,
-		desc:  "Cited web research with a fetch MCP server and fast local search tools.",
-		tags:  []string{"web", "research", "mcp"},
-		mcp:   []mcp.Server{{Name: "fetch", Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-fetch"}, Description: "HTTP fetch for the agent", Lazy: true}},
+		desc: "Cited web research with a fetch MCP server and fast local search tools.",
+		tags: []string{"web", "research", "mcp"},
+		// The fetch server ships on PyPI, not npm — @modelcontextprotocol/server-fetch
+		// has never been published (DEP-006). The UI catalog (Mcp.tsx) already has this right.
+		mcp:   []mcp.Server{{Name: "fetch", Command: "uvx", Args: []string{"mcp-server-fetch"}, Description: "HTTP fetch for the agent", Lazy: true}},
 		tools: []string{"rg", "fd"},
 	},
 	{

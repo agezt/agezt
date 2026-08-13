@@ -852,6 +852,7 @@ func (s *Store) Update(ref string, mutate func(*Profile)) (Profile, error) {
 	// agent's ADDRESS — renaming it would orphan every reference to it.
 	p.ID, p.Slug, p.CreatedMS, p.Enabled = snapshot.ID, snapshot.Slug, snapshot.CreatedMS, snapshot.Enabled
 	p.Retired, p.RetiredMS, p.RetiredReason = snapshot.Retired, snapshot.RetiredMS, snapshot.RetiredReason // graveyard state has its own setter (M846)
+	p.System = snapshot.System                                                                             // kernel-owned: System marks a protected guardian. No mutator writes it today, but a future one doing *dst = in would otherwise allow self-promotion (MASS-003).
 	now := s.now().UnixMilli()
 	normalizeProfile(p, now)
 	p.UpdatedMS = now

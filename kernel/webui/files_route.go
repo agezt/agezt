@@ -374,7 +374,7 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	download := r.URL.Query().Get("download") == "1"
-	name := filepath.Base(targetAbs)
+	name := sanitizeFilename(filepath.Base(targetAbs))
 	if download {
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
 	}

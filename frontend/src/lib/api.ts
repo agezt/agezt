@@ -7,8 +7,24 @@
 // Guard `location` so importing this module never throws under a node test
 // environment (pure-logic specs that transitively import it); in the browser
 // this is always defined.
-const TOKEN =
-  typeof location !== "undefined" ? new URLSearchParams(location.search).get("token") || "" : "";
+// readAndScrubToken takes the token off the address bar the moment it is read.
+// It stays in memory; leaving it in the URL puts a live console credential into
+// browser history, the window title, bookmarks, and the Referer of anything the
+// console ever links out to. replaceState rewrites the current entry rather than
+// pushing one, so Back still behaves and a reload no longer re-reads it.
+export function readAndScrubToken(): string {
+  if (typeof location === "undefined") return "";
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+  if (token && typeof history !== "undefined" && typeof history.replaceState === "function") {
+    params.delete("token");
+    const qs = params.toString();
+    history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : "") + location.hash);
+  }
+  return token;
+}
+
+const TOKEN = readAndScrubToken();
 
 // SSE_TOKEN is the ephemeral SSE-only token for the /events EventSource URL.
 // Fetched once at module load from /api/sse-token (which requires the main

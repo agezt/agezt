@@ -65,6 +65,39 @@ describe("Research", () => {
     expect(link.getAttribute("href")).toBe("https://example.com/rayleigh");
   });
 
+  // REDIR-001: report.sources[].url is LLM- and fetched-page-derived. It must
+  // go through safeHref, the guard this codebase already applies in
+  // lib/markdown.ts and views/Data.tsx, so a script-scheme URL renders as an
+  // inert link instead of a navigable one. The server currently admits only
+  // http(s) hits (runtime/research.go), so this is the defence-in-depth layer
+  // under that filter — and the layer that carries the weight if the console
+  // CSP is ever relaxed.
+  it("neutralises script-scheme source URLs instead of rendering them as hrefs", async () => {
+    postJSON.mockResolvedValue({
+      ...sampleReport,
+      sources: [
+        { id: "S1", url: "javascript:alert(document.cookie)", title: "hostile source", rank: 1 },
+        { id: "S2", url: "data:text/html,<script>alert(1)</script>", title: "data source", rank: 2 },
+        { id: "S3", url: "https://example.com/ok", title: "benign source", rank: 3 },
+      ],
+    });
+    render(<Research />);
+    fireEvent.change(screen.getByLabelText("Research question"), { target: { value: "q" } });
+    fireEvent.click(screen.getByRole("button", { name: /^research$/i }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledTimes(1));
+
+    const hostile = await screen.findByText("hostile source");
+    const hostileHref = hostile.closest("a")?.getAttribute("href") ?? "";
+    expect(hostileHref).toBe("");
+
+    const dataSource = screen.getByText("data source");
+    expect(dataSource.closest("a")?.getAttribute("href") ?? "").toBe("");
+
+    // The guard must not break ordinary links.
+    const benign = screen.getByText("benign source");
+    expect(benign.closest("a")?.getAttribute("href")).toBe("https://example.com/ok");
+  });
+
   it("can disable verification before running", async () => {
     postJSON.mockResolvedValue({ ...sampleReport, verified: false, claims: [] });
     render(<Research />);

@@ -167,7 +167,16 @@ export function BlobArtifact({ entry, kind, alt, title, className }: { entry: Ar
       </p>
     );
   }
-  if (kind === "pdf") return <iframe src={href} title={title || entry.name || "pdf"} className={className} />;
+  if (kind === "pdf")
+    return (
+      <iframe
+        src={href}
+        sandbox=""
+        referrerPolicy="no-referrer"
+        title={title || entry.name || "pdf"}
+        className={className}
+      />
+    );
   return <img src={href} alt={alt || entry.caption || entry.name || "image"} className={className} loading="lazy" />;
 }
 

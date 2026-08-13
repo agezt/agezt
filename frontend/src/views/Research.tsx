@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Telescope, Send, Loader2, CheckCircle2, XCircle, HelpCircle, ExternalLink } from "lucide-react";
 import { postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -220,7 +221,7 @@ export function Research() {
                 {report.sources!.map((s) => (
                   <a
                     key={s.id}
-                    href={s.url}
+                    href={safeHref(s.url)}
                     target="_blank"
                     rel="noreferrer noopener"
                     className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-panel/60"
