@@ -1,386 +1,622 @@
-# Access Control Results — `sc-auth` + `sc-authz`
+# AGEZT — Access-Control Domain Results (Phase 2)
 
-**Target:** AGEZT @ `main` `f815f56e`
-**Date:** 2026-08-12
-**Scope:** `kernel/auth`, `kernel/httpserver`, `kernel/restapi`, `kernel/webui`,
-`kernel/controlplane`, `kernel/tenant`, `kernel/tenantctx`, plus the daemon wiring in
-`cmd/agezt/httpsurfaces.go` that determines the effective policy of those packages.
-**Method:** read-only source review. Nothing in the tree was modified.
+**Target:** `D:/Codebox/PROJECTS/AGEZT` · **Commit:** `e0041337` (`main`)
+**Skills applied:** `sc-auth`, `sc-authz`, `sc-privilege-escalation`, `sc-session`
+**Scope:** authentication, authorization/capability enforcement, privilege escalation
+(operator↔agent boundary), session lifecycle.
 
-Five findings. Two are High/Medium-impact and concrete; three are lower-severity
-latent gaps in the centralisation the new `kernel/httpserver` router is supposed to
-guarantee. Section 6 lists what was checked and found correct, so a verifier does not
-re-tread it.
+Every `file:line` below was read directly in this pass. Where the Phase-1 recon map made a
+claim I could not confirm, the refutation is recorded in **§ Verified safe / refuted**.
 
 ---
 
-## AUTH-001 — Console password-strict mode is disarmed at boot; a non-loopback console falls back to single-factor
+## Findings by severity
 
-- **Severity:** High
-- **Confidence:** 88
-- **CWE:** CWE-863 (Incorrect Authorization), via CWE-696 (Incorrect Behavior Order)
-- **File:**
-  - `D:\Codebox\PROJECTS\AGEZT\cmd\agezt\httpsurfaces.go:114` and `:125`
-  - `D:\Codebox\PROJECTS\AGEZT\cmd\agezt\httpsurfaces.go:243` (`webAllowedHosts`)
-  - `D:\Codebox\PROJECTS\AGEZT\kernel\webui\webui.go:139-163` (`SetAllowedHosts`)
-  - `D:\Codebox\PROJECTS\AGEZT\kernel\webui\session.go:138-142` (`SetPasswordStrict`)
-  - `D:\Codebox\PROJECTS\AGEZT\kernel\webui\webui.go:1443-1452` (`authorized`)
-
-### Description
-
-`webui.SetAllowedHosts` documents and implements an automatic second-factor
-escalation: registering any non-loopback host means the console is reachable beyond
-localhost, so `s.passwordStrict = true` — the bearer token AND the password session are
-then both required on every data route. `Server.authorized` honours that:
-
-```go
-if s.passwordStrictOn() { return s.dataTokenPresented(r) && s.sessionValid(r) }
-return s.dataTokenPresented(r) || s.sessionValid(r)   // alternative-door default
-```
-
-The daemon defeats this control in two independent ways.
-
-**(a) Overwrite by initialization order.** `buildWebUI` calls
-`SetAllowedHosts(...)` at line 114 and then `SetPasswordStrict(passwordStrict)` at
-line 125. `SetPasswordStrict` assigns unconditionally (`s.passwordStrict = on`), and
-`passwordStrict` is `AGEZT_WEB_PASSWORD_STRICT == "on"` — false by default. So any
-strict flag the auto-escalation just raised is immediately cleared. This is the exact
-path taken by an explicit non-loopback bind (`AGEZT_WEB_ADDR=192.168.1.10:8787` →
-`webAllowedHosts` returns `["192.168.1.10"]`) and by `AGEZT_WEB_ALLOWED_HOSTS`
-(reverse-proxy / domain deployments — the deployment the comment was written for).
-
-**(b) Trigger never evaluated for a wildcard bind.** `webAllowedHosts`
-(`httpsurfaces.go:246`) skips unspecified IPs, so an `AGEZT_WEB_ADDR=0.0.0.0:8787`
-bind registers *no* allowed host and `SetAllowedHosts` returns early on
-`len(hosts) == 0`. The console is nevertheless reachable from the whole LAN, because
-`hostAllowed` (`webui.go:1337-1339`) accepts **any** IP-literal `Host` header
-(`return !ip.IsUnspecified()`). Strict mode therefore never arms for the most common
-"expose it to my network" configuration.
-
-The tunnel path is *not* affected: `buildTunnel`'s `OnURL` callback invokes
-`web.allowHost(host)` at runtime, long after line 125, so a tunnelled console does get
-strict mode. That the runtime path works and the static path does not is what makes
-this look accidental rather than intended.
-
-### Exploit scenario
-
-Operator runs `AGEZT_WEB_PASSWORD='<chosen password>' AGEZT_WEB_ADDR=0.0.0.0:8787 agezt`
-(or binds a LAN IP). They read `SetAllowedHosts`' contract — "a guessed password alone
-is insufficient — the bearer token is also required" — and believe the console is
-two-factor. It is not; `authorized()` runs the `||` branch.
-
-An attacker on the same network browses to `http://192.168.1.10:8787/`, is served the
-SPA shell (`/` is `TierPublic`), and posts to the token-free `/api/login`. The lockout
-is 8 consecutive failures per 5 minutes, global rather than per-source and reset on any
-success — roughly 2,300 guesses/day against a single human-chosen password, with no
-alerting requirement. On success the browser holds a 12-hour sliding session cookie that
-opens the entire authenticated console with no second factor:
-
-- `POST /api/run` — arbitrary governed agent runs (spends the operator's provider budget)
-- `POST /api/files/mkdir|rename|delete`, `GET /api/files/raw` — the workspace filesystem
-- `POST /api/config/set` — writes settings and secrets into the vault
-- `POST /api/toolbox/install` — invokes the host package manager
-- `POST /api/halt`, `/api/agents/*`, `/api/schedule/*`, `/api/edict/set_mode` — full control-plane mutation surface
-
-### Remediation
-
-Make the escalation monotonic. Either have `SetPasswordStrict(false)` refuse to lower a
-strict flag that host policy raised (an explicit `ForcePasswordStrict(false)` for the
-opt-out), or move the `SetPasswordStrict` call before `SetAllowedHosts` in
-`buildWebUI`. Separately, treat a wildcard/unspecified bind as non-loopback for the
-strict decision — the listener being `0.0.0.0` is *stronger* evidence of exposure than a
-named host, not weaker.
+| ID | Title | Sev | Conf |
+|---|---|---|---|
+| AC-001 | Trust ceilings are operationally inert — L1–L3 folds to Allow under both the default *and* the hardened approval mode | **Critical** | 95 |
+| AC-002 | Agent permanently disables the system-guardian fleet via `overseer op=retire`/`op=pause` — bypasses the System guard *and* `AGEZT_OVERSEER_FLEET_LOCK` | **High** | 92 |
+| AC-003 | `overseer op=wake` is a confused deputy: dispatches on `context.Background()`, dropping trust ceiling, injection taint and intent frame | **High** | 88 |
+| AC-004 | The `config` tool lets an agent rewrite the daemon's own security posture (no field is `ReadOnly`/`Locked`) | **High** | 90 |
+| AC-005 | Hardcoded default console password `"agezt"` opens 180+ mutating routes on the default-ON console | **Medium** | 90 |
+| AC-006 | No session invalidation on password change; sliding 12 h TTL never expires an active session | **Medium** | 85 |
+| AC-007 | `unix://` gateway socket form can never match — silently falls through to the TCP branch | **Medium** | 95 |
+| AC-008 | Agent gateway: no peer-credential check, no socket ACL, unauth `/health`, no token revocation | **Low** | 85 |
+| AC-009 | Console login lockout resets its own counter, yielding unlimited 8-per-5-min guessing; lockout is daemon-global | **Low** | 90 |
+| AC-010 | Console token printed into the public tunnel URL when `AGEZT_WEB_PASSWORD_STRICT=on` | **Low** | 80 |
 
 ---
 
-## AUTH-002 — Hardcoded default console password `agezt`
+### AC-001 — Trust ceilings are operationally inert
 
-- **Severity:** Medium
-- **Confidence:** 95 (the literal is unambiguous; only the reachability of the local
-  attacker moves the severity)
-- **CWE:** CWE-1392 (Use of Default Credentials); CWE-798 (Hardcoded Credentials)
-- **File:** `D:\Codebox\PROJECTS\AGEZT\cmd\agezt\httpsurfaces.go:205-219`
+**Severity:** Critical · **Confidence:** 95 · **CWE-863** (Incorrect Authorization), **CWE-1188** (Insecure Default)
 
-### Description
+**Files:**
+`kernel/edict/edict.go:804-807`, `:825-853` · `cmd/agezt/main.go:3845-3859`, `:3888-3918` ·
+`kernel/runtime/policy.go:187-192` · `kernel/runtime/runtime.go:1970-1971`
+
+The trust-ceiling mechanism is the codebase's stated defence for every unattended or
+lower-trust execution context. It clamps correctly:
 
 ```go
-const defaultLoopbackWebPassword = "agezt"
-
-func effectiveWebPassword(addr string) string {
-	if v := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "WEB_PASSWORD")); v != "" { return v }
-	switch strings.ToLower(...Getenv(brand.EnvPrefix + "WEB_PASSWORD_DEFAULT")) { case "off", ...: return "" }
-	if isLoopback(addr) { return defaultLoopbackWebPassword }
-	return ""
+// kernel/edict/edict.go:804-807
+if ceiling < lvl {
+    lvl = ceiling
+    ceilNote = fmt.Sprintf(" (clamped to ceiling %s)", ceiling)
 }
 ```
 
-Every default (loopback) daemon therefore ships with a known console password, and
-`authorized()` in the non-strict default treats the password session as a **complete
-alternative credential** — not a second factor. The password is a fixed literal in a
-public repository; it is not per-install, not derived, and there is no forced change on
-first login.
-
-### Exploit scenario
-
-Any principal that can open a TCP connection to `127.0.0.1:8787` but does *not* have the
-bearer token — a second local user account on a shared workstation or build host, a
-sidecar container sharing the host network namespace, any locally-running unprivileged
-process — performs:
-
-```
-POST http://127.0.0.1:8787/api/login   {"password":"agezt"}
-```
-
-`sameOriginMutation` passes because a non-browser client sends no `Origin`, and
-`hostAllowed` passes because `127.0.0.1` is an IP literal. The response sets
-`agezt_web_session`, which opens every data route listed in AUTH-001. This converts
-"can run code as another local user" into "full daemon admin, arbitrary agent runs on
-the operator's budget, vault writes".
-
-A secondary chain worth a verifier's attention: the `code_exec` sandbox is documented in
-this project as deliberately network-enabled and allow-by-default. If sandboxed tool code
-can reach host loopback, then prompt-injected agent content reaches the same login
-endpoint, escalating a content-level compromise to console admin. I did not verify the
-sandbox's loopback reachability, so this is stated as a hypothesis, not a claim.
-
-### Remediation
-
-Mint a random per-install first-run password (like the console token already is), print
-it once on the banner, and force a change on first successful login. If a memorable
-first-run password is a hard product requirement, gate every data route behind
-`passwordStrict` until the default has been replaced.
-
----
-
-## AUTHZ-001 — `/metrics` sits one tier below its daemon-global siblings; a per-tenant credential reads primary-kernel spend and activity
-
-- **Severity:** Medium
-- **Confidence:** 85
-- **CWE:** CWE-863 (Incorrect Authorization); CWE-200 (Exposure of Sensitive Information)
-- **File:**
-  - `D:\Codebox\PROJECTS\AGEZT\kernel\restapi\restapi.go:212-214` (registration)
-  - `D:\Codebox\PROJECTS\AGEZT\kernel\restapi\restapi.go:280-306` (`handleMetrics` — no `s.bind`)
-  - `D:\Codebox\PROJECTS\AGEZT\cmd\agezt\httpsurfaces.go:508`, `:597-661` (`restMetrics(k)` closes over the **primary** kernel)
-  - `D:\Codebox\PROJECTS\AGEZT\kernel\httpserver\auth.go:70-78` (tenant credential satisfies `TierUser`)
-
-### Description
-
-`/metrics` is registered as `metricsRoute := userRoute` — `TierUser`. In
-`Authenticator.Authorized`, `TierUser` is satisfied *either* by the daemon admin token
-*or*, when `TenantAuthorize` is wired, by any tenant's own token presented with a
-matching `X-Agezt-Tenant` header. `SetTenantAuthorizer` is wired whenever the tenant
-registry exists (`httpsurfaces.go:519`).
-
-But `handleMetrics` never calls `s.bind(r)`. It formats whatever `s.metrics()` returns,
-and the daemon binds that closure to the **primary** kernel `k`
-(`rest.SetMetrics(func() []restapi.Metric { return restMetrics(k) })`). The response is
-daemon-global, not tenant-scoped:
-
-`agezt_spend_today_microcents`, `agezt_budget_ceiling_microcents`, `agezt_active_runs`,
-`agezt_memory_records`, `agezt_world_entities`, `agezt_active_skills`,
-`agezt_pending_approvals`, `agezt_journal_head_seq`, `agezt_journal_bytes`,
-`agezt_schedules_total/enabled`, `agezt_disk_free_bytes`.
-
-This is precisely the reasoning the same file applies to its siblings and reaches the
-opposite conclusion for them:
-
-- `restapi.go:221-230` — mailbox routes are `adminRoute`/`adminBodyRoute` because "the
-  board is a single daemon-global instance with no tenant partition, so it is gated to
-  the admin tier only — a per-tenant token must not reach it" (V-011).
-- `restapi.go:232-234` — update routes are admin-only because self-update "changes
-  host-global daemon state".
-- `restapi.go:209-211` — `/metrics` itself was deliberately moved *off* the public tier
-  because "it exposes spend and activity volume (financially/operationally sensitive)".
-
-The route is one tier short of the classification its own comment gives it. The same
-`s.bind` omission also affects `/api/v1/health` (`restapi.go:310-321`) and
-`/api/v1/models` (`restapi.go:325-345`), which report the primary engine's default model
-and model count regardless of the tenant header — lower sensitivity, same root cause.
-
-### Exploit scenario
-
-Multi-tenant daemon with `AGEZT_REST_ADDR` set. Tenant `acme` legitimately holds its own
-`.tenant-token` (minted by `tenant.Registry.Acquire`) and is by design confined to its
-own kernel on every other route.
-
-```
-curl -H 'Authorization: Bearer <acme-tenant-token>' \
-     -H 'X-Agezt-Tenant: acme' \
-     http://daemon:PORT/metrics
-```
-
-`Authorized(r, TierUser)` → admin compare fails → `TenantAuthorize("acme", tok)` → true.
-`handleMetrics` returns the operator's daemon-wide daily spend, budget ceiling, in-flight
-run count, memory/world/skill inventory sizes and journal growth. Polled on a timer this
-is a continuous side channel on every *other* tenant's workload and on the operator's
-cost position — data `acme` cannot obtain through any other route.
-
-### Remediation
-
-Register `/metrics` with `adminRoute` (matching mailbox and update), or make the metric
-source tenant-aware by resolving through `s.bind(r)` and emitting only that tenant's
-kernel gauges. Add `s.bind(r)` to `handleHealth` and `handleModels` for consistency.
-
----
-
-## AUTHZ-002 — The router records `RouteOpts.Method` but never enforces it
-
-- **Severity:** Low (no currently-exploitable instance; latent)
-- **Confidence:** 95
-- **CWE:** CWE-1220 (Insufficient Granularity of Access Control)
-- **File:** `D:\Codebox\PROJECTS\AGEZT\kernel\httpserver\router.go:78-100`, `:116`
-
-### Description
-
-`Router.Handle` parses, upper-cases, validates and de-duplicates `opts.Method`, panics on
-a malformed method, and stores the result in the `Route` snapshot — then registers the
-handler with the method stripped:
+…but the clamped level is then folded by `AskPolicy`, and every ceiling actually in use is
+Ask-class (L1–L3):
 
 ```go
-method := strings.Join(normalizedMethods, ",")   // ...only ever used as metadata
-...
-rt.mux.HandleFunc(pattern, wrapped)              // no method in the pattern
+// kernel/edict/edict.go:846-853
+default: // AskAllow
+    return Outcome{
+        Decision:   DecisionAllow,
+        ...
+        WouldAsk:   true,
+    }
 ```
 
-Go 1.22's `ServeMux` accepts `"POST /api/x"` patterns, so the enforcement point exists
-and is simply not used. The consequence is that "per-route policy data rather than
-middleware ordering" is only *half* centralised: tier and body cap are enforced by the
-router, method is not, and each handler must remember to re-check `r.Method` itself.
+`AskAllow` is the default and also the fallback for a typo'd value
+(`cmd/agezt/main.go:3851-3858`). **So on a stock install a ceiling of L1, L2 or L3 produces
+`DecisionAllow` — identical to no ceiling at all.** Only L0 restricts.
 
-I verified every registration on all three surfaces: every mutating handler does
-currently re-check (`webui.writeProxy`, `decodeAllowedBody`, `handleRollbackApply`,
-`handleTranscribe`, `handleTTS`, `handleFileMkdir/Rename/Delete`, `handleWorkflowHook`,
-`restapi.handleUpdateApply`, all five mailbox handlers, `openaiapi.handleTranscription`).
-So there is no exploit today. The routes that *do* accept any method
-(`webui.proxy`, `readArgsProxy`, `handleArtifactRaw`, `handleOAuthCallback`) are
-read-only or idempotent.
-
-It is a trap rather than a bug because of a second property: `webui.sameOriginMutation`
-(`webui.go:1345-1348`) returns `true` unconditionally for `GET`/`HEAD`/`OPTIONS`. The
-day a mutating handler is added without its own method check, it becomes GET-reachable
-*and* skips the cross-origin guard in one step — two layers lost to one omission. (It
-would still need a credential, which a cross-site GET cannot supply, so the residual risk
-is bounded.)
-
-### Remediation
-
-Register method-qualified patterns when `opts.Method != "*"` (one pattern per method), or
-add a method check to the wrapper chain alongside the tier and body-limit wrappers, and
-delete the now-redundant per-handler checks. Add a `Routes()`-driven guard test asserting
-that no route declares `Mutation: true` with a method the router does not enforce.
-
----
-
-## AUTHZ-003 — The WebUI's `RequestAuthorize` discards the required tier
-
-- **Severity:** Low (no privilege gap today; fails open by construction)
-- **Confidence:** 90
-- **CWE:** CWE-863 (Incorrect Authorization)
-- **File:** `D:\Codebox\PROJECTS\AGEZT\kernel\webui\webui.go:749-755`
-
-### Description
+The obvious hardening — `AGEZT_APPROVAL_MODE=prompt` — is *also* defeated. It produces
+`RequiresApproval: true`, which reaches:
 
 ```go
-router := httpserver.NewRouter(httpserver.Authenticator{
-	RequestAuthorize: func(r *http.Request, _ kernelauth.Tier) bool {
-		return s.authorized(r)
-	},
-}, ...)
+// kernel/runtime/policy.go:187-192
+if requiresApproval && autoApproveCap(ctx, string(out.Capability)) {
+    verdict.Allow = true
+    ...
+}
 ```
 
-`Authenticator.Authorized` gives `RequestAuthorize` complete ownership of every protected
-route's decision (`auth.go:60-62`) — including, structurally, `TierAdmin`. The WebUI's
-closure ignores the tier argument entirely, so the router's tier model is inert on this
-surface: all ~200 protected routes collapse to the single `s.authorized(r)` predicate.
+and `autoApproveCap` consults the daemon-wide set injected into **every** run at
+`kernel/runtime/runtime.go:1970-1971`, which with `AGEZT_AUTO_APPROVE_CAPS` unset is *all
+known capabilities*:
 
-Today this is harmless — I confirmed every WebUI route uses only `TierPublic` or
-`TierUser`, so there is nothing for a tier to distinguish. The problem is the direction of
-the failure. A future `TierAdmin` WebUI route (a plausible home for
-`/api/toolbox/install`, `/api/config/set`, or self-update) would be registered with the
-stronger declaration, would *appear* stronger in `Routes()` inspection, and would be
-authorized at user level. Compare `restapi`, where the same struct's `Verifier` path does
-honour the tier.
+```go
+// cmd/agezt/main.go:3893-3898
+case "", "all", "1", "true", "yes", "on":
+    caps := map[string]bool{}
+    for _, c := range edict.AllCapabilities() { caps[string(c)] = true }
+```
 
-### Remediation
+**Escalation path.** Start: any agent run that carries a trust ceiling — a seeded guardian
+(`plugins/builtinguardians/builtinguardians.go:215`, `TrustCeiling: defaultTrustCeiling` = `"L2"`,
+applied via `kernel/runtime/runctx.go:382-386`), a standing order under the VULN-003 fail-safe
+(`cmd/agezt/main.go:2771-2772`, which the comment insists "must not run uncapped by omission"),
+or a resumed ticket (`cmd/agezt/main.go:3029`). End: that run executes `shell`, `code.exec`,
+`mcp.install`, `file.delete` with no prompt and no denial — the exact authority the ceiling
+was written to withhold. **No single-variable configuration fixes this:** the operator must set
+`AGEZT_APPROVAL_MODE=deny` (which also kills legitimate L1–L3 work), or set *both*
+`AGEZT_APPROVAL_MODE=prompt` **and** `AGEZT_AUTO_APPROVE_CAPS=off`.
 
-Either honour the tier in the closure (e.g. require the console bearer token, not merely
-a password session, for `TierAdmin`), or make the WebUI's inability to distinguish tiers
-explicit by panicking on a `TierAdmin` registration until a real admin credential exists
-on that surface.
+**Why not a false positive.** This is not the documented default-allow posture. Default-allow
+explains why an *unrestricted* capability is L4. Here an operator/system has explicitly applied
+a restriction (a numeric ceiling below L4) and the engine returns Allow anyway. The
+`AGEZT_AUTO_APPROVE_CAPS` semantics are additionally described in
+`kernel/runtime/runctx.go:254-261` as "a **session-scoped operator grant** … NOT a daemon-wide
+policy change" — but `runtime.go:1970` applies it daemon-wide to every run, and the second-order
+effect (satisfying the prompt-injection guard, epistemic escalation and intent/regret gating at
+`kernel/runtime/policy.go:152`, `:158`, `:169-180`, all of which set `requiresApproval` and then
+fall through to `:187`) is not mentioned anywhere.
+
+**Remediation.**
+1. Make an explicitly-applied trust ceiling bind: when `ceiling < lvl` and the resulting level is
+   Ask-class, resolve with a ceiling-specific policy (deny, or prompt regardless of `AskPolicy`)
+   rather than the global `AskAllow`.
+2. Scope `AutoApproveCapabilities` to the Edict Ask axis only. The prompt-injection guard,
+   epistemic escalation and intent-regret gating raise `requiresApproval` for reasons unrelated to
+   capability trust and must not be satisfiable by it. Move the check at `policy.go:187` above the
+   guards at `:152-180` (or gate it on `out.RequiresApproval` specifically).
+3. Change the empty-string case at `main.go:3893` to mean "off", or emit a boot warning that the
+   HITL gate is inert.
 
 ---
 
-## 6. Verified correct — do not re-investigate
+### AC-002 — Agent disables the guardian fleet via `op=retire` / `op=pause`
 
-These were examined against the sc-auth / sc-authz checklists and found sound. Listing
-them so the verification pass can spend its budget on the findings above.
+**Severity:** High · **Confidence:** 92 · **CWE-862** (Missing Authorization)
 
-**Credential comparison.** Every secret comparison in scope is constant-time and
-fail-closed on blank inputs: `auth.tokenEqual` (`kernel/auth/token.go:68-73`, explicit
-`configured == ""` guard), `StaticVerifier.Authorize` (checks *all* user tokens without
-early return so token position is not timed), `webui.handleLogin`
-(`session.go:217`), `controlplane.tokenIsPrimary` (`server.go:347-355`, with the
-`ConstantTimeCompare("","") == 1` pitfall explicitly handled),
-`tenant.Registry.Authorize` (`tenant.go:214-223`).
+**Files:**
+`plugins/tools/overseertool/kernelsource.go:77-86`, `:341-371` ·
+`kernel/runtime/runtime.go:1221-1235`, `:1240-1254`, `:1298-1303` ·
+`kernel/roster/roster.go:786-806`, `:811-836`, `:853-854` ·
+`plugins/builtinguardians/builtinguardians.go:234-262` · `docs/THREAT-MODEL.md:479`
 
-**Tier model.** `Tier.Valid()` is total over `uint8`; an out-of-range tier fails
-`Authorize` and panics at registration. `TierPublic` short-circuits before any verifier
-lookup; every other path requires a non-blank credential and a non-nil verifier.
+`RemoveProfile` protects System guardians and says so:
 
-**Control-plane tenant isolation.** `handleConn` (`controlplane/server.go:531-563`) is
-correct: the primary token authorizes everything; otherwise the request must name a
-tenant *and* present that tenant's token, the command must be `TenantAllowed`, the
-allowlist is applied **before** unknown-command distinction (no command-existence oracle),
-and `req.Args["tenant"]` is re-pinned to the authorized id. The
-`TenantAllowed ⇒ TenantRouted` invariant is enforced by a permanent test
-(`dispatch_registry_test.go:89`), and I spot-checked six tenant-allowed handlers
-(`handleCacheStats`, `handleMemoryAudit`, `handleEdictStats`, `handleRunsList`,
-`projectJournal`, `handleWardenLog`) — all resolve via `s.kernelFor(tenantOf(req))` rather
-than touching `s.k`.
+```go
+// kernel/runtime/runtime.go:1301-1303
+if p, ok := k.roster.Get(ref); ok && p.System {
+    return false, fmt.Errorf("agent %q is a protected system guardian — pause or retire it instead of removing", p.Slug)
+}
+```
 
-**Tenant id containment.** `tenant.baseDir` validates against `^[a-z0-9][a-z0-9_-]{0,63}$`
-and then re-checks `filepath.Dir(dir) == root`. Token minting is `O_CREATE|O_EXCL`,
-0600, race-safe, with the stale-blank-file reclaim path.
+The two operations that error message *recommends as the substitute* have no such check.
+`SetProfileEnabled` (`runtime.go:1221`) and `SetProfileRetired` (`runtime.go:1240`) call straight
+into `roster.SetEnabled` / `roster.SetRetired` (`roster.go:786`, `:811`), neither of which inspects
+`p.System`. Nor do their `kernelSource` wrappers check `fleetLock`:
 
-**REST tenant binding.** `restapi.bind` and `Authenticator.Authorized` read the same
-header with the same trimming, so a credential can never authorize tenant A and be routed
-to tenant B. `SetTenantResolver` and `SetTenantAuthorizer` are wired together under one
-`if reg != nil` on both surfaces — a tenant token cannot exist without a resolver and thus
-cannot fall through to the primary engine. Mailbox and update are correctly `TierAdmin`.
+```go
+// plugins/tools/overseertool/kernelsource.go:77-79
+func (s *kernelSource) SetAgentEnabled(ref string, enabled bool) (roster.Profile, error) {
+	return s.k.SetProfileEnabled(ref, enabled)
+}
+```
 
-**Router wrapper order.** Auth is applied outside the body limit, so an unauthenticated
-oversize POST is rejected before the body is read. Negative caps/timeouts and nil handlers
-panic at startup.
+Contrast `EditAgent` (`:105`), `CreateAgent` (`:200`), `DeleteAgent` (`:211`) and `CloneAgent`
+(`:236`), all of which open with `if s.fleetLock { return … }`.
 
-**Webhook surface.** `/hooks/` refusals are uniform (unknown name, bad secret and disabled
-all return the same 403), the rate limit is applied pre-auth so probing cannot burn budget,
-and the bucket key uses `r.RemoteAddr` (`streamcap.go:19-24`) — not a spoofable
-`X-Forwarded-For`. Same for `httpserver.sseClientKey` (`sse.go:43-48`).
+**Escalation path.** Start: any agent holding `overseer` — `CapOversee` is `LevelAllow` by default,
+and the seeded guardians all hold it. One tool call:
 
-**File Manager traversal.** `resolveFileRoot` is a genuine single chokepoint: NUL
-rejection, absolute/drive-letter rejection, `..` segment rejection post-`Clean`, and a
-separator-anchored prefix check (not bare `HasPrefix`). Reads and deletes use `Lstat`
-specifically so a symlink cannot hide behind `Stat`'s resolution.
+```
+overseer op=bulk_retire agents=[guardian-health, guardian-stuck, guardian-code,
+                                guardian-doctor, guardian-budget, guardian-routing]
+```
 
-**Session cookie.** `HttpOnly`, `SameSite=Strict`, 32 bytes of `crypto/rand`, sliding
-12-hour expiry, revoked on logout, POST-only login and logout, and `cookieSecure` correctly
-reasons that honouring `X-Forwarded-Proto` can only *add* the `Secure` attribute.
+reaches `BulkSetRetired` (`kernelsource.go:354-371`) → `SetProfileRetired` → `roster.SetRetired`,
+which sets `Retired = true` **and** `Enabled = false` (`roster.go:825`) and persists to disk.
 
-**No route escapes the registry.** All three HTTP surfaces in scope route exclusively
-through `httpserver.Router`; `webui.Handler` wraps the whole registry in `secure` so
-security headers, the `Host` allowlist and the cross-origin mutation check also cover
-public routes and 401 responses. `kernel/agentgw` and `controlplane/provider_oauth.go`
-still use raw `ServeMux` — out of the stated scope, but they are the only two remaining
-un-migrated surfaces and are noted here for completeness (`agentgw` gates every route
-except `GET /health` behind `withAuth`).
+End state: the entire self-healing fleet is dead. The effect **survives restart** —
+`reconcileExistingGuardian` (`builtinguardians.go:234-262`) re-clamps `ToolDeny`, budgets,
+`TrustCeiling`, `MemoryScope` and `NoisePolicy` but never touches `Enabled`/`Retired`, and it
+could not if it tried: `roster.Store.Update` explicitly restores both from the pre-mutation
+snapshot (`roster.go:853-854`). Standing orders bound to those agents then refuse to fire
+(`cmd/agezt/main.go:2812-2818`).
 
-### Non-security defects noticed in passing
+`op=pause` (`SetAgentEnabled`) is the same hole with a softer name; `op=bulk_pause` batches it.
 
-- `kernel/webui/files_route.go:201-215` — `fi, ferr := e.Info()`; when `ferr != nil`, `fi`
-  is nil and line 213's `fi.Mode()` dereferences it. Reachable if a file is removed between
-  `ReadDir` and `Info`. Panic → 500 on that request only; a reliability bug, not authz.
-- `kernel/webui/webui.go:849` — `filesMutation.BodyMax = defaultFileCap`, and
-  `defaultFileCap = 256` (`files_route.go:35`). A **256-byte** body cap on
-  mkdir/rename/delete looks like a units mix-up against the neighbouring
-  `defaultMaxBytes = 4 MiB`; a rename with two long paths will 400. Availability, not
-  security.
+**Why not a false positive.** (a) The code states the protection exists and the previous commit
+`0cdd3799` closed exactly this class of sibling gap for `op=repair` — this is the next sibling.
+(b) `docs/THREAT-MODEL.md:479` tells the operator that `AGEZT_OVERSEER_FLEET_LOCK=on` means the
+overseer tool "can no longer edit, create, or delete agents (no agent→fleet-admin
+self-administration)" and that "System-guardian edits or deletion are always refused regardless" —
+both readings are defeated by retire, which is functionally equivalent to deletion. This is an
+opt-in restriction that fails to restrict when actually configured, not a default-allow posture.
+
+**Remediation.** Add the `p.System` refusal to `SetProfileEnabled` and `SetProfileRetired` at the
+`kernelSource` layer (matching the `op=repair` placement, so the operator's console/CLI path is
+unaffected), and add the `fleetLock` check to `SetAgentEnabled`, `SetAgentRetired`,
+`BulkSetEnabled` and `BulkSetRetired`.
+
+---
+
+### AC-003 — `overseer op=wake` laundering: fresh `context.Background()` drops every per-run guard
+
+**Severity:** High · **Confidence:** 88 · **CWE-441** (Confused Deputy), **CWE-269**
+
+**Files:**
+`plugins/tools/overseertool/kernelsource.go:389-418` (esp. `:410`) ·
+`kernel/runtime/policy.go:129-135`, `:169-180` · `kernel/agent/run_tools.go:86`, `:194` ·
+`kernel/runtime/subagent.go:549-562`, `:242`
+
+```go
+// plugins/tools/overseertool/kernelsource.go:410-416
+ctx := kernelruntime.WithAgentProfile(context.Background(), p)
+if p.MaxCostMc > 0 {
+    ctx = kernelruntime.WithMaxCost(ctx, p.MaxCostMc)
+}
+go func() {
+    _, _ = s.k.RunWith(ctx, corr, strings.TrimSpace(intent))
+}()
+```
+
+The caller's context is discarded entirely. Everything the policy hook reads from context is
+therefore absent in the woken run:
+
+- **Prompt-injection taint** — `agent.UntrustedObservationTaintFromContext(ctx)`
+  (`policy.go:129`) is per-agent-loop state (`run_tools.go:86`, attached to the policy context at
+  `:194`). A new loop starts clean, so the guard at `policy.go:169-180` cannot fire.
+- **Trust ceiling** — the caller's ceiling is lost; only the *target's* profile ceiling applies,
+  and `WithTrustCeiling` is tighten-only, so the laundering can only loosen.
+- **Intent frame / regret gating** (`policy.go:136-164`) and any operator-scoped grants.
+
+**Escalation path.** Start: a low-trust agent whose run is under an active untrusted-observation
+taint — e.g. it fetched a web page containing injected directives, so the prompt-injection guard
+is armed for its causal window. That agent calls `overseer op=wake agent=guardian-code
+intent="<attacker text>"`. `WakeAgent` performs no `System` check and no `fleetLock` check.
+End: `guardian-code` — whose seeded soul instructs it to *apply fixes* using `file` and
+`code_exec` and to re-forge tools (`plugins/builtinguardians/builtinguardians.go:149-159`) — runs
+the attacker's text as its **run intent**, i.e. the trusted operator position, in a fresh
+taint-free context, under the guardian's identity and memory scope `system/guardian-code`. The
+injected instruction has been promoted from untrusted tool output to trusted intent, which is
+precisely the transition the guard exists to block.
+
+**Why not a false positive.** The delegation path deliberately does the opposite:
+`prepareSubAgent` derives the child context from the caller (`subagent.go:549-562`) and the async
+spawn preserves the values explicitly — `context.WithCancel(context.WithoutCancel(p.childCtx))`
+(`:242`) with an in-code note that this "keeps the run-stamped values … while dropping the
+tool-call deadline/cancel". So context propagation is the established pattern and `WakeAgent`
+is the outlier. The `System`/`fleetLock` omissions are independently verified (see AC-002).
+
+**Remediation.** Derive the wake context from the calling run's context via
+`context.WithoutCancel(ctx)` (threading `ctx` into `WakeAgent`, which currently ignores it), so
+taint, ceiling and intent frame ride along; add the `p.System` and `fleetLock` refusals.
+
+---
+
+### AC-004 — `config` tool rewrites the daemon's security posture
+
+**Severity:** High · **Confidence:** 90 · **CWE-269** (Improper Privilege Management)
+
+**Files:**
+`plugins/tools/config/config.go:44-53`, `:192-287` · `cmd/agezt/main.go:209`, `:3789-3830`,
+`:219` · `kernel/settings/schema.go:99`, `:456-469`, `:585-599`
+
+`op=set` is gated on `CapConfigWrite` (`config.go:50-52`) — `LevelAllow` by default — and the
+only constraint on *which* setting is written is registry membership plus the `ReadOnly` /
+`Locked` flags:
+
+```go
+// plugins/tools/config/config.go:201-214
+field, ok := t.registry().FieldByEnv(name)
+if !ok { return errf("unknown setting %q", name), nil }
+if field.ReadOnly { return errf("%s is read-only and cannot be changed", name), nil }
+```
+
+Across **203** registered `AGEZT_*` fields in `kernel/settings/schema.go`, exactly **one** is
+`ReadOnly` (`AGEZT_CHATGPT_OAUTH`, `:99`) and none are `Locked`. The security-relevant fields are
+all freely writable:
+
+| Field | Line | Effect of an agent write |
+|---|---|---|
+| `AGEZT_ALLOW_ALL` | `:589` | "Master permissive switch" — sets `UnknownAllow`, opens network tools |
+| `AGEZT_APPROVAL_MODE` | `:585` | Downgrades `deny`/`prompt` back to `allow` |
+| `AGEZT_AUTO_APPROVE_CAPS` | `:586` | Re-enables blanket auto-approval if the operator set `off` |
+| `AGEZT_PROMPT_INJECTION_GUARD` | `:588` | `off` disables the guard the operator turned on |
+| `AGEZT_WEB_PASSWORD` | `:459` | Changes the console password (secret → vault, also env-injected) |
+| `AGEZT_WEB_PASSWORD_STRICT` | `:463` | Drops token-AND-password back to token-OR-password |
+| `AGEZT_AGENTGW_SOCKET` | `:467` | `0.0.0.0:9000` → plaintext agent gateway on all interfaces |
+| `AGEZT_FILE_ROOT` | `:597` | Repoints the File Manager root at an arbitrary directory |
+| `AGEZT_TUNNEL` | `:541` | Publishes the console to the public internet on next boot |
+
+Persistence closes the loop: the write lands in `settings.NewStore(baseDir).Save()`
+(`config.go:264-277`), and at boot `injectConfig` (`cmd/agezt/main.go:3789-3830`, called at
+`:209`) `os.Setenv`s every stored value **before** `daemonconfig.Load` reads them (`:219`).
+
+**Escalation path.** Agent (has `config`, default L4) → `config op=set scope=global
+name=AGEZT_PROMPT_INJECTION_GUARD value=off` and `name=AGEZT_ALLOW_ALL value=1` → next daemon
+restart the operator's configured guards are gone and every unknown capability is L4. Add
+`AGEZT_TUNNEL=cloudflare` plus a chosen `AGEZT_WEB_PASSWORD` and the agent has published a
+remote control plane whose password only it knows.
+
+**Mitigating factor (verified, limits severity to High not Critical).** `injectConfig` only fills
+gaps — `if val != "" && os.Getenv(name) == ""` (`main.go:3810`). A guard pinned in the *real*
+process environment (systemd unit, `.env` sourced by the shell) wins and cannot be overridden.
+However, the product's own Config Center / console `POST /api/config/set` writes to that **same
+store**, so any setting the operator configured through the shipped UI is agent-overwritable.
+
+**Remediation.** Mark the posture-governing fields `ReadOnly` (or introduce an
+`OperatorOnly` flag the `config` tool refuses while the console/CLI honours), covering at minimum
+`AGEZT_ALLOW_ALL`, `AGEZT_APPROVAL_MODE`, `AGEZT_AUTO_APPROVE_CAPS`,
+`AGEZT_PROMPT_INJECTION_GUARD`, `AGEZT_OVERSEER_FLEET_LOCK`, `AGEZT_WEB_PASSWORD*`,
+`AGEZT_AGENTGW_*`, `AGEZT_TUNNEL*`, `AGEZT_FILE_ROOT`, `AGEZT_VAULT_*`.
+
+---
+
+### AC-005 — Hardcoded default console password `"agezt"`
+
+**Severity:** Medium · **Confidence:** 90 · **CWE-798** (Hardcoded Credentials), **CWE-1392** (Default Credentials)
+
+**Files:** `cmd/agezt/httpsurfaces.go:230`, `:232-244`, `:76-84`, `:599-614` ·
+`kernel/webui/webui.go:1443-1452`
+
+```go
+// cmd/agezt/httpsurfaces.go:230
+const defaultLoopbackWebPassword = "agezt"
+```
+
+`effectiveWebPassword` (`:232-244`) returns it whenever `AGEZT_WEB_PASSWORD` is unset,
+`AGEZT_WEB_PASSWORD_DEFAULT` is not an explicit off-keyword, **and** the bind address is
+loopback (`isLoopback`, `:599-614`). The console is ON by default at `127.0.0.1:8787`
+(`:78-84`). Nothing forces a change.
+
+Because strict mode is off for a loopback bind, the password is a *complete alternative
+credential*, not a second factor:
+
+```go
+// kernel/webui/webui.go:1448-1451
+if s.passwordStrictOn() {
+    return s.dataTokenPresented(r) && s.sessionValid(r)
+}
+return s.dataTokenPresented(r) || s.sessionValid(r)
+```
+
+A session minted with `"agezt"` opens all 180+ mutating routes including `POST /api/run`
+(arbitrary governed agent execution), `POST /api/config/set`, `POST /api/files/delete` and
+`POST /api/toolbox/install`.
+
+**Scoping (why Medium, not Critical).** Reachability is genuinely local-only:
+`effectiveWebPassword` returns `""` for a non-loopback bind, so a LAN-exposed console has no
+default password; DNS-rebinding by name is blocked (`webui.go:1340-1342` requires registered
+names); and cross-site POSTs are rejected by `sameOriginMutation` (`webui.go:1350-1352`). The
+realistic attacker is other local code — a second local user account, a non-AGEZT process, a
+compromised local service, or any browser-adjacent local server. Under the single-operator
+threat model that is a real but bounded boundary.
+
+**Remediation.** Mint a random per-install first password and print it in the boot banner
+instead of a fixed constant, or require a password change before the first mutating request
+succeeds.
+
+---
+
+### AC-006 — No session invalidation on password change; sliding TTL never expires
+
+**Severity:** Medium · **Confidence:** 85 · **CWE-613** (Insufficient Session Expiration)
+
+**Files:** `kernel/webui/session.go:43-59`, `:76-92`, `:94-102`, `:131-134`
+
+`sessionStore` exposes only `create` / `valid` / `revoke` / `lockedOut` / `noteFail` /
+`noteSuccess` — **there is no bulk-revoke and no revoke-on-credential-change**. The password
+source is deliberately live (`SetPasswordFn`, `:131-134`, "so a password set from the Setup
+wizard / Config Center … takes effect without a daemon restart"), so an operator who changes the
+console password — the standard response to a suspected compromise, and the documented fix for
+AC-005 — leaves every existing session cookie valid for the full TTL.
+
+Expiry is sliding (`:90`, `s.m[id] = time.Now().Add(sessionTTL)` on every successful check), so
+a session that is polled more often than every 12 h **never expires**. The console SPA polls
+continuously.
+
+**Escalation path.** Attacker obtains a session cookie (AC-005, XSS, shared machine) → operator
+notices and rotates `AGEZT_WEB_PASSWORD` in Config Center → the attacker's session is unaffected
+and, because the SPA keeps it warm, persists indefinitely.
+
+**Remediation.** Add `sessionStore.clear()` and call it whenever the effective password changes
+(compare a hash of the live password on each gate decision, or hook the config write). Add an
+absolute maximum session lifetime alongside the sliding idle window.
+
+---
+
+### AC-007 — `unix://` socket form is unreachable dead code; falls through to TCP
+
+**Severity:** Medium · **Confidence:** 95 · **CWE-670** (Always-Incorrect Control Flow)
+
+**File:** `kernel/agentgw/gateway.go:192-201`
+
+```go
+case len(g.sockPath) >= 7 && g.sockPath[:6] == "unix://":
+```
+
+`g.sockPath[:6]` is a 6-byte string; `"unix://"` is 7 bytes. In Go a string comparison across
+different lengths is always false, so **this case can never be taken**. A value like
+`unix:///run/agezt/gw.sock` also fails the next case (`:196`, requires `sockPath[0] == '/'`) and
+lands in:
+
+```go
+default:
+    // TCP socket
+    ln, err = lc.Listen(ctx, "tcp", g.sockPath)
+```
+
+The listen errors out, so the outcome is fail-closed — the gateway is simply absent, and
+`kernel/runtime/runtime.go:939-945` only `slog.Error`s. The security consequence is directional:
+the one documented way to put the gateway on a *permission-checkable* filesystem socket does not
+work, while `AGEZT_AGENTGW_SOCKET`'s schema help actively steers operators the other way — "set
+a TCP address to reach the gateway across hosts" (`kernel/settings/schema.go:467`) — onto a
+plaintext, TLS-free HTTP listener.
+
+**Remediation.** `strings.HasPrefix(g.sockPath, "unix://")` with `g.sockPath[7:]` as the path;
+add a regression test for each transport branch. Separately, reject non-loopback TCP addresses
+or require TLS on that branch.
+
+---
+
+### AC-008 — Agent gateway: no peer credentials, no socket ACL, unauth `/health`, no revocation
+
+**Severity:** Low · **Confidence:** 85 · **CWE-306** / **CWE-613**
+
+**Files:** `kernel/agentgw/sockopt_unix.go:12-21` · `kernel/agentgw/gateway.go:166`, `:186-202`,
+`:238-267` · `kernel/runtime/runtime.go:931-945`
+
+The listener control hook sets **only** `SO_REUSEADDR`; there is no `chmod`, no `umask`, and no
+`SO_PEERCRED` / peer-credential check anywhere in the package. The default is a Linux
+abstract-namespace socket (`gateway.go:87-91`), which carries no filesystem permissions at all —
+any process in the network namespace can `connect()`. The gateway starts unconditionally with no
+enable flag (`runtime.go:931-945`).
+
+The bearer token is therefore the sole gate. It is checked correctly (`withAuth`,
+`gateway.go:238-267`: missing token → 401, `ValidateToken` → 401, rate limit, audit, claims into
+context), but there is **no revocation** — a leaked token is valid until `exp` — and
+`GET /health` (`:166`) is unauthenticated.
+
+Severity is Low because the token requirement holds and the token secret lives in a 0600 file, so
+an attacker who can read it already has same-user code execution.
+
+**Remediation.** Add `SO_PEERCRED` (Linux) / `LOCAL_PEERCRED` (BSD/macOS) verification that the
+connecting peer runs as the daemon's uid; `chmod 0600` filesystem sockets; add a token
+revocation list keyed on `RunID`.
+
+---
+
+### AC-009 — Login lockout resets its own counter; global scope
+
+**Severity:** Low · **Confidence:** 90 · **CWE-307** (Improper Restriction of Excessive Auth Attempts)
+
+**File:** `kernel/webui/session.go:112-121`
+
+```go
+func (s *sessionStore) noteFail() {
+	s.mu.Lock()
+	s.fails++
+	if s.fails >= maxLoginFails {
+		s.lockedUntil = time.Now().Add(loginLockout)
+		s.fails = 0            // ← counter reset when the lockout is armed
+	}
+	s.mu.Unlock()
+}
+```
+
+Resetting `fails` at arming time means the cooldown never lengthens: after each 5-minute
+lockout the attacker gets a fresh 8 attempts, indefinitely — ~2,300 guesses/day against a
+credential that is compared in plaintext. Conversely the counter is daemon-global (not
+per-source), so any client can lock the *operator* out of their own console for 5 minutes at a
+time by sending 8 bad passwords.
+
+**Remediation.** Keep a persistent failure counter with exponential backoff, and key the lockout
+on source IP with a separate, higher global ceiling.
+
+---
+
+### AC-010 — Console token printed into the public tunnel URL under strict mode
+
+**Severity:** Low · **Confidence:** 80 · **CWE-532** (Information Exposure Through Log Files)
+
+**File:** `cmd/agezt/httpsurfaces.go:373-378`, `:312-313`
+
+```go
+func tunnelPublicURL(raw string, web webUISurface, targetsWebUI bool) string {
+	if targetsWebUI && web.token != "" && (!web.passwordOn || web.passwordStrict) {
+		return urlWithToken(raw, web.token)
+	}
+	return raw
+}
+```
+
+When the operator has explicitly set `AGEZT_WEB_PASSWORD_STRICT=on` (the recommended posture for
+a tunnelled console, `docs/THREAT-MODEL.md:477`), the daemon writes the full-authority console
+token into the **public** URL it prints to stdout at `:313`. The token is otherwise memory-only
+and never written to disk (`:85-91`).
+
+This is Low because the destination is the local daemon log, not the network — but it converts a
+memory-only credential into a logged one exactly for the operators who hardened their setup.
+
+**Note (recon claim refined):** the Phase-1 map suggested this fires for a tunnelled default
+install. It does not — `web.passwordStrict` is captured at `:150` *before* `buildTunnel` runs, so
+the auto-raise triggered later inside `SetAllowedHosts` (`kernel/webui/webui.go:156-158`) is not
+reflected in the struct, and the default-password case takes the `return raw` branch.
+
+**Remediation.** Print the public URL without the token; direct the operator to the local banner
+URL for the token.
+
+---
+
+## Route auth matrix — Web console (`kernel/webui/webui.go:748-869`)
+
+`TierPublic` receives **no authenticator wrapper** — `kernel/httpserver/router.go:109` wraps
+`rt.authenticator.Middleware` only when `opts.Tier != kernelauth.TierPublic`. Every non-public
+route resolves through the same `s.authorized(r)` because the WebUI overrides tier granularity
+with `RequestAuthorize` (`webui.go:750-752`), so `TierUser` and `TierAdmin` are indistinguishable
+on this surface.
+
+**Eight `TierPublic` route patterns** (the recon map said seven):
+
+| Route | Method | Tier | Gate | Mutating? | Assessment |
+|---|---|---|---|---|---|
+| `/` (+ SPA deep links) | GET | Public | `shellAuth` (`:1282-1294`) — token, **or** nothing when a password is configured | no | OK. Serves compiled UI only; data routes stay gated. Note: with the default password (AC-005) the shell is always credential-free. |
+| `/api/authmeta` | GET | Public | none | no | Acceptable. Leaks only `password_required` + `authed` (`session.go:191-196`). Necessary for the login screen. |
+| `/api/login` | POST | Public | password, constant-time, 4 KiB cap, lockout | mints session | Constant-time (`session.go:224`); lockout weak (AC-009). No fixation — the id is minted only after success. |
+| `/api/logout` | POST | Public | cookie | revokes own session | OK. POST-only, revokes server-side (`session.go:280-298`). |
+| `/assets/` | GET | Public | none | no | OK — hashed static bundle. |
+| `/favicon.ico` | GET | Public | none | no | OK. |
+| `/hooks/<workflow>` | POST | Public | per-workflow secret (header **or** `?secret=`) | **yes** — fires a governed run | Gate verified correct (see Verified safe). Query-string secret will land in proxy access logs. |
+| `/oauth/callback` | GET | Public | 32-byte CSPRNG `state` | **yes** (`Mutation: true`, `:865`) — exchanges code, stores token | State is unguessable + TTL'd. Registered GET, so `sameOriginMutation` (`:1346-1349`) exempts it — correct, since providers redirect cross-origin. |
+
+**Protected families** (all `TierUser`, all gated by `s.authorized`): `apiRoutes` (read proxies),
+`readArgsRoutes` (arg-taking reads), `writeRoutes` (mutating, `:798-800`), `jsonRoutes` (mutating,
+`:801-803`), plus `/api/run`, `/api/plan/run`, `/api/toolbox/install`, `/api/market/{install,
+uninstall}`, `/api/rollback/apply`, `/api/files/{tree,raw,mkdir,rename,delete}`, `/api/transcribe`,
+`/api/tts`, `/api/artifact/raw`, `/api/sse-token`, `/events`.
+
+**Cross-cutting gates applied *outside* the router** (`webui.go:871-873`, `:1260-1273`), so they
+also cover public routes and 401 responses: security headers, `hostAllowed`, `sameOriginMutation`.
+
+### Other surfaces
+
+| Surface | Public routes | Auth model | Verdict |
+|---|---|---|---|
+| REST API (`kernel/restapi/restapi.go:207-239`) | `/healthz`, `/readyz` | Bearer; `/api/v1/mailbox/*` + `/api/v1/update*` are `TierAdmin` | Correct — `TierAdmin` is unreachable by a tenant credential (`kernel/httpserver/auth.go:70`) |
+| OpenAI-compatible (`kernel/openaiapi/openaiapi.go:200-212`) | none | Bearer, all `TierUser` | OK |
+| Agent gateway (`kernel/agentgw/gateway.go:135-166`) | `GET /health` | bespoke `withAuth` HS256 bearer | See AC-007, AC-008 |
+| Control plane (`kernel/controlplane/server.go:278`) | none | token in body, constant-time, 0600 file | Not re-audited here (Phase-1 scope) |
+
+---
+
+## Verified safe / refuted
+
+Checks that came back clean, or where I could not substantiate a suspected issue:
+
+1. **`agentgw handleTokenCreate` is not an escalation path** (`gateway.go:381-460`). Runs behind
+   `withAuth`; requested caps are rejected (not silently dropped) when not a subset of the parent
+   (`:414-418`); expiry clamped to the parent's (`:429-431`); rate/burst clamped (`:434-441`);
+   `RunID` inherited so a child cannot mint into another run (`:444`). Correct.
+2. **`agentgw` config endpoints are correctly separated** (`config_handler.go:187-221`). Writes
+   require a distinct `CapConfigWrite` — never the read-only `CapConfigAccess` — and
+   `allowed_agents`/`excluded_agents` (the per-key ACL) are explicitly refused on this surface with
+   an in-code CWE-862/269 rationale. This is the pattern the rest of the codebase should follow.
+3. **Workflow webhook gate is sound** (`kernel/controlplane/workflow.go:257-279`). An empty
+   presented secret is refused before any lookup (`:265`), so a workflow stored with a blank secret
+   cannot be triggered; the workflow must exist, be enabled, and declare a webhook trigger;
+   comparison is `subtle.ConstantTimeCompare` (`:276`); all refusals are uniform so a prober cannot
+   distinguish unknown-name from bad-secret from disabled.
+4. **Shared authenticator fails closed** (`kernel/httpserver/auth.go:53-79`). Invalid tier → false;
+   blank credential → false; `TierAdmin` can never be opened by a tenant credential (`:70`);
+   `BearerToken` requires the exact case-sensitive `"Bearer "` prefix.
+5. **Session fixation is not possible** (`kernel/webui/session.go:201-245`). No session exists
+   before authentication; the id is minted only after a successful constant-time password compare;
+   logout revokes server-side and clears the cookie. Cookie carries `HttpOnly`,
+   `SameSite=Strict`, and `Secure` derived from `r.TLS` or a forwarded-proto hint whose
+   trust-without-allowlist reasoning (`:255-260` — the header can only *add* `Secure`) is sound.
+6. **Constant-time comparison is used for every credential**: console password
+   (`session.go:224`), bearer tokens (`kernel/auth/token.go:68-73`), tenant tokens
+   (`kernel/tenant/tenant.go:214-222`), webhook secrets (`controlplane/workflow.go:276`), gateway
+   HMAC (`kernel/agentgw/token.go:121`). **No `==` on a secret was found on any auth path.**
+7. **OAuth `state` handling is adequate.** Channel flow: 32 bytes from `crypto/rand`,
+   base64url (`controlplane/channel_oauth.go:96-102`), TTL-swept (`:88-93`), unknown state
+   rejected (`:195-198`). Provider flow: one-shot listener on `127.0.0.1:1455`, TTL auto-expiry
+   (`provider_oauth.go:82-91`), state compared at `:109`. The provider comparison is `!=` rather
+   than constant-time, but against a single-use, TTL-bounded 32-byte CSPRNG value with one attempt
+   per flow this is not practically exploitable — noted, not filed.
+8. **`overseer op=edit` / `op=create` / `op=clone` / `op=delete` are properly guarded.**
+   `EditAgent` refuses `System` (`kernelsource.go:112-114`) and honours `fleetLock` (`:105`);
+   `CreateAgent` forces `System = false` (`:203`); `CloneAgent` never copies the flag (`:245`);
+   `RemoveProfile` refuses `System` (`kernel/runtime/runtime.go:1301`). `op=repair` was closed by
+   commit `0cdd3799` and the guard refuses **before** dispatch (`overseertool/tool.go:341-345`),
+   which its test asserts. AC-002 is the remaining sibling.
+9. **Recon claim refuted — scheduled runs are *not* uncapped when an agent profile is attached.**
+   The map stated cadence sets `WithMaxCost` but never `WithTrustCeiling` (`main.go:3327-3341`).
+   True literally, but `WithAgentProfile` applies the profile's ceiling itself
+   (`kernel/runtime/runctx.go:382-386`), so a scheduled guardian firing *is* clamped to its
+   declared L2. That clamp is nevertheless inert for the reason in AC-001 — the defect is the
+   fold, not the plumbing.
+10. **Recon claim refuted — the tunnel does not leak the console token on a default install.**
+    See AC-010's note; the leak requires an explicit `AGEZT_WEB_PASSWORD_STRICT=on`.
+11. **`roster.Store.Update` protects identity and lifecycle** (`kernel/roster/roster.go:851-854`):
+    `ID`, `Slug`, `CreatedMS`, `Enabled`, `Retired`, `RetiredMS`, `RetiredReason` are restored
+    from the snapshot regardless of what the mutator does, so no `UpdateProfile` caller
+    (including the `config` tool's agent-scope path) can rename or resurrect an agent.
+12. **`/api/run` does not expose the injection-guard downgrade to the browser.** The body
+    allowlist is `{intent, model, history, system, agent, execution_profile, auto_approve_caps}`
+    (`webui.go:1079`) — `prompt_injection_trust` (`controlplane/server.go:1379-1381`) is
+    reachable only from the CLI/control plane. Correct split.
+13. **CSRF/Host/Origin are applied outside the router** (`webui.go:871-873`), so they cover public
+    routes and 401 responses. `sameOriginMutation` (`:1345-1362`) rejects
+    `Sec-Fetch-Site: cross-site` and mismatched `Origin`; a *missing* `Origin` passes, which is
+    safe against browsers (they always send it on cross-origin POST) and irrelevant to non-browser
+    clients, which still need the token.
+14. **No classic IDOR surface.** Single-operator, no per-user resource ownership model; the
+    tenant partition that does exist is enforced constant-time at
+    `kernel/tenant/tenant.go:214-222` with `TierAdmin` correctly unreachable.
+15. **No weak password hashing, no MD5/SHA1 on a credential path, no default admin account seed.**
+    The console password is a plaintext shared secret compared in constant time — acceptable for a
+    single-operator local secret, and the code says so — but it means the value lives in the
+    process environment and in the config store.
+
+---
+
+## Appendix — reproduction notes
+
+- AC-001 is verifiable without running the daemon:
+  `kernel/runtime/ceiling_internal_test.go` already asserts the *clamp*; no test asserts the
+  clamped level is **denied**. Adding `TestPolicyHook_TrustCeilingL2_UnderDefaultAskPolicy`
+  asserting `verdict.Allow == false` will fail on current `main`.
+- AC-002 is verifiable with a unit test against `overseertool.kernelSource` mirroring
+  `TestRepairAgent_RefusesSystemGuardian` (`overseer_test.go:454`) but calling
+  `op=retire` / `op=pause` on a `roster.Profile{System: true}` — both currently succeed.
+- AC-007 is verifiable with `go test` on a table of `sockPath` values; the `unix://` row
+  currently reaches the TCP branch.

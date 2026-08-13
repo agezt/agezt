@@ -1,298 +1,701 @@
-# SSRF + Path Traversal scan — AGEZT
+# AGEZT — SSRF / Path-Traversal / Upload / Open-Redirect Results (Phase 2)
 
-- **Skills:** `sc-ssrf` (CWE-918), `sc-path-traversal` (CWE-22 / CWE-59)
-- **Repo:** `D:\Codebox\PROJECTS\AGEZT` — `main` @ `f815f56e`
-- **Date:** 2026-08-12
-- **Method:** source review of every outbound-HTTP construction site (`grep` for `http.Client{}`, `http.DefaultClient`, `NewRequest`) cross-referenced against `kernel/netguard` usage, plus every filesystem sink reachable from a request/tool argument.
-- **Supersedes:** the previous `ssrf-path-results.md` (99d2e426).
+**Target:** `D:/Codebox/PROJECTS/AGEZT` — commit `e0041337`, branch `main`
+**Skills applied:** `sc-ssrf`, `sc-path-traversal`, `sc-file-upload`, `sc-open-redirect`
+**Method:** every finding below cites a line I read. Where I could refute a candidate, I did and
+recorded it under *Verified safe* rather than filing it. Three candidate findings were killed this
+way (remote-MCP SSRF via the `mcp` tool, artifact-name path traversal, workflow-HTTP-node SSRF) —
+see §Killed candidates.
 
----
-
-## 0. Baseline verification: does `kernel/netguard` do what it claims?
-
-**Claim (netguard.go:9-19):** the guard validates the *resolved* IP on every connection attempt — initial dial **and** every redirect hop — via `net.Dialer.Control`.
-
-**Verdict: the claim holds for every request that actually goes through `Guard.HTTPClient`.**
-
-- `Guard.Control` (netguard.go:168-186) splits the concrete `IP:port` the dialer is about to connect to, fails closed on an unparseable/unresolved address, and returns an error before `connect(2)`. Because `Control` runs per dial, DNS rebinding cannot win: the guard sees the address actually used, not the one that was checked.
-- `Guard.HTTPClient` (netguard.go:198-209) builds a **fresh, non-shared** `http.Transport` whose `DialContext` is the guarded dialer, so redirect hops (which reuse the same Transport) are each re-dialed and re-screened. `Transport.Proxy` is left nil, so no `HTTP_PROXY` env var can route around the dialer.
-- Classification (netguard.go:69-104) covers unspecified, `0.0.0.0/8`, loopback, link-local (incl. `169.254.169.254`), RFC1918 + ULA, CGNAT `100.64/10`, multicast, and `255.255.255.255`; `embeddedV4` (netguard.go:111-132) collapses NAT64 `64:ff9b::/96` and IPv4-compatible `::/96` so a v4 metadata address cannot be smuggled in as a v6 literal.
-- `kernel/netguard/netguard_test.go:137-157` is a real end-to-end redirect test against `169.254.169.254`.
-
-**Correctly wired consumers (verified guarded):** `plugins/tools/http`, `plugins/tools/fetch`, `plugins/tools/browser` (`browser.read`), `plugins/tools/websearch`, `kernel/mcp/http.go:75`, `kernel/update/update.go:147-166`, `kernel/catalog/sync.go:21`, `kernel/catalog/discovery.go:41`, `kernel/market/sync.go:38`, `kernel/webhook` (guarded client injected at `cmd/agezt/httpsurfaces.go:568`), `kernel/controlplane/channels.go:403` (WhatsApp-gateway + provider probes), `kernel/controlplane/channel_oauth.go:84`, `kernel/chatgptauth/chatgptauth.go:57`, `plugins/providers/voice/voice.go:209`.
-
-**So the guard is not the weak point. The weak point is every egress path that never reaches it.** The three findings below are exactly those paths.
+**Threat model applied:** localhost-first single-operator daemon holding cloud credentials; console
+ON by default at `127.0.0.1:8787`; 15 webhook listeners internet-facing. Per instructions, the
+default-allow capability posture and code_exec's network access are **not** filed as findings on
+their own — but the *specific* case where a comment promises a guarantee the code does not
+implement **is** filed, and that is the shape of the top two findings.
 
 ---
 
-## SSRF-001 — `browser.action` egress guard is a pre-flight DNS check; the Playwright driver it hands the URL to has no guard at all
+## Executive summary
 
-- **Title:** SSRF to cloud metadata / internal services via `browser.action` (redirect, in-page JS, or DNS rebinding)
-- **Severity:** **High**
-- **Confidence:** 92
-- **CWE:** CWE-918 (SSRF), with CWE-367 (TOCTOU) as the enabling flaw
-- **File:** `plugins/tools/browser/action.go:803-838` (`validateHostEgress`), called from `action.go:251` / `:330`; sink is `plugins/builtinskills/browseruse/scripts/browse.mjs:99-104`
+netguard itself is **sound**. I attacked it with 14 techniques and it held every one (§Verified
+safe). The design — a `net.Dialer.Control` hook on a fresh non-shared transport — is the correct
+one, and it genuinely defeats DNS rebinding, redirect chains and every IP-encoding trick, because
+the check runs on the resolved literal at each dial.
 
-### Description
+The exposure is not in the guard. It is in **two places that decided they did not need the guard**:
 
-Unlike `browser.read` — which performs its own fetch through a netguard client — `browser.action` does **not** make the request in Go at all. It validates the URL and then shells out to a Playwright driver:
-
-```go
-// action.go:803-838 — the ONLY egress control on this path
-func (t *ActionTool) validateHostEgress(ctx context.Context, host string) error {
-    ips, err = lookup(ctx, "ip", host)          // resolve once, here
-    ...
-    g := netguard.New(opts...)
-    for _, ip := range ips {
-        if ok, reason := g.Allowed(ip); !ok { return fmt.Errorf("egress blocked: ...") }
-    }
-    return nil                                   // …then hand the URL to node
-}
-```
-
-```js
-// browse.mjs:99-104 — the actual navigation. No page.route(), no interception.
-await page.goto(spec.url, { waitUntil: "domcontentloaded", timeout });
-for (const a of spec.actions || []) {
-  switch (a.type) {
-    case "goto": await page.goto(a.url, ...); break;
-    case "click": await page.click(a.selector, ...); break;
-```
-
-A full `grep` of `browse.mjs` (395 lines) for `route|abort|guard|169.254` returns **nothing** — the browser context is created with no request interception. Three independent bypasses follow:
-
-1. **HTTP redirect.** `validateHostEgress` checks only the URL the model supplied. Chromium follows 3xx itself; netguard never sees the second hop.
-2. **In-page JavaScript.** The fetched page's own scripts can `fetch()` / `XMLHttpRequest` any address and write the answer into the DOM, which `extract: "text"|"html"` (browse.mjs:149-158) returns straight to the model. JS can also set the `Metadata-Flavor: Google` header GCP's IMDS requires.
-3. **DNS rebinding.** The Go-side `LookupIP` and Chromium's own resolver are two separate resolutions; a TTL-0 record public at check time and `169.254.169.254` at navigation time defeats the check outright.
-
-`click` on an attacker-controlled page is a fourth vector: the target URL of a click-triggered navigation is never validated.
-
-### Exploit scenario (concrete)
-
-The tool ships **host-open by default** — `plugins/builtintools/tools.go:237` sets `ba.AllowAll = true` when no allowlist is pinned, so any host passes the allowlist check; only netguard's IP check stands between the agent and the internal network.
-
-1. A prompt-injected page (or a compromised site the agent was told to visit) causes the agent to call:
-   `browser.action {"url":"https://attacker.example/x","extract":"text"}`
-2. `validateHostEgress` resolves `attacker.example` → a public IP → allowed.
-3. `attacker.example/x` replies `302 Location: http://169.254.169.254/latest/meta-data/iam/security-credentials/agezt-role`.
-4. Chromium follows it; `page.innerText("body")` is returned as the tool result, and the IAM credentials land in the model's context — from where the same agent can exfiltrate them with `http`/`fetch` to the attacker's host.
-5. Nothing is journaled: `OnBlock` never fires because netguard never saw the dial, so `agt netguard log` shows a clean egress record.
-
-A screenshot is also taken by default (`browse.mjs:160-165`) and stored as a browsable artifact, giving a second copy of the internal response.
-
-### Remediation
-
-Install a Playwright request interceptor in the driver — `context.route('**/*', ...)` that resolves each request's host and aborts on the blocked ranges — and pass the effective `allow_loopback`/`allow_private` flags into the spec so the driver enforces the same policy. A pre-flight DNS check cannot be made sound for an out-of-process browser.
+1. `browser.action` re-implements egress control as a *one-shot pre-resolve check* and then hands
+   the URL to an external Playwright process that re-resolves and follows redirects on its own.
+   This is precisely the bug the project already fixed in the MCP SSE bridge on 2026-08-12 and
+   wrote a long comment about; the same mistake survives in `browser.action`.
+2. ~45 clients skip netguard on the rationale that their URL is *operator-pinned*. That rationale
+   is **false**: the `config` agent tool writes those exact `AGEZT_*` fields, at a capability that
+   is L4-Allow and auto-approved by default. One of these clients states the false rationale in a
+   comment verbatim.
 
 ---
 
-## SSRF-002 — mcpbridge SSE transport: the per-POST dialer guard the code documents does not exist
+## Findings
 
-- **Title:** Announced MCP SSE endpoint bypasses its SSRF gate via redirect or DNS rebinding
-- **Severity:** **Medium**
-- **Confidence:** 95
-- **CWE:** CWE-918 (SSRF), CWE-367 (TOCTOU)
-- **File:** `plugins/external/mcpbridge/sse_transport.go:80-90` (client construction), `:140` (POST), `:183` (GET); false guarantee at `plugins/external/mcpbridge/sse_guard.go:113`
+### SSRF-001 — `browser.action` egress guard is a one-shot pre-resolve check; the actual navigation is unguarded
 
-### Description
-
-`sse_guard.go` exists specifically to stop a hostile MCP server from pivoting the bridge into internal space via the server-announced `endpoint` event. Its own comment states the design:
-
-> "Resolution happens here at the time the endpoint event arrives (cheap, one-shot) **and is enforced again per-POST via the dialer — see dialerGuard below.**" — `sse_guard.go:112-113`
-
-**There is no `dialerGuard`.** A repo-wide grep for `dialerGuard`, `Control:`, `CheckRedirect`, and `DialContext` finds no match anywhere in `plugins/external/mcpbridge/`. The transport's client is a bare stdlib client:
-
-```go
-// sse_transport.go:81-85
-httpClient: &http.Client{
-    // No client-side timeout: the SSE stream is long-lived
-    // by design. Per-request POSTs use a fresh client below
-    // with their own context.
-},
-```
-
-No `Transport`, so no `Control` hook; no `CheckRedirect`, so Go's default 10-redirect follow applies. `classifyHost` (`sse_guard.go:175-198`) therefore degrades to a one-shot advisory check with a wide-open TOCTOU window.
-
-### Exploit scenario
-
-Threat model is the file's own: a malicious or hijacked MCP server that the operator registered (`MCPBRIDGE_SERVER_URL`).
-
-1. Server announces `event: endpoint` with a **same-origin** relative path, e.g. `/messages` — passes the origin check, and its host resolves to the server's public IP, so `classifyHost` passes.
-2. Every subsequent JSON-RPC `POST https://evil.example/messages` is answered `307 Location: http://169.254.169.254/latest/meta-data/…` (or `http://127.0.0.1:PORT/…` at a co-located admin service). `t.httpClient.Do` follows it (sse_transport.go:140) with no IP screening.
-3. Alternatively, without any redirect: rebind `evil.example` to `169.254.169.254` after the endpoint event — the POST re-resolves at dial time.
-
-The POST response body is discarded (`io.Copy(io.Discard, …)`, sse_transport.go:151), so this is a **blind** SSRF: it yields internal port scanning (timing/status via `resp.StatusCode`, surfaced in the returned error string at `:153`) and state-changing requests against unauthenticated internal services (307/308 preserve method and body), not direct data theft.
-
-### Remediation
-
-Give both the SSE `GET` and the per-request `POST` an `http.Transport` whose `DialContext` runs the same `ipPolicyReason` classification the guard already implements, and set `CheckRedirect` to re-run `resolveEndpoint`'s origin check on each hop. Then the comment at `:113` becomes true.
-
----
-
-## SSRF-003 — Guard drift + missing embedded-IPv4 form (6to4) in both IP classifiers
-
-- **Title:** Blocked-range classification gaps in `netguard` and its mcpbridge copy
-- **Severity:** **Low**
-- **Confidence:** 70
-- **CWE:** CWE-918 (incomplete blocklist)
-- **File:** `kernel/netguard/netguard.go:111-132` and `:83-104`; `plugins/external/mcpbridge/sse_guard.go:205-233`, `:240-261`
-
-### Description
-
-Two related gaps, both of the exact class the project already fixed once (M171, NAT64):
-
-1. **6to4 (`2002::/16`) embedded IPv4 is not collapsed.** `embeddedV4` handles `64:ff9b::/96` and `::/96` but not `2002:a9fe:a9fe::`, which a host with a 6to4 route resolves toward `169.254.169.254`. Same one-line shape as the NAT64 case already handled. (6to4 is deprecated by RFC 7526 and needs a 6to4-capable route, hence Low.)
-2. **The bridge's copy has drifted from the kernel's.** `ipPolicyReason` (`sse_guard.go:205-233`) omits netguard's `isZeroBlock` (the whole `0.0.0.0/8` "this host" range — Linux routes `0.x.y.z` to local interfaces) and its `isV4Broadcast` case. So `http://0.1.2.3/` is refused by the kernel guard and accepted by the bridge guard. The comment at `sse_guard.go:26-29` says the duplication is deliberate; nothing keeps the two in sync.
-
-Also unblocked in both: `192.0.0.0/24` (IETF protocol assignments), `198.18.0.0/15` (benchmarking), `192.88.99.0/24` (6to4 relay anycast).
-
-### Remediation
-
-Add `2002::/16` to both `embeddedV4`/`collapseEmbeddedV4`; port `isZeroBlock` + `isV4Broadcast` into `sse_guard.go`; add a shared table-driven test vector list so the two classifiers cannot drift again.
-
----
-
-## PATH-001 — Console file browser: a symlinked *intermediate directory* escapes the workspace root (read, delete, move)
-
-- **Title:** Path traversal / link-following in `/api/files/{raw,tree,delete,rename,mkdir}`
-- **Severity:** **Medium** (arbitrary read **and** arbitrary delete/move as the daemon user, post-authentication)
+- **Severity:** High
 - **Confidence:** 90
-- **CWE:** CWE-59 (link following) → CWE-22 (path traversal)
-- **File:** `kernel/webui/files_route.go:104-122` (`resolveFileRoot`), sinks at `:246-264` (raw), `:353` (rename), `:383-408` (delete), `:162-175` (tree)
+- **CWE:** CWE-918 (SSRF), CWE-367 (TOCTOU)
+- **File:** `plugins/tools/browser/action.go:803-838`, `:786-801`, `:767-784`, `:840-849`
 
-### Description
-
-The resolver's own contract says it canonicalizes through symlinks:
-
-```
-//   target   := filepath.Join(rootAbs, relPosix) then resolved symlinks
-//
-// Anywhere along that walk that escapes `rootAbs` is a refusal with a 400.
-//   — files_route.go:101-103
-```
-
-The implementation never resolves anything. `resolveFileRoot` is **purely lexical**:
+**The guard:**
 
 ```go
-// files_route.go:114-120
-targetAbs = filepath.Clean(filepath.Join(rootAbs, filepath.FromSlash(relPosix)))
-if targetAbs != rootAbs && !strings.HasPrefix(targetAbs, rootAbs+string(os.PathSeparator)) {
-    return "", "", "", fmt.Errorf("path escapes root")
-}
+// plugins/tools/browser/action.go:803-820
+func (t *ActionTool) validateHostEgress(ctx context.Context, host string) error {
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		lookup := t.lookupIP
+		if lookup == nil {
+			lookup = net.DefaultResolver.LookupIP
+		}
+		var err error
+		ips, err = lookup(ctx, "ip", host)
 ```
 
-There is no `filepath.EvalSymlinks` anywhere in the file. The only link defence is a **last-component** `os.Lstat` in the raw and delete handlers (`:246`, `:383`). `lstat(2)` does not follow the final component but **does** follow every directory component before it. So for an in-root symlinked directory `link` → `/etc`:
+…then `netguard.New(opts...)` is used only as a **classifier** over that resolved list
+(`:831-836`), never as a dialer.
 
-- `resolveFileRoot("link/passwd")` → `<root>/link/passwd`, lexically inside root → **allowed**.
-- `os.Lstat("<root>/link/passwd")` → stats `/etc/passwd`, a regular file → `ModeSymlink` is clear → the symlink guard passes.
-- `os.Open` streams `/etc/passwd`; `os.Remove` deletes it; `os.Rename` moves it into the workspace.
+**The actual request** is made by a separate OS process that does its own DNS and its own redirect
+following:
 
-`handleFileRename` (`:353`) has **no** link check at all on either side, and `handleFileTree` (`:162-175`) uses `os.Stat` + `os.ReadDir`, which follow the same intermediate links (its per-entry `ModeSymlink` skip at `:213` only hides the link from the listing — it does not stop traversal *through* one whose name you already know).
+```go
+// plugins/tools/browser/action.go:840-844
+func runActionDriver(ctx context.Context, spec actionRunSpec) (actionRunOutput, error) {
+	cmd := exec.CommandContext(ctx, spec.NodePath, spec.DriverPath)
+	cmd.Dir = spec.Dir
+	cmd.Env = envscrub.Scrubbed()
+	cmd.Stdin = bytes.NewReader(spec.Spec)
+```
 
-The existing tests confirm the gap is untested: `files_route_test.go:182-260` only plants a **final-component** symlink (`link.txt`) — never a symlinked directory.
+**Source → sink:** LLM tool-call argument `url` → `validateURL` (`:786`) → `validateHostEgress`
+(`:800`) → *[gap: process boundary]* → `json.Marshal(in)` (`action.go:270`) → stdin of
+`browse.mjs` → Playwright `goto`.
 
-### Exploit scenario (concrete)
+**Exploitation path (two independent bypasses):**
 
-Precondition: one symlink or Windows junction anywhere inside `AGEZT_FILE_ROOT`. Realistic sources, in descending likelihood:
+1. **DNS rebinding.** A prompt-injected agent calls `browser.action` with
+   `url=http://rebind.attacker.tld/`. `LookupIP` returns a public A record → `Allowed()` passes.
+   The spec is then marshalled and the Node driver resolves the *name again*; with a TTL-0 record
+   the second answer is `127.0.0.1` (the AGEZT console) or `169.254.169.254`. Nothing re-checks.
+2. **Redirect.** `validateURL` is called once, on `in.URL` only (`action.go:250`). An allowed
+   public host answering `302 Location: http://169.254.169.254/latest/meta-data/` is followed by
+   Playwright with no further validation.
 
-1. **pnpm/npm-linked project.** `AGEZT_FILE_ROOT` is operator-settable from the console (`kernel/settings/schema.go:597`, "Workspace root"), and pointing it at a working project is the normal use of the Files view. A pnpm `node_modules` is a forest of symlinks into a global store outside the root — `GET /api/files/raw?path=node_modules/<pkg>/../../../../../.ssh/id_ed25519` resolves *through* the store link and out. Worse, `POST /api/files/delete {"path":"node_modules/<pkg>"}` with `recursive:true` deletes the shared global store content.
-2. **Agent-planted.** When the operator points `AGEZT_FILE_ROOT` at the agent workspace (`<AGEZT_HOME>/workspace`), any agent holding `shell` or `code_exec` runs `ln -s / esc` there; the console then reads, moves, or deletes any file the daemon user can touch. (By default the two roots differ — `~/agezt/workspace` vs `~/.agezt/workspace` — so this variant needs the common convergent config.)
-3. **Extracted archive / git clone** containing a symlink.
+**Why this is not a false positive:**
 
-Reachability: `protectedRead` / `protectedMutation` — a valid console token or password session. The impact is that a **file-browser containment boundary the code explicitly promises** does not exist; a console-authenticated actor (or CSRF/XSS against the console) gets arbitrary read + delete + move outside the root.
+- netguard's own package doc names both bypasses as the reason the dialer-level design exists:
+  *"an allowed host can resolve to an internal IP (DNS rebinding), and an allowed host can
+  30x-redirect"* (`kernel/netguard/netguard.go:9-12`). `browser.action` uses the pattern that doc
+  rejects.
+- The sibling tool in the same package does it correctly:
+  `plugins/tools/browser/browser.go:128` — `c := netguard.New(opts...).HTTPClient(DefaultTimeout)`.
+  So the asymmetry is a defect, not a design choice.
+- The project already fixed this identical bug elsewhere and documented the standard:
+  `plugins/external/mcpbridge/sse_guard.go:151-156` — *"There was no dialerGuard, anywhere in the
+  repo: the transport used a bare `&http.Client{}`, so this one-shot check was the ONLY check and a
+  307 or a DNS rebind walked past it (SSRF-002, fixed 2026-08-12)."*
+- The guard cannot be moved into the Go process at all, because the fetch does not happen in the Go
+  process. This is a structural gap, not a missing option.
 
-### Remediation
+**Impact:** `browser.action` drives a real Chromium with click/type/extract verbs, so this is not a
+blind SSRF — page content comes back. Reachable targets include the AGEZT console on
+`127.0.0.1:8787`, LAN admin interfaces, and link-local metadata. With
+`profile=user-attached` (`action.go:444`) the browser carries the operator's logged-in cookie jar.
+AWS IMDSv2 is partially protected (needs a PUT with a token header; `goto` is GET), but IMDSv1,
+GCP metadata, and any internal web UI are not.
 
-Make `resolveFileRoot` do what it documents: after the lexical join, `filepath.EvalSymlinks` the deepest existing ancestor and re-assert containment against `rootAbs` — the pattern `plugins/tools/file/file.go:761-836` already implements correctly (`resolve` + `resolveNewWithinRoot`). Apply it to `from` and `to` in rename as well.
+**Mitigating precondition:** `browser.action` is registered only when `AGEZT_BROWSER_ACTIONS` is
+enabled (`plugins/builtintools/tools.go:190-197`, `kernel/settings/schema.go:476`). It is opt-in,
+not default-on — which is why this is High and not Critical.
+
+**Remediation:** the containment must move to where the connection is made. Either (a) pin the
+already-validated IP and pass it to the driver, launching Chromium with
+`--host-resolver-rules="MAP <host> <validated-ip>"` so the second resolution cannot differ, or (b)
+run the driver behind a local proxy whose dialer uses `netguard.Guard.Control`, or (c) have the
+driver report every navigation target (including redirect hops) back for validation before
+committing. Additionally, cap and re-validate redirects rather than validating only `in.URL`.
 
 ---
 
-## PATH-002 — Windows no-follow containment check has no separator boundary
+### SSRF-002 — The `config` tool lets LLM input rewrite "operator-pinned" outbound URLs, invalidating the rationale for the unguarded client fleet
 
-- **Title:** Sibling-prefix bypass in `openFileNoFollow`'s workspace containment
-- **Severity:** **Low**
+- **Severity:** High
+- **Confidence:** 88
+- **CWE:** CWE-918 (SSRF), CWE-1220 (insufficient granularity of access control)
+- **File:** `plugins/tools/homeassistant/homeassistant.go:76-79` (the false guarantee),
+  `plugins/tools/config/config.go:192-287`, `cmd/agezt/main.go:3809-3825`
+
+**The claim, stated in code:**
+
+```go
+// plugins/tools/homeassistant/homeassistant.go:76-79
+// HTTP overrides the request client; nil → a DefaultTimeout client. The HA
+// host is config-pinned, so no egress guard is needed (the agent can't choose
+// the destination).
+HTTP *http.Client
+```
+
+**The client that rests on it:**
+
+```go
+// plugins/tools/homeassistant/homeassistant.go:85-90
+func (t *Tool) client() *http.Client {
+	if t.HTTP != nil {
+		return t.HTTP
+	}
+	return &http.Client{Timeout: DefaultTimeout}
+}
+```
+
+**Why "the agent can't choose the destination" is false.** `AGEZT_HOMEASSISTANT_URL` is a writable
+built-in Config Center field:
+
+```go
+// kernel/settings/schema.go:227
+{Env: "AGEZT_HOMEASSISTANT_URL", Label: "Base URL", Type: TypeText, Apply: ApplyRestart, Help: "e.g. http://homeassistant.local:8123"},
+```
+
+and the `config` **agent tool** writes exactly that surface — `doSet` accepts any field the
+registry resolves (`plugins/tools/config/config.go:201-204`) and persists it
+(`:264-277`). Its write axis is `edict.CapConfigWrite` (`config.go:49-53`), and
+`kernel/edict/edict.go:634-640` sets **every** capability to `LevelAllow`:
+
+```go
+func DefaultLevels() map[Capability]TrustLevel {
+	levels := make(map[Capability]TrustLevel, len(AllCapabilities()))
+	for _, c := range AllCapabilities() {
+		levels[c] = LevelAllow
+	}
+	return levels
+}
+```
+
+The tool is registered unconditionally, with no env gate
+(`plugins/builtintools/inject.go:34-49`, registered at `plugins/builtintools/tools.go:56`).
+
+**The value reaches the process environment at next boot with no filter whatsoever:**
+
+```go
+// cmd/agezt/main.go:3809-3814
+	for name, val := range store.All() {
+		if val != "" && os.Getenv(name) == "" {
+			_ = os.Setenv(name, val)
+			injected++
+		}
+	}
+```
+
+…and secrets likewise, for any `AGEZT_*` vault name (`main.go:3818-3825`).
+
+**Source → sink flow:**
+prompt injection / attacker-influenced content → LLM emits `config` tool call
+`{op:"set", name:"AGEZT_HOMEASSISTANT_URL", value:"http://169.254.169.254"}` →
+`config.go:264-277` writes the settings store → *daemon restart* →
+`main.go:3811` `os.Setenv` → HA tool constructed with the attacker's base URL →
+LLM emits `homeassistant {op:"get_states"}` → unguarded `&http.Client{}` GET →
+response body (capped at `MaxResponseBytes = 256 KiB`,
+`plugins/tools/homeassistant/homeassistant.go:58`) returned into the model's context, where
+`kernel/redact` does **not** run (recon Divergence 10(d), `kernel/agent/run_tools.go:332`).
+
+**Same root cause, other instances** (each an unguarded client whose URL is a writable schema field):
+
+| Writable field | Schema line | Unguarded client | Notes |
+|---|---|---|---|
+| `AGEZT_HOMEASSISTANT_URL` | `schema.go:227` | `homeassistant.go:89` | comment claims the guarantee |
+| `AGEZT_STT_URL` | `schema.go:117` | `kernel/stt/stt.go:55` | response text returned via `/api/transcribe` |
+| `AGEZT_PEERS` | `schema.go:531` | `plugins/tools/peer/peer.go:416`, `:437`; `kernel/controlplane/nodes.go:152`; `kernel/controlplane/remote_mirror.go:127`, `:195` | all `http.DefaultClient`; peer answer echoed to model at `peer.go:296` |
+| `AGEZT_BROWSER_ACTION_REMOTE_CDP_URL` | `schema.go:486` | Playwright CDP attach, `action.go:462` | see below |
+| `AGEZT_WEBHOOK_OUTBOUND_URL` | `schema.go:239` | `plugins/channels/webhook/webhook.go:105` | |
+| `AGEZT_NEXTCLOUDTALK_URL` / `AGEZT_WHATSAPPGW_URL` / `AGEZT_IMESSAGE_URL` / `AGEZT_SIGNAL_API_URL` | `schema.go:396`, `:407`, `:421`, `:210` | respective `&http.Client{}` | credential-bearing |
+
+**A second explicit false guarantee, same mechanism.** Two fields document that they are not
+model-reachable:
+
+```go
+// kernel/settings/schema.go:484
+{Env: "AGEZT_BROWSER_ACTION_USER_DATA_DIR", …, Help: "Persistent Chromium user data directory for profile=user-attached. Not accepted from model input."},
+// kernel/settings/schema.go:486
+{Env: "AGEZT_BROWSER_ACTION_REMOTE_CDP_URL", …, Help: "Chrome DevTools endpoint for profile=remote-cdp, e.g. http://127.0.0.1:9222. Not accepted from model input."},
+```
+
+The *per-call* defence is correct — `action.go:409`, `:421`, `:442` clear `in.RemoteCDPURL` from
+model input and `:462` substitutes the operator value. But the `config` tool **is** model input,
+and both fields are writable `TypeText` schema entries, as is the
+`AGEZT_BROWSER_ACTION_ALLOW_REMOTE_CDP` bool that unlocks the profile (`schema.go:485`). An agent
+can therefore set all three and, after restart, point `profile=remote-cdp` at a CDP endpoint of its
+choosing — a Chrome DevTools endpoint is full browser control (cookie read, arbitrary navigation).
+
+**Why this is not a false positive:**
+- I traced every link: the field is in `builtinSections()`; `doSet` has no denylist beyond
+  `field.ReadOnly` (`config.go:205-207`) and none of these fields set `ReadOnly`;
+  `settings.Validate` (`schema.go:619-641`) does no URL/host checking for `TypeText` at all
+  (it validates only Number, Bool and Select); `store.Set` (`kernel/settings/store.go:111-115`)
+  has no key filter; `injectConfig` has no key filter.
+- This is squarely the reportable class named in my brief: *"docs/comments claiming a guarantee the
+  code doesn't implement."*
+
+**Honest limitation:** every field above is `Apply: ApplyRestart`, so the SSRF fires on the **next
+daemon start**, not immediately. That is a delay, not a mitigation — the daemon restarts on
+self-update (`cmd/agezt/boot_ops.go:76-120`), on the watchdog path, and on reboot, and the written
+config is durable. It does mean an operator watching a single run will not see the request.
+
+**Remediation:**
+1. Fix the false comments — either wire netguard into these clients or delete the claim. Preferred:
+   give every `AGEZT_*_URL` consumer a `netguard`-backed client (the change is one line each, e.g.
+   `netguard.New(opts...).HTTPClient(timeout)`), which makes the "config-pinned" question moot.
+2. Mark security-relevant fields `ReadOnly` for the tool path, or add an
+   `AgentWritable bool` to `settings.Field` defaulting false and have `config.doSet` honour it.
+   URL fields, `AGEZT_ALLOW_ALL`, and the `BROWSER_ACTION_*` unlock flags should never be
+   agent-writable.
+3. Validate `TypeText` fields whose name ends in `_URL` against a scheme+host policy in
+   `settings.Validate`.
+
+---
+
+### SSRF-003 — `config op=register` bypasses the built-in shadow guard for the SSRF opt-out flags, which were never added to the built-in schema
+
+- **Severity:** Medium
+- **Confidence:** 85
+- **CWE:** CWE-183 (permissive allowlist), CWE-918
+- **File:** `kernel/settings/registry.go:189-219`, `plugins/builtintools/tools.go:128-140`
+
+The registry's whole purpose is to stop a skill from writing core settings, and it does so with a
+reserved-set check:
+
+```go
+// kernel/settings/registry.go:204-206
+		if reserved[f.Env] {
+			return fmt.Errorf("field %q: shadows a built-in setting and is reserved", f.Env)
+		}
+```
+
+`reserved` is `builtinEnvSet()` (`registry.go:48-56`) — the env names present in
+`builtinSections()`. **`AGEZT_HTTP_ALLOW_LOOPBACK` and `AGEZT_HTTP_ALLOW_PRIVATE` are not in
+`kernel/settings/schema.go`** (verified: `grep -n "HTTP_ALLOW" kernel/settings/schema.go` returns
+only the `BROWSER_ACTION` and `ALLOW_ALL` entries). They are, however, live security controls:
+
+```go
+// plugins/builtintools/tools.go:128-140
+	if d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1" {
+		ht.AllowLoopback = true
+		egress = "loopback-ok"
+	}
+	if d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1" {
+		ht.AllowPrivate = true
+```
+
+**Exploitation path:** the agent calls
+`config {op:"register", section:{id:"telemetry", name:"Telemetry", fields:[{env:"AGEZT_HTTP_ALLOW_PRIVATE", label:"…", type:"bool"}, {env:"AGEZT_HTTP_ALLOW_LOOPBACK", …}]}}`.
+`validateSection` passes: the names match `^AGEZT_[A-Z0-9_]+$` (`registry.go:27`), are not
+reserved, and `TypeBool` is valid. `FieldByEnv` now resolves them across the merged surface
+(`registry.go:125-134`), so `config op=set … value=1` succeeds, `Validate` accepts `"1"`
+(`schema.go:629-634`), and `injectConfig` exports both at next boot. The `http` tool's SSRF floor
+for loopback and RFC1918 is then gone — for every subsequent agent call, permanently, under an
+innocuously-named section.
+
+**Why this is not a false positive:** the guard is *specifically designed* to prevent this and
+fails only because the protected values were left out of the list it derives from. That is an
+allowlist-derivation bug, not a design decision.
+
+**Related, and simpler:** `AGEZT_ALLOW_ALL` **is** a built-in field
+(`kernel/settings/schema.go:589`), so it needs no register trick — `config op=set AGEZT_ALLOW_ALL=1`
+is a direct write, and per `tools.go:121-140` it sets `AllowAll`, `AllowLoopback` **and**
+`AllowPrivate` in one move. Its label is `"Allow all (DANGEROUS)"`, so at least it is visible in the
+Config Center UI; a registered custom section is not.
+
+**Remediation:** derive the reserved set from the union of `builtinSections()` **and**
+`kernel/controlplane/config.go`'s `configEnvVars` list (which already contains
+`AGEZT_HTTP_ALLOW_LOOPBACK` at `:175` and `AGEZT_HTTP_ALLOW_PRIVATE` at `:176`), or simply reserve
+every `AGEZT_*` name the binary reads. A guard-disabling flag must never be registerable.
+
+---
+
+## Outbound HTTP client inventory
+
+Classification: **Guarded** = dial-level `netguard.Guard.Control` on the transport actually used.
+"URL controlled by" is the *effective* answer after accounting for SSRF-002 (the `config` tool).
+
+| # | Client site | Guarded? | URL controlled by | Risk |
+|---|---|---|---|---|
+| 1 | `plugins/tools/http/http.go:102` | ✅ full + redirect-hop host recheck (`:109-117`) | LLM (per call) | Low |
+| 2 | `plugins/tools/fetch/fetch.go:94` | ✅ | LLM (per call) | Low |
+| 3 | `plugins/tools/websearch/websearch.go:107` | ✅ | LLM (per call) | Low |
+| 4 | `plugins/tools/browser/browser.go:128` (`browser.read`) | ✅ | LLM (per call) | Low |
+| 5 | **`plugins/tools/browser/action.go:831`** (`browser.action`) | ❌ **classifier only; fetch is out-of-process** | LLM (per call) | **High — SSRF-001** |
+| 6 | `kernel/chatgptauth/chatgptauth.go:57` | ✅ strict | constant | Low |
+| 7 | `kernel/controlplane/channel_oauth.go:84` | ✅ strict | operator | Low |
+| 8 | `plugins/channels/onebot/onebot.go:97` (media) | ✅ strict | remote peer | Low |
+| 9 | `plugins/external/mcpbridge/sse_transport.go:99` | ✅ (fixed 2026-08-12) | operator | Low |
+| 10 | `kernel/mcp/http.go:75` | ✅ loopback+private allowed | operator only (`mcp` tool has no `url` field) | Low |
+| 11 | `kernel/catalog/sync.go:21` | ✅ loopback+private allowed | operator (`AGEZT_CATALOG_URL`) | Low |
+| 12 | `kernel/market/sync.go:38` | ✅ loopback+private allowed | operator | Low |
+| 13 | `kernel/controlplane/channels.go:403` | ✅ loopback+private allowed | operator | Low |
+| 14 | `kernel/update/update.go:182-195` | ✅ + HTTPS-per-hop `CheckRedirect` | operator | Low |
+| 15 | `plugins/providers/embed/embed.go:69` | ✅ loopback+private allowed | agent via `AGEZT_EMBED_URL` | Low-Med (link-local still blocked) |
+| 16 | `plugins/providers/voice/voice.go:209` | ✅ loopback+private allowed | agent via `AGEZT_TTS_URL` | Low-Med |
+| 17 | `plugins/providers/openairesponses/openairesponses.go:50` | ✅ strict | constant | Low |
+| 18 | `cmd/agezt/httpsurfaces.go:593` (webhook dispatcher injection) | ✅ | operator (`AGEZT_WEBHOOKS`) | Low |
+| 19 | **`kernel/webhook/webhook.go:102`** (library default) | ❌ fail-open | n/a in daemon (overridden at #18) | Low in-daemon; **library default is fail-open** |
+| 20 | `kernel/webhook/webhook.go:361` (`Probe`, nil client) | ❌ fail-open | operator; `cmd/agt/webhook.go:148` passes a guarded client | Low |
+| 21 | **`kernel/stt/stt.go:55`** | ❌ | **agent via `AGEZT_STT_URL`** | **High — SSRF-002** |
+| 22 | **`plugins/tools/homeassistant/homeassistant.go:89`** | ❌ (comment claims none needed) | **agent via `AGEZT_HOMEASSISTANT_URL`** | **High — SSRF-002** |
+| 23 | **`plugins/tools/peer/peer.go:416`, `:437`** | ❌ `http.DefaultClient` | **agent via `AGEZT_PEERS`** | **High — SSRF-002** |
+| 24 | **`kernel/controlplane/nodes.go:152`** | ❌ `http.DefaultClient` | agent via `AGEZT_PEERS` | Med |
+| 25 | **`kernel/controlplane/remote_mirror.go:127`, `:195`** | ❌ `http.DefaultClient` | agent via `AGEZT_PEERS` | Med |
+| 26 | `kernel/acpcatalog/clients.go:64`, `:115`; `registry.go:96`, `:152` | ❌ | operator/registry config | Med |
+| 27 | `kernel/creds/aws.go:482` (IMDS) | ❌ | constant `169.254.169.254` | **Necessarily exempt** |
+| 28 | `kernel/creds/sso.go:181`, `sts.go:160`, `web_identity.go:116` | ❌ | AWS endpoints from operator profile | Low |
+| 29 | `plugins/providers/vertex/auth.go:200`, `metadata.go:70` | ❌ `http.DefaultClient` | GCP metadata (by design) | Exempt |
+| 30 | All channel drivers — slack `:134`, discord `:122`, telegram `:82`, whatsapp `:119`, whatsappgw `:91`, teams `:60`, matrix `:89`, mastodon `:68`, signal `:90`, sms `:117`, line `:80`, zalo `:78`, dingtalk `:74`, feishu `:83`, wecom `:93`, nextcloudtalk `:96`, imessage `:87`, push `:122`, webhook `:105`, chatwebhook `:75`, homeassistant `:69` | ❌ all bare `&http.Client{}` | operator env; **several are agent-writable schema fields** (see SSRF-002 table) | Med |
+| 31 | All provider drivers — anthropic `:74`/`:156`, openai `:74`/`:156`, ollama `:57`/`:122`, google `:81`, cohere `:68`, bedrock `:131`, vertex `:90`, image `:44`/`:106`, rerank `:42`/`:105`; shared `plugins/providers/internal/retry/http.go:24`, `:62` | ❌ | operator (provider base URLs) | Med |
+| 32 | `cmd/agt/*` CLI — `peers.go:192,302,475,598,693`, `ha.go:250`, `plugin_registry.go:346`, `skill_registry_remote.go:39` | ❌ | operator at the terminal | Low (out-of-daemon) |
+
+**Totals:** 18 guarded call paths, ~45 unguarded. Of the unguarded ones, **5 have a URL an agent
+can influence today** (#21, #22, #23, #24, #25) plus the channel subset in #30.
+
+---
+
+## Verified safe
+
+Recorded because negative results are output. Each of these I actively tried to break.
+
+### netguard held against 14 attacks
+
+`kernel/netguard/netguard.go` — I attempted each of the following against `Allowed()` (`:69-104`)
+and `Control()` (`:168-186`) by reading the classification path:
+
+| Technique | Result | Why |
+|---|---|---|
+| Decimal `2130706433`, octal `0177.0.0.1`, hex `0x7f000001` | **Blocked** | irrelevant to the design — `Control` receives the *resolved literal* `IP:port`, so encoding is normalised by the resolver before the check (`:169-178`) |
+| DNS rebinding | **Blocked** | `Control` runs per dial, after resolution (`:168`) |
+| 302/307 redirect chain to internal | **Blocked** | fresh non-shared `Transport` (`:198-208`) ⇒ every hop re-dials through `Control`; test at `netguard_test.go:137-157` |
+| IPv4-mapped `::ffff:127.0.0.1` | **Blocked** | `net.IP.IsLoopback` uses `To4()` internally; asserted `netguard_test.go:26` |
+| NAT64 `64:ff9b::a9fe:a9fe` | **Blocked** | `embeddedV4` (`:111-132`), asserted `netguard_test.go:52` |
+| IPv4-compatible `::a9fe:a9fe` | **Blocked** | same, `netguard_test.go:53` |
+| `0.0.0.0` and the whole `0.0.0.0/8` | **Blocked** | `isZeroBlock` (`:146-149`) — note it correctly covers more than `IsUnspecified` |
+| CGNAT `100.64.0.0/10` | **Blocked** | `isCGNAT` (`:153-156`); also catches Alibaba metadata `100.100.100.200` |
+| Link-local `169.254.169.254` | **Blocked, with no opt-in at all** | `:93-94`; `AllowPrivate` deliberately does not unblock it (`netguard_test.go:88-90`) |
+| Broadcast `255.255.255.255`, multicast | **Blocked** | `:100-101` |
+| `metadata.google.internal` / `.local` mDNS names | **Blocked** | resolve to link-local / are unresolvable; name is never the check subject |
+| **Proxy env (`HTTP_PROXY`/`ALL_PROXY`)** | **No bypass** | `HTTPClient` builds `&http.Transport{…}` (`:200-207`) with `Proxy` left **nil** — a manually-constructed Transport does *not* inherit `ProxyFromEnvironment`. Had it, the dial would target the proxy and `Control` would validate the wrong IP. This is safe by construction, though implicitly. |
+| `file://`, `gopher://`, `unix://` redirect targets | **Blocked** | `http.Transport` registers only http/https; other schemes error as unsupported protocol |
+| Unparseable / non-literal dial address | **Fail-closed** | `:171`, `:177` both return an error; asserted `netguard_test.go:104-106` |
+
+Residual gaps, both negligible and **not filed**: IPv6 6to4 `2002::/16` and deprecated site-local
+`fec0::/10` are not collapsed by `embeddedV4`; neither routes to a local target in practice.
+
+### Other confirmed-safe surfaces
+
+- **`kernel/mcp/http.go:75`** — the recent commit's claim is **real**, not comment-only:
+  `netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(callTimeout)` is the
+  transport used by `postLocked` (`:243`), so every redirect hop is screened. Link-local is refused.
+- **`plugins/external/mcpbridge/sse_transport.go:99`** — the 2026-08-12 SSRF-002/003 fix is real and
+  complete: the one-shot `resolveEndpoint` check is now *backed* by a dial-level guarded client, and
+  the drifted private IP classifier was deleted in favour of delegating to `kernel/netguard`
+  (`sse_guard.go:251-256`).
+- **`plugins/tools/http/http.go:109-117`** — `CheckRedirect` re-applies the **host allowlist** on
+  every hop, closing a gap netguard alone would not (an allowlisted host redirecting to an
+  arbitrary external host with the agent's `Authorization` header attached). Correctly capped at
+  `maxRedirects = 10` (`:121-123`), which matters because setting `CheckRedirect` replaces Go's
+  default cap.
+- **`kernel/webhook/webhook.go:315-317`** — non-loopback sinks are forced to `https://`, so journal
+  payloads cannot be exfiltrated in plaintext; loopback is the only `http://` exemption.
+- **The `mcp` agent tool cannot register a remote HTTP MCP server.** Its `InputSchema`
+  (`plugins/tools/mcptool/tool.go:81-92`) exposes only `command`/`args`, and the `mcp.Server`
+  literal it builds (`:129-134`) leaves `URL` and `Headers` zero. Remote URLs arrive only via
+  `/api/mcp/add` (`kernel/webui/webui.go:682` → `kernel/controlplane/mcp.go:81`), which is
+  console-token-gated.
+
+---
+
+## Killed candidates (false positives I refuted)
+
+Recorded so nobody re-files them.
+
+1. **"Agent can SSRF via remote MCP endpoint."** Refuted — the `mcp` tool has no `url` input
+   (`plugins/tools/mcptool/tool.go:81-92`, `:129-134`). Only the operator can set one. Additionally
+   `kernel/mcp/http.go:75` is genuinely guarded.
+2. **"`fetch` tool's `name` argument is a path-traversal sink."** Refuted — `artifact.Index.PutEntry`
+   stores `meta.Name` as JSON *metadata only*; the on-disk filename is a generated ULID
+   (`kernel/artifact/index.go:89`, `:136` — `filepath.Join(i.dir, e.ID+".json")`) and the blob is
+   content-addressed (`:85`). The LLM-supplied name never reaches a path.
+3. **"Webhook payload controls a workflow HTTP node's URL ⇒ unauthenticated SSRF."** Partially
+   refuted — the URL *is* webhook-influenceable (`kernel/webui/webui.go:1017-1033` builds
+   `trigger.payload`, and `kernel/workflow/templates.go:89` ships a template with
+   `{"method":"GET","url":"{{trigger.payload.url}}"}`; node validation at
+   `kernel/workflow/workflow.go:546-558` checks only method and non-emptiness). **But the egress is
+   guarded**: `kernel/runtime/workflowrun.go:538-544` routes the interpolated URL through
+   `k.invokeWorkflowTool(ctx, "http", …)` — the registered, netguard-backed `http` tool — so
+   internal/metadata targets are refused. The residual is arbitrary *public* fetch, which is the
+   owner's default-allow posture and out of scope per my brief.
+
+---
+
+## Path traversal
+
+### PATH-001 status: the 2026-08-12 symlink fix is REAL, not comment-only — verified
+
+The brief asked me to confirm that `EvalSymlinks` is now actually called. It is, on both paths:
+
+```go
+// kernel/webui/files_route.go:147
+	realRoot, err := filepath.EvalSymlinks(rootAbs)
+// kernel/webui/files_route.go:160
+		real, rerr := filepath.EvalSymlinks(probe)
+```
+
+`resolveFileRoot` (`:104-134`) is the single chokepoint for all five handlers and applies three
+layers in order: `sanitizeRelativePath` (`:230-255`) → lexical containment (`:118`) →
+`verifyResolvedWithinRoot` (`:142-181`) → `verifyNoEscapingLinks` (`:194-225`).
+
+I attacked it with the Windows-specific vectors named in my brief:
+
+| Vector | Result | Why |
+|---|---|---|
+| `../` POSIX traversal | **Blocked** | `sanitizeRelativePath:249-253` rejects any `..` segment after `Clean` |
+| `..\` backslash traversal | **Blocked** (twice) | `filepath.FromSlash`+`Clean` (`:246`) normalises `\` to the OS separator on Windows, so `..` segments surface and are rejected at `:250`; even if they did not, the lexical prefix check at `:118` operates on the post-`Join`+`Clean` string and refuses |
+| Absolute path `/etc/passwd`, `\\x` | **Blocked** | `:238-240` |
+| Drive-relative `C:foo`, drive-absolute `C:\foo` | **Blocked** | `:241-243` rejects any string whose second byte is `:` |
+| UNC `\\server\share` | **Blocked** | leading `\` caught at `:238` |
+| NUL byte / ADS-style `file:$DATA` smuggling | **NUL blocked** at `:234-236`; ADS not separately filtered, but an ADS suffix cannot escape the root — it names a stream on an in-root file |
+| POSIX symlink escape | **Blocked** | `verifyResolvedWithinRoot:163` compares the fully resolved path against the resolved root |
+| **Windows directory junction** | **Blocked** | `verifyNoEscapingLinks:208` uses `os.Readlink` per component — the one thing that works, since `EvalSymlinks` returns a junction unchanged and `os.Lstat` reports `ModeIrregular` (documented `:186-190`) |
+| Link **chain** (link → link → outside) | **Blocked** | `:222` `cur = dest` continues the walk from where each link lands |
+| Not-yet-existing target (mkdir) | **Handled** | `:157-179` walks up to the deepest existing ancestor and re-attaches the tail — correct, since a nonexistent tail cannot be a link |
+| Prefix confusion `/var/foo` vs `/var/foobar` | **Blocked** | `:118`, `:163`, `:217` all compare against `root+os.PathSeparator`, never bare `HasPrefix` — deliberately, per `:116-117` |
+
+**Residual (noted, not filed): the check is TOCTOU-racy.** `verifyResolvedWithinRoot` is a *check*,
+not a substitution — `:139-141` says so explicitly — and the handlers then operate on the lexical
+`targetAbs` (`:415` `MkdirAll`, `:456` `Rename`, `:502` `RemoveAll`). An attacker who can create a
+symlink inside the root *between* the check and the syscall wins the race. I am not filing this
+because the precondition (concurrent local filesystem write inside the workspace root) already
+implies code execution as the same user, which is strictly greater authority than the race yields.
+The handlers additionally retain final-component `Lstat`/`O_NOFOLLOW` guards.
+
+### PATH-002 — `CachedPack` builds a marketplace cache path from two unvalidated names
+
+- **Severity:** Low
 - **Confidence:** 85
 - **CWE:** CWE-22
-- **File:** `plugins/tools/file/nofollow_windows.go:80`
-
-### Description
+- **File:** `kernel/market/sources.go:205`, `:26-28`
 
 ```go
-if !strings.HasPrefix(finalPath, ws) {   // ws = cleaned workspace root, no trailing sep
-    f.Close()
-    return nil, fmt.Errorf("openNoFollow: resolved path %q is outside workspace %q ...", finalPath, ws)
+// kernel/market/sources.go:199-205
+func (s *Store) CachedPack(marketplace, name string) (Pack, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if marketplace == "" {
+		return Pack{}, fmt.Errorf("market: a marketplace name is required to resolve a cached pack")
+	}
+	data, err := os.ReadFile(filepath.Join(s.marketplaceDir(marketplace), "packs", name+".json"))
+```
+
+`marketplace` is checked only for emptiness; `name` is not checked at all; and the helper adds no
+containment:
+
+```go
+// kernel/market/sources.go:26-28
+func (s *Store) marketplaceDir(n string) string {
+	return filepath.Join(s.marketplacesDir(), n)
 }
 ```
 
-`c:\users\x\workspace-evil\f.txt` has prefix `c:\users\x\workspace`, so the check passes. This is precisely the bug the webui route calls out and avoids (`files_route.go:116-118`: "so `/var/foo` doesn't match `/var/foobar`"), and the same file's Unix sibling relies on kernel `O_NOFOLLOW` instead of a prefix test.
+**Why it is a real gap:** this package *has* the validator and applies it on the neighbouring
+paths — `nameRe = ^[a-z][a-z0-9-]{0,63}$` (`kernel/market/market.go:38`), enforced in `AddSource`
+(`sources.go:55-57`), `SaveMarketplace` (`:129-131`), and `Pack.Validate` (`market.go:154`). It is
+simply not applied on the read path. Both names flow in caller-supplied from
+`compositeLibrary.ResolvePack` (`kernel/market/library.go:47`, `:56`).
 
-Exploitability is limited: this check is a TOCTOU backstop that only matters when a junction is swapped in between `resolve()` (which does a correct `EvalSymlinks` + `withinRoot` check) and the `os.OpenFile`, and the junction must target a directory whose name extends the root's. Hence Low — but it is an unambiguous defect in a security check.
+**Exploitation path:** `name = "../../../../creds"` resolves
+`…/market/marketplaces/<mp>/packs/../../../../creds.json` → `<baseDir>/creds.json`, the credential
+vault.
 
-### Remediation
+**Why the severity is Low, honestly:**
+- There is **no agent tool for the marketplace** — `plugins/tools/` contains no `market` entry, and
+  `ResolvePack`'s only callers are `kernel/market/manager.go:194`, `:218` (install/inspect), reached
+  from the console route `/api/market/install` and the `agt market` CLI. Both already require the
+  console token, which independently grants `/api/files/raw` and `/api/config/values` — strictly
+  more read authority than this yields. It does not cross a privilege boundary.
+- The bytes are `json.Unmarshal`ed into a `Pack` (`sources.go:212`), so a successful read of a
+  non-Pack file mostly yields a zero-valued struct rather than disclosed content. Practically this
+  is a file-existence oracle, not a general file-read primitive.
 
-Compare with `withinRoot`-style semantics: `finalPath == ws || strings.HasPrefix(finalPath, ws + "\\")`.
+**Remediation:** apply `nameRe.MatchString` to both `marketplace` and `name` at the top of
+`CachedPack`, matching what `AddSource` and `SaveMarketplace` already do.
+
+### Verified safe — other path sinks
+
+- `kernel/artifact/index.go:136` — the only dynamic component is `e.ID+".json"`, where `e.ID` is
+  `"art-" + ulid.New()` (`:89`); blobs are content-addressed (`:85`). LLM-supplied `Name` is JSON
+  metadata only and never reaches a path.
+- `kernel/artifact/artifact.go:138-144` — `filepath.Join(s.dir, ref[:2], ref)` guarded by
+  `validRef` requiring 64 lowercase hex chars; `artifact.go:88` refuses otherwise. Bytes are
+  re-hashed on read (`:100`).
+- `kernel/settings/registry.go:155`, `:166` — `filepath.Join(r.dir, sec.ID+".json")` with `sec.ID`
+  constrained by `slugPattern = ^[a-z0-9][a-z0-9_-]{0,63}$` (`:30`), enforced on write
+  (`validateSection:190`) **and** on delete (`Unregister:163`). `.`, `/` and `\` are all outside the
+  character class, so `../`, `..\`, ADS and UNC forms are inexpressible.
+- `plugins/tools/codeexec/codeexec.go:230-232` — extra-file writes gated by `sanitizeRelFile` with a
+  hard refusal.
+- **No upload/write-content route exists on the File Manager at all** — `files_route.go` exposes
+  only tree/raw/mkdir/rename/delete; bodies are JSON-only via `readJSONBody` (`:527-536`).
 
 ---
 
-## PATH-003 — Nil-pointer panic in the file-tree handler on a concurrently removed entry
+## File upload
 
-- **Title:** `handleFileTree` dereferences a nil `FileInfo` when `DirEntry.Info()` fails
-- **Severity:** **Low** (availability; adjacent to the traversal surface, so recorded here)
-- **Confidence:** 90
-- **CWE:** CWE-476
-- **File:** `kernel/webui/files_route.go:201-215`
+**Nothing filed.** Two inbound multipart receivers exist; both are correctly bounded and neither
+writes to disk.
 
-```go
-fi, ferr := e.Info()
-var size, modMS int64
-if ferr == nil && !e.IsDir() { ... } else if ferr == nil { ... }
-// ferr != nil ⇒ fi is nil ⇒ panic
-if fi.Mode()&os.ModeSymlink != 0 { continue }
+- `kernel/webui/transcribe.go:34-38` — `MaxBytesReader` is applied **before** `ParseMultipartForm`,
+  which is the correct order. The route additionally declares `BodyMax: audioMaxBytes`
+  (`kernel/webui/webui.go:825-828`). Bytes stay in memory and are forwarded to the STT backend; the
+  client filename (`transcribe.go:54`) is passed to the upstream multipart field
+  (`kernel/stt/stt.go:72`) and **never used to build a path**.
+- `kernel/openaiapi/openaiapi.go:239` — `ParseMultipartForm` is the only in-handler bound, but the
+  route declares `BodyMax: audioMaxBytes` (`openaiapi.go:206-211`) and
+  `kernel/httpserver/router.go:106-107` wraps it:
+  `wrapped = BodyLimit(opts.BodyMax)(wrapped)` → `http.MaxBytesReader`
+  (`kernel/httpserver/limits.go:16`). **The cap is present via middleware.**
+  *(A discovery sweep reported this route as having "no MaxBytesReader at all"; I checked the
+  router and that is incorrect. Recording the refutation so it is not re-filed.)*
+- **No runtime write can reach a web-served directory.** The SPA is `go:embed`-ed
+  (`kernel/webui/embed.go:13-14`), served read-only from `embed.FS` (`webui.go:169`, `:1493-1500`),
+  which itself rejects `..` and absolute names. There is no on-disk asset root to poison.
+- `kernel/webui/artifact_route.go` — `?mime=` is requester-supplied but passes through the
+  `safeContentType` allowlist (`:65-76`); `image/svg+xml` additionally receives
+  `Content-Security-Policy: sandbox; default-src 'none'` (`:43-51`). Correct design.
+
+---
+
+## Open redirect
+
+**No server-side open redirect exists.** Every `http.Redirect` in the tree is in a `_test.go` file.
+The only production redirect handling is *outbound following* in the updater
+(`kernel/update/update.go:620-634`), which re-applies `requireHTTPS` to the resolved absolute URL
+after the hop (`:632`) and follows only one.
+
+### REDIR-001 — `href` from LLM-supplied data without the codebase's own `safeHref` guard
+
+- **Severity:** Low
+- **Confidence:** 80
+- **CWE:** CWE-601 / CWE-79
+- **File:** `frontend/src/views/Research.tsx:223`
+
+```tsx
+                  <a
+                    key={s.id}
+                    href={s.url}
 ```
 
-`os.DirEntry.Info()` returns `(nil, err)` when the entry vanished between `ReadDir` and the `lstat` (`ErrNotExist`) — routine in a directory an agent is actively writing. The `ModeSymlink` check then dereferences nil. `net/http` recovers the panic per connection, so the blast radius is one aborted request plus a stack trace in the log, but a caller who can churn files in the browsed directory can make the Files view fail non-deterministically.
+`report.sources[].url` originates from the `research` tool's output — i.e. LLM- and
+fetched-page-derived. The codebase already ships the correct guard and applies it elsewhere:
 
-### Remediation
+```ts
+// frontend/src/lib/markdown.ts:42-44
+export function safeHref(href: string): string {
+  return /^(https?:\/\/|mailto:)/i.test(href.trim()) ? href.trim() : "";
+}
+```
 
-`if ferr != nil { continue }` before the mode check.
+used at `frontend/src/lib/markdown.ts:106` and `frontend/src/views/Data.tsx:661-662` (the latter
+with a comment naming the exact risk). It is **not** applied at `Research.tsx:223`, nor at
+`Channels.tsx:309`, `Channels.tsx:743`, `ACPAgents.tsx:165`, or `VoiceSetup.tsx:479` — though those
+four take catalog/preset data rather than model output, so `Research.tsx` is the reachable one.
+
+**Why only Low:** the console CSP is `script-src 'self'` with **no** `'unsafe-inline'`
+(`kernel/webui/webui.go:1316-1318`), and CSP blocks `javascript:` URI navigation outright; browsers
+independently block top-level `data:` navigation. So this is a missing defence-in-depth layer whose
+outer layer currently holds — but it is one CSP relaxation away from being live, and the fix is to
+reuse an existing one-line helper.
+
+**Remediation:** `href={safeHref(s.url)}` at `Research.tsx:223`, and the same at the four
+catalog-driven sites for consistency.
+
+### Verified safe — OAuth and front-end navigation
+
+- **`window.open(r.authorize_url, …)`** at `views/Channels.tsx:211`, `views/Models.tsx:362`,
+  `views/Setup.tsx:223` is **not** scheme-injectable, which I confirmed by checking the producer
+  rather than the consumer. For the only caller-influenced case (Mastodon `instance_url`),
+  `kernel/controlplane/channel_oauth.go:319-334` requires a parseable URL with a non-empty host and
+  a scheme of exactly `http` or `https`, and rebuilds the value as `u.Scheme + "://" + u.Host` —
+  discarding path, query and any `javascript:`/`data:` payload. The other two sites receive a
+  server-constant URL (`chatgptauth.AuthorizeURL`, `provider_oauth.go:94`). The front end is
+  trusting the backend normaliser, which is fragile layering but currently correct.
+- **`/oauth/callback`** (`webui.go:864-867`, public/no-token) issues **no redirect**. Reflected
+  request text reaches only element text, escaped by `htmlEscape` (`webui.go:918-921`). Its inline
+  `<script>` would be blocked by the console CSP anyway.
+- **Provider OAuth** `redirect_uri` is fixed, not request-influenced
+  (`kernel/controlplane/provider_oauth.go:65`, `:73`); `state` is compared before use (`:108-112`).
+- **Front-end routing is hash-only** — `frontend/src/lib/nav.ts:44-50` force-prefixes `#`
+  (`normaliseHash`, `:23-33`), and there is no `location.href` / `.assign` / `.replace` assignment
+  anywhere in `frontend/src`.
+
+**Noted, not filed:** `kernel/controlplane/channel_oauth.go:112-131` accepts a fully caller-supplied
+`redirect_uri` validated only by `isHTTPSURL` (`:336-339`) — no host allowlist, and `http://` is
+accepted despite the function name. This is not an open redirect (nothing redirects to it
+server-side) and the route is console-token-gated, so setting it already requires the authority it
+would grant. Worth tightening to the console's own origin, but not a finding on this threat model.
 
 ---
 
-## Verified clean (checked, no finding)
+## Archive extraction — verified safe
 
-| Area | Why it is clean |
-|---|---|
-| `kernel/netguard` core | See §0 — dial-level, per-hop, fail-closed, no proxy escape, NAT64/IPv4-compat collapsed. |
-| `plugins/tools/http` | netguard client + host allowlist **re-checked on every redirect hop** (`http.go:109-117`, M251) + 10-hop cap. |
-| `plugins/tools/browser` (`browser.read`) | Same pattern (`browser.go:134-142`, M254). |
-| `plugins/tools/fetch`, `plugins/tools/websearch` | netguard client; websearch's endpoint is a compile-time constant (`websearch.go:57`). |
-| `plugins/tools/research` | No network of its own — delegates to `runtime.Research`, which drives the guarded `web_search`/`browser.read` tools. |
-| `kernel/mcp/http.go` | Guarded (loopback/private allowed by design, link-local refused). |
-| `kernel/update` | netguard dialer **plus** `CheckRedirect` enforcing HTTPS on every hop (`update.go:157-166`) **plus** SHA256+Ed25519. |
-| `kernel/acpcatalog`, `cmd/agt/skill_registry_remote.go`, `cmd/agt/plugin_registry.go` | Unguarded clients, but the targets are compile-time constants or a URL the operator types on the CLI — FP categories 1 & 5. |
-| `kernel/controlplane/{nodes,remote_mirror}.go` | `http.DefaultClient`, but peer URLs come from the operator's node-peer env spec and are validated http(s); internal ranges are the intended destination. |
-| `plugins/tools/peer` | Destination is name-keyed into the configured peer table; the model supplies a peer *name*, never a URL. |
-| `plugins/tools/mcptool` (`op=add`) | Agent self-install accepts `command`/`args` only — no URL field, so an agent cannot register a remote MCP endpoint. |
-| `kernel/artifact` | Content-addressed; `validRef` enforces 64-char lowercase hex before any path join (`artifact.go:144-155`); `Index.Bytes/Delete` gate on map membership, IDs are server-minted ULIDs. |
-| `plugins/tools/file` | Correct containment: `EvalSymlinks` on both the abs and rel branches, deepest-existing-ancestor resolution for new files (`file.go:806-836`), `entryEscapesRoot` during walks, `openFileNoFollow`, atomic `replace` with a pre-write `Lstat` symlink refusal. |
-| `kernel/skill/bundle.go` | `cleanRel` (`:75-88`) rejects absolute + `..` after backslash normalization; bundles are `map[string][]byte`, so no archive entry types and no symlink entries. |
-| `kernel/market` | `Pack.Validate` → `safeRelPath` (`market.go:186-199`, rejects `\`, leading `/`, and any `.`/`..`/empty segment) *and* the `BundleStore.cleanRel` layer underneath. |
-| `cmd/agt/backup.go` restore | Subtree allowlist + `..` rejection + prefix-with-separator check + `O_EXCL` + non-regular entries skipped (`:483-514`). |
-| `plugins/tools/codeexec` tar extraction | `sanitizeRelFile` (`runtimes.go:197-211`) rejects abs, `..`, NUL, and colon; symlink entries fall to `default: continue`. |
-| `kernel/datalake`, `kernel/tenant`, `kernel/settings`, `kernel/resume`, `kernel/configcenter` | Slug regexes / map-membership gates before every path join; `tenant.baseDir` additionally re-asserts `filepath.Dir(dir) == root`. |
-| `kernel/webui/rollback.go` | Apply takes an `id` only; `abs_path` comes from the daemon-written catalog, with `Lstat` symlink + directory refusals before write/remove. |
-| `kernel/webui/artifact_route.go` | Ref-addressed, mime allowlist, SVG sandboxed by CSP, `sanitizeFilename` for `Content-Disposition`. |
-| `plugins/tools/browser` session/artifact paths | `sessionDir` (`action.go:469-491`) and `isBrowserActionTempPath` (`:1001-1016`) both use `filepath.Rel` + `..` rejection. |
+There is **no `archive/zip` anywhere in the tree**, so the classic zip-slip surface does not exist.
+Three tar+gzip loops, all guarded:
 
-## Summary
+| Site | Untrusted input | Guard | Post-`Join` re-check | Open flags | Bomb caps |
+|---|---|---|---|---|---|
+| `cmd/agt/backup.go:496-507` | `hdr.Name` from a restore bundle | `isAllowedBackupPath` (`:520-530`) — subtree allowlist + `..`/leading-slash reject | ✅ `strings.HasPrefix(target, cleanDest+sep)` (`:497`) | `O_EXCL` (`:503`) | none |
+| `plugins/tools/codeexec/artifacts.go:334-342` | `hdr.Name` from a base64 blob returned by a **remote sandbox** | `sanitizeRelFile` (`runtimes.go:197-211`) | ✗ (guard only) | `O_TRUNC` | ✅ file count / per-file / total (`:324`, `:327`, `:331`), `io.CopyN` bounded by `hdr.Size` (`:342`) |
+| `cmd/agt/backup.go:243-279` | same | read-only inspection, writes nothing | n/a | n/a | n/a |
 
-| ID | Severity | Confidence | Area |
-|---|---|---|---|
-| SSRF-001 | High | 92 | `browser.action` → Playwright driver, unguarded |
-| SSRF-002 | Medium | 95 | mcpbridge SSE POST, documented dialer guard absent |
-| SSRF-003 | Low | 70 | 6to4 embedded v4 + kernel/bridge classifier drift |
-| PATH-001 | Medium | 90 | webui Files: intermediate-directory symlink escape |
-| PATH-002 | Low | 85 | Windows no-follow prefix check, no separator boundary |
-| PATH-003 | Low | 90 | nil-deref panic in file-tree handler |
+Both write loops skip non-regular entries (`backup.go:483`, `artifacts.go:320-322`), so no symlink
+or hardlink tar entry is ever materialized — which is what makes the absence of a post-`Join`
+re-check in the codeexec loop non-exploitable. I checked `sanitizeRelFile` against `a/../../b`
+(→ `Clean` yields `../b` → rejected at `:203`), Windows `a\..\..\b` (`FromSlash`+`Clean`+`ToSlash`
+→ `../b` → rejected), drive-relative `C:foo` (colon rejected at `:207`), absolute and NUL
+(`:199`). It holds.
 
-The unifying theme of the two real findings: **AGEZT's egress and containment controls are sound where they are enforced at the syscall boundary (netguard's `Dialer.Control`, the file tool's `EvalSymlinks` + `O_NOFOLLOW`), and unsound wherever a check-then-hand-off pattern was substituted** — a DNS resolution handed to an out-of-process browser (SSRF-001), a one-shot host classification handed to an unguarded `http.Client` (SSRF-002), a lexical join handed to `open`/`remove` (PATH-001). In all three cases the code's own comments describe the stronger guarantee that was intended.
+**Skill bundles** (`kernel/skill/bundle.go`) — `cleanRel` (`:75-88`) normalises `\`→`/`, rejects
+absolute and `..`-prefixed paths, and is applied to every resource key *before any disk write*
+(`:108`, comment `:103`); the directory name is `slugify`d (`:53-70`) so no separator survives.
+Marketplace pack resources are additionally pre-validated by `safeRelPath`
+(`kernel/market/market.go:186-199`) at pack-validate time.
+
+**Plugin install** (`cmd/agt/plugin_registry.go`) — `safeRegistryFilename` (`:309-318`) rejects
+`/`, `\` and `..` in the remote-supplied filename, and the BLAKE3 hash is verified at `:243-247`
+**before** `os.WriteFile` at `:248`. Correct ordering.
+
+**Noted, not filed:** rollback checkpoint restore (`kernel/webui/rollback.go:189-228`,
+`cmd/agt/rollback.go:279-306`) writes to an `abs_path` read back from the on-disk catalog, guarded
+only by a final-component symlink/directory refusal (`:202-207`) with no root containment. It is
+not filed because the catalog is written by the file tool with already-root-confined paths, and
+tampering it requires filesystem write outside the workspace — an authority that already exceeds
+what the primitive grants.
+
+---
+
+## Coverage statement
+
+Personally verified line by line: all of `kernel/netguard`, the outbound-client inventory,
+SSRF-001/002/003, `kernel/webui/files_route.go` in full, the settings registry/schema/store chain,
+`injectConfig`, the `config`/`mcp`/`http`/`fetch`/`peer`/`homeassistant` tools, the workflow HTTP
+node, `kernel/mcp/http.go`, `kernel/market/sources.go`, and the CSP/router/body-cap wiring.
+
+Enumerated by delegated discovery sweeps and **spot-verified but not exhaustively re-read by me**:
+`plugins/tools/file/file.go:760-868`, the three tar loops, skill-bundle and plugin-registry install
+paths, and the frontend `href`/`window.open` inventory. Where a sweep's claim was load-bearing I
+re-checked it against source, and **two sweep claims were refuted that way** (the OpenAI audio route
+does have a body cap, via router middleware; the `window.open(authorize_url)` sites are not
+scheme-injectable, because the backend normaliser rebuilds the URL). Treat any sweep claim I did not
+re-quote above as unconfirmed.
