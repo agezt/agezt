@@ -475,12 +475,21 @@ jobs:
             exit 1
           fi
       - uses: ./.github/actions/setup-go-safe
-      - name: gofmt (no diff)
+      - name: gofmt (no diff, project sources only)
+        # Scope to the AGEZT source trees — running `gofmt -l .` over the whole
+        # checkout walks into the Go module cache (`.dev-home/.../pkg/mod/...`)
+        # where vendor files are read-only and the diff is irrelevant noise.
+        # The `cmd internal kernel plugins sdk tools` set is what `go build ./...`
+        # actually compiles; mirroring that set keeps the formatter gate aligned
+        # with the compiler gate and avoids a CI failure that has nothing to do
+        # with the PR. Mirrors `gofmt -w cmd internal kernel plugins sdk tools`
+        # run locally to normalize drift (see PR #N).
         run: |
-          out="$(gofmt -l .)"
+          out="$(gofmt -l cmd internal kernel plugins sdk tools)"
           if [ -n "$out" ]; then
-            echo "::error::gofmt found unformatted files:"
+            echo "::error::gofmt found unformatted files (project sources):"
             echo "$out"
+            echo "::error::Run 'gofmt -w cmd internal kernel plugins sdk tools' and commit."
             exit 1
           fi
       - name: staticcheck (prebuilt binary, retry — flaky WSL go compiler)
