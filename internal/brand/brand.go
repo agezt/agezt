@@ -49,7 +49,7 @@ const (
 //
 // The Makefile and scripts/build.sh do this automatically; the default
 // below is used only when a developer runs `go build` without ldflags.
-var Version = "1.0.0"
+var Version = "1.1.0"
 
 // BuildCommit is the short git SHA the binary was built from. Empty when
 // not stamped — operators can detect "this build wasn't from CI" via

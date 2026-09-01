@@ -9,7 +9,7 @@ This is the human, per-component changelog (SPEC-08 §4.1). The machine,
 tamper-evident timeline of what actually happened to a running system lives in
 the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
-## [Unreleased]
+## [v1.1.0] — 2026-09-01
 
 ### Changed
 - Refactor program 2026-08, Phases 0–2 (#553–#560): new focused packages `kernel/jsonstore`, `kernel/channelwire`, `kernel/toolreg`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `plugins/providerboot`, `cmd/agezt/internal/daemonconfig`; controlplane dispatch, channel wiring, and tool wiring are now registries with permanent drift-alarm tests; `cmd/agezt/main.go` shrank 47% (7,455 → 3,932 lines). Full status table at the top of `docs/REFACTORING-SCAN-2026-08.md`.
@@ -54,5 +54,6 @@ See `CHANGELOG/unreleased/current.md` for the active working set and `CHANGELOG/
 
 Released version notes live in per-version files under `CHANGELOG/`.
 
+- `v1.1.0.md` — `1.1.0` (2026-09-01)
 - `v1.0.0.md` — `1.0.0` (2026-06-03)
 - `v0.1.0.md` — `0.1.0` (2026-05-30)
