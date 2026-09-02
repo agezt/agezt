@@ -248,8 +248,11 @@ func (m *Manager) supersedeExisting(corr, oldID, newID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	old, found, err := m.store.Get(oldID)
-	if err != nil || !found {
+	if err != nil {
 		return err
+	}
+	if !found {
+		return fmt.Errorf("memory: record %q not found (may have been deleted concurrently)", oldID)
 	}
 	if old.SupersededBy != "" {
 		return nil // already linked (idempotent across overlapping passes)
