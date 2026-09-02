@@ -126,12 +126,27 @@ func (s *Server) handleSandboxFile(conn net.Conn, req Request) {
 		return
 	}
 
-	info, err := os.Stat(full)
+	// Resolve symlinks before checking containment — os.Stat and os.ReadFile both
+	// follow symlinks at the kernel level, silently bypassing confineUnder's lexical
+	// guard. An attacker who can plant a file inside the project directory can
+	// create leak.txt → ../../TOPSECRET and bypass the sandbox.
+	resolved, rerr := filepath.EvalSymlinks(full)
+	if rerr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "resolve sandbox path: " + rerr.Error()})
+		return
+	}
+	// Re-verify the resolved path is still inside the projects root.
+	if !strings.HasPrefix(resolved, root+string(filepath.Separator)) {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "sandbox escape: resolved path " + resolved + " is outside " + root})
+		return
+	}
+
+	info, err := os.Stat(resolved)
 	if err != nil || info.IsDir() {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no such file"})
 		return
 	}
-	data, err := os.ReadFile(full)
+	data, err := os.ReadFile(resolved)
 	if err != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "read: " + err.Error()})
 		return
