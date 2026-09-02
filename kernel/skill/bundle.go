@@ -87,6 +87,14 @@ func cleanRel(rel string) (string, error) {
 	return cleaned, nil
 }
 
+// resolveSymlinks resolves all symlink components in path and returns the final
+// resolved absolute path. It wraps filepath.EvalSymlinks and fails-closed on any
+// error (including crossing a junction on Windows), making it suitable as a
+// pre-read security guard.
+func resolveSymlinks(path string) (string, error) {
+	return filepath.EvalSymlinks(path)
+}
+
 // Write materializes a bundle for the named skill, REPLACING any prior bundle so
 // a re-import that drops a file leaves no stale resource behind. The write is
 // staged in a sibling temp directory and swapped into place, so a partial or
@@ -185,6 +193,12 @@ func (b *BundleStore) List(name string) ([]string, error) {
 // Read returns the contents of one bundle resource. The relative path is
 // validated against escape, so a caller (or a tool the agent drives) can never
 // read outside the bundle.
+//
+// SECURITY: cleanRel validates the REQUESTED path only — it blocks "../etc/passwd"
+// as a literal but cannot stop a symlink planted inside the bundle directory
+// (e.g. scripts/leak → /etc/passwd). os.ReadFile follows symlinks at the OS
+// level, bypassing cleanRel entirely. This function resolves all symlinks on the
+// final path and re-verifies containment before reading.
 func (b *BundleStore) Read(name, rel string) ([]byte, error) {
 	slug := slugify(name)
 	if slug == "" {
@@ -195,7 +209,20 @@ func (b *BundleStore) Read(name, rel string) ([]byte, error) {
 		return nil, err
 	}
 	full := filepath.Join(b.root, slug, cleaned)
-	data, err := os.ReadFile(full)
+	// Resolve symlinks before checking containment — os.ReadFile follows them
+	// silently at the kernel level, bypassing cleanRel's lexical guard.
+	resolved, err := resolveSymlinks(full)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("skill: bundle resource %q not found in %q", rel, name)
+		}
+		return nil, fmt.Errorf("skill: illegal file path: %w", err)
+	}
+	// Verify the resolved path is still inside the bundle root.
+	if !strings.HasPrefix(resolved, b.root+string(filepath.Separator)) {
+		return nil, fmt.Errorf("skill: resolved path %q escapes the bundle root %q", resolved, b.root)
+	}
+	data, err := os.ReadFile(resolved)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("skill: bundle resource %q not found in %q", rel, name)
