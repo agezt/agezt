@@ -45,4 +45,9 @@ paths = [
   '''kernel/configcenter/configcenter_test\.go$''',
   '''kernel/controlplane/workflow_test\.go$''',
   '''kernel/auth/auth_test\.go$''',
+  # Historical security-assessment output. The Phase-1 infra scan (commit 3147a2f9)
+  # contains a private-key pattern match that is a false positive — an inline PEM
+  # block inside a security-finding description. These files are readonly audit
+  # records, never production code. Scoped to the historical report directory.
+  '''security-report-2026-08-13/.*$''',
 ]

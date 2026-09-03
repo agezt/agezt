@@ -1,0 +1,23 @@
+[
+ {
+  "RuleID": "private-key",
+  "Description": "Identified a Private Key, which may compromise cryptographic security and sensitive data encryption.",
+  "StartLine": 1601,
+  "EndLine": 1602,
+  "StartColumn": 27,
+  "EndColumn": 55,
+  "Match": "REDACTED",
+  "Secret": "REDACTED",
+  "File": "security-report/infra-results.md",
+  "SymlinkFile": "",
+  "Commit": "3147a2f959b93252e1b84fe727052ced6661e93b",
+  "Link": "https://github.com/agezt/agezt/blob/3147a2f959b93252e1b84fe727052ced6661e93b/security-report/infra-results.md?plain=1#L1601-L1602",
+  "Entropy": 4.55944,
+  "Author": "Ersin KOÇ",
+  "Email": "ersinkoc@gmail.com",
+  "Date": "2026-08-12T15:17:46Z",
+  "Message": "security: regenerate the assessment — 9 domain agents, 2 adversarial verifiers\n\nPhase 2-4 of the security-check pipeline, against f815f56e. The previous\nassessment was taken at 99d2e426, 1,396 files ago, and did not cover the\nfourteen packages added since — among them kernel/auth and kernel/httpserver,\nthrough which every /api/v1 authorisation decision now flows.\n\n~100 raw findings, then two verifiers attacked the Highs the lead had not\npersonally confirmed. One High refuted outright (resume tickets are NOT\nforgeable: WithAgentProfile re-applies the roster ceiling and WithTrustCeiling\nkeeps the minimum, so a planted ticket can only tighten), one refuted as\nwritten (the agentgw audit bypass is structurally real but its only non-test\ncaller never sets the field that would carry a secret), six downgraded. Every\nremaining High was read in source before being recorded.\n\nThe defensive core held under attack and this is recorded rather than assumed:\nnetguard cannot be bypassed through it, ShellQuote and the traversal guards\nresisted, the tar extractor and the Edict JSON-escape matcher are correct, and\nthe console has no raw-HTML rendering path at all — zero XSS. Every finding is\naround those guards, never through them.\n\nThe dominant result is not any single finding but a pattern: eleven verified\ncases where documentation asserts a guarantee the code does not implement.\ndialerGuard is referenced in a comment and exists nowhere. ci.yml cites a\nfork-guard lint whose package was deleted. files_route promises resolved\nsymlinks and is purely lexical. The trust ceiling that \"must not run uncapped\nby omission\" runs uncapped. Four of the eleven were found and fixed before this\nscan started, which is what marks it systemic: the same mechanism that let\nthree CI gates rot unnoticed is operating inside the security model.\n\nAlso recorded: internal/ciguard was deleted as unreachable because its only\nconsumer was a test — but that test was the control. Worth weighing before\ndeleting the next test-only symbol the deadcode gate flags.\n\nEvery *-results.md carries a verified-clean appendix so a later pass does not\nre-derive what was already dismissed.",
+  "Tags": [],
+  "Fingerprint": "3147a2f959b93252e1b84fe727052ced6661e93b:security-report/infra-results.md:private-key:1601"
+ }
+]

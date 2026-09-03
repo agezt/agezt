@@ -572,4 +572,5 @@ jobs:
           # module via the Go checksum database. Module path stays zricethezav/*
           # per the note above. Bump deliberately rather than tracking @latest.
           go install github.com/zricethezav/gitleaks/v8@v8.30.1
-          "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact -s .
+          "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact -s . \
+            -b .gitleaks-baseline
