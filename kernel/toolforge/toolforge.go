@@ -31,6 +31,17 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
+// safeCall runs fn under a panic-recovery defer. If fn panics, the panic is caught
+// and returned as an error so callers never receive a raw panic.
+func safeCall(fn func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return fn()
+}
+
 // ErrNotFound is returned for an unknown script-tool id/name.
 var ErrNotFound = errors.New("toolforge: script tool not found")
 
@@ -197,7 +208,9 @@ func (s *Store) Update(ref string, mutate func(*ScriptTool)) (ScriptTool, error)
 		return ScriptTool{}, ErrNotFound
 	}
 	snapshot := *st
-	mutate(st)
+	if err := safeCall(func() error { mutate(st); return nil }); err != nil {
+		return ScriptTool{}, fmt.Errorf("toolforge: mutate panicked: %w", err)
+	}
 	// Protect identity + lifecycle fields from the mutator: the name is the
 	// tool's ADDRESS, and status/test records move only through their own
 	// governed transitions.

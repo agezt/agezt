@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,14 +30,14 @@ func (t *wireEchoTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Res
 }
 
 // panickingTool is the tool-node double for the detached-run firewall test.
-type panickingTool struct{ calls int }
+type panickingTool struct{ calls atomic.Int64 }
 
 func (t *panickingTool) Definition() agent.ToolDef {
 	return agent.ToolDef{Name: "boom", Description: "panics", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
 func (t *panickingTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
-	t.calls++
+	t.calls.Add(1)
 	panic("node exploded")
 }
 
@@ -78,10 +79,10 @@ func TestWorkflow_AsyncRunPanicDoesNotKillTheDaemon(t *testing.T) {
 
 	// Wait for the detached run to reach (and blow up in) the tool.
 	deadline := time.Now().Add(10 * time.Second)
-	for tool.calls == 0 && time.Now().Before(deadline) {
+	for tool.calls.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if tool.calls == 0 {
+	if tool.calls.Load() == 0 {
 		t.Fatal("detached run never reached the tool; the panic assertion below would be vacuous")
 	}
 

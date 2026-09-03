@@ -200,7 +200,8 @@ func (s *Store) Add(o Order) (Order, error) {
 }
 
 // SetEnabled pauses (false) or resumes (true) an order. Returns the new state
-// and whether the id existed.
+// and whether the id existed. Panics from save() are recovered and returned as errors
+// so the mutex is never leaked.
 func (s *Store) SetEnabled(id string, enabled bool) (Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -211,7 +212,9 @@ func (s *Store) SetEnabled(id string, enabled bool) (Order, error) {
 			prevEnabled, prevUpdated := o.Enabled, o.UpdatedMS
 			o.Enabled = enabled
 			o.UpdatedMS = s.now().UnixMilli()
-			if err := s.save(); err != nil {
+			// safeCall handles both panic (returns error) and non-panic (propagates err)
+			// errors from save(), so the mutex is never leaked regardless of failure mode.
+			if err := safeCall(s.save); err != nil {
 				o.Enabled, o.UpdatedMS = prevEnabled, prevUpdated
 				return Order{}, err
 			}
@@ -221,19 +224,36 @@ func (s *Store) SetEnabled(id string, enabled bool) (Order, error) {
 	return Order{}, ErrNotFound
 }
 
+// safeCall runs fn under a panic-recovery defer. If fn panics, the panic is caught
+// and returned as an error. If fn returns without panicking, the returned error (nil
+// or non-nil) is passed through as-is. This lets callers handle both panic and
+// non-panic failure modes with a single error-check.
+func safeCall(fn func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return fn()
+}
+
 // Update applies edits to an order's mutable fields via mutate, re-validates the
 // result, and persists it. Identity and lifecycle fields the caller must not edit
 // here — ID, CreatedMS, and Enabled (which has its own SetEnabled setter) — are
 // preserved regardless of what mutate does; UpdatedMS is bumped. On a validation
 // or save failure the in-memory order is rolled back so the running view never
 // diverges from disk. Returns the updated order, or ErrNotFound for an unknown id.
+// If mutate panics, the panic is recovered inside this method and returned as an
+// error; the mutex is released and the store remains usable.
 func (s *Store) Update(id string, mutate func(*Order)) (Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, o := range s.orders {
 		if o.ID == id {
 			snapshot := *o
-			mutate(o)
+			if err := safeCall(func() error { mutate(o); return nil }); err != nil {
+				return Order{}, fmt.Errorf("standing: mutate panicked: %w", err)
+			}
 			// Protect identity + lifecycle fields from the mutator.
 			o.ID, o.CreatedMS, o.Enabled = snapshot.ID, snapshot.CreatedMS, snapshot.Enabled
 			o.UpdatedMS = s.now().UnixMilli()

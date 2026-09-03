@@ -77,7 +77,12 @@ func openFileNoFollow(path string, flag int, perm os.FileMode, workspaceRoot str
 	finalPath = cleanWinFinalPath(finalPath)
 	ws := cleanWinFinalPath(workspaceRoot)
 
-	if !strings.HasPrefix(finalPath, ws) {
+	// Check containment using filepath.Rel: if the result starts with ".." the
+	// resolved path is outside ws.  This correctly handles the case where
+	// cleanWinFinalPath normalises ".." before the check (e.g. a junction
+	// whose target goes via a sibling dir: ws\Junction\..\sibling\file).
+	rel, relErr := filepath.Rel(ws, finalPath)
+	if relErr != nil || strings.HasPrefix(rel, "..") {
 		f.Close()
 		return nil, fmt.Errorf("openNoFollow: resolved path %q is outside workspace %q (symlink/reparse-point TOCTOU)", finalPath, ws)
 	}

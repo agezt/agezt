@@ -36,6 +36,17 @@ var ErrNotFound = errors.New("roster: profile not found")
 // the pause/resume lifecycle. Graveyard exit is a distinct revive transition.
 var ErrRetired = errors.New("roster: profile is retired")
 
+// safeCall runs fn under a panic-recovery defer. If fn panics, the panic is caught
+// and returned as an error so callers never receive a raw panic.
+func safeCall(fn func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return fn()
+}
+
 // Profile is one named agent identity. Slug is the address — unique,
 // immutable, what operators and (future) other agents refer to it by.
 type Profile struct {
@@ -847,7 +858,9 @@ func (s *Store) Update(ref string, mutate func(*Profile)) (Profile, error) {
 		return Profile{}, ErrNotFound
 	}
 	snapshot := *p
-	mutate(p)
+	if err := safeCall(func() error { mutate(p); return nil }); err != nil {
+		return Profile{}, fmt.Errorf("roster: mutate panicked: %w", err)
+	}
 	// Protect identity + lifecycle fields from the mutator. The slug is the
 	// agent's ADDRESS — renaming it would orphan every reference to it.
 	p.ID, p.Slug, p.CreatedMS, p.Enabled = snapshot.ID, snapshot.Slug, snapshot.CreatedMS, snapshot.Enabled

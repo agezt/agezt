@@ -249,9 +249,9 @@ func (t *Tool) doRead(in fileInput) (agent.Result, error) {
 	}
 	if info.Size() > MaxReadBytes {
 		// Partial read with a notice.
-		f, err := os.Open(p)
+		f, err := openFileNoFollow(p, os.O_RDONLY, 0, t.root)
 		if err != nil {
-			return errResult("open: " + err.Error()), nil
+			return errResult("read: " + err.Error()), nil
 		}
 		defer f.Close()
 		buf, rerr := readUpTo(f, MaxReadBytes)
@@ -262,7 +262,12 @@ func (t *Tool) doRead(in fileInput) (agent.Result, error) {
 			len(buf), info.Size(), string(buf))
 		return fileObservation(in.Path, out), nil
 	}
-	data, err := os.ReadFile(p)
+	f, err := openFileNoFollow(p, os.O_RDONLY, 0, t.root)
+	if err != nil {
+		return errResult("read: " + err.Error()), nil
+	}
+	defer f.Close()
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return errResult("read: " + err.Error()), nil
 	}
@@ -294,9 +299,9 @@ func (t *Tool) doReadRange(in fileInput, p string) (agent.Result, error) {
 		end = start + maxReadRangeLines - 1
 	}
 
-	f, err := os.Open(p)
+	f, err := openFileNoFollow(p, os.O_RDONLY, 0, t.root)
 	if err != nil {
-		return errResult("open: " + err.Error()), nil
+		return errResult("read: " + err.Error()), nil
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
@@ -409,7 +414,14 @@ func (t *Tool) doReplace(ctx context.Context, in fileInput) (agent.Result, error
 	if info.Size() > MaxScanBytes {
 		return errResult(fmt.Sprintf("replace: file too large (%d bytes, max %d)", info.Size(), MaxScanBytes)), nil
 	}
-	data, err := os.ReadFile(p)
+	data, err := func() ([]byte, error) {
+		f, oerr := openFileNoFollow(p, os.O_RDONLY, 0, t.root)
+		if oerr != nil {
+			return nil, oerr
+		}
+		defer f.Close()
+		return io.ReadAll(f)
+	}()
 	if err != nil {
 		return errResult("read: " + err.Error()), nil
 	}
@@ -608,7 +620,14 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 		if info, ierr := d.Info(); ierr == nil && info.Size() > MaxScanBytes {
 			return nil // skip a file too large to scan safely
 		}
-		data, err := os.ReadFile(p)
+		data, err := func() ([]byte, error) {
+			f, oerr := openFileNoFollow(p, os.O_RDONLY, 0, t.root)
+			if oerr != nil {
+				return nil, oerr
+			}
+			defer f.Close()
+			return io.ReadAll(f)
+		}()
 		if err != nil {
 			return nil
 		}
