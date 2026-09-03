@@ -505,7 +505,7 @@ jobs:
           # tracking "latest", and verify the tarball against the publisher's
           # signed .sha256 sidecar before extracting. go-tools release assets are
           # version-LESS (e.g. staticcheck_linux_amd64.tar.gz).
-          SC_TAG=2026.1
+          SC_TAG=2026.2.1
           base="https://github.com/dominikh/go-tools/releases/download/${SC_TAG}"
           curl -fsSL "${base}/staticcheck_linux_amd64.tar.gz" -o /tmp/sc.tgz
           curl -fsSL "${base}/staticcheck_linux_amd64.tar.gz.sha256" -o /tmp/sc.sha256
