@@ -295,8 +295,10 @@ describe("Mcp", () => {
     fireEvent.click(screen.getByRole("button", { name: /Popular servers/ }));
     await waitFor(() => expect(screen.getByText("firecrawl")).toBeTruthy());
 
-    // Category chip: Databases hides web presets, keeps db ones.
-    fireEvent.click(screen.getByRole("button", { name: "Databases" }));
+    // Category filter: Databases hides web presets, keeps db ones. The chips are
+    // a <Segmented> radiogroup — an exclusive choice, so they are radios, not
+    // buttons.
+    fireEvent.click(screen.getByRole("radio", { name: "Databases" }));
     expect(screen.queryByText("firecrawl")).toBeNull();
     expect(screen.getByText("mongodb")).toBeTruthy();
 

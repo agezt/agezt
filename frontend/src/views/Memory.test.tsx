@@ -183,14 +183,15 @@ describe("Memory scopes (M915)", () => {
     await screen.findByText("deploy-url");
 
     // Chips: All / Shared / researcher, with counts.
-    const group = screen.getByRole("group", { name: /scope filter/i });
+    const group = screen.getByRole("radiogroup", { name: /scope filter/i });
     expect(group).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /researcher/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /researcher/ }));
     expect(screen.queryByText("deploy-url")).toBeNull();
     expect(screen.getByText("draft")).toBeTruthy();
 
-    // Clicking the active chip clears the filter.
-    fireEvent.click(screen.getByRole("button", { name: /researcher/ }));
+    // "All" returns every scope. (These are radios now, not toggles: picking
+    // the selected one again is a no-op, so the way back is the All option.)
+    fireEvent.click(screen.getByRole("radio", { name: /All/ }));
     expect(screen.getByText("deploy-url")).toBeTruthy();
   });
 

@@ -1,15 +1,17 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { BarChart3, RefreshCw, Wallet, ListTree, Activity, Timer, Repeat } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { useEvents } from "@/lib/events";
 import { money, pct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { toneForStatus, toneText } from "@/lib/tone";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { SpendArea, BarList, OutcomeBar } from "@/components/Charts";
 import { computeInsights, type RunRow as InsightsRunRow } from "@/lib/insights";
@@ -98,33 +100,46 @@ export function Insights() {
           </MetricGrid>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <InsightPanel
+            <SectionPanel
               icon={Wallet}
               title="Cumulative spend"
               status={`${ins.spend.length} runs · peak ${money(ins.totalSpentMc)}`}
               tone={ins.totalSpentMc > 0 ? "warn" : "muted"}
             >
-              <SpendArea values={ins.spend.map((p) => p.cum)} />
-              <div className="mt-1 flex justify-between text-xs text-muted">
-                <span>{ins.spend.length} runs</span>
-                <span className="tabular-nums">peak {money(ins.totalSpentMc)}</span>
-              </div>
-            </InsightPanel>
+              {ins.totalSpentMc > 0 ? (
+                <>
+                  <SpendArea values={ins.spend.map((p) => p.cum)} />
+                  <div className="mt-1 flex justify-between text-xs text-muted">
+                    <span>
+                      {ins.spend.length} run{ins.spend.length === 1 ? "" : "s"}
+                    </span>
+                    <span className="tabular-nums">peak {money(ins.totalSpentMc)}</span>
+                  </div>
+                </>
+              ) : (
+                // A cumulative-spend curve at a flat zero draws nothing: a
+                // 140px empty plot frame that looks like a chart that failed
+                // to load rather than a daemon that has not spent anything.
+                <p className="text-xs text-muted">
+                  No spend recorded across the last {ins.spend.length} run{ins.spend.length === 1 ? "" : "s"}.
+                </p>
+              )}
+            </SectionPanel>
 
-            <InsightPanel
+            <SectionPanel
               icon={Activity}
               title="Run outcomes"
               status={`${ins.completed} ok · ${ins.failed} failed · ${ins.running} running`}
               tone={ins.failed > 0 ? "warn" : ins.running > 0 ? "accent" : "good"}
             >
               <OutcomeBar completed={ins.completed} failed={ins.failed} running={ins.running} />
-            </InsightPanel>
+            </SectionPanel>
           </div>
 
-          <InsightPanel
+          <SectionPanel
             icon={BarChart3}
             title="Spend by model"
-            status={ins.byModel.length ? `${ins.byModel.length} models` : "no model spend"}
+            status={ins.byModel.length ? `${ins.byModel.length} model${ins.byModel.length === 1 ? "" : "s"}` : "no model spend"}
             tone={ins.byModel.length ? "accent" : "muted"}
           >
             <BarList
@@ -150,9 +165,9 @@ export function Insights() {
                 </div>
               </Disclosure>
             )}
-          </InsightPanel>
+          </SectionPanel>
 
-          <InsightPanel
+          <SectionPanel
             icon={ListTree}
             title="Recent runs"
             status={`${Math.min((runs || []).length, 8)} shown`}
@@ -161,7 +176,7 @@ export function Insights() {
             <ul className="divide-y divide-border/60">
               {(runs || []).slice(0, 8).map((r) => (
                 <li key={r.correlation_id} className="flex items-center gap-2 py-1.5 text-xs">
-                  <span className={cn("shrink-0 font-medium", r.status === "completed" ? "text-good" : r.status === "failed" ? "text-bad" : r.status === "running" ? "text-accent" : "text-muted")}>
+                  <span className={cn("shrink-0 font-medium", toneText[toneForStatus(r.status)])}>
                     {r.status || "—"}
                   </span>
                   <span className="min-w-0 flex-1 truncate" title={r.intent || r.correlation_id}>{r.intent || r.correlation_id}</span>
@@ -170,45 +185,10 @@ export function Insights() {
                 </li>
               ))}
             </ul>
-          </InsightPanel>
+          </SectionPanel>
         </>
       )}
     </Page>
   );
 }
 
-function InsightPanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: typeof BarChart3;
-  title: string;
-  status: string;
-  tone: "accent" | "warn" | "bad" | "good" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls: Record<typeof tone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    good: "border-good/35 bg-good/5 text-good",
-    muted: "border-border bg-panel text-muted",
-  };
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}

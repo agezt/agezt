@@ -62,6 +62,7 @@ import {
   type ApiPulse,
 } from "@/lib/fleet";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/lib/agentlive";
+import { Segmented } from "@/components/ui/segmented";
 
 // Re-export the run-status helpers from their canonical home (lib/fleet) so the
 // existing test + Dashboard imports from "@/views/Agents" keep working.
@@ -383,10 +384,10 @@ export function Agents() {
           </Button>
           {tree && tree.count > 0 && (
             <div className="flex flex-wrap gap-1.5 text-xs">
-              <Stat icon={Bot} label="agents" value={tree.count} />
-              <Stat icon={GitBranch} label="sub-agents" value={Math.max(0, tree.count - 1)} />
-              <Stat icon={Layers} label="depth" value={tree.maxDepth} />
-              <Stat icon={Coins} label="tree spend" value={money(tree.totalSpentMc)} />
+              <CountChip icon={Bot} label="agents" value={tree.count} />
+              <CountChip icon={GitBranch} label="sub-agents" value={Math.max(0, tree.count - 1)} />
+              <CountChip icon={Layers} label="depth" value={tree.maxDepth} />
+              <CountChip icon={Coins} label="tree spend" value={money(tree.totalSpentMc)} />
             </div>
           )}
           <Button variant="ghost" size="sm" onClick={reload} title="Reload" className="ml-auto">
@@ -547,29 +548,25 @@ export function Agents() {
   // ───────────────────────── Fleet tab: the census ─────────────────────────
   return (
     <Page icon={Network} title="Agents" width="wide" actions={headerActions}>
-      {/* Census band — what you own, at a glance, even at rest. */}
-      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
-        <MetricWidget icon={Users} label="Roster" value={census.roster} tone="muted" />
-        <MetricWidget icon={Anchor} label="Standing" value={census.standing} tone="muted" />
-        <MetricWidget icon={CalendarClock} label="Schedules" value={census.schedule} tone="muted" />
-        <MetricWidget icon={GitFork} label="Workflows" value={census.workflow} tone="muted" />
-        <MetricWidget icon={Cpu} label="System" value={census.system} tone="muted" />
-        <MetricWidget icon={Radio} label="Running" value={census.running} tone={census.running > 0 ? "accent" : "muted"} pulse={census.running > 0} />
-        <MetricWidget icon={Skull} label="Inactive" value={census.graveyard} tone={census.graveyard > 0 ? "bad" : "muted"} />
-      </MetricGrid>
+      {/* No census band here. Seven tiles reading Roster / Standing / Schedules
+          / Workflows / System / Running / Inactive sat directly on top of the
+          filter row below, whose chips carry those same seven counts — and
+          clicking a chip is the thing you actually wanted to do with the
+          number. The filters ARE the census. */}
 
       {/* Status filters + search. */}
       <div className="flex flex-wrap items-center gap-2">
-        <TabNav
-          tabs={FLEET_FILTERS.map((f) => ({
-            id: f.id,
+        <Segmented
+          ariaLabel="Filter the fleet"
+          className="flex-wrap"
+          value={fleetFilter}
+          onChange={setFleetFilter}
+          options={FLEET_FILTERS.map((f) => ({
+            value: f.id,
             label: f.label,
             icon: f.icon,
             count: filterFleetEntities(fleet, f.id).length,
-            content: null,
           }))}
-          value={fleetFilter}
-          onValueChange={(v) => setFleetFilter(v as FleetFilter)}
         />
         <div className="relative ml-auto">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted" />
@@ -832,7 +829,7 @@ function Chip({ icon: Icon, children, title }: { icon: typeof Bot; children: Rea
   );
 }
 
-function Stat({ icon: Icon, label, value }: { icon: typeof Bot; label: string; value: number | string }) {
+function CountChip({ icon: Icon, label, value }: { icon: typeof Bot; label: string; value: number | string }) {
   return (
     <div className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1">
       <Icon className="size-3 text-muted" />

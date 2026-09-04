@@ -447,8 +447,8 @@ describe("Standing order agent state", () => {
 
     render(withUI(<Standing />));
     await waitFor(() => expect(screen.getByText("Healthy wake")).toBeTruthy());
-    expect(screen.getByRole("button", { name: /Attention3/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Attention3/ }));
+    expect(screen.getByRole("radio", { name: /Attention3/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: /Attention3/ }));
     expect(screen.queryByText("Healthy wake")).toBeNull();
     expect(screen.getByText("Blocked wake")).toBeTruthy();
     expect(screen.getByText("Fast wake")).toBeTruthy();

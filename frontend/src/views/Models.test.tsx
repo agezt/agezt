@@ -61,12 +61,12 @@ describe("Models view", () => {
     expect(screen.getByText("OpenAI")).toBeTruthy();
     expect(screen.getByText("keyed")).toBeTruthy();
     expect(screen.getByText("no key")).toBeTruthy();
-    expect(screen.getByText(/Last synced/)).toBeTruthy();
-    // Summary moved from a single "2 providers · 2 models" string into separate metric widgets.
-    // ("Models" also appears as the page title, so assert the Providers label + the two counts.)
-    expect(screen.getByText("Providers")).toBeTruthy();
-    const twos = screen.getAllByText("2");
-    expect(twos.length).toBeGreaterThanOrEqual(2); // provider count and model count both 2
+    // The catalog census is the page subtitle now, not a tile row.
+    expect(screen.getByText(/providers · .* models · synced /)).toBeTruthy();
+    // It was briefly a row of three metric widgets, where the sync timestamp
+    // rendered as a full locale datetime in the 2xl tile face and wrapped onto
+    // three lines — the loudest thing on a page about providers.
+    expect(screen.getByText(/^2 providers · 2 models · synced /)).toBeTruthy();
   });
 
   it("expands a provider to show its models", async () => {
@@ -102,7 +102,7 @@ describe("Models view", () => {
   it("shows a never-synced hint when there is no sync time", async () => {
     getJSON.mockResolvedValue({ ...CATALOG, api_synced_at: "0001-01-01T00:00:00Z" });
     render(withUI(<Models />));
-    await waitFor(() => expect(screen.getByText(/Never synced/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/never synced from models\.dev/)).toBeTruthy());
   });
 });
 

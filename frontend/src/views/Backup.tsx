@@ -171,7 +171,7 @@ export function Backup() {
       <div className="grid gap-3 md:grid-cols-3">
         <div className="glass rounded-xl p-3">
           <div className="mb-3 flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-lg bg-accent/12 text-accent">
+            <span className="grid size-9 place-items-center rounded-lg bg-accent/10 text-accent">
               <Palette className="size-4" />
             </span>
             <div className="min-w-0">
@@ -191,7 +191,7 @@ export function Backup() {
 
         <div className="glass rounded-xl p-3">
           <div className="mb-3 flex items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-lg bg-accent/12 text-accent">
+            <span className="grid size-9 place-items-center rounded-lg bg-accent/10 text-accent">
               <Server className="size-4" />
             </span>
             <div className="min-w-0">

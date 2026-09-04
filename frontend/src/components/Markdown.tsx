@@ -52,7 +52,7 @@ export function Markdown({ source, className }: { source: string; className?: st
             return (
               <blockquote
                 key={i}
-                className="my-2 border-l-2 border-accent/50 pl-3 italic text-muted whitespace-pre-wrap break-words"
+                className="my-2 border-l-2 border-accent/40 pl-3 italic text-muted whitespace-pre-wrap break-words"
               >
                 {renderInline(parseInline(b.v))}
               </blockquote>

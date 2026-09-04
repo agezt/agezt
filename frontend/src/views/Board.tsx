@@ -12,6 +12,9 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { TabNav } from "@/components/ui/tab-nav";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
+import { SectionPanel } from "@/components/ui/section-panel";
+import { Segmented } from "@/components/ui/segmented";
+import { EmptyState } from "@/components/ui/empty";
 
 interface Msg {
   topic: string;
@@ -485,6 +488,9 @@ export function Board() {
   const waiting = useMemo(() => awaitingReply(data?.messages || []), [data]);
   const filterCounts = useMemo(() => boardMessageFilterCounts(agentMessages, waiting), [agentMessages, waiting]);
   const messages = useMemo(() => filterBoardMessages(agentMessages, messageFilter, waiting), [agentMessages, messageFilter, waiting]);
+  // Nothing posted, ever — not "nothing matches the current cut". Filters over
+  // an empty board are fourteen controls that all narrow zero to zero.
+  const boardEmpty = !!data && (data.messages || []).length === 0;
   const selectedRecipient = useMemo(() => agents.find((a) => a.slug === sendTo.trim()), [agents, sendTo]);
   const wakePlan = useMemo(() => boardAgentWakePlan(selectedRecipient, agents), [agents, selectedRecipient]);
   const agentMailbox = useMemo(
@@ -514,10 +520,10 @@ export function Board() {
       {showCompose && (
         <BoardModal title="New board message" onClose={() => setShowCompose(false)}>
           <div className="space-y-2">
-            <div className="rounded-lg border border-accent/25 bg-accent/10 p-2.5">
+            <div className="rounded-lg border border-accent/30 bg-accent/10 p-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-background/70 text-accent">
+                  <div className="grid size-8 place-items-center rounded-lg border border-accent/30 bg-background/70 text-accent">
                     {sendMode === "help" ? <LifeBuoy className="size-4" /> : sendMode === "broadcast" ? <Megaphone className="size-4" /> : sendMode === "topic" ? <Hash className="size-4" /> : <Send className="size-4" />}
                   </div>
                   <div className="min-w-0">
@@ -677,7 +683,7 @@ export function Board() {
         />
       )}
 
-      {data && agents.length > 0 && (
+      {data && agents.length > 0 && !boardEmpty && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center gap-1.5 text-xs text-muted">
             <User className="size-3.5" />
@@ -690,28 +696,24 @@ export function Board() {
               compact
             />
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {([
+          <Segmented
+            ariaLabel="Filter mailbox messages"
+            className="flex-wrap"
+            value={messageFilter}
+            onChange={setMessageFilter}
+            options={([
               ["all", "All"],
               ["awaiting", "Awaiting"],
               ["dm", "DM"],
               ["broadcast", "Broadcast"],
               ["acked", "Seen"],
               ["help", "Help"],
-            ] as [BoardMessageFilter, string][]).map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => setMessageFilter(id)}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-                  messageFilter === id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-                )}
-              >
-                {label}
-                <span className="rounded-full bg-panel px-1 text-xs tabular-nums">{filterCounts[id]}</span>
-              </button>
-            ))}
-          </div>
+            ] as [BoardMessageFilter, string][]).map(([id, label]) => ({
+              value: id,
+              label,
+              count: filterCounts[id],
+            }))}
+          />
         </div>
       )}
 
@@ -744,10 +746,17 @@ export function Board() {
         <SkeletonList count={4} lines={2} />
       ) : messages.length === 0 ? (
         messageFilter === "all" ? (
-          <Muted>
-            no messages yet — agents talk here with the `board` tool (post a note on a topic, read each
-            other's). Try: <span className="font-mono">agt run "post 'hello' to the board topic 'general'"</span>
-          </Muted>
+          <EmptyState
+            icon={MessagesSquare}
+            title="No messages yet"
+            hint={
+              <>
+                Agents talk here with the <code className="rounded bg-panel px-1 py-0.5">board</code> tool — one
+                posts a note on a topic, the others read it. Try{" "}
+                <span className="font-mono">agt run "post 'hello' to the board topic 'general'"</span>.
+              </>
+            }
+          />
         ) : (
           <Muted>no {messageFilter} messages match this board view{agentFilter ? ` for ${agentFilter}` : ""}</Muted>
         )
@@ -883,9 +892,9 @@ function BoardModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Send className="size-4" />
           </span>
           <div className="min-w-0">
@@ -912,31 +921,21 @@ function WorkboardLaneStrip({ data }: { data: WorkboardLanesData }) {
   if (lanes.length === 0 || openCount === 0) return null;
 
   return (
-    <section className="rounded-lg border border-border bg-card/80 p-2.5" data-testid="workboard-lanes">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
-            <Columns3 className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">Workboard lanes</h2>
-            <p className="truncate text-[11px] text-muted">
-              {openCount} open task{openCount === 1 ? "" : "s"} across {lanes.length} lane{lanes.length === 1 ? "" : "s"}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {visibleStatuses.slice(0, 6).map((status) => (
-            <Badge key={status} variant={workboardStatusVariant(status)} className="gap-1">
-              <CircleDot className={cn("size-3", workboardStatusDotClass(status))} />
-              {workboardStatusLabel(status)}
-              <span className="font-mono tabular-nums">{counts[status]}</span>
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-2 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
+    <SectionPanel
+      icon={Columns3}
+      tone="accent"
+      title="Workboard lanes"
+      status={`${openCount} open task${openCount === 1 ? "" : "s"} across ${lanes.length} lane${lanes.length === 1 ? "" : "s"}`}
+      testId="workboard-lanes"
+      actions={visibleStatuses.slice(0, 6).map((status) => (
+        <Badge key={status} variant={workboardStatusVariant(status)} className="gap-1">
+          <CircleDot className={cn("size-3", workboardStatusDotClass(status))} />
+          {workboardStatusLabel(status)}
+          <span className="font-mono tabular-nums">{counts[status]}</span>
+        </Badge>
+      ))}
+    >
+      <div className="grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
         {lanes.slice(0, 6).map((lane) => {
           const laneTasks = (lane.tasks || []).filter((task) => task.status !== "archived");
           const shownTasks = laneTasks.slice(0, 3);
@@ -981,7 +980,7 @@ function WorkboardLaneStrip({ data }: { data: WorkboardLanesData }) {
         })}
       </div>
       {lanes.length > 6 && <div className="mt-1.5 text-[10px] text-muted">+{lanes.length - 6} more lane{lanes.length - 6 === 1 ? "" : "s"}</div>}
-    </section>
+    </SectionPanel>
   );
 }
 
@@ -1163,45 +1162,19 @@ function BoardMessageGroups({ messages, agentFilter, waiting }: {
   return (
     <div className="space-y-2">
       {groups.map(([topic, msgs]) => (
-        <BoardTopicPanel
+        <SectionPanel
           key={topic}
           title={topic}
           icon={Hash}
           status={`${msgs.length} message${msgs.length === 1 ? "" : "s"}`}
         >
           {renderMessageList(msgs, agentFilter, waiting)}
-        </BoardTopicPanel>
+        </SectionPanel>
       ))}
     </div>
   );
 }
 
-function BoardTopicPanel({
-  icon: Icon,
-  title,
-  status,
-  children,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  status: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function renderMessageList(msgs: Msg[], agentFilter: string, waiting: Set<string>) {
   return (

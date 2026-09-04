@@ -122,9 +122,8 @@ export function Budget() {
       mode="scroll"
       actions={
         <>
-          <Button variant="ghost" size="sm" onClick={() => setAdjustOpen(true)} title="Adjust daily ceiling">
-            <SlidersHorizontal className="size-3.5" /> Adjust
-          </Button>
+          {/* No header "Adjust": the ceiling row below owns that button, sits
+              beside the value it edits, and the two opened the same modal. */}
           <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
             <RefreshCw className={loading ? "animate-spin" : ""} />
           </Button>
@@ -166,7 +165,7 @@ export function Budget() {
               if (projected == null || spent <= 0) return null;
               const over = ceiling > 0 && projected > ceiling;
               return (
-                <div className={cn("rounded-xl p-3", over ? "border border-bad/50 bg-bad/5" : "glass")}>
+                <div className={cn("rounded-xl p-3", over ? "border border-bad/40 bg-bad/5" : "glass")}>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-xs font-semibold uppercase tracking-normal text-muted">
                       Projected today · at this pace
@@ -187,7 +186,7 @@ export function Budget() {
             })()}
 
             <div className="glass flex flex-wrap items-center gap-2 rounded-xl p-3">
-              <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+              <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
                 <SlidersHorizontal className="size-4" />
               </span>
               <div className="min-w-0 flex-1">
@@ -316,9 +315,9 @@ export function Budget() {
 function BudgetModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Wallet className="size-4" />
           </span>
           <div className="min-w-0">

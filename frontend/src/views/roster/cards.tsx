@@ -3,39 +3,6 @@ import { Bot, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { agentIdentityKind, type AgentProfile } from "./shared";
 
-export function RosterSignalPanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  status: string;
-  tone: "warn" | "good" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls = {
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    good: "border-good/35 bg-good/5 text-good",
-    muted: "border-border bg-panel text-muted",
-  }[tone];
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls)}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function ImpactList({
   label,

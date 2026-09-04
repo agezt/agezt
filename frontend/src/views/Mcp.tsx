@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
+import { Segmented } from "@/components/ui/segmented";
 
 export interface MCPServer {
   id: string;
@@ -560,24 +561,19 @@ export function Mcp() {
             Most run via <span className="font-mono">npx</span>/<span className="font-mono">uvx</span> (Node/Python must be installed).
           </div>
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            {(["all", ...(Object.keys(CATEGORY_LABELS) as CatalogCategory[])] as (CatalogCategory | "all")[]).map(
-              (c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCatFilter(c)}
-                  aria-pressed={catFilter === c}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[11px]",
-                    catFilter === c
-                      ? "border-accent bg-accent text-accent-foreground"
-                      : "border-border bg-panel text-muted hover:text-foreground",
-                  )}
-                >
-                  {c === "all" ? `All (${CATALOG.length})` : CATEGORY_LABELS[c]}
-                </button>
-              ),
-            )}
+            <Segmented
+              ariaLabel="Filter the MCP catalog by category"
+              className="flex-wrap gap-1.5"
+              value={catFilter}
+              onChange={setCatFilter}
+              options={[
+                { value: "all" as const, label: "All", count: CATALOG.length },
+                ...(Object.keys(CATEGORY_LABELS) as CatalogCategory[]).map((c) => ({
+                  value: c,
+                  label: CATEGORY_LABELS[c],
+                })),
+              ]}
+            />
             <input
               value={catQuery}
               onChange={(e) => setCatQuery(e.target.value)}
@@ -663,7 +659,7 @@ export function Mcp() {
 
       <ul className="space-y-2">
         {(servers || []).map((s) => (
-          <li key={s.id} className={cn("glass rounded-xl border-l-2 p-3", s.attached ? "border-good/50" : "border-border")}>
+          <li key={s.id} className={cn("glass rounded-xl border-l-2 p-3", s.attached ? "border-good/40" : "border-border")}>
             <div className="flex flex-wrap items-center gap-2">
               <span className={cn("shrink-0", s.attached ? "text-good" : "text-muted")}>
                 {s.attached ? <PlugZap className="h-4 w-4" /> : <Plug className="h-4 w-4" />}
@@ -818,7 +814,7 @@ function McpModal({ title, onClose, children }: { title: string; onClose: () => 
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Plug className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>

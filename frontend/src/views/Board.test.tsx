@@ -277,7 +277,7 @@ describe("Board", () => {
     expect(list().getByText("reply")).toBeTruthy();
     expect(list().getByText("seen by writer")).toBeTruthy();
     expect(list().getAllByText("awaiting reply")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: /Awaiting1/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Awaiting1/ }));
     expect(list().getByText("deploy target?")).toBeTruthy();
     expect(list().queryByText("confirm?")).toBeNull();
     expect(list().getByText("awaiting reply")).toBeTruthy();
@@ -314,7 +314,7 @@ describe("Board", () => {
     expect(list().queryByText("done")).toBeNull();
     expect(list().queryByText("draft")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /DM1/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /DM1/ }));
     expect(list().getByText("deploy target?")).toBeTruthy();
     expect(list().queryByText("all hands")).toBeNull();
   });

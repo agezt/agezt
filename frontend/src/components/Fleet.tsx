@@ -199,7 +199,12 @@ export function wakeStateDescriptor(e: Pick<FleetEntity, "kind" | "state" | "run
     return { label: "graveyard", detail: "retired identity", tone: "muted" as const, mode: "retired" as const };
   }
   if (e.state === "paused") {
-    return { label: "paused", detail: "wake disabled", tone: "muted" as const, mode: "paused" as const };
+    return {
+      label: "wake disabled",
+      detail: trigger ? `would wake on ${trigger.mode}: ${trigger.label}` : "paused by operator",
+      tone: "muted" as const,
+      mode: "paused" as const,
+    };
   }
   if (e.running) {
     return {
@@ -211,7 +216,7 @@ export function wakeStateDescriptor(e: Pick<FleetEntity, "kind" | "state" | "run
   }
   if (e.state === "armed") {
     return {
-      label: e.kind === "roster" ? "sleeping until trigger" : "armed",
+      label: e.kind === "roster" ? "sleeping until trigger" : "waiting for trigger",
       detail: trigger ? `${trigger.mode}: ${trigger.label}` : "automatic trigger",
       tone: "good" as const,
       mode: "armed" as const,
@@ -250,9 +255,6 @@ function WakeStateBand({ e, trigger }: { e: FleetEntity; trigger?: { mode: Trigg
           {state.detail}
         </div>
       </div>
-      <span className="shrink-0 rounded-md bg-card/60 px-1.5 py-0.5 text-xs uppercase tracking-normal opacity-80">
-        {STATE_LABEL[e.state]}
-      </span>
     </div>
   );
 }
@@ -401,10 +403,12 @@ export function FleetCard({
       <div className="flex flex-1 flex-col gap-2 p-3">
         <WakeStateBand e={e} trigger={primaryTrigger} />
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <FleetInfo label="model" value={e.model || "default"} mono />
-          <FleetInfo label={metric.label} value={metric.value} />
-        </div>
+        {(e.model || metric.value !== "never") && (
+          <div className="grid grid-cols-2 gap-1.5">
+            {e.model ? <FleetInfo label="model" value={e.model} mono /> : <div />}
+            {metric.value !== "never" ? <FleetInfo label={metric.label} value={metric.value} /> : <div />}
+          </div>
+        )}
 
         {e.description ? (
           <div className="mt-auto line-clamp-2 rounded-lg bg-panel/40 px-2 py-1.5 text-sm text-muted" title={e.description}>
@@ -540,7 +544,7 @@ export function FleetDetail({
       {e.description && <p className="text-sm text-muted">{e.description}</p>}
 
       {/* The hero: how this comes alive. */}
-      <div className="rounded-lg bg-accent/8 p-2.5">
+      <div className="rounded-lg bg-accent/10 p-2.5">
         <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <Activity className="size-3" /> How does this run?
         </div>

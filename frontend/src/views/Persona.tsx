@@ -115,7 +115,7 @@ export function Persona() {
       ) : (
         <>
           <div className="glass flex flex-wrap items-center gap-3 rounded-xl p-3">
-            <span className="grid size-10 place-items-center rounded-lg bg-accent/12 text-accent">
+            <span className="grid size-10 place-items-center rounded-lg bg-accent/10 text-accent">
               <Bot className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -202,9 +202,9 @@ export function Persona() {
 function PersonaModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Bot className="size-4" />
           </span>
           <div className="min-w-0">

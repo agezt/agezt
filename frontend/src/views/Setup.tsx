@@ -892,7 +892,7 @@ function Stepper({ step }: { step: Step }) {
               className={cn(
                 "flex size-6 shrink-0 items-center justify-center rounded-md border bg-card",
                 done && "border-good/40",
-                cur && "border-accent/50",
+                cur && "border-accent/40",
                 !done && !cur && "border-border",
               )}
             >

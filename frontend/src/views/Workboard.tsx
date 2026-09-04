@@ -28,6 +28,7 @@ import { Page } from "@/components/ui/page";
 import { ErrorText, Muted } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
+import { StatTile } from "@/components/ui/metric-widget";
 
 interface WorkboardClaim {
   agent?: string;
@@ -383,12 +384,16 @@ export function Workboard() {
         </form>
       )}
 
+      {/* Four zeroes over "No workboard tasks" is the empty state twice. The
+          lane counts return with the first task. */}
+      {tasks.length > 0 && (
       <section className="grid gap-2 md:grid-cols-4">
-        <Metric label="Open" value={openCount} tone="accent" />
-        <Metric label="Running" value={counts.running || 0} tone="accent" />
-        <Metric label="Blocked" value={counts.blocked || 0} tone="warn" />
-        <Metric label="Review" value={counts.review || 0} tone="good" />
+        <StatTile label="Open" value={openCount} tone="accent" />
+        <StatTile label="Running" value={counts.running || 0} tone="accent" />
+        <StatTile label="Blocked" value={counts.blocked || 0} tone="warn" />
+        <StatTile label="Review" value={counts.review || 0} tone="good" />
       </section>
+      )}
 
       {err && <ErrorText>{err}</ErrorText>}
 
@@ -443,17 +448,6 @@ export function Workboard() {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: "accent" | "warn" | "good" }) {
-  return (
-    <div className={cn(
-      "rounded-lg border bg-card/80 px-3 py-2",
-      tone === "warn" ? "border-warn/35" : tone === "good" ? "border-good/35" : "border-accent/30",
-    )}>
-      <div className="text-[11px] font-semibold uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums", tone === "warn" ? "text-warn" : tone === "good" ? "text-good" : "text-accent")}>{value}</div>
-    </div>
-  );
-}
 
 function LaneColumn({ lane, selectedID, onSelect }: { lane: WorkboardLane; selectedID: string; onSelect: (id: string) => void }) {
   const laneTasks = lane.tasks || [];
@@ -675,7 +669,7 @@ function TaskDetail({
                   </li>
                 ))}
                 {blockedDeps.map((dep) => (
-                  <li key={`blocked-${dep.id}`} className="rounded-md border border-warn/35 bg-warn/10 px-2 py-1 text-xs text-warn">
+                  <li key={`blocked-${dep.id}`} className="rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-warn">
                     {dep.id} {dep.title ? `- ${dep.title}` : ""} ({dep.missing ? "missing" : dep.status})
                   </li>
                 ))}

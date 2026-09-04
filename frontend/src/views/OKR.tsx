@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Target, Plus, RefreshCw, Archive, Link2, CheckCircle2 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { StatTile } from "@/components/ui/metric-widget";
 import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,9 +128,9 @@ export function OKR() {
       }
     >
       <section className="grid gap-2 sm:grid-cols-3">
-        <Metric label="Objectives" value={objectives.filter((o) => o.status !== "archived").length} />
-        <Metric label="Achieved" value={achieved} tone="good" />
-        <Metric label="Avg progress" value={avg} suffix="%" tone="accent" />
+        <StatTile label="Objectives" value={objectives.filter((o) => o.status !== "archived").length} />
+        <StatTile label="Achieved" value={achieved} tone="good" />
+        <StatTile label="Avg progress" value={avg} suffix="%" tone="accent" />
       </section>
 
       <form
@@ -337,14 +338,3 @@ function ProgressBar({ percent, achieved, thin }: { percent: number; achieved: b
   );
 }
 
-function Metric({ label, value, suffix, tone }: { label: string; value: number; suffix?: string; tone?: "good" | "accent" }) {
-  return (
-    <div className="rounded-lg border border-border bg-card/70 p-3">
-      <div className="text-xs uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", tone === "good" ? "text-emerald-500" : tone === "accent" ? "text-accent" : "")}>
-        {value}
-        {suffix}
-      </div>
-    </div>
-  );
-}

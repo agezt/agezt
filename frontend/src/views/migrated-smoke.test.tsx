@@ -18,7 +18,7 @@ vi.mock("@/lib/api", () => ({
   getJSON: vi.fn(() => new Promise(() => {})),
   postAction: vi.fn(),
 }));
-// Config reads through usePanel; keep it in its loading state.
+// Analyst/Reflect read through usePanel; keep them in their loading state.
 vi.mock("@/lib/usePanel", () => ({
   usePanel: () => ({ data: null, error: null, loading: true, reload: () => {} }),
 }));
@@ -32,7 +32,6 @@ vi.mock("@/components/PlanDag", () => ({ PlanDag: () => null }));
 
 import { Reflect } from "./Reflect";
 import { Analyst } from "./Analyst";
-import { Config } from "./Config";
 import { FlowStudio } from "./FlowStudio";
 
 afterEach(cleanup);
@@ -45,7 +44,6 @@ describe("migrated scroll-mode views keep a scroll-safe Page root", () => {
   const cases: [string, () => ReactElement][] = [
     ["Reflection", () => <Reflect />],
     ["Analyst", () => <Analyst />],
-    ["Config", () => <Config />],
   ];
 
   for (const [label, View] of cases) {

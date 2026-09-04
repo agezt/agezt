@@ -38,6 +38,17 @@ export interface BarRow {
 export function BarList({ rows, className }: { rows: BarRow[]; className?: string }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   if (rows.length === 0) return <div className="text-xs text-muted">no data</div>;
+  if (rows.length === 1) {
+    // A bar is a comparison. With one row it is always full width, which reads
+    // as "100%" of something and means only "this is the only row" — the label
+    // beside it already said that.
+    return (
+      <div className={cn("flex items-baseline justify-between gap-2 text-xs", className)}>
+        <span className="truncate font-mono">{rows[0].label}</span>
+        <span className="shrink-0 tabular-nums text-muted">{rows[0].sub}</span>
+      </div>
+    );
+  }
   return (
     <ul className={cn("space-y-1.5", className)}>
       {rows.map((r) => (

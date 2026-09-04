@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
+import { StatTile } from "@/components/ui/metric-widget";
 
 interface Observations {
   window_events?: number;
@@ -105,14 +106,14 @@ export function Reflect() {
         <div className="space-y-4">
           {/* Observation tiles */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            <Tile label="events folded" value={o.window_events} />
-            <Tile label="tasks done" value={o.tasks_completed} />
-            <Tile label="tasks failed" value={o.tasks_failed} tone={o.tasks_failed ? "text-bad" : undefined} />
-            <Tile label="briefs sent" value={o.briefs_sent} />
-            <Tile label="approvals ✓" value={o.approvals_granted} />
-            <Tile label="approvals ✗" value={o.approvals_denied} />
-            <Tile label="skills used" value={o.skills_activated} />
-            <Tile label="world entities" value={o.entities_total} />
+            <StatTile label="events folded" value={o.window_events ?? 0} />
+            <StatTile label="tasks done" value={o.tasks_completed ?? 0} />
+            <StatTile label="tasks failed" value={o.tasks_failed ?? 0} tone={o.tasks_failed ? "bad" : "muted"} />
+            <StatTile label="briefs sent" value={o.briefs_sent ?? 0} />
+            <StatTile label="approvals ✓" value={o.approvals_granted ?? 0} />
+            <StatTile label="approvals ✗" value={o.approvals_denied ?? 0} />
+            <StatTile label="skills used" value={o.skills_activated ?? 0} />
+            <StatTile label="world entities" value={o.entities_total ?? 0} />
           </div>
 
           {report.entities_decayed != null && report.entities_decayed > 0 && (
@@ -153,11 +154,3 @@ export function Reflect() {
   );
 }
 
-function Tile({ label, value, tone }: { label: string; value?: number; tone?: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
-      <div className="text-xs uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-0.5 text-xl font-semibold tabular-nums", tone)}>{value ?? 0}</div>
-    </div>
-  );
-}

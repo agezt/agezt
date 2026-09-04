@@ -57,12 +57,120 @@ func workflowView(w workflow.Workflow, full bool) map[string]any {
 	return m
 }
 
+// lastRunSummary is one workflow's most recent run, as the list surfaces it.
+type lastRunSummary struct {
+	status     string // running | completed | failed
+	atMS       int64  // finished, or started while still running
+	durationMS int64  // 0 while running
+}
+
+// wfArc is one in-progress fold of a single workflow run.
+type wfArc struct {
+	corr     string
+	started  int64
+	finished int64
+	status   string
+}
+
+// applyWorkflowRunEvent folds ONE journal event into the per-workflow
+// accumulator. `want` maps a journal subject to the workflow name it belongs
+// to; events for anything else are ignored.
+//
+// Split out from the Range loop so the fold is testable without standing up a
+// kernel and a journal — the two rules that make a single pass correct are
+// worth pinning:
+//
+//   - a newer started arc supersedes the one being tracked, and
+//   - a terminal event closes ONLY the arc it belongs to, so an older run
+//     finishing after a newer one started cannot report a stale status.
+func applyWorkflowRunEvent(want map[string]string, latest map[string]*wfArc, e *event.Event) {
+	name, ok := want[e.Subject]
+	if !ok || e.CorrelationID == "" {
+		return
+	}
+	switch e.Kind {
+	case event.KindWorkflowStarted:
+		latest[name] = &wfArc{corr: e.CorrelationID, started: e.TSUnixMS, status: "running"}
+	case event.KindWorkflowCompleted, event.KindWorkflowFailed:
+		cur := latest[name]
+		if cur == nil || cur.corr != e.CorrelationID {
+			return
+		}
+		cur.finished = e.TSUnixMS
+		if e.Kind == event.KindWorkflowFailed {
+			cur.status = "failed"
+		} else {
+			cur.status = "completed"
+		}
+	}
+}
+
+// summariseWorkflowArcs turns the accumulator into the per-workflow summaries.
+func summariseWorkflowArcs(latest map[string]*wfArc) map[string]lastRunSummary {
+	out := make(map[string]lastRunSummary, len(latest))
+	for name, a := range latest {
+		sum := lastRunSummary{status: a.status, atMS: a.started}
+		if a.finished > 0 {
+			sum.atMS = a.finished
+			if a.started > 0 && a.finished >= a.started {
+				sum.durationMS = a.finished - a.started
+			}
+		}
+		out[name] = sum
+	}
+	return out
+}
+
+// workflowLastRuns folds the journal ONCE and returns each workflow's latest
+// run. The alternative — asking workflow_runs per row — is a full journal scan
+// per workflow, so the console's list would have cost N scans to answer a
+// question one scan answers.
+func (s *Server) workflowLastRuns(names []string) map[string]lastRunSummary {
+	want := make(map[string]string, len(names)) // subject -> workflow name
+	for _, n := range names {
+		want["workflow."+n] = n
+	}
+	latest := map[string]*wfArc{}
+	_ = s.k.Journal().Range(func(e *event.Event) error {
+		applyWorkflowRunEvent(want, latest, e)
+		return nil
+	})
+	return summariseWorkflowArcs(latest)
+}
+
 func (s *Server) handleWorkflowList(conn net.Conn, req Request) {
 	items := s.k.Workflows().List()
+
+	// The journal fold is opt-in: `agt workflow list` wants the cheap answer,
+	// the console's list wants to show whether each workflow last succeeded.
+	var runs map[string]lastRunSummary
+	// argFlag, not argBool: the web console reaches this through the HTTP proxy,
+	// where every query arg arrives as a string.
+	withRuns, _, err := argFlag(req.Args, "with_runs")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	if withRuns {
+		names := make([]string, 0, len(items))
+		for _, w := range items {
+			names = append(names, w.Name)
+		}
+		runs = s.workflowLastRuns(names)
+	}
+
 	out := make([]any, 0, len(items))
 	enabled := 0
 	for _, w := range items {
-		out = append(out, workflowView(w, false))
+		view := workflowView(w, false)
+		if r, ok := runs[w.Name]; ok {
+			last := map[string]any{"status": r.status, "at_ms": r.atMS}
+			if r.durationMS > 0 {
+				last["duration_ms"] = r.durationMS
+			}
+			view["last_run"] = last
+		}
+		out = append(out, view)
 		if w.Enabled {
 			enabled++
 		}

@@ -950,9 +950,9 @@ describe("Schedules fire-time preview (M744)", () => {
 
 // The cockpit target filter is now a TabNav (role="tab"; label + count concatenated in the
 // accessible name, e.g. "Workflow1"). Radix Tabs activate on pointer-down under jsdom.
+// The target filter is a <Segmented> radiogroup — a plain button, so a click is
+// enough. (It was a Radix Tabs trigger, which needed the pointer dance.)
 const selectScheduleTab = (tab: HTMLElement) => {
-  fireEvent.pointerDown(tab, { button: 0, ctrlKey: false });
-  fireEvent.mouseDown(tab, { button: 0 });
   fireEvent.click(tab);
 };
 
@@ -978,7 +978,7 @@ describe("Schedules job cards", () => {
 
     render(withUI(<Schedules />));
     await waitFor(() => expect(screen.getByText("wake ops")).toBeTruthy());
-    selectScheduleTab(screen.getByRole("tab", { name: /Workflow\s*1/ }));
+    selectScheduleTab(screen.getByRole("radio", { name: /Workflow\s*1/ }));
     expect(screen.getByText("Run workflow nightly-sync")).toBeTruthy();
     expect(screen.queryByText("wake ops")).toBeNull();
     expect(screen.queryByText("Run system task Catalog sync")).toBeNull();
@@ -1005,8 +1005,9 @@ describe("Schedules job cards", () => {
 
     render(withUI(<Schedules />));
     await waitFor(() => expect(screen.getByText("Run workflow nightly-sync")).toBeTruthy());
-    expect(screen.getByText("attention")).toBeTruthy();
-    const attentionTab = screen.getByRole("tab", { name: /Attention\s*2/ });
+    // "attention" was a metric tile sitting on the very filter chip below it.
+    // The chip is the one that both counts and narrows.
+    const attentionTab = screen.getByRole("radio", { name: /Attention\s*2/ });
     expect(attentionTab).toBeTruthy();
     selectScheduleTab(attentionTab);
     expect(screen.queryByText("Run workflow nightly-sync")).toBeNull();
@@ -1079,8 +1080,10 @@ describe("Schedules job cards", () => {
     // Badge strip: target chip, workflow chip, model chip; the label stays secondary.
     expect(screen.getByTitle("job target: workflow")).toBeTruthy();
     expect(screen.getByTitle("runs workflow nightly-sync")).toBeTruthy();
-    expect(screen.getByText("targets")).toBeTruthy();
-    expect(screen.getByText("1 workflow")).toBeTruthy();
+    // The "targets: 1 workflow" tile is gone — the "Workflow 1" filter chip
+    // says it, and clicking it does something.
+    expect(screen.queryByText("targets")).toBeNull();
+    expect(screen.getByRole("radio", { name: /Workflow\s*1/ })).toBeTruthy();
     expect(screen.getByText("model gpt-5")).toBeTruthy();
     expect(screen.getByText("label: Nightly label")).toBeTruthy();
     // The old narration blocks are gone.

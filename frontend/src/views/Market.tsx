@@ -35,6 +35,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { useUI } from "@/components/ui/feedback";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Markdown } from "@/components/Markdown";
+import { Segmented, ToggleChip } from "@/components/ui/segmented";
 
 // PACK_WINDOW is how many pack cards render at once. /api/market has no
 // cursor, so the whole catalogue arrives in one fetch — the window keeps a
@@ -264,10 +265,18 @@ export function Market() {
   // Featured strip: editor's picks, shown only on the unfiltered gallery so it
   // reads as a curated front page rather than duplicating filtered results.
   const featured = useMemo(() => (packs || []).filter((p) => p.featured).slice(0, 6), [packs]);
+  const featuredShown = !filterActive && featured.length > 0;
+  const featuredNames = useMemo(() => new Set(featured.map((p) => p.name)), [featured]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = (packs || []).filter((p) => {
+      // The featured strip is ABOVE this grid on the unfiltered gallery, so a
+      // pick rendered here too would print the same pack twice on one screen —
+      // which is exactly what happened: the first five cards of the library
+      // repeated the five picks directly above them. The strip owns its packs;
+      // the grid is the rest of the library. Filtering brings them back.
+      if (featuredShown && featuredNames.has(p.name)) return false;
       if (installedOnly && !p.installed) return false;
       if (cat !== "all" && p.category !== cat) return false;
       if (!q) return true;
@@ -283,7 +292,7 @@ export function Market() {
         a.name.localeCompare(b.name),
     };
     return [...list].sort(cmp[sort]);
-  }, [packs, query, cat, installedOnly, sort]);
+  }, [packs, query, cat, installedOnly, sort, featuredShown, featuredNames]);
 
   // toggleDetails expands/collapses a pack's "What's inside" panel, lazily
   // fetching its contents the first time it's opened.
@@ -430,7 +439,7 @@ export function Market() {
                 <RotateCw className={cn("size-3.5", syncing && "animate-spin")} /> Sync all
               </Button>
             </div>
-            <div className="rounded-lg border border-accent/20 bg-accent/5 p-2.5 text-[11px] leading-relaxed text-muted">
+            <div className="rounded-lg border border-accent/30 bg-accent/5 p-2.5 text-[11px] leading-relaxed text-muted">
               Remote packs are verified on sync: content is SHA-256 pinned, signatures are checked against a
               source's pinned key, and every pack runs the same pre-install security review as built-ins. Unsigned
               packs still install (default-allow), just flagged.
@@ -546,31 +555,24 @@ export function Market() {
 
       {(categories.length > 2 || installedCount > 0) && (
         <div className="flex flex-wrap items-center gap-1">
-          {categories.length > 2 &&
-            categories.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCat(c)}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-[11px] capitalize transition-colors",
-                  cat === c ? "border-accent bg-accent/15 text-accent" : "border-border text-muted hover:text-foreground",
-                )}
-              >
-                {c}
-              </button>
-            ))}
+          {categories.length > 2 && (
+            <Segmented
+              ariaLabel="Filter packs by category"
+              className="flex-wrap"
+              value={cat}
+              onChange={setCat}
+              options={categories.map((c) => ({ value: c, label: c }))}
+            />
+          )}
           {installedCount > 0 && (
-            <button
-              onClick={() => setInstalledOnly((v) => !v)}
-              role="switch"
-              aria-checked={installedOnly}
-              className={cn(
-                "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                installedOnly ? "border-good/40 bg-good/10 text-good" : "border-border text-muted hover:text-foreground",
-              )}
+            <ToggleChip
+              className="ml-auto inline-flex items-center gap-1"
+              on={installedOnly}
+              onToggle={() => setInstalledOnly((v) => !v)}
+              title="Show only packs already installed"
             >
               <Check className="size-3" /> Installed only
-            </button>
+            </ToggleChip>
           )}
         </div>
       )}
@@ -583,6 +585,11 @@ export function Market() {
         <EmptyState icon={Store} title="No packs match" hint="Try a different search or category." />
       ) : (
         <>
+          {featuredShown && (
+            <div className="flex items-center gap-1.5 text-label text-muted">
+              <Store className="size-3.5" /> The rest of the library
+            </div>
+          )}
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {shown.slice(0, win).map((p) => (
               <Card key={p.name} glass className="p-3">

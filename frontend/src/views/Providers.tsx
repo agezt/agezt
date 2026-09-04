@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Cpu, RefreshCw, Route, GitFork, RotateCw } from "lucide-react";
 import { getJSON, postAction } from "@/lib/api";
 import { useEvents } from "@/lib/events";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { BarList } from "@/components/Charts";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { useProviderLogPager } from "@/lib/cursorPager";
@@ -118,14 +119,16 @@ export function Providers() {
   return (
     <Page
       icon={Cpu}
-      title="Providers"
+      title="Routing log"
       description="How calls are routed across your providers, and when fallbacks kick in"
       width="readable"
       mode="scroll"
       actions={
           <>
             <Button variant="ghost" size="sm" onClick={reloadProviders} disabled={reloading} title="Re-read credentials & catalog without restarting the daemon">
-              <RotateCw className={cn("size-3.5", reloading && "animate-spin")} /> Reload
+              {/* "Reload" beside "Refresh" is two words for two different
+                  things, told apart only by hovering. Say which. */}
+              <RotateCw className={cn("size-3.5", reloading && "animate-spin")} /> Reload providers
             </Button>
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Re-fetch these stats">
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} /> Refresh
@@ -151,16 +154,16 @@ export function Providers() {
             <MetricWidget icon={Cpu} label="Providers" value={rows.length} tone="muted" />
           </MetricGrid>
 
-          <ProviderPanel
+          <SectionPanel
             title="Routes by provider"
             icon={Cpu}
             status={rows.length ? `${rows.length} active` : "waiting for routes"}
             tone={rows.length ? "accent" : "muted"}
           >
             {rows.length ? <BarList rows={rows} /> : <Muted>no routing decisions yet</Muted>}
-          </ProviderPanel>
+          </SectionPanel>
 
-          <ProviderPanel
+          <SectionPanel
             title="Routing activity"
             icon={Route}
             status={log.length ? `${log.length} recent` : "quiet"}
@@ -201,45 +204,10 @@ export function Providers() {
                 />
               </>
             )}
-          </ProviderPanel>
+          </SectionPanel>
         </>
       )}
     </Page>
   );
 }
 
-function ProviderPanel({
-  title,
-  icon: Icon,
-  status,
-  tone,
-  children,
-}: {
-  title: string;
-  icon: typeof Cpu;
-  status: string;
-  tone: "accent" | "warn" | "bad" | "good" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls: Record<typeof tone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    good: "border-good/35 bg-good/5 text-good",
-    muted: "border-border bg-panel text-muted",
-  };
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}

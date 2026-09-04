@@ -285,10 +285,10 @@ function FilterChip({ active, onClick, label, count }: { active: boolean; onClic
 }
 
 const STAT_TONE = {
-  accent: { fg: "text-accent", ring: "border-accent/50 bg-card" },
-  good: { fg: "text-good", ring: "border-good/50 bg-card" },
-  warn: { fg: "text-warn", ring: "border-warn/50 bg-card" },
-  bad: { fg: "text-bad", ring: "border-bad/50 bg-card" },
+  accent: { fg: "text-accent", ring: "border-accent/40 bg-card" },
+  good: { fg: "text-good", ring: "border-good/40 bg-card" },
+  warn: { fg: "text-warn", ring: "border-warn/40 bg-card" },
+  bad: { fg: "text-bad", ring: "border-bad/40 bg-card" },
   muted: { fg: "", ring: "" },
 } as const;
 

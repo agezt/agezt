@@ -244,9 +244,9 @@ export function DiagTab({
             repairOperations.tone === "good"
               ? "border-good/30 bg-good/5"
               : repairOperations.tone === "warn"
-                ? "border-warn/35 bg-warn/10"
+                ? "border-warn/40 bg-warn/10"
                 : repairOperations.tone === "bad"
-                  ? "border-bad/35 bg-bad/5"
+                  ? "border-bad/40 bg-bad/5"
                   : "border-border bg-card/55",
           )}
         >

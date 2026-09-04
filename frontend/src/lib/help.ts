@@ -239,59 +239,37 @@ export const HELP: Record<string, HelpTopic> = {
       "Threads are reconstructed live from the journal's channel events — nothing here is a separate database that can drift.",
     ],
     related: [
-      { id: "files", label: "Files" },
+      { id: "artifacts", label: "Artifacts & Files" },
       { id: "chat", label: "Chat" },
     ],
   },
 
-  files: {
-    title: "Files",
-    intro:
-      "The artifact store: every file the daemon has indexed — images received on channels, uploads, and other artifacts — browsable, previewable, and downloadable.",
-    sections: [
-      {
-        heading: "Browsing",
-        items: [
-          {
-            term: "Filter chips",
-            desc: "Switch between All, Images (rendered as a lazy-loading gallery with timestamps), and Files (a list with name, kind, size, and time).",
-          },
-          {
-            term: "Preview modal",
-            desc: "Click anything to preview it inline: images, PDFs, code, markdown, plain text, and JSON all render in place. Binary formats offer a download instead.",
-          },
-          {
-            term: "Download / delete",
-            desc: "Every file row has a direct download link and a delete button.",
-          },
-        ],
-      },
-      {
-        heading: "Housekeeping",
-        items: [
-          {
-            term: "Collect",
-            desc: "Reaps artifacts older than 30 days. It always dry-runs first — you see exactly how many files and bytes would go before confirming the real deletion.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Text previews are capped at 2 MB so a huge log can't lock up the browser.",
-      "Images are grouped by run correlation id — the same grouping the Inbox uses for its threads.",
-    ],
-    related: [
-      { id: "inbox", label: "Inbox" },
-      { id: "artifacts", label: "Artifacts" },
-      { id: "data", label: "Data Lake" },
-    ],
-  },
-
   artifacts: {
-    title: "Artifacts",
+    title: "Artifacts & Files",
     intro:
       "The showroom for everything your agents produce: reports, charts, generated pages, code, data files — bucketed by what each artifact IS, with a live preview per type and a fullscreen viewer for the big screen.",
     sections: [
+      {
+        heading: "Two modes",
+        items: [
+          {
+            term: "Gallery",
+            desc: "Everything the daemon stored, bucketed by what each artifact IS — image, svg, html, pdf, markdown, json, code, text — with a live preview per type. Search filters by name, caption, source or sender.",
+          },
+          {
+            term: "File manager",
+            desc: "The same store browsed by PATH instead of by kind: a folder tree, a listing, and a detail pane. This was the separate 'Files' view until the two were merged; #files still opens the console straight into this mode.",
+          },
+          {
+            term: "Collect",
+            desc: "Reaps stale artifacts older than 30 days. It dry-runs first and tells you the count and bytes, so the confirm is an informed one; the most recent files are always kept.",
+          },
+          {
+            term: "Show run outputs",
+            desc: "Large tool outputs are offloaded to the artifact store and would otherwise bury real files, so they are hidden until you ask. Nothing is lost — the bytes stay reachable from the run that produced them.",
+          },
+        ],
+      },
       {
         heading: "The gallery",
         items: [
@@ -332,7 +310,7 @@ export const HELP: Record<string, HelpTopic> = {
       "Text previews are capped at 2 MB; bigger artifacts offer a download instead.",
     ],
     related: [
-      { id: "files", label: "Files" },
+      { id: "artifacts", label: "Artifacts & Files" },
       { id: "runs", label: "Runs" },
       { id: "storage", label: "Storage" },
     ],
@@ -374,7 +352,7 @@ export const HELP: Record<string, HelpTopic> = {
       "Ask the agent in Chat to log something (\"track this expense…\") and watch the matching collection update here.",
     ],
     related: [
-      { id: "files", label: "Files" },
+      { id: "artifacts", label: "Artifacts & Files" },
       { id: "memory", label: "Memory" },
     ],
   },
@@ -489,6 +467,29 @@ export const HELP: Record<string, HelpTopic> = {
       "The daemon's vital signs — success and error rates, provider resilience, uptime, activity pulse, and knowledge footprint — as gauges and sparklines.",
     sections: [
       {
+        heading: "System counters",
+        items: [
+          {
+            term: "Operational / model / daemon",
+            desc: "Whether the kernel is running or halted, the model in effect, and the daemon build. These came from the separate 'System' view, which read the same /api/status and repeated five of this page's tiles; #system still lands here.",
+          },
+          {
+            term: "Journal head, world, skills, tools",
+            desc: "The knowledge footprint: how far the append-only journal has advanced, how many world entities and active skills exist, and how many tools are registered.",
+          },
+          {
+            term: "Schedules",
+            desc: "Reads three ways. 'N live' means schedules are firing, 'enabled/total' is a healthy idle count, and 'offline' means schedules are enabled but the cadence resident is not running — they will never fire until it is.",
+          },
+        ],
+      },
+      {
+        heading: "Advanced (delegation, HTTP, credentials, routing)",
+        paragraphs: [
+          "Turn on Advanced mode to reveal the daemon's wiring: delegation limits (depth, fan-out, spend ceiling), the HTTP surface with each listener and whether it is loopback-only, the credential chain in effect, and the provider-routing detail with the reason for the last fallback.",
+        ],
+      },
+      {
         heading: "The gauges",
         items: [
           {
@@ -524,7 +525,7 @@ export const HELP: Record<string, HelpTopic> = {
       "A red \"halted\" badge means the kernel is paused — resume from the header or the System page.",
     ],
     related: [
-      { id: "system", label: "System" },
+      { id: "health", label: "Health" },
       { id: "providers", label: "Providers" },
       { id: "mission", label: "Mission Control" },
     ],
@@ -1295,9 +1296,9 @@ export const HELP: Record<string, HelpTopic> = {
       "The tested badge is your safety rail: nothing reaches agents without at least one passing run you witnessed.",
     ],
     related: [
-      { id: "tools", label: "Tools" },
+      { id: "tools", label: "Tool usage" },
       { id: "sandbox", label: "Sandbox" },
-      { id: "catalog", label: "Catalog" },
+      { id: "catalog", label: "Tool registry" },
     ],
   },
 
@@ -1345,8 +1346,8 @@ export const HELP: Record<string, HelpTopic> = {
       "stdio servers run with a scrubbed environment — secrets you didn't explicitly pass don't leak into them.",
     ],
     related: [
-      { id: "tools", label: "Tools" },
-      { id: "catalog", label: "Catalog" },
+      { id: "tools", label: "Tool usage" },
+      { id: "catalog", label: "Tool registry" },
       { id: "policy", label: "Policy" },
     ],
   },
@@ -1385,7 +1386,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "mcp", label: "MCP Servers" },
-      { id: "tools", label: "Tools" },
+      { id: "tools", label: "Tool usage" },
       { id: "agents", label: "Agents" },
     ],
   },
@@ -1422,7 +1423,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "toolforge", label: "Tool Forge" },
-      { id: "files", label: "Files" },
+      { id: "artifacts", label: "Artifacts & Files" },
     ],
   },
 
@@ -2052,7 +2053,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "setup", label: "Setup" },
-      { id: "tools", label: "Tools" },
+      { id: "tools", label: "Tool usage" },
       { id: "sandbox", label: "Sandbox" },
     ],
   },
@@ -2098,7 +2099,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "inbox", label: "Inbox" },
-      { id: "config", label: "Config Center" },
+      { id: "configcenter", label: "Config Center" },
       { id: "chat", label: "Chat" },
     ],
   },
@@ -2149,49 +2150,24 @@ export const HELP: Record<string, HelpTopic> = {
     ],
   },
 
-  system: {
-    title: "System",
-    intro:
-      "The daemon's status board: operational state, live counters, delegation limits, HTTP surface, credentials, and provider routing — refreshed every few seconds.",
-    sections: [
-      {
-        heading: "What's shown",
-        items: [
-          {
-            term: "Operational banner",
-            desc: "Green when healthy — with model, uptime, and version. A red pulsing badge means the kernel is halted.",
-          },
-          {
-            term: "Live counters",
-            desc: "Active runs, pending approvals, journal head, tools, memory records, world entities, active skills, and schedules.",
-          },
-          {
-            term: "Delegation card",
-            desc: "Whether delegation is enabled and its guardrails: max depth, fan-out, and spend per delegation tree.",
-          },
-          {
-            term: "HTTP surface",
-            desc: "Every address the daemon listens on, with a loopback badge when it's local-only.",
-          },
-          {
-            term: "Credentials & routing",
-            desc: "The credential chain in use, plus provider fallback count and the most recent fallback reason.",
-          },
-        ],
-      },
-    ],
-    related: [
-      { id: "health", label: "Health" },
-      { id: "config", label: "Config" },
-      { id: "policy", label: "Policy" },
-    ],
-  },
-
   persona: {
     title: "Default Identity",
     intro:
       "The daemon's default identity instructions — used by runs that are not bound to a roster agent. Edit it here and the very next default-identity run uses it; no restart.",
     sections: [
+      {
+        heading: "Effective configuration",
+        items: [
+          {
+            term: "What it shows",
+            desc: "The read-only inventory folded in at the bottom of the page: every AGEZT_* value the daemon actually sees, grouped by area, plus its resolved paths and routing keys. This was the separate 'Config' view; #config still lands here.",
+          },
+          {
+            term: "When to open it",
+            desc: "When a setting you exported does not seem to apply. The editors above write the config store; this pane answers the different question of whether the environment reached the daemon at all.",
+          },
+        ],
+      },
       {
         heading: "Editing",
         items: [
@@ -2294,41 +2270,9 @@ export const HELP: Record<string, HelpTopic> = {
       "The read-only Config page shows the effective merged result of everything — useful to verify what actually took effect.",
     ],
     related: [
-      { id: "config", label: "Config" },
+      { id: "configcenter", label: "Config Center" },
       { id: "providers", label: "Providers" },
       { id: "backup", label: "Backup" },
-    ],
-  },
-
-  config: {
-    title: "Config",
-    intro:
-      "A read-only snapshot of the daemon's effective configuration: environment variables grouped by area, path mappings, and routing.",
-    sections: [
-      {
-        heading: "What's shown",
-        items: [
-          {
-            term: "Summary stats",
-            desc: "Active model, whether default identity instructions are set, tool and plugin counts, and the ask policy.",
-          },
-          {
-            term: "Grouped settings",
-            desc: "Variables bucketed into Provider, Channels, Interfaces, Autonomy, Security, Tools, and Other — each section badged with its key count.",
-          },
-          {
-            term: "Paths & routing",
-            desc: "Filesystem path mappings and the routing configuration as raw JSON.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Nothing here is editable by design — change values in Config Center and verify the result here.",
-    ],
-    related: [
-      { id: "configcenter", label: "Config Center" },
-      { id: "system", label: "System" },
     ],
   },
 
@@ -2560,24 +2504,20 @@ export const HELP: Record<string, HelpTopic> = {
   },
 
   tools: {
-    title: "Tools",
+    title: "Tool usage",
     intro:
-      "The tool-usage monitor: call volume, error rate, per-tool latency, and a live invocation log across built-in, MCP, forged, and skill tools.",
+      "The tool-usage monitor: how much each tool is actually being called, how often it errors, how slow it is, and a live invocation log. It does not list the tools themselves — the Tool registry does.",
     sections: [
       {
-        heading: "The gallery",
+        heading: "The monitor",
         items: [
           {
             term: "Error ring & tiles",
-            desc: "Overall error rate, total calls, errored calls, and how many distinct tools were used.",
+            desc: "Overall error rate (drawn once there are calls to rate), total calls, errored calls, and how many distinct tools were used.",
           },
           {
-            term: "Tool rows",
-            desc: "Name, a source badge (mcp / forged / skill / built-in), call count (or \"idle\"), the governing capability, error count, and average latency. Used tools sort first.",
-          },
-          {
-            term: "Search & capability chips",
-            desc: "Filter by name or click a capability chip to see only tools under that capability.",
+            term: "Usage by tool",
+            desc: "One bar per tool that has been called, longest first, with its call count, error share and average latency. Tools that have never been called are not here — look in the Tool registry.",
           },
           {
             term: "Invocation log",
@@ -2587,19 +2527,19 @@ export const HELP: Record<string, HelpTopic> = {
       },
     ],
     tips: [
-      "This page is usage; the Catalog page is permissions — same tools, different question.",
+      "This page answers \"what is being called\". The Tool registry answers \"what exists, and under what policy\" — that is where the full list, the search and the trust levels live.",
     ],
     related: [
-      { id: "catalog", label: "Catalog" },
+      { id: "catalog", label: "Tool registry" },
       { id: "mcp", label: "MCP Servers" },
       { id: "toolforge", label: "Tool Forge" },
     ],
   },
 
   catalog: {
-    title: "Catalog",
+    title: "Tool registry",
     intro:
-      "The agent's capability surface: every tool it can call, what each does, which capability governs it, the current trust level, and usage stats.",
+      "The agent's capability surface: every tool it can call, what each does, which capability governs it, the current trust level, and how much it has been used. Search it by name, description or capability; Tool usage charts the calls.",
     sections: [
       {
         heading: "The grid",
@@ -2620,7 +2560,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "policy", label: "Policy" },
-      { id: "tools", label: "Tools" },
+      { id: "tools", label: "Tool usage" },
     ],
   },
 
@@ -2673,7 +2613,7 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "approvals", label: "Approvals" },
-      { id: "catalog", label: "Catalog" },
+      { id: "catalog", label: "Tool registry" },
     ],
   },
 
@@ -2757,7 +2697,7 @@ export const HELP: Record<string, HelpTopic> = {
       "A full disk is the classic silent outage: the journal can no longer write and the daemon stops recording. Watch the free-space card.",
     ],
     related: [
-      { id: "files", label: "Files" },
+      { id: "artifacts", label: "Artifacts & Files" },
       { id: "memory", label: "Memory" },
       { id: "roster", label: "Roster" },
       { id: "health", label: "Health" },
@@ -2826,6 +2766,118 @@ export const HELP: Record<string, HelpTopic> = {
       { id: "schedules", label: "Schedules" },
     ],
   },
+  workboard: {
+    title: "Workboard",
+    intro:
+      "The task board the fleet actually works from: lanes of work items, each dispatched to a seat or agent, each carrying the acceptance criteria that decide whether it is genuinely done.",
+    sections: [
+      {
+        heading: "Lanes and items",
+        items: [
+          {
+            term: "Lanes",
+            desc: "Work moves left to right through the lanes. An item shows who holds it, what it is blocked on, and how long it has been sitting there.",
+          },
+          {
+            term: "Dispatch",
+            desc: "Hands an item to a seat or an agent. Dispatching is what turns a written task into a governed run — the agent picks it up with the item's context attached.",
+          },
+          {
+            term: "Block / unblock",
+            desc: "Records why work stopped, in the open, rather than letting an item quietly rot in a lane. The reason travels with the item.",
+          },
+        ],
+      },
+      {
+        heading: "Proof",
+        paragraphs: [
+          "An item can carry acceptance criteria, and completing it can be gated on a proof verdict rather than on someone clicking done. That is the difference between a board that tracks intent and one that tracks outcomes.",
+        ],
+      },
+    ],
+    tips: [
+      "Comments on an item are part of the record — the agent working it can read them.",
+      "Objectives (the OKR tab) link down to workboard items, so a key result can show the work actually moving it.",
+    ],
+    related: [
+      { id: "okr", label: "Objectives" },
+      { id: "seats", label: "Seats" },
+      { id: "roster", label: "Roster" },
+    ],
+  },
+
+  "execution-profiles": {
+    title: "Execution Profiles",
+    intro:
+      "Named runtimes for anything the agents execute: which interpreter or shell runs a command, with which working directory and environment. A profile is picked by name instead of hard-coding a path in every tool.",
+    sections: [
+      {
+        heading: "What a profile defines",
+        items: [
+          {
+            term: "Interpreter / shell",
+            desc: "The binary that actually runs the code — a python, a node, a shell — plus the arguments it needs. This is what makes the same script portable between machines.",
+          },
+          {
+            term: "Environment",
+            desc: "The variables and working directory the command sees. Keeping them in a profile means a change lands everywhere that profile is used, at once.",
+          },
+          {
+            term: "Check",
+            desc: "Verifies the profile against this host before you rely on it: is the interpreter present, does it run, does it report the version you expect.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Run the check after changing a machine — a profile that pointed at a since-removed interpreter fails at the worst moment otherwise.",
+    ],
+    related: [
+      { id: "toolbox", label: "Host CLI tools" },
+      { id: "sandbox", label: "Sandbox" },
+      { id: "toolforge", label: "Tool Forge" },
+    ],
+  },
+
+  incident: {
+    title: "Incident",
+    intro:
+      "One incident's full page: what the autonomy layer flagged, the agent it concerns, the evidence from the journal, and the actions that resolve it. Reached from Autonomy or from any incident badge.",
+    sections: [
+      {
+        heading: "Reading the page",
+        items: [
+          {
+            term: "Timeline",
+            desc: "The journal events that led to the incident, newest first, so the sequence that produced the failure is readable rather than inferred.",
+          },
+          {
+            term: "The agent",
+            desc: "Who the incident is about, with its live state. Escalations raised by that agent appear alongside, since they are usually the same story.",
+          },
+        ],
+      },
+      {
+        heading: "Acting on it",
+        items: [
+          {
+            term: "Repair / wake / retire",
+            desc: "The lifecycle controls, applied in context: attempt a self-repair, wake the agent to try again, or retire it if it should stop running at all.",
+          },
+          {
+            term: "Resolve",
+            desc: "Closes the incident. Resolving is recorded in the journal like any other decision, so the audit trail shows who called it done.",
+          },
+        ],
+      },
+    ],
+    related: [
+      { id: "autonomy", label: "Autonomy" },
+      { id: "roster", label: "Roster" },
+      { id: "runs", label: "Runs" },
+    ],
+  },
+
 };
 
 /** Fallback topic for a view id with no entry (should be caught by tests). */
@@ -2840,6 +2892,7 @@ export const FALLBACK_TOPIC: HelpTopic = {
       ],
     },
   ],
+
 };
 
 export function helpTopicFor(viewId: string): HelpTopic {

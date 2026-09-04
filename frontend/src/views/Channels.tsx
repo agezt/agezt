@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { MetricGrid, MetricWidget } from "@/components/ui/metric-widget";
 import { useWebhookLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
@@ -125,11 +124,14 @@ function StatusBadge({ live, configured }: { live?: boolean; configured?: boolea
   return <Badge variant="warn">needs setup</Badge>;
 }
 
-function RoundtripBadge({ probe }: { probe?: ChannelProbe }) {
+function RoundtripBadge({ probe, configured }: { probe?: ChannelProbe; configured?: boolean }) {
   const status = probe?.roundtrip_status;
   if (!status) return null;
   if (status === "ready") return <Badge variant="good" title={probe.note || "ready"}>roundtrip ready</Badge>;
   if (status === "restart_required") return <Badge variant="warn" title={probe.note || "restart required"}>restart first</Badge>;
+  // "setup first" next to "needs setup" is the same sentence twice. Only an
+  // already-configured channel that still cannot round-trip has news here.
+  if (!configured) return null;
   return <Badge variant="warn" title={probe.note || "setup required"}>setup first</Badge>;
 }
 
@@ -506,7 +508,7 @@ function AccountManager({ row, onChanged }: { row: ChannelRow; onChanged: () => 
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-foreground">{a.label || "default"}</span>
               <StatusBadge live={a.live} configured={a.configured} />
-              <RoundtripBadge probe={a.probe} />
+              <RoundtripBadge probe={a.probe} configured={a.configured} />
               <div className="ml-auto flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setActiveForm({ account: a, isNew: false })}>
                   <Pencil className="size-3.5" /> Edit
@@ -583,7 +585,7 @@ function ChannelModal({ title, onClose, children }: { title: string; onClose: ()
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Radio className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -647,7 +649,11 @@ export function Channels() {
     <Page
       icon={Radio}
       title="Channels"
-      description={rows ? `${rows.length} channels · ${liveCount} live · ${configuredCount} configured` : undefined}
+      description={
+        rows
+          ? `${rows.length} channels · ${liveCount} live · ${configuredCount} configured · ${roundtripReadyCount} round-trip ready · ${mediaCount} carry media`
+          : undefined
+      }
       actions={
         <Button variant="ghost" size="sm" onClick={load} disabled={rows === null}>
           <RefreshCw className={cn("size-3.5", rows === null && "animate-spin")} /> Refresh
@@ -655,35 +661,9 @@ export function Channels() {
       }
       width="wide"
     >
-      {rows && (
-        <MetricGrid>
-          <MetricWidget icon={Radio} label="Total" value={rows.length} tone="muted" />
-          <MetricWidget
-            icon={Radio}
-            label="Live"
-            value={liveCount}
-            tone={liveCount > 0 ? "good" : "muted"}
-          />
-          <MetricWidget
-            icon={Radio}
-            label="Configured"
-            value={configuredCount}
-            tone={configuredCount > 0 ? "accent" : "muted"}
-          />
-          <MetricWidget
-            icon={Check}
-            label="Roundtrip"
-            value={roundtripReadyCount}
-            tone={roundtripReadyCount > 0 ? "good" : "muted"}
-          />
-          <MetricWidget
-            icon={ImageIcon}
-            label="Media"
-            value={mediaCount}
-            tone={mediaCount > 0 ? "accent" : "muted"}
-          />
-        </MetricGrid>
-      )}
+      {/* No metric row: Total / Live / Configured / Roundtrip / Media are the
+          page subtitle, one line above. Five cards restating the sentence
+          directly beneath it is the page saying everything twice. */}
 
       {err ? (
         <div className="text-xs text-bad">{err}</div>
@@ -723,7 +703,7 @@ export function Channels() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-medium text-foreground">{r.display}</span>
                       <StatusBadge live={r.live} configured={r.configured} />
-                      <RoundtripBadge probe={r.probe} />
+                      <RoundtripBadge probe={r.probe} configured={r.configured} />
                       {accts.length > 1 && (
                         <span className="text-xs text-muted">
                           {accts.length} accounts{liveAccts ? ` · ${liveAccts} live` : ""}

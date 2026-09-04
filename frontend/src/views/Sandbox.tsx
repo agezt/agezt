@@ -13,12 +13,58 @@ import { Page } from "@/components/ui/page";
 import { useWardenLogPager, useNetguardLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { Segmented, ToggleChip } from "@/components/ui/segmented";
+import { bytes as fmtBytes } from "@/lib/format";
+import { SectionPanel } from "@/components/ui/section-panel";
 
 // PROJECT_WINDOW is how many project cards render at once. /api/sandbox has no
 // cursor, so every project arrives in one fetch — the window keeps a big
 // sandbox from ballooning the DOM; a Load-more footer grows it client-side.
 // The header count stays computed over the FULL list.
 const PROJECT_WINDOW = 60;
+
+// FILE_WINDOW is the same guard for a project's FILE list. Every project's files
+// arrive inside the /api/sandbox payload, and the cards used to render all of
+// them, for every project, side by side: a checked-out repo brought 500 rows of
+// `.git/hooks/*.sample`, five projects at once, and the page became an
+// unreadable wall. No list renders unbounded.
+const FILE_WINDOW = 60;
+
+// NOISE_DIR / NOISE_EXT describe files that exist because a tool put them there,
+// not because an agent wrote them: VCS internals, vendored dependencies, caches
+// and build output. They are hidden by default — this page's job is to show what
+// the agents BUILT, and a pip install or a git clone otherwise buries it. The
+// toggle reveals them; nothing is deleted or unreachable.
+const NOISE_DIR = [
+  ".git",
+  ".hg",
+  ".svn",
+  "node_modules",
+  "__pycache__",
+  ".deps",
+  ".venv",
+  "venv",
+  "site-packages",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".cache",
+  "dist-info",
+  "egg-info",
+];
+const NOISE_EXT = [".pyc", ".pyo", ".pyd", ".class", ".o", ".so.tmp"];
+
+// isBuildNoise reports whether a project-relative path is tool-generated rather
+// than agent-authored. Pure + unit-tested.
+export function isBuildNoise(path: string): boolean {
+  const segments = path.split("/");
+  // The final segment is the file name; every earlier one is a directory.
+  for (const seg of segments.slice(0, -1)) {
+    if (NOISE_DIR.some((d) => seg === d || seg.endsWith(d))) return true;
+  }
+  const name = segments[segments.length - 1] || "";
+  return NOISE_EXT.some((e) => name.endsWith(e));
+}
 
 // downloadText saves text content to a file via a transient object URL — lets the
 // operator grab an artifact an agent built without leaving the browser.
@@ -49,11 +95,6 @@ interface Project {
   modified_unix: number;
 }
 
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 // Sandbox shows what the agents BUILT with the code_exec tool: each persistent
 // project, its files, and (on click) a file's contents — so the work agents do
@@ -63,6 +104,9 @@ export function Sandbox() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [win, setWin] = useState(PROJECT_WINDOW);
+  // Which project's files are open. Cards are a glanceable census; exactly one
+  // project's files render at a time, full width, below them.
+  const [openProject, setOpenProject] = useState<string | null>(null);
 
   // Cursor-paginated sandbox-execution log (the journal-backed /api/warden_log).
   const {
@@ -104,25 +148,18 @@ export function Sandbox() {
   }, []);
 
   return (
-    <Page mode="scroll" width="wide">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-accent/25 to-accent2/20 text-accent ring-1 ring-inset ring-accent/30">
-            <FlaskConical className="size-5" />
-          </span>
-          <div>
-            <h2 className="text-gradient text-base font-bold leading-tight tracking-normal">Sandbox</h2>
-            {projects && (
-              <Badge variant="default" className="mt-0.5">
-                {projects.length} project{projects.length === 1 ? "" : "s"}
-              </Badge>
-            )}
-          </div>
-        </div>
-        <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
+    <Page
+      mode="scroll"
+      width="wide"
+      icon={FlaskConical}
+      title="Sandbox"
+      description={projects ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : undefined}
+      actions={
+        <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
-      </div>
+      }
+    >
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -136,9 +173,18 @@ export function Sandbox() {
         />
       ) : (
         <>
-          <MetricGrid cols="repeat(auto-fill, minmax(200px, 1fr))">
+          <MetricGrid cols="repeat(auto-fill, minmax(220px, 1fr))">
             {projects.slice(0, win).map((p) => (
-              <ProjectCard key={p.name} p={p} onChanged={reload} />
+              <ProjectCard
+                key={p.name}
+                p={p}
+                open={openProject === p.name}
+                onOpen={() => setOpenProject((cur) => (cur === p.name ? null : p.name))}
+                onChanged={() => {
+                  if (openProject === p.name) setOpenProject(null);
+                  reload();
+                }}
+              />
             ))}
           </MetricGrid>
           {projects.length > PROJECT_WINDOW && (
@@ -149,6 +195,9 @@ export function Sandbox() {
               pageSize={Math.min(PROJECT_WINDOW, Math.max(1, projects.length - win))}
               label="projects"
             />
+          )}
+          {openProject && projects.some((p) => p.name === openProject) && (
+            <FileBrowser key={openProject} p={projects.find((p) => p.name === openProject)!} />
           )}
         </>
       )}
@@ -202,7 +251,17 @@ export function Sandbox() {
   );
 }
 
-function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
+function ProjectCard({
+  p,
+  open,
+  onOpen,
+  onChanged,
+}: {
+  p: Project;
+  open: boolean;
+  onOpen: () => void;
+  onChanged: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const ui = useUI();
 
@@ -226,16 +285,23 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
     }
   }
 
+  // What the agent actually authored, versus what a clone or an install left
+  // behind. The card leads with the authored count because that is the number
+  // the operator is here for.
+  const authored = p.files.filter((f) => !isBuildNoise(f.name)).length;
+
   return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-3 flex items-start gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
-          <FlaskConical className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold" title={p.name}>{p.name}</h3>
-          <div className="text-xs text-muted">{fmtDateTime(p.modified_unix)}</div>
-        </div>
+    <SectionPanel
+      className={cn("transition-colors", open && "border-accent/60")}
+      icon={FlaskConical}
+      tone="accent"
+      title={
+        <button onClick={onOpen} className="block w-full truncate text-left" title={`Browse ${p.name}`}>
+          {p.name}
+        </button>
+      }
+      status={fmtDateTime(p.modified_unix)}
+      actions={
         <button
           onClick={remove}
           disabled={busy}
@@ -244,19 +310,93 @@ function ProjectCard({ p, onChanged }: { p: Project; onChanged: () => void }) {
         >
           <Trash2 className="size-3.5" />
         </button>
+      }
+    >
+      <button
+        onClick={onOpen}
+        className="mt-2 flex w-full items-center gap-3 text-left text-xs text-muted transition-colors hover:text-foreground"
+      >
+        {open ? <ChevronDown className="size-3 shrink-0" /> : <ChevronRight className="size-3 shrink-0" />}
+        <span className="tabular-nums">
+          <span className="font-semibold text-foreground">{authored}</span> file{authored === 1 ? "" : "s"}
+          {p.file_count > authored && <span className="text-muted"> · {p.file_count - authored} generated</span>}
+        </span>
+        <span className="ml-auto shrink-0 tabular-nums">{fmtBytes(p.total_bytes)}</span>
+      </button>
+    </SectionPanel>
+  );
+}
+
+// FileBrowser is the one full-width place a project's files render. Cards above
+// stay a census; this is the drill-in — filtered, windowed, and with the
+// tool-generated noise folded away by default.
+function FileBrowser({ p }: { p: Project }) {
+  const [query, setQuery] = useState("");
+  const [showNoise, setShowNoise] = useState(false);
+  const [win, setWin] = useState(FILE_WINDOW);
+
+  const noiseCount = p.files.filter((f) => isBuildNoise(f.name)).length;
+  const visible = p.files.filter((f) => {
+    if (!showNoise && isBuildNoise(f.name)) return false;
+    return !query || f.name.toLowerCase().includes(query.toLowerCase());
+  });
+
+  // Reset the window whenever the filter changes, so each result set starts at
+  // the top instead of inheriting a scrolled-open window from the last one.
+  useEffect(() => {
+    setWin(FILE_WINDOW);
+  }, [query, showNoise]);
+
+  return (
+    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <FileCode className="size-4 shrink-0 text-accent" />
+        <h3 className="text-sm font-semibold">{p.name}</h3>
+        <span className="text-xs text-muted">
+          {visible.length} of {p.file_count} file{p.file_count === 1 ? "" : "s"}
+        </span>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="filter files…"
+          aria-label="Filter files"
+          className="ml-auto w-48 rounded-full border border-border bg-panel px-3 py-1 text-xs text-foreground placeholder:text-muted"
+        />
+        {noiseCount > 0 && (
+          <ToggleChip
+            on={showNoise}
+            onToggle={() => setShowNoise((v) => !v)}
+            title="Git internals, vendored dependencies, caches and build output — present on disk, just not what the agent wrote"
+          >
+            {showNoise ? "Hide" : "Show"} generated files ({noiseCount})
+          </ToggleChip>
+        )}
       </div>
-      <div className="mb-2 flex flex-wrap gap-3">
-        <MetricWidget icon={FileCode} label="Files" value={p.file_count} tone="muted" />
-        <MetricWidget icon={FlaskConical} label="Size" value={fmtBytes(p.total_bytes)} tone="muted" />
-      </div>
-      {p.files.length === 0 ? (
-        <p className="text-xs text-muted">empty project</p>
+      {visible.length === 0 ? (
+        <p className="text-xs text-muted">
+          {p.file_count === 0
+            ? "empty project"
+            : query
+              ? "No file matches that filter."
+              : "Every file here is tool-generated — use “Show generated files” to browse them."}
+        </p>
       ) : (
-        <ul className="space-y-0.5">
-          {p.files.map((f) => (
-            <FileRow key={f.name} project={p.name} file={f} />
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-0.5">
+            {visible.slice(0, win).map((f) => (
+              <FileRow key={f.name} project={p.name} file={f} />
+            ))}
+          </ul>
+          {visible.length > FILE_WINDOW && (
+            <LoadMoreFooter
+              hasMore={win < visible.length}
+              loadingMore={false}
+              onLoadMore={() => setWin((w) => w + FILE_WINDOW)}
+              pageSize={Math.min(FILE_WINDOW, Math.max(1, visible.length - win))}
+              label="files"
+            />
+          )}
+        </>
       )}
     </section>
   );

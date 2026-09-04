@@ -11,7 +11,7 @@ vi.mock("@/lib/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Sandbox } from "@/views/Sandbox";
+import { Sandbox, isBuildNoise } from "@/views/Sandbox";
 import { UIProvider } from "@/components/ui/feedback";
 
 // The Sandbox cards use useUI() (toast/confirm), which needs the provider.
@@ -88,5 +88,115 @@ describe("Sandbox view", () => {
     await waitFor(() =>
       expect(postAction).toHaveBeenCalledWith("/api/sandbox/delete", { project: "calc" }),
     );
+  });
+});
+
+// A checked-out repo inside a sandbox project brought 500 rows of
+// `.git/hooks/*.sample`, rendered for every project at once, side by side. The
+// page became an unreadable wall of files no agent wrote.
+describe("isBuildNoise", () => {
+  it("flags VCS internals, vendored deps, caches and build output", () => {
+    expect(isBuildNoise(".git/hooks/pre-commit.sample")).toBe(true);
+    expect(isBuildNoise("repo/.git/config")).toBe(true);
+    expect(isBuildNoise(".deps/bs4/__pycache__/css.cpython-314.pyc")).toBe(true);
+    expect(isBuildNoise("node_modules/left-pad/index.js")).toBe(true);
+    expect(isBuildNoise(".venv/lib/site-packages/x.py")).toBe(true);
+    expect(isBuildNoise(".deps/beautifulsoup4-4.15.0.dist-info/METADATA")).toBe(true);
+    expect(isBuildNoise("a/b/__pycache__/mod.cpython-314.pyc")).toBe(true);
+  });
+
+  it("leaves agent-authored files alone", () => {
+    expect(isBuildNoise("add.py")).toBe(false);
+    expect(isBuildNoise("src/report.md")).toBe(false);
+    expect(isBuildNoise("scripts/build.sh")).toBe(false);
+    // A directory merely *named* like a file extension is not noise.
+    expect(isBuildNoise("git/notes.txt")).toBe(false);
+  });
+});
+
+describe("Sandbox file browser", () => {
+  const noisy = {
+    name: "repo",
+    files: [
+      { name: "main.py", bytes: 10 },
+      { name: "README.md", bytes: 20 },
+      { name: ".git/config", bytes: 30 },
+      { name: ".git/hooks/pre-commit.sample", bytes: 40 },
+      { name: "__pycache__/main.cpython-314.pyc", bytes: 50 },
+    ],
+    file_count: 5,
+    total_bytes: 150,
+    modified_unix: 1,
+  };
+
+  beforeEach(() => {
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/sandbox") return Promise.resolve({ projects: [noisy] });
+      if (path === "/api/warden_log") return Promise.resolve({ executions: [], next_cursor: null });
+      if (path === "/api/netguard_log") return Promise.resolve({ blocks: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+  });
+
+  it("keeps files out of the card and shows the authored count", async () => {
+    render(withUI(<Sandbox />));
+    await waitFor(() => expect(screen.getByText("repo")).toBeTruthy());
+    // The card is a census, not a file dump: nothing is listed until you open it.
+    expect(screen.queryByText("main.py")).toBeNull();
+    // 2 authored files, 3 generated.
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getByText(/3 generated/)).toBeTruthy();
+  });
+
+  it("hides tool-generated files until asked", async () => {
+    render(withUI(<Sandbox />));
+    await waitFor(() => expect(screen.getByText("repo")).toBeTruthy());
+    fireEvent.click(screen.getByText("repo"));
+
+    await waitFor(() => expect(screen.getByText("main.py")).toBeTruthy());
+    expect(screen.getByText("README.md")).toBeTruthy();
+    expect(screen.queryByText(".git/config")).toBeNull();
+    expect(screen.getByText("2 of 5 files")).toBeTruthy();
+
+    fireEvent.click(screen.getByText(/Show generated files \(3\)/));
+    expect(screen.getByText(".git/config")).toBeTruthy();
+    expect(screen.getByText("5 of 5 files")).toBeTruthy();
+  });
+
+  it("filters the file list", async () => {
+    render(withUI(<Sandbox />));
+    await waitFor(() => expect(screen.getByText("repo")).toBeTruthy());
+    fireEvent.click(screen.getByText("repo"));
+    await waitFor(() => expect(screen.getByText("main.py")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText("Filter files"), { target: { value: "readme" } });
+    expect(screen.getByText("README.md")).toBeTruthy();
+    expect(screen.queryByText("main.py")).toBeNull();
+  });
+});
+
+// The pagination law: no list renders unbounded, however big the payload.
+describe("Sandbox file windowing", () => {
+  it("windows a huge project instead of rendering every row", async () => {
+    const files = Array.from({ length: 250 }, (_, i) => ({ name: `src/f${i}.py`, bytes: 1 }));
+    getJSON.mockImplementation((path: string) => {
+      if (path === "/api/sandbox")
+        return Promise.resolve({
+          projects: [{ name: "big", files, file_count: files.length, total_bytes: 250, modified_unix: 1 }],
+        });
+      if (path === "/api/warden_log") return Promise.resolve({ executions: [], next_cursor: null });
+      if (path === "/api/netguard_log") return Promise.resolve({ blocks: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+
+    render(withUI(<Sandbox />));
+    await waitFor(() => expect(screen.getByText("big")).toBeTruthy());
+    fireEvent.click(screen.getByText("big"));
+
+    await waitFor(() => expect(screen.getByText("src/f0.py")).toBeTruthy());
+    // 60 rendered, not 250 — the 61st is behind the Load-more footer.
+    expect(screen.getByText("src/f59.py")).toBeTruthy();
+    expect(screen.queryByText("src/f60.py")).toBeNull();
+    expect(screen.getByText("250 of 250 files")).toBeTruthy();
   });
 });

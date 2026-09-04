@@ -11,6 +11,7 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
+import { SectionPanel } from "@/components/ui/section-panel";
 
 interface Skill {
   id?: string;
@@ -296,7 +297,7 @@ export function Skills() {
     >
 
       {idle.length > 0 && (
-        <SkillOpsPanel
+        <SectionPanel
           icon={AlertTriangle}
           title="Idle skills"
           status={`${idle.length} stale`}
@@ -327,11 +328,11 @@ export function Skills() {
               </li>
             ))}
           </ul>
-        </SkillOpsPanel>
+        </SectionPanel>
       )}
 
       {proposals.length > 0 && (
-        <SkillOpsPanel
+        <SectionPanel
           icon={Sparkles}
           title="Forge Workshop"
           status={`${proposals.length} pending`}
@@ -380,7 +381,7 @@ export function Skills() {
               );
             })}
           </ul>
-        </SkillOpsPanel>
+        </SectionPanel>
       )}
 
       {authoring && (
@@ -568,7 +569,9 @@ export function Skills() {
                 {s.description && <p className="mt-1.5 text-xs text-foreground/85">{s.description}</p>}
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  {s.created_ms ? <span>{fmtTime(s.created_ms)}</span> : null}
+                  {s.created_ms ? (
+                    <span title={fmtTime(s.created_ms)}>added {fmtAgo(s.created_ms)}</span>
+                  ) : null}
                   {(m.shadow_evals || 0) > 0 && (
                     <span className="text-accent">
                       shadow {m.shadow_wins || 0}/{m.shadow_evals}
@@ -645,9 +648,9 @@ function SkillModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Icon className="size-4" />
           </span>
           <div className="min-w-0">
@@ -676,40 +679,6 @@ const STATUS_BAR: Record<string, { bar: string; text: string }> = {
   archived: { bar: "bg-panel", text: "text-muted" },
 };
 
-function SkillOpsPanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  status: string;
-  tone: "warn" | "accent" | "bad" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls = {
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    muted: "border-border bg-panel text-muted",
-  }[tone];
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls)}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 // StatusSummary shows the skill library's lifecycle health at a glance: a stacked
 // proportion bar of the statuses plus a count chip per status, so you can see how
@@ -720,6 +689,21 @@ function StatusSummary({ skills }: { skills: Skill[] }) {
   for (const s of skills) counts[s.status || "draft"] = (counts[s.status || "draft"] || 0) + 1;
   const present = STATUS_ORDER.filter((s) => counts[s] > 0);
   const total = skills.length;
+  if (present.length < 2) {
+    // One status means one segment — a solid full-width bar saying only what
+    // the chip beneath it already says. Keep the chip, drop the bar.
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs">
+        {present.map((s) => (
+          <span key={s} className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2 rounded-full", STATUS_BAR[s].bar)} />
+            <span className={cn("font-semibold tabular-nums", STATUS_BAR[s].text)}>{counts[s]}</span>
+            <span className="text-muted">{s}</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="glass rounded-xl p-3">
       <div className="flex h-2.5 overflow-hidden rounded-full bg-panel">
@@ -812,7 +796,7 @@ function compactDiffLines(lines: SkillDiffLine[], max: number): SkillDiffLine[] 
 function SkillScanSummary({ report }: { report: SkillScanReport }) {
   if (report.count === 0) return null;
   return (
-    <div className="mt-2 rounded-md border border-warn/25 bg-warn/5 px-2 py-1.5">
+    <div className="mt-2 rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <AlertTriangle className="size-3.5 text-warn" />
         <Badge variant={scanBadgeVariant[report.maxSeverity]}>{report.maxSeverity} risk</Badge>
@@ -950,7 +934,7 @@ export function AuthorSkillForm({
     <div className="rounded-xl border border-border/70 bg-panel/70 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
             {editing ? <Pencil className="size-4" /> : <Sparkles className="size-4" />}
           </div>
           <div className="min-w-0">

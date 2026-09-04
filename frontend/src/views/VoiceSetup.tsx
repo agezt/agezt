@@ -150,7 +150,7 @@ export function VoiceSetup() {
           <span
             className={cn(
               "grid size-9 shrink-0 place-items-center rounded-lg border",
-              ready ? "border-good/35 bg-good/5 text-good" : "border-warn/35 bg-warn/5 text-warn",
+              ready ? "border-good/40 bg-good/5 text-good" : "border-warn/40 bg-warn/5 text-warn",
             )}
           >
             <Settings2 className="size-4" />

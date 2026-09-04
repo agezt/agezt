@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { cn, fmtTime } from "@/lib/utils";
+import { toneForStatus, toneText } from "@/lib/tone";
 
 // ───────────────────────── Inspector types ─────────────────────────
 
@@ -249,7 +250,8 @@ export function Inspector({ open, onClose }: { open: boolean; onClose: () => voi
 
 function LLMEntry({ call, expanded, onToggle }: { call: LLMCall; expanded: boolean; onToggle: () => void }) {
   const StatusIcon = call.status === "done" ? CheckCircle2 : call.status === "error" ? XCircle : Loader2;
-  const statusColor = call.status === "done" ? "text-good" : call.status === "error" ? "text-bad" : "text-accent";
+  // An in-flight call has no status word yet, so it reads as the live tone.
+  const statusColor = call.status ? toneText[toneForStatus(call.status)] : "text-accent";
   return (
     <div>
       <button onClick={onToggle} className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-panel/50">

@@ -18,6 +18,7 @@ import {
   File as FileIcon,
   Search,
   FolderTree,
+  LayoutGrid,
   type LucideIcon,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
@@ -34,28 +35,35 @@ import { Markdown } from "@/components/Markdown";
 import { Modal } from "@/components/ui/Modal";
 import { MonacoView } from "@/components/MonacoView";
 import { useUI } from "@/components/ui/feedback";
-import { goToView } from "@/lib/nav";
+import { FileManagerWorkspace } from "@/components/FileManagerWorkspace";
+import { Segmented, ToggleChip } from "@/components/ui/segmented";
 import {
   type ArtifactEntry,
+  type ArtifactList,
   type ArtifactCategory,
   categoryOf,
   rawURL,
   previewMaxBytes,
   isRunInternal,
+  humanSize,
   BlobArtifact,
   downloadArtifact,
-} from "./Files";
+} from "@/lib/artifacts";
 
-// Artifacts gallery (M931): every kind of agent output, bucketed by what it IS
-// (image / svg / html / markdown / json / code / pdf / text), each with its own
-// preview treatment — HTML renders live in a sandboxed frame, markdown renders
-// formatted, images as pictures — and a fullscreen viewer for the big-screen
-// look. Files (M823) stays the flat manager; this is the showroom.
-
-interface ArtifactList {
-  count: number;
-  entries: ArtifactEntry[];
-}
+// Artifacts (M931 + the 2026-09 Files merge): the ONE surface for everything the
+// daemon stored, in two modes.
+//
+//   Gallery — agent output bucketed by what it IS (image / svg / html / markdown
+//   / json / code / pdf / text), each with its own preview treatment: HTML in a
+//   sandboxed frame, markdown formatted, images as pictures, plus a fullscreen
+//   viewer with metadata.
+//
+//   File manager — the live workspace as a tree (M823), for browsing by path
+//   rather than by kind.
+//
+// These were two nav destinations reading the same /api/artifacts data with two
+// presentations, which is a mode, not a place (docs/CONSOLE-IA.md §2.4). The old
+// `#files` hash still resolves here and opens the file-manager mode.
 
 export const CATEGORY_META: { key: ArtifactCategory; label: string; icon: LucideIcon }[] = [
   { key: "image", label: "Images", icon: ImageIcon },
@@ -113,11 +121,17 @@ function windowGroups(
   return out;
 }
 
-function humanSize(n?: number): string {
-  if (!n || n <= 0) return "—";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+// COLLECT_DAYS is the staleness cutoff the Collect action reaps at (M845).
+const COLLECT_DAYS = 30;
+
+// entryFromHash reads the legacy `#files[?path=…]` deep link. `#files` is an
+// alias for this view (nav.tsx VIEW_ALIASES), and it means "open the file
+// manager" — optionally on a specific path, which is what the Artifacts viewer's
+// "file manager" button links to.
+export function fileManagerHash(hash: string): { workspace: boolean; path: string } {
+  const [id, q] = hash.replace(/^#\/?/, "").split("?");
+  if (id !== "files") return { workspace: false, path: "" };
+  return { workspace: true, path: new URLSearchParams(q || "").get("path") || "" };
 }
 
 export function Artifacts() {
@@ -128,6 +142,11 @@ export function Artifacts() {
   const [showRuns, setShowRuns] = useState(false);
   const [viewing, setViewing] = useState<ArtifactEntry | null>(null);
   const [win, setWin] = useState(ARTIFACT_CARD_WINDOW);
+  // Gallery (by kind) vs file manager (by path) — one surface, two ways to look
+  // at the same store. A `#files` deep link lands straight in the manager.
+  const entry0 = typeof location === "undefined" ? { workspace: false, path: "" } : fileManagerHash(location.hash);
+  const [mode, setMode] = useState<"gallery" | "workspace">(entry0.workspace ? "workspace" : "gallery");
+  const [wsPath, setWsPath] = useState(entry0.path);
 
   // Reset the render window whenever a filter changes so the gallery starts
   // from the top of the newly-filtered set.
@@ -143,6 +162,36 @@ export function Artifacts() {
   const searched = useMemo(() => entries.filter((e) => matchesQuery(e, query)), [entries, query]);
   const groups = useMemo(() => groupByCategory(searched), [searched]);
   const shownGroups = cat === "all" ? groups : groups.filter((g) => g.key === cat);
+
+  // collect reaps stale artifacts (M845): a dry-run reports the candidates, then
+  // a confirm actually deletes them — the operator's "approved" path.
+  async function collect() {
+    try {
+      const dry = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+        older_than_days: String(COLLECT_DAYS),
+        dry_run: "true",
+      });
+      if (!dry.count) {
+        ui.toast(`Nothing to collect — no files older than ${COLLECT_DAYS} days.`, "success");
+        return;
+      }
+      const ok = await ui.confirm({
+        title: `Collect ${dry.count} stale file${dry.count === 1 ? "" : "s"}?`,
+        message: `Permanently delete artifacts older than ${COLLECT_DAYS} days (~${humanSize(dry.bytes)}). The most recent files are kept.`,
+        confirmLabel: "Collect",
+        danger: true,
+      });
+      if (!ok) return;
+      const res = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+        older_than_days: String(COLLECT_DAYS),
+        dry_run: "false",
+      });
+      ui.toast(`Collected ${res.count} file${res.count === 1 ? "" : "s"} (~${humanSize(res.bytes)}).`, "success");
+      reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    }
+  }
 
   async function del(e: ArtifactEntry) {
     const ok = await ui.confirm({
@@ -165,11 +214,21 @@ export function Artifacts() {
   return (
     <Page
       icon={Shapes}
-      title="Artifacts"
+      title="Artifacts & Files"
       width="full"
-      description={`${entries.length} produced`}
+      description={mode === "workspace" ? "browse by path" : `${entries.length} produced`}
       actions={
         <>
+            <Segmented
+              ariaLabel="Artifact view mode"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "gallery", label: "gallery", icon: LayoutGrid, title: "Everything the agents produced, bucketed by type" },
+                { value: "workspace", label: "file manager", icon: FolderTree, title: "Browse the live workspace as a tree" },
+              ]}
+            />
+            {mode === "gallery" && (
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
               <input
@@ -179,18 +238,25 @@ export function Artifacts() {
                 className="w-56 rounded-full border border-border bg-panel py-1 pl-7 pr-3 text-xs text-foreground placeholder:text-muted"
               />
             </div>
-            {runCount > 0 && (
-              <button
-                onClick={() => setShowRuns((v) => !v)}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                  showRuns ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
-                )}
+            )}
+            {mode === "gallery" && runCount > 0 && (
+              <ToggleChip
+                on={showRuns}
+                onToggle={() => setShowRuns((v) => !v)}
                 title="Offloaded tool/run outputs are hidden by default — they're recoverable from each run"
               >
                 {showRuns ? "Hide" : "Show"} run outputs ({runCount})
-              </button>
+              </ToggleChip>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={collect}
+              disabled={loading || entries.length === 0}
+              title={`Collect stale files (older than ${COLLECT_DAYS} days)`}
+            >
+              <Trash2 className="size-3.5" /> Collect
+            </Button>
             <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
             </Button>
@@ -198,23 +264,33 @@ export function Artifacts() {
         }
     >
 
-      {/* Category chips with live counts */}
-      <div className="flex flex-wrap items-center gap-1">
-        <CategoryChip active={cat === "all"} label="All" count={searched.length} onClick={() => setCat("all")} />
-        {groups.map((g) => {
-          const meta = CATEGORY_META.find((m) => m.key === g.key)!;
-          return (
-            <CategoryChip
-              key={g.key}
-              active={cat === g.key}
-              label={meta.label}
-              icon={meta.icon}
-              count={g.entries.length}
-              onClick={() => setCat(cat === g.key ? "all" : g.key)}
-            />
-          );
-        })}
-      </div>
+      {mode === "workspace" ? (
+        // The workspace owns the whole body — tree, list and detail panels are
+        // all internal. Keyed on the path so opening another file from the
+        // gallery re-seeds it instead of silently keeping the old selection.
+        <div className="min-h-[60vh] flex-1">
+          <FileManagerWorkspace key={wsPath} initialPath={wsPath} />
+        </div>
+      ) : (
+        <>
+      {/* Category filter with live counts. A lone "All 0" chip over the empty
+          state narrows nothing to nothing — it comes back with the first
+          artifact. */}
+      {entries.length > 0 && (
+      <Segmented
+        ariaLabel="Filter artifacts by type"
+        className="flex-wrap"
+        value={cat}
+        onChange={setCat}
+        options={[
+          { value: "all" as const, label: "All", count: searched.length },
+          ...groups.map((g) => {
+            const meta = CATEGORY_META.find((m) => m.key === g.key)!;
+            return { value: g.key, label: meta.label, icon: meta.icon, count: g.entries.length };
+          }),
+        ]}
+      />
+      )}
 
       {error && <ErrorText>{error}</ErrorText>}
       {loading && entries.length === 0 && <SkeletonGrid count={8} />}
@@ -265,38 +341,24 @@ export function Artifacts() {
         )}
       </div>
 
-      {viewing && <Viewer entry={viewing} onClose={() => setViewing(null)} onDelete={() => del(viewing)} />}
+      {viewing && (
+        <Viewer
+          entry={viewing}
+          onClose={() => setViewing(null)}
+          onDelete={() => del(viewing)}
+          onOpenInFileManager={(path) => {
+            setWsPath(path);
+            setMode("workspace");
+            setViewing(null);
+          }}
+        />
+      )}
+        </>
+      )}
     </Page>
   );
 }
 
-function CategoryChip({
-  active,
-  label,
-  count,
-  icon: Icon,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  count: number;
-  icon?: LucideIcon;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-        active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground",
-      )}
-    >
-      {Icon && <Icon className="size-3" />}
-      {label}
-      <span className={cn("rounded-full px-1 text-xs", active ? "bg-accent/20" : "bg-panel")}>{count}</span>
-    </button>
-  );
-}
 
 // ArtifactCard — visual tile: pictures show themselves; everything else shows
 // its type icon over the name, so the wall reads at a glance.
@@ -333,7 +395,17 @@ function ArtifactCard({ entry, category, onOpen }: { entry: ArtifactEntry; categ
 
 // Viewer — the preview modal with a fullscreen toggle ("fullscreen"): inset-2
 // when expanded, so an HTML report or a chart fills the monitor.
-function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: () => void; onDelete: () => void }) {
+function Viewer({
+  entry,
+  onClose,
+  onDelete,
+  onOpenInFileManager,
+}: {
+  entry: ArtifactEntry;
+  onClose: () => void;
+  onDelete: () => void;
+  onOpenInFileManager: (path: string) => void;
+}) {
   const [full, setFull] = useState(false);
   const category = categoryOf(entry);
 
@@ -342,10 +414,11 @@ function Viewer({ entry, onClose, onDelete }: { entry: ArtifactEntry; onClose: (
   // tools). Raw blob hashes and inbound channel refs are content addresses,
   // not FS paths, so the button stays hidden for those.
   const filePath = looksLikePath(entry.ref);
+  // Switches this page into file-manager mode on that path. It used to
+  // `goToView("files", "path=…")`, but the workspace never read the query — the
+  // button always dumped you at the root.
   const openInFileManager = () => {
-    if (!filePath) return;
-    goToView("files", `path=${encodeURIComponent(filePath)}`);
-    onClose();
+    if (filePath) onOpenInFileManager(filePath);
   };
 
   // When `full` is true we want the panel itself to fill the viewport, so

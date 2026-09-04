@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
+import { SectionPanel } from "@/components/ui/section-panel";
 
 export interface ScriptTool {
   id: string;
@@ -446,7 +447,7 @@ export function Toolforge() {
       )}
 
       {tools && tools.length > 0 && (
-        <ForgePanel icon={List} title="Script tools" status={`${tools.length} tool${tools.length === 1 ? "" : "s"} · ${live} live`}>
+        <SectionPanel icon={List} title="Script tools" status={`${tools.length} tool${tools.length === 1 ? "" : "s"} · ${live} live`}>
           <ul className="space-y-2">
             {tools.map((t) => (
               <li key={t.id} className="rounded-lg border border-border bg-card p-3">
@@ -538,7 +539,7 @@ export function Toolforge() {
               </li>
             ))}
           </ul>
-        </ForgePanel>
+        </SectionPanel>
       )}
 
       {editing && (
@@ -558,32 +559,6 @@ export function Toolforge() {
   );
 }
 
-function ForgePanel({
-  icon: Icon,
-  title,
-  status,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  status: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function ForgeModal({
   title,
@@ -613,7 +588,7 @@ function ForgeModal({
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Icon className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>

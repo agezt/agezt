@@ -33,6 +33,7 @@ import { Advanced } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
+import { StatTile } from "@/components/ui/metric-widget";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
 // so a field the backend drops never crashes the dashboard.
@@ -245,20 +246,15 @@ export function Overseer() {
       {err && <ErrorText>{err}</ErrorText>}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Stat
-          icon={<ActivityIcon className="size-4" />}
+        <StatTile
+          icon={ActivityIcon}
           label="Active runs"
           value={active.length}
           tone={active.length > 0 ? "accent" : "muted"}
         />
-        <Stat
-          icon={<Users className="size-4" />}
-          label="Agents (enabled / total)"
-          value={`${live.enabled} / ${live.total}`}
-          tone="muted"
-        />
-        <Stat
-          icon={<LifeBuoy className="size-4" />}
+        <StatTile icon={Users} label="Agents (enabled / total)" value={`${live.enabled} / ${live.total}`} />
+        <StatTile
+          icon={LifeBuoy}
           label="Open help requests"
           value={data.help.length}
           tone={data.help.length > 0 ? "warn" : "muted"}
@@ -269,11 +265,13 @@ export function Overseer() {
         <SkeletonList count={4} />
       ) : (
         <>
+        {/* Each panel is the LIST behind a tile above it. When the list is
+            empty the tile already said so — "0 active runs" and "Nothing
+            running right now." are the same sentence, stacked. The panel
+            appears when it has something to list. */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {active.length > 0 && (
             <Panel title="Active runs" icon={<ActivityIcon className="size-4 text-accent" />}>
-              {active.length === 0 ? (
-                <span className="text-xs text-muted">Nothing running right now.</span>
-              ) : (
                 <ul className="flex flex-col gap-1.5">
                   {active.map((r) => {
                     const corr = r.correlation_id || "";
@@ -286,7 +284,7 @@ export function Overseer() {
                           if (corr) focusRun(corr);
                           location.hash = "runs";
                         }}
-                        className="w-full rounded-md border border-border bg-panel/50 px-2.5 py-1.5 text-left shadow-e1 transition-[background-color,border-color,box-shadow] hover:border-accent/50 hover:bg-panel hover:shadow-e2"
+                        className="w-full rounded-md border border-border bg-panel/50 px-2.5 py-1.5 text-left shadow-e1 transition-[background-color,border-color,box-shadow] hover:border-accent/40 hover:bg-panel hover:shadow-e2"
                         title="Open this run in Runs"
                       >
                         <div className="flex items-center gap-2">
@@ -336,13 +334,11 @@ export function Overseer() {
                     );
                   })}
                 </ul>
-              )}
             </Panel>
+            )}
 
+            {data.help.length > 0 && (
             <Panel title="Needs attention" icon={<LifeBuoy className="size-4 text-amber-400" />}>
-              {data.help.length === 0 ? (
-                <span className="text-xs text-muted">No open help requests.</span>
-              ) : (
                 <ul className="flex flex-col gap-1.5">
                   {data.help.map((m, i) => (
                     <li
@@ -368,8 +364,8 @@ export function Overseer() {
                     </li>
                   ))}
                 </ul>
-              )}
             </Panel>
+            )}
         </div>
 
         <Advanced label="Agent fleet & quick actions">
@@ -536,43 +532,6 @@ function describe(e: AgentEvent): { label: string; icon: React.ReactNode; tone: 
 function clip(s: unknown, n = 64): string {
   if (typeof s !== "string") return "";
   return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
-}
-
-function Stat({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-  tone: "accent" | "warn" | "muted";
-}) {
-  return (
-    <div
-      className={cn(
-        "glass flex items-center gap-3 rounded-xl px-3 py-2.5",
-        tone === "accent" && "border-accent/40",
-        tone === "warn" && "border-amber-500/40",
-      )}
-    >
-      <span
-        className={cn(
-          "grid size-8 place-items-center rounded-md bg-panel",
-          tone === "accent" && "text-accent",
-          tone === "warn" && "text-amber-400",
-          tone === "muted" && "text-muted",
-        )}
-      >
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <div className="text-lg font-semibold leading-none">{value}</div>
-        <div className="mt-1 truncate text-xs uppercase tracking-normal text-muted">{label}</div>
-      </div>
-    </div>
-  );
 }
 
 function Panel({

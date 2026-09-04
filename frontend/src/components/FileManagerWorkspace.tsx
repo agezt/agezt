@@ -27,7 +27,8 @@ import {
   useFileTree,
   type FileNode,
 } from "@/lib/files";
-import { textKind } from "@/views/Files";
+import { textKind } from "@/lib/artifacts";
+import { bytes as humanSize } from "@/lib/format";
 
 // FileManagerWorkspace is the dedicated 3-pane manager: folder tree on the left,
 // file list in the middle, file detail/preview on the right. Reached via the
@@ -52,16 +53,15 @@ export function tooLargeReason(contentLength: number | null, actualBytes?: numbe
   return probe > MAX_BYTES ? `too_large:${probe}` : null;
 }
 
-function humanSize(n?: number): string {
-  if (!n || n <= 0) return "—";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
-export function FileManagerWorkspace() {
-  const [cwd, setCwd] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+// `initialPath` opens the workspace directly on a file instead of at the root.
+// The Artifacts viewer offers "file manager" for any artifact whose ref is
+// path-shaped; before the 2026-09 merge that button navigated to
+// `#files?path=…` and the workspace ignored the query entirely, so it always
+// landed on the root — the affordance looked like it worked and didn't.
+export function FileManagerWorkspace({ initialPath = "" }: { initialPath?: string } = {}) {
+  const [cwd, setCwd] = useState(() => initialPath.includes("/") ? initialPath.slice(0, initialPath.lastIndexOf("/")) : "");
+  const [selected, setSelected] = useState<string | null>(initialPath || null);
   const [query, setQuery] = useState("");
   const tree = useFileTree(cwd);
 

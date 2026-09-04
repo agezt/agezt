@@ -10,12 +10,14 @@ import { EmptyState } from "@/components/ui/empty";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { BreakdownBar } from "@/components/Widgets";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
 import { useMemoryLogPager, useMemoryPager } from "@/lib/cursorPager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
+import { Segmented } from "@/components/ui/segmented";
 
 interface MemRecord {
   id?: string;
@@ -370,6 +372,13 @@ export function Memory() {
   }, [records, f, scopeFilter]);
 
   // The learned operator profile (M1000): PREFERENCE facets on reserved subjects.
+  // A brain nobody has taught yet. The page used to answer that with three
+  // panels of nothing (profile "no profile yet", four zero tiles, "nothing in
+  // the loaded pages") wrapped around the one panel that says it plainly.
+  // Lead with the empty state; the diagnostics return with the first memory.
+  const brandNew =
+    !loading && records.length === 0 && (total ?? 0) === 0 && q.trim() === "" && (audit?.usable ?? 0) === 0;
+
   const profile = useMemo(
     () => records.filter((r) => (r.subject || "").startsWith(PROFILE_PREFIX)),
     [records],
@@ -487,7 +496,7 @@ export function Memory() {
           </>
         }
     >
-      <MemoryPanel
+      <SectionPanel
         icon={UserRound}
         title="Operator Profile"
         status={`${profile.length} facet${profile.length === 1 ? "" : "s"}`}
@@ -513,10 +522,10 @@ export function Memory() {
             ))}
           </ul>
         )}
-      </MemoryPanel>
+      </SectionPanel>
 
-      {audit && (
-        <MemoryPanel
+      {audit && !brandNew && (
+        <SectionPanel
           icon={ShieldCheck}
           title="Hygiene"
           status={`${audit.usable ?? 0} usable`}
@@ -548,30 +557,23 @@ export function Memory() {
               tone={(audit.contradiction_load ?? 0) > 0 ? "warn" : "muted"}
             />
           </MetricGrid>
-        </MemoryPanel>
+        </SectionPanel>
       )}
 
       {scopes.scoped.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Memory scope filter">
-          <ScopeChip active={scopeFilter === null} onClick={() => setScopeFilter(null)} label="All" count={records.length} />
-          <ScopeChip
-            active={scopeFilter === ""}
-            onClick={() => setScopeFilter((cur) => (cur === "" ? null : ""))}
-            label="Shared"
-            count={scopes.shared}
-            icon={<Users className="size-3" />}
-          />
-          {scopes.scoped.map(([s, n]) => (
-            <ScopeChip
-              key={s}
-              active={scopeFilter === s}
-              onClick={() => setScopeFilter((cur) => (cur === s ? null : s))}
-              label={s}
-              count={n}
-              icon={<Lock className="size-3" />}
-            />
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Memory scope filter"
+          className="flex-wrap"
+          // null (every scope) has no string of its own; "*" stands in for it
+          // inside the control and is translated back on the way out.
+          value={scopeFilter === null ? "*" : scopeFilter}
+          onChange={(v) => setScopeFilter(v === "*" ? null : v)}
+          options={[
+            { value: "*", label: "All", count: records.length },
+            { value: "", label: "Shared", count: scopes.shared, icon: Users },
+            ...scopes.scoped.map(([s, n]) => ({ value: s, label: s, count: n, icon: Lock })),
+          ]}
+        />
       )}
 
       {err ? (
@@ -743,6 +745,7 @@ export function Memory() {
         </MemoryModal>
       )}
 
+      {!brandNew && (
       <LogHistoryPanel
         icon={History}
         title="Write history"
@@ -762,44 +765,11 @@ export function Memory() {
           </>
         )}
       />
+      )}
     </Page>
   );
 }
 
-function MemoryPanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: typeof Brain;
-  title: string;
-  status: string;
-  tone: "accent" | "good" | "warn" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls: Record<typeof tone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    good: "border-good/35 bg-good/5 text-good",
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    muted: "border-border bg-panel text-muted",
-  };
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function MemoryModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
@@ -819,7 +789,7 @@ function MemoryModal({ title, onClose, children }: { title: string; onClose: () 
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Brain className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -833,38 +803,6 @@ function MemoryModal({ title, onClose, children }: { title: string; onClose: () 
   );
 }
 
-// ScopeChip is one filter chip in the per-agent memory map (M915): All, Shared,
-// or one agent's private scope. Clicking an active chip clears the filter.
-function ScopeChip({
-  active,
-  onClick,
-  label,
-  count,
-  icon,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-  icon?: ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-        active
-          ? "border-accent bg-accent/15 text-accent"
-          : "border-border bg-panel text-muted hover:border-accent/50 hover:text-foreground",
-      )}
-    >
-      {icon}
-      {label}
-      <span className="tabular-nums opacity-70">{count}</span>
-    </button>
-  );
-}
 
 // MEM_TYPES are the record types an operator would manually teach. The agent also
 // writes SUMMARY/RELATION on its own; those aren't useful to hand-author.
@@ -972,7 +910,7 @@ export function TeachFactForm({
     <div className="rounded-lg border border-accent/30 bg-card p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
             <Brain className="size-4" />
           </div>
           <div className="min-w-0">
@@ -1074,7 +1012,7 @@ export function ReviseFactForm({
     <div className="rounded-lg border border-accent/30 bg-card p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
             <Pencil className="size-4" />
           </div>
           <div className="min-w-0">

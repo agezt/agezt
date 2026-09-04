@@ -42,19 +42,40 @@ screen without embedding the token.
 
 ## The views, at a glance
 
-Grouped in the sidebar:
+The sidebar is two levels: a **section** rail (the job you are doing) and that
+section's **destinations**. A destination with more than one facet shows a tab
+strip at the top of the page — the tabs are ordinary views with their own
+`#hash`, so every bookmark and deep link keeps working. See
+[CONSOLE-IA.md](CONSOLE-IA.md) for why it is shaped this way.
 
-- **Converse** — Chat (streaming answers with live tool calls, reasoning and real cost
-  inline; per-conversation persona/model; retry, regenerate, edit-&-resend, pin, rename,
-  export), Inbox (every channel thread + send a message), Agent Board, **Approvals**
-  (grant/deny the agent's pending ask-class actions — human-in-the-loop).
-- **Monitor** — Mission Control, Health, Activity, **Autonomy** (the proactive
-  heartbeat), Alerts, Live Stream, Insights, Runs, Budget.
-- **Agents** — Agents, Sandbox, Flow Studio, Replay, Analyst, **Search** (the journal).
-- **Automation** — Schedules, Standing orders.
-- **Knowledge** — Memory, World model, Skills, Reflection.
-- **System** — Overview (Dashboard), System, Persona, Prompts, Config Center, Config,
-  Providers, Models, Routing, Tools, Catalog, **Policy**, Cache, **Backup**.
+- **Talk** — Jarvis (the presence surface), Chat, Voice, Messages (*Inbox* ·
+  *Agent Board*).
+- **Observe** — Overview (*Overview* · *Mission Control* · *Live Stream*), Runs
+  (*Runs* · *Activity* · *Insights* · *Replay*), Health (*Health* ·
+  *Prompt cache* · *Tool usage* · *Routing log*), Alerts, Budget.
+- **Automate** — Wizards, Workflows (*Workflows* · *Flow Studio*), Work
+  (*Workboard* · *Objectives*), Triggers (*Schedules* · *Standing orders*),
+  Autonomy (the proactive heartbeat).
+- **Govern** — Approvals (grant/deny the agent's pending ask-class actions —
+  human-in-the-loop), Policy, Oversight (*Overseer* · *Council* · *Conductor*),
+  Seats.
+- **Agents** — Agents, Roster, Skills, Capabilities (*Tool registry* ·
+  *Toolbox* · *Tool Forge* · *Marketplace* · *Execution Profiles*), Sandbox.
+- **Knowledge** — Memory (*Memory* · *Taste*), World, Thinking (*Research* ·
+  *Analyst* · *Reflection*), Search (the journal), Data & Files (*Data Lake* ·
+  *Artifacts & Files* · *Storage*).
+- **Connect** — Providers & Models (*Quick Connect* · *Models & Keys* — this is
+  where API keys live), Routing (*Routing* · *Fallback Chains*), Channels,
+  Integrations (*MCP Servers* · *ACP Agents* · *Connections*).
+- **Admin** — Setup, Config Center, Identity (*Default Identity* · *Prompts*),
+  Backup.
+
+Three hashes are aliases for the surfaces that absorbed them: `#files` opens
+Artifacts & Files in its file-manager mode, `#config` opens Config Center (the
+effective-configuration fold), and `#system` opens Health.
+
+Two views are not sidebar destinations: `#agent/<slug>` opens an agent's own
+page, `#incident/<id>` an incident's.
 
 ## Steering the proactive heartbeat — *Autonomy*
 

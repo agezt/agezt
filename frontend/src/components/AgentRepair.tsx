@@ -279,8 +279,8 @@ export function AgentRepair({
             className={cn(
               "mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[11px]",
               readiness.tone === "good" && "border-good/30 bg-good/10 text-good",
-              readiness.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
-              readiness.tone === "bad" && "border-bad/35 bg-bad/10 text-bad",
+              readiness.tone === "warn" && "border-warn/40 bg-warn/10 text-warn",
+              readiness.tone === "bad" && "border-bad/40 bg-bad/10 text-bad",
             )}
           >
             <span className="font-medium">{readiness.value}</span>

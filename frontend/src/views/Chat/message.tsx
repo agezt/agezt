@@ -254,7 +254,7 @@ export function AssistantBubble({
                 <button
                   onClick={onContinue}
                   title="Resume from where it stopped, keeping the work so far (use this if it hit the iteration limit)"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-accent/50 px-2.5 py-1 text-xs text-accent transition-colors hover:bg-accent/10"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 px-2.5 py-1 text-xs text-accent transition-colors hover:bg-accent/10"
                 >
                   <ArrowRight className="size-3.5" /> Continue
                 </button>

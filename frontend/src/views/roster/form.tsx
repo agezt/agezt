@@ -254,7 +254,7 @@ function AgentOptionPicker({
                 "flex min-h-10 items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
                 selected
                   ? "border-accent bg-accent/10 text-foreground"
-                  : "border-border bg-panel/45 text-muted hover:border-accent/50 hover:text-foreground",
+                  : "border-border bg-panel/45 text-muted hover:border-accent/40 hover:text-foreground",
               )}
             >
               {option.icon && <span className="mt-0.5 shrink-0 text-accent">{option.icon}</span>}

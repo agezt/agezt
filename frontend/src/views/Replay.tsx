@@ -85,7 +85,7 @@ export function Replay() {
   return (
     <Page
       icon={Clapperboard}
-      title="Flight recorder"
+      title="Replay"
       description="Pick any run and scrub through exactly what the agent did, step by step."
       mode="fill"
       width="full"

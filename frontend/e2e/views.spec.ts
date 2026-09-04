@@ -13,9 +13,15 @@ import { test, expect, type ConsoleMessage, type Page } from "@playwright/test";
 // browser catches that class.
 //
 // The view list is DERIVED FROM THE DOM, never hardcoded: the spec reads the
-// nav's own group and item buttons. A view added to `src/nav.tsx` is covered
-// the day it lands, with no list to update — the same drift-alarm posture the
-// Go side uses for channel factories and boot tools.
+// nav's own group and destination buttons, AND the tab strip each destination
+// renders. A view added to `src/nav.tsx` is covered the day it lands, with no
+// list to update — the same drift-alarm posture the Go side uses for channel
+// factories and boot tools.
+//
+// Since the 2026-09 IA pass the sidebar lists DESTINATIONS, not views: a
+// destination with several facets renders a `role="tablist"` strip and each tab
+// is a view with its own hash. Walking only the sidebar would silently drop
+// ~29 views — so the loop walks rows, then that row's tabs.
 
 const URL = process.env.AGEZT_WEBUI_URL;
 
@@ -38,9 +44,9 @@ const GROUPS = [
   "Observe",
   "Automate",
   "Govern",
+  "Agents",
   "Knowledge",
   "Connect",
-  "Build",
   "Admin",
 ] as const;
 
@@ -52,12 +58,15 @@ async function sectionItems(page: Page): Promise<string[]> {
     .filter((label) => label && !GROUPS.includes(label as (typeof GROUPS)[number]));
 }
 
-/** True once <main> holds real rendered content rather than an empty panel. */
-async function mainRendered(page: Page): Promise<boolean> {
+// True once the VIEW BODY holds real rendered content rather than an empty
+// panel. Scoped to [data-view-root] rather than <main>: the tab strip lives in
+// <main> too, so "main is non-empty" would be satisfied by the chrome alone and
+// a blank view — the regression this whole spec exists for — would sail past.
+async function viewRendered(page: Page): Promise<boolean> {
   return page
     .waitForFunction(
       () => {
-        const el = document.querySelector("main");
+        const el = document.querySelector("[data-view-root]");
         if (!el) return false;
         return (el.textContent ?? "").trim().length > 0 && el.querySelectorAll("*").length > 3;
       },
@@ -68,8 +77,15 @@ async function mainRendered(page: Page): Promise<boolean> {
     .catch(() => false);
 }
 
+/** Tab labels of the destination currently open, empty for a single-view row. */
+async function facetTabs(page: Page): Promise<string[]> {
+  const tabs = page.getByRole("tab");
+  if ((await tabs.count()) === 0) return [];
+  return (await tabs.allInnerTexts()).map((t) => t.trim()).filter(Boolean);
+}
+
 test.describe("Agezt Web UI — every nav view mounts against a real daemon", () => {
-  // Mounting ~55 views, each a click + React re-mount + first data fetch, is
+  // Mounting ~60 views, each a click + React re-mount + first data fetch, is
   // well past the default per-test budget on a contended runner.
   test.setTimeout(10 * 60_000);
 
@@ -123,9 +139,22 @@ test.describe("Agezt Web UI — every nav view mounts against a real daemon", ()
         // differ — most use the Page scaffold with an h2, but Chat, Jarvis and
         // a few others are intentionally headerless — so demanding a heading
         // would fail on correct views. What no correct view does is render an
-        // empty main panel.
-        if (!(await mainRendered(page))) blank.push(current);
+        // empty view panel.
+        if (!(await viewRendered(page))) blank.push(current);
         visited.push(current);
+
+        // Then every OTHER facet of this destination. The first tab is already
+        // showing (clicking the row lands on it), so it is not re-visited.
+        const tabs = await facetTabs(page);
+        for (const tab of tabs.slice(1)) {
+          if (SKIP.has(tab)) continue;
+          current = `${group} › ${item} › ${tab}`;
+          const tabButton = page.getByRole("tab", { name: tab, exact: true }).last();
+          if (!(await tabButton.isVisible().catch(() => false))) continue;
+          await tabButton.click();
+          if (!(await viewRendered(page))) blank.push(current);
+          visited.push(current);
+        }
       }
     }
 
@@ -138,7 +167,9 @@ test.describe("Agezt Web UI — every nav view mounts against a real daemon", ()
     // silently stops covering things is worse than one that fails.
     console.log(`views mounted: ${visited.length}\n  ${visited.join("\n  ")}`);
     // A silent drop from the full nav to a handful would mean the nav-reading
-    // logic broke, not that the app shrank. This is the vacuity guard.
-    expect(visited.length, `views visited: ${visited.join(", ")}`).toBeGreaterThanOrEqual(40);
+    // logic broke, not that the app shrank. This is the vacuity guard — it is
+    // set above the DESTINATION count on purpose, so a walk that stopped
+    // descending into tabs fails here instead of quietly halving coverage.
+    expect(visited.length, `views visited: ${visited.join(", ")}`).toBeGreaterThanOrEqual(55);
   });
 });

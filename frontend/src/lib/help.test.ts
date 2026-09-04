@@ -1,26 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { HELP, FALLBACK_TOPIC, helpTopicFor } from "@/lib/help";
+import { NAV } from "@/nav";
 
-// Mirror of the stable view ids in NAV_GROUPS. Source ordering is historical;
-// nav.test.ts separately guards the operator-job grouping. When a view is
-// added, add its id here AND write its topic in lib/help.ts.
-const NAV_IDS = [
-  // Converse
-  "jarvis", "chat", "voice", "inbox", "files", "artifacts", "data", "board", "approvals",
-  // Monitor
-  "mission", "health", "activity", "autonomy", "alerts", "feed", "insights", "runs", "budget",
-  // Agents
-  "agents", "agent", "roster", "overseer", "council", "conductor", "research", "toolforge", "mcp", "acp", "sandbox", "flow", "replay", "analyst", "search",
-  // Automation
-  "wizards", "workflows", "okr", "seats", "schedules", "standing",
-  // Knowledge
-  "memory", "taste", "world", "skills", "reflect",
-  // Setup
-  "toolbox", "market", "channels",
-  // System
-  "overview", "setup", "system", "persona", "prompts", "configcenter", "config",
-  "connections", "quickconnect", "providers", "models", "routing", "chains", "tools", "catalog", "policy", "cache", "storage", "backup",
-];
+// Coverage is DERIVED from nav.tsx, not a hand-kept list. The list version drifted
+// silently: it still named views by their pre-2026-09 grouping, so removing a view
+// left an unreachable topic behind and nothing noticed.
+//
+// The two detail routes have topics but are not nav views: `#agent/<slug>` and
+// `#incident/<id>` render their own full pages.
+const DETAIL_ROUTES = ["agent", "incident"];
+const NAV_IDS = [...NAV.map((n) => n.id), ...DETAIL_ROUTES];
 
 describe("help content coverage", () => {
   it("has a topic for every nav view id", () => {

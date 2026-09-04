@@ -22,6 +22,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { money } from "@/lib/format";
 import type { ReplayStep, StepTone } from "@/lib/replay";
 import { IncidentBadges } from "@/components/IncidentBadges";
+import { StatTile } from "@/components/ui/metric-widget";
 
 const TONE: Record<StepTone, { color: string; ring: string; Icon: typeof Circle }> = {
   received: { color: "text-accent", ring: "bg-accent", Icon: Flag },
@@ -143,10 +144,10 @@ export function FlightRecorder({ steps, live }: { steps: ReplayStep[]; live?: bo
 
         {/* Cumulative state at the cursor */}
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Metric label="iteration" value={cur.iter != null ? cur.iter + 1 : "—"} />
-          <Metric label="tokens" value={`${cur.cumIn.toLocaleString()} / ${cur.cumOut.toLocaleString()}`} />
-          <Metric label="spend" value={money(cur.cumCostMc)} />
-          <Metric label="tool calls" value={cur.cumTools} />
+          <StatTile size="sm" label="iteration" value={cur.iter != null ? cur.iter + 1 : "—"} />
+          <StatTile size="sm" label="tokens" value={`${cur.cumIn.toLocaleString()} / ${cur.cumOut.toLocaleString()}`} />
+          <StatTile size="sm" label="spend" value={money(cur.cumCostMc)} />
+          <StatTile size="sm" label="tool calls" value={cur.cumTools} />
         </div>
       </div>
 
@@ -207,11 +208,3 @@ export function FlightRecorder({ steps, live }: { steps: ReplayStep[]; live?: bo
   );
 }
 
-function Metric({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-md border border-border/70 bg-panel/40 px-2.5 py-1.5">
-      <div className="text-xs uppercase tracking-normal text-muted">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}

@@ -155,10 +155,14 @@ describe("Market", () => {
       });
     });
     render(withUI(<Market />));
-    // Featured heading appears, and the featured pack renders in the strip (as a
-    // span) plus the grid (as a button) → its name appears more than once.
+    // Featured heading appears and the pick renders in the strip — exactly
+    // once. It used to render again as the first card of the grid directly
+    // below, printing the same pack twice on one screen.
     expect(await screen.findByText("Featured")).toBeTruthy();
-    await waitFor(() => expect(screen.getAllByText("flagship-pack").length).toBeGreaterThan(1));
+    await waitFor(() => expect(screen.getAllByText("flagship-pack")).toHaveLength(1));
+    // The rest of the library is still there, under its own label.
+    expect(screen.getByText("The rest of the library")).toBeTruthy();
+    expect(screen.getByText("plain-pack")).toBeTruthy();
     // The compact download signal is shown.
     expect(screen.getAllByText(/4\.2k/).length).toBeGreaterThan(0);
   });

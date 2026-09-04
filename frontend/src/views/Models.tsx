@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, Trash2, Check, X, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
-import { cn, fmtDateTime } from "@/lib/utils";
+import { cn, fmtDateTime, fmtAgo} from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty";
@@ -173,8 +173,14 @@ export function Models() {
   return (
     <Page
       icon={Layers}
-      title="Models"
-      description="Every provider and model the daemon knows, synced from models.dev"
+      title="Models & Keys"
+      description={
+        data
+          ? `${providers.length} providers · ${totalModels.toLocaleString()} models · ${
+              syncedAt ? `synced ${fmtAgo(syncedAt)}` : "never synced"
+            } from models.dev`
+          : "Every provider and model the daemon knows, synced from models.dev"
+      }
       width="wide"
       mode="scroll"
       actions={
@@ -198,16 +204,10 @@ export function Models() {
           </>
         }
     >
-      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
-        <MetricWidget icon={Layers} label="Providers" value={providers.length} tone="muted" />
-        <MetricWidget icon={Brain} label="Models" value={totalModels} tone="muted" />
-        <MetricWidget
-          icon={RefreshCw}
-          label="Last synced"
-          value={syncedAt ? fmtDateTime(syncedAt) : "Never synced"}
-          tone="muted"
-        />
-      </MetricGrid>
+      {/* These three read as a sentence, not as scoreboard tiles — and the
+          sync timestamp in particular was a full locale datetime set in the
+          2xl tile face, where it wrapped onto three lines and became the
+          loudest thing on a page about providers. */}
 
       <ChatGPTSignIn onChanged={reload} />
 

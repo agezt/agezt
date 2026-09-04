@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, CheckSquare, Stethoscope, CalendarClock, CheckCircle2, XOctagon } from "lucide-react";
+import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, CheckSquare, Stethoscope, CalendarClock, CheckCircle2, XOctagon, Activity, Cpu, Server, Database, Network, Sparkles, Wrench, KeyRound } from "lucide-react";
 import { cn, fmtWhen } from "@/lib/utils";
 import { getJSON } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { Sparkline, BarRow } from "@/components/Widgets";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
+import { Advanced, Calm } from "@/components/ui/advanced";
 
 interface Status {
   uptime_seconds?: number;
@@ -21,6 +23,14 @@ interface Status {
   schedules?: { total?: number; enabled?: number; running?: number; resident?: boolean };
   provider_fallbacks?: { count?: number; last_reason?: string; last_ms?: number };
   model_fallbacks?: { count?: number; last_reason?: string };
+  // Absorbed from the former "System" view (2026-09 merge): the same /api/status
+  // payload, read by a second page that duplicated five of this page's tiles.
+  daemon?: string;
+  protocol?: number;
+  tools?: number;
+  delegation?: { enabled?: boolean; max_depth?: number; max_fanout?: number; max_spend_microcents?: number };
+  http_servers?: { name?: string; addr?: string; loopback?: boolean }[];
+  cred_chain?: string;
 }
 interface Stats {
   total?: number;
@@ -197,6 +207,19 @@ export function Health() {
   const successPct = total ? Math.round((stats?.success_rate ?? 0) * 100) : 0;
   const errorPct = total ? Math.round(((stats?.failed ?? 0) / total) * 100) : 0;
   const fbRatePct = Math.round((prov?.fallback_rate ?? 0) * 100);
+  // Schedule health reads three ways: "offline" when schedules are enabled but
+  // the cadence resident is not running (they will never fire), "N live" while
+  // firing, else enabled/total. Ported from the System view — a bare running
+  // count hid the offline case entirely.
+  const scheduleRunning = st?.schedules?.running ?? 0;
+  const scheduleEnabled = st?.schedules?.enabled ?? 0;
+  const scheduleTotal = st?.schedules?.total ?? 0;
+  const scheduleOffline = scheduleEnabled > 0 && st?.schedules?.resident === false;
+  const scheduleValue = scheduleOffline
+    ? "offline"
+    : scheduleRunning > 0
+      ? `${scheduleRunning} live`
+      : `${scheduleEnabled}/${scheduleTotal}`;
   const fallbacks = prov?.fallbacks_by_primary ? Object.entries(prov.fallbacks_by_primary) : [];
   const maxFb = Math.max(1, ...fallbacks.map(([, c]) => c));
 
@@ -262,10 +285,10 @@ export function Health() {
         <MetricWidget
           icon={CalendarClock}
           label="Schedules"
-          value={st?.schedules?.running ?? 0}
-          subvalue={`${st?.schedules?.enabled ?? 0} enabled`}
-          tone={(st?.schedules?.running ?? 0) > 0 ? "accent" : "muted"}
-          pulse={(st?.schedules?.running ?? 0) > 0}
+          value={scheduleValue}
+          subvalue={`${scheduleEnabled} enabled`}
+          tone={scheduleOffline ? "bad" : scheduleRunning > 0 ? "accent" : "muted"}
+          pulse={scheduleRunning > 0}
         />
         <MetricWidget
           icon={CheckSquare}
@@ -281,18 +304,113 @@ export function Health() {
         />
       </MetricGrid>
 
-      <HealthPanel
+      {/* System counters — the former "System" page. It read the same
+          /api/status and repeated Uptime / Active runs / Schedules / Approvals /
+          Memory; only its own tiles survive here (docs/CONSOLE-IA.md 2.4). */}
+      <MetricGrid>
+        <MetricWidget
+          icon={Activity}
+          label={st?.halted ? "halted" : "operational"}
+          value={st ? (st.halted ? "HALTED" : "OK") : "—"}
+          tone={st?.halted ? "bad" : "good"}
+        />
+        <MetricWidget icon={Cpu} label="model" value={st?.model || "—"} tone="muted" />
+        <MetricWidget icon={Server} label="daemon" value={st?.daemon || "—"} tone="muted" />
+        <MetricWidget icon={Database} label="journal head" value={st?.journal_head ?? "—"} tone="muted" />
+        <MetricWidget icon={Network} label="world entities" value={st?.world_entities ?? "—"} tone="muted" />
+        <MetricWidget icon={Sparkles} label="active skills" value={st?.active_skills ?? "—"} tone="muted" />
+        <MetricWidget icon={Wrench} label="tools" value={st?.tools ?? "—"} tone="muted" />
+      </MetricGrid>
+
+      {/* Delegation limits, HTTP surface, credentials and routing detail — the
+          System view's Advanced tab, folded here per the declutter law. */}
+      <Calm>
+        <p className="text-xs text-muted">Advanced mode for delegation, HTTP, credentials, and routing detail.</p>
+      </Calm>
+      <Advanced>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <SectionPanel
+            icon={Network}
+            title="Delegation"
+            status={st?.delegation?.enabled ? "enabled" : "off"}
+            tone={st?.delegation?.enabled ? "accent" : "muted"}
+          >
+            {st?.delegation ? (
+              <ul className="space-y-1 text-xs">
+                <Row k="enabled" v={st.delegation.enabled ? "yes" : "no"} />
+                <Row k="max depth" v={st.delegation.max_depth ?? "—"} />
+                <Row k="max fan-out" v={st.delegation.max_fanout ? st.delegation.max_fanout : "unbounded"} />
+                <Row
+                  k="max spend"
+                  v={st.delegation.max_spend_microcents ? `${(st.delegation.max_spend_microcents / 1e9).toFixed(4)}` : "uncapped"}
+                />
+              </ul>
+            ) : (
+              <div className="text-xs text-muted">—</div>
+            )}
+          </SectionPanel>
+
+          <SectionPanel
+            icon={Server}
+            title="HTTP surface"
+            status={`${st?.http_servers?.length ?? 0} server${(st?.http_servers?.length ?? 0) === 1 ? "" : "s"}`}
+            tone={(st?.http_servers?.length ?? 0) > 0 ? "accent" : "muted"}
+          >
+            {st?.http_servers?.length ? (
+              <ul className="space-y-1 text-xs">
+                {st.http_servers.map((sv, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <span className="font-mono">{sv.addr}</span>
+                    <span className="text-muted">{sv.name}</span>
+                    {sv.loopback && <Badge variant="good" className="ml-auto">loopback</Badge>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-xs text-muted">none</div>
+            )}
+          </SectionPanel>
+
+          <SectionPanel
+            icon={KeyRound}
+            title="Credentials"
+            status={st?.cred_chain ? "chain loaded" : "not reported"}
+            tone={st?.cred_chain ? "good" : "muted"}
+          >
+            <div className="break-words font-mono text-xs text-muted">{st?.cred_chain || "—"}</div>
+          </SectionPanel>
+
+          <SectionPanel
+            icon={ShieldAlert}
+            title="Provider routing"
+            status={`${st?.provider_fallbacks?.count ?? 0} fallback${(st?.provider_fallbacks?.count ?? 0) === 1 ? "" : "s"}`}
+            tone={(st?.provider_fallbacks?.count ?? 0) > 0 ? "warn" : "good"}
+          >
+            <div className="text-xs">
+              <Row k="fallbacks" v={st?.provider_fallbacks?.count ?? 0} />
+              {st?.provider_fallbacks?.last_reason && (
+                <div className="mt-1.5 rounded-md border border-warn/40 bg-warn/5 p-2 text-[11px] text-muted">
+                  <span className="text-warn">last fallback: </span>
+                  {st.provider_fallbacks.last_reason.slice(0, 200)}
+                </div>
+              )}
+            </div>
+          </SectionPanel>
+        </div>
+      </Advanced>
+
+      <SectionPanel
         icon={HeartPulse}
         title="Activity pulse"
         status={series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting..."}
         tone="accent"
       >
         <Sparkline data={series} tone="accent" height={64} />
-      </HealthPanel>
+      </SectionPanel>
 
       {/* Provider fallback breakdown */}
       {fallbacks.length > 0 && (
-        <HealthPanel
+        <SectionPanel
           icon={ShieldAlert}
           title="Provider fallbacks"
           status={`${prov?.fallbacks ?? 0} routed away`}
@@ -311,45 +429,20 @@ export function Health() {
               {st.provider_fallbacks.last_reason}
             </div>
           )}
-        </HealthPanel>
+        </SectionPanel>
       )}
     </Page>
   );
 }
 
-function HealthPanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: typeof HeartPulse;
-  title: string;
-  status?: string;
-  tone: "accent" | "warn" | "bad" | "good" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls: Record<typeof tone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    warn: "border-warn/35 bg-warn/5 text-warn",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    good: "border-good/35 bg-good/5 text-good",
-    muted: "border-border bg-card text-muted",
-  };
+
+// Row is one key/value line inside an advanced panel.
+function Row({ k, v }: { k: string; v: ReactNode }) {
   return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 place-items-center rounded-lg border", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {status && <div className="truncate text-xs text-muted">{status}</div>}
-        </div>
-      </div>
-      {children}
-    </section>
+    <div className="flex items-center justify-between gap-2 border-b border-border/40 py-0.5 last:border-0">
+      <span className="text-muted">{k}</span>
+      <span className="tabular-nums">{v}</span>
+    </div>
   );
 }
 
@@ -360,7 +453,7 @@ function DoctorCard({ diags, loaded }: { diags: Diagnostic[]; loaded: boolean })
   const worst = worstLevel(diags);
   const healthy = loaded && diags.length === 0;
   const tone =
-    worst === "fail" ? "border-bad/50 bg-bad/5" : worst === "warn" ? "border-warn/50 bg-warn/5" : "border-good/40 bg-good/5";
+    worst === "fail" ? "border-bad/40 bg-bad/5" : worst === "warn" ? "border-warn/40 bg-warn/5" : "border-good/40 bg-good/5";
   const badgeVariant: Record<DiagLevel, "good" | "accent" | "warn" | "bad"> = {
     ok: "good", info: "accent", warn: "warn", fail: "bad",
   };

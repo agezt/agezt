@@ -252,7 +252,7 @@ export function Data() {
                     "flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors",
                     active === c.name
                       ? "border-accent bg-accent/10 text-accent"
-                      : "border-border bg-card text-foreground/90 hover:border-accent/50",
+                      : "border-border bg-card text-foreground/90 hover:border-accent/40",
                   )}
                 >
                   <Database className="size-3.5 shrink-0 opacity-70" />
@@ -792,7 +792,7 @@ function RecordEditor({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 border-b border-border px-4 py-3">
-          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
             <Database className="size-4" />
           </span>
           <div className="min-w-0 flex-1">
