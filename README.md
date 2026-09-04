@@ -1,180 +1,240 @@
 # Agezt
 
 > An open-source (MIT) **agentic operating system**: a stdlib-first Go core
-> that turns intent into auditable, reversible action; runs autonomous
-> agents under a policy/trust system; proactively informs you (Pulse); and
-> extends via in-process or out-of-process plugins.
+> that turns intent into auditable, reversible action; runs a fleet of durable
+> agents under a policy/trust system; proves its work before calling it done;
+> proactively informs you (Pulse); and extends via in-process or out-of-process
+> plugins.
 > **Autonomous, under your authority.**
 
-**Status:** active pre-release / Jarvis hardening tree (June 2026). This is a
-running Go daemon + CLI + embedded React Web UI, not only a design suite: durable
-agents, typed schedules, workflows, memory/world/skills, provider/catalog
-plumbing, policy, audit, and recovery surfaces are implemented and being tightened
-against the full autonomous-Jarvis acceptance bar. Any **OpenAI client or IDE**
-can drive it through the OpenAI-compatible/API surfaces where configured; peer,
-channel, and marketplace surfaces remain capability- and environment-dependent.
-See [CHANGELOG.md](CHANGELOG.md).
-**Recent local gates:** local validation has included `go test ./...`, frontend
-`npm test`, `npm run build`, and Playwright browser E2E against the embedded SPA
-and a live demo daemon. See [docs/SYSTEM-AUDIT-REPORT.md](docs/SYSTEM-AUDIT-REPORT.md) for
-the latest review artifact and validation notes.
-**Dependencies:** see [DEPENDENCIES.md](DEPENDENCIES.md) for the current `go.mod`-derived dependency inventory and justification status.
-**Positioning:** see [docs/COMPARISON.md](docs/COMPARISON.md) for how AGEZT differs from generic agent frameworks without unverifiable competitor claims.
-**Docs index:** see [docs/index.md](docs/index.md) for security, operations, API stability, SDK parity, and runnable demos.
+**Status:** `v1.1.0` (September 2026), active pre-release. This is a running Go
+daemon + CLI + embedded React console, not a design suite: durable agents, a
+typed workboard with OKR roll-up, schedules and standing orders, node-graph
+workflows, memory/world/skills/taste, provider+catalog plumbing, policy, audit,
+budget, and recovery surfaces are implemented and being tightened against the
+autonomous-Jarvis acceptance bar. Any **OpenAI client or IDE** can drive it
+through the OpenAI-compatible and ACP surfaces; peer, channel, and marketplace
+surfaces remain capability- and environment-dependent. See
+[CHANGELOG.md](CHANGELOG.md).
 
-## What you get
+- **Docs index:** [docs/index.md](docs/index.md) — security, operations, API stability, SDK parity, runnable demos
+- **Positioning:** [docs/COMPARISON.md](docs/COMPARISON.md) — how AGEZT differs from generic agent frameworks, without unverifiable competitor claims
+- **Dependencies:** [DEPENDENCIES.md](DEPENDENCIES.md) — the `go.mod`-derived inventory and the written justification each direct dependency needs
+- **Latest review artifact:** [docs/SYSTEM-AUDIT-REPORT.md](docs/SYSTEM-AUDIT-REPORT.md)
 
-A single Go daemon (`agezt`) and a CLI (`agt`) that, together, let you:
+Local gates for a change are `go vet ./...`, `go test ./...`, frontend
+`npm test` + `npm run build`, and the Playwright console E2E against a live
+demo daemon (`make e2e`, `make webui-e2e`).
+
+## What it is
+
+One Go daemon (`agezt`) and one operator CLI (`agt`). The daemon runs a
+governed agent loop: every model call is routed and budgeted, every tool call is
+gated by a policy capability, and every step is appended to a BLAKE3
+hash-chained journal you can walk backwards with `agt why`.
 
 ```
-agt run "summarise the latest commits and email the team"      — one-shot intent
-agt plan generate "audit my repo for secrets, propose fixes"   — LLM-generated DAG
-agt plan run --dry-run "ship the release" --model sonnet       — preview: gen+validate+viz+cost
-agt plan refine plan.json --feedback "skip the email step"     — operator-driven re-plan
-agt plan validate plan.json                                    — pure client-side check
-agt plan visualize plan.json                                   — Mermaid graph TD output
-agt pulse --correlation run-01H...                             — live tail of one chain
-agt pulse --since 0 --replay-rate 50                           — historical replay
-agt status                                                     — daemon health overview
-agt budget                                                     — spend vs daily / per-task caps
-agt cache                                                      — prompt-cache savings (tokens from cache + $ saved)
-agt tool list                                                  — in-process tools the model sees
-agt peers [--json]                                             — list peer nodes + check their REST health
-agt schedule add "<agent task|label>" --every 1h | --at 09:30  — typed cron jobs: agent/workflow/system-task/tool
-agt schedule add --system-task catalog_sync --every 24h        — sync models.dev/api.json without waking an agent
-agt tenant create <id> / list / token <id> / rm <id>           — manage isolated tenants + reveal per-tenant token (daemon AGEZT_MULTITENANT=on)
-agt run "<intent>" --tenant <id>  ·  HTTP: X-Agezt-Tenant: <id> — route a run to a tenant's kernel (REST/OpenAI APIs + agt acp --tenant; auth with that tenant's token; isolated journal)
-agt plugin list                                                — external plugins loaded
-agt plugin registry <url> --install <name>                     — install a plugin from a registry (download + BLAKE3-verify; prints the env to enable)
-agt skill registry <url> --install <name>                      — install a skill from a remote registry (content-address verified)
-agt skill workshop list / inspect <id> / scan <id> / diff <id> / apply <id> / reject <id> — review and gate skill proposals
-agt skill workshop curate [--execute]                          — dry-run or apply deterministic stale-skill cleanup
-agt edict show / edict test shell "rm -rf /"                   — view + preflight policy decisions
-agt state list / state get <ns> <key>                          — read kernel state store
-agt journal tail 50 --json                                     — snapshot of recent events
-agt shutdown                                                   — graceful exit (CI-friendly)
-agt provider check --all                                       — verify all credentials
-agt provider creds set OPENAI_API_KEY sk-...                   — managed vault
-agt vault encrypt / vault rotate                               — at-rest encryption + key rotation
-agt why <event_id> --payload                                   — walk the audit chain w/ payloads
-agt approvals --json                                           — HITL queue (machine-readable)
+intent ──▶ governor (route · fallback chain · budget)
+             │
+             ▼
+        agent loop ──▶ Edict policy ──▶ tool  (allow / ask a human / deny)
+             │                            │
+             ▼                            ▼
+        journal (hash-chained, replayable) ──▶ Pulse · console · webhooks · SDKs
 ```
 
-with **9 provider families** (Anthropic, OpenAI + ~11 compatibles, Google
-direct + Vertex, Cohere, Mistral, Ollama, AWS Bedrock with bearer +
-SigV4 + STS-AssumeRole + SSO + IRSA/web-identity, Azure OpenAI) with
-**per-request model routing**
-(a request's `model` selects its provider), **all streaming**, **in-process
-tools** (`shell`, `file`, `http`, `browser.read`, opt-in `browser.action`,
-`web_search` to DISCOVER pages via a keyless search engine, `schedule` so the agent can arrange its OWN
-future runs, plus `memory`, `world`, `delegate` for sub-agent fan-out, `notify`
-to message the operator's channels, `coding` for worktree-isolated external
-coding agents, `acp_agent` to drive external ACP agents, `remote_run` to
-delegate to peer Agezt nodes, and `homeassistant` to read entity state and
-control the smart home), an
-**OpenAI-compatible `/v1` API** (chat completions + responses) and an
-**ACP server** so any OpenAI client or IDE can drive it, a **native REST
-`/api/v1`** (submit + inspect runs) for first-party clients,
-**outbound webhooks** (HMAC-signed) so external systems react to its events,
-**out-of-process plugins** in any language over a tiny JSON protocol
-(with **hot-reload**, **BLAKE3 pin gating**, **tool allowlists**,
-**streaming progress**, and **kernel-callbacks**), an **MCP bridge plugin**
-(stdio + SSE transports), a **DAG scheduler** with HITL gates and
-**operator-driven re-planning**, a **BLAKE3 hash-chain journal** with
-`agt why` audit, **subscription-first provider routing** with
-**per-task-type budget caps**, **hot reload** of catalog + vault without
-restart, a **vault encrypted at rest** with AES-256-GCM and **passphrase
-rotation**, and a **Linux warden** with `prlimit64`-enforced CPU/mem/FD
-limits and process-group SIGKILL.
+Nothing runs unattributed: a run, a delegated sub-agent, a scheduled wake, an
+inbound Telegram message, and a REST call all land in the same journal under one
+correlation id.
 
-It reaches you on **25+ messaging channels** (Telegram, Slack, Discord, Matrix,
-SMS, WhatsApp, Signal, email, Microsoft Teams, Home Assistant, IRC, Mastodon,
-LINE, Feishu, DingTalk, WeCom, and generic webhooks, among others) — inbound messages drive the agent (allowlisted, fail-closed; the
-account's own messages skipped so a reply never loops), outbound carries replies and
-Pulse briefs. Each channel can run **multiple accounts at once** (e.g. 10 email
-mailboxes, several bots) via guided **Connect pages** with per-channel help, QR /
-gateway / **OAuth** ("Connect with Slack/Mastodon") sign-in, and two-way email over
-IMAP/POP — see [`docs/CONNECT.md`](docs/CONNECT.md). **Official client SDKs** in
-**Python** (sync + asyncio), **TypeScript**,
-and **Rust** wrap the REST API; a **plugin/skill marketplace** (`agt plugin
-registry` / `agt skill registry`) installs from a remote catalog with **BLAKE3
-verification**; a supervised **public tunnel** (cloudflared/ngrok/Tailscale/custom) can
-expose the Web UI or REST API to the internet on demand; and you can **talk to it**
-— `agt transcribe <file>` and `agt listen` turn audio (a file or the microphone)
-into text via any OpenAI-compatible speech-to-text endpoint and feed it to the
-agent. The Web UI also has a hands-free **Voice mode** (a dedicated console page):
-it listens, runs the agent, and **speaks the answer back sentence-by-sentence** as
-it streams, stopping the moment you talk over it (barge-in), with an optional wake
-word. It uses the configured `AGEZT_STT_*` / `AGEZT_TTS_*` backends for quality
-and falls back to the browser's built-in speech when they're unset.
+## The CLI at a glance
+
+`agt help` is the full cheat sheet; `agt help <command>` (or `agt <command> -h`)
+is one command's usage. The command surface, by job:
+
+```
+Getting started          quickstart · doctor · status · version · help
+Run & control            run · halt · resume · runs · why · conductor · research ·
+                         approvals · approve · deny · whoami
+Plans & automation       plan · schedule · standing · workflow · workboard · okr ·
+                         taste · seats · agent · toolforge · mcp · market
+Providers & models       catalog · provider · budget · tool · cache · tenant
+Memory & knowledge       memory · world · skill · reflect · state · artifact
+Journal & audit          journal · pulse · changelog · edict · warden · exec-profile ·
+                         redact · compare · netguard · ratelimit · webhook
+Console, config & data   config · web · configcenter · token · vault · backup ·
+                         restore · rollback · disk
+Channels & integrations  inbox · send · channel · ha · transcribe · listen · peers ·
+                         acp · overseer · plugin
+Daemon                   shutdown
+```
+
+Day to day:
+
+```bash
+agt run "summarise the latest commits and brief the team"   # one governed run
+agt runs last                       # the last run, replayed as a task arc
+agt why <event_id> --payload        # walk that run's audit chain
+agt research "what changed in X"    # decompose → gather sources → cited answer
+agt conductor "<hard task>"         # Thinker/Worker/Verifier on 3 models
+agt approvals --json                # the HITL queue, machine-readable
+agt budget                          # today's spend vs daily + per-task caps
+agt halt                            # freeze everything, instantly and reversibly
+```
+
+## Capabilities
+
+**Providers — 9 adapter families, catalog-driven.** Anthropic, OpenAI (plus the
+OpenAI-compatible vendors: Groq, DeepSeek, xAI, Cerebras, Together, DeepInfra,
+Perplexity, Fireworks, Moonshot, OpenRouter, …), Google (Gemini API) and Google
+Vertex (service-account key **or** GKE/GCE metadata creds), Mistral, Cohere,
+Ollama (local, incl. vision models), AWS Bedrock (bearer + SigV4 +
+STS-AssumeRole + SSO + IRSA/web-identity), and Azure OpenAI. Provider entries
+come from the synced **models.dev catalog** (214 providers at the time of
+writing), so a new vendor usually needs a key, not code. Every family streams;
+image input works on every multimodal-capable family; extended thinking is
+opt-in where the family supports it.
+
+There is **no default provider or model.** `AGEZT_PROVIDER` / `AGEZT_MODEL` set
+one, or per-task routing and named fallback chains resolve one per run — a run
+that resolves no model fails *that run* with an actionable error rather than
+silently picking something.
+
+**"Sign in with ChatGPT."** A ChatGPT Plus/Pro **subscription** can act as a
+provider with no API key, over the Responses backend (`agt provider chatgpt
+login`, or the console). Unofficial backend — see
+[`docs/CONNECT.md`](docs/CONNECT.md) for the terms/risk caveat.
+
+**Tools — 30 registered by default.** Each is gated on a policy capability,
+carries a rollback class, and is visible to the operator (`agt tool list`):
+
+| | |
+|---|---|
+| System | `shell` (warden-isolated), `file` (workspace-scoped read/write/list/search/edit), `code_exec` (deno/node/python sandbox with persistent projects) |
+| Web | `http`, `browser.read`, `web_search`, `fetch` (download → artifact), `research` (deep-research harness, every claim cited) |
+| Multi-agent | `delegate` + `delegate_await` (bounded, nestable, async fan-out), `conductor` (Thinker/Worker/Verifier), `council` (multi-model panel), `board` (shared mailbox + DMs + help requests), `overseer` (supervise and intervene on the fleet) |
+| Durable work | `workboard` (typed task queue), `workflow` (node-graph automation), `schedule` (typed future wakes), `standing` (event/cron wake rules), `runs` (recall its own past runs) |
+| Knowledge | `memory` (private by default, `shared:true` opt-in), `world` (entity/relation graph), `skill` (learn → shadow → active, with agentskills.io bundles), `db` (Personal Data Lake collections), `artifacts` |
+| Self-extension | `tool_forge` (write a script → test → operator-approved promotion to `forge_<name>`), `mcp` (install/attach MCP servers at runtime), `market` (install capability packs), `config` (a skill configures itself) |
+| Reach out | `notify`, `send_media`, `homeassistant`, `introspect` (read this daemon's own live state) |
+
+Env-gated tools: `browser.action` and its verb wrappers
+(`AGEZT_BROWSER_ACTIONS=1` — Playwright actions, snapshots, screenshots, cookie
+inspection, download capture, session profiles, persistent `tab_id`), `coding`
+(`AGEZT_CODING_CMD` — hand a task to Claude Code / Codex / Aider in an isolated
+git worktree; returns a diff, never merges), `acp_agent`
+(`AGEZT_ACP_AGENT_CMD`), `remote_run` (`AGEZT_PEERS` — delegate to a peer AGEZT
+node over its REST API), and `homeassistant` (URL + token + an explicit
+read-entity allowlist and a service allowlist, mapped to two distinct
+capabilities).
+
+**Channels — 34 registered, most of them two-way.** Telegram, Slack, Discord,
+Matrix, Signal, WhatsApp (direct + gateway), SMS (Twilio), email (SMTP out,
+IMAP/POP in), Microsoft Teams, Mattermost, Rocket.Chat, Zulip, Google Chat, IRC,
+Mastodon, Nostr, LINE, Feishu/Lark, DingTalk, WeCom, WeChat, QQ, Zalo, Twitch,
+iMessage, Nextcloud Talk, Synology Chat, Home Assistant, ntfy, Gotify, Pushover,
+Pushbullet, and generic webhooks — `agt channel list` shows each one's live
+state. Inbound messages drive the agent, allowlisted and fail-closed, with the
+account's own messages skipped so a reply never loops; outbound carries replies
+and Pulse briefs. Each channel can run **multiple accounts at once** (ten
+mailboxes, several bots) through guided **Connect pages** with per-channel help
+and QR / gateway / **OAuth** sign-in. See [`docs/CONNECT.md`](docs/CONNECT.md).
+
+**Voice.** `agt transcribe <file>` and `agt listen` turn audio into text through
+any OpenAI-compatible STT endpoint and can feed it straight to the agent
+(`--run`). The console's hands-free **Voice mode** listens, runs the agent, and
+speaks the answer back sentence-by-sentence as it streams, stopping the moment
+you talk over it (barge-in), with an optional wake word. It uses the configured
+`AGEZT_STT_*` / `AGEZT_TTS_*` backends and falls back to the browser's built-in
+speech when they are unset.
 
 ## Quick start
 
-**The one-command path:** after `make build`, run `agt quickstart` — it syncs
-the catalog, prompts for a provider key, and prints your exact start command.
-The full manual flow:
+**The one-command path:** build, then run `agt quickstart` — it syncs the
+catalog, prompts for a provider key, and prints your exact start command.
 
 ```bash
-# 1. Build (produces agt + agezt in the current directory), or `make install` to put them on PATH:
-make build
+# 1. Build. `go build ./...` (what `make build` runs) compiles everything but
+#    writes no binaries — ask for them by name:
+go build -o agezt ./cmd/agezt
+go build -o agt   ./cmd/agt
+#    Windows: agezt.exe / agt.exe. `make install` puts the daemon on your GOPATH
+#    bin. On Ubuntu, `sudo ./install.sh install` builds it and installs a
+#    systemd service instead.
 
 # 2. Sync the model catalog. Works OFFLINE — no daemon needed:
-agt catalog sync --local
+./agt catalog sync --local
+./agt catalog list                         # providers + models + pricing
 
-# 3. Add credentials for a provider you have a key for. `provider setup`
-#    lists who needs a key and prompts on stdin (never argv → no shell history):
-agt provider setup                       # what still needs a key?
-agt provider setup minimax-coding-plan   # prompt + store MINIMAX_API_KEY
-#    Any models.dev provider works (anthropic, openai, …). Ollama needs no
-#    key: `agt catalog discover` then use AGEZT_PROVIDER=ollama-local.
+# 3. Add credentials for a provider you have a key for. `provider setup` lists
+#    who needs a key and prompts on stdin (never argv → no shell history):
+./agt provider setup                       # what still needs a key?
+./agt provider setup deepseek              # prompt + store DEEPSEEK_API_KEY
+#    Any models.dev provider works. Ollama needs no key:
+#    `agt catalog discover`, then AGEZT_PROVIDER=ollama-local.
 
-# 4. Start the daemon (terminal 1) — pick the provider + model, and
-#    optionally expose the Web UI on loopback. AGEZT_WORKSPACE="$PWD" lets the
-#    file tool read the directory you launch from (default: a sandboxed
-#    ~/.agezt/workspace); omit it to keep the file tool sandboxed.
-AGEZT_PROVIDER=minimax-coding-plan AGEZT_MODEL=MiniMax-M2.7 \
-  AGEZT_WORKSPACE="$PWD" AGEZT_WEB_ADDR=127.0.0.1:8787 ./bin/agezt
+# 4. Start the daemon (terminal 1), naming a provider and one of ITS models
+#    from step 2 (model ids move fast — read them out of the catalog, don't
+#    copy them out of a README). AGEZT_WORKSPACE="$PWD" lets the file tool read
+#    the directory you launch from (default: a sandboxed ~/.agezt/workspace);
+#    omit it to keep the file tool sandboxed.
+AGEZT_PROVIDER=<provider-id> AGEZT_MODEL=<model-id> \
+  AGEZT_WORKSPACE="$PWD" AGEZT_WEB_ADDR=127.0.0.1:8787 ./agezt
 
 # 5. In another terminal — verify, then use it:
-agt doctor                # preflight: daemon, journal integrity, tools, skew
-agt provider check        # live roundtrip (latency + cost)
-agt run "list the files here and tell me what this project is"
-agt why <event_id>        # walk the audit chain for any event
-agt halt                  # freeze everything instantly
+./agt doctor              # preflight: daemon, journal integrity, tools, skew
+./agt provider check      # live roundtrip (latency + cost)
+./agt run "list the files here and tell me what this project is"
+./agt why <event_id>      # walk the audit chain for any event
+./agt halt                # freeze everything instantly
 ```
 
-If `AGEZT_WEB_ADDR` is set, the banner prints a tokenized URL — open it for a
-**Chat** view (the default: type an intent and watch the governed loop answer
-live — streaming text, the tool calls it made with their policy verdict, and the
-final answer with its real cost), an
-**Activity** live monitor (is anything running right now, and what is it doing? —
-in-flight runs with their current step, iteration, elapsed time and spend,
-delegated sub-agents nested under the lead run, all folded live off the event
-firehose), a
-live event monitor (filterable by event kind); a real-time **Mission Control**
-(rolling per-second rates incl. delegations) and an **AI Analyst** that reasons
-about the running system; an **Alerts** feed of the daemon's own proactive
-signals (with a header bell visible from every view); a **Catalog** of the
-agent's full capability surface (tool → governing capability → trust level,
-editable inline); a multi-agent **Agents** graph where any node opens its steer
-cockpit; read panels (status / runs — click one for its full event arc / stats
-with an outcome bar / budget / cache savings / providers routing view / tools /
-policy / world / skills / memory / inbox); and management cockpits for
-**Schedules**, **Standing orders** and **Reflection**, all refreshed live off
-the event stream, plus operator controls (HALT, approve/deny, pause/steer a
-specific run or sub-agent, promote/forget). A provider-fallback warning badge appears
-when a primary provider is erroring — click it to see the underlying fallback
-events. Localhost-bound and token-authed. See **[docs/CONSOLE.md](docs/CONSOLE.md)** for
-a guided tour of the views and operator controls (steering the proactive heartbeat,
-backup & restore, the policy/redaction testers, journal-integrity verify, and more).
+**Working on AGEZT itself?** `./dev.ps1` (Windows) and `./dev.sh` (macOS/Linux)
+are the one-shot dev loop: they build both binaries, seed an **isolated
+`.dev-home`** so a dev run can never touch your real `~/.agezt`, load provider
+keys from `.env` into that dev vault, warn when the checkout is behind its
+upstream (the console is embedded at build time, so a stale checkout ships an
+old UI), and start the daemon. Flags: `-Fresh`/`--fresh`,
+`-SkipBuild`/`--skip-build`, `-Pull`/`--pull`, `-WebAddr`/`--web-addr`. Frontend
+commands run from `frontend/` (`npm test`, `npm run build` — npm, not pnpm).
 
-**Drive Agezt from any OpenAI client.** Set `AGEZT_API_ADDR=127.0.0.1:8799` and
-the daemon serves an OpenAI-compatible API (`POST /v1/chat/completions`,
-`POST /v1/responses`, `GET /v1/models`) — point any OpenAI SDK/IDE at it with
-the printed Bearer token. Both the Chat Completions and the newer Responses API
-shapes are supported (streaming + non-streaming). Every request runs the full
-agent loop through Edict + the journal (not a raw passthrough), and the response
-carries an `agezt_correlation_id` you can `agt why`:
+## The console
+
+With `AGEZT_WEB_ADDR` set, the startup banner prints a tokenized URL. The
+console is **64 views, folded into 36 rows across 8 sections**, organized by
+operator job rather than by backend package — a section is a job, a row is a
+noun, and a tab is a facet of that noun (see
+[docs/CONSOLE-IA.md](docs/CONSOLE-IA.md)):
+
+- **Talk** — Jarvis (the presence view) · Chat (the streaming answer, every tool call with its policy verdict, the run's real cost) · Voice · Messages (Inbox / Agent Board)
+- **Observe** — Overview (Overview / Mission Control / Live Stream) · Runs (Runs / Activity / Insights / Replay) · Health (Health / Prompt cache / Tool usage / Routing log) · Alerts · Budget
+- **Automate** — Wizards · Workflows (Workflows / Flow Studio) · Work (Workboard / Objectives) · Triggers (Schedules / Standing orders) · Autonomy
+- **Govern** — Approvals · Policy · Oversight (Overseer / Council / Conductor) · Seats
+- **Agents** — Agents · Roster · Skills · Capabilities (Tool registry / Toolbox / Tool Forge / Marketplace / Execution Profiles) · Sandbox
+- **Knowledge** — Memory (Memory / Taste) · World · Thinking (Research / Analyst / Reflection) · Search · Data & Files (Data Lake / Artifacts & Files / Storage)
+- **Connect** — Providers & Models (Quick Connect / Models & Keys) · Routing (Routing / Fallback Chains) · Channels · Integrations (MCP Servers / ACP Agents / Connections)
+- **Admin** — Setup · Config Center · Identity (Default Identity / Prompts) · Backup
+
+The Activity tab shows what is running this second — each in-flight run with its
+current step, iteration, elapsed time and spend, delegated sub-agents nested
+under their lead run — folded live off the event firehose.
+
+Every view refreshes live off the event stream, with operator controls
+throughout: HALT, approve/deny, pause or steer a specific run or sub-agent,
+promote/forget. Localhost-bound and token-authed; `AGEZT_WEB_PASSWORD` adds a
+password door, and `AGEZT_WEB_PASSWORD_STRICT=on` enforces token-and-password on
+every data request. See **[docs/CONSOLE.md](docs/CONSOLE.md)** for the guided
+tour.
+
+## Integrate
+
+**Any OpenAI client.** Set `AGEZT_API_ADDR=127.0.0.1:8799` and the daemon serves
+`POST /v1/chat/completions`, `POST /v1/responses`,
+`POST /v1/audio/transcriptions`, and `GET /v1/models` — point any OpenAI SDK or
+IDE at it with the printed Bearer token. Both API shapes stream. Every request
+runs the full governed loop through Edict and the journal (not a raw
+passthrough), and the response carries an `agezt_correlation_id` you can
+`agt why`:
 
 ```bash
 curl http://127.0.0.1:8799/v1/chat/completions \
@@ -182,272 +242,199 @@ curl http://127.0.0.1:8799/v1/chat/completions \
   -d '{"model":"agezt","messages":[{"role":"user","content":"what is this project?"}]}'
 ```
 
-**Push events out to your own systems.** Set `AGEZT_WEBHOOKS` to a comma-list of
-`url|subject|secret` sinks and the daemon POSTs every matching journal event to
-your endpoint as it happens — `task.completed`, `policy.decision`,
-`webhook.failed`, anything. The `subject` is a bus pattern (`agent.>`,
-`edict.>`, `>` for all); with a `secret` each POST carries an
-`X-Agezt-Signature: sha256=…` HMAC so you can verify authenticity. Every
-delivery is itself journaled (`webhook.delivered` / `webhook.failed`), retried
-on failure, and never loops:
-
-```bash
-AGEZT_WEBHOOKS='https://hooks.example.com/agezt|agent.>|my-signing-secret' ./bin/agezt
-```
-
-**Or drive it natively over REST.** Set `AGEZT_REST_ADDR=127.0.0.1:8800` for a
-first-party `/api/v1` surface with Agezt-native semantics: `POST /api/v1/runs`
-submits an intent (sync JSON, or an SSE event stream with `"stream":true`) and
-returns a `correlation_id`; `GET /api/v1/runs/{correlation_id}` returns that
-run's full journaled event arc; plus `GET /api/v1/health` and
-`GET /api/v1/models`. The `/api/v1/mailbox` routes open the shared inter-agent
-message board to apps: send a DM to an agent by name (or broadcast with
-`"to":"*"`), read an inbox, reply, and acknowledge — a directed message wakes a
-standing order watching `board.dm.<name>`, so external mail can trigger an
-agent. Same governed loop, loopback-bound + Bearer-token:
+**Native REST.** `AGEZT_REST_ADDR=127.0.0.1:8800` exposes `/api/v1` with
+AGEZT-native semantics: `POST /api/v1/runs` submits an intent (sync JSON, or an
+SSE stream with `"stream":true`) and returns a `correlation_id`;
+`GET /api/v1/runs/{id}` returns that run's full journaled event arc; plus
+`/api/v1/health`, `/api/v1/models`, `/api/v1/artifacts`, and `/api/v1/update`.
+The `/api/v1/mailbox` routes open the shared inter-agent board to apps — send a
+DM to an agent by name (or broadcast with `"to":"*"`), read an inbox, reply,
+ack, or `watch` the stream. A directed message wakes a standing order watching
+`board.dm.<name>`, so external mail can trigger an agent:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"intent":"what is this project?"}' http://127.0.0.1:8800/api/v1/runs
 ```
 
-**Or use an official client SDK.** Dependency-light clients wrap `/api/v1` —
-`health` / `models` / `run` / `run_stream` (SSE) / `get_run`, the mailbox
-(`mailbox_send` / `mailbox_inbox` / `mailbox_ack` / replies / topics), bearer
-auth, multi-tenant aware — in **Python** (`pip install agezt`; sync `Client` + asyncio
-`AsyncClient`), **TypeScript** (`@agezt/sdk`, zero runtime deps over `fetch`), and
-**Rust** (the `agezt` crate, standard-library only). See [`sdk/`](sdk/).
+**Official client SDKs.** Dependency-light clients wrap `/api/v1` — `health` /
+`models` / `run` / `run_stream` (SSE) / `get_run`, the mailbox (send, inbox,
+reply, ack, topics, watch), bearer auth, multi-tenant aware — in **Python** (`pip install agezt`; sync
+`Client` + asyncio `AsyncClient`), **TypeScript** (`@agezt/sdk`, zero runtime
+dependencies over `fetch`), and **Rust** (the `agezt` crate, standard library
+only). See [`sdk/`](sdk/) and the CI-enforced
+[`docs/SDK-PARITY.md`](docs/SDK-PARITY.md).
 
-**Expose it to the internet when you need to.** Set `AGEZT_TUNNEL=cloudflare`
-for an automatic `https://*.trycloudflare.com` Quick Tunnel, or use `ngrok`,
-`tailscale`, `tailscale-funnel`, or `AGEZT_TUNNEL_CMD=<command>`. The daemon
-targets the live Web UI by default, adds the discovered public host to the Web UI
-allowlist, prints the public console URL, and tears the tunnel down on exit.
-Set `AGEZT_WEB_PASSWORD` before public exposure; set `AGEZT_WEB_PASSWORD_STRICT=on`
-when you want token-and-password enforcement on every data request.
-
-**Let schedules wake work without becoming prompts.** The daemon treats schedules
-as typed cron/event triggers: wake an agent, run a workflow, invoke a system task,
-or call an approved tool. Agents keep their own identity, memory, task list,
-skills, model/provider settings, retry policy, mailbox, and lifecycle state;
-the schedule only says what to wake, when, and under which cadence. Manage
-schedules live with `agt schedule` (persisted across restarts, reversible). Every
-firing is journaled (`schedule.fired`), so `agt why` links autonomous work back to
-the trigger:
+**Outbound webhooks.** `AGEZT_WEBHOOKS` takes a comma-list of
+`url|subject|secret` sinks; the daemon POSTs every matching journal event as it
+happens. The `subject` is a bus pattern (`agent.>`, `edict.>`, `>` for all);
+with a `secret` each POST carries an `X-Agezt-Signature: sha256=…` HMAC. Every
+delivery is itself journaled (`webhook.delivered` / `webhook.failed`), retried
+on failure, and never loops:
 
 ```bash
-agt schedule add "cycle inbox and brief me" --agent daily-brief --every 2h     # wake an agent; its soul/tasks decide work
-agt schedule add --workflow repo-digest --at 09:30           # run a reusable chain
-agt schedule add --system-task catalog_sync --every 24h      # sync models.dev/api.json without waking an agent
-agt schedule add --tool log_cleanup --every 6h               # invoke an approved internal tool
-agt schedule add "standup nudge" --agent standup --at 09:30 --days mon-fri     # weekdays only
-agt schedule add "weekend digest" --agent digest --at 11:00 --days weekends
-agt schedule add "poll queue" --agent queue-watcher --every 15m --between 09:00-17:00 --days mon-fri  # windowed interval
-agt schedule add "ny standup" --agent ny-standup --at 09:00 --days mon-fri --tz America/New_York      # wall-clock in any IANA zone
-agt schedule add "release check" --agent release-check --in 30m                # one-shot, then self-removes
-agt schedule add --workflow deploy-recap --once --at 18:00   # one-shot at a wall-clock time
-agt schedule edit <id> --at 10:00 --days mon-fri             # change cadence in place (id preserved)
-agt schedule list            # id, cadence, source, next run
-agt schedule run <id>        # fire now (next tick)
-agt schedule pause <id>      # disable without deleting (resume re-enables)
-agt schedule rm <id>         # reversible
-# or seed at startup:
-AGEZT_SCHEDULE='24h=security auditor cycle' ./bin/agezt  # legacy interval=agent-task seed
+AGEZT_WEBHOOKS='https://hooks.example.com/agezt|agent.>|my-signing-secret' ./agezt
 ```
 
-For the full operator cheat sheet: `agt help`.  Day-to-day commands:
+**Public exposure, on demand.** `AGEZT_TUNNEL=cloudflare` opens an automatic
+`https://*.trycloudflare.com` Quick Tunnel; `ngrok`, `tailscale`,
+`tailscale-funnel`, and `AGEZT_TUNNEL_CMD=<command>` also work. The daemon
+targets the live console, adds the discovered public host to the allowlist,
+prints the public URL, and tears the tunnel down on exit. Set a console password
+before exposing anything.
 
+**Multi-tenancy.** With `AGEZT_MULTITENANT=on`, `agt tenant create/list/token/rm`
+manages isolated homes; a run routes with `agt run --tenant <id>` or the
+`X-Agezt-Tenant` header, authenticates with that tenant's own token, and is
+written to that tenant's own journal.
+
+## Autonomy, and the proof that it worked
+
+Work is woken by **typed triggers**, not by re-prompting. A schedule says what to
+wake, when, and how often; the agent keeps its own identity, memory, tasks,
+skills, model/provider settings, retry policy, mailbox, and lifecycle state.
+Every firing is journaled (`schedule.fired`), so `agt why` links autonomous work
+back to its trigger.
+
+```bash
+agt schedule add "cycle inbox and brief me" --agent daily-brief --every 2h
+agt schedule add --workflow repo-digest --at 09:30              # a reusable chain
+agt schedule add --system-task catalog_sync --every 24h         # no agent woken
+agt schedule add --tool log_cleanup --every 6h                  # an approved tool
+agt schedule add "standup nudge" --agent standup --at 09:30 --days mon-fri
+agt schedule add "poll queue" --agent q --every 15m --between 09:00-17:00 --days mon-fri
+agt schedule add "ny standup" --agent ny --at 09:00 --tz America/New_York
+agt schedule add "release check" --agent release --in 30m       # one-shot, self-removing
+agt schedule edit <id> --at 10:00 --days mon-fri                # cadence in place
+agt schedule list / run <id> / pause <id> / rm <id>
 ```
-agt run "<intent>"                     one-shot intent (LLM ↔ tools loop)
-agt doctor                             health preflight (exit 1 = a check failed)
-agt status / agt runs last             daemon health · last run as a task arc
-agt provider setup [id] / check        add keys · verify a live roundtrip
-agt provider chatgpt login|import      Sign in with ChatGPT (subscription, no key)
-agt catalog sync [--local]             refresh models.dev (offline-capable)
-agt memory … / agt world … / agt skill …   the cognitive loop (add/list/forget/…)
-agt reflect run                        review behaviour, decay stale knowledge
-agt approvals / approve / deny         the HITL queue
-agt send --channel … / agt ha …        push a message · control Home Assistant
-agt transcribe <file> --run            speech-to-text a file → drive the agent
-agt listen --seconds 10 --run          record the mic → transcribe → drive the agent
-agt why <id> --payload                 walk the audit chain
-agt halt / resume / shutdown           stop · resume · graceful exit
-```
+
+Above that sits the durable work spine:
+
+- **Workboard** (`agt workboard`) — a restart-safe typed task queue with status, priority, assignee, tenant, idempotency key, comments, links, claims, dependencies, stale-claim reclaim, and journaled transitions. Not a chat log, and not an agent.
+- **Proof > vibes** — a task carries acceptance criteria; the **assure** loop runs it, verifies it, and retries with the verifier's gap fed back, bounded. A task reaches `done` only with a durable, checkable **proof** record attached.
+- **OKRs** (`agt okr`) — objectives own key results; key results link workboard tasks and roll their proven completion into a percentage, so fleet activity reads as progress toward goals instead of a flat queue.
+- **Seats** (`agt seats`) — task-facing presets for *how* a task runs (isolation surface, model tier, tool tier), layered on top of *who* runs it.
+- **Taste** (`agt taste`) — operator-authored "what good looks like" exemplars injected into runs before the model acts.
+- **Standing orders** (`agt standing`) — durable event/cron wake rules bound to an agent's governed task plan.
+- **Workflows** (`agt workflow`) — node-graph automation (trigger/tool/llm/condition/transform/delay/http/code/map/filter/switch/merge/approval/subworkflow) that users, agents, schedules, and webhooks all run from one saved graph.
+- **Pulse** — the proactive heartbeat: it observes the running system, briefs you, and with `AGEZT_PULSE_INITIATIVE` can turn an actionable observation into a governed run under a trust ceiling.
+- **Restart resume** — in-flight runs survive shutdown, self-update, and hard kill: a durable ticket per root run carries the accumulated conversation so the work is re-dispatched instead of abandoned.
+- **Self-repair** — a seeded guardian fleet claims broken, degraded, or routing-unstable agents, drives a governed repair pass, and escalates through the mailbox when a repair fails.
+
+## Under your authority
+
+- **Edict** — a declarative policy engine over 36 capabilities (`shell`, `file.write`, `http.post`, `code.exec`, `delegate`, `mcp.install`, `oversee`, `config.write`, …). Every tool call resolves to exactly one capability and lands on allow / ask-a-human / deny. An **unknown capability is default-denied**, so a typo kills a tool loudly instead of quietly widening it. `agt edict test shell "rm -rf /"` previews a decision without running anything.
+- **Journal** — append-only JSONL with a BLAKE3 hash chain. `agt why <id>` walks every event sharing one correlation; `agt journal` verifies chain integrity; `agt changelog` folds system-level change out of it.
+- **Approvals** — a real HITL queue (`agt approvals --json`, `approve`, `deny`) that blocks the calling run until an operator decides, with the effect class and affected resources shown in the prompt.
+- **Budgets** — USD-microcents accounting with daily ceilings *and* per-task-type caps; subscription-first routing prefers a flat-rate provider before a metered one. `agt budget`, plus `agt cache` for prompt-cache savings.
+- **Anomaly circuit breaker** — a spike in the global tool-call rate auto-engages a halt, so a looping agent cannot burn budget or take repeated action unsupervised.
+- **Prompt-injection guard** — a precise causal-window gate over untrusted observations (`AGEZT_PROMPT_INJECTION_GUARD` = on / warn / off) with a "trust web content" operator toggle; a tool call carries the taint of the observation that motivated it.
+- **Netguard** — the egress/SSRF guard; `agt netguard` tests a host and lists blocked dials.
+- **Warden** — process isolation: on Linux, `prlimit64`-enforced CPU/memory/FD limits and process-group SIGKILL; a documented downgrade to setpgid-only on macOS and Windows, surfaced through `agt warden` and `agt exec-profile`.
+- **Vault** — credentials encrypted at rest with AES-256-GCM (PBKDF2-HMAC-SHA-256), machine-bound auto-encryption, passphrase rotation, and a pure-stdlib AWS credential chain (vault → env → SSO → STS-AssumeRole → IRSA/web-identity → `~/.aws` + IMDS).
+- **Recovery** — `agt backup` / `restore` (credentials excluded, journal head recorded), `agt rollback` for local mutation checkpoints, `agt disk` for space headroom, and `agt redact` to see exactly what the secret-scrubber would do to a string.
+
+## What's built
+
+**Kernel** (`kernel/`) — around 80 packages. The load-bearing ones:
+
+| | |
+|---|---|
+| Loop | `agent` (tool-loop + streaming), `runtime` (composition root), `governor` (routing, fallback chains, budgets), `contextselect`, `intent` |
+| Substrate | `bus` (NATS-style wildcard subscriptions), `journal`, `state`, `jsonstore`, `event` (with an `IsEphemeral()` discriminator for stream tokens) |
+| Governance | `edict`, `approval`, `warden`, `netguard`, `redact`, `envscrub`, `anomaly`, `intervention`, `executionprofile`, `auth`, `tenant` |
+| Work | `scheduler` (DAG executor with LoopNode + GateNode), `planner` (LLM → validated plan, with operator-driven refinement), `cadence`, `standing`, `workboard`, `workflow` + `workflowexec`, `assure`, `proof`, `okr`, `seat` |
+| Fleet | `roster`, `delegation`, `board`, `selfrepair`, `resume`, `pulse`, `alerter` |
+| Knowledge | `memory`, `worldmodel`, `skill`, `taste`, `reflect`, `datalake`, `artifact`, `market`, `toolforge`, `toolbox` |
+| Edges | `controlplane` (line-delimited JSON over TCP between `agt` ↔ `agezt`), `httpserver`, `webui`, `restapi`, `openaiapi`, `acp`, `agentgw`, `channel` + `channelwire`, `webhook`, `tunnel`, `mcp`, `plugin`, `stt` / `voicetool`, `update` |
+| Identity | `creds` (the vault), `catalog` (models.dev + hot reload), `configcenter`, `settings`, `convo` |
+
+**Providers** (`plugins/providers/`) — `anthropic`, `openai`, `openairesponses`
+(the ChatGPT subscription backend), `google`, `vertex`, `bedrock`, `cohere`,
+`ollama`, and `compat` (the OpenAI-compatible vendor fan-out), plus `embed`,
+`rerank`, `image`, and `voice` adapters.
+
+**Tools** (`plugins/tools/`) — the 30 in the table above, each in its own package
+with its capability declared next to the behaviour it describes.
+
+**Channels** (`plugins/channels/`) — 25 packages backing the 34 registered
+channel kinds.
+
+**Plugin SDK** (`plugins/sdk/`) — the official Go authoring kit:
+`sdk.Serve(sdk.Tool{...})` handles the whole stdio JSON protocol (frame demux,
+write serialisation, progress via `Emit`, host callbacks via `CallHost`, panic
+containment), so a plugin is just its tool logic. Stdlib-only — it imports no
+kernel package. `plugins/sdk/example/greet` is a complete runnable plugin, and
+**`agt plugin new <name>`** scaffolds a buildable one (gofmt-clean `main.go`,
+`go.mod`, README). Out-of-process plugins get **hot-reload**, **BLAKE3 pin
+gating**, **tool allowlists**, **streaming progress**, and **kernel callbacks** —
+see [`docs/PLUGIN-SECURITY.md`](docs/PLUGIN-SECURITY.md). An **MCP bridge**
+speaks both stdio and Streamable-HTTP/SSE, with a curated catalog of verified
+server presets.
+
+**Binaries** — `cmd/agezt` (the daemon), `cmd/agt` (the operator CLI).
 
 ## Where the design lives
 
-The full spec suite is under [`.project/`](.project/) and remains the
-binding source of authority:
+The full spec suite is under [`.project/`](.project/) and remains the binding
+source of authority:
 
 - [`.project/BUILD-GUIDE.md`](.project/BUILD-GUIDE.md) — start here
 - [`.project/DECISIONS.md`](.project/DECISIONS.md) — supreme authority
 - [`.project/STRUCTURE.md`](.project/STRUCTURE.md) — repo layout
 - [`.project/SPEC-*.md`](.project/) — 16 component specs
-- [`.project/PHASE-*-REPORT.md`](.project/) — every shipped phase, its
-  scope and trade-offs (47+ reports from M1.a through M1.zz and beyond)
+- [`.project/PHASE-*-REPORT.md`](.project/) — every shipped phase, its scope and trade-offs
 
-Operator how-to guides live under [`docs/`](docs/):
-- [`docs/CONNECT.md`](docs/CONNECT.md) — connect providers (incl. **Sign in with
-  ChatGPT**) and channels (multi-account, guided Connect, OAuth, two-way email)
-- [`docs/CONSOLE.md`](docs/CONSOLE.md) — the Web UI console
-- [`docs/AGENT-SDK-ARCHITECTURE.md`](docs/AGENT-SDK-ARCHITECTURE.md) — the client SDKs
-
-## What's built
-
-The v1 substrate. Highlights:
-
-**Kernel** (`kernel/`)
-- `agent` — single-agent tool-loop with streaming
-- `bus` — pattern-subscribed event bus (NATS-style wildcards)
-- `journal` — append-only JSONL + BLAKE3 hash chain
-- `state` — file-backed mutable store
-- `event` — typed events with `IsEphemeral()` discriminator for
-  streaming tokens
-- `governor` — per-task routing + fallback chain + USD-microcents
-  budget cap with **per-task-type daily ceilings**, subscription-first
-- `scheduler` — DAG executor with LoopNode + GateNode
-- `planner` — LLM → validated `scheduler.Plan` JSON, with
-  **operator-driven refinement** (`agt plan refine`)
-- `controlplane` — line-delimited JSON over TCP between
-  `agt` ↔ `agezt`; includes operator visibility commands
-  (`status`, `tool list`, `plugin list`, `budget`, `why --json/--payload`)
-- `creds` — credential vault, AES-256-GCM at rest, passphrase rotation,
-  pure-stdlib AWS chain (vault → env → SSO → STS-AssumeRole → IRSA/web-identity
-  → ~/.aws + IMDS); keyless ambient credentials on EKS (IRSA) and — for Vertex —
-  GKE/GCE via the metadata server
-- `catalog` — models.dev integration; hot reload
-- `approval` — HITL queue (with `--json` for automation)
-- `edict` — declarative policy engine
-- `warden` — process isolation: Linux `prlimit64` + process-group SIGKILL;
-  no-op stubs on macOS/Windows
-- `runtime` — wires it all into `Kernel.Open(Config) → *Kernel`
-- `plugin` — out-of-process plugin host (stdio JSON protocol) with
-  **hot-reload**, **BLAKE3 pin gating**, **tool allowlists**,
-  **streaming progress**, and **plugin→host callbacks**
-
-**Providers** (`plugins/providers/`)
-- `anthropic`, `openai`, `google`, `vertex` (Gemini + Anthropic on Vertex;
-  service-account key **or** GKE/GCE metadata-server creds),
-  `bedrock` (bearer + SigV4 + AI21 Jamba + Cohere + Llama + Mistral),
-  `cohere`, `ollama` (local, incl. **vision** models like llava/llama3.2-vision),
-  `compat` (OpenAI-compatible vendors: Groq, DeepSeek,
-  xAI, OpenRouter, Together, ...), Azure OpenAI, Mistral. Every family
-  has working streaming; image input on every multimodal-capable family.
-- `openairesponses` — **"Sign in with ChatGPT"**: use a ChatGPT Plus/Pro
-  **subscription** as a provider (no API key) over the Responses backend. OAuth
-  sign-in from the UI or `agt provider chatgpt login`. Unofficial backend — see
-  [`docs/CONNECT.md`](docs/CONNECT.md) for the terms/risk caveat.
-
-**Tools** (`plugins/tools/`)
-- `shell` — warden-isolated subprocess
-- `file` — scoped to `AGEZT_WORKSPACE`
-- `http` — GET/POST with host allowlist
-- `browser.read` — fetch + HTML→text extraction, opt-in cookie jar
-- `browser.action` — opt-in Playwright page actions (`goto`,
-  `click`, `fill`, `type`, `press`, `select`, `check`, `hover`, `scroll`,
-  `wait`) with host allowlist, egress preflight, compact element snapshots,
-  browser event summaries, Files-view screenshot/download artifacts, and
-  text extraction. Default profile is isolated; `profile=session` carries
-  cookies/storage in an AGEZT-managed session directory, and `tab_id` can persist
-  a session tab's last URL plus snapshot refs (`ref=e1`) for URL-less follow-up
-  actions; `user-attached` and
-  `remote-cdp` require explicit operator env opt-in. Also registers first-class wrappers:
-  `browser.open`, `browser.snapshot`, `browser.click`, `browser.type`,
-  `browser.wait`, `browser.screenshot`, `browser.downloads`, `browser.cookies`,
-  `browser.tabs`, and
-  `browser.close`. Off unless `AGEZT_BROWSER_ACTIONS=1`
-- `web_search` — keyword search against a keyless public engine (DuckDuckGo);
-  returns `{title, url, snippet}` so the agent can DISCOVER a URL, then read it
-  with `http`/`browser.read`. SSRF-guarded, fail-soft
-- `schedule` — the agent arranges typed future wakes in the cadence store
-  (once after a delay / recurring / daily / continuous); a schedule later wakes
-  an agent, workflow, system task, or approved tool. Tagged `source=agent` for
-  operator visibility
-- `delegate` — spawn a bounded sub-agent for a focused subtask (multi-agent
-  fan-out); depth- AND tree-total-bounded, individually steerable, journaled,
-  each sub-action gated through Edict
-- `coding` — delegate a coding task to an external agent (Claude Code / Codex /
-  Aider / any command) in an isolated git worktree; returns the diff, never
-  merges. Off unless `AGEZT_CODING_CMD` is set
-- `acp_agent` — delegate a task to an external agent over the Agent Client
-  Protocol (Claude Code / Codex / Gemini CLI / any ACP agent), spawned over
-  stdio and driven via JSON-RPC; relays its answer. Off unless
-  `AGEZT_ACP_AGENT_CMD` is set
-- `remote_run` — delegate a task to a peer Agezt node over its native REST
-  API (`/api/v1/runs`); the peer runs it through its own governed loop and
-  reports back with its correlation id. The mesh primitive — cooperating
-  nodes. Off unless `AGEZT_PEERS` (`name=url|token,…`) is set
-- `homeassistant` — read smart-home entity state (`get_states`) and call
-  Home Assistant services (`call_service`) to control the house (lights,
-  climate, locks, …). Fail-closed on two axes: a read-entity allowlist
-  (`AGEZT_HOMEASSISTANT_TOOL_READ`) and a service allowlist
-  (`AGEZT_HOMEASSISTANT_TOOL_SERVICES`), mapped to distinct Edict capabilities
-  (`homeassistant.read` = Allow, `homeassistant.call` = Ask-first). Off unless
-  the HA URL/token and at least one allowlist are set
-
-- `mcpbridge` — Model Context Protocol bridge, both stdio and HTTP+SSE
-  transports
-
-**Plugin SDK** (`plugins/sdk/`)
-- `sdk` — the official Go authoring kit: `sdk.Serve(sdk.Tool{...})` handles the
-  whole stdio JSON protocol (frame demux, write serialisation, progress via
-  `Emit`, host callbacks via `CallHost`, panic containment) so a plugin is just
-  its tool logic. Stdlib-only — imports no kernel package. See
-  `plugins/sdk/example/greet` for a complete runnable plugin. Scaffold your own
-  with **`agt plugin new <name>`** — it generates a buildable SDK plugin
-  (gofmt-clean `main.go`, `go.mod`, README) ready to `go build` and wire
-
-**Binaries**
-- `cmd/agezt` — the daemon
-- `cmd/agt` — the operator CLI
+Operator and integrator guides live under [`docs/`](docs/):
+[`CONNECT.md`](docs/CONNECT.md) (providers, including Sign in with ChatGPT;
+channels: multi-account, guided Connect, OAuth, two-way email),
+[`CONSOLE.md`](docs/CONSOLE.md) and [`CONSOLE-IA.md`](docs/CONSOLE-IA.md),
+[`OPERATIONS.md`](docs/OPERATIONS.md), [`THREAT-MODEL.md`](docs/THREAT-MODEL.md),
+[`API-STABILITY.md`](docs/API-STABILITY.md),
+[`EVENT-SCHEMA.md`](docs/EVENT-SCHEMA.md), and
+[`AGENT-SDK-ARCHITECTURE.md`](docs/AGENT-SDK-ARCHITECTURE.md). Full map:
+[`docs/index.md`](docs/index.md).
 
 ## Verify
 
 ```bash
-make test     # the full Go + frontend suite
-make build    # produces bin/agezt + bin/agt
-make gen      # regenerate SDK types from the contract
+make check       # gen + vet + go test + deps-check + sdk-parity + dead code + frontend
+make test        # go test ./...
+make e2e         # boot a real daemon, exercise every core surface, assert 0 panics
+make webui-e2e   # Playwright against the embedded console (webui-e2e-ps on Windows)
+make gen         # regenerate SDK types from the contract
 ```
 
 Or without `make`:
 
 ```bash
+go vet ./...
 go test ./...
-go build ./...
 go run ./tools/jsonschemagen -in .project/agezt-contract.jsonc -out contract/gen/types.gen.go -pkg gen
+cd frontend && npm test && npm run build
 ```
+
+The build is **pure Go with `CGO_ENABLED=0`**, cross-compiled via `make linux` /
+`darwin` / `windows`; binaries are stamped with a reproducible version + commit +
+build-time triple and `-trimpath`.
 
 ## What's deferred (post-v1)
 
-Genuine remaining deferrals — every one is blocked on a non-stdlib
-dependency, a CGO requirement, or a substantial design phase:
+Genuine remaining deferrals — every one is blocked on a non-stdlib dependency, a
+CGO requirement, or a substantial design phase:
 
-- **Plugin sandboxing** — out-of-process plugins are isolated only at the
-  process boundary today; per-plugin warden profiles (cgroup v2 + seccomp
-  BPF + user-namespace) need either non-stdlib bindings or per-OS CGO.
-- **Browser sessions — persistent tabs, downloads, profile attach, DevTools**
-  — `browser.action` plus the browser verb wrappers cover opt-in
-  Playwright actions, snapshots, events, screenshots, cookie inspection, download capture, and
-  operator-gated profile modes through an operator-installed Node driver,
-  including AGEZT-managed `profile=session` state carryover and persistent
-  `tab_id` URL/snapshot refs; live tab lifecycle and DOM-level stale ref
-  invalidation remain a dedicated design phase.
-- **Vault — OS-keychain auto-integration, argon2 KDF** — both need per-OS
-  CGO or non-stdlib bindings; PBKDF2-SHA-256 is the stdlib fallback today.
-- **Planner v2 — sub-planners, planner-side tool calls** — operator-driven
-  refinement shipped (`agt plan refine`); recursive sub-planning is a
-  separate design phase.
-- **Pulse v2 — TUI** — non-stdlib (Bubble Tea / tview). Programmatic
-  observability is otherwise complete: `agt pulse`, `agt status`,
-  `agt tool list`, `agt plugin list`, `agt budget`, `agt why --json/--payload`,
-  `agt journal tail`, `agt edict show`/`edict test`, `agt state list`/`state get`,
-  `agt plan visualize`, `agt plan run --dry-run`, `agt shutdown`.
-- **Windows job objects / macOS sandbox-exec** — both need per-OS CGO
-  bindings; in M1.d Linux got `prlimit64` (raw syscall, stdlib).
+- **Plugin sandboxing** — out-of-process plugins are isolated only at the process boundary today; per-plugin warden profiles (cgroup v2 + seccomp BPF + user namespaces) need either non-stdlib bindings or per-OS CGO.
+- **Browser sessions — live tab lifecycle, DOM-level stale-ref invalidation** — `browser.action` and the verb wrappers already cover opt-in Playwright actions, snapshots, events, screenshots, cookie inspection, download capture, AGEZT-managed `profile=session` state carryover, and persistent `tab_id` URL/snapshot refs through an operator-installed Node driver; the rest is a dedicated design phase.
+- **Vault — OS-keychain auto-integration, argon2 KDF** — both need per-OS CGO or non-stdlib bindings; PBKDF2-SHA-256 is the stdlib fallback today.
+- **Planner v2 — sub-planners, planner-side tool calls** — operator-driven refinement shipped (`agt plan refine`); recursive sub-planning is a separate design phase.
+- **Pulse v2 — TUI** — non-stdlib (Bubble Tea / tview). Programmatic observability is otherwise complete: `agt pulse`, `status`, `tool list`, `plugin list`, `budget`, `why --json/--payload`, `journal tail`, `edict show`/`test`, `state list`/`get`, `plan visualize`, `plan run --dry-run`, `shutdown`.
+- **Windows job objects / macOS sandbox-exec** — both need per-OS CGO bindings; Linux got `prlimit64` as a raw stdlib syscall.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE). Dependency policy: every external
-dep requires a written justification in
-[`DEPENDENCIES.md`](DEPENDENCIES.md). Current count: 4 direct (plus their
-transitive graph) — see the table for the full resolved module list.
+MIT. See [`LICENSE`](LICENSE). Dependency policy: every external dependency
+requires a written justification in [`DEPENDENCIES.md`](DEPENDENCIES.md), and
+`make deps-check` enforces the allowlist. Current count: **5 direct** (BLAKE3, a
+WebSocket client, an IMAP client, secp256k1 for Nostr, and `golang.org/x/net`)
+plus their transitive graph — see the table for the resolved module list.
