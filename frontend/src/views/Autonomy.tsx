@@ -35,6 +35,7 @@ import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { openIncident } from "@/lib/incidentnav";
 import { Disclosure } from "@/components/ui/disclosure";
+import { Segmented } from "@/components/ui/segmented";
 import {
   autonomyEventMatches,
   doctorIncidentTrees,
@@ -148,34 +149,16 @@ export function Autonomy() {
       <PulseControl />
 
       {cats.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={() => setCat(null)}
-            className={cn(
-              "rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-              cat === null
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-panel text-muted hover:text-foreground",
-            )}
-          >
-            all
-          </button>
-          {cats.map(([name, n]) => (
-            <button
-              key={name}
-              onClick={() => setCat(name === cat ? null : name)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors",
-                cat === name
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-panel text-muted hover:text-foreground",
-              )}
-            >
-              {name}
-              <span className="opacity-60">{n}</span>
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Filter observations by category"
+          className="flex-wrap gap-1.5"
+          value={cat ?? "all"}
+          onChange={(v) => setCat(v === "all" ? null : v)}
+          options={[
+            { value: "all", label: "all" },
+            ...cats.map(([name, n]) => ({ value: name, label: name, count: n })),
+          ]}
+        />
       )}
 
       {doctorIncidents.length > 0 && (cat === null || cat === "doctor") && (
@@ -827,9 +810,9 @@ function PulseModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Icon className="size-4" />
           </span>
           <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{title}</h2>

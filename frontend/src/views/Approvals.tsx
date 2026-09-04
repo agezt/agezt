@@ -42,7 +42,10 @@ export function Approvals() {
             <SkeletonList count={3} lines={2} />
           ) : (
             <>
-              <Count>{items.length} pending</Count>
+              {/* "0 pending" over "Nothing awaiting approval" is the same
+                  sentence twice. The count is worth printing once there is
+                  something to count. */}
+              {items.length > 0 && <Count>{items.length} pending</Count>}
               {items.length ? (
                 items.map((a: PendingApproval, i: number) => (
                   <Row key={a.id || i}>
@@ -68,7 +71,10 @@ export function Approvals() {
         </CardBody>
       </Card>
 
-      <ApprovalsHistory />
+      {/* The decision history is a log of what you already decided. With
+          nothing pending and nothing decided, it is a third panel agreeing
+          that nothing has happened. */}
+      {(items.length > 0 || !!data) && <ApprovalsHistory hideWhenEmpty={items.length === 0} />}
     </Page>
   );
 }
@@ -87,7 +93,7 @@ interface ResolvedApproval {
 // for, joined with what you (or a timeout) decided. The pending list above is the
 // to-do; this is the record — the audit trail of the trust boundary, so you can review
 // what was allowed, what was refused, and who/what resolved it. Read-only.
-export function ApprovalsHistory() {
+export function ApprovalsHistory({ hideWhenEmpty = false }: { hideWhenEmpty?: boolean } = {}) {
   // The resolved-decision history is cursor-paginated via useApprovalsLogPager
   // (the hook owns polling + live-event reload). The log envelope includes
   // still-pending rows; those live in the panel above, so we filter to resolved
@@ -95,6 +101,10 @@ export function ApprovalsHistory() {
   // filter re-applies.
   const { paged, loading, loadMore, loadingMore, moreError, hasMore } = useApprovalsLogPager(50);
   const rows = (paged as unknown as ResolvedApproval[]).filter((a) => a.status && a.status !== "pending");
+
+  // Nothing decided, nothing pending, nothing more to fetch: the panel would
+  // only say so a second time, under an empty state that already did.
+  if (hideWhenEmpty && !loading && rows.length === 0 && !hasMore) return null;
 
   return (
     <div className="glass rounded-xl p-3">

@@ -11,14 +11,10 @@ vi.mock("@/lib/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 
-import {
-  Tools,
-  toolSource,
-  mergeToolViews,
-  filterTools,
-  capabilityCounts,
-  type ToolView,
-} from "@/views/Tools";
+import { Tools, toolSource, mergeToolViews, type ToolView } from "@/views/Tools";
+// The search/filter helpers moved to the shared catalog lib when the Tool
+// registry took over listing tools — the usage monitor no longer redraws it.
+import { capabilityCounts, filterCatalogRows as filterTools } from "@/lib/catalog";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -92,30 +88,11 @@ describe("capabilityCounts (M916)", () => {
 });
 
 describe("Tools — available-tools catalog (M771)", () => {
-  it("lists the agent's available tools with descriptions", async () => {
-    render(<Tools />);
-    await waitFor(() => expect(screen.getByText(/Available tools — what the agent can do \(2\)/)).toBeTruthy());
-    // "shell" also appears in the usage card; web_search is catalog-only.
-    expect(screen.getAllByText("shell").length).toBeGreaterThan(0);
-    expect(screen.getByText("web_search")).toBeTruthy();
-    expect(screen.getByText(/Run a shell command/)).toBeTruthy();
-  });
-
-  it("shows a tool's call count when used, 'idle' otherwise (M916)", async () => {
-    render(<Tools />);
-    // shell has 3 calls in /api/tools → "3 calls"; web_search has none → "idle".
-    await waitFor(() => expect(screen.getByText("web_search")).toBeTruthy());
-    expect(screen.getByText("3 calls")).toBeTruthy();
-    expect(screen.getByText("idle")).toBeTruthy();
-  });
-
-  it("labels non-rollbackable tools as audit-only", async () => {
-    render(<Tools />);
-    await waitFor(() => expect(screen.getAllByText("shell").length).toBeGreaterThan(0));
-    expect(screen.getByText("audit only")).toBeTruthy();
-  });
-
-  it("shows an empty state when no tools are registered", async () => {
+  // The four cases that lived here — the tool list, per-tool call counts,
+  // the audit-only badge and the no-tools empty state — moved to
+  // Catalog.test.tsx along with the card itself. This page is the usage
+  // monitor now; it no longer redraws the registry.
+  it("points at the Tool registry when nothing has been called", async () => {
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/tools") return Promise.resolve({ total: 0, by_tool: {} });
       if (path === "/api/tool_log") return Promise.resolve({ invocations: [] });
@@ -123,8 +100,8 @@ describe("Tools — available-tools catalog (M771)", () => {
       return Promise.resolve({});
     });
     render(<Tools />);
-    await waitFor(() => expect(screen.getByText(/Available tools — what the agent can do \(0\)/)).toBeTruthy());
-    expect(screen.getByText("no tools registered")).toBeTruthy();
+    const link = await screen.findByRole("link", { name: "Tool registry" });
+    expect(link.getAttribute("href")).toBe("#catalog");
   });
 });
 

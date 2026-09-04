@@ -5,7 +5,7 @@ import { Cache } from "@/views/Cache";
 import { Catalog } from "@/views/Catalog";
 import { Chains } from "@/views/Chains";
 import { Chat } from "@/views/Chat";
-import { Config } from "@/views/Config";
+import { ConfigInventory } from "@/components/ConfigInventory";
 import { Council } from "@/views/Council";
 import { FlowStudio } from "@/views/FlowStudio";
 import { IncidentPage } from "@/views/IncidentPage";
@@ -21,7 +21,7 @@ const views = [
   Catalog,
   Chains,
   Chat,
-  Config,
+  ConfigInventory,
   Council,
   FlowStudio,
   IncidentPage,

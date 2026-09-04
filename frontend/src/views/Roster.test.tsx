@@ -1153,7 +1153,9 @@ describe("Roster", () => {
     expect(screen.getByText("cycle 2/5")).toBeTruthy();
     expect(screen.getAllByText("inbox 1").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("sleeping").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("You dig deep.")).toBeTruthy();
+    // The soul is the full system prompt: it waits for the card to be opened
+    // rather than sitting clamped mid-word under the humane description.
+    expect(screen.queryByText("You dig deep.")).toBeNull();
 
     // The prose identity surfaces are gone.
     expect(screen.queryByLabelText(/identity manifest/)).toBeNull();
@@ -1189,8 +1191,8 @@ describe("Roster", () => {
     // depend on async board + schedule data.
     expect(screen.getAllByText("Inbox").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Attention").length).toBeGreaterThan(0);
-    expect(await screen.findByRole("tab", { name: /Attention2/ })).toBeTruthy();
-    expect(await screen.findByRole("tab", { name: /Inbox2/ })).toBeTruthy();
+    expect(await screen.findByRole("radio", { name: /Attention2/ })).toBeTruthy();
+    expect(await screen.findByRole("radio", { name: /Inbox2/ })).toBeTruthy();
 
     // The repair-incident pill still deep-links to the root incident.
     fireEvent.click(screen.getByRole("button", { name: "incident" }));
@@ -1762,12 +1764,12 @@ describe("Roster", () => {
 
     // The roster filter segments are Radix tabs; selection activates on
     // mousedown/focus (automatic activation mode), not a plain click.
+    // The roster filter is a <Segmented> radiogroup — a plain button, so a
+    // click selects it. (Radix Tabs needed mouseDown + focus instead.)
     const selectTab = (name: RegExp) => {
-      const tab = screen.getByRole("tab", { name });
-      fireEvent.mouseDown(tab);
-      fireEvent.focus(tab);
+      fireEvent.click(screen.getByRole("radio", { name }));
     };
-    await screen.findByRole("tab", { name: /Sub-agents1/ });
+    await screen.findByRole("radio", { name: /Sub-agents1/ });
     selectTab(/Sub-agents1/);
     expect(screen.getByText("worker")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "direct" })).toBeNull();
@@ -1782,5 +1784,41 @@ describe("Roster", () => {
     getJSON.mockResolvedValue({ profiles: [], count: 0, enabled_count: 0 });
     render(withUI(<Roster />));
     await waitFor(() => expect(screen.getByText("No agents yet")).toBeTruthy());
+  });
+
+  it("drops the identity chips every system guardian shares, and keeps the odd one out", async () => {
+    // The shipped fleet gives every guardian the same quiet policy and the
+    // same trust ceiling, so each card wore an identical "quiet policy ·
+    // ceiling L2" pair — seven copies of a rule the Guardian-noise panel
+    // above them states once, in a sentence. A chip true of every card is a
+    // legend, not a fact about that card.
+    const guardian = (slug: string, ceiling: string) => ({
+      id: slug,
+      slug,
+      name: slug,
+      enabled: true,
+      system: true,
+      trust_ceiling: ceiling,
+      noise_policy: {
+        silent_on_success: true,
+        disable_memory_writes: true,
+        min_notify_severity: "warning",
+        min_notify_interval_sec: 28800,
+      },
+    });
+    getJSON.mockResolvedValue({
+      profiles: [guardian("guardian-a", "L2"), guardian("guardian-b", "L2"), guardian("guardian-c", "L1")],
+      count: 3,
+      enabled_count: 3,
+    });
+    render(withUI(<Roster />));
+    await waitFor(() => expect(screen.getAllByText("guardian-a").length).toBeGreaterThan(0));
+
+    // L2 is shared by two of the three, but not by all — so it is not the
+    // shared story and every ceiling chip still shows.
+    expect(screen.getAllByText("ceiling L2")).toHaveLength(2);
+    expect(screen.getByText("ceiling L1")).toBeTruthy();
+    // The quiet policy IS identical on all three, so no card repeats it.
+    expect(screen.queryByText("quiet policy")).toBeNull();
   });
 });

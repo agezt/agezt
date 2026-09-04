@@ -227,9 +227,9 @@ export function LifecycleInterventionPanel({
             lastAction.tone === "good"
               ? "border-good/30 bg-good/5"
               : lastAction.tone === "bad"
-                ? "border-bad/35 bg-bad/5"
+                ? "border-bad/40 bg-bad/5"
                 : lastAction.tone === "warn"
-                  ? "border-warn/35 bg-warn/10"
+                  ? "border-warn/40 bg-warn/10"
                   : "border-border",
           )}
         >
@@ -260,7 +260,7 @@ export function LifecycleInterventionPanel({
                 : interventionSummary.tone === "warn"
                   ? "border-warn/40"
                   : interventionSummary.tone === "good"
-                    ? "border-good/35"
+                    ? "border-good/40"
                     : "border-border",
             )}
           >
@@ -330,7 +330,7 @@ export function LifecycleInterventionPanel({
             </div>
           </div>
           {profile.system ? (
-            <div className="rounded-lg border border-warn/35 bg-warn/10 p-2 text-xs text-muted">
+            <div className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-xs text-muted">
               <div className="mb-1 font-medium text-warn">System identity protection</div>
               System agents cannot be permanently removed from this page. Retire or pause them to stop execution while keeping their identity, audit log, and diagnostics inspectable.
             </div>
@@ -403,9 +403,9 @@ function LifecycleDecisionLedger({ entries, slug }: { entries: AgentLifecycleLed
             title={entry.detail}
             className={cn(
               "min-h-[44px] min-w-0 rounded-md border border-border/50 bg-panel/45 px-2 py-1.5",
-              entry.tone === "good" && "border-good/25 bg-good/5",
+              entry.tone === "good" && "border-good/30 bg-good/5",
               entry.tone === "bad" && "border-bad/30 bg-bad/5",
-              entry.tone === "warn" && "border-warn/35 bg-warn/10",
+              entry.tone === "warn" && "border-warn/40 bg-warn/10",
             )}
           >
             <div className="truncate text-[9px] font-semibold uppercase tracking-normal text-muted/80">{entry.label}</div>

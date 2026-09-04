@@ -73,14 +73,15 @@ import {
   CascadeOption,
   IdentityPill,
   ImpactList,
-  RosterSignalPanel,
-} from "./roster/cards";
+  } from "./roster/cards";
 
 // agentHue maps a slug to a stable hue (0–359) so every agent gets a consistent
 // colored identity avatar across the UI. The deterministic hue + monogram now
 // live in @/lib/agent (M948) so the avatar can be shared; re-exported here for
 // existing importers.
 import { agentHue, initials } from "@/lib/agent";
+import { SectionPanel } from "@/components/ui/section-panel";
+import { Segmented } from "@/components/ui/segmented";
 export { agentHue, initials };
 
 // Re-exports: Roster.tsx remains the public module for the roster domain —
@@ -591,11 +592,41 @@ export function Roster() {
   const system = list.filter((p) => !p.retired && agentIdentityKind(p) === "system").length;
   const repair = list.filter((p) => !p.retired && agentNeedsRepair(p)).length;
   const mailboxAgents = list.filter((p) => !p.retired && (mailboxCounts[p.slug.toLowerCase()] || mailboxCounts[p.slug] || 0) > 0).length;
-  const mailboxBacklog = list.reduce((sum, p) => sum + (p.retired ? 0 : mailboxCounts[p.slug.toLowerCase()] || mailboxCounts[p.slug] || 0), 0);
   const attention = list.filter((p) => agentNeedsAttention(p, mailboxCounts, schedulePressure)).length;
   const guardianRisk = systemGuardianRiskSummary(list);
   const noisyGuardians = noisySystemGuardians(list);
   const guardianQuieting = guardianQuietingSummary(list, schedulePressure);
+  // sharedGuardianNoise is the noise detail EVERY system guardian reports, when
+  // they all report the same one. The fleet ships seven guardians with the same
+  // caps, so every card printed the same amber "daily cap too high, run cap too
+  // high" banner — seven copies of one sentence, directly under the roll-up
+  // panel that already says it. Cards fall silent on the shared story and speak
+  // only for their own exceptions (the same lead-with-exceptions treatment the
+  // capability grid uses in Policy).
+  const sharedGuardianNoise = (() => {
+    const details = list
+      .filter((p) => p.system && !p.retired)
+      .map((p) => systemGuardianNoiseContract(p, schedulePressure[p.slug] || agentSchedulePressurePassport(p, [])).detail);
+    if (details.length < 2) return null;
+    return details.every((d) => d === details[0]) ? details[0] : null;
+  })();
+  // sharedSystemPolicy: the guardian policies that are IDENTICAL across every
+  // visible system guardian. Computed per render, so it self-corrects — the
+  // moment one guardian is tuned differently, its chip reappears on its card
+  // (and only on its card), which is exactly when the chip carries news.
+  const sharedSystemPolicy = (() => {
+    const guardians = list.filter((p) => p.system && !p.retired);
+    if (guardians.length < 2) return { noise: null, safety: null, ceiling: null };
+    const uniform = <T,>(pick: (p: AgentProfile) => T): T | null => {
+      const first = pick(guardians[0]);
+      return guardians.every((g) => pick(g) === first) && first ? first : null;
+    };
+    return {
+      noise: uniform((g) => agentNoisePolicySummary(g)),
+      safety: uniform((g) => systemGuardianSafetySummary(g)),
+      ceiling: uniform((g) => g.trust_ceiling || ""),
+    };
+  })();
   const removalPlan = removing ? agentRemovalPlan(removing) : null;
   const removalDecision = removalPlan ? agentRemovalDecisionSummary(removalPlan) : null;
   const removalIncludesSubagents = !!removing?.cascade.subagents;
@@ -670,21 +701,13 @@ export function Roster() {
         </RosterModal>
       )}
 
-      {profiles && profiles.length > 0 && (
-        <MetricGrid>
-          <MetricWidget icon={Bot} label="Agents" value={list.length} tone="muted" />
-          <MetricWidget icon={Radio} label="Enabled" value={enabled} tone={enabled > 0 ? "good" : "muted"} />
-          <MetricWidget icon={Pause} label="Paused" value={paused} tone={paused > 0 ? "warn" : "muted"} />
-          <MetricWidget icon={GitBranch} label="Sub-agents" value={subagents} tone="muted" />
-          <MetricWidget icon={AlertTriangle} label="Attention" value={attention} tone={attention > 0 ? "warn" : "muted"} />
-          <MetricWidget icon={Wrench} label="Repair" value={repair} tone={repair > 0 ? "bad" : "muted"} />
-          <MetricWidget icon={Mail} label="Inbox" value={mailboxBacklog} tone={mailboxBacklog > 0 ? "warn" : "muted"} />
-          <MetricWidget icon={Skull} label="Graveyard" value={graveyard} />
-        </MetricGrid>
-      )}
+      {/* No metric row. The filter below is the census — it prints the same
+          counts AND hides the empty buckets, so eight cards (five of them zero,
+          the eighth stranded alone on a second row) said less than the chips do.
+          Third time this duplication turned up: Alerts and Runs had it too. */}
 
       {guardianRisk && (
-        <RosterSignalPanel
+        <SectionPanel
           icon={ShieldCheck}
           title="Guardian noise"
           status={noisyGuardians.length > 0 ? `${noisyGuardians.length} noisy` : guardianQuieting.label}
@@ -703,24 +726,27 @@ export function Roster() {
               {noisyGuardians.length > 4 && <Badge variant="default">+{noisyGuardians.length - 4}</Badge>}
             </div>
           )}
-        </RosterSignalPanel>
+        </SectionPanel>
       )}
 
       {profiles && profiles.length > 0 && (
-        <TabNav
-          tabs={([
-            { id: "all" as RosterFilter, label: "All", icon: Network, count: list.length, content: null as React.ReactNode },
-            { id: "attention" as RosterFilter, label: "Attention", icon: AlertTriangle, count: attention, content: null as React.ReactNode },
-            { id: "direct" as RosterFilter, label: "Direct", icon: Bot, count: direct, content: null as React.ReactNode },
-            { id: "subagents" as RosterFilter, label: "Sub-agents", icon: GitBranch, count: subagents, content: null as React.ReactNode },
-            { id: "system" as RosterFilter, label: "System", icon: ShieldCheck, count: system, content: null as React.ReactNode },
-            { id: "repair" as RosterFilter, label: "Repair", icon: Wrench, count: repair, content: null as React.ReactNode },
-            { id: "mailbox" as RosterFilter, label: "Inbox", icon: Mail, count: mailboxAgents, content: null as React.ReactNode },
-            { id: "paused" as RosterFilter, label: "Paused", icon: Pause, count: paused, content: null as React.ReactNode },
-            { id: "graveyard" as RosterFilter, label: "Graveyard", icon: Skull, count: graveyard, content: null as React.ReactNode },
-          ] as { id: RosterFilter; label: string; icon: typeof Network; count: number; content: React.ReactNode }[]).filter(t => t.count > 0 || t.id === "all")}
+        <Segmented
+          ariaLabel="Filter the roster"
+          className="flex-wrap"
           value={rosterFilter}
-          onValueChange={(v) => setRosterFilter(v as RosterFilter)}
+          onChange={setRosterFilter}
+          // An empty bucket is not a choice — only "All" is always offered.
+          options={[
+            { value: "all" as RosterFilter, label: "All", icon: Network, count: list.length },
+            { value: "attention" as RosterFilter, label: "Attention", icon: AlertTriangle, count: attention },
+            { value: "direct" as RosterFilter, label: "Direct", icon: Bot, count: direct },
+            { value: "subagents" as RosterFilter, label: "Sub-agents", icon: GitBranch, count: subagents },
+            { value: "system" as RosterFilter, label: "System", icon: ShieldCheck, count: system },
+            { value: "repair" as RosterFilter, label: "Repair", icon: Wrench, count: repair },
+            { value: "mailbox" as RosterFilter, label: "Inbox", icon: Mail, count: mailboxAgents },
+            { value: "paused" as RosterFilter, label: "Paused", icon: Pause, count: paused },
+            { value: "graveyard" as RosterFilter, label: "Graveyard", icon: Skull, count: graveyard },
+          ].filter((o) => (o.count ?? 0) > 0 || o.value === "all")}
         />
       )}
 
@@ -907,7 +933,7 @@ export function Roster() {
                       : removalDecision.tone === "warn"
                         ? "border-warn/40 bg-warn/10"
                         : removalDecision.tone === "good"
-                          ? "border-good/35 bg-good/5"
+                          ? "border-good/40 bg-good/5"
                           : "border-border bg-card/55",
                   )}
                 >
@@ -1102,7 +1128,13 @@ export function Roster() {
           <li
             key={p.id}
             className={cn(
-              "glass flex min-h-[420px] flex-col overflow-hidden rounded-xl shadow-e1 transition-[box-shadow,border-color] hover:shadow-e2",
+              // No min-height. It was pinned at 420px so every footer lined
+              // up, but a guardian card's content is ~170px — the other 250
+              // were empty, on every card, and the page read as six windows
+              // onto nothing. Grid rows still align the cards beside each
+              // other; they just stop reserving room for content that is not
+              // there.
+              "glass flex flex-col overflow-hidden rounded-xl shadow-e1 transition-[box-shadow,border-color] hover:shadow-e2",
               open && "sm:col-span-2 xl:col-span-3",
             )}
           >
@@ -1135,12 +1167,12 @@ export function Roster() {
                   </div>
                 </div>
               </div>
-              {p.system && (
+              {p.system && guardianNoiseContract.detail !== sharedGuardianNoise && (
                 <div
                   className={cn(
                     "mt-2 flex min-w-0 items-start gap-1.5 rounded-md border px-2 py-1.5 text-[11px]",
                     guardianNoiseContract.tone === "warn"
-                      ? "border-warn/35 bg-warn/10 text-warn"
+                      ? "border-warn/40 bg-warn/10 text-warn"
                       : guardianNoiseContract.tone === "good"
                         ? "border-good/30 bg-good/5 text-good"
                         : "border-border bg-card/45 text-muted",
@@ -1159,14 +1191,18 @@ export function Roster() {
                     <Sparkles className="h-2.5 w-2.5" /> {privateSkillCount} skill{privateSkillCount === 1 ? "" : "s"}
                   </IdentityPill>
                 )}
-                {noiseSummary && <IdentityPill title={noiseSummary}>quiet policy</IdentityPill>}
-                {guardianSafety && (
+                {noiseSummary && !(p.system && noiseSummary === sharedSystemPolicy.noise) && (
+                  <IdentityPill title={noiseSummary}>quiet policy</IdentityPill>
+                )}
+                {guardianSafety && !(p.system && guardianSafety === sharedSystemPolicy.safety) && (
                   <IdentityPill className={cn(guardianSafety.startsWith("review:") ? "bg-warn/10 text-warn" : "bg-good/10 text-good")} title={guardianSafety}>
                     system safety
                   </IdentityPill>
                 )}
                 {p.self_repair?.enabled && <IdentityPill>self-repair</IdentityPill>}
-                {p.trust_ceiling && p.trust_ceiling !== "L4" && <IdentityPill>ceiling {p.trust_ceiling}</IdentityPill>}
+                {p.trust_ceiling && p.trust_ceiling !== "L4" && !(p.system && p.trust_ceiling === sharedSystemPolicy.ceiling) && (
+                  <IdentityPill>ceiling {p.trust_ceiling}</IdentityPill>
+                )}
                 {runtimeStatus.healthText && (
                   <IdentityPill
                     className={cn(runtimeStatus.healthTone === "bad" && "bg-bad/10 text-bad", runtimeStatus.healthTone === "muted" && "bg-panel text-muted")}
@@ -1202,7 +1238,7 @@ export function Roster() {
                   <button
                     type="button"
                     onClick={() => openIncident(runtimeStatus.repairIncidentId!)}
-                    className="inline-flex items-center gap-1 rounded-md border border-border bg-warn/10 px-1.5 py-0.5 text-xs font-medium text-warn transition-colors hover:border-warn/50 hover:bg-warn/15"
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-warn/10 px-1.5 py-0.5 text-xs font-medium text-warn transition-colors hover:border-warn/40 hover:bg-warn/15"
                     title={runtimeStatus.repairIncidentDetail || "Open repair incident"}
                   >
                     {runtimeStatus.repairIncidentText}
@@ -1282,8 +1318,12 @@ export function Roster() {
 
             <div className="flex flex-1 flex-col p-3">
               {p.description && p.name && p.name !== p.slug && <div className="text-xs text-muted">{p.description}</div>}
-              {p.soul && (
-                <div className={cn("mt-2 rounded-md bg-panel px-2 py-1.5 text-xs text-muted whitespace-pre-wrap", !open && "line-clamp-3")}>
+              {/* The soul is the agent's full system prompt. Clamped to three
+                  lines it read as a paragraph chopped mid-word under the
+                  one-line description that already says the same thing in
+                  human terms — so it waits for the card to be opened. */}
+              {p.soul && open && (
+                <div className="mt-2 whitespace-pre-wrap rounded-md bg-panel px-2 py-1.5 text-xs text-muted">
                   {p.soul}
                 </div>
               )}

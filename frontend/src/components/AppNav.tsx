@@ -22,7 +22,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AdvancedToggle } from "@/components/AdvancedToggle";
 import { AccentPicker } from "@/components/AccentPicker";
 import { ConsoleName } from "@/components/ConsoleName";
-import { NAV_GROUPS, type NavGroup } from "@/nav";
+import { NAV_GROUPS, groupForView, rowForView, type NavGroup } from "@/nav";
 
 // Per-section accent hue (M979) — each section gets its own colour so the nav
 // reads as a vivid, navigable map rather than one flat grey list. Used for the
@@ -32,9 +32,9 @@ const SECTION_HUE: Record<string, number> = {
   observe: 150, // green
   automate: 55, // amber
   govern: 25, // red-orange
+  fleet: 290, // violet
   knowledge: 195, // cyan
   connect: 215, // azure
-  build: 290, // violet
   admin: 230, // indigo
 };
 const sectionHue = (id: string) => SECTION_HUE[id] ?? 255;
@@ -117,13 +117,21 @@ export function SectionNav({
           <shownGroup.icon className="size-3.5" />
           {shownGroup.label}
         </div>
-        {shownGroup.items.map((n) => {
+        {shownGroup.rows.map((n) => {
           const hue = sectionHue(shownGroup.id);
-          const isOn = n.id === active;
+          // A row is active when the active VIEW is one of its tabs, so a deep
+          // link into any facet (`#models`) lights up its destination row.
+          const isOn = rowForView[active]?.id === n.id;
           return (
             <button
               key={n.id}
-              onClick={() => onSelect(n.id)}
+              // Selecting a row lands on its first view; the row's tab strip
+              // takes over from there.
+              onClick={() => onSelect(n.views[0].id)}
+              // Name the facets a row holds. The sidebar shows the destination,
+              // so a view folded into it is a word the operator can no longer
+              // see — and "where did Roster go?" is what that costs.
+              title={n.views.length > 1 ? `${n.label}: ${n.views.map((v) => v.label).join(" · ")}` : n.label}
               className={cn(
                 "relative flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-150",
                 isOn
@@ -151,7 +159,7 @@ export function SectionNav({
                   {unseenAlerts > 99 ? "99+" : unseenAlerts}
                 </span>
               )}
-              {n.id === "overseer" && activeRunCount > 0 && (
+              {n.id === "oversight" && activeRunCount > 0 && (
                 <span
                   className="ml-auto inline-flex min-w-4 items-center justify-center rounded-full bg-accent/20 px-1 text-xs font-semibold leading-4 text-accent"
                   title={`${activeRunCount} run${activeRunCount === 1 ? "" : "s"} in flight`}
@@ -181,6 +189,62 @@ export function SectionNav({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ViewTabs renders a nav row's facets as a tab strip above the view. Each tab
+// navigates to that view's OWN hash — the row is presentation, the view id
+// stays the address — so bookmarks, ⌘K, help topics and every
+// `location.hash = "runs"` call site keep working unchanged. Renders nothing
+// for a single-view row.
+export function ViewTabs({
+  active,
+  onSelect,
+}: {
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  const row = rowForView[active];
+  if (!row || row.views.length < 2) return null;
+  const hue = sectionHue(groupForView[active] || "talk");
+  return (
+    // Chrome, not content. These tabs NAVIGATE (each sets its view's own hash)
+    // and they sit above the page title, so drawing them as a bordered panel
+    // made them read as a second in-page tab bar — Dashboard ended up with two
+    // near-identical strips, both starting with "Overview". A light underlined
+    // row reads as part of the shell instead.
+    <div
+      className="-mt-0.5 mb-2 flex flex-wrap items-center gap-0.5 border-b border-border/70 pb-1.5"
+      role="tablist"
+      aria-label={`${row.label} sections`}
+    >
+      {row.views.map((v) => {
+        const on = v.id === active;
+        return (
+          <button
+            key={v.id}
+            role="tab"
+            aria-selected={on}
+            onClick={() => onSelect(v.id)}
+            className={cn(
+              "relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors duration-150",
+              "outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+              on ? "font-semibold" : "text-muted hover:bg-panel/60 hover:text-foreground",
+            )}
+            style={on ? { color: `oklch(0.56 0.16 ${hue})` } : undefined}
+          >
+            <v.icon className="size-3.5" aria-hidden />
+            {v.label}
+            {on && (
+              <span
+                className="absolute inset-x-1.5 -bottom-1.5 h-0.5 rounded-full"
+                style={{ background: `oklch(0.62 0.16 ${hue})` }}
+              />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

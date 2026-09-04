@@ -14,8 +14,14 @@ export interface HelpDrawerProps {
   open: boolean;
   /** Active view id — selects the topic from lib/help. */
   viewId: string;
-  /** Sidebar section label ("Monitor", "System", …) shown as a breadcrumb chip. */
+  /** Sidebar breadcrumb chip ("Watch", "Watch · Health", …). */
   group?: string;
+  /**
+   * Heading override. The drawer titles itself after the NAV label the operator
+   * actually clicked, so a renamed or re-parented view can never show a header
+   * for a page that no longer goes by that name. Falls back to the topic title.
+   */
+  title?: string;
   /** The view's nav icon, echoed in the drawer header. */
   icon?: LucideIcon;
   onClose: () => void;
@@ -23,7 +29,7 @@ export interface HelpDrawerProps {
   onNavigate?: (viewId: string) => void;
 }
 
-export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigate }: HelpDrawerProps) {
+export function HelpDrawer({ open, viewId, group, title, icon: Icon, onClose, onNavigate }: HelpDrawerProps) {
   // Escape closes from anywhere while open.
   useEffect(() => {
     if (!open) return;
@@ -74,7 +80,7 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
                   <Icon className="size-5" />
                 </span>
               )}
-              <h2 className="text-xl font-semibold tracking-normal text-foreground">{topic.title}</h2>
+              <h2 className="text-xl font-semibold tracking-normal text-foreground">{title || topic.title}</h2>
             </div>
             <p className="mt-2.5 max-w-prose text-sm leading-relaxed text-muted">{topic.intro}</p>
           </div>
@@ -126,7 +132,7 @@ export function HelpDrawer({ open, viewId, group, icon: Icon, onClose, onNavigat
                 {topic.tips.map((tip) => (
                   <div
                     key={tip.slice(0, 32)}
-                    className="flex items-start gap-2.5 rounded-lg border border-accent/25 bg-accent/10 p-3"
+                    className="flex items-start gap-2.5 rounded-lg border border-accent/30 bg-accent/10 p-3"
                   >
                     <Lightbulb className="mt-0.5 size-4 shrink-0 text-accent" />
                     <p className="text-sm leading-relaxed text-foreground/90">{tip}</p>

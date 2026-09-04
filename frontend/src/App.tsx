@@ -27,11 +27,12 @@ import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/c
 import { downloadText } from "@/lib/export";
 import { ConsoleName } from "@/components/ConsoleName";
 import { anyCredentialed, type SetupCatalog } from "@/lib/setup";
-import { SectionNav, Header } from "@/components/AppNav";
+import { SectionNav, Header, ViewTabs } from "@/components/AppNav";
 import {
   NAV,
   NAV_GROUPS,
   groupForView,
+  rowForView,
   sectionForView,
   viewFromHash,
   Setup,
@@ -289,10 +290,15 @@ export default function App() {
   }, [paletteOpen]);
 
   const commands = useMemo<CommandItem[]>(() => {
+    // Views carry their nav-row label plus hand-written synonyms (nav.tsx) as
+    // keywords, so ⌘K answers the question the operator actually types ("api
+    // key", "cron", "deny") rather than only echoing words already on screen.
     const views: CommandItem[] = NAV.map((n) => ({
       id: `view-${n.id}`,
       label: n.label,
       group: sectionForView[n.id] || "Go to",
+      hint: rowForView[n.id] && rowForView[n.id].views.length > 1 ? rowForView[n.id].label : undefined,
+      keywords: `${rowForView[n.id]?.label || ""} ${n.keywords || ""}`,
       run: () => setActive(n.id),
     }));
     const actions: CommandItem[] = [
@@ -420,7 +426,14 @@ export default function App() {
       <HelpDrawer
         open={helpOpen}
         viewId={agentSlug ? "agent" : active}
-        group={agentSlug ? "Agents" : sectionForView[active]}
+        title={agentSlug ? undefined : current.label}
+        group={
+          agentSlug
+            ? "Agents"
+            : rowForView[active] && rowForView[active].views.length > 1
+              ? `${sectionForView[active]} · ${rowForView[active].label}`
+              : sectionForView[active]
+        }
         icon={agentSlug ? Bot : current.icon}
         onClose={() => setHelpOpen(false)}
         onNavigate={setActive}
@@ -497,12 +510,22 @@ export default function App() {
             build={build}
           />
         </nav>
-        <main className="min-h-0 flex-1 overflow-auto p-3 pb-7 sm:p-4 sm:pb-7">
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-7 sm:p-4 sm:pb-7">
           {/* Keyed remount so each view fades + rises in on navigation. The
               `#agent/<slug>` detail route (M960) takes over the main area. */}
+          {/* Row tabs (2026-09 IA): sibling views folded into one destination.
+              Rendered outside the keyed container so switching facets doesn't
+              re-animate the strip itself. */}
+          {!incidentId && !agentSlug && <ViewTabs active={active} onSelect={setActive} />}
+          {/* data-view-root marks the VIEW BODY, excluding the tab strip above
+              it. e2e/views.spec.ts asserts against this element: once tabs share
+              <main>, "main is non-empty" would pass even for a blank view — the
+              exact regression that spec exists to catch. */}
           <div
             key={incidentId ? `incident/${incidentId}` : agentSlug ? `agent/${agentSlug}` : hashKey || active}
-            className="view-enter h-full"
+            data-view-root
+            data-view={incidentId ? "incident" : agentSlug ? "agent" : active}
+            className="view-enter min-h-0 flex-1"
           >
             <Suspense fallback={<RouteLoading label={incidentId ? "Incident" : agentSlug ? "Agent" : current.label} />}>
               {incidentId ? (

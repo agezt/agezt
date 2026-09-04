@@ -329,34 +329,10 @@ export function Runs() {
       }
     >
 
-      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
-        <MetricWidget
-          icon={ListTree}
-          label="Total runs"
-          value={counts.total}
-          tone="muted"
-        />
-        <MetricWidget
-          icon={CircleDot}
-          label="Running"
-          value={counts.running}
-          tone="accent"
-          pulse={counts.running > 0}
-        />
-        <MetricWidget
-          icon={CheckCircle2}
-          label="Completed"
-          value={counts.completed}
-          tone="good"
-        />
-        <MetricWidget
-          icon={XOctagon}
-          label="Failed"
-          value={counts.failed}
-          tone={counts.failed > 0 ? "bad" : "muted"}
-        />
-      </MetricGrid>
-
+      {/* No metric row: the bucket tabs below already print Total / Running /
+          Completed / Failed as their counts. Four cards saying the same four
+          numbers, directly above the tabs that say them, is the page repeating
+          itself — the same duplication Alerts had. */}
       <TabNav tabs={tabs} />
     </Page>
   );
@@ -412,7 +388,7 @@ function RunList({
   return (
     <section className="overflow-hidden rounded-xl bg-card shadow-e1">
       <div className="flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/8 text-accent">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
           <Clock className="size-4" />
         </span>
         <div className="min-w-0 flex-1">

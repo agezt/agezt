@@ -10,6 +10,8 @@ import { Page } from "@/components/ui/page";
 import { Ring } from "@/components/Widgets";
 import { useToolLogPager } from "@/lib/cursorPager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { StatTile } from "@/components/ui/metric-widget";
+import { Segmented } from "@/components/ui/segmented";
 
 interface ToolStat {
   calls?: number;
@@ -100,35 +102,7 @@ export function mergeToolViews(catalog: ToolDef[], byTool: Record<string, ToolSt
   return views;
 }
 
-// filterTools narrows the gallery by a free-text query (name/description/
-// capability, case-insensitive) and an optional exact capability. Pure + tested.
-export function filterTools(views: ToolView[], query: string, capability: string): ToolView[] {
-  const q = query.trim().toLowerCase();
-  return views.filter((v) => {
-    if (capability && v.capability !== capability) return false;
-    if (!q) return true;
-    return (
-      v.name.toLowerCase().includes(q) ||
-      v.description.toLowerCase().includes(q) ||
-      v.capability.toLowerCase().includes(q) ||
-      v.effectClass.toLowerCase().includes(q) ||
-      v.rollbackMode.toLowerCase().includes(q)
-    );
-  });
-}
 
-// capabilityCounts tallies tools per capability for the filter chips, sorted by
-// count then name. Pure + unit-tested.
-export function capabilityCounts(views: ToolView[]): { capability: string; n: number }[] {
-  const m = new Map<string, number>();
-  for (const v of views) {
-    if (!v.capability) continue;
-    m.set(v.capability, (m.get(v.capability) || 0) + 1);
-  }
-  return [...m.entries()]
-    .map(([capability, n]) => ({ capability, n }))
-    .sort((a, b) => (b.n !== a.n ? b.n - a.n : a.capability.localeCompare(b.capability)));
-}
 
 const SOURCE_LABEL: Record<ToolSource, string> = {
   mcp: "mcp",
@@ -166,8 +140,6 @@ export function Tools() {
   const [catalog, setCatalog] = useState<ToolDef[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState("");
-  const [capFilter, setCapFilter] = useState("");
 
   // The invocation log is cursor-paginated via useToolLogPager (which owns its
   // own polling + live-event reload); reload() below fetches only the stats and
@@ -214,14 +186,12 @@ export function Tools() {
   // Capability gallery model (M916): the catalog joined with usage, the capability
   // filter chips, and the current filtered view.
   const views = useMemo(() => mergeToolViews(catalog, byTool), [catalog, byTool]);
-  const capChips = useMemo(() => capabilityCounts(views), [views]);
-  const shownTools = useMemo(() => filterTools(views, query, capFilter), [views, query, capFilter]);
 
   return (
     <Page
       icon={Wrench}
-      title="Tools"
-      description="Tool usage monitor — capabilities, call volume, and a live invocation log."
+      title="Tool usage"
+      description="How much each tool is actually called, how often it errors, and a live invocation log. The Tool registry lists what exists."
       width="wide"
       mode="scroll"
       className="gap-4"
@@ -238,119 +208,42 @@ export function Tools() {
         <SkeletonList count={3} lines={1} />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="flex items-center justify-center glass rounded-xl p-3">
-              <Ring
-                pct={errPct}
-                center={stats.total ? `${errPct}%` : "—"}
-                label="error rate"
-                tone={!stats.total ? "muted" : errPct === 0 ? "good" : errPct < 10 ? "warn" : "bad"}
-              />
-            </div>
-            <Tile icon={Activity} label="calls" value={(stats.total ?? 0).toLocaleString()} tone="accent" />
-            <Tile icon={AlertTriangle} label="errored" value={stats.errored ?? 0} tone={(stats.errored ?? 0) > 0 ? "bad" : "muted"} />
-            <Tile icon={Wrench} label="tools used" value={stats.tools ?? tools.length} tone="muted" />
+          {/* The dial earns its 130px only once there is a rate to draw. With
+              no calls yet it read "—" next to three zeros — a quarter of the
+              page spent saying nothing has happened. */}
+          <div className={cn("grid gap-3", stats.total ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-3")}>
+            {!!stats.total && (
+              <div className="flex items-center justify-center glass rounded-xl p-3">
+                <Ring
+                  pct={errPct}
+                  center={`${errPct}%`}
+                  label="error rate"
+                  tone={errPct === 0 ? "good" : errPct < 10 ? "warn" : "bad"}
+                />
+              </div>
+            )}
+            <StatTile icon={Activity} label="calls" value={(stats.total ?? 0).toLocaleString()} tone="accent" />
+            <StatTile icon={AlertTriangle} label="errored" value={stats.errored ?? 0} tone={(stats.errored ?? 0) > 0 ? "bad" : "muted"} />
+            <StatTile icon={Wrench} label="tools used" value={stats.tools ?? tools.length} />
           </div>
 
-          <Card title={`Available tools — what the agent can do (${catalog.length})`} icon={Boxes}>
-            {catalog.length === 0 ? (
-              <Muted>no tools registered</Muted>
-            ) : (
-              <>
-                {/* Search + capability filter chips (M916) — find any of the agent's
-                    tools fast, or narrow to one Edict capability. */}
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search tools by name, description, or capability…"
-                      aria-label="Search tools"
-                      className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
-                    />
-                  </div>
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted">{shownTools.length} shown</span>
-                </div>
-                {capChips.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    <FilterChip label="all" n={views.length} active={capFilter === ""} onClick={() => setCapFilter("")} />
-                    {capChips.map((c) => (
-                      <FilterChip
-                        key={c.capability}
-                        label={c.capability}
-                        n={c.n}
-                        active={capFilter === c.capability}
-                        onClick={() => setCapFilter(capFilter === c.capability ? "" : c.capability)}
-                      />
-                    ))}
-                  </div>
-                )}
-                {shownTools.length === 0 ? (
-                  <Muted>no tools match</Muted>
-                ) : (
-                  <ul className="grid gap-1.5 sm:grid-cols-2">
-                    {shownTools.map((t) => {
-                      const rb = rollbackBadge(t);
-                      return (
-                        <li key={t.name} className="rounded-md border border-border/60 bg-panel/40 px-2.5 py-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate font-mono text-xs font-medium">{t.name}</span>
-                            {t.source !== "builtin" && (
-                              <span className="shrink-0 rounded bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-normal text-accent">
-                                {SOURCE_LABEL[t.source]}
-                              </span>
-                            )}
-                            <span
-                              className={cn(
-                                "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-                                t.calls > 0 ? "bg-accent/15 text-accent" : "bg-panel text-muted",
-                              )}
-                              title={t.calls > 0 ? "called this session" : "available but not yet called"}
-                            >
-                              {t.calls > 0 ? `${t.calls} call${t.calls === 1 ? "" : "s"}` : "idle"}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                            {t.capability && (
-                              <span className="inline-flex items-center gap-0.5" title="Edict capability">
-                                <ShieldCheck className="size-2.5" /> {t.capability}
-                              </span>
-                            )}
-                            {rb && (
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
-                                  rb.tone === "bad"
-                                    ? "bg-bad/10 text-bad"
-                                    : rb.tone === "warn"
-                                      ? "bg-warn/10 text-warn"
-                                      : rb.tone === "good"
-                                        ? "bg-good/10 text-good"
-                                        : "bg-panel text-muted",
-                                )}
-                                title={t.rollbackNotes || t.effectClass || rb.label}
-                              >
-                                {rb.tone === "bad" && <AlertTriangle className="size-2.5" />}
-                                {rb.label}
-                              </span>
-                            )}
-                            {t.errors > 0 && <span className="text-bad">{t.errors} err</span>}
-                            {t.avgMs != null && <span>{ms(t.avgMs)} avg</span>}
-                          </div>
-                          {t.description && <p className="mt-0.5 line-clamp-2 text-[11px] text-muted">{clip(t.description, 140)}</p>}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </>
-            )}
-          </Card>
-
+          {/* No tool catalogue here. This card used to redraw every registered
+              tool — name, capability, description — which is exactly what the
+              Tool registry (Agents › Capabilities) is, and it did it directly
+              above "Usage by tool", which already carries the call counts it
+              was also showing. This page answers "what is being called and how
+              often"; the registry answers "what exists and under what policy".
+              The search and capability filter went with the list, to the page
+              that has thirty tools to search. */}
           <Card title="Usage by tool" icon={Wrench}>
             {tools.length === 0 ? (
-              <Muted>no tool calls yet</Muted>
+              <Muted>
+                No tool calls yet. Every tool the agent <em>can</em> call is listed in the{" "}
+                <a href="#catalog" className="text-accent hover:underline">
+                  Tool registry
+                </a>
+                .
+              </Muted>
             ) : (
               <ul className="space-y-2">
                 {tools.map(([name, t]) => {
@@ -444,42 +337,7 @@ function ObservationBadge({ ev }: { ev: Invocation }) {
   return null;
 }
 
-function Tile({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: typeof Wrench;
-  label: string;
-  value: number | string;
-  tone: "accent" | "bad" | "muted";
-}) {
-  const color = { accent: "text-accent", bad: "text-bad", muted: "text-foreground" }[tone];
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted">
-        <Icon className="size-3.5" /> {label}
-      </div>
-      <div className={cn("mt-1 text-xl font-semibold tabular-nums", color)}>{value}</div>
-    </div>
-  );
-}
 
-function FilterChip({ label, n, active, onClick }: { label: string; n: number; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-        active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-      )}
-    >
-      <span className="font-mono">{label}</span>
-      <span className="rounded-full bg-card px-1 text-xs tabular-nums">{n}</span>
-    </button>
-  );
-}
 
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof Wrench; children: React.ReactNode }) {
   return (

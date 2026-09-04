@@ -110,13 +110,15 @@ describe("Channels", () => {
     expect(screen.getByText("live")).toBeTruthy(); // telegram is running
     expect(screen.getByText("roundtrip ready")).toBeTruthy();
     expect(screen.getByText("needs setup")).toBeTruthy(); // whatsapp not configured
-    expect(screen.getByText("setup first")).toBeTruthy();
-    // Summary moved from a single "2 channels · 1 live · 1 configured" string into metric widgets.
-    expect(screen.getByText("Total")).toBeTruthy();
-    expect(screen.getByText("Live")).toBeTruthy();
-    expect(screen.getByText("Configured")).toBeTruthy();
-    expect(screen.getByText("Roundtrip")).toBeTruthy();
-    expect(screen.getByText("Media")).toBeTruthy();
+    // ...and only that. The probe used to add "setup first" beside it — the
+    // same sentence twice, on every one of the ~34 unconfigured cards.
+    expect(screen.queryByText("setup first")).toBeNull();
+    // The five counts live in the page subtitle. They were briefly promoted to
+    // a row of metric widgets as well, which put the same five numbers on
+    // screen twice, one line apart.
+    expect(
+      screen.getByText(/2 channels · 1 live · 1 configured · 1 round-trip ready · \d+ carry media/),
+    ).toBeTruthy();
   });
 
   it("sends a test message via a live account", async () => {

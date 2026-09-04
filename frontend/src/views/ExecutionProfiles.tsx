@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { toneBorder, toneChip } from "@/lib/tone";
+import { StatTile } from "@/components/ui/metric-widget";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -476,12 +478,12 @@ export function ExecutionProfiles() {
       ) : (
         <>
           <section className="grid gap-2 md:grid-cols-6">
-            <Metric label="Profiles" value={rollup.total} tone="muted" icon={Terminal} />
-            <Metric label="Routed" value={rollup.routed} tone={rollup.routed > 0 ? "accent" : "muted"} icon={Route} />
-            <Metric label="Selectable" value={rollup.selectable} tone={rollup.selectable > 0 ? "good" : "warn"} icon={CheckCircle2} />
-            <Metric label="Supported" value={rollup.supported} tone="good" icon={Shield} />
-            <Metric label="Warnings" value={rollup.warnings} tone={rollup.warnings > 0 ? "warn" : "muted"} icon={AlertTriangle} />
-            <Metric label="Failures" value={rollup.failures} tone={rollup.failures > 0 ? "bad" : "muted"} icon={XOctagon} />
+            <StatTile label="Profiles" value={rollup.total} tone="muted" icon={Terminal} />
+            <StatTile label="Routed" value={rollup.routed} tone={rollup.routed > 0 ? "accent" : "muted"} icon={Route} />
+            <StatTile label="Selectable" value={rollup.selectable} tone={rollup.selectable > 0 ? "good" : "warn"} icon={CheckCircle2} />
+            <StatTile label="Supported" value={rollup.supported} tone="good" icon={Shield} />
+            <StatTile label="Warnings" value={rollup.warnings} tone={rollup.warnings > 0 ? "warn" : "muted"} icon={AlertTriangle} />
+            <StatTile label="Failures" value={rollup.failures} tone={rollup.failures > 0 ? "bad" : "muted"} icon={XOctagon} />
           </section>
 
           {/* Policy + backend editors are power-user configuration — folded away
@@ -585,38 +587,7 @@ export function ExecutionProfiles() {
 
 // Shared tone → colour classes so metrics, chips and status accents read as one
 // colour language across the page (green=ok, amber=warn, red=bad, blue=routed).
-const TONE: Record<MetricTone, { text: string; border: string; bg: string }> = {
-  good: { text: "text-good", border: "border-good/40", bg: "bg-good/10" },
-  warn: { text: "text-warn", border: "border-warn/40", bg: "bg-warn/10" },
-  bad: { text: "text-bad", border: "border-bad/40", bg: "bg-bad/10" },
-  accent: { text: "text-accent", border: "border-accent/40", bg: "bg-accent/10" },
-  muted: { text: "text-foreground", border: "border-border", bg: "bg-panel" },
-};
 
-function Metric({
-  label,
-  value,
-  tone,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  tone: MetricTone;
-  icon: LucideIcon;
-}) {
-  const t = TONE[tone];
-  return (
-    <div className={cn("flex items-center gap-2.5 rounded-lg border bg-card/80 px-3 py-2", t.border)}>
-      <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", t.bg, t.text)}>
-        <Icon className="size-5" />
-      </span>
-      <div className="min-w-0">
-        <div className={cn("text-2xl font-semibold leading-none tabular-nums", t.text)}>{value}</div>
-        <div className="mt-1 truncate text-[11px] font-semibold uppercase tracking-normal text-muted">{label}</div>
-      </div>
-    </div>
-  );
-}
 
 function ExecutionPolicyPanel({
   policy,
@@ -1210,14 +1181,14 @@ function ProfileRow({
     (profile.effective_isolation || "") !== "" &&
     profile.requested_isolation !== profile.effective_isolation;
 
-  const rowTone = TONE[statusTone as MetricTone] ?? TONE.muted;
+  const rowTone = (statusTone as MetricTone) || "muted";
   const StatusIcon =
     statusTone === "good" ? CheckCircle2 : statusTone === "warn" ? AlertTriangle : statusTone === "bad" ? XOctagon : Terminal;
 
   return (
-    <li className={cn("border-l-2 p-3", rowTone.border)}>
+    <li className={cn("border-l-2 p-3", toneBorder[rowTone])}>
       <div className="flex min-w-0 flex-wrap items-start gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", rowTone.bg, rowTone.text)}>
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", toneChip[rowTone])}>
           <StatusIcon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -1331,11 +1302,11 @@ function HealthCheckLine({ check, compact = false }: { check: ExecutionProfileCh
       className={cn(
         "rounded-md border px-2.5 py-2 text-xs",
         tone === "good"
-          ? "border-good/25 bg-good/5"
+          ? "border-good/30 bg-good/5"
           : tone === "bad"
-            ? "border-bad/25 bg-bad/5"
+            ? "border-bad/30 bg-bad/5"
             : tone === "warn"
-              ? "border-warn/25 bg-warn/5"
+              ? "border-warn/30 bg-warn/5"
               : "border-border bg-panel/35",
       )}
     >

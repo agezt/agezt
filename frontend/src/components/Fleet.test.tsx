@@ -23,11 +23,17 @@ describe("wakeStateDescriptor", () => {
       mode: "manual",
     });
 
+    // The band never merely restates the header pill: a paused card said
+    // "paused" under a PAUSED pill. It now says what is disabled, and what the
+    // wake WOULD have been.
     expect(wakeStateDescriptor({ kind: "workflow", state: "paused", running: false })).toMatchObject({
-      label: "paused",
-      detail: "wake disabled",
+      label: "wake disabled",
+      detail: "paused by operator",
       mode: "paused",
     });
+    expect(
+      wakeStateDescriptor({ kind: "standing", state: "armed", running: false }, { mode: "event", label: "budget.exceeded" }),
+    ).toMatchObject({ label: "waiting for trigger", detail: "event: budget.exceeded", mode: "armed" });
 
     expect(wakeStateDescriptor({ kind: "roster", state: "retired", running: false, retired: true })).toMatchObject({
       label: "graveyard",

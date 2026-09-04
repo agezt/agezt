@@ -6,7 +6,7 @@ import { cn, fmtTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
-import { BlobArtifact, type ArtifactEntry } from "@/views/Files";
+import { BlobArtifact, type ArtifactEntry } from "@/lib/artifacts";
 import {
   sessionsFromInboxThreads,
   lastSnippet,
@@ -20,6 +20,9 @@ import {
 // agent's replies, updating as new traffic arrives. Read-only here (replies happen
 // on the channel itself); a fully self-contained widget so the Chat view only has
 // to drop it into the sidebar.
+// MESSAGE_TAIL is how many of a thread's most recent messages render at once.
+const MESSAGE_TAIL = 60;
+
 export function ChannelSessions() {
   const { events } = useEvents();
   const [sessions, setSessions] = useState<ChannelSession[]>([]);
@@ -118,6 +121,12 @@ function SessionPane({
   onClose: () => void;
   onSent: () => void;
 }) {
+  // A channel thread is unbounded — a long-running Telegram chat is thousands of
+  // messages, and rendering all of them walls the pane. Show the most recent
+  // slice (what a chat is actually read from) and let the operator walk back.
+  const [tail, setTail] = useState(MESSAGE_TAIL);
+  const shownMessages = session.messages.slice(Math.max(0, session.messages.length - tail));
+  const olderCount = session.messages.length - shownMessages.length;
   const ui = useUI();
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
@@ -159,7 +168,15 @@ function SessionPane({
         </div>
 
         <div className="min-h-0 flex-1 space-y-2 overflow-auto bg-panel/30 p-3">
-          {session.messages.map((m, i) => {
+          {olderCount > 0 && (
+            <button
+              onClick={() => setTail((t) => t + MESSAGE_TAIL)}
+              className="mx-auto block rounded-full border border-border px-3 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+            >
+              Load {Math.min(MESSAGE_TAIL, olderCount)} earlier message{Math.min(MESSAGE_TAIL, olderCount) === 1 ? "" : "s"} ({olderCount} older)
+            </button>
+          )}
+          {shownMessages.map((m, i) => {
             const out = m.direction === "out";
             return (
               <div key={i} className={cn("flex", out ? "justify-end" : "justify-start")}>

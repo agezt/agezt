@@ -35,6 +35,8 @@ import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { useScheduleFiresPager } from "@/lib/cursorPager";
+import { SectionPanel } from "@/components/ui/section-panel";
+import { Segmented } from "@/components/ui/segmented";
 import {
     agentLabel,
   scheduleAgentManaged,
@@ -255,6 +257,11 @@ export function Schedules() {
     <Page
       icon={CalendarClock}
       title="Schedules"
+      description={(() => {
+        if (!items || items.length === 0) return undefined;
+        const c = scheduleCounts(items, now);
+        return `${c.total} schedule${c.total === 1 ? "" : "s"} · ${c.enabled} enabled · ${c.paused} paused`;
+      })()}
       width="wide"
       actions={
         <>
@@ -314,22 +321,6 @@ export function Schedules() {
         />
       ) : (
         <div>
-          {/* Summary band (M917): the schedule fleet at a glance — how many are
-              live, paused, and about to fire within the hour. */}
-          {(() => {
-            const c = scheduleCounts(items, now);
-            const targets = scheduleTargetCounts(items);
-            const attention = scheduleAttentionCount(items, profiles, workflows, tools, systemTaskInfo);
-            return (
-              <MetricGrid cols="repeat(auto-fill, minmax(120px, 1fr))">
-                <MetricWidget icon={CalendarClock} label="total" value={c.total} tone="muted" />
-                <MetricWidget icon={Play} label="enabled" value={c.enabled} tone={c.enabled > 0 ? "accent" : "muted"} />
-                <MetricWidget icon={Pause} label="paused" value={c.paused} tone={c.paused > 0 ? "warn" : "muted"} />
-                <MetricWidget icon={AlertTriangle} label="attention" value={attention} tone={attention > 0 ? "bad" : "muted"} />
-                <MetricWidget icon={Bot} label="targets" value={scheduleTargetMixLabel(targets)} tone={targets.workflow + targets.systemTask + targets.tool > 0 ? "accent" : "muted"} />
-              </MetricGrid>
-            );
-          })()}
           {(() => {
             const targets = scheduleTargetCounts(items);
             const attention = scheduleAttentionCount(items, profiles, workflows, tools, systemTaskInfo);
@@ -342,21 +333,17 @@ export function Schedules() {
               { id: "tool", label: "Tool", icon: Wrench, count: targets.tool },
             ];
             return (
-              <TabNav
-                tabs={filters.map((f) => ({
-                  id: f.id,
-                  label: f.label,
-                  icon: f.icon,
-                  count: f.count,
-                  content: null,
-                }))}
+              <Segmented
+                ariaLabel="Filter schedules by target"
+                className="flex-wrap"
                 value={targetFilter}
-                onValueChange={(v) => setTargetFilter(v as ScheduleTargetFilter)}
+                onChange={setTargetFilter}
+                options={filters.map((f) => ({ value: f.id, label: f.label, icon: f.icon, count: f.count }))}
               />
             );
           })()}
           {fires.length > 0 && (
-            <ScheduleEventPanel
+            <SectionPanel
               icon={Zap}
               title="Recent firings"
               status={`${fires.length} event${fires.length === 1 ? "" : "s"}`}
@@ -388,7 +375,7 @@ export function Schedules() {
                 pageSize={20}
                 label="firings"
               />
-            </ScheduleEventPanel>
+            </SectionPanel>
           )}
           {shownItems.length === 0 ? (
             <EmptyState icon={CalendarClock} title="No matching schedules" hint="Try a different target filter." />
@@ -695,32 +682,6 @@ export function Schedules() {
   );
 }
 
-function ScheduleEventPanel({
-  icon: Icon,
-  title,
-  status,
-  children,
-}: {
-  icon: typeof Zap;
-  title: string;
-  status: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function ScheduleModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
@@ -740,7 +701,7 @@ function ScheduleModal({ title, onClose, children }: { title: string; onClose: (
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <CalendarClock className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -831,7 +792,7 @@ function ScheduleChoicePicker({
                 "flex min-h-10 items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
                 selected
                   ? "border-accent bg-accent/10 text-foreground"
-                  : "border-border bg-panel/45 text-muted hover:border-accent/50 hover:text-foreground",
+                  : "border-border bg-panel/45 text-muted hover:border-accent/40 hover:text-foreground",
                 option.disabled && "cursor-not-allowed opacity-45 hover:border-border hover:text-muted",
               )}
             >

@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
+import { toneBg, toneBorder, toneChip, toneText, type Tone } from "@/lib/tone";
 
 // MetricWidget — a single KPI at a glance. Large number, small label, optional
 // icon + pulse + trend sparkline. Designed to replace the cramped BigStat grid
@@ -29,21 +30,13 @@ export function MetricWidget({
   trend?: number[];
   className?: string;
 }) {
-  const toneCls = {
-    accent: "text-accent",
-    good: "text-good",
-    warn: "text-warn",
-    bad: "text-bad",
-    muted: "text-foreground",
-  }[tone];
-
-  const bgCls = {
-    accent: "bg-accent/10",
-    good: "bg-good/10",
-    warn: "bg-warn/10",
-    bad: "bg-bad/10",
-    muted: "bg-panel",
-  }[tone];
+  // "muted" reads as plain foreground here (the value is the point, not its
+  // state); every other tone comes from the shared colour language.
+  const toneCls = tone === "muted" ? "text-foreground" : toneText[tone];
+  // Background only: toneChip also carries a text colour, and two competing
+  // `text-*` classes on one element resolve by stylesheet order, not by which
+  // one you wrote last.
+  const bgCls = toneBg[tone];
 
   return (
     <div
@@ -161,6 +154,66 @@ export function MetricGrid({
       }
     >
       {children}
+    </div>
+  );
+}
+
+/**
+ * StatTile — the COMPACT stat: one number, its label, and a tone. Sits in dense
+ * rows where a full MetricWidget (with its trend, subvalue and hover lift)
+ * would be too heavy.
+ *
+ * Five views had each written their own version of exactly this — Execution
+ * Profiles, OKR, Taste, Workboard, the flight recorder — and no two agreed on
+ * the padding, the label case, or which colour "good" was. A number means the
+ * same thing on every page, so it should look the same on every page.
+ */
+export function StatTile({
+  label,
+  value,
+  suffix,
+  icon: Icon,
+  tone = "muted",
+  size = "md",
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  suffix?: string;
+  icon?: LucideIcon;
+  tone?: Tone;
+  /** "sm" for inline strips (flight recorder), "md" for page-level rows. */
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  const sm = size === "sm";
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2.5 rounded-lg border bg-card/80",
+        sm ? "px-2.5 py-1.5" : "px-3 py-2",
+        toneBorder[tone],
+        className,
+      )}
+    >
+      {Icon && (
+        <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg", toneChip[tone])}>
+          <Icon className="size-5" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <div
+          className={cn(
+            "font-semibold leading-none tabular-nums",
+            sm ? "text-sm" : "text-2xl",
+            tone === "muted" ? "text-foreground" : toneText[tone],
+          )}
+        >
+          {value}
+          {suffix}
+        </div>
+        <div className="mt-1 truncate text-[11px] font-semibold uppercase tracking-normal text-muted">{label}</div>
+      </div>
     </div>
   );
 }

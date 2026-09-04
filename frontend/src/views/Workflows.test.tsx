@@ -24,10 +24,7 @@ import {
   fromFlow,
   portsForNode,
   summarize,
-  workflowExecutionContract,
-  workflowIdentityBoundary,
-  workflowInvocationPassport,
-  workflowRunContractSummary,
+  workflowChainKind,
   workflowRunSourceLabel,
   type Wf,
   type WfRun,
@@ -78,44 +75,46 @@ describe("summarize", () => {
   });
 });
 
-describe("workflowExecutionContract", () => {
-  it("states that workflows are reusable chains runnable by agents and schedules", () => {
-    expect(workflowExecutionContract({ enabled: true, trigger_kind: "event", trigger_detail: "on memory.>" })).toBe(
-      "enabled reusable chain · trigger event (on memory.>) · runnable by user, agent, schedule, or webhook",
-    );
-    expect(workflowExecutionContract({ enabled: false })).toBe(
-      "disabled reusable chain · trigger manual/API · runnable by user, agent, schedule, or webhook",
-    );
-    expect(workflowRunContractSummary({ enabled: true, trigger_kind: "cron", trigger_detail: "every 30s" })).toEqual({
-      label: "scheduled chain",
-      detail: "enabled reusable chain · trigger cron (every 30s) · runnable by user, agent, schedule, or webhook · cron trigger starts the graph without making it an agent identity",
+describe("workflowChainKind", () => {
+  it("names how a workflow starts, in one word", () => {
+    expect(workflowChainKind({ enabled: true, trigger_kind: "cron" })).toEqual({
+      label: "scheduled",
+      detail: "A cron trigger starts this graph on its own.",
       tone: "warn",
     });
-    expect(workflowRunContractSummary({ enabled: false })).toEqual({
-      label: "draft chain",
-      detail: "disabled reusable chain · trigger manual/API · runnable by user, agent, schedule, or webhook · auto triggers disarmed, manual/user/agent test runs still allowed",
+    expect(workflowChainKind({ enabled: true, trigger_kind: "event" })).toEqual({
+      label: "reactive",
+      detail: "An incoming event or webhook wakes this graph.",
+      tone: "good",
+    });
+    expect(workflowChainKind({ enabled: true, trigger_kind: "webhook" }).label).toBe("reactive");
+    expect(workflowChainKind({ enabled: true })).toEqual({
+      label: "on demand",
+      detail: "Runs only when a user, an agent, or a schedule asks it to.",
       tone: "muted",
     });
-    expect(workflowInvocationPassport({ enabled: true, trigger_kind: "cron", trigger_detail: "every 30s", node_count: 4 })).toEqual({
-      label: "cron-invoked graph",
-      detail: "4 nodes · cron starts the graph, not an agent · user, agent, schedule, or webhook may also run it through workflow policy · past runs stay journaled",
-      tone: "warn",
-    });
-    expect(workflowInvocationPassport({ enabled: false, trigger_kind: "event", trigger_detail: "on board.>", nodes: [{ id: "start", type: "trigger" }] })).toEqual({
-      label: "test-only invocation",
-      detail: "1 node · not an agent identity · auto trigger event (on board.>) disarmed · user or agent can still run tests manually · past runs stay journaled",
-      tone: "muted",
-    });
-    expect(workflowIdentityBoundary({ enabled: true, trigger_kind: "cron", trigger_detail: "every 30s", node_count: 4 })).toEqual({
-      label: "scheduled graph boundary",
-      detail: "4 graph nodes; cron runs the chain under daemon or invoking-agent authority, while identity and memory stay outside the workflow",
-      tone: "warn",
-    });
-    expect(workflowIdentityBoundary({ enabled: false, nodes: [{ id: "start", type: "trigger" }] })).toEqual({
-      label: "draft graph boundary",
-      detail: "1 graph node retained; disabled workflow owns no soul, memory, inbox, provider route, retry, or repair policy",
-      tone: "muted",
-    });
+  });
+
+  it("reads disabled first, whatever the trigger says", () => {
+    // A disarmed cron is a draft, not a schedule — the old four helpers each
+    // re-derived this and each phrased it differently.
+    expect(workflowChainKind({ enabled: false, trigger_kind: "cron" }).label).toBe("draft");
+    expect(workflowChainKind({ enabled: false, trigger_kind: "event" }).tone).toBe("muted");
+  });
+
+  it("says something the row does not already show", () => {
+    // The row prints the trigger kind and an enabled/disabled badge. A tooltip
+    // that only restates those is fine print, which is what got deleted here.
+    for (const w of [
+      { enabled: true, trigger_kind: "cron" },
+      { enabled: true, trigger_kind: "event" },
+      { enabled: true },
+      { enabled: false },
+    ]) {
+      const { detail } = workflowChainKind(w);
+      expect(detail.length, JSON.stringify(w)).toBeLessThan(110);
+      expect(detail).not.toMatch(/reusable chain|not an agent identity|stay journaled/);
+    }
   });
 });
 
@@ -177,6 +176,7 @@ describe("Workflows list", () => {
       {
         id: "01A", name: "triage", enabled: true, node_count: 10,
         trigger_kind: "event", trigger_detail: "on memory.>", description: "smoke pipeline",
+        last_run: { status: "completed", at_ms: 1_700_000_000_000, duration_ms: 2_500 },
       },
       { id: "01B", name: "heartbeat", enabled: false, node_count: 2, trigger_kind: "cron", trigger_detail: "every 30s" },
     ],
@@ -190,20 +190,20 @@ describe("Workflows list", () => {
     expect(screen.getByText("heartbeat")).toBeTruthy();
     expect(screen.getByText("event (on memory.>)")).toBeTruthy();
     expect(screen.getByText("cron (every 30s)")).toBeTruthy();
-    expect(screen.getByText("reactive chain")).toBeTruthy();
-    expect(screen.getByText("draft chain")).toBeTruthy();
-    expect(screen.getByText("enabled reusable chain · trigger event (on memory.>) · runnable by user, agent, schedule, or webhook")).toBeTruthy();
-    expect(screen.getByText("disabled reusable chain · trigger cron (every 30s) · runnable by user, agent, schedule, or webhook")).toBeTruthy();
-    expect(screen.getByText("event-invoked graph")).toBeTruthy();
-    expect(screen.getByText("10 nodes · event/webhook starts the graph, not an agent · user, agent, or schedule may also run it through workflow policy · past runs stay journaled")).toBeTruthy();
-    expect(screen.getByText("reactive graph boundary")).toBeTruthy();
-    expect(screen.getByText("10 graph nodes; event/webhook wakes the saved chain through workflow policy, not an autonomous agent identity")).toBeTruthy();
-    expect(screen.getByText("test-only invocation")).toBeTruthy();
-    expect(screen.getByText("2 nodes · not an agent identity · auto trigger cron (every 30s) disarmed · user or agent can still run tests manually · past runs stay journaled")).toBeTruthy();
-    expect(screen.getByText("draft graph boundary")).toBeTruthy();
-    expect(screen.getByText("2 graph nodes retained; disabled workflow owns no soul, memory, inbox, provider route, retry, or repair policy")).toBeTruthy();
+    // One word for HOW it starts — the four paragraphs of contract fine print
+    // that used to sit under every row are gone.
+    expect(screen.getByText("reactive")).toBeTruthy();
+    expect(screen.getByText("draft")).toBeTruthy();
+    expect(screen.queryByText(/reusable chain/)).toBeNull();
+    expect(screen.queryByText(/not an agent identity/)).toBeNull();
+    expect(screen.queryByText(/Invocation & identity boundary/)).toBeNull();
+    // The row now answers the question the fine print never did.
+    expect(screen.getByText(/completed/)).toBeTruthy();
+    expect(screen.getByText("never run")).toBeTruthy();
     expect(screen.getByText("disabled")).toBeTruthy();
-    expect(getJSON).toHaveBeenCalledWith("/api/workflows");
+    // with_runs asks the daemon to fold the journal once so each row can show
+    // its last run; without it the list cannot say whether anything worked.
+    expect(getJSON).toHaveBeenCalledWith("/api/workflows", { with_runs: "true" });
   });
 
   it("enable toggle posts the flipped flag", async () => {

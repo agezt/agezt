@@ -31,11 +31,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Page } from "@/components/ui/page";
 import { Disclosure } from "@/components/ui/disclosure";
+import { ConfigInventory } from "@/components/ConfigInventory";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
+import { SectionPanel } from "@/components/ui/section-panel";
 
 // The Config Center is the editable companion to the read-only Config view:
 // schema-driven forms (one section per channel/area) backed by the daemon's
@@ -337,6 +339,13 @@ export function ConfigCenter() {
           </div>
         </div>
       )}
+
+      {/* Effective configuration — the read-only inventory that used to be its
+          own "Config" nav item. Folded, per the declutter law: the editors above
+          are what you came for; this answers "did my env actually land?". */}
+      <Disclosure summary="Effective configuration — every AGEZT_* value the daemon sees">
+        <ConfigInventory />
+      </Disclosure>
     </Page>
   );
 }
@@ -455,13 +464,13 @@ function QuickConfigDeck({
             key={action.id}
             onClick={() => setActive(action)}
             className={cn(
-              "group flex min-h-28 flex-col rounded-lg border border-border bg-card p-3 text-left shadow-e1 transition-all hover:-translate-y-0.5 hover:border-accent/70 hover:shadow-lg",
+              "group flex min-h-28 flex-col rounded-lg border border-border bg-card p-3 text-left shadow-e1 transition-all hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-lg",
               action.tone === "good" && "border-good/30",
               action.tone === "warn" && "border-warn/30",
             )}
           >
             <span className="flex items-start gap-2">
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
                 <Icon className="size-4.5" />
               </span>
               <span className="min-w-0 flex-1">
@@ -714,11 +723,17 @@ function SectionCard({
   const setCount = section.fields.filter((f) => values[f.env]?.set).length;
   return (
     <div id={sectionDomID(section.id)} className="scroll-mt-2">
-      <ConfigSectionPanel
+      <SectionPanel
+        ariaLabel={`Config section: ${section.name}`}
         icon={Icon}
+        tone="accent"
         title={section.name}
-        description={registered ? `Registered by ${section.source}` : undefined}
-        status={`${setCount}/${section.fields.length} set`}
+        status={
+          <>
+            {setCount}/{section.fields.length} set
+            {registered && <span className="ml-2">Registered by {section.source}</span>}
+          </>
+        }
       >
         {section.help && <p className="text-[11px] text-muted mb-2">{section.help}</p>}
         <div className="space-y-3">
@@ -726,42 +741,11 @@ function SectionCard({
             <FieldRow key={f.env} field={f} entry={values[f.env]} onSaved={onSaved} toast={toast} />
           ))}
         </div>
-      </ConfigSectionPanel>
+      </SectionPanel>
     </div>
   );
 }
 
-function ConfigSectionPanel({
-  icon: Icon,
-  title,
-  description,
-  status,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description?: string;
-  status: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section aria-label={`Config section: ${title}`} className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h4 className="truncate text-sm font-semibold">{title}</h4>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span>{status}</span>
-            {description && <span className="truncate">{description}</span>}
-          </div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function FieldRow({
   field,
@@ -944,7 +928,7 @@ function ConfigModal({
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Icon className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>

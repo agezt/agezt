@@ -83,15 +83,21 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     const nav = page.getByRole("navigation");
     // The cockpit is organized by operator jobs, not internal subsystems.
     // All eight destinations must remain visible and keyboard-addressable.
-    for (const job of ["Talk", "Observe", "Automate", "Govern", "Knowledge", "Connect", "Build", "Admin"]) {
+    // Pinned here AND in views.spec.ts; src/e2enav.test.ts holds both to nav.tsx.
+    for (const job of ["Talk", "Observe", "Automate", "Govern", "Agents", "Knowledge", "Connect", "Admin"]) {
       await expect(nav.getByRole("button", { name: job, exact: true }).first()).toBeVisible();
     }
     // exact: true so a substring nav label can't hijack the match — e.g. the
     // "ACP Agents" item contains "Agents", which used to make `.last()` open it
     // instead of the roster "Agents" view.
-    const openView = async (section: string, item: string) => {
+    // The sidebar lists DESTINATIONS; a destination with several facets renders
+    // a tab strip inside <main>, not in <nav>. Pass `row` when the view you want
+    // is one of those facets — src/e2enav.test.ts checks every triple below
+    // still exists in nav.tsx.
+    const openView = async (section: string, item: string, row?: string) => {
       await nav.getByRole("button", { name: section, exact: true }).first().click();
-      await nav.getByRole("button", { name: item, exact: true }).last().click();
+      await nav.getByRole("button", { name: row ?? item, exact: true }).last().click();
+      if (row) await page.getByRole("tab", { name: item, exact: true }).click();
     };
 
     // --- Landing: the humane chat surface --------------------------------
@@ -108,7 +114,8 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // Same rationale as the data-connection-state live-or-stale tolerance in
     // the connection-state assertion above.
     await expect(
-      page.getByRole("heading", { level: 2, name: "Dashboard" }),
+      // The page is named for the destination you clicked, not the component.
+      page.getByRole("heading", { level: 2, name: "Overview" }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/success rate/i)).toBeVisible();
     await expect(page.getByText(/active skills/i)).toBeVisible();
@@ -147,7 +154,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // --- Autonomy: the proactive-heartbeat controls render + work -------
     // (M743 pause/resume, M756 beat-now, M757 cadence, M758 dial, M761 flush).
     // Pulse is on by default in the demo daemon, so the steering controls render.
-    await openView("Observe", "Autonomy");
+    await openView("Automate", "Autonomy");
     await expect(page.getByRole("heading", { level: 2, name: "Autonomy" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Beat now/ })).toBeVisible();
     await expect(page.getByLabel("Heartbeat cadence")).toBeVisible();
@@ -160,7 +167,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // The schedule surface must be more than "run this prompt later": it can
     // schedule typed daemon work such as syncing models.dev/api.json with no
     // LLM agent wake.
-    await openView("Automate", "Schedules");
+    await openView("Automate", "Schedules", "Triggers");
     await expect(page.getByRole("heading", { level: 2, name: "Schedules" })).toBeVisible();
     await page.getByRole("button", { name: /New schedule/ }).click();
     await expect(page.getByText("Daemon cron presets")).toBeVisible();
@@ -201,7 +208,7 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     // durable objects with their own identity, control, lifecycle and runtime
     // surfaces. This clicks a real daemon-backed fleet card and proves those
     // panels mount in the browser.
-    await openView("Build", "Agents");
+    await openView("Agents", "Agents");
     await expect(page.getByRole("heading", { level: 2, name: "Agents" })).toBeVisible();
     const agentCard = page.getByRole("button", { name: /Guardian · Health[\s\S]*guardian-health/ });
     await expect(agentCard).toBeVisible();

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { Segmented } from "@/components/ui/segmented";
 
 // STANDING_ORDER_WINDOW caps how many standing-order cards render at once.
 // /api/standing has no pagination (the list arrives whole), so the window
@@ -269,8 +270,12 @@ export function Standing() {
       width="wide"
       description={
         <>
-          {orders ? `${orders.length} total` : ""}
+          {orders ? `${orders.length} wake rule${orders.length === 1 ? "" : "s"}` : ""}
           {orders && orders.length > 0 && <span className="text-good"> · {enabledCount} active</span>}
+          {orders && orders.length - enabledCount > 0 && ` · ${orders.length - enabledCount} paused`}
+          {orders && attentionCount > 0 && (
+            <span className="text-warn"> · {attentionCount} need attention</span>
+          )}
           {!orders && "Persistent goals the daemon pursues on a trigger"}
         </>
       }
@@ -333,30 +338,16 @@ export function Standing() {
         />
       ) : (
         <div>
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <StandingStat label="wake rules" value={orders.length} />
-            <StandingStat label="active" value={enabledCount} accent={enabledCount > 0} />
-            <StandingStat label="paused" value={orders.length - enabledCount} />
-            <StandingStat label="attention" value={attentionCount} accent={attentionCount > 0} />
-          </div>
-          <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            {[
-              { id: "all" as const, label: "All", count: orders.length },
-              { id: "attention" as const, label: "Attention", count: attentionCount },
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                  filter === f.id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-                )}
-              >
-                {f.label}
-                <span className="rounded-full bg-card px-1.5 text-xs tabular-nums">{f.count}</span>
-              </button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel="Filter standing orders"
+            className="mb-3 flex-wrap"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "all" as const, label: "All", count: orders.length },
+              { value: "attention" as const, label: "Attention", count: attentionCount },
+            ]}
+          />
           <ul className="space-y-2">
             {shownOrders.slice(0, win).map((o) => {
               const resumeIssue = standingResumeIssue(o, agentBySlug);
@@ -604,7 +595,7 @@ function StandingModal({ title, onClose, children }: { title: string; onClose: (
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Anchor className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -1071,14 +1062,6 @@ function StandingAgentBadge({
   return <Badge variant="bad">{issue.replace(/^agent\s+\S+\s+/, "")}</Badge>;
 }
 
-function StandingStat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
-  return (
-    <div className="rounded-lg border border-border bg-panel/60 px-3 py-2">
-      <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", accent ? "text-accent" : "text-foreground")}>{value}</div>
-    </div>
-  );
-}
 
 function formatCooldown(sec: number): string {
   if (sec <= 0) return "default";

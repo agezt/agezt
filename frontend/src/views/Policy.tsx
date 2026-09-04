@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { LogDetail } from "@/components/LogDetail";
@@ -244,7 +245,7 @@ export function Policy() {
           <EmptyState icon={ShieldCheck} title="No governed capabilities" hint="Capabilities appear here once the edict engine governs tools at runtime." />
         )
       ) : (
-        <PolicyPanel icon={ShieldCheck} title="Capabilities" status={`${levels.length} governed`} tone="accent">
+        <SectionPanel icon={ShieldCheck} title="Capabilities" status={`${levels.length} governed`} tone="accent">
           <LevelSummary levels={levels} />
           <CapabilityLevels levels={levels} busy={busy} onEdit={(capability, level) => setEditingCap({ capability, level })} />
           {/* Dry-run a decision (M753) */}
@@ -253,11 +254,11 @@ export function Policy() {
               <FlaskConical className="size-3.5" /> Test decision
             </Button>
           </div>
-        </PolicyPanel>
+        </SectionPanel>
       )}
 
       {/* Hard-deny rules */}
-      <PolicyPanel icon={ShieldAlert} title="Hard-deny rules" status={`${denies.length} active`} tone="bad">
+      <SectionPanel icon={ShieldAlert} title="Hard-deny rules" status={`${denies.length} active`} tone="bad">
           {denies.length === 0 ? (
             <div className="text-xs text-muted">none</div>
           ) : (
@@ -300,11 +301,11 @@ export function Policy() {
               <Plus className="size-3.5" /> Add deny rule
             </Button>
           </div>
-      </PolicyPanel>
+      </SectionPanel>
 
       {/* Secret redaction check (M754) — paste-and-probe runs in a focused modal. */}
       <div className="glass flex flex-wrap items-center gap-2 rounded-xl p-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
           <EyeOff className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -448,39 +449,6 @@ export function Policy() {
   );
 }
 
-function PolicyPanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  status: string;
-  tone: "accent" | "bad" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls: Record<typeof tone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    muted: "border-border bg-panel text-muted",
-  };
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function PolicyModal({
   title,
@@ -510,7 +478,7 @@ function PolicyModal({
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Icon className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -779,7 +747,7 @@ export function RedactionCheckForm({ compact = false }: { compact?: boolean } = 
     <div className={compact ? "space-y-2" : "glass rounded-xl p-3"}>
       {!compact && (
         <div className="mb-2 flex items-center gap-2">
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
             <EyeOff className="size-4" />
           </span>
           <div className="min-w-0">

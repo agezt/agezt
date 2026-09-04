@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Boxes, RefreshCw, ShieldCheck } from "lucide-react";
+import { useEffect, useState, useMemo} from "react";
+import { Boxes, RefreshCw, ShieldCheck, Search} from "lucide-react";
 import { EmptyState } from "@/components/ui/empty";
 import { getJSON, postAction } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -9,8 +9,9 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
 import { ErrorText } from "@/components/JsonView";
 import { Badge } from "@/components/ui/badge";
-import { joinCatalog, levelTone, splitDescription, type CatalogTool, type CatalogRow, type ToolUsage } from "@/lib/catalog";
+import { joinCatalog, levelTone, splitDescription, type CatalogTool, type CatalogRow, type ToolUsage, capabilityCounts, filterCatalogRows} from "@/lib/catalog";
 import { Disclosure } from "@/components/ui/disclosure";
+import { Segmented } from "@/components/ui/segmented";
 
 // The edict trust ladder (L0 deny … L4 allow). Mirrors the Policy view so a
 // tool's permission can be granted/restricted from the catalog directly.
@@ -50,6 +51,15 @@ export function Catalog() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [levelMenu, setLevelMenu] = useState<string | null>(null);
+  // Search + capability filter moved here from the Tool-usage monitor, which
+  // was rendering this same catalog a second time (descriptions and all) under
+  // its call-volume charts. Thirty tools with no way to find one is the wrong
+  // half of that split to keep.
+  const [query, setQuery] = useState("");
+  const [capFilter, setCapFilter] = useState("");
+
+  const capChips = useMemo(() => capabilityCounts(rows || []), [rows]);
+  const shown = useMemo(() => filterCatalogRows(rows || [], query, capFilter), [rows, query, capFilter]);
 
   async function reload() {
     setLoading(true);
@@ -92,7 +102,17 @@ export function Catalog() {
   return (
     <Page
       icon={Boxes}
-      title="Capability catalog"
+      title="Tool registry"
+      description={
+        rows
+          ? (() => {
+              const caps = new Set(rows.map((r) => r.capability).filter(Boolean)).size;
+              return `${rows.length} tool${rows.length === 1 ? "" : "s"} · ${caps} capabilit${
+                caps === 1 ? "y" : "ies"
+              } · ${rows.filter((r) => r.calls > 0).length} used so far`;
+            })()
+          : "Every tool the agent can call, and the trust level each one runs at"
+      }
       width="wide"
       actions={
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading} title="Reload">
@@ -107,8 +127,37 @@ export function Catalog() {
       ) : rows.length === 0 ? (
         <EmptyState icon={Boxes} title="No tools registered" hint="No capabilities are wired into this agent's runtime yet." />
       ) : (
+        <>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search tools by name, description, or capability…"
+              aria-label="Search tools"
+              className="h-8 w-full rounded-md border border-border bg-panel pl-7 pr-2 text-xs outline-none focus:border-accent"
+            />
+          </div>
+          <span className="shrink-0 text-[11px] tabular-nums text-muted">{shown.length} shown</span>
+        </div>
+        {capChips.length > 1 && (
+          <Segmented
+            ariaLabel="Filter tools by capability"
+            className="flex-wrap"
+            value={capFilter}
+            onChange={setCapFilter}
+            options={[
+              { value: "", label: "all", count: rows.length },
+              ...capChips.map((c) => ({ value: c.capability, label: c.capability, count: c.n })),
+            ]}
+          />
+        )}
+        {shown.length === 0 ? (
+          <EmptyState icon={Boxes} title="No tools match" hint="Try a different search or capability." />
+        ) : (
         <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-            {rows.map((r) => (
+            {shown.map((r) => (
               <li key={r.name} className="glass rounded-xl p-3">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm font-semibold">{r.name}</span>
@@ -174,6 +223,8 @@ export function Catalog() {
               </li>
             ))}
         </ul>
+        )}
+        </>
       )}
     </Page>
   );

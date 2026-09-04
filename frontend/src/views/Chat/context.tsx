@@ -90,7 +90,7 @@ const ROLE_FILL: Record<string, string> = {
   system: "bg-accent",
   user: "bg-accent/70",
   assistant: "bg-accent/45",
-  tool: "bg-accent/25",
+  tool: "bg-accent/20",
 };
 
 function rescuedSkillSummary(count: number, chars: number): string {
@@ -196,7 +196,7 @@ export function ContextModal({
                   {roles.map((r) => (
                     <div
                       key={r}
-                      className={ROLE_FILL[r] || "bg-accent/25"}
+                      className={ROLE_FILL[r] || "bg-accent/20"}
                       style={{ width: `${(byRole[r] / totalChars) * 100}%` }}
                       title={r}
                     />
@@ -205,7 +205,7 @@ export function ContextModal({
                 <div className="mt-1.5 space-y-1">
                   {roles.map((r) => (
                     <div key={r} className="flex items-center gap-2 text-xs">
-                      <span className={cn("size-2 shrink-0 rounded-full", ROLE_FILL[r] || "bg-accent/25")} />
+                      <span className={cn("size-2 shrink-0 rounded-full", ROLE_FILL[r] || "bg-accent/20")} />
                       <span className="w-20 capitalize">{r}</span>
                       <span className="tabular-nums text-muted">
                         ≈{fmtCount(byRole[r] / CHARS_PER_TOKEN)} tok · {fmtCount(byRole[r])} chars

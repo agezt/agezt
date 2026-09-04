@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   RefreshCw,
@@ -41,6 +41,7 @@ import { Sparkline, BarRow } from "@/components/Widgets";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { TabNav } from "@/components/ui/tab-nav";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { EmptyState } from "@/components/ui/empty";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { JarvisPresenceCard } from "@/components/JarvisPresenceCard";
@@ -250,7 +251,7 @@ export function Dashboard() {
   return (
     <Page
       icon={Activity}
-      title="Dashboard"
+      title="Overview"
       width="wide"
       description={
         <span className={cn(
@@ -310,7 +311,7 @@ function OverviewTab({
     <div className="flex flex-col gap-3">
       {/* Alerts — always visible when present */}
       {alerts.length > 0 && (
-        <DashboardPanel
+        <SectionPanel
           icon={ShieldAlert}
           title="Needs attention"
           status={`${alerts.length} alert${alerts.length === 1 ? "" : "s"}`}
@@ -360,7 +361,7 @@ function OverviewTab({
               );
             })}
           </ul>
-        </DashboardPanel>
+        </SectionPanel>
       )}
 
       {/* Jarvis presence — discoverable entry point to the triad (M1002). */}
@@ -404,7 +405,7 @@ function OverviewTab({
 
       {/* Fleet ops — compact strip */}
       {fleetOps && fleetOps.total > 0 && (
-        <DashboardPanel
+        <SectionPanel
           icon={Bot}
           title="Agents overview"
           status={`${fleetOps.running} active`}
@@ -442,12 +443,12 @@ function OverviewTab({
               )}
             </div>
           )}
-        </DashboardPanel>
+        </SectionPanel>
       )}
 
       {/* Active runs */}
       {active.length > 0 && (
-        <DashboardPanel
+        <SectionPanel
           icon={Repeat}
           title="Active runs"
           status={`${active.length} running`}
@@ -486,7 +487,7 @@ function OverviewTab({
               );
             })}
           </div>
-        </DashboardPanel>
+        </SectionPanel>
       )}
 
       {/* Run counters */}
@@ -516,7 +517,7 @@ function ActivityTab({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <DashboardPanel
+      <SectionPanel
         icon={Gauge}
         title="Activity pulse"
         tone="accent"
@@ -526,7 +527,7 @@ function ActivityTab({
         <p className="mt-1 text-xs text-muted">
           {series.length >= 2 ? `${series[series.length - 1]} events/5s` : "collecting…"}
         </p>
-      </DashboardPanel>
+      </SectionPanel>
 
       <Advanced>
         <div className="rounded-xl bg-card shadow-e1">
@@ -599,7 +600,7 @@ function BudgetTab({
       </MetricGrid>
 
       {byModel.length > 0 && (
-        <DashboardPanel
+        <SectionPanel
           icon={Network}
           title="Spend by model"
           tone="accent"
@@ -619,10 +620,10 @@ function BudgetTab({
                 />
               ))}
           </div>
-        </DashboardPanel>
+        </SectionPanel>
       )}
 
-      <DashboardPanel
+      <SectionPanel
         icon={Wallet}
         title="Budget settings"
         tone="muted"
@@ -632,7 +633,7 @@ function BudgetTab({
           <p>Ceiling: {money(budget?.ceiling_mc ?? 0)}</p>
           <p>Strict pricing: {budget?.strict_pricing ? "on" : "off"}</p>
         </div>
-      </DashboardPanel>
+      </SectionPanel>
     </div>
   );
 }
@@ -664,46 +665,7 @@ function MiniMetric({
   );
 }
 
-type DashboardPanelTone = "accent" | "good" | "warn" | "bad" | "muted";
 
-function DashboardPanel({
-  icon: Icon,
-  title,
-  status,
-  tone = "muted",
-  actions,
-  children,
-}: {
-  icon: typeof Activity;
-  title: string;
-  status?: string;
-  tone?: DashboardPanelTone;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  const toneCls: Record<DashboardPanelTone, string> = {
-    accent: "bg-accent/8 text-accent",
-    good: "bg-good/8 text-good",
-    warn: "bg-warn/8 text-warn",
-    bad: "bg-bad/8 text-bad",
-    muted: "bg-panel text-muted",
-  };
-  return (
-    <section className="rounded-xl border border-border/70 bg-card p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {status && <div className="truncate text-xs text-muted">{status}</div>}
-        </div>
-        {actions}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function eventSummary(e: AgentEvent): string {
   const subject = String(e.subject || "").trim();

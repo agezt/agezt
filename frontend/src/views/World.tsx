@@ -20,6 +20,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { useWorldLogPager } from "@/lib/cursorPager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
+import { Segmented } from "@/components/ui/segmented";
 
 // WORLD_ROW_WINDOW caps how many entity rows / relation rows render at once.
 // /api/world has no cursor, so the whole graph arrives in one fetch — the
@@ -162,6 +163,13 @@ export function World() {
     moreError: opsError,
     hasMore: hasMoreOps,
   } = useWorldLogPager(50);
+  // An untouched world model answered "No entities yet" and then printed an
+  // empty operations log under it — two panels agreeing that nothing has
+  // happened. The log returns as soon as there is an operation to show, even
+  // if every entity was since deleted.
+  const worldEmpty =
+    !!data && (data.entities || []).length === 0 && (data.relations ?? data.relation_count ?? (data.edges || []).length) === 0;
+
   return (
     <Page
       icon={Globe}
@@ -295,18 +303,16 @@ export function World() {
             {/* Kind filter chips (M918): click a kind to narrow the entity list —
                 complements the free-text search below. */}
             {breakdown.length > 1 && (
-              <div className="flex flex-wrap gap-1.5">
-                <KindChip label="all" n={ents.length} active={kindFilter === ""} onClick={() => setKindFilter("")} />
-                {breakdown.map((b) => (
-                  <KindChip
-                    key={b.label}
-                    label={b.label}
-                    n={b.count}
-                    active={kindFilter === b.label}
-                    onClick={() => setKindFilter(kindFilter === b.label ? "" : b.label)}
-                  />
-                ))}
-              </div>
+              <Segmented
+                ariaLabel="Filter entities by kind"
+                className="flex-wrap"
+                value={kindFilter}
+                onChange={setKindFilter}
+                options={[
+                  { value: "", label: "all", count: ents.length },
+                  ...breakdown.map((b) => ({ value: b.label, label: b.label, count: b.count })),
+                ]}
+              />
             )}
             {ents.length >= 2 && (
               <div className="h-72 overflow-hidden rounded-md border border-border bg-panel">
@@ -432,20 +438,6 @@ export function World() {
 // EntityRow renders one world entity with its forget control and an Edit (pencil)
 // that reveals an inline aliases/attrs editor (M730). Each row owns its own edit
 // state so opening one doesn't disturb the others.
-function KindChip({ label, n, active, onClick }: { label: string; n: number; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-        active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:border-accent",
-      )}
-    >
-      <span>{label}</span>
-      <span className="rounded-full bg-card px-1 text-xs tabular-nums">{n}</span>
-    </button>
-  );
-}
 
 function EntityRow({ entity, onChanged }: { entity: any; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
@@ -501,9 +493,9 @@ function EntityRow({ entity, onChanged }: { entity: any; onChanged: () => void }
 function WorldModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Pencil className="size-4" />
           </span>
           <div className="min-w-0">
@@ -601,7 +593,7 @@ export function WorldEditForm({ entity, onSaved }: { entity: any; onSaved: () =>
     <div className="rounded-md border border-border/70 bg-panel/70 p-2.5">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="grid size-8 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+          <div className="grid size-8 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
             <Globe className="size-4" />
           </div>
           <div className="min-w-0">

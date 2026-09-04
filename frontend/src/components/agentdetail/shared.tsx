@@ -209,7 +209,7 @@ export function DetailOptionPicker<T extends string>({
                 "flex min-h-9 items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition",
                 selected
                   ? "border-accent bg-accent/10 text-foreground"
-                  : "border-border bg-card/45 text-muted hover:border-accent/50 hover:text-foreground",
+                  : "border-border bg-card/45 text-muted hover:border-accent/40 hover:text-foreground",
               )}
             >
               {option.icon && <span className="mt-0.5 shrink-0 text-accent">{option.icon}</span>}
@@ -319,7 +319,7 @@ export function AgentNowPanel({
   return (
     <div
       title={detail}
-      className="grid min-h-[68px] grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-accent/35 bg-accent/10 p-2"
+      className="grid min-h-[68px] grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 p-2"
     >
       <div className="grid size-10 place-items-center rounded-lg bg-accent/15 text-accent">
         <ActivityIcon className="size-5" />
@@ -516,10 +516,10 @@ export function RepairCommandCell({
       title={value}
       className={cn(
         "min-w-0 rounded-md border border-border bg-card/55 px-2 py-1.5",
-        tone === "good" && "border-good/25 bg-good/5",
+        tone === "good" && "border-good/30 bg-good/5",
         tone === "bad" && "border-bad/30 bg-bad/5",
-        tone === "warn" && "border-warn/35 bg-warn/10",
-        tone === "accent" && "border-accent/35 bg-accent/5",
+        tone === "warn" && "border-warn/40 bg-warn/10",
+        tone === "accent" && "border-accent/40 bg-accent/5",
       )}
     >
       <div className="text-xs font-semibold uppercase tracking-normal text-muted">{label}</div>
@@ -612,7 +612,7 @@ export function Stat({
   tone?: "good" | "warn" | "bad" | "accent" | "muted";
 }) {
   const iconColor = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : tone === "accent" ? "text-accent" : "text-muted/60";
-  const borderColor = tone === "good" ? "border-good/40 bg-good/10" : tone === "warn" ? "border-warn/50 bg-warn/15" : tone === "bad" ? "border-bad/45 bg-bad/10" : tone === "accent" ? "border-accent/45 bg-accent/15" : accent ? "border-accent/50" : "border-border/50 bg-panel/30";
+  const borderColor = tone === "good" ? "border-good/40 bg-good/10" : tone === "warn" ? "border-warn/40 bg-warn/15" : tone === "bad" ? "border-bad/40 bg-bad/10" : tone === "accent" ? "border-accent/40 bg-accent/15" : accent ? "border-accent/40" : "border-border/50 bg-panel/30";
   const valueColor = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : tone === "accent" ? "text-accent" : "text-foreground";
 
   return (

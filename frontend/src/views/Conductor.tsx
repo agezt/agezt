@@ -132,7 +132,7 @@ export function Conductor() {
           rows={3}
           aria-label="Conductor task"
           placeholder="Describe a hard, verifiable task — e.g. “Write and test a Python function that returns the nth prime.”"
-          className="w-full resize-y rounded-lg border border-border bg-panel p-3 text-sm outline-none focus:border-accent/50"
+          className="w-full resize-y rounded-lg border border-border bg-panel p-3 text-sm outline-none focus:border-accent/40"
         />
 
         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -193,9 +193,9 @@ function RoundPicker({ value, onChange }: { value: number; onChange: (value: num
 function ConductorModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Network className="size-4" />
           </span>
           <div className="min-w-0">

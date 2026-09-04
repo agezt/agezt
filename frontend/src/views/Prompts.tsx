@@ -8,6 +8,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { EmptyState } from "@/components/ui/empty";
 import { downloadText } from "@/lib/export";
+import { SectionPanel } from "@/components/ui/section-panel";
 
 // parsePromptsJSON normalises an imported prompt file into clean {title,text} rows,
 // tolerating either a bare array or a {prompts:[…]} wrapper. Throws on bad JSON or
@@ -180,7 +181,7 @@ export function Prompts() {
       ) : loading && items.length === 0 ? (
         <SkeletonList count={3} lines={3} />
       ) : (
-        <PromptLibraryPanel title="Prompt library" count={items.length}>
+        <SectionPanel title="Prompt library" status={`${items.length} saved`}>
           <div className="space-y-2">
             {items.length === 0 && (
               <EmptyState
@@ -215,7 +216,7 @@ export function Prompts() {
               <Plus className="size-3.5" /> Add prompt
             </Button>
           </div>
-        </PromptLibraryPanel>
+        </SectionPanel>
       )}
       {editor && (
         <PromptModal title={editor.index == null ? "Add prompt" : `Edit ${editor.prompt.title || "prompt"}`} onClose={() => setEditor(null)}>
@@ -269,7 +270,7 @@ function PromptModal({ title, onClose, children }: { title: string; onClose: () 
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <MessageSquarePlus className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
@@ -283,19 +284,3 @@ function PromptModal({ title, onClose, children }: { title: string; onClose: () 
   );
 }
 
-function PromptLibraryPanel({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-accent/35 bg-accent/5 text-accent">
-          <ListChecks className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{count} prompt{count === 1 ? "" : "s"}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}

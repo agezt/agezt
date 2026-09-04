@@ -43,7 +43,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, clip } from "@/lib/utils";
+import { cn, clip, fmtWhen } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -53,6 +53,8 @@ import { Page } from "@/components/ui/page";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/lib/events";
+import { toneBar, toneBorder, toneForStatus, toneText, type Tone } from "@/lib/tone";
+import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 // ---- graph model (mirrors kernel/workflow) ----------------------------------
 
@@ -90,6 +92,8 @@ export interface Wf {
   trigger_kind?: string;
   trigger_detail?: string;
   node_count?: number;
+  /** Newest run, folded from the journal by the list handler (with_runs). */
+  last_run?: { status?: string; at_ms?: number; duration_ms?: number };
 }
 
 // Node-type palette: color accents + which extra OUTPUT ports a node offers.
@@ -174,119 +178,41 @@ export function summarize(type: string, config?: Record<string, unknown>): strin
   }
 }
 
-export function workflowExecutionContract(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled">): string {
-  const state = w.enabled === false ? "disabled" : "enabled";
-  const trigger = w.trigger_kind
-    ? `${w.trigger_kind}${w.trigger_detail ? ` (${w.trigger_detail})` : ""}`
-    : "manual/API";
-  return `${state} reusable chain · trigger ${trigger} · runnable by user, agent, schedule, or webhook`;
-}
-
-export interface WorkflowRunContractSummary {
+export interface WorkflowChainKind {
   label: string;
+  /** One short sentence the badge itself cannot say. Rendered as a tooltip. */
   detail: string;
-  tone: "good" | "warn" | "muted";
+  tone: Tone;
 }
 
-export function workflowRunContractSummary(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled">): WorkflowRunContractSummary {
-  const contract = workflowExecutionContract(w);
+/**
+ * workflowChainKind names HOW a workflow gets started, in one word.
+ *
+ * This replaces four functions — workflowExecutionContract,
+ * workflowRunContractSummary, workflowInvocationPassport and
+ * workflowIdentityBoundary — which took the same input, branched the same way,
+ * returned the same tones, and reached the same conclusion in four different
+ * phrasings ("not an agent identity", "owns no soul, memory, inbox", "without
+ * turning the workflow into an agent"). Each workflow row rendered all four,
+ * two of them behind a disclosure. That is three paragraphs of fine print per
+ * row restating what the row's own trigger column already showed, on a page
+ * with no room left to say when the thing last ran.
+ */
+export function workflowChainKind(w: Pick<Wf, "trigger_kind" | "enabled">): WorkflowChainKind {
   if (w.enabled === false) {
     return {
-      label: "draft chain",
-      detail: `${contract} · auto triggers disarmed, manual/user/agent test runs still allowed`,
+      label: "draft",
+      detail: "Auto triggers are disarmed. You can still run it by hand, and past runs stay in the journal.",
       tone: "muted",
     };
   }
   if (w.trigger_kind === "cron") {
-    return {
-      label: "scheduled chain",
-      detail: `${contract} · cron trigger starts the graph without making it an agent identity`,
-      tone: "warn",
-    };
+    return { label: "scheduled", detail: "A cron trigger starts this graph on its own.", tone: "warn" };
   }
   if (w.trigger_kind === "event" || w.trigger_kind === "webhook") {
-    return {
-      label: "reactive chain",
-      detail: `${contract} · external/event wake starts the graph under workflow policy gates`,
-      tone: "good",
-    };
+    return { label: "reactive", detail: "An incoming event or webhook wakes this graph.", tone: "good" };
   }
-  return {
-    label: "manual/shared chain",
-    detail: `${contract} · run on demand from user, agent, or schedule`,
-    tone: "muted",
-  };
-}
-
-export interface WorkflowInvocationPassport {
-  label: string;
-  detail: string;
-  tone: "good" | "warn" | "muted";
-}
-
-export function workflowInvocationPassport(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled" | "node_count"> & { nodes?: WfNode[] }): WorkflowInvocationPassport {
-  const trigger = w.trigger_kind
-    ? `${w.trigger_kind}${w.trigger_detail ? ` (${w.trigger_detail})` : ""}`
-    : "manual/API";
-  const nodeCount = w.node_count ?? w.nodes?.length ?? 0;
-  const nodeText = nodeCount > 0 ? `${nodeCount} node${nodeCount === 1 ? "" : "s"}` : "node count unknown";
-  if (w.enabled === false) {
-    return {
-      label: "test-only invocation",
-      detail: `${nodeText} · not an agent identity · auto trigger ${trigger} disarmed · user or agent can still run tests manually · past runs stay journaled`,
-      tone: "muted",
-    };
-  }
-  if (w.trigger_kind === "cron") {
-    return {
-      label: "cron-invoked graph",
-      detail: `${nodeText} · cron starts the graph, not an agent · user, agent, schedule, or webhook may also run it through workflow policy · past runs stay journaled`,
-      tone: "warn",
-    };
-  }
-  if (w.trigger_kind === "event" || w.trigger_kind === "webhook") {
-    return {
-      label: "event-invoked graph",
-      detail: `${nodeText} · event/webhook starts the graph, not an agent · user, agent, or schedule may also run it through workflow policy · past runs stay journaled`,
-      tone: "good",
-    };
-  }
-  return {
-    label: "shared invocation graph",
-    detail: `${nodeText} · not an agent identity · user, agent, schedule, or webhook can run it through workflow policy · past runs stay journaled`,
-    tone: "muted",
-  };
-}
-
-export function workflowIdentityBoundary(w: Pick<Wf, "trigger_kind" | "trigger_detail" | "enabled" | "node_count"> & { nodes?: WfNode[] }): WorkflowInvocationPassport {
-  const nodeCount = w.node_count ?? w.nodes?.length ?? 0;
-  const nodeText = nodeCount > 0 ? `${nodeCount} graph node${nodeCount === 1 ? "" : "s"}` : "graph nodes unknown";
-  if (w.enabled === false) {
-    return {
-      label: "draft graph boundary",
-      detail: `${nodeText} retained; disabled workflow owns no soul, memory, inbox, provider route, retry, or repair policy`,
-      tone: "muted",
-    };
-  }
-  if (w.trigger_kind === "cron") {
-    return {
-      label: "scheduled graph boundary",
-      detail: `${nodeText}; cron runs the chain under daemon or invoking-agent authority, while identity and memory stay outside the workflow`,
-      tone: "warn",
-    };
-  }
-  if (w.trigger_kind === "event" || w.trigger_kind === "webhook") {
-    return {
-      label: "reactive graph boundary",
-      detail: `${nodeText}; event/webhook wakes the saved chain through workflow policy, not an autonomous agent identity`,
-      tone: "good",
-    };
-  }
-  return {
-    label: "shared graph boundary",
-    detail: `${nodeText}; users, agents, schedules, and webhooks may invoke it without turning the workflow into an agent`,
-    tone: "muted",
-  };
+  return { label: "on demand", detail: "Runs only when a user, an agent, or a schedule asks it to.", tone: "muted" };
 }
 
 // toFlow converts a stored workflow into React Flow nodes/edges. Pure +
@@ -371,8 +297,8 @@ type WfRFNode = RFNode<WfNodeData, "wf">;
 
 const statusRing: Record<string, string> = {
   running: "!border-accent breathe",
-  done: "bg-good/12 !border-good",
-  failed: "bg-bad/12 !border-bad",
+  done: "bg-good/10 !border-good",
+  failed: "bg-bad/10 !border-bad",
 };
 
 function WfNodeView({ data, selected }: NodeProps<WfRFNode>) {
@@ -830,6 +756,29 @@ function NodePanel({
   );
 }
 
+// WORKFLOW_WINDOW caps how many workflow rows render at once; a Load-more
+// footer grows it client-side. The header count stays over the FULL list.
+const WORKFLOW_WINDOW = 40;
+
+// LastRun is the thing an automation list owes you and this one did not have:
+// did it work, and when. Absent for a workflow that has never run.
+function LastRun({ run }: { run?: Wf["last_run"] }) {
+  if (!run?.status) return <span className="text-xs text-muted/70">never run</span>;
+  const tone = toneForStatus(run.status);
+  const secs = run.duration_ms ? ` · ${(run.duration_ms / 1000).toFixed(1)}s` : "";
+  return (
+    <span
+      className={cn("inline-flex items-center gap-1 text-xs", toneText[tone])}
+      title={`Last run ${run.status}${run.at_ms ? ` at ${new Date(run.at_ms).toLocaleString()}` : ""}`}
+    >
+      <span className={cn("size-1.5 rounded-full", toneBar[tone], run.status === "running" && "animate-pulse")} />
+      {run.status}
+      {run.at_ms ? ` ${fmtWhen(run.at_ms)}` : ""}
+      {secs}
+    </span>
+  );
+}
+
 // ---- the view -----------------------------------------------------------------
 
 let idCounter = 0;
@@ -957,7 +906,7 @@ function TemplatePicker({
           "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
           value === ""
             ? "border-accent bg-accent/10 text-foreground"
-            : "border-border bg-card/40 text-muted hover:border-accent/50 hover:text-foreground",
+            : "border-border bg-card/40 text-muted hover:border-accent/40 hover:text-foreground",
         )}
       >
         <Plus className="size-3.5 shrink-0" />
@@ -978,7 +927,7 @@ function TemplatePicker({
               "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
               selected
                 ? "border-accent bg-accent/10 text-foreground"
-                : "border-border bg-card/40 text-muted hover:border-accent/50 hover:text-foreground",
+                : "border-border bg-card/40 text-muted hover:border-accent/40 hover:text-foreground",
             )}
           >
             <WorkflowIcon className="mt-0.5 size-3.5 shrink-0 text-accent" />
@@ -1141,6 +1090,9 @@ export function Workflows() {
   const [running, setRunning] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
+  // The workflow list arrives whole (/api/workflows has no cursor), so the
+  // render is windowed — the same guard every other list on the console uses.
+  const [listWindow, setListWindow] = useState(WORKFLOW_WINDOW);
   const [nodeStatus, setNodeStatus] = useState<Record<string, string>>({});
   // Per-node last-run data (M808): input/output/attempts snippets, from the
   // live SSE arc or a replayed historical run.
@@ -1154,7 +1106,10 @@ export function Workflows() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ workflows?: Wf[] }>("/api/workflows");
+      // with_runs makes the daemon fold the journal ONCE for the whole list, so
+      // every row can say whether it last succeeded. Without it the list is the
+      // cheap answer the CLI wants.
+      const d = await getJSON<{ workflows?: Wf[] }>("/api/workflows", { with_runs: "true" });
       setList(d.workflows || []);
       setErr(null);
     } catch (e) {
@@ -1553,11 +1508,8 @@ export function Workflows() {
       )}
 
       <ul className="space-y-2">
-        {(list || []).map((w) => {
-          const contract = workflowExecutionContract(w);
-          const runContract = workflowRunContractSummary(w);
-          const invocation = workflowInvocationPassport(w);
-          const identity = workflowIdentityBoundary(w);
+        {(list || []).slice(0, listWindow).map((w) => {
+          const kind = workflowChainKind(w);
           return (
           <li key={w.id || w.name} className="glass rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -1569,6 +1521,12 @@ export function Workflows() {
                 {w.name}
               </button>
               <Badge variant={w.enabled ? "good" : "default"}>{w.enabled ? "enabled" : "disabled"}</Badge>
+              <span
+                className={cn("rounded-full border px-2 py-0.5 text-[11px]", toneBorder[kind.tone], toneText[kind.tone])}
+                title={kind.detail}
+              >
+                {kind.label}
+              </span>
               {w.trigger_kind && (
                 <span className="text-xs text-muted">
                   {w.trigger_kind}
@@ -1576,6 +1534,7 @@ export function Workflows() {
                 </span>
               )}
               <span className="text-xs text-muted">{w.node_count ?? "?"} node(s)</span>
+              <LastRun run={w.last_run} />
               <span className="ml-auto flex items-center gap-1">
                 <Button
                   size="sm"
@@ -1619,66 +1578,20 @@ export function Workflows() {
                 </Button>
               </span>
             </div>
-            <div
-              className={cn(
-                "mt-2 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
-                runContract.tone === "good"
-                  ? "border-good/30 bg-good/5"
-                  : runContract.tone === "warn"
-                    ? "border-warn/30 bg-warn/5"
-                    : "border-border/60 bg-panel/40",
-              )}
-              title={runContract.detail}
-            >
-              <WorkflowIcon className={cn("size-3 shrink-0", runContract.tone === "good" ? "text-good" : runContract.tone === "warn" ? "text-warn" : "text-accent")} />
-              <span className="font-semibold text-foreground/70">{runContract.label}</span>
-              <span className="truncate">{contract}</span>
-            </div>
-            {w.description && <div className="mt-1 text-xs text-muted">{w.description}</div>}
-            {/* Invocation passport + identity boundary are contract fine print —
-                folded until asked (progressive disclosure); the run-contract line
-                above stays as the humane summary. */}
-            <Disclosure
-              className="mt-1"
-              summary={<span className="text-[11px] font-medium text-muted">Invocation & identity boundary</span>}
-            >
-              <div className="space-y-1.5">
-                <div
-                  className={cn(
-                    "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
-                    invocation.tone === "good"
-                      ? "border-good/25 bg-good/5"
-                      : invocation.tone === "warn"
-                        ? "border-warn/30 bg-warn/5"
-                        : "border-border/60 bg-card/35",
-                  )}
-                  title={invocation.detail}
-                >
-                  <Play className={cn("size-3 shrink-0", invocation.tone === "good" ? "text-good" : invocation.tone === "warn" ? "text-warn" : "text-accent")} />
-                  <span className="font-semibold text-foreground/70">{invocation.label}</span>
-                  <span className="min-w-0">{invocation.detail}</span>
-                </div>
-                <div
-                  className={cn(
-                    "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted",
-                    identity.tone === "good"
-                      ? "border-good/25 bg-good/5"
-                      : identity.tone === "warn"
-                        ? "border-warn/30 bg-warn/5"
-                        : "border-border/60 bg-panel/35",
-                  )}
-                  title={identity.detail}
-                >
-                  <ShieldCheck className={cn("size-3 shrink-0", identity.tone === "good" ? "text-good" : identity.tone === "warn" ? "text-warn" : "text-accent")} />
-                  <span className="font-semibold text-foreground/70">{identity.label}</span>
-                  <span className="min-w-0">{identity.detail}</span>
-                </div>
-              </div>
-            </Disclosure>
+            {w.description && <div className="mt-1.5 text-xs text-muted">{w.description}</div>}
           </li>
           );
         })}
       </ul>
+      {(list || []).length > WORKFLOW_WINDOW && (
+        <LoadMoreFooter
+          hasMore={listWindow < (list || []).length}
+          loadingMore={false}
+          onLoadMore={() => setListWindow((v) => v + WORKFLOW_WINDOW)}
+          pageSize={Math.min(WORKFLOW_WINDOW, Math.max(1, (list || []).length - listWindow))}
+          label="workflows"
+        />
+      )}
     </Page>
   );
 }

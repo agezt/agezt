@@ -5,6 +5,7 @@ import { categoryOf, isErrorKind, CATEGORIES } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/lib/utils";
 import { DataView } from "@/components/DataView";
 import { IncidentBadges } from "@/components/IncidentBadges";
+import { ToggleChip, FilterToken } from "@/components/ui/segmented";
 import {
   incidentBadgeItem,
   incidentEventSummary,
@@ -102,27 +103,23 @@ export function EventFeed() {
           const isOff = off.has(c.key);
           const count = counts[c.key] || 0;
           return (
-            <button
+            <ToggleChip
               key={c.key}
-              onClick={() => toggle(c.key)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] transition-opacity",
-                isOff && "opacity-40",
-              )}
+              on={!isOff}
+              onToggle={() => toggle(c.key)}
+              title={`${isOff ? "Show" : "Hide"} ${c.label} events`}
+              className={cn("gap-1.5", isOff && "opacity-40")}
             >
               <span className="size-2 rounded-full" style={{ background: c.color }} />
               {c.label}
               {count > 0 && <span className="tabular-nums text-muted">{count}</span>}
-            </button>
+            </ToggleChip>
           );
         })}
         {corr && (
-          <button
-            onClick={() => setCorr(null)}
-            className="inline-flex items-center gap-1 rounded-full border border-accent px-2 py-0.5 text-[11px] text-accent"
-          >
+          <FilterToken onClear={() => setCorr(null)} title="Clear the correlation filter">
             <X className="size-3" /> {corr.slice(0, 14)}…
-          </button>
+          </FilterToken>
         )}
       </div>
 

@@ -169,6 +169,36 @@ func argDryRun(args map[string]any) (bool, error) {
 	}
 }
 
+// argFlag extracts a boolean arg that may arrive as a STRING.
+//
+// argBool is deliberately strict: on the typed protocol path a string where a
+// boolean belongs is a client bug worth surfacing. But the Web UI reaches read
+// commands through a query string, which carries text and nothing else — there
+// is no boolean to send. argDryRun has quietly been the workaround for exactly
+// one key; this is the same rule for any other web-reachable flag.
+//
+// Accepts a real bool, or "true"/"1"/"yes" and "false"/"0"/"no" (case
+// insensitive). Anything else is an error rather than a silent false, so a typo
+// still gets caught.
+func argFlag(args map[string]any, key string) (bool, bool, error) {
+	v, present := args[key]
+	if !present {
+		return false, false, nil
+	}
+	switch t := v.(type) {
+	case bool:
+		return t, true, nil
+	case string:
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "true", "1", "yes":
+			return true, true, nil
+		case "false", "0", "no":
+			return false, true, nil
+		}
+	}
+	return false, true, fmt.Errorf("args.%s must be a boolean", key)
+}
+
 // argInt64 extracts an integer arg. JSON numbers decode to float64, so that's the
 // accepted form (an integer-valued float); a non-numeric present value is an error.
 func argInt64(args map[string]any, key string) (int64, bool, error) {

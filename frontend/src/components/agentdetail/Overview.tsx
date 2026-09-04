@@ -135,7 +135,7 @@ export function Overview({
       )}
 
       {/* How it runs */}
-      <div className="rounded-lg bg-accent/8 p-2.5">
+      <div className="rounded-lg bg-accent/10 p-2.5">
         <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-normal text-accent">
           <ActivityIcon className="size-3" /> How does this run?
         </div>

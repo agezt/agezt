@@ -8,8 +8,10 @@ import { SkeletonGrid } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
+import { SectionPanel } from "@/components/ui/section-panel";
 import { Advanced } from "@/components/ui/disclosure";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { bytes as fmtBytes } from "@/lib/format";
 
 // Storage view (M927): what under ~/.agezt is taking the space, and the
 // collectors that reclaim it. The breakdown comes from /api/storage
@@ -35,14 +37,6 @@ interface StorageStats {
   disk_free_pct?: number;
 }
 
-// fmtBytes renders a byte count at a human scale (B → GB).
-export function fmtBytes(n?: number): string {
-  if (!n || n <= 0) return "0 B";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
 
 // pctOf returns dir share of the total as a 0–100 number (0 when total is 0).
 export function pctOf(bytes: number, total: number): number {
@@ -104,7 +98,7 @@ export function Storage() {
           </MetricGrid>
 
           {/* Per-directory breakdown */}
-          <StoragePanel
+          <SectionPanel
             icon={FolderTree}
             title="Breakdown"
             status={`${dirs.length} subsystem${dirs.length === 1 ? "" : "s"}`}
@@ -120,7 +114,9 @@ export function Storage() {
                       <span className="min-w-0 flex-1 truncate text-[11px] text-muted" title={d.label}>
                         {d.label || ""}
                       </span>
-                      <span className="text-[11px] text-muted">{d.files} files</span>
+                      <span className="text-[11px] text-muted">
+                        {d.files} file{d.files === 1 ? "" : "s"}
+                      </span>
                       <span className="w-20 text-right text-xs font-semibold tabular-nums">{fmtBytes(d.bytes)}</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-panel">
@@ -136,12 +132,12 @@ export function Storage() {
               })}
               {dirs.length === 0 && <li className="py-8 text-center text-sm text-muted">Home directory is empty.</li>}
             </ul>
-          </StoragePanel>
+          </SectionPanel>
 
           {/* Collectors — destructive space-reclamation actions. Folded away by
               default (calm view); the operator expands when they mean to prune. */}
           <Advanced label="Collectors — reclaim space (dry-run first)">
-            <StoragePanel
+            <SectionPanel
               icon={Trash2}
               title="Collectors"
               status="dry-run first"
@@ -153,7 +149,7 @@ export function Storage() {
                 <BrainConsolidator onDone={reload} />
                 <ReaperCard />
               </div>
-            </StoragePanel>
+            </SectionPanel>
           </Advanced>
         </div>
       )}
@@ -161,39 +157,6 @@ export function Storage() {
   );
 }
 
-function StoragePanel({
-  icon: Icon,
-  title,
-  status,
-  tone,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  status: string;
-  tone: "accent" | "bad" | "muted";
-  children: ReactNode;
-}) {
-  const toneCls: Record<typeof tone, string> = {
-    accent: "border-accent/35 bg-accent/5 text-accent",
-    bad: "border-bad/35 bg-bad/5 text-bad",
-    muted: "border-border bg-panel text-muted",
-  };
-  return (
-    <section className="rounded-xl border border-border bg-card/70 p-3 shadow-e1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", toneCls[tone])}>
-          <Icon className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="truncate text-xs text-muted">{status}</div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 function CollectorCard({
   icon: Icon,
@@ -236,9 +199,9 @@ function DaysInput({ value, onChange }: { value: number; onChange: (n: number) =
 function CollectorModal({ title, icon: Icon, children, onClose }: { title: string; icon: LucideIcon; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="glass flex max-h-[86vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-accent/25 shadow-e3">
+      <div className="glass flex max-h-[86vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-accent/30 shadow-e3">
         <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent">
             <Icon className="size-4" />
           </span>
           <div className="min-w-0">

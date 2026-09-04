@@ -61,7 +61,10 @@ export function Vitals({ onNavigate }: { onNavigate: (id: string) => void }) {
           <Pause className="size-3" /> HALTED
         </span>
       )}
-      <Vital icon={Activity} label="runs" value={runs} live={runs > 0} onClick={() => onNavigate("activity")} />
+      {/* This counts active_runs, but read "0 runs" beside "$0.00 today" and it
+          says no run has happened — which is false the moment one finishes.
+          Name what is actually counted. */}
+      <Vital icon={Activity} label="running" value={runs} live={runs > 0} onClick={() => onNavigate("activity")} />
       <Vital icon={Wallet} label="today" value={money(bg?.spent_mc ?? 0)} onClick={() => onNavigate("budget")} />
       <Vital
         icon={CalendarClock}

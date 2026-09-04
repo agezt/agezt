@@ -111,7 +111,7 @@ export function Sparkline({
 // SEG_SHADE gives stacked-breakdown segments a cohesive look: the same accent
 // hue at decreasing opacity, ranked by size — so a category mix reads as one
 // themed bar instead of a clash of arbitrary colors.
-const SEG_SHADE = ["bg-accent", "bg-accent/70", "bg-accent/55", "bg-accent/40", "bg-accent/30", "bg-accent/20"];
+const SEG_SHADE = ["bg-accent", "bg-accent/70", "bg-accent/55", "bg-accent/40", "bg-accent/20", "bg-accent/20"];
 
 // BreakdownBar shows how a total splits across categories: a single stacked
 // proportion bar plus a count chip per category, ranked largest-first. Good for

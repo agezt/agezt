@@ -143,7 +143,7 @@ export function AgentActivity({
             "rounded-md border border-border bg-card px-1.5 py-0.5 font-medium",
             operationalState.tone === "accent" && "border-accent/30 bg-accent/10 text-accent",
             operationalState.tone === "good" && "border-good/30 bg-good/10 text-good",
-            operationalState.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
+            operationalState.tone === "warn" && "border-warn/40 bg-warn/10 text-warn",
           )}
         >
           {operationalState.value}
@@ -153,7 +153,7 @@ export function AgentActivity({
           className={cn(
             "rounded-md border border-border bg-card px-1.5 py-0.5 font-medium",
             pulse.tone === "good" && "border-good/30 bg-good/10 text-good",
-            pulse.tone === "warn" && "border-warn/35 bg-warn/10 text-warn",
+            pulse.tone === "warn" && "border-warn/40 bg-warn/10 text-warn",
           )}
         >
           {pulse.value}

@@ -183,7 +183,7 @@ export function FlowStudio() {
                 className="flex min-h-[260px] flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-panel/35 p-6 text-center transition-colors hover:border-accent hover:bg-panel/55"
                 onClick={() => setComposeOpen(true)}
               >
-                <span className="grid size-12 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+                <span className="grid size-12 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
                   <FileJson2 className="size-6" />
                 </span>
                 <span className="text-sm font-semibold text-foreground">No flow drafted</span>
@@ -342,7 +342,7 @@ function FlowModal({
         aria-label={title}
       >
         <div className="mb-3 flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-accent/12 text-accent ring-1 ring-inset ring-accent/25">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
             <Icon className="size-4" />
           </span>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>

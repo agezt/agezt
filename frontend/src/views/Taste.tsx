@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Sparkles, Plus, RefreshCw, Trash2, Globe, Target } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { StatTile } from "@/components/ui/metric-widget";
 import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -109,8 +110,8 @@ export function Taste() {
       }
     >
       <section className="grid gap-2 sm:grid-cols-2">
-        <Metric label="Exemplars" value={exemplars.length} />
-        <Metric label="Global (every run)" value={globalCount} tone="accent" />
+        <StatTile label="Exemplars" value={exemplars.length} />
+        <StatTile label="Global (every run)" value={globalCount} tone="accent" />
       </section>
 
       <form
@@ -206,11 +207,3 @@ export function Taste() {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone?: "accent" }) {
-  return (
-    <div className="rounded-lg border border-border bg-card/70 p-3">
-      <div className="text-xs uppercase tracking-normal text-muted">{label}</div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", tone === "accent" ? "text-accent" : "")}>{value}</div>
-    </div>
-  );
-}

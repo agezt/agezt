@@ -158,6 +158,12 @@ export function Activity() {
       }
     >
 
+      {/* These count the LIVE window, not the run log — so on an idle daemon
+          they read "Completed 0" while the Runs tab one click away reads
+          "Completed 2", which looks like a bug rather than a different
+          question. With nothing in flight, "Nothing running" is the whole
+          answer; the tiles describe the batch once there is one. */}
+      {tree.length > 0 && (
       <MetricGrid cols="grid-cols-3 sm:grid-cols-4">
         <MetricWidget
           icon={ActivityIcon}
@@ -185,6 +191,7 @@ export function Activity() {
           tone="muted"
         />
       </MetricGrid>
+      )}
 
       {hasDoctorFeed && (
         <div className="glass rounded-xl px-3 py-2.5">

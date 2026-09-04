@@ -307,13 +307,13 @@ export function CapabilityControlPanel({
           className={cn(
             "flex items-center gap-2 rounded-lg border px-3 py-2 transition-all",
             silentOnSuccess
-              ? "border-good/50 bg-good/15 shadow-sm shadow-good/20"
+              ? "border-good/40 bg-good/15 shadow-sm shadow-good/20"
               : "border-border/50 bg-panel/30 hover:border-border"
           )}
         >
           <div className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg",
-            silentOnSuccess ? "bg-good/25" : "bg-panel/60"
+            silentOnSuccess ? "bg-good/20" : "bg-panel/60"
           )}>
             <ShieldCheck className={cn("size-4", silentOnSuccess ? "text-good" : "text-muted/50")} />
           </div>
@@ -325,7 +325,7 @@ export function CapabilityControlPanel({
           </div>
           <div className={cn(
             "ml-auto flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors",
-            silentOnSuccess ? "border-good/50 bg-good/30" : "border-border bg-panel"
+            silentOnSuccess ? "border-good/40 bg-good/20" : "border-border bg-panel"
           )}>
             <div className={cn(
               "h-3.5 w-3.5 rounded-full transition-transform",
@@ -339,13 +339,13 @@ export function CapabilityControlPanel({
           className={cn(
             "flex items-center gap-2 rounded-lg border px-3 py-2 transition-all",
             disableMemoryWrites
-              ? "border-warn/50 bg-warn/15 shadow-sm shadow-warn/20"
+              ? "border-warn/40 bg-warn/15 shadow-sm shadow-warn/20"
               : "border-border/50 bg-panel/30 hover:border-border"
           )}
         >
           <div className={cn(
             "flex h-8 w-8 items-center justify-center rounded-lg",
-            disableMemoryWrites ? "bg-warn/25" : "bg-panel/60"
+            disableMemoryWrites ? "bg-warn/20" : "bg-panel/60"
           )}>
             <HardDrive className={cn("size-4", disableMemoryWrites ? "text-warn" : "text-muted/50")} />
           </div>
@@ -359,7 +359,7 @@ export function CapabilityControlPanel({
           </div>
           <div className={cn(
             "ml-auto flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors",
-            disableMemoryWrites ? "border-warn/50 bg-warn/30" : "border-border bg-panel"
+            disableMemoryWrites ? "border-warn/40 bg-warn/20" : "border-border bg-panel"
           )}>
             <div className={cn(
               "h-3.5 w-3.5 rounded-full transition-transform",

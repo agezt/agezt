@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { categoryOf, type ArtifactEntry } from "./Files";
-import { groupByCategory, matchesQuery, Artifacts } from "./Artifacts";
+import { categoryOf, type ArtifactEntry } from "@/lib/artifacts";
+import { groupByCategory, matchesQuery, fileManagerHash, Artifacts } from "./Artifacts";
 import { UIProvider } from "@/components/ui/feedback";
 
 const entry = (over: Partial<ArtifactEntry>): ArtifactEntry => ({ id: "a1", ref: "r1", ...over });
@@ -84,6 +84,28 @@ describe("Artifacts view", () => {
     expect(screen.getByLabelText("Exit fullscreen")).toBeTruthy();
   });
 
+  it("switches between the gallery and the file manager in place", () => {
+    render(
+      <UIProvider>
+        <Artifacts />
+      </UIProvider>,
+    );
+    expect(screen.getByText("Images (1)")).toBeTruthy();
+    fireEvent.click(screen.getByTitle("Browse the live workspace as a tree"));
+    // Gallery chrome is gone; the workspace owns the body.
+    expect(screen.queryByText("Images (1)")).toBeNull();
+    expect(screen.getByText("browse by path")).toBeTruthy();
+  });
+
+  it("keeps the Collect action the Files view used to own", () => {
+    render(
+      <UIProvider>
+        <Artifacts />
+      </UIProvider>,
+    );
+    expect(screen.getByTitle(/Collect stale files/)).toBeTruthy();
+  });
+
   it("hides run outputs by default and reveals them via the toggle", () => {
     render(
       <UIProvider>
@@ -95,5 +117,21 @@ describe("Artifacts view", () => {
     // …until the "Show run outputs (1)" toggle is clicked.
     fireEvent.click(screen.getByText(/Show run outputs/));
     expect(screen.getByText("shell-output.txt")).toBeTruthy();
+  });
+});
+
+// The legacy `#files` hash is an alias for this view (nav.tsx VIEW_ALIASES) and
+// means "open the file manager". Its `?path=` is now honoured — the pre-merge
+// button set it and the workspace ignored it.
+describe("fileManagerHash", () => {
+  it("recognises the legacy files hash and its path", () => {
+    expect(fileManagerHash("#files")).toEqual({ workspace: true, path: "" });
+    expect(fileManagerHash("#files?path=notes%2FREADME.md")).toEqual({ workspace: true, path: "notes/README.md" });
+    expect(fileManagerHash("#/files")).toEqual({ workspace: true, path: "" });
+  });
+
+  it("leaves every other hash in gallery mode", () => {
+    expect(fileManagerHash("#artifacts")).toEqual({ workspace: false, path: "" });
+    expect(fileManagerHash("")).toEqual({ workspace: false, path: "" });
   });
 });

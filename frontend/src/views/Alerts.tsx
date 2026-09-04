@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Page } from "@/components/ui/page";
+import { Segmented } from "@/components/ui/segmented";
 
 const MAX_ALERTS = 100;
 
@@ -170,47 +171,22 @@ export function Alerts() {
         <Badge variant={connected ? "good" : "bad"}>{connected ? "live" : "offline"}</Badge>
       }
     >
-      <TabNav
-        tabs={[
-          {
-            id: "all",
-            label: "All",
-            icon: Bell,
-            count: live.length,
-            content: null,
-          },
-          {
-            id: "critical",
-            label: "Critical",
-            icon: ShieldAlert,
-            count: counts.critical || 0,
-            content: null,
-          },
-          {
-            id: "warning",
-            label: "Warning",
-            icon: AlertTriangle,
-            count: counts.warning || 0,
-            content: null,
-          },
-          {
-            id: "info",
-            label: "Info",
-            icon: Info,
-            count: counts.info || 0,
-            content: null,
-          },
-        ]}
+      {/* Four severity filters over zero alerts narrow nothing to nothing.
+          They return the moment there is an alert to sort. */}
+      {live.length > 0 && (
+      <Segmented
+        ariaLabel="Filter alerts by severity"
+        className="flex-wrap"
         value={filter}
-        onValueChange={(v) => setFilter(v as AlertLevel | "all")}
+        onChange={setFilter}
+        options={[
+          { value: "all" as const, label: "All", icon: Bell, count: live.length },
+          { value: "critical" as const, label: "Critical", icon: ShieldAlert, count: counts.critical || 0 },
+          { value: "warning" as const, label: "Warning", icon: AlertTriangle, count: counts.warning || 0 },
+          { value: "info" as const, label: "Info", icon: Info, count: counts.info || 0 },
+        ]}
       />
-
-      <MetricGrid cols="repeat(auto-fill, minmax(140px, 1fr))">
-        <MetricWidget icon={Bell} label="Total" value={live.length} tone={live.length > 0 ? "accent" : "muted"} />
-        <MetricWidget icon={ShieldAlert} label="Critical" value={counts.critical || 0} tone={(counts.critical || 0) > 0 ? "bad" : "muted"} />
-        <MetricWidget icon={AlertTriangle} label="Warning" value={counts.warning || 0} tone={(counts.warning || 0) > 0 ? "warn" : "muted"} />
-        <MetricWidget icon={Info} label="Info" value={counts.info || 0} tone={(counts.info || 0) > 0 ? "accent" : "muted"} />
-      </MetricGrid>
+      )}
 
       {dismissedRows.length > 0 && (
         <button
