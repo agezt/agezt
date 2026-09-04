@@ -58,9 +58,11 @@ func runCmd(t *testing.T, name string, args ...string) {
 // TestOpenFileNoFollow_RejectsJunctionSiblingEscape verifies that when the
 // workspace root ends with the same prefix as the junction name, a naive
 // strings.HasPrefix check would pass the escape.  For example:
-//   wsRoot = "C:\...\001\ws"
-//   junction "C:\...\001\ws\ws-esc" -> "C:\...\001"  (sibling of ws)
-//   file    "C:\...\001\ws\ws-esc\secret.txt"
+//
+//	wsRoot = "C:\...\001\ws"
+//	junction "C:\...\001\ws\ws-esc" -> "C:\...\001"  (sibling of ws)
+//	file    "C:\...\001\ws\ws-esc\secret.txt"
+//
 // After cleanWinFinalPath both workspace and resolved path start with the same
 // prefix, but the resolved path's ".." segment must still be detected as an
 // escape via filepath.Rel.

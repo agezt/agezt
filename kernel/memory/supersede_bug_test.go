@@ -43,11 +43,11 @@ func (s *absentStore) Get(id string) (Record, bool, error) {
 	}
 	return s.real.Get(id)
 }
-func (s *absentStore) Put(r Record) error         { return s.real.Put(r) }
+func (s *absentStore) Put(r Record) error             { return s.real.Put(r) }
 func (s *absentStore) Delete(id string) (bool, error) { return s.real.Delete(id) }
-func (s *absentStore) All() ([]Record, error)      { return s.real.All() }
-func (s *absentStore) Count() int                  { return s.real.Count() }
-func (s *absentStore) Close() error                { return s.real.Close() }
+func (s *absentStore) All() ([]Record, error)         { return s.real.All() }
+func (s *absentStore) Count() int                     { return s.real.Count() }
+func (s *absentStore) Close() error                   { return s.real.Close() }
 
 // TestSupersedeExisting_SilentNoopOnAbsentRecord proves the bug.
 //

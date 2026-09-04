@@ -5,12 +5,12 @@
 //
 // BUG: kernel/skill/bundle.go, Read(name, rel)
 //
-//   func (b *BundleStore) Read(name, rel string) ([]byte, error) {
-//       cleaned, err := cleanRel(rel)   // validates the REQUESTED path
-//       full := filepath.Join(b.root, slug, cleaned)
-//       data, err := os.ReadFile(full)  // FOLLOWS symlinks — bypasses cleanRel!
-//       return data, nil
-//   }
+//	func (b *BundleStore) Read(name, rel string) ([]byte, error) {
+//	    cleaned, err := cleanRel(rel)   // validates the REQUESTED path
+//	    full := filepath.Join(b.root, slug, cleaned)
+//	    data, err := os.ReadFile(full)  // FOLLOWS symlinks — bypasses cleanRel!
+//	    return data, nil
+//	}
 //
 // cleanRel validates the caller's requested path (no .., no absolute), but
 // os.ReadFile follows symlinks at the OS level. A symlink planted inside the
@@ -21,10 +21,10 @@
 // Any local user can os.Symlink into a bundle's directory.
 //
 // ATTACK PATH (agent-operated via op=read):
-//   1. op=files → agent sees scripts/leak listed (WalkDir follows symlinks)
-//   2. op=read → agent requests scripts/leak
-//   3. bundles.Read() → os.ReadFile resolves the link → arbitrary file content
-//      returned and disclosed in the JSON response.
+//  1. op=files → agent sees scripts/leak listed (WalkDir follows symlinks)
+//  2. op=read → agent requests scripts/leak
+//  3. bundles.Read() → os.ReadFile resolves the link → arbitrary file content
+//     returned and disclosed in the JSON response.
 package skill
 
 import (
