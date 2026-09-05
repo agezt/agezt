@@ -1175,3 +1175,38 @@ This file holds the active `[Unreleased]` working set.
   any diff of gate output were un-reproducible. Paths are now sorted and printed in
   slash form, making the report identical across runs and byte-identical between
   Windows and POSIX.
+
+- **The Rust SDK could serialize a number that is not valid JSON.** `Value::to_json`
+  wrote every float through Rust's `Display`, which renders a non-finite value as
+  `inf`, `-inf` or `NaN` — spellings `Value::parse` itself rejects. This is reachable
+  through the parser, not only through hand-built values: Rust's `f64` conversion
+  saturates instead of failing, so an overflowing exponent in a daemon response yields
+  `+inf`, and `Value::Float` is a public variant, so a caller can hold `NaN` directly.
+  A `parse` -> `to_json` -> `parse` round trip therefore dropped the value, breaking
+  the crate's own round-trip invariant, and a request body assembled with `to_json()`
+  was text the daemon could not decode. Non-finite floats now serialize as `null`, the
+  choice `JSON.stringify` makes, so `to_json` always yields valid JSON. Returning an
+  error instead was rejected on evidence: `to_json` discards the writer's `Result`, so
+  an error would truncate the output silently — worse than the bug it reported. Finite
+  values are untouched, including huge-but-finite ones and negative zero, and both
+  `i64` extremes keep their exact form, so the fix cannot quietly corrupt a real cost
+  or usage figure.
+
+- **The Python SDK read one event stream differently from its sibling SDKs.**
+  `_parse_sse` built each `data:` value with `.lstrip()`, but the `text/event-stream`
+  rule removes exactly one space after the colon and treats everything past it as
+  content; further leading spaces, and leading tabs, were destroyed. Leading whitespace
+  ahead of a JSON value is invisible to `json.loads`, so the damage surfaced only on the
+  `{"raw": ...}` fallback that carries a non-JSON payload — which is where it silently
+  rewrote the text, stripping the indentation of every line of a multi-line event. The
+  sharper half of the impact was cross-language: the Rust client strips a single space
+  and the TypeScript client replaces a single leading space, so one stream parsed to
+  different values depending on which SDK consumed it. (The Go client has no stream
+  parser to compare against — its only `data:` occurrences are image URLs — so this was
+  Python against Rust and TypeScript, not a three-way drift.) The value now loses one
+  leading space, which is safe because `pyproject.toml` requires Python 3.9 or newer and
+  the package is standard-library only; the asyncio client delegates to this same
+  parser, so its streams were affected identically and are fixed by the same line.
+  `event:` still trims rather than stripping one space — the same shape, but event names
+  carry no whitespace, so it has no observable effect and was left alone rather than
+  widening this change.
