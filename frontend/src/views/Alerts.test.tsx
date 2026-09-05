@@ -110,3 +110,69 @@ describe("Alerts → open run (M781)", () => {
     expect(screen.queryByRole("button", { name: /open run/ })).toBeNull();
   });
 });
+
+// ────────── Row identity for unidentifiable alerts ──────────
+//
+// rowOf() used to mint `${kind}-${seq ?? Math.random()}`, so an event carrying
+// neither id nor seq got a BRAND NEW identity on every call. That id is the
+// mergeAlerts dedup key, the React key and the localStorage dismissal key at once
+// — so dismissing such an alert persisted an id that could never match again and
+// the alert resurfaced on the next mount, forever.
+
+describe("Alerts dismissal — events with no id and no seq", () => {
+  const orphan = (n: number) => ({
+    kind: "task.failed",
+    ts_unix_ms: n,
+    subject: `agent:r${n}`,
+    correlation_id: `corr-${n}`,
+    payload: { reason: "boom" },
+  });
+
+  // Dismissals live in localStorage under a shared key; clear so each case
+  // starts from an unacknowledged feed.
+  beforeEach(() => localStorage.clear());
+
+  it("keeps an id-less, seq-less alert dismissed across a remount", async () => {
+    getJSON.mockResolvedValue({ events: [orphan(1)] });
+    const ui = render(<Alerts />);
+    await screen.findByText("run failed");
+    fireEvent.click(screen.getByTitle(/Dismiss — acknowledged/));
+    await screen.findByText(/no alerts — all quiet/);
+
+    const stored = JSON.parse(localStorage.getItem("agezt.alerts.dismissed.v1") || "[]");
+    expect(stored).toHaveLength(1);
+    // A float here is Math.random() having crept back in.
+    expect(stored[0]).toMatch(/^task\.failed-anon-[0-9a-z]+$/);
+
+    // Remount: dismissed set is re-read from storage and the identity is
+    // re-derived. The second feed ALSO carries a new orphan, which proves the
+    // ordinal is pure content and not a positional index (the seed list, each
+    // SSE append and the journal backfill are merged and re-sorted, so any
+    // position-derived id would drift and silently un-dismiss the row).
+    getJSON.mockResolvedValue({ events: [orphan(1), orphan(2)] });
+    ui.unmount();
+    render(<Alerts />);
+    await waitFor(() => expect(getJSON).toHaveBeenCalledTimes(2));
+    // Exactly one row survives: orphan(1) is still dismissed (its identity
+    // re-derived to the SAME anon id) while the brand-new orphan(2) is shown.
+    // A position-derived ordinal would have un-dismissed orphan(1) here.
+    expect(screen.getAllByText("run failed")).toHaveLength(1);
+    expect(localStorage.getItem("agezt.alerts.dismissed.v1")).toBe(JSON.stringify(stored));
+  });
+
+  it("collapses one id-less event delivered by two paths into a single row", async () => {
+    getJSON.mockResolvedValue({ events: [orphan(3), orphan(3)] });
+    render(<Alerts />);
+    await screen.findByText("run failed");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getAllByText("run failed")).toHaveLength(1);
+  });
+
+  it("keeps two DISTINCT id-less events as two separate dismissable rows", async () => {
+    getJSON.mockResolvedValue({ events: [orphan(4), orphan(5)] });
+    render(<Alerts />);
+    await waitFor(() => expect(screen.getAllByText("run failed")).toHaveLength(2));
+    fireEvent.click(screen.getAllByTitle(/Dismiss — acknowledged/)[0]);
+    await waitFor(() => expect(screen.getAllByText("run failed")).toHaveLength(1));
+  });
+});

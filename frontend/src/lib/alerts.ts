@@ -1,5 +1,6 @@
 import type { AgentEvent } from "@/lib/events";
 import { incidentMetaFromEvent } from "@/lib/incidents";
+import { eventDedupKey } from "@/lib/rundetail";
 
 // Alerts: the daemon's PROACTIVE signals — what it flagged on its own, distinct
 // from the raw event firehose. Pulse observer deltas (e.g. the self-health
@@ -238,13 +239,24 @@ export function recentAttentionAlerts(
   const halted = opts.halted ?? daemonHalted(events);
   const seen = new Set<string>();
   const out: RankedAlert[] = [];
+  let anon = 0;
   for (const e of events) {
     const a = classifyAlert(e);
     if (!a || a.level === "info") continue;
     if (!attentionFilter(e, halted, nowMs, windowMs)) continue;
-    const id = e.id || `${e.kind}-${e.seq ?? ""}`;
-    if (seen.has(id)) continue;
-    seen.add(id);
+    // Dedup on the event's own identity only. Deriving a key from `kind` when
+    // id/seq are absent collapses every unidentifiable `task.failed` onto one
+    // constant, silently dropping all but the first distinct row.
+    const key = eventDedupKey(e);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    // `id` is public (a React key in the cockpit list): keep the raw event id,
+    // or `kind-seq` for a seq-bearing row, exactly as before. An event with
+    // neither gets a distinct ordinal instead of the colliding `${kind}-`.
+    const id =
+      e.id || (e.seq != null ? `${e.kind}-${e.seq}` : `${e.kind}-anon-${++anon}`);
     const meta = incidentMetaFromEvent(e);
     out.push({
       ...a,
@@ -278,9 +290,13 @@ export function attentionAlertCount(
     const a = classifyAlert(e);
     if (!a || a.level === "info") continue;
     if (!attentionFilter(e, halted, nowMs, windowMs)) continue;
-    const id = e.id || `${e.kind}-${e.seq ?? ""}`;
-    if (seen.has(id)) continue; // dedupe so the badge matches the strip's count
-    seen.add(id);
+    // Same identity rule as recentAttentionAlerts so the badge and the strip
+    // count the same rows — an unidentifiable event is counted, not merged.
+    const key = eventDedupKey(e);
+    if (key) {
+      if (seen.has(key)) continue; // dedupe so the badge matches the strip's count
+      seen.add(key);
+    }
     n++;
   }
   return n;

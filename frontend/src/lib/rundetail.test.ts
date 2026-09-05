@@ -1,11 +1,37 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { deriveDetail, num, mergeEvents } from "@/lib/rundetail";
+import { deriveDetail, num, mergeEvents, eventDedupKey } from "@/lib/rundetail";
 import type { AgentEvent } from "@/lib/events";
 
 function contractFixture<T>(name: string): T {
   return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
 }
+
+describe("eventDedupKey", () => {
+  it("keys on journal seq, prefixed so it cannot collide with an id", () => {
+    expect(eventDedupKey({ seq: 1 } as AgentEvent)).toBe("s1");
+    expect(eventDedupKey({ id: "1" } as AgentEvent)).toBe("i1");
+    // seq wins when both are present: it is the authoritative journal position.
+    expect(eventDedupKey({ seq: 7, id: "e7" } as AgentEvent)).toBe("s7");
+  });
+
+  it("treats seq 0 as a real identity and rejects a blank id as one", () => {
+    // Presence, not truthiness: seq 0 is the first journaled event.
+    expect(eventDedupKey({ seq: 0 } as AgentEvent)).toBe("s0");
+    // An empty id carries no information; keying it would give every blank-id
+    // event the same constant and silently drop distinct rows.
+    expect(eventDedupKey({ id: "" } as AgentEvent)).toBe("");
+    expect(eventDedupKey({} as AgentEvent)).toBe("");
+  });
+
+  it("mergeEvents keeps distinct unidentifiable events and drops true repeats", () => {
+    const a: AgentEvent = { id: "", kind: "task.failed", subject: "agent:alpha", ts_unix_ms: 10 };
+    const b: AgentEvent = { id: "", kind: "task.failed", subject: "agent:bravo", ts_unix_ms: 20 };
+    expect(mergeEvents([a], [b]).map((e) => e.subject)).toEqual(["agent:alpha", "agent:bravo"]);
+    const s0: AgentEvent = { seq: 0, kind: "task.received", ts_unix_ms: 1 };
+    expect(mergeEvents([s0], [{ ...s0 }])).toHaveLength(1);
+  });
+});
 
 // A realistic HA-tool run arc (mirrors what /api/journal returns), deliberately
 // out of seq order to prove deriveDetail sorts before folding.

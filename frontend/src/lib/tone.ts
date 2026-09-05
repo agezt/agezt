@@ -86,11 +86,6 @@ export function toneForRate(pct: number, invert = false): Tone {
   return pct >= 90 ? "good" : pct >= 70 ? "warn" : "bad";
 }
 
-/** toneForCount: nothing pending is calm, anything pending wants attention. */
-export function toneForCount(n: number, attention: Tone = "accent"): Tone {
-  return n > 0 ? attention : "muted";
-}
-
 // STATUS_TONE is the console's shared status vocabulary. The same word must mean
 // the same colour wherever it appears: "failed" was text-bad on one page and
 // border-bad/40 on another, "done" was border-good here and text-good there, and

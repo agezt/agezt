@@ -74,10 +74,16 @@ export function useCursorPager<T extends Record<string, unknown>>(
       });
       const next = (page[itemsKey] as T[] | undefined) ?? [];
       setPaged((cur) => {
-        const seen = new Set(cur.map((r) => String(r[idKey])));
+        // A row with no id value cannot identify itself. `String(undefined)` is
+        // the truthy string "undefined", which would make every id-less row look
+        // like a duplicate of the first one and silently drop it (the `id &&`
+        // guard below is written to keep such rows, and coercion defeats it).
+        // Normalize absent/null to "" so only a present id participates in dedup.
+        const dedupKey = (r: T) => (r[idKey] == null ? "" : String(r[idKey]));
+        const seen = new Set(cur.map(dedupKey));
         const merged = [...cur];
         for (const r of next) {
-          const id = String(r[idKey]);
+          const id = dedupKey(r);
           if (id && seen.has(id)) continue;
           merged.push(r);
           if (id) seen.add(id);

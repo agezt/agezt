@@ -4,6 +4,7 @@ import { useEvents, type AgentEvent } from "@/lib/events";
 import { getJSON } from "@/lib/api";
 import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
+import { eventDedupKey } from "@/lib/rundetail";
 import { incidentMetaFromEvent, incidentRootId } from "@/lib/incidents";
 import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtWhen } from "@/lib/utils";
@@ -71,13 +72,48 @@ const LEVEL_STYLE: Record<AlertLevel, { ring: string; text: string; icon: typeof
   info: { ring: "border-border bg-card", text: "text-muted", icon: Info },
 };
 
+// alertRowId is the identity of one alert row. It must be a PURE function of
+// the event: rowOf runs over three separate lists — the seeded live buffer,
+// every live SSE append, and the journal backfill — whose results are merged and
+// re-sorted, and the value is used both as the React key and as the persisted
+// dismissal key in localStorage. Anything that changes between those calls
+// silently un-dismisses an alert the operator already acknowledged.
+//
+// Rows carrying an id or a seq keep their historical shape, so dismissals saved
+// before this change still resolve. Everything else used to get `Math.random()`,
+// which re-rolled on every call and therefore matched nothing twice.
+function alertRowId(e: AgentEvent): string {
+  if (eventDedupKey(e)) return e.id || `${e.kind}-${e.seq}`;
+  return `${e.kind}-${anonRowOrdinal(e)}`;
+}
+
+// anonRowOrdinal identifies the events that carry neither an id nor a seq. It is
+// deliberately NOT a positional index: the three lists above are merged and
+// sorted by timestamp, so any position-derived id drifts as history backfills,
+// which is the same un-dismissing bug in a different costume. A digest of the
+// scalar fields that distinguish one signal from another keeps the id pure
+// content, so it is stable across renders, remounts and reloads. Two rows whose
+// kind, subject, correlation and timestamp are ALL equal are the same signal —
+// collapsing those is dedup, not data loss. `payload` is left out on purpose:
+// its key order is wire-dependent, so hashing it could mint two ids for one
+// event (a duplicate row) rather than merging one event's two copies.
+function anonRowOrdinal(e: AgentEvent): string {
+  const material = `${e.kind}|${e.subject}|${e.correlation_id}|${e.ts_unix_ms}`;
+  let h = 0x811c9dc5; // FNV-1a, 32-bit: stable, dependency-free, no seed state
+  for (let i = 0; i < material.length; i++) {
+    h ^= material.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `anon-${(h >>> 0).toString(36)}`;
+}
+
 function rowOf(e: AgentEvent): AlertRow | null {
   const a = classifyAlert(e);
   if (!a) return null;
   const meta = incidentMetaFromEvent(e);
   return {
     ...a,
-    id: e.id || `${e.kind}-${e.seq ?? Math.random()}`,
+    id: alertRowId(e),
     tsMs: e.ts_unix_ms,
     kind: e.kind || "",
     subject: e.subject,
