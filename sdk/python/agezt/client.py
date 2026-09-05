@@ -402,7 +402,14 @@ def _parse_sse(stream) -> Iterator[StreamEvent]:
         if line.startswith("event:"):
             event = line[len("event:"):].strip()
         elif line.startswith("data:"):
-            data_lines.append(line[len("data:"):].lstrip())
+            # Per the text/event-stream spec, ONE leading U+0020 after the colon
+            # is the field separator and not content, so exactly one is removed.
+            # ``.lstrip()`` stripped every further leading space and tab, which
+            # silently mangled non-JSON payloads -- the only path where the loss
+            # is observable, since ``json.loads`` ignores leading whitespace --
+            # and it made this client parse one stream differently from the Rust
+            # and TypeScript SDKs, each of which strips a single space.
+            data_lines.append(line[len("data:"):].removeprefix(" "))
     # Flush a trailing event with no terminating blank line.
     if data_lines:
         joined = "\n".join(data_lines)
