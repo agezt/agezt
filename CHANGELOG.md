@@ -9,6 +9,11 @@ This is the human, per-component changelog (SPEC-08 §4.1). The machine,
 tamper-evident timeline of what actually happened to a running system lives in
 the hash-chained journal — `agt journal tail` / `agt why` (SPEC-08 §4.2).
 
+## [Unreleased]
+
+The active working set is maintained in `CHANGELOG/unreleased/current.md`;
+released notes are sliced into per-version files under `CHANGELOG/`.
+
 ## [v1.1.0] — 2026-09-01
 
 ### Changed
