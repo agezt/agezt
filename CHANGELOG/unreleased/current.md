@@ -1315,3 +1315,38 @@ This file holds the active `[Unreleased]` working set.
   - **Still open:** the bucket allow-list accepts any digit width, so `m1-m2.md` is treated
     as valid; and neither changelog gate appears in any workflow file, so this stronger
     validator still runs automatically nowhere.
+
+### Added
+
+- **The changelog gates now run in CI** (closing the second item of the note above).
+  `changelog-lint` and `changelog-split --verify` existed as tools but appeared in zero
+  workflow files, which is precisely how root `CHANGELOG.md` could lose its
+  `## [Unreleased]` section and stay red unnoticed, and how a doubled-prefix release
+  filename emitted by the sibling tool validated green. Added a `changelog` job to
+  `.github/workflows/ci.yml` with the linter as a blocking step and the verifier as an
+  advisory one.
+  - `--verify` is advisory **on purpose, not by omission**: the committed tree is
+    unadopted, so it reports four drifts today. Because the required status check is the
+    workflow-level `CI` context — which aggregates *every* job, and which ruleset
+    `22206739` enforces with `enforce_admins` and no bypass actors — making that step
+    blocking would turn unrelated pull requests red rather than protect the changelog.
+    Flipping `continue-on-error` to false is gated on a content migration that absorbs the
+    hand-held lines into the generators or into root's version block; CI must never pass
+    `--discard-working-set`, the flag that discards the canonical working set.
+  - The job runs on `ubuntu-latest` rather than the house `[self-hosted, Linux, X64]`
+    label, because the self-hosted pool measured zero registered runners, so a self-hosted
+    job here would queue and be cancelled rather than ever run the gate. **This contradicts
+    the comment at the top of the same file**, which states hosted minutes are blocked by
+    Actions billing; the same workflow's hosted job is nonetheless its only recent success,
+    so the header note looks stale for Linux runners. Unresolved owner call, not settled
+    here.
+  - A `needs` entry was deliberately *not* added: `needs` orders jobs inside a workflow and
+    has no bearing on whether a failing job reddens the `CI` check, so aggregating this job
+    into another one would have been churn.
+  - Verified with a real YAML parser rather than grep: the file parses, the `on:` trigger
+    survived (a bare `on` folding to boolean `true` is a YAML 1.1 parser quirk, not a
+    workflow error), seventeen jobs are intact with no duplicate key, every step has
+    `uses` or `run`, the referenced local composite action exists, and the only
+    `continue-on-error` step in the file is this job's verifier. Both gate commands were
+    re-measured as the job invokes them: linter exit 0, verifier exit 1 with four drifts,
+    which is exactly the pair the job encodes.
