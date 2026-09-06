@@ -1230,3 +1230,32 @@ This file holds the active `[Unreleased]` working set.
   `event:` still trims rather than stripping one space — the same shape, but event names
   carry no whitespace, so it has no observable effect and was left alone rather than
   widening this change.
+
+- **`--emit --force` dropped the releases that root only declares in its index.**
+  `renderReadme`, `renderReorgLog` and `renderMain` built their release lists solely from
+  root's parsed version blocks, and root carries a single such block, so an adopt run
+  rewrote `README.md` and `REORG-LOG.md` without their `v1.0.0.md` and `v0.1.0.md` lines —
+  content those files held and no generator could reproduce. Root's hand-written
+  `Releases` index already declared the tag and date for both, but nothing parsed it, so
+  the same two pointers vanished from root on the next render too.
+  `parseDeclaredReleases` + `extraReleases` now feed declared releases into all three
+  renderers, which also keeps root a fixed point: a second parse sees the same release set
+  instead of a shrunk one.
+  - The two pure-derived index files were exempted from the working-set loss gate so
+    adoption can proceed at all; prose notes are **not** exempted, and a hand-written
+    subsection count still counts as lost, because it is derived data no generator may
+    silently rewrite.
+  - Release *narrative* is a different kind of content and was not force-fed into an
+    index: `v1.1.0.md`'s body lines belong in root's version block, which
+    `renderVersion` re-emits verbatim, and moving them there is a content migration
+    rather than a code change.
+  - Proven on a throwaway copy: `--emit --force` without `--discard-working-set` exits 0
+    with zero discarded lines and zero backups, and `--verify` reaches exit 0 after a
+    re-emit. `TestGeneratedIndexFilesNameDeclaredReleases` asserts the release lines
+    appear in generated **bytes**, so the absorption claim does not lean on the exemption;
+    `TestDeclaredReleasesRoundTripIsStable` guards the fixed point and
+    `TestAdoptingDerivedIndexFilesNeedsNoDiscardFlag` covers hand-held index files.
+  - **The real tree is still not adoptable as committed.** Its working set contains four
+    bare milestone references, so a release slice files a large chunk into a hand-held
+    bucket and the generalized loss gate refuses the emit — the guard behaving correctly,
+    not a regression.
