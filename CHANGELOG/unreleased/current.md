@@ -1176,6 +1176,26 @@ This file holds the active `[Unreleased]` working set.
   slash form, making the report identical across runs and byte-identical between
   Windows and POSIX.
 
+- **A forced `--emit` could delete milestone history and still report success.** The
+  loss gate inspected only one file: it worked out which lines an emit would drop by
+  scanning every document it generates, but applied that accounting solely to
+  `unreleased/current.md`. `--force` adopts every tree target the run writes, though,
+  so a forced emit replaced a hand-held bucket whose content appears in no generated
+  output — on a throwaway copy of the real tree one such run cut `m600-m649.md` from
+  1,704 lines to 354 and exited 0, and the same path cost two `README.md` lines,
+  three in `REORG-LOG.md` and sixty-five in `v1.1.0.md`. Under the decision that the
+  split tree is canonical, those were the only copies. The accounting was already
+  general, so the repair was to ask its question of every tree file this run writes,
+  in sorted order for a reproducible refusal, with the root changelog still excluded
+  because regenerating that index is the tool's job. A refusal still lands before the
+  prune and before any write, so a blocked emit leaves the whole tree untouched, and
+  `--discard-working-set` now backs up each affected file rather than only the working
+  set. `treeguard_test.go` pins both halves: a hand-held bucket survives a forced
+  emit, and a re-emit over a tree the tool already owns is never refused. The second
+  assertion is what caught a regression in the fix itself, where the generated readme
+  and reorg log were left out of the index, so an ordinary second run read its own
+  `README.md` as entirely orphaned and broke emit idempotency.
+
 - **The Rust SDK could serialize a number that is not valid JSON.** `Value::to_json`
   wrote every float through Rust's `Display`, which renders a non-finite value as
   `inf`, `-inf` or `NaN` — spellings `Value::parse` itself rejects. This is reachable
