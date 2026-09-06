@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -136,5 +137,50 @@ func TestLintStillRejectsMalformedBackups(t *testing.T) {
 		if err := lint(filepath.Join(dir, "CHANGELOG.md"), root); err == nil {
 			t.Errorf("unexpected file %q should still fail the gate, got nil", name)
 		}
+	}
+}
+
+// TestLintRejectsStrayMarkdownAtSplitRoot is the mirror image of the unreleased
+// directory check. The root loop matched names against releaseFileRe and validated
+// the ones that hit, but had NO else branch, so any unrecognized .md file was
+// silently skipped and the gate stayed green. That is how "vv1.1.0.md" — the
+// doubled-prefix filename changelog-split actually emitted before its vFilename
+// fix — passed validation while being referenced by nothing: the validator could
+// not see the very class of defect its sibling tool had just produced.
+func TestLintRejectsStrayMarkdownAtSplitRoot(t *testing.T) {
+	for _, name := range []string{
+		"vv1.1.0.md",  // the real artifact: doubled prefix, matches nothing
+		"notes.md",    // hand-written file left at the split root
+		"v1.0.md",     // two-component version: NOT ^v\d+\.\d+\.\d+\.md$
+		"v1.0.0.1.md", // four components
+		"RELEASE.md",  // plausible but unmapped
+	} {
+		dir, root, mustWrite := layoutTree(t)
+		mustWrite(filepath.Join(root, name), "# Changelog\n\n### Added\n- x\n")
+		if err := lint(filepath.Join(dir, "CHANGELOG.md"), root); err == nil {
+			t.Errorf("stray markdown %q at the split root should fail the gate, got nil", name)
+		} else if !strings.Contains(err.Error(), "unexpected file in split changelog dir") {
+			t.Errorf("stray markdown %q gave the wrong error: %v", name, err)
+		}
+	}
+}
+
+// TestLintAcceptsKnownRootFiles is the counter-direction guard: closing the root
+// hole must not reject anything the layout legitimately contains. It covers the
+// valid release file, a root-level discard backup, the required README/REORG-LOG
+// pair, a subdirectory, and a non-markdown stray file (notes.txt is deliberately
+// tolerated — coverage_test.go:132 depends on that, and the ask is scoped to .md).
+func TestLintAcceptsKnownRootFiles(t *testing.T) {
+	dir, root, mustWrite := layoutTree(t)
+	// layoutTree already writes README.md, REORG-LOG.md and a valid v1.0.0.md.
+	mustWrite(filepath.Join(root, "v0.9.0.md"), "# Changelog\n\n## [0.9.0] — 2026-01-02\n\n### Added\n- older release\n")
+	mustWrite(filepath.Join(root, "v1.0.0.md.bak-20260101T000000Z"), "# superseded bytes, kept verbatim\n")
+	mustWrite(filepath.Join(root, "v0.9.0.md.bak-20260101T000000Z"), "# superseded bytes, kept verbatim\n")
+	mustWrite(filepath.Join(root, "notes.txt"), "not markdown, tolerated\n")
+	if err := os.MkdirAll(filepath.Join(root, "archive"), 0o755); err != nil {
+		t.Fatalf("mkdir archive: %v", err)
+	}
+	if err := lint(filepath.Join(dir, "CHANGELOG.md"), root); err != nil {
+		t.Fatalf("a legitimate split root was rejected: %v", err)
 	}
 }

@@ -112,6 +112,23 @@ func checkSplitTree(root string) error {
 			if err := checkChangelogLikeFile(filepath.Join(root, name), true); err != nil {
 				return err
 			}
+			continue
+		}
+		// Unrecognized markdown at the split root is a layout error, mirroring the
+		// unreleased/ rule below. This loop previously had no else branch: anything
+		// that failed releaseFileRe was skipped without a word, so a stray or
+		// misnamed file validated green while being referenced by nothing — which is
+		// exactly how the doubled-prefix "vv1.1.0.md" that changelog-split once
+		// emitted escaped this validator.
+		//
+		// Deliberately narrower than the unreleased/ rule, which rejects ANY
+		// unexpected file: TestCheckSplitTreeNoReleases plants a non-markdown
+		// notes.txt here and depends on it being ignored, so this is scoped to .md.
+		// Discard backups are excused explicitly. Today their names end in the
+		// timestamp rather than ".md" so the suffix test already exempts them; the
+		// check is kept so that stays true if backupFile's naming ever changes.
+		if strings.HasSuffix(name, ".md") && !splitBackupRe.MatchString(name) {
+			return fmt.Errorf("unexpected file in split changelog dir: %s", filepath.ToSlash(filepath.Join(root, name)))
 		}
 	}
 	if releaseCount == 0 {
