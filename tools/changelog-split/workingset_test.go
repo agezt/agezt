@@ -198,9 +198,9 @@ func TestWorkingSetLossAccountsLineWise(t *testing.T) {
 	sort.Strings(keys)
 
 	plantedCurrent(t, out, res.Current+"\n"+"- **M999** an entry that exists nowhere else\n")
-	lost, err := workingSetLoss(out, res)
+	lost, err := lostLines(filepath.Join(out, "unreleased", "current.md"), generatedLineIndex(res))
 	if err != nil {
-		t.Fatalf("workingSetLoss: %v", err)
+		t.Fatalf("lostLines: %v", err)
 	}
 	if len(lost) != 1 || !strings.Contains(lost[0], "M999") {
 		t.Fatalf("want exactly the one orphaned M999 line, got %#v", lost)

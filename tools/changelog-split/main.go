@@ -444,31 +444,17 @@ func renderReorgLog(versions []versionBlock, buckets map[string][]unreleasedChun
 	return b.String()
 }
 
-// workingSetRel is the canonical active working set inside the split tree.
-// A var, not a const: filepath.Join is a function call, so it cannot appear in
-// a constant expression.
-var workingSetRel = filepath.Join("unreleased", "current.md")
-
-// workingSetLoss returns the non-blank lines of the existing canonical working
-// set that the emit would DISCARD — lines present in no generated output.
+// generatedLineIndex returns the set of non-blank trimmed lines that appear in
+// at least one document this run generates: the working set, the regenerated
+// root, every milestone bucket and every released version file.
 //
-// It counts lines rather than bytes on purpose: a release slice legitimately
+// Counting lines rather than bytes is deliberate: a release slice legitimately
 // SHRINKS current.md by moving `**M###**` chunks into milestone bucket files,
 // and relocated content reappears in the generated buckets, so it is not a
 // loss. Only content with nowhere to go counts. The generated root changelog is
 // indexed too, because an operator may cut working-set entries straight into a
 // new released version block.
-//
-// This errs toward false refusals (a reflowed line reads as lost), which is the
-// safe direction: a refusal destroys nothing and is overridable by flag.
-func workingSetLoss(outDir string, res splitResult) ([]string, error) {
-	b, err := os.ReadFile(filepath.Join(outDir, workingSetRel))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
+func generatedLineIndex(res splitResult) map[string]bool {
 	kept := map[string]bool{}
 	index := func(doc string) {
 		for _, l := range strings.Split(doc, "\n") {
@@ -477,13 +463,36 @@ func workingSetLoss(outDir string, res splitResult) ([]string, error) {
 			}
 		}
 	}
+	// Every generated document must be indexed, because every tree file the run
+	// writes is now guarded. Omitting Readme/ReorgLog makes a tool-authored
+	// README.md look entirely orphaned, which refused an ordinary re-emit and
+	// broke emit idempotency.
 	index(res.Current)
 	index(res.MainChangelog)
+	index(res.Readme)
+	index(res.ReorgLog)
 	for _, doc := range res.Buckets {
 		index(doc)
 	}
 	for _, doc := range res.Released {
 		index(doc)
+	}
+	return kept
+}
+
+// lostLines returns the non-blank trimmed lines of the existing file at path
+// that appear in no generated output — precisely what overwriting that file
+// would discard. A missing file loses nothing.
+//
+// This errs toward false refusals (a reflowed line reads as lost), which is the
+// safe direction: a refusal destroys nothing and is overridable by flag.
+func lostLines(path string, kept map[string]bool) ([]string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	var lost []string
 	for _, l := range strings.Split(string(b), "\n") {
@@ -553,29 +562,41 @@ func writeResultForce(mainPath, outDir string, res splitResult, force, discard b
 	if n := len(skip); n > 0 {
 		fmt.Fprintf(os.Stderr, "changelog-split: preserved %d hand-held tree file(s); pass --force to adopt them\n", n)
 	}
-	// Working-set loss gate. A hand-held current.md is already protected by the
-	// ownership check (it sits in skip and is never written), so this only fires
-	// when the emit really would replace the canonical working set with output
-	// that drops some of its content. Runs BEFORE the prune and BEFORE any
-	// write, so a refused emit leaves the whole tree untouched.
-	curPath := filepath.Join(outDir, workingSetRel)
-	if !skip[curPath] {
-		lost, err := workingSetLoss(outDir, res)
+	// Tree loss gate. The ownership check above already shields hand-held files
+	// from a DEFAULT emit; this gate is what remains once --force adopts them, so
+	// it must guard EVERY tree file the run would overwrite, not just the working
+	// set. The same line accounting already spans all generated output, and a
+	// bucket or released file can be the only copy of its content too: a forced
+	// emit that filed a working-set chunk into a hand-held bucket destroyed 1,704
+	// unique lines while exiting 0. Root CHANGELOG.md is excluded -- regenerating
+	// that index is the tool's job. Runs BEFORE the prune and BEFORE any write, so
+	// a refused emit leaves the whole tree untouched.
+	kept := generatedLineIndex(res)
+	targets := make([]string, 0, len(writes))
+	for path := range writes {
+		if path != mainPath {
+			targets = append(targets, path)
+		}
+	}
+	sort.Strings(targets) // deterministic refusal order, like verifyResult
+	for _, path := range targets {
+		lost, err := lostLines(path, kept)
 		if err != nil {
 			return err
 		}
-		if len(lost) > 0 {
-			if !discard {
-				return fmt.Errorf("refusing to shrink %s: %d working-set line(s) appear in no generated output (first: %q) — pass --discard-working-set to proceed (a timestamped backup is written first)",
-					filepath.ToSlash(curPath), len(lost), lost[0])
-			}
-			bak, err := backupFile(curPath)
-			if err != nil {
-				return fmt.Errorf("backup working set: %w", err)
-			}
-			fmt.Fprintf(os.Stderr, "changelog-split: backing up %s to %s before discarding %d working-set line(s)\n",
-				filepath.ToSlash(curPath), filepath.ToSlash(bak), len(lost))
+		if len(lost) == 0 {
+			continue
 		}
+		if !discard {
+			return fmt.Errorf("refusing to shrink %s: %d line(s) appear in no generated output (first: %q) -- pass --discard-working-set to proceed (a timestamped backup is written first)",
+				filepath.ToSlash(path), len(lost), lost[0])
+		}
+		bak, err := backupFile(path)
+		if err != nil {
+			return fmt.Errorf("backup %s: %w", filepath.ToSlash(path), err)
+		}
+		fmt.Fprintf(os.Stderr, "changelog-split: backing up %s to %s before discarding %d line(s)\n",
+			filepath.ToSlash(path), filepath.ToSlash(bak), len(lost))
 	}
 	if err := removeStaleSplitFiles(outDir, writes); err != nil {
 		return err
