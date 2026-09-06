@@ -574,3 +574,42 @@ jobs:
           go install github.com/zricethezav/gitleaks/v8@v8.30.1
           "$(go env GOPATH)/bin/gitleaks" detect --no-banner --redact -s . \
             -b .gitleaks-baseline
+
+  # Changelog layout gates. Neither tool was wired into any workflow before,
+  # which is why root CHANGELOG.md could lose its "## [Unreleased]" section and
+  # stay red unnoticed, and why a doubled-prefix release filename emitted by
+  # changelog-split validated green: the validator skipped anything at the split
+  # root that it did not recognize. Both holes are now closed and pinned by
+  # tools/changelog-lint and tools/changelog-split tests.
+  changelog:
+    name: changelog gates
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # ubuntu-latest, mirroring race-depth's documented reason: the self-hosted
+    # WSL runners are unreliable for toolchain work AND currently unregistered,
+    # so a self-hosted job here would queue for 24h and be cancelled rather than
+    # ever run the gate. A gate that never executes blocks nothing.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go-safe
+      - name: changelog-lint — split layout is well-formed
+        # Blocking (measured exit 0 on the current tree). Checks the root
+        # pointer, the required split files and their headings, shape of every
+        # recognized file, and rejects unrecognized markdown at BOTH levels.
+        run: go run ./tools/changelog-lint
+      - name: changelog-split --verify — tree matches its generator (advisory)
+        # ADVISORY ON PURPOSE. The committed tree is unadopted, so the four
+        # files changelog-split would regenerate differ from the hand-held
+        # originals (README.md, REORG-LOG.md, unreleased/current.md, v1.1.0.md)
+        # and --verify exits 1 today. Making this blocking would turn the
+        # required "CI" check red on every PR — ruleset 22206739 requires that
+        # context, with enforce_admins and no bypass actors — so it would block
+        # unrelated merges rather than protect the changelog. Flip
+        # continue-on-error to false only after the hand-held lines are absorbed
+        # into the generators or into root's version block (a content
+        # migration). CI must never pass --discard-working-set: that is the
+        # flag which throws away the canonical working set.
+        continue-on-error: true
+        run: go run ./tools/changelog-split --verify
