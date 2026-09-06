@@ -1287,3 +1287,31 @@ This file holds the active `[Unreleased]` working set.
     mirror-image false green and exactly how a doubled-prefix release filename once went
     unnoticed; and the bucket allow-list matches any digit width, so a range like
     `m1-m2.md` is accepted.
+
+- **That first finding is now fixed: an unrecognized markdown file at the split root fails
+  the gate.** `checkSplitTree`'s root loop matched each filename against `releaseFileRe`,
+  shape-checked the ones that hit, and had no rejection branch — anything that failed the
+  pattern was passed over without a word, while the `unreleased/` loop three lines below
+  already rejects unexpected files. The validator therefore enforced the rule in one
+  directory and not the other, which is how `vv1.1.0.md`, the doubled-prefix filename
+  `changelog-split` emitted before its filename fix, validated green while being referenced
+  by nothing.
+  - The new rule is deliberately narrower than the `unreleased/` one. That loop rejects
+    *any* unexpected file; the root loop rejects only `.md`, because
+    `TestCheckSplitTreeNoReleases` plants a non-markdown `notes.txt` at the root and depends
+    on it being ignored. Full symmetry would have broken an existing test for a reason
+    nobody asked for.
+  - Discard backups keep their exemption. A pre-flight over the real tree confirmed all five
+    committed root filenames are still accepted, so closing the hole cannot turn this
+    repository's own layout red.
+  - Proven by five stray names that each returned nil before the fix and are rejected after
+    it. The counter-direction guard `TestLintAcceptsKnownRootFiles` (valid release files,
+    root and unreleased backups, the required index pair, a subdirectory, `notes.txt`)
+    passes both before and after, which makes it a non-regression check rather than a proof.
+    The load-bearing check is end to end: a real `--emit --force --discard-working-set`
+    writes `v1.1.0.md.bak-<stamp>` at the root and lint exits 0 on that tree, while planting
+    `vv1.1.0.md` in the same tree returns exit 1 and removing it returns green — so the
+    verdict belongs to the new rule and not to the tree.
+  - **Still open:** the bucket allow-list accepts any digit width, so `m1-m2.md` is treated
+    as valid; and neither changelog gate appears in any workflow file, so this stronger
+    validator still runs automatically nowhere.
