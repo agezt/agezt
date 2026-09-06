@@ -26,6 +26,16 @@ import (
 var releaseFileRe = regexp.MustCompile(`^v\d+\.\d+\.\d+\.md$`)
 var unreleasedBucketRe = regexp.MustCompile(`^m\d+-m\d+\.md$|^m\d+\+\.md$`)
 
+// splitBackupRe matches the timestamped backups that tools/changelog-split writes
+// BESIDE a file it is about to discard (--discard-working-set), e.g.
+// "current.md.bak-20260101T000000Z". The suffix is exact — Go's reference layout
+// "20060102T150405Z" — so a look-alike with a malformed stamp is still rejected.
+// Those files are preserved history, not layout artifacts: the split tree is
+// canonical, and the backup is what lets an operator recover a discarded working
+// set. Failing the gate on them would punish taking the safety copy the sibling
+// tool promises, and would turn a green tree red the moment it is adopted.
+var splitBackupRe = regexp.MustCompile(`\.md\.bak-\d{8}T\d{6}Z$`)
+
 func main() {
 	mainPath := flag.String("main", "CHANGELOG.md", "root changelog file")
 	rootDir := flag.String("dir", "CHANGELOG", "split changelog directory")
@@ -119,6 +129,13 @@ func checkSplitTree(root string) error {
 		}
 		name := e.Name()
 		if name == "current.md" {
+			continue
+		}
+		// A timestamped backup written beside a file that --discard-working-set
+		// is about to replace is preserved history, not a layout artifact, so it
+		// is excused from the allow-list below. It is not shape-checked either:
+		// its whole purpose is to hold the superseded bytes verbatim.
+		if splitBackupRe.MatchString(name) {
 			continue
 		}
 		if !unreleasedBucketRe.MatchString(name) {
