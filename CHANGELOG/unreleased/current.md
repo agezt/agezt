@@ -1259,3 +1259,31 @@ This file holds the active `[Unreleased]` working set.
     bare milestone references, so a release slice files a large chunk into a hand-held
     bucket and the generalized loss gate refuses the emit — the guard behaving correctly,
     not a regression.
+
+- **`--discard-working-set` turned the changelog gate red on the tree it had just made
+  safe.** `backupFile` writes its copy *beside* the file it preserves, producing
+  `unreleased/current.md.bak-<UTC stamp>`, while `checkSplitTree` validates `unreleased/`
+  against a strict allow-list — `current.md` or a bucket filename — and errors on anything
+  else as an unexpected file. So taking the safety copy that the loss gate itself promises
+  flipped `go run ./tools/changelog-lint` from green to red, and a committed backup would
+  hold the gate red indefinitely. Self-inflicted this session: the backup mechanism and the
+  widened gate are both recent additions, and neither had been checked against the other.
+  - Fix is one anchored exemption matching the exact reference layout `20060102T150405Z`,
+    so a look-alike with a malformed or missing stamp still errors. The backup is
+    deliberately not shape-checked, because its purpose is to hold superseded bytes
+    verbatim rather than present a valid layout.
+  - Proven on the production path, not only a hand-written fixture:
+    `--emit --force --discard-working-set` against a scratch copy generated
+    `current.md.bak-…` and `v1.1.0.md.bak-…`, both measured as rejected by the old
+    allow-list and accepted by the new one, and lint then exits 0 on that tree. An
+    attribution control — appending one character to the stamp — sent the same tree red and
+    restoring it returned green, so the exit code belongs to the exemption rather than to
+    the tree.
+  - `TestLintStillRejectsMalformedBackups` is the counter-direction guard: a stamp that is
+    not a timestamp, an empty stamp, one missing its trailing `Z`, one with the wrong digit
+    count, and the pre-existing unrecognized-file case all still fail the gate.
+  - **Two findings reported, not fixed** (one issue per round): the same function silently
+    *ignores* an unrecognized `.md` sitting at the split **root**, which is the
+    mirror-image false green and exactly how a doubled-prefix release filename once went
+    unnoticed; and the bucket allow-list matches any digit width, so a range like
+    `m1-m2.md` is accepted.
