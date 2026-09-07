@@ -116,6 +116,13 @@ func readSSOCachedToken(cacheDir, startURL string) (*ssoCachedToken, error) {
 	if tok.AccessToken == "" {
 		return nil, fmt.Errorf("sso: cache %s missing accessToken", path)
 	}
+	if tok.ExpiresAt.IsZero() {
+		// The AWS CLI always writes expiresAt (its own refresh depends on it);
+		// a cache without one is truncated or corrupt. Treating it as
+		// never-expiring sent an ancient bearer token to the portal, surfacing
+		// as an opaque 401 instead of this actionable error. Fail closed.
+		return nil, fmt.Errorf("sso: cache %s missing expiresAt (re-run `aws sso login` to rewrite the cache)", path)
+	}
 	return &tok, nil
 }
 
@@ -215,7 +222,11 @@ func parseSSORoleCredentials(resp *http.Response) (*AssumedCreds, error) {
 		return nil, fmt.Errorf("sso: parse JSON: %w", err)
 	}
 	rc := wire.RoleCredentials
-	if rc.AccessKeyID == "" || rc.SecretAccessKey == "" {
+	// sessionToken is required: GetRoleCredentials returns temporary STS
+	// credentials that always carry one. Accepting a token-less response
+	// would let the chain pair SSO's AKID/SECRET with a session token from
+	// another source — credentials that cannot sign together.
+	if rc.AccessKeyID == "" || rc.SecretAccessKey == "" || rc.SessionToken == "" {
 		return nil, fmt.Errorf("sso: response missing credentials: %s", string(raw))
 	}
 	// Unix-milliseconds → time.Time. The SSO API picked a different
@@ -236,9 +247,10 @@ func parseSSORoleCredentials(resp *http.Response) (*AssumedCreds, error) {
 // would force the more abstract one to thread two unrelated
 // parameter shapes through one cache.
 type ssoCache struct {
-	mu     sync.Mutex
-	creds  *AssumedCreds
-	params SSOParams
+	mu       sync.Mutex
+	creds    *AssumedCreds
+	params   SSOParams
+	negCache time.Time // last failed fetch; retries suppressed for negCacheTTL
 }
 
 func (c *ssoCache) get(ctx context.Context, now time.Time) (*AssumedCreds, error) {
@@ -247,11 +259,19 @@ func (c *ssoCache) get(ctx context.Context, now time.Time) (*AssumedCreds, error
 	if c.creds != nil && now.Before(c.creds.Expiration.Add(-refreshLeadTime)) {
 		return c.creds, nil
 	}
+	// Negative cache, mirroring assumeRoleCache/imdsCache: a just-failed
+	// fetch (expired bearer token, refused portal) is doomed; don't re-run
+	// it for every credential name in one chain resolution.
+	if !c.negCache.IsZero() && now.Sub(c.negCache) < negCacheTTL {
+		return nil, errCredFetchSuppressed
+	}
 	fresh, err := GetSSORoleCredentials(ctx, c.params)
 	if err != nil {
+		c.negCache = now
 		return nil, err
 	}
 	c.creds = fresh
+	c.negCache = time.Time{}
 	return fresh, nil
 }
 

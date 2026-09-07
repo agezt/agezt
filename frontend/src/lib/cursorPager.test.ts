@@ -317,3 +317,69 @@ describe("usePlanHistoryPager", () => {
     expect(result.current.hasMore).toBe(false);
   });
 });
+
+// ────────── Dedup key: an absent id must not identify a row ──────────
+//
+// The merge dedups on the id field. `String(undefined)` is the truthy string
+// "undefined", so a row with no id value used to be compared as though it had a
+// real id: the first such row poisoned the seen-set and every later id-less row
+// was silently dropped as a phantom duplicate — data loss in a list pager.
+// Id-less rows are contract-legal input, not a hypothetical: `AgentActivityRow`
+// declares `seq?: number | string` as optional.
+
+interface MaybeIdRow {
+  id?: string | number | null;
+  note: string;
+  [k: string]: unknown;
+}
+
+describe("useCursorPager dedup key — absent ids", () => {
+  it("keeps every id-less row across pages instead of dropping them as dupes", async () => {
+    nextResponse = (cursor) =>
+      cursor === null
+        ? { items: [{ id: "a", note: "p1-a" }, { note: "p1-noid" }], next_cursor: "c1" }
+        : {
+            items: [
+              { note: "p2-noid-1" },
+              { note: "p2-noid-2" },
+              { id: null, note: "p2-null" },
+              { id: "a", note: "p1-a" }, // genuine repeat -> must still drop
+              { id: "b", note: "p2-b" },
+            ],
+            next_cursor: null,
+          };
+    const { result } = renderHook(() =>
+      useCursorPager<MaybeIdRow>("/api/x", "items", "id", 50),
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(result.current.paged.map((r) => r.note)).toEqual([
+      "p1-a", "p1-noid", "p2-noid-1", "p2-noid-2", "p2-null", "p2-b",
+    ]);
+  });
+
+  it("treats numeric 0 as a present id and still dedups its repeats", async () => {
+    // Guards the other direction: a fix keyed on `!id` truthiness would read
+    // seq 0 as "no id" and start re-emitting genuine duplicates instead.
+    nextResponse = (cursor) =>
+      cursor === null
+        ? { items: [{ id: 0, note: "zero" }], next_cursor: "c1" }
+        : {
+            items: [
+              { id: 0, note: "zero-repeat" },
+              { id: 0, note: "zero-repeat-2" },
+            ],
+            next_cursor: null,
+          };
+    const { result } = renderHook(() =>
+      useCursorPager<MaybeIdRow>("/api/x", "items", "id", 50),
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(result.current.paged.map((r) => r.note)).toEqual(["zero"]);
+  });
+});

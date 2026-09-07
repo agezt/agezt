@@ -157,7 +157,12 @@ var awsRecognisedNames = map[string]struct{}{
 // The file is loaded lazily on the first call to the returned
 // lookup, then cached for the process lifetime — typical daemon
 // pattern, the file rarely changes mid-run, and a hot reload of
-// the daemon re-creates the lookup.
+// the daemon re-creates the lookup. A `credential_process` entry is
+// the one exception: helpers commonly mint TEMPORARY credentials
+// (aws-vault, 1Password wrappers — anything STS-backed), so their
+// output is cached only until `Expiration - refreshLead` and the
+// helper is re-run on the next lookup, exactly like the IMDS cache.
+// A helper that advertises no Expiration keeps the run-once behavior.
 //
 // Region resolution: AWS keeps region in ~/.aws/config (a *different*
 // file) rather than ~/.aws/credentials. We read that too so
@@ -170,16 +175,48 @@ var awsRecognisedNames = map[string]struct{}{
 func AWSSharedCredentialsLookup(profile string) func(string) string {
 	var (
 		once   sync.Once
-		values map[string]string
+		values map[string]string // static ~/.aws values — long-lived, loaded once
+		// credential_process state. procCmd is written inside once.Do and
+		// only read after it (sync.Once gives the happens-before); the rest
+		// is guarded by mu, mirroring imdsCache below.
+		mu       sync.Mutex
+		procCmd  string
+		procVals map[string]string
+		procExp  time.Time
+		procNeg  time.Time
 	)
 	return func(name string) string {
 		if _, ok := awsRecognisedNames[name]; !ok {
 			return ""
 		}
 		once.Do(func() {
-			values = loadAWSSharedFiles(profile)
+			values, procCmd = loadAWSSharedFiles(profile)
 		})
-		return values[name]
+		// Static file values win over helper output per-key (AWS-SDK
+		// precedence, unchanged).
+		if v := values[name]; v != "" {
+			return v
+		}
+		if procCmd == "" {
+			return ""
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		now := time.Now()
+		cacheValid := procVals != nil && (procExp.IsZero() || now.Add(refreshLead).Before(procExp))
+		if !cacheValid {
+			if !procNeg.IsZero() && now.Sub(procNeg) < negCacheTTL {
+				// Recent helper failure — don't exec it on every lookup.
+				return ""
+			}
+			vals, exp := runCredentialProcess(procCmd)
+			if vals == nil {
+				procNeg = now
+				return ""
+			}
+			procVals, procExp, procNeg = vals, exp, time.Time{}
+		}
+		return procVals[name]
 	}
 }
 
@@ -195,9 +232,11 @@ func AWSSharedCredentialsLookup(profile string) func(string) string {
 //	  "Expiration": "2025-01-01T00:00:00Z"  // optional, RFC3339
 //	}
 //
-// Returns the parsed key/secret/token map, or nil if the call
-// failed for any reason (the chain falls through silently — same
-// pattern as IMDS failure).
+// Returns the parsed key/secret/token map and the credentials'
+// Expiration. The map is nil if the call failed for any reason (the
+// chain falls through silently — same pattern as IMDS failure); a
+// zero Expiration means the helper advertised none, i.e. the
+// credentials are permanent and never need re-minting.
 //
 // Spec quoting rules: AWS allows the command to be a shell-style
 // string with quoting. We use osexec.Command with shell parsing
@@ -205,15 +244,15 @@ func AWSSharedCredentialsLookup(profile string) func(string) string {
 // real shell, and matches what AWS-SDK-go does internally for
 // this case. Operators who need a real shell can wrap their tool
 // in a script.
-func runCredentialProcess(commandLine string) map[string]string {
+func runCredentialProcess(commandLine string) (map[string]string, time.Time) {
 	if strings.TrimSpace(os.Getenv(EnvCredentialProcessAllowed)) != "1" {
-		return nil
+		return nil, time.Time{}
 	}
 	parts, err := splitCommandLine(commandLine)
 	if err != nil || len(parts) == 0 {
 		// Mis-split (e.g. an unterminated quote) must NOT run a half-parsed
 		// argv — fall through silently like any other cred-source failure.
-		return nil
+		return nil, time.Time{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), credentialProcessTimeout)
 	defer cancel()
@@ -222,19 +261,20 @@ func runCredentialProcess(commandLine string) map[string]string {
 	cmd.Env = credentialProcessEnv()
 	output, err := cmd.Output()
 	if err != nil {
-		return nil
+		return nil, time.Time{}
 	}
 	var doc struct {
 		Version         int    `json:"Version"`
 		AccessKeyID     string `json:"AccessKeyId"`
 		SecretAccessKey string `json:"SecretAccessKey"`
 		SessionToken    string `json:"SessionToken"`
+		Expiration      string `json:"Expiration"`
 	}
 	if err := json.Unmarshal(output, &doc); err != nil {
-		return nil
+		return nil, time.Time{}
 	}
 	if doc.Version != 1 || doc.AccessKeyID == "" || doc.SecretAccessKey == "" {
-		return nil
+		return nil, time.Time{}
 	}
 	out := map[string]string{
 		"AWS_ACCESS_KEY_ID":     doc.AccessKeyID,
@@ -243,7 +283,13 @@ func runCredentialProcess(commandLine string) map[string]string {
 	if doc.SessionToken != "" {
 		out["AWS_SESSION_TOKEN"] = doc.SessionToken
 	}
-	return out
+	var expires time.Time
+	if doc.Expiration != "" {
+		if parsed, err := time.Parse(time.RFC3339, doc.Expiration); err == nil {
+			expires = parsed
+		}
+	}
+	return out, expires
 }
 
 // splitCommandLine is a minimal shell-style tokeniser supporting
@@ -287,7 +333,7 @@ func splitCommandLine(s string) ([]string, error) {
 	return out, nil
 }
 
-func loadAWSSharedFiles(profile string) map[string]string {
+func loadAWSSharedFiles(profile string) (map[string]string, string) {
 	if profile == "" {
 		profile = strings.TrimSpace(os.Getenv("AWS_PROFILE"))
 	}
@@ -346,34 +392,28 @@ func loadAWSSharedFiles(profile string) map[string]string {
 	// and ~/.aws/config; only consulted when inline credentials are
 	// absent AND the operator opted in via the env gate. Either
 	// section's credential_process line can fire; credentials file
-	// wins if both have one (matches AWS-SDK precedence).
+	// wins if both have one (matches AWS-SDK precedence). The helper is NOT
+	// executed here: AWSSharedCredentialsLookup owns the credential_process
+	// cache so temporary (Expiring) output can be re-minted — running it in
+	// this once-per-process load would freeze the first mint forever.
+	procCmd := ""
 	if out["AWS_ACCESS_KEY_ID"] == "" {
-		var commandLine string
 		if credsPath != "" {
 			if section, err := readINISection(credsPath, profile); err == nil {
-				commandLine = section["credential_process"]
+				procCmd = section["credential_process"]
 			}
 		}
-		if commandLine == "" && cfgPath != "" {
+		if procCmd == "" && cfgPath != "" {
 			cfgSection := profile
 			if profile != "default" {
 				cfgSection = "profile " + profile
 			}
 			if section, err := readINISection(cfgPath, cfgSection); err == nil {
-				commandLine = section["credential_process"]
-			}
-		}
-		if commandLine != "" {
-			if creds := runCredentialProcess(commandLine); creds != nil {
-				for k, v := range creds {
-					if out[k] == "" {
-						out[k] = v
-					}
-				}
+				procCmd = section["credential_process"]
 			}
 		}
 	}
-	return out
+	return out, procCmd
 }
 
 // awsConfigFilePath resolves the path to an AWS config file. The

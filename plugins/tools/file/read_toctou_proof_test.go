@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -64,21 +65,22 @@ func TestReadSymlinkTOCTOU_Rejected(t *testing.T) {
 	}
 
 	result, err := tool.Invoke(context.Background(), rawIn)
-	if err == nil && result.Output == "" {
-		// No error AND no output — the read silently succeeded (the vulnerable
-		// os.ReadFile path returned the outside file).  If the fix is applied
-		// (openFileNoFollow with O_NOFOLLOW), the open fails with an
-		// "outside workspace" error and we reach the t.Fatalf below.
-		t.Fatalf("BUG-DEMONSTRATED: read of %q (through symlink to %q) succeeded — file contents exposed outside workspace root %q. Expected an error because openFileNoFollow must reject resolved paths outside the root.", relativePath, secretFile, wsRoot)
-	}
-
-	// Fix is present: the open was rejected.
-	if err != nil {
-		t.Logf("FIXED: openFileNoFollow rejected the through-symlink read (as expected): %v", err)
-	} else if result.Output == "" {
-		t.Fatalf("BUG: read returned empty output but no error — check the read-path open logic")
-	} else {
-		t.Fatalf("BUG: read returned unexpected output: %q", result.Output)
+	switch {
+	case err != nil:
+		// Refused via the Go error channel — openFileNoFollow/resolve
+		// rejected the resolved-outside path.
+		t.Logf("FIXED: through-symlink read refused via error (as expected): %v", err)
+	case result.IsError:
+		// Refused via the result channel — the tool reports refusals as
+		// agent.Result{IsError: true} (e.g. resolve()'s containment check),
+		// not as a Go error. The message names the resolved path; the FILE
+		// CONTENTS must still not appear.
+		if strings.Contains(result.Output, secret) {
+			t.Fatalf("BUG-DEMONSTRATED: the refusal message leaked the outside file contents: %q", result.Output)
+		}
+		t.Logf("FIXED: through-symlink read refused via the result channel (as expected): %s", result.Output)
+	default:
+		t.Fatalf("BUG-DEMONSTRATED: read of %q (through symlink to %q) was not refused (output=%q) — contents outside workspace root %q must not be readable", relativePath, secretFile, result.Output, wsRoot)
 	}
 }
 
@@ -112,10 +114,27 @@ func TestSearchSymlinkTOCTOU_Rejected(t *testing.T) {
 	}
 
 	result, err := tool.Invoke(context.Background(), rawIn)
-	if err == nil && result.Output != "" && len(result.Output) > len("no matches") {
-		t.Fatalf("BUG-DEMONSTRATED: search through symlink found secret %q in a file outside workspace root %q. Expected openFileNoFollow to reject the read.", secret, wsRoot)
+	switch {
+	case err != nil:
+		t.Logf("FIXED: search refused via the error channel (as expected): %v", err)
+		return
+	case result.IsError:
+		t.Logf("FIXED: search refused via the result channel (as expected): %s", result.Output)
+		return
 	}
-	t.Logf("FIXED: search correctly rejected or found no matches (output=%q, err=%v)", result.Output, err)
+	// The search ran. The hits envelope embeds the PATTERN — which IS the
+	// secret string — so a substring test would self-trip; assert on the
+	// hit count instead.
+	var body struct {
+		Count int `json:"count"`
+	}
+	if jerr := json.Unmarshal([]byte(result.Output), &body); jerr != nil {
+		t.Fatalf("BUG: unexpected search output (not a hits envelope): %q", result.Output)
+	}
+	if body.Count > 0 {
+		t.Fatalf("BUG-DEMONSTRATED: search returned %d hit(s) for %q through the escape symlink — contents outside workspace root %q leaked", body.Count, secret, wsRoot)
+	}
+	t.Logf("FIXED: search found no hits through the symlink (count=0)")
 }
 
 // TestReplaceSymlinkTOCTOU_Rejected proves that doReplace also routes through

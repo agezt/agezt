@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Radar, Zap, Coins, Wrench, Brain, Activity, Waypoints, ListTree, Bell } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
+import { eventDedupKey } from "@/lib/rundetail";
 import { getJSON } from "@/lib/api";
 import { money } from "@/lib/format";
 import { cn, fmtWhen } from "@/lib/utils";
@@ -43,9 +44,13 @@ export function notableEvents(events: AgentEvent[], limit = 8): AgentEvent[] {
   const out: AgentEvent[] = [];
   for (const e of events) {
     if (!NOTABLE[String(e.kind || "")]) continue;
-    const id = e.id || `${e.kind}-${e.seq ?? ""}`;
-    if (seen.has(id)) continue;
-    seen.add(id);
+    // Identity-only dedup: two distinct notable events that happen to carry
+    // neither an id nor a seq must both survive, not collapse onto `${kind}-`.
+    const key = eventDedupKey(e);
+    if (key) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
     out.push(e);
   }
   out.sort((a, b) => (b.ts_unix_ms ?? 0) - (a.ts_unix_ms ?? 0));

@@ -258,8 +258,13 @@ func (g *Gateway) withAuth(handler http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Check rate limit
-		if !g.allowRate(claims.SubprocessID, claims.MaxRate, claims.MaxBurst) {
+		// Check rate limit. Keyed by the token's unique TokenID, not
+		// SubprocessID: top-level tokens all carry an empty SubprocessID
+		// (the `agt token create` mint never sets one) and a bucket keeps
+		// its creator's limits, so a shared key would let a tighter-limited
+		// token ride a looser token's bucket (limit bypass) or throttle a
+		// loose token on a tight one's budget.
+		if !g.allowRate(claims.TokenID, claims.MaxRate, claims.MaxBurst) {
 			http.Error(w, `{"error":"rate_limited","message":"too many requests"}`, http.StatusTooManyRequests)
 			return
 		}

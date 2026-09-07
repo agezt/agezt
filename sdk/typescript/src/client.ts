@@ -290,7 +290,14 @@ async function* parseSSE(stream: ReadableStream<Uint8Array>): AsyncGenerator<Str
       }
     }
   } finally {
-    reader.releaseLock();
+    // Cancel — not merely releaseLock — so an early consumer exit (`break` in a
+    // for-await loop, or an exception in the loop body) aborts the underlying
+    // HTTP request and closes the socket. releaseLock() alone detaches the
+    // reader while the (still unread) request body keeps the connection open,
+    // leaking one socket per early-terminated stream. On normal completion
+    // (done=true) cancel() resolves immediately; a rejection (stream already
+    // errored) is swallowed so the consumer's original error still surfaces.
+    await reader.cancel().catch(() => {});
   }
   const ev = parseFrame(buf);
   if (ev) yield ev;

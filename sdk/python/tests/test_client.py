@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agezt import APIError, Client  # noqa: E402
+from agezt.client import _parse_sse as client_sse  # noqa: E402
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -142,6 +143,62 @@ class ClientTest(unittest.TestCase):
         tc = Client(self.c.base_url, token="testtoken", timeout=5, tenant="acme")
         h = tc.health()
         self.assertEqual(h["status"], "ok")
+
+
+class ParseSSEFieldTest(unittest.TestCase):
+    """``data:`` strips exactly one leading U+0020, not all leading whitespace.
+
+    The spec (text/event-stream) treats a single space after the colon as the
+    field separator; everything past it is content. The parser used
+    ``.lstrip()``, which also ate further leading spaces *and tabs*. Leading
+    whitespace before a JSON value is invisible to ``json.loads``, so the loss
+    is only observable on the ``{"raw": ...}`` fallback -- which is exactly
+    where it silently rewrote a payload. It also made this client disagree with
+    the Rust SDK (``strip_prefix(' ')``) and the TypeScript SDK
+    (``replace(/^ /, "")``), both of which strip one space, so the same stream
+    parsed to different values depending on the language.
+    """
+
+    def parse(self, *lines):
+        return [(e.event, e.data) for e in client_sse(iter([l.encode() + b"\n" for l in lines]))]
+
+    def test_extra_leading_spaces_survive_on_raw_fallback(self):
+        # "data:" + three spaces: one is the separator, two are content.
+        self.assertEqual(
+            self.parse("data:   hello", ""),
+            [("message", {"raw": "  hello"})],
+        )
+
+    def test_leading_tab_is_content_not_a_separator(self):
+        # Only U+0020 is a separator; .lstrip() also stripped this tab.
+        self.assertEqual(self.parse("data:\thi", ""), [("message", {"raw": "\thi"})])
+
+    def test_multiline_data_keeps_each_lines_indentation(self):
+        self.assertEqual(
+            self.parse("data:   def f():", "data:     return 1", ""),
+            [("message", {"raw": "  def f():\n    return 1"})],
+        )
+
+    def test_trailing_whitespace_is_kept(self):
+        # The bug was lstrip, not strip -- pin the other end too.
+        self.assertEqual(self.parse("data: hi  ", ""), [("message", {"raw": "hi  "})])
+
+    def test_json_payloads_are_unaffected(self):
+        # Must not regress: normal daemon output, one separator space.
+        self.assertEqual(self.parse('data: {"a": 1}', ""), [("message", {"a": 1})])
+        self.assertEqual(self.parse('data:{"a":1}', ""), [("message", {"a": 1})])
+        self.assertEqual(self.parse('data:   {"text":"  hi  "}', ""),
+                         [("message", {"text": "  hi  "})])
+
+    def test_empty_and_space_only_values(self):
+        self.assertEqual(self.parse("data:", ""), [("message", {"raw": ""})])
+        self.assertEqual(self.parse("data: ", ""), [("message", {"raw": ""})])
+
+    def test_matches_the_other_sdks_single_space_rule(self):
+        after_colon = "   spaced payload"
+        spec = after_colon[1:] if after_colon.startswith(" ") else after_colon
+        got = self.parse("data:" + after_colon, "")[0][1]["raw"]
+        self.assertEqual(got, spec)
 
 
 if __name__ == "__main__":

@@ -287,3 +287,54 @@ describe("attention de-staling (M913)", () => {
     expect(attentionAlertCount([fresh, stale])).toBe(2);
   });
 });
+
+// Regression for the id-fallback dedup key. The old
+// `const id = e.id || `${e.kind}-${e.seq ?? ""}`` collapsed EVERY id-less,
+// seq-less event of a kind onto the single constant `"task.failed-"`, so the
+// second distinct row looked like a duplicate of the first and was silently
+// dropped — the cockpit strip and the badge both undercounted real, separate
+// run failures. Id-less/seq-less events are contract-legal: AgentEvent declares
+// id?, seq? and kind? all optional and the SSE handler parses frames verbatim.
+describe("attention dedup key — events carrying neither an id nor a seq", () => {
+  const runA: AgentEvent = {
+    kind: "task.failed",
+    subject: "agent:alpha",
+    correlation_id: "corr-AAA",
+    ts_unix_ms: 100,
+    payload: { reason: "provider 500" },
+  };
+  const runB: AgentEvent = {
+    kind: "task.failed",
+    subject: "agent:bravo",
+    correlation_id: "corr-BBB",
+    ts_unix_ms: 200,
+    payload: { reason: "tool timeout" },
+  };
+
+  it("recentAttentionAlerts keeps both distinct failures", () => {
+    const out = recentAttentionAlerts([runA, runB], 10);
+    expect(out.map((a) => a.correlationId)).toEqual(["corr-BBB", "corr-AAA"]);
+    // RankedAlert.id is a React key (Dashboard/IncidentPage), so two surviving
+    // unidentifiable rows must not be handed the same id either.
+    expect(new Set(out.map((a) => a.id)).size).toBe(2);
+  });
+
+  it("attentionAlertCount counts both distinct failures", () => {
+    expect(attentionAlertCount([runA, runB])).toBe(2);
+  });
+
+  it("still dedups a genuine repeat and still treats seq 0 as a present identity", () => {
+    // The counter-direction pin: a fix that keyed off truthiness (`if (e.id ||
+    // e.seq)`) would read seq 0 — the first journaled event — as "no identity"
+    // and start re-emitting the same event twice.
+    const live: AgentEvent = {
+      kind: "task.failed",
+      seq: 0,
+      correlation_id: "c1",
+      ts_unix_ms: 10,
+      payload: { reason: "boom" },
+    };
+    expect(attentionAlertCount([live, { ...live }])).toBe(1);
+    expect(recentAttentionAlerts([live, { ...live }], 5)).toHaveLength(1);
+  });
+});

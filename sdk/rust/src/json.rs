@@ -126,7 +126,17 @@ impl Value {
             Value::Bool(true) => out.write_str("true"),
             Value::Bool(false) => out.write_str("false"),
             Value::Int(n) => write!(out, "{n}"),
-            Value::Float(f) => write!(out, "{f}"),
+            // JSON has no literal for a non-finite number. Rust's `Display`
+            // renders those as `inf` / `-inf` / `NaN`, which `Value::parse`
+            // rejects — so `parse -> to_json -> parse` dropped the value, and a
+            // caller posting `to_json()` sent a body the daemon cannot decode.
+            // `Value::parse` can itself produce them: an overflowing exponent
+            // like `1e999` saturates to +inf instead of failing. Emit `null`,
+            // the same choice JSON.stringify makes, so to_json always yields
+            // valid JSON. (Reporting an error is not an option here: `to_json`
+            // discards this Result, so it would truncate the output silently.)
+            Value::Float(f) if f.is_finite() => write!(out, "{f}"),
+            Value::Float(_) => out.write_str("null"),
             Value::Str(s) => write_json_string(s, out),
             Value::Array(a) => {
                 out.push('[');
@@ -448,6 +458,63 @@ mod tests {
         let reparsed = Value::parse(&v.to_json()).unwrap();
         assert_eq!(v, reparsed);
         assert_eq!(v.str("answer"), Some("he\"llo\n"));
+    }
+
+    /// Non-finite floats have no JSON literal. `Value::parse` can itself produce
+    /// one — an overflowing exponent saturates to `+inf` rather than failing —
+    /// and `Value::Float` is a public variant, so callers can build `NaN`
+    /// directly. `to_json` used to emit Rust's `Display` form (`inf`, `-inf`,
+    /// `NaN`), which `Value::parse` rejects: the round trip above silently broke
+    /// and a posted body became unparseable. They must serialize as `null`.
+    #[test]
+    fn non_finite_floats_serialize_as_null() {
+        // Reached through the real parse path, not just hand-built values.
+        assert_eq!(Value::parse("1e999").unwrap().to_json(), "null");
+        assert_eq!(Value::parse("-1e999").unwrap().to_json(), "null");
+        // And constructed directly, since the variants are public.
+        assert_eq!(Value::Float(f64::NAN).to_json(), "null");
+        assert_eq!(Value::Float(f64::INFINITY).to_json(), "null");
+        assert_eq!(Value::Float(f64::NEG_INFINITY).to_json(), "null");
+        // The emitted form must parse again -- that is the actual contract.
+        assert_eq!(Value::parse("null").unwrap(), Value::Null);
+        // Nested, because a whole payload must not be lost with it.
+        let v = Value::parse(r#"{"cost":1e999,"ok":true}"#).unwrap();
+        assert_eq!(v.to_json(), r#"{"cost":null,"ok":true}"#);
+        assert_eq!(
+            Value::parse(&v.to_json())
+                .unwrap()
+                .get("ok")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    /// Counter-direction guard: the fix keys on `is_finite()`, so it must NOT
+    /// touch finite floats -- including a huge-but-finite value near the ceiling,
+    /// where an over-eager threshold would corrupt real money/usage figures.
+    #[test]
+    fn finite_floats_survive_serialization() {
+        for src in ["0.0", "-0.0", "1.5", "-2.25", "1e3", "1e308", "3.7e-19"] {
+            let v = Value::parse(src).unwrap();
+            let out = v.to_json();
+            let back = Value::parse(&out)
+                .unwrap_or_else(|e| panic!("{src} -> {out} failed to re-parse: {e}"));
+            assert_eq!(
+                v.as_f64(),
+                back.as_f64(),
+                "{src} changed across a round trip (serialized as {out})"
+            );
+        }
+        // Integers, incl. the i64 extremes, keep their exact form and type.
+        assert_eq!(
+            Value::parse("9223372036854775807").unwrap().to_json(),
+            "9223372036854775807"
+        );
+        assert_eq!(
+            Value::parse("-9223372036854775808").unwrap().to_json(),
+            "-9223372036854775808"
+        );
+        assert_eq!(Value::parse("-42").unwrap(), Value::Int(-42));
     }
 
     #[test]

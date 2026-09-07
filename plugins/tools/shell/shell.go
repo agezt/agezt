@@ -38,7 +38,9 @@ const DefaultTimeout = 30 * time.Second
 
 // MaxOutputBytes truncates command output so a runaway command does not
 // blow the journal/context budget. 64 KiB is the model-facing budget;
-// Warden's own cap is 256 KiB (SPEC-02 §5) and we tighten it here.
+// Warden's own cap is 256 KiB (SPEC-02 §5) and we tighten it here. Warden
+// caps each stream at this size; renderResult enforces it on the combined
+// output.
 const MaxOutputBytes = 64 * 1024
 
 // Tool is the in-process shell tool implementation of agent.Tool.
@@ -303,8 +305,23 @@ func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
 		}
 		combined = append(combined, res.Stderr...)
 	}
-	if res.Truncated {
-		combined = append([]byte("[truncated to last 64 KiB]\n"), combined...)
+	if res.Truncated || len(combined) > MaxOutputBytes {
+		// Enforce the model-facing budget on the COMBINED output. Warden wires
+		// one capBuffer per stream, so stdout and stderr are EACH allowed
+		// MaxOutputBytes and the concatenation can reach twice the budget —
+		// and when neither stream alone trips its cap, res.Truncated stays
+		// false and the overflow would ship with no marker at all.
+		// Tail-truncate (a failing command's final lines matter most) and
+		// always mark, marker included, so the total stays within budget.
+		const marker = "[truncated to last 64 KiB]\n"
+		keep := MaxOutputBytes - len(marker)
+		if keep < 0 {
+			keep = 0
+		}
+		if len(combined) > keep {
+			combined = combined[len(combined)-keep:]
+		}
+		combined = append([]byte(marker), combined...)
 	}
 
 	if res.TimedOut {

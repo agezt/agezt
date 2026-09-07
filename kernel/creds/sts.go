@@ -239,14 +239,21 @@ func defaultSessionName() string {
 // requests time to land before AWS rotates them out.
 const refreshLeadTime = 60 * time.Second
 
+// errCredFetchSuppressed is returned by the credential caches when a fetch
+// failed recently and retries are suppressed for negCacheTTL. The lookups
+// map every error to empty strings, so the observable chain behavior is
+// unchanged — the suppressed retry just never hits the network.
+var errCredFetchSuppressed = errors.New("creds: recent credential fetch failed; suppressing retries")
+
 // assumeRoleCache holds the most recent successful AssumeRole result
 // for a given params instance. Concurrency: a single sync.Mutex —
 // AssumeRole calls are infrequent (once per ~hour), so contention is
 // not a concern.
 type assumeRoleCache struct {
-	mu     sync.Mutex
-	creds  *AssumedCreds
-	params AssumeRoleParams
+	mu       sync.Mutex
+	creds    *AssumedCreds
+	params   AssumeRoleParams
+	negCache time.Time // last failed fetch; retries suppressed for negCacheTTL
 }
 
 func (c *assumeRoleCache) get(ctx context.Context, now time.Time) (*AssumedCreds, error) {
@@ -255,11 +262,20 @@ func (c *assumeRoleCache) get(ctx context.Context, now time.Time) (*AssumedCreds
 	if c.creds != nil && now.Before(c.creds.Expiration.Add(-refreshLeadTime)) {
 		return c.creds, nil
 	}
+	// A failure seconds ago means the fetch is doomed (revoked creds, a
+	// refused or black-holed endpoint): re-attempting it for every credential
+	// name in one chain resolution — and for every resolution until the
+	// window lapses — just amplifies a slow failure. Mirrors imdsCache.
+	if !c.negCache.IsZero() && now.Sub(c.negCache) < negCacheTTL {
+		return nil, errCredFetchSuppressed
+	}
 	fresh, err := AssumeRole(ctx, c.params)
 	if err != nil {
+		c.negCache = now
 		return nil, err
 	}
 	c.creds = fresh
+	c.negCache = time.Time{}
 	return fresh, nil
 }
 

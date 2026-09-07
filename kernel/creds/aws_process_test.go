@@ -53,7 +53,7 @@ func TestAWS_CredentialProcess_HappyPath(t *testing.T) {
 	bin := helperBin(t)
 	dir := t.TempDir()
 	credsPath := filepath.Join(dir, "credentials")
-	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = "+bin+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = \""+bin+"\"\n"), 0o600); err != nil {
 		t.Fatalf("write credentials: %v", err)
 	}
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credsPath)
@@ -72,6 +72,41 @@ func TestAWS_CredentialProcess_HappyPath(t *testing.T) {
 	}
 }
 
+// TestAWS_CredentialProcess_QuotedSpacedPath: a helper path containing
+// spaces — the norm under GitHub Actions' TMPDIR ("/dev/shm/gotmp-GitHub
+// Actions 1234") and for Windows operators under "C:\Program Files\..." —
+// must be DOUBLE-QUOTED in the credentials file; the tokeniser keeps the
+// spaced path as one argv token. An unquoted spaced path splits into
+// garbage argv and the exec fails with an empty lookup (first seen on the
+// hosted CI runner, whose TMPDIR has spaces).
+func TestAWS_CredentialProcess_QuotedSpacedPath(t *testing.T) {
+	bin := helperBin(t)
+	dir := t.TempDir()
+	spaced := filepath.Join(dir, "GitHub Actions 1000016278")
+	if err := os.MkdirAll(spaced, 0o755); err != nil {
+		t.Fatalf("mkdir spaced dir: %v", err)
+	}
+	spacedBin := filepath.Join(spaced, filepath.Base(bin))
+	if err := os.Rename(bin, spacedBin); err != nil {
+		t.Fatalf("move helper into spaced dir: %v", err)
+	}
+	credsPath := filepath.Join(dir, "credentials")
+	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = \""+spacedBin+"\"\n"), 0o600); err != nil {
+		t.Fatalf("write credentials: %v", err)
+	}
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credsPath)
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(dir, "no-cfg"))
+	t.Setenv(creds.EnvCredentialProcessAllowed, "1")
+
+	lookup := creds.AWSSharedCredentialsLookup("default")
+	if got, want := lookup("AWS_ACCESS_KEY_ID"), "AKIA-TEST-PROC"; got != want {
+		t.Errorf("AWS_ACCESS_KEY_ID = %q, want %q", got, want)
+	}
+	if got, want := lookup("AWS_SESSION_TOKEN"), "sess-tok"; got != want {
+		t.Errorf("AWS_SESSION_TOKEN = %q, want %q", got, want)
+	}
+}
+
 // TestAWS_CredentialProcess_GateDisabled: even with the config
 // pointing at a real helper, the chain refuses to exec it when
 // the operator hasn't opted in. Defaults safe.
@@ -79,7 +114,7 @@ func TestAWS_CredentialProcess_GateDisabled(t *testing.T) {
 	bin := helperBin(t)
 	dir := t.TempDir()
 	credsPath := filepath.Join(dir, "credentials")
-	_ = os.WriteFile(credsPath, []byte("[default]\ncredential_process = "+bin+"\n"), 0o600)
+	_ = os.WriteFile(credsPath, []byte("[default]\ncredential_process = \""+bin+"\"\n"), 0o600)
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credsPath)
 	t.Setenv("AWS_CONFIG_FILE", filepath.Join(dir, "no-cfg"))
 	t.Setenv(creds.EnvCredentialProcessAllowed, "") // explicitly off
@@ -102,7 +137,7 @@ func TestAWS_CredentialProcess_InlineCredsWin(t *testing.T) {
 		`[default]
 aws_access_key_id = INLINE_AKID
 aws_secret_access_key = INLINE_SECRET
-credential_process = `+bin+`
+credential_process = "`+bin+`"
 `), 0o600)
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credsPath)
 	t.Setenv("AWS_CONFIG_FILE", filepath.Join(dir, "no-cfg"))
@@ -128,7 +163,7 @@ func TestAWS_CredentialProcess_EnvIsScrubbed(t *testing.T) {
 	bin, envDump := envReportingHelperBin(t)
 	dir := t.TempDir()
 	credsPath := filepath.Join(dir, "credentials")
-	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = "+bin+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = \""+bin+"\"\n"), 0o600); err != nil {
 		t.Fatalf("write credentials: %v", err)
 	}
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credsPath)

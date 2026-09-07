@@ -37,6 +37,26 @@ export function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// eventDedupKey is the identity of an event for de-duplication across the two
+// delivery paths (journal backfill + live SSE), and the single source of truth
+// for that rule.
+//
+// It tests PRESENCE (`!= null`), not truthiness, so a real `seq: 0` (the first
+// journaled event) is an identity. An `id` must also be non-empty to count: a
+// present-but-blank `id: ""` carries no information, and keying it would hand
+// every blank-id event the same constant "i" — the very collision this rule
+// exists to prevent. The "s"/"i" namespace keeps `seq: 1` from colliding with
+// `id: "1"`.
+//
+// An event carrying neither returns "" meaning "cannot identify itself", and
+// every caller must then KEEP the row. Deriving a key out of other fields (e.g.
+// `e.id || `${e.kind}-${e.seq ?? ""}``) silently DROPS distinct rows: all
+// id-less, seq-less events of one kind collapse onto the constant `"task.failed-"`,
+// so the second onward reads as a duplicate of the first.
+export function eventDedupKey(e: AgentEvent): string {
+  return e.seq != null ? "s" + e.seq : e.id ? "i" + e.id : "";
+}
+
 // mergeEvents unions two event lists, de-duplicating by journal seq (falling
 // back to event id). Used to fold live SSE events into a run's fetched snapshot
 // without double-counting an event delivered by both paths. Order is not
@@ -45,7 +65,7 @@ export function mergeEvents(a: AgentEvent[], b: AgentEvent[]): AgentEvent[] {
   const seen = new Set<string>();
   const out: AgentEvent[] = [];
   for (const e of [...a, ...b]) {
-    const key = e.seq != null ? "s" + e.seq : e.id != null ? "i" + e.id : "";
+    const key = eventDedupKey(e);
     if (key) {
       if (seen.has(key)) continue;
       seen.add(key);

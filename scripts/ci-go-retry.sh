@@ -41,5 +41,11 @@ while :; do
     cp -a "$GOROOT_SRC" "$GOROOT"
     echo "re-staged GOROOT from $GOROOT_SRC to $GOROOT" >&2
   fi
+  # The rm -rf above also deleted the staged GOCACHE/GOTMPDIR the setup step
+  # created; recreate them or every retry dies with "creating work dir: ...
+  # no such file or directory" before the command even runs (observed on the
+  # GitHub-hosted runners, 2026-09-07).
+  [ -n "${GOCACHE:-}" ] && mkdir -p "$GOCACHE"
+  [ -n "${GOTMPDIR:-}" ] && mkdir -p "$GOTMPDIR"
   sleep 3
 done
