@@ -71,6 +71,27 @@ func TestExecRun_CancelKillsProcess(t *testing.T) {
 	}
 }
 
+// TestKillProcessTree_Guards exercises killProcessTree's defensive paths
+// directly: a nil cmd, a never-started cmd (Process stays nil until Start),
+// and an already-exited child — where the group kill misses (ESRCH on unix)
+// and the implementation must fall back to the direct kill without panicking.
+// Windows compiles its own killProcessTree; the same calls are safe there.
+func TestKillProcessTree_Guards(t *testing.T) {
+	killProcessTree(nil)
+
+	neverStarted := newTestCmd() // Process is nil until Start
+	killProcessTree(neverStarted)
+
+	name, args := sleepCommand(1)
+	exited := exec.Command(name, args...)
+	if err := exited.Start(); err != nil {
+		t.Fatalf("start sleeper: %v", err)
+	}
+	_ = exited.Wait()
+	time.Sleep(50 * time.Millisecond)
+	killProcessTree(exited)
+}
+
 // sleepCommand returns an OS-appropriate command that blocks for ~n seconds.
 func sleepCommand(n int) (string, []string) {
 	if runtime.GOOS == "windows" {
