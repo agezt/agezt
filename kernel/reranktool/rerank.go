@@ -11,6 +11,7 @@ package reranktool
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -90,6 +91,9 @@ func (t *rerankTool) Invoke(ctx context.Context, input json.RawMessage) (agent.R
 	}
 	ranked := make([]rankedItem, 0, len(idx))
 	for i := range idx {
+		if idx[i] < 0 || idx[i] >= len(in.Documents) {
+			return agent.Result{Output: "rerank returned out-of-range index " + strconv.Itoa(idx[i]) + " for " + strconv.Itoa(len(in.Documents)) + " documents", IsError: true}, nil
+		}
 		ranked = append(ranked, rankedItem{Rank: i + 1, Index: idx[i], Score: scores[i], Text: in.Documents[idx[i]]})
 	}
 	out, err := json.Marshal(ranked)

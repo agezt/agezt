@@ -127,3 +127,4 @@ pnpm-lock.yaml
 !/.wrongstack/
 /.wrongstack/*
 !/.wrongstack/project.json
+.temp_files/

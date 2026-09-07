@@ -23,6 +23,21 @@ interface ProviderRow {
   credentialed?: boolean;
 }
 
+// presetIdExistsInCatalog is the gate that prevents Quick Connect from
+// re-registering (and thereby wholesale-overwriting via UpsertCustomProvider)
+// a provider that models.dev already synced into the catalog. When the preset
+// id is already known to the catalog, Quick Connect must only attach a key to
+// that entry — calling /api/provider/connect for a catalog-known id would
+// replace the rich catalog entry (with its full model list and env hints)
+// with the stripped-down shape Quick Connect knows how to send
+// ({id,name,npm,api,env,model}), which is exactly the orphan-with-one-model
+// symptom users reported. The keyring write to /api/provider/keys/add is
+// already keyed by provider id and is the right surface for "attach a key to
+// a known provider", so we skip /api/provider/connect entirely here.
+function presetIdExistsInCatalog(id: string, knownIds: Set<string>): boolean {
+  return knownIds.has(id);
+}
+
 function CompatibilityPicker({ value, onChange }: { value: PresetFamily; onChange: (value: PresetFamily) => void }) {
   const options: PresetFamily[] = ["openai-compatible", "anthropic"];
   return (
@@ -93,7 +108,15 @@ export function QuickConnect() {
   async function refresh() {
     try {
       const r = await getJSON<{ providers?: ProviderRow[] }>(CATALOG_ENDPOINT);
-      setCredentialed(new Set((r.providers || []).filter((p) => p.credentialed).map((p) => p.id)));
+      // Collect every catalog-known id, not just the keyed ones. The catalog
+      // endpoint reports credentialed=true when a key is attached; what
+      // Quick Connect actually needs is "this id already lives in the
+      // catalog", so we can skip /api/provider/connect and only attach the
+      // key. Filtering on credentialed here would leave unkeyed catalog
+      // entries invisible and re-introduce the orphan-with-one-model bug
+      // (UpsertCustomProvider wholesale-replaces the rich catalog entry
+      // with the stripped-down {id,name,npm,api,env,model} shape we send).
+      setCredentialed(new Set((r.providers || []).map((p) => p.id)));
     } catch {
       /* best-effort badge only */
     }
@@ -117,19 +140,19 @@ export function QuickConnect() {
     >
       <Section title="Coding & token plans">
         {coding.map((p) => (
-          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
+          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} catalogIds={credentialed} onConnected={refresh} ui={ui} />
         ))}
       </Section>
 
       <Section title="Popular providers">
         {popular.map((p) => (
-          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
+          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} catalogIds={credentialed} onConnected={refresh} ui={ui} />
         ))}
       </Section>
 
       <Section title="Local runtimes (no key)">
         {local.map((p) => (
-          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} onConnected={refresh} ui={ui} />
+          <PresetCard key={p.id} preset={p} connected={credentialed.has(p.id)} catalogIds={credentialed} onConnected={refresh} ui={ui} />
         ))}
       </Section>
 
@@ -152,6 +175,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 type UIToast = ReturnType<typeof useUI>;
 
 // connectProvider registers the provider (custom.json) then stores the key.
+// When alreadyInCatalog is true the id already exists in the models.dev-synced
+// catalog, so we MUST NOT call /api/provider/connect — that handler would
+// wholesale-replace the rich catalog entry via UpsertCustomProvider with the
+// stripped-down shape we can send here, leaving an orphan provider with only
+// the one model the user typed into the card. Keyring attachment alone is the
+// right surface for "I already have this provider, just give it a key".
 async function connectProvider(args: {
   id: string;
   name: string;
@@ -160,15 +189,18 @@ async function connectProvider(args: {
   keyEnv: string;
   model: string;
   key: string;
+  alreadyInCatalog: boolean;
 }) {
-  await postJSON("/api/provider/connect", {
-    id: args.id,
-    name: args.name,
-    npm: familyNpm(args.family),
-    api: args.api.trim(),
-    env: args.keyEnv,
-    model: args.model.trim(),
-  });
+  if (!args.alreadyInCatalog) {
+    await postJSON("/api/provider/connect", {
+      id: args.id,
+      name: args.name,
+      npm: familyNpm(args.family),
+      api: args.api.trim(),
+      env: args.keyEnv,
+      model: args.model.trim(),
+    });
+  }
   await postJSON("/api/provider/keys/add", {
     provider: args.id,
     env: args.keyEnv,
@@ -221,11 +253,13 @@ function Glyph({ color, glyph }: { color: string; glyph: string }) {
 function PresetCard({
   preset,
   connected,
+  catalogIds,
   onConnected,
   ui,
 }: {
   preset: ProviderPreset;
   connected: boolean;
+  catalogIds: Set<string>;
   onConnected: () => void;
   ui: UIToast;
 }) {
@@ -249,7 +283,7 @@ function PresetCard({
       if (preset.keyless) {
         await connectKeyless({ id: preset.id, name: preset.name, family: preset.family, api, model });
       } else {
-        await connectProvider({ id: preset.id, name: preset.name, family: preset.family, api, keyEnv: preset.keyEnv, model, key });
+        await connectProvider({ id: preset.id, name: preset.name, family: preset.family, api, keyEnv: preset.keyEnv, model, key, alreadyInCatalog: presetIdExistsInCatalog(preset.id, catalogIds) });
       }
       if (makeDefault) await setDefaultProvider(preset.id, model);
       ui.toast(makeDefault ? `Connected ${preset.name} — now the default brain` : `Connected ${preset.name}`, "success");
@@ -433,7 +467,7 @@ function CustomCard({ onConnected, ui }: { onConnected: () => void; ui: UIToast 
     }
     setBusy(true);
     try {
-      await connectProvider({ id: providerId, name: name.trim(), family, api, keyEnv: effectiveKeyEnv, model, key });
+      await connectProvider({ id: providerId, name: name.trim(), family, api, keyEnv: effectiveKeyEnv, model, key, alreadyInCatalog: false });
       if (makeDefault) await setDefaultProvider(providerId, model);
       ui.toast(makeDefault ? `Connected ${name} — now the default brain` : `Connected ${name}`, "success");
       setKey("");

@@ -26,7 +26,9 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -279,8 +281,68 @@ func (l *Lake) Schema(name string) (Schema, bool) {
 	return c.schema, true
 }
 
-// Insert adds a record. Fields are stored verbatim; id/timestamps/provenance are
-// stamped here.
+// wholeDate matches a value that is exactly ONE date and nothing else. The
+// anchor matters: read-side helpers may truncate a timestamp to its day, but a
+// write path that did the same would destroy the time component, so anything
+// carrying a time or trailing text is deliberately left as written.
+var wholeDate = regexp.MustCompile(`^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$`)
+
+// canonicalDate returns the zero-padded `YYYY-MM-DD` spelling of a value that
+// is exactly one whole date, reporting whether it changed anything. A
+// non-canonical but recognizable spelling ("2026-9-5", "2026/9/5") becomes
+// canonical; everything else is returned untouched — an out-of-range date is
+// never guessed at, and rejection is deliberately not on the menu because it
+// would turn previously-accepted writes into errors.
+func canonicalDate(s string) (string, bool) {
+	m := wholeDate.FindStringSubmatch(strings.TrimSpace(s))
+	if m == nil {
+		return s, false
+	}
+	mo, errMo := strconv.Atoi(m[2])
+	d, errD := strconv.Atoi(m[3])
+	if errMo != nil || errD != nil || mo < 1 || mo > 12 || d < 1 || d > 31 {
+		return s, false
+	}
+	return fmt.Sprintf("%s-%02d-%02d", m[1], mo, d), true
+}
+
+// canonicalizeDateFields canonicalizes the string values of every field the
+// schema DECLARES as a date. Declaration is the trigger because the schema is
+// explicitly advisory — records may carry extra keys, and something that merely
+// looks like a date in a text field is the operator's own content. It is
+// copy-on-write: the caller's map is returned untouched unless a value actually
+// changed, because Insert historically aliased the caller's map straight into
+// the stored Record, and mutating a caller's data as a side effect is its own
+// bug.
+func canonicalizeDateFields(schema Schema, fields map[string]any) map[string]any {
+	// out stays nil until a value actually changes (map-to-nil comparison is
+	// legal, map-to-map is not), which is what makes this copy-on-write.
+	var out map[string]any
+	for _, f := range schema.Fields {
+		if f.Type != "date" {
+			continue
+		}
+		s, ok := fields[f.Name].(string)
+		if !ok {
+			continue
+		}
+		if c, changed := canonicalDate(s); changed {
+			if out == nil {
+				out = maps.Clone(fields)
+			}
+			out[f.Name] = c
+		}
+	}
+	if out == nil {
+		return fields
+	}
+	return out
+}
+
+// Insert adds a record. Fields are stored verbatim, with one deliberate
+// exception: a value written to a field the schema declares as `date` is
+// canonicalized to `YYYY-MM-DD` when it is exactly one whole date (see
+// canonicalizeDateFields). id/timestamps/provenance are stamped here.
 func (l *Lake) Insert(coll string, fields map[string]any, actor string) (Record, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -291,6 +353,7 @@ func (l *Lake) Insert(coll string, fields map[string]any, actor string) (Record,
 	if fields == nil {
 		fields = map[string]any{}
 	}
+	fields = canonicalizeDateFields(c.schema, fields)
 	now := l.now()
 	r := Record{
 		ID:        "rec-" + ulid.New(),
@@ -323,7 +386,9 @@ func (l *Lake) Get(coll, id string) (Record, error) {
 }
 
 // Update merges patch into an existing record's fields (a nil value deletes a
-// key) and bumps UpdatedMs/UpdatedBy.
+// key) and bumps UpdatedMs/UpdatedBy. Only the keys being written pass through
+// date canonicalization (see canonicalizeDateFields) — an unrelated edit must
+// not quietly rewrite a stored value the operator never touched.
 func (l *Lake) Update(coll, id string, patch map[string]any, actor string) (Record, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -335,6 +400,7 @@ func (l *Lake) Update(coll, id string, patch map[string]any, actor string) (Reco
 	if !ok {
 		return Record{}, ErrNotFound
 	}
+	patch = canonicalizeDateFields(c.schema, patch)
 	merged := make(map[string]any, len(r.Fields)+len(patch))
 	maps.Copy(merged, r.Fields)
 	for k, v := range patch {
@@ -486,8 +552,14 @@ func toFloat(v any) (float64, bool) {
 }
 
 func jsonEqual(a, b any) bool {
-	ab, _ := json.Marshal(a)
-	bb, _ := json.Marshal(b)
+	ab, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	bb, err := json.Marshal(b)
+	if err != nil {
+		return false
+	}
 	return string(ab) == string(bb)
 }
 

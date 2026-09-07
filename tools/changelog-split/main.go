@@ -299,6 +299,41 @@ func bucketFor(header string, body []string) string {
 	return fmt.Sprintf("m%d-m%d", start, start+99)
 }
 
+// bucketNum extracts the milestone a bucket key names: "m100-m199" → 100,
+// "m600-m649" → 600, "m1000+" → 1000. ok is false for keys that are not
+// milestone buckets, such as "current".
+func bucketNum(k string) (int, bool) {
+	var n int
+	if _, err := fmt.Sscanf(k, "m%d", &n); err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// bucketLess orders bucket keys by the milestone they name rather than by
+// bytes. Bucket names are fixed-width only while every milestone is three
+// digits: once the tree carries m1000+, byte order puts it BETWEEN m100-m199
+// and m200-m299 ('-' < '0' at index 4, then '1' < '2'), so both generated
+// indexes would mislead an operator scanning for where recent work landed.
+// Non-milestone keys ("current") sort first, preserving their previous place.
+func bucketLess(a, b string) bool {
+	an, aOK := bucketNum(a)
+	bn, bOK := bucketNum(b)
+	switch {
+	case aOK && bOK:
+		if an != bn {
+			return an < bn
+		}
+		return a < b // same starting milestone: deterministic tie-break
+	case aOK:
+		return false // milestone buckets sort after non-milestone keys
+	case bOK:
+		return true
+	default:
+		return a < b
+	}
+}
+
 func renderBucketDoc(name string, chunks []unreleasedChunk) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Changelog — %s\n\n", name)
@@ -504,7 +539,7 @@ func renderReadme(versions []versionBlock, buckets map[string][]unreleasedChunk,
 			keys = append(keys, k)
 		}
 	}
-	sort.Strings(keys)
+	sort.Slice(keys, func(i, j int) bool { return bucketLess(keys[i], keys[j]) })
 	for _, k := range keys {
 		fmt.Fprintf(&b, "- `unreleased/%s.md` — historical milestone slice\n", k)
 	}
@@ -534,7 +569,7 @@ func renderReorgLog(versions []versionBlock, buckets map[string][]unreleasedChun
 	for k := range buckets {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	sort.Slice(keys, func(i, j int) bool { return bucketLess(keys[i], keys[j]) })
 	for _, k := range keys {
 		fmt.Fprintf(&b, "- `%s` — %d subsection(s)\n", k, len(buckets[k]))
 	}

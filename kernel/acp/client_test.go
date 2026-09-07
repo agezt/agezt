@@ -3,6 +3,7 @@
 package acp
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"strings"
@@ -124,6 +125,51 @@ func TestNewSession_EmptySessionID(t *testing.T) {
 		t.Fatal("expected non-empty session ID")
 	}
 	_ = c2sW.Close()
+}
+
+// TestClientPrompt_SurfacesStopReasonParseError verifies client.go:89 — the
+// json.Unmarshal error when parsing a malformed stopReason field is propagated
+// to the caller instead of being silently discarded.
+//
+// A fake agent responding with stopReason as a number (42) instead of a string
+// causes json.Unmarshal into struct{StopReason string} to fail. Before the fix,
+// Prompt() returned ("", nil); after the fix it returns ("", non-nil error).
+func TestClientPrompt_SurfacesStopReasonParseError(t *testing.T) {
+	pipeR, pipeW := io.Pipe()
+	client := NewClient(pipeR, pipeW)
+
+	go func() {
+		br := bufio.NewReader(pipeR)
+		// Read and respond to Initialize.
+		readLine(br)
+		pipeW.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{},"agentInfo":{}}}` + "\n"))
+		// Read and respond to session/new.
+		readLine(br)
+		pipeW.Write([]byte(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"sess-1"}}` + "\n"))
+		// Read and respond to session/prompt with MALFORMED stopReason (number, not string).
+		readLine(br)
+		pipeW.Write([]byte(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":42}}` + "\n"))
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := client.Initialize(ctx); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	sid, err := client.NewSession(ctx, "/work")
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	_, err = client.Prompt(ctx, sid, "hello", func(chunk string) {})
+	if err == nil {
+		t.Fatal("expected non-nil error on malformed stopReason, got nil")
+	}
+}
+
+func readLine(r *bufio.Reader) string {
+	line, _ := r.ReadString('\n')
+	return strings.TrimSpace(line)
 }
 
 func TestClientCall_ContextCancel(t *testing.T) {

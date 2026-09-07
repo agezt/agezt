@@ -150,4 +150,53 @@ describe("QuickConnect", () => {
       ),
     );
   });
+
+  // Regression: Quick Connect must not re-register a provider that models.dev
+  // already synced into the catalog. UpsertCustomProvider wholesale-replaces
+  // the catalog entry; if Quick Connect calls /api/provider/connect for a
+  // catalog-known id, the rich catalog entry (full models list, env hints)
+  // gets clobbered by the stripped-down {id,name,npm,api,env,model} shape
+  // Quick Connect sends — leaving an orphan provider with one model and a
+  // detached key. The right behavior is: skip /api/provider/connect for
+  // catalog-known ids and only attach the key via /api/provider/keys/add.
+  it("attaches a key to a catalog-known provider without re-registering it", async () => {
+    // /api/catalog reports zai-coding-plan as already in the catalog.
+    getJSON.mockResolvedValue({ providers: [{ id: "zai-coding-plan", credentialed: false }] });
+
+    render(withUI(<QuickConnect />));
+    await screen.findByText("Quick Connect");
+
+    // Two presets share the "Z.ai Coding Plan" name (openai-compatible +
+    // anthropic variants). Disambiguate by the per-card keyScope label, which
+    // carries the preset id and is unique to the card we want.
+    const cards = Array.from(document.querySelectorAll("div.glass")) as HTMLElement[];
+    const zaiCodingCard = cards.find((c) => c.textContent?.includes("provider:zai-coding-plan:"))!;
+    // The card now renders "Reconnect" instead of "Connect" when the preset
+    // id is already in the catalog (PresetCard line ~320: `{connected ? "Reconnect" : "Connect"}`).
+    // The regression asserts on catalog-known ids, so the button label is
+    // "Reconnect" — match both branches.
+    const openBtn = Array.from(zaiCodingCard.querySelectorAll("button")).find((b) => /^(re)?connect$/i.test(b.textContent || ""))!;
+    fireEvent.click(openBtn);
+    // Tagline for the "zai-coding-plan" preset is "Coding plan" (see
+    // providerPresets.ts), so the modal's input aria-label is built as
+    // `${preset.name} ${preset.tagline} key` → "Z.ai Coding Plan Coding plan key".
+    fireEvent.change(screen.getByLabelText("Z.ai Coding Plan Coding plan key"), { target: { value: "sk-zai-test" } });
+    const connectBtn = screen.getByRole("button", { name: "Connect Z.ai Coding Plan" });
+    fireEvent.click(connectBtn);
+
+    // Key is attached to the existing catalog entry...
+    await waitFor(() =>
+      expect(postJSON).toHaveBeenCalledWith(
+        "/api/provider/keys/add",
+        expect.objectContaining({
+          provider: "zai-coding-plan",
+          env: "ZAI_API_KEY",
+          value: "sk-zai-test",
+          active: true,
+        }),
+      ),
+    );
+    // ...and the rich catalog entry is NOT clobbered by an upsert.
+    expect(postJSON).not.toHaveBeenCalledWith("/api/provider/connect", expect.anything());
+  });
 });

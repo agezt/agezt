@@ -229,10 +229,20 @@ func (l *Library) Marketplaces() []market.Marketplace {
 	}}
 }
 
-// ResolvePack implements market.Library.
-func (l *Library) ResolvePack(_, name, _ string) (market.Pack, error) {
-	if p, ok := l.index[name]; ok {
-		return p, nil
+// ResolvePack implements market.Library. An explicit version is an exact
+// request, honored only when the catalogue carries it — anything else is an
+// error naming what Official actually has, never a silent substitute. That
+// matters beyond this package: the composite library consults the builtin
+// FIRST, so a version-mismatch error here falls through to the synced
+// marketplaces (which may genuinely carry the requested version), whereas a
+// silent hit here would shadow them with a version nobody asked for.
+func (l *Library) ResolvePack(_, name, version string) (market.Pack, error) {
+	p, ok := l.index[name]
+	if !ok {
+		return market.Pack{}, fmt.Errorf("builtinmarket: pack %q not found in the Official marketplace", name)
 	}
-	return market.Pack{}, fmt.Errorf("builtinmarket: pack %q not found in the Official marketplace", name)
+	if version != "" && market.CompareVersions(p.Version, version) != 0 {
+		return market.Pack{}, fmt.Errorf("builtinmarket: Official carries %q at %s, not %s", name, p.Version, version)
+	}
+	return p, nil
 }

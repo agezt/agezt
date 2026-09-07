@@ -251,6 +251,29 @@ const (
 
 var dailyAtRe = regexp.MustCompile(`^([01]?\d|2[0-3]):[0-5]\d$`)
 
+// canonicalDailyAt normalizes a daily_at value to the fixed-width "HH:MM" form
+// the trigger scheduler compares against.
+//
+// dailyAtRe deliberately accepts a one-digit hour ("9:05"), but the runner
+// decides "has today's time arrived?" by comparing that value as a STRING
+// against time.Format("15:04"), which is always two-digit. A one-digit hour
+// therefore compares wrong for every minute of the day: each possible clock
+// value begins with '0', '1' or '2', all of which sort below '9', so "9:05"
+// still reads as "not yet" at 23:59 and the trigger never fires at all.
+// Padding here — at the single point where stored config becomes a TriggerSpec
+// — repairs newly saved and already-persisted workflows alike.
+//
+// A value the regex does not match is returned trimmed but otherwise unchanged:
+// Validate rejects those, and this must not silently disable a trigger the
+// operator did set.
+func canonicalDailyAt(s string) string {
+	s = strings.TrimSpace(s)
+	if m := dailyAtRe.FindStringSubmatch(s); m != nil && len(m[1]) == 1 {
+		return "0" + s
+	}
+	return s
+}
+
 // TriggerSpec parses a workflow's trigger configuration (Validate
 // guarantees it parses and is legal).
 func (w Workflow) TriggerSpec() TriggerConfig {
@@ -261,6 +284,7 @@ func (w Workflow) TriggerSpec() TriggerConfig {
 	if c.Kind == "" {
 		c.Kind = "manual"
 	}
+	c.DailyAt = canonicalDailyAt(c.DailyAt)
 	return c
 }
 

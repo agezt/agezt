@@ -232,6 +232,63 @@ func TestCronTrigger_IntervalAndDaily(t *testing.T) {
 	}
 }
 
+// TestCronTrigger_UnpaddedDailyAtFires pins the daily_at ordering bug.
+//
+// Validate has always accepted a one-digit hour ("9:05"), but onTick decided
+// "has today's time arrived?" by comparing that string against the ALWAYS
+// two-digit now.Format("15:04"). Every possible clock value starts with '0',
+// '1' or '2', which all sort below '9', so "9:05" read as "not yet due" for
+// all 1440 minutes of the day: the workflow saved cleanly, showed "daily at
+// 9:05" in the console, and never fired.
+func TestCronTrigger_UnpaddedDailyAtFires(t *testing.T) {
+	b := openBus(t)
+	store, _ := OpenStore(t.TempDir())
+	if _, _, err := store.Save(Workflow{
+		Name:  "daily-half-five",
+		Nodes: []Node{{ID: "start", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"cron","daily_at":"9:05"}`)}},
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	var mu sync.Mutex
+	now := time.Date(2026, 6, 10, 9, 4, 0, 0, time.Local)
+	clock := func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		return now
+	}
+	advance := func(d time.Duration) {
+		mu.Lock()
+		defer mu.Unlock()
+		now = now.Add(d)
+	}
+
+	rec := &fireRecorder{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := StartTriggers(ctx, b, store, RunnerConfig{Tick: 20 * time.Millisecond, Now: clock}, rec.fn); err != nil {
+		t.Fatalf("StartTriggers: %v", err)
+	}
+
+	// 09:04 — a minute early. The boundary must still be respected after
+	// normalization: padding "9:05" must not turn the trigger into "always due".
+	time.Sleep(80 * time.Millisecond)
+	if got := rec.count(); got != 0 {
+		t.Fatalf("fired before its time at 09:04: %d", got)
+	}
+
+	// 09:05 — due. Pre-fix this line was unreachable at ANY hour of the day.
+	advance(time.Minute)
+	rec.waitFor(t, 1)
+
+	// Still exactly one fire per local day once the clock rolls forward.
+	advance(6 * time.Hour)
+	time.Sleep(120 * time.Millisecond)
+	if got := rec.count(); got != 1 {
+		t.Fatalf("daily trigger fired %d times, want exactly 1", got)
+	}
+}
+
 // TestTriggerRunner_PanicIsContained is the WF-001 regression test.
 //
 // A fired workflow runs arbitrary third-party code — plugin subprocesses, MCP

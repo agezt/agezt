@@ -155,7 +155,10 @@ type Listing struct {
 	Marketplace string `json:"marketplace"`
 	Builtin     bool   `json:"builtin"`
 	Installed   bool   `json:"installed"`
-	// UpdateAvailable is true when installed at a different version than catalogued.
+	// UpdateAvailable is true only when the catalogued version is strictly
+	// NEWER than the installed one (semver precedence, see CompareVersions) —
+	// a rolled-back catalogue or a prerelease of an installed release must not
+	// offer a downgrade as an update.
 	UpdateAvailable bool `json:"update_available,omitempty"`
 }
 
@@ -181,7 +184,10 @@ func (m *Manager) List(query string) ([]Listing, error) {
 			l := Listing{MarketplaceEntry: e, Marketplace: mp.Name, Builtin: mp.Builtin}
 			if ip, ok := byName[e.Name]; ok {
 				l.Installed = true
-				l.UpdateAvailable = ip.Version != e.Version
+				// Strictly newer, not merely different: string inequality would
+				// offer a DOWNGRADE (or a prerelease of an installed release)
+				// as an update the moment the catalogue rolled back.
+				l.UpdateAvailable = CompareVersions(e.Version, ip.Version) > 0
 			}
 			out = append(out, l)
 		}
@@ -221,6 +227,19 @@ func (m *Manager) Install(corr, marketplace, name, version string, emit func(Eve
 	}
 	if err := p.Validate(); err != nil {
 		return InstalledPack{}, err
+	}
+
+	// Refuse a silent downgrade. The install record is keyed by pack name, so
+	// recording an older pack over an installed newer one rewrites provenance
+	// with no error anywhere — and List, which orders versions, would then
+	// report nothing to update. The agent tool always installs the catalogued
+	// version, so a marketplace that rolled back would downgrade every
+	// agent-initiated install invisibly. Uninstall reverses the installed
+	// footprint first; that is the supported rollback path.
+	if ip, ok, err := m.store.InstalledByName(p.Name); err != nil {
+		return InstalledPack{}, err
+	} else if ok && CompareVersions(p.Version, ip.Version) < 0 {
+		return InstalledPack{}, fmt.Errorf("market: %s is installed at %s; refusing downgrade to %s (uninstall first)", p.Name, ip.Version, p.Version)
 	}
 
 	// Trust: verify a present signature; unsigned is allowed but flagged.

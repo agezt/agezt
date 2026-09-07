@@ -86,7 +86,9 @@ func (c *Client) Prompt(ctx context.Context, sessionID, text string, onChunk fun
 	var r struct {
 		StopReason string `json:"stopReason"`
 	}
-	_ = json.Unmarshal(res, &r)
+	if err := json.Unmarshal(res, &r); err != nil {
+		return "", err
+	}
 	return r.StopReason, nil
 }
 

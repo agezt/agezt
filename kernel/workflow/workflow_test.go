@@ -179,6 +179,80 @@ func TestStore_UpsertByName(t *testing.T) {
 	}
 }
 
+// TestCanonicalDailyAt pins the normalizer that keeps a daily_at comparable.
+// The runner decides "has today's time arrived?" with a STRING compare against
+// now.Format("15:04"), which is always two-digit, so a stored one-digit hour
+// must be padded or it sorts above every possible clock value and never fires.
+func TestCanonicalDailyAt(t *testing.T) {
+	cases := []struct{ in, want string }{
+		// The broken class: one-digit hours must gain the leading zero.
+		{"9:05", "09:05"},
+		{"0:00", "00:00"},
+		{"1:30", "01:30"},
+		// Already canonical — must pass through untouched (no double padding).
+		{"09:05", "09:05"},
+		{"00:00", "00:00"},
+		{"23:59", "23:59"},
+		// Surrounding whitespace is what the runner already trimmed.
+		{"  9:05  ", "09:05"},
+		{"", ""},
+		// Values Validate rejects are returned unchanged rather than silently
+		// blanked: a normalizer must never disable a trigger the operator set.
+		{"25:99", "25:99"},
+		{"9:5", "9:5"},
+		{"abc", "abc"},
+		{"09:05:00", "09:05:00"},
+	}
+	for _, tc := range cases {
+		if got := canonicalDailyAt(tc.in); got != tc.want {
+			t.Errorf("canonicalDailyAt(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestTriggerSpec_NormalizesDailyAt proves the normalization reaches the
+// consumers through the single parse chokepoint, for both spellings and for a
+// workflow loaded back off disk (stored configs predate the fix).
+func TestTriggerSpec_NormalizesDailyAt(t *testing.T) {
+	dir := t.TempDir()
+	s, err := OpenStore(dir)
+	if err != nil {
+		t.Fatalf("OpenStore: %v", err)
+	}
+	for _, tc := range []struct{ name, stored, want string }{
+		{"unpadded", "9:05", "09:05"},
+		{"padded", "19:30", "19:30"},
+	} {
+		w := Workflow{
+			Name:  tc.name,
+			Nodes: []Node{{ID: "start", Type: NodeTrigger, Config: json.RawMessage(`{"kind":"cron","daily_at":"` + tc.stored + `"}`)}},
+		}
+		// The public contract is preserved: Validate keeps accepting the
+		// one-digit form it has always accepted.
+		if err := Validate(w); err != nil {
+			t.Fatalf("Validate(%q) rejected: %v", tc.stored, err)
+		}
+		if _, _, err := s.Save(w); err != nil {
+			t.Fatalf("Save(%q): %v", tc.name, err)
+		}
+		if got := w.TriggerSpec().DailyAt; got != tc.want {
+			t.Errorf("TriggerSpec().DailyAt for %q = %q, want %q", tc.stored, got, tc.want)
+		}
+	}
+	// Reopen from disk: pre-existing rows are repaired on read, no migration.
+	re, err := OpenStore(dir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	got, ok := re.Get("unpadded")
+	if !ok {
+		t.Fatal("workflow lost across reopen")
+	}
+	if spec := got.TriggerSpec(); spec.DailyAt != "09:05" {
+		t.Errorf("stored daily_at normalized to %q on reload, want %q", spec.DailyAt, "09:05")
+	}
+}
+
 func TestStore_Persistence(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := OpenStore(dir)

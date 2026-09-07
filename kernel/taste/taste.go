@@ -207,9 +207,15 @@ func (s *Store) Delete(id string) error {
 	removed := s.exemplars[idx]
 	s.exemplars = append(s.exemplars[:idx], s.exemplars[idx+1:]...)
 	if err := s.saveLocked(); err != nil {
-		s.exemplars = append(s.exemplars, nil)
-		copy(s.exemplars[idx+1:], s.exemplars[idx:])
-		s.exemplars[idx] = removed
+		// Rollback: pre-allocate a slice of the exact size and copy both halves.
+		// This avoids the buggy append(nil)+copy approach which silently drops
+		// the last element when the backing array is shared (cap==len).
+		n := len(s.exemplars) + 1 // original size before the failed delete
+		restored := make([]*Exemplar, n)
+		copy(restored, s.exemplars[:idx])
+		restored[idx] = removed
+		copy(restored[idx+1:], s.exemplars[idx:])
+		s.exemplars = restored
 		return err
 	}
 	return nil

@@ -259,10 +259,22 @@ func TestDialPOP3AndUIDLs(t *testing.T) {
 }
 
 func TestPollIMAPDialFailure(t *testing.T) {
-	// Dial a closed port with each TLS mode => dialIMAP + pollIMAP error out.
+	// Bind a listener and immediately close it so the next dial to that port
+	// is refused by the OS. A hardcoded port (e.g. :1) is not portable — some
+	// OSes route low ports to a real handler instead of refusing the connect.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	deadAddr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	// Dial the closed port with each TLS mode => dialIMAP + pollIMAP error out.
 	for _, mode := range []string{"none", "starttls", "tls"} {
 		c := New(Config{
-			InboxAddr:     "127.0.0.1:1",
+			InboxAddr:     deadAddr,
 			InboxProtocol: "imap",
 			InboxTLS:      mode,
 		})

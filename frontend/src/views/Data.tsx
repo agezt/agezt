@@ -22,6 +22,7 @@ import {
   Save,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/lib/api";
+import { canonicalDate, dayKey, localDayKey, localMonthKey, monthKey } from "@/lib/datalakedate";
 import { cn, fmtTime } from "@/lib/utils";
 import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
@@ -461,9 +462,15 @@ interface BespokeProps {
 // expenses list — instead of a raw table.
 function ExpenseView({ records, limit, onEdit, onDelete }: BespokeProps) {
   const total = records.reduce((s, r) => s + num(r.fields?.amount), 0);
-  const ym = new Date().toISOString().slice(0, 7); // YYYY-MM (local-ish; dates are stored as YYYY-MM-DD)
+  // Local frame, not toISOString(): a stored `date` is a bare LOCAL calendar
+  // day, so UTC-derived "this month" named the wrong month for a day either
+  // side of a month edge (see lib/datalakedate localMonthKey).
+  const ym = localMonthKey(new Date()); // YYYY-MM
+  // monthKey/dayKey, not the raw field: the lake stores `date` verbatim, so a
+  // legal "2026-9-5" would fail startsWith("2026-09") and drop out of this
+  // money total without a trace. See lib/datalakedate.
   const thisMonth = records
-    .filter((r) => String(r.fields?.date ?? "").startsWith(ym))
+    .filter((r) => monthKey(r.fields?.date) === ym)
     .reduce((s, r) => s + num(r.fields?.amount), 0);
 
   const byCat = new Map<string, number>();
@@ -474,7 +481,11 @@ function ExpenseView({ records, limit, onEdit, onDelete }: BespokeProps) {
   const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]);
   const maxCat = cats.length ? cats[0][1] : 0;
 
-  const recent = [...records].sort((a, b) => String(b.fields?.date ?? "").localeCompare(String(a.fields?.date ?? "")));
+  // dayKey first, then compare: a raw localeCompare over stored strings ranks
+  // "2026-9-5" above "2026-10-01" ('9' beats '1' at index 5), so September
+  // outranked October. Canonicalized to fixed-width YYYY-MM-DD the string order
+  // IS the chronological order; unreadable dates key to "" and sink to the end.
+  const recent = [...records].sort((a, b) => dayKey(b.fields?.date).localeCompare(dayKey(a.fields?.date)));
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-auto">
@@ -565,10 +576,22 @@ function tagList(v: unknown): string[] {
 // CalendarView (M860): an agenda grouped by date, soonest first — upcoming events
 // above past ones.
 function CalendarView({ records, limit, onEdit, onDelete }: BespokeProps) {
-  const sorted = [...records].sort((a, b) => str(a.fields?.date).localeCompare(str(b.fields?.date)));
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = sorted.filter((r) => str(r.fields?.date) >= today);
-  const past = sorted.filter((r) => str(r.fields?.date) < today).reverse();
+  // dayKey before ANY comparison: `date` is stored verbatim, so "2026-9-20" is
+  // legal. On the raw string, `"2026-9-20" >= "2026-10-05"` is true ('9' beats
+  // '1' at index 5), so a past event was filed as Upcoming, and ASC ordering
+  // ranked "2026-10-20" above "2026-10-9". Canonical fixed-width makes both
+  // comparisons chronological. An unreadable date keys to "" — below every real
+  // day, so it sorts first ascending and lands in Past rather than in the
+  // agenda's upcoming list (raw garbage like "xyz" used to outrank today).
+  const day = (r: DataRecord) => dayKey(r.fields?.date);
+  const sorted = [...records].sort((a, b) => day(a).localeCompare(day(b)));
+  // Same frame rule as the sort above: `today` must be the operator's LOCAL
+  // calendar day, because the stored dates are local days. Derived from UTC it
+  // was off by a day near a month edge, so yesterday's event read as upcoming
+  // (east of UTC) or today's own event fell into Past (west of UTC).
+  const today = localDayKey(new Date());
+  const upcoming = sorted.filter((r) => day(r) >= today);
+  const past = sorted.filter((r) => day(r) < today).reverse();
   const [shownUpcoming, shownPast] = windowSplit(upcoming, past, limit);
   const Item = (r: DataRecord) => (
     <li key={r.id} className="group flex items-start gap-3 glass rounded-xl px-3 py-2 text-sm">
@@ -770,6 +793,11 @@ function RecordEditor({
     }
     if (def.type === "bool") return s === "true" || s === "1" || s === "yes" || s === "✓";
     if (def.type === "tags") return s.split(",").map((x) => x.trim()).filter(Boolean);
+    // Stop non-canonical dates at the source: a freehand "2026-9-5" leaves the
+    // console already canonical, so the optimistic row and any offline reader
+    // see the spelling every comparison assumes. The kernel normalizes too
+    // (agents bypass this editor), but the UI must not depend on that.
+    if (def.type === "date") return canonicalDate(s);
     return s;
   }
 

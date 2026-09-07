@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -422,8 +423,19 @@ func TestProbe_Non2xxNoRetry(t *testing.T) {
 }
 
 func TestProbe_ConnError(t *testing.T) {
-	// Nothing listening on this port → transport error, reported in Err.
-	r := Probe(context.Background(), Sink{URL: "http://127.0.0.1:1/hook"}, time.Unix(1700000000, 0), nil)
+	// Bind a listener and immediately close it to get a port the OS guarantees
+	// to refuse on the next dial. Using a hardcoded port (e.g. :1) is not
+	// portable — Windows may route it to a real HTTP handler.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	deadURL := "http://" + ln.Addr().String() + "/hook"
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	r := Probe(context.Background(), Sink{URL: deadURL}, time.Unix(1700000000, 0), nil)
 	if r.OK() || r.Err == "" {
 		t.Errorf("connection failure should set Err and not be OK: %+v", r)
 	}
