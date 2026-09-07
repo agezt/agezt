@@ -177,11 +177,21 @@ func (tm *TokenManager) CreateSubprocessToken(parent *TokenClaims, subID string,
 		exp = parent.ExpiresAt
 	}
 
+	// Halve the burst — but never below 1: a parent capped at burst 1 would
+	// halve to 0, and CreateToken re-defaults a zero MaxBurst to 10, handing
+	// the child MORE burst than the parent holds. A subprocess must never
+	// exceed its parent's limits, the same way it must never outlive them
+	// (the HTTP mint path in gateway.go clamps identically).
+	burst := parent.MaxBurst / 2
+	if burst < 1 {
+		burst = 1
+	}
+
 	claims := &TokenClaims{
 		RunID:         parent.RunID,
 		Caps:          granted,
 		MaxRate:       parent.MaxRate,
-		MaxBurst:      parent.MaxBurst / 2, // subprocess gets half the burst
+		MaxBurst:      burst,
 		ExpiresAt:     exp,
 		ParentTokenID: parent.TokenID,
 		SubprocessID:  subID,

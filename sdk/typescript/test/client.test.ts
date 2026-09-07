@@ -113,6 +113,88 @@ test("runStream yields start/token/token/done and reassembles tokens", async () 
   assert.equal(events.at(-1)?.data.answer, "hello");
 });
 
+// An SSE server whose stream never ends: after a consumer breaks out of the
+// for-await loop the ONLY way its socket can close is the SDK cancelling the
+// underlying request. parseSSE used to call reader.releaseLock() alone, which
+// detaches the reader but leaves the connection open — one leaked socket per
+// early-terminated stream (the natural `if (ev.event === "done") break` shape).
+function neverEndingSSE(kind: "run" | "watch"): Promise<{ server: Server; url: string; closed: Promise<void> }> {
+  return new Promise((resolve) => {
+    const sse = createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "text/event-stream", Connection: "keep-alive" });
+      res.write("event: ready\ndata: {}\n\n");
+      res.write('event: start\ndata: {"correlation_id":"cx"}\n\n');
+      if (kind === "watch") {
+        res.write('event: mail\ndata: {"id":"m1","topic":"dm","text":"hi"}\n\n');
+      }
+      let n = 0;
+      // Capped so a regressed (leaking) run can never wedge the suite's event loop.
+      const timer = setInterval(() => {
+        n += 1;
+        res.write(`event: token\ndata: {"text":"t${n}"}\n\n`);
+        if (n >= 40) clearInterval(timer);
+      }, 5);
+      res.on("close", () => clearInterval(timer));
+    });
+    sse.listen(0, "127.0.0.1", () => {
+      const port = (sse.address() as AddressInfo).port;
+      let reportClosed: () => void = () => {};
+      const closed = new Promise<void>((r) => {
+        reportClosed = r;
+      });
+      sse.on("connection", (socket) => socket.on("close", reportClosed));
+      resolve({ server: sse, url: `http://127.0.0.1:${port}`, closed });
+    });
+  });
+}
+
+async function assertSocketClosesAfterBreak(closed: Promise<void>): Promise<void> {
+  const sawClose = await Promise.race([
+    closed.then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+  ]);
+  assert.equal(
+    sawClose,
+    true,
+    "the server never observed the SSE socket close after the consumer broke out — " +
+      "parseSSE() must cancel the stream (aborting the HTTP request), not only releaseLock()",
+  );
+}
+
+test("runStream cancels the SSE connection when the consumer breaks early", async () => {
+  const { server: sse, url, closed } = await neverEndingSSE("run");
+  try {
+    const c = new Client(url, "testtoken", { timeoutMs: 5000 });
+    let seen = 0;
+    for await (const _ev of c.runStream("hi")) {
+      seen += 1;
+      break;
+    }
+    assert.equal(seen, 1);
+    await assertSocketClosesAfterBreak(closed);
+  } finally {
+    sse.closeAllConnections?.();
+    sse.close();
+  }
+});
+
+test("mailboxWatch cancels the SSE connection when the consumer breaks early", async () => {
+  const { server: sse, url, closed } = await neverEndingSSE("watch");
+  try {
+    const c = new Client(url, "testtoken", { timeoutMs: 5000 });
+    let seen = 0;
+    for await (const _mail of c.mailboxWatch("watcher")) {
+      seen += 1;
+      break;
+    }
+    assert.equal(seen, 1);
+    await assertSocketClosesAfterBreak(closed);
+  } finally {
+    sse.closeAllConnections?.();
+    sse.close();
+  }
+});
+
 test("getRun returns the event arc", async () => {
   const arc = await client().getRun("c1");
   assert.equal(arc.count, 2);

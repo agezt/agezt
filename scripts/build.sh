@@ -24,9 +24,9 @@ cd "$ROOT_DIR"
 # ----- Build identity -----------------------------------------------------
 #
 # Mirror of the Makefile's LDFLAGS / GOFLAGS so a `bash scripts/build.sh`
-# call produces the same stamped binary as `make build`. Defaults are
-# git-derived when run inside a checkout; override on the command line
-# for release builds, e.g.:
+# call compiles all packages with the same flags as `make build` — a compile
+# check; neither emits binaries. Defaults are git-derived when run inside a
+# checkout; override on the command line for release builds, e.g.:
 #
 #   VERSION=1.2.3 COMMIT=$(git rev-parse --short HEAD) \
 #     BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) ./scripts/build.sh
@@ -49,7 +49,9 @@ case "${1:-build}" in
     build)
         echo "=== Building AGEZT (CGO_ENABLED=0, version=${VERSION}, commit=${COMMIT}) ==="
         go build ${GOFLAGS} -ldflags="${LDFLAGS}" ./...
-        echo "Build complete: $(go env GOBIN)/agezt"
+        # Compile check only: `go build` with multiple main packages writes no
+        # binaries — runnable daemons come from `make install` or scripts/dev.sh.
+        echo "Build complete"
         ;;
 
     test)

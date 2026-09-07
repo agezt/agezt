@@ -103,6 +103,15 @@ func (rt *Router) Handle(pattern string, opts RouteOpts, handler http.HandlerFun
 	}
 
 	wrapped := handler
+	if method != "*" {
+		// The declared method policy is enforced, not merely recorded: a
+		// route registered Method: POST, Mutation: true must refuse GET — a
+		// navigation/CSRF-class request otherwise reaches state-changing
+		// handlers — and Routes() must report the policy the server actually
+		// applies. Sits inside the auth wrapper so unauthenticated requests
+		// keep their 401 regardless of method.
+		wrapped = methodLimit(strings.Split(method, ","))(wrapped)
+	}
 	if opts.BodyMax > 0 {
 		wrapped = BodyLimit(opts.BodyMax)(wrapped)
 	}
@@ -141,4 +150,24 @@ func (rt *Router) Routes() []Route {
 // ServeHTTP implements http.Handler.
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rt.mux.ServeHTTP(w, r)
+}
+
+// methodLimit enforces a route's declared method allowlist ("POST" or
+// "GET,OPTIONS"): any other method is refused with 405 and an Allow header.
+func methodLimit(allowed []string) func(http.HandlerFunc) http.HandlerFunc {
+	set := make(map[string]struct{}, len(allowed))
+	for _, m := range allowed {
+		set[m] = struct{}{}
+	}
+	allow := strings.Join(allowed, ", ")
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := set[r.Method]; !ok {
+				w.Header().Set("Allow", allow)
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			next(w, r)
+		}
+	}
 }

@@ -1350,3 +1350,73 @@ This file holds the active `[Unreleased]` working set.
     `continue-on-error` step in the file is this job's verifier. Both gate commands were
     re-measured as the job invokes them: linter exit 0, verifier exit 1 with four drifts,
     which is exactly the pair the job encodes.
+
+### Fixed
+
+- **AWS `credential_process` credentials now refresh at expiry.** The IMDS and STS AssumeRole
+  sources cache temporary credentials only until `Expiration` minus a 60-second refresh lead;
+  the `credential_process` source parsed the helper's output but discarded `Expiration` and
+  memoized it under a process-lifetime `sync.Once`, so a helper minting temporary credentials
+  (the advertised aws-vault / 1Password wrapper case) was used exactly once per daemon life —
+  after which every AWS signing call failed with `ExpiredToken` until restart. The helper is
+  now re-run when the cached credential nears expiry, and a failed re-run is suppressed
+  briefly instead of being retried for every credential name; helpers that advertise no
+  expiry still run once.
+- **The AWS credential lookups stop re-running doomed fetches.** One chain resolution probes
+  three credential names in sequence, and each failed fetch used to be retried for the next
+  name — up to three identical network calls per resolution (10-second timeout each) against
+  a refused or black-holed endpoint, repeated for the daemon's lifetime. The AssumeRole,
+  web-identity and SSO caches now suppress retries for 30 seconds after a failure (mirroring
+  the IMDS layer's negative cache), so one resolution costs at most one doomed call and the
+  chain still falls through to the next source.
+- **Agent subprocess tokens can no longer exceed the parent's burst ceiling.**
+  `CreateSubprocessToken` halved the parent's burst without a floor, so a parent capped at
+  burst 1 halved to 0 — and the mint path re-defaults a zero burst to 10, handing the child
+  ten times the operator's configured allowance. The halving now floors at 1, mirroring the
+  expiry clamp (a subprocess never outlives its parent) and the HTTP mint path's identical
+  clamp; regression tests cover the floor and the halving above it.
+- **SSO role credentials without a session token are rejected.** `GetRoleCredentials` returns
+  temporary STS credentials that always carry one, and the STS and web-identity parsers
+  already refused token-less responses; the SSO parser accepted them, letting the chain pair
+  SSO's key pair with a session token from another source — credentials that cannot sign
+  together, surfacing as cryptic `SignatureDoesNotMatch` failures instead of a clear
+  malformed-response error.
+- **A truncated SSO token cache fails closed.** The AWS CLI always writes `expiresAt` to its
+  SSO token cache — its own refresh depends on it — but a cache holding an access token with
+  no expiry was previously treated as never-expiring, sending an ancient bearer token to the
+  portal (an opaque 401) instead of the actionable error. Such a cache is now rejected at
+  read time with the re-login guidance, before any network call.
+- **`scripts/build.sh` no longer claims a build artifact it never produces.** The `build`
+  target is a compile check — `go build ./...` writes no binaries — but it printed
+  `Build complete: $(go env GOBIN)/agezt` and the header promised the same stamped binary as
+  `make build`, which emits nothing either. The message and header now describe what the
+  script actually does; runnable daemons come from `make install` or the dev scripts.
+- **Agent-gateway rate limits are keyed per token, not per subprocess name.** Top-level tokens
+  carry no subprocess id, so they all shared one bucket whose limits came from whichever token
+  arrived first: a tighter-limited token rode a looser bucket (a limit bypass), or the reverse
+  throttled a token on another's budget. Buckets are now keyed by the token's unique id, with
+  regression tests proving a 1-request-per-minute token is actually refused past its budget
+  while an unrelated token is untouched.
+- **The shell tool's 64 KiB output budget is enforced on combined output.** Warden caps stdout
+  and stderr each at the limit and the tool concatenated them, so a command with ~40 KiB on
+  both streams shipped ~80 KiB to the model with no truncation marker — neither stream alone
+  tripped its cap, so warden's truncation flag never fired. The renderer now tail-truncates
+  the combined output to the budget and always marks it; under-budget output passes through
+  byte-for-byte.
+- **The shared HTTP router enforces the route method it records.** `Handle` validated,
+  normalized and logged each route's method allowlist but never wired it: every route —
+  including the console's POST-only mutation endpoints (`/api/files/delete`,
+  `/api/rollback/apply`, `/api/login`, the plan-run stream, the workflow hooks) — accepted any
+  HTTP method, and the route inspector reported a tighter policy than the server applied. A
+  wrong method now draws 405 with an `Allow` header; the auth wrapper stays outermost, so
+  unauthenticated requests keep their 401, and the empty-method migration default still
+  accepts everything.
+- **The TypeScript SDK leaked the SSE connection on every early stream exit.** `parseSSE()`
+  released the stream reader without cancelling it, so a consumer that `break`ed out of
+  `runStream()` / `mailboxWatch()` — the natural `if (event === "done") break` shape — left the
+  underlying HTTP request and socket open for as long as the upstream kept the stream alive,
+  one leaked connection per run; an exception in the consumer's loop body leaked identically.
+  The reader is now cancelled in the same `finally`, aborting the request and closing the
+  socket (a cancellation rejection is swallowed so the consumer's original error still
+  surfaces). Bounded regression tests prove the server observes socket close after an early
+  exit at both call sites.
