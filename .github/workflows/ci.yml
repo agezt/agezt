@@ -5,13 +5,15 @@
 
 name: CI
 
-# All jobs run on self-hosted WSL-Ubuntu runners (wsl-runner-1..3): the org's
-# GitHub-hosted minutes are blocked by Actions billing ("payments have failed /
-# spending limit"), and self-hosted runners are free and unaffected. The
-# macOS/Windows legs of the test matrix are parked until hosted runners are
-# back (cross-build below still compile-gates darwin/windows/freebsd, and the
-# owner develops on Windows daily). To restore: matrix os
-# [ubuntu-latest, macos-latest, windows-latest] + runs-on ${{ matrix.os }}.
+# All jobs run on GitHub-hosted ubuntu-latest runners: the self-hosted WSL
+# pool (wsl-runner-1..3) is unregistered, so self-hosted jobs queued forever
+# and the required "CI" check could never conclude. The repo is public, so
+# hosted minutes are free. To return to self-hosted runners, restore
+# runs-on: [self-hosted, Linux, X64] on each job. The macOS/Windows legs of
+# the test matrix remain parked (cross-build below still compile-gates
+# darwin/windows/freebsd, and the owner develops on Windows daily). To
+# restore them: matrix os [ubuntu-latest, macos-latest, windows-latest] +
+# runs-on ${{ matrix.os }}.
 
 on:
   push:
@@ -30,7 +32,7 @@ jobs:
   test:
     name: test (linux)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -76,7 +78,7 @@ jobs:
     # job so its failure doesn't mask a breadth-pass green (next.md #7).
     name: race-breadth (linux, cgo)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '1'
     steps:
@@ -146,7 +148,7 @@ jobs:
     # answer). See scripts/e2e-smoke.sh.
     name: e2e smoke (linux)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -164,7 +166,7 @@ jobs:
   codegen-in-sync:
     name: codegen-in-sync
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -189,7 +191,7 @@ jobs:
   frontend-dist-in-sync:
     name: frontend-dist-in-sync
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -245,7 +247,7 @@ jobs:
     # harmless no-op (it exists here only so the ciguard fork-guard lint passes
     # for this push-only-main job).
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     permissions:
       # This job needs to push the rebuilt dist back to main; every other
       # job stays at the workflow-wide contents:read.
@@ -291,7 +293,7 @@ jobs:
   frontend-test:
     name: frontend-test
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -312,7 +314,7 @@ jobs:
   webui-e2e:
     name: webui-e2e
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -342,7 +344,7 @@ jobs:
   python-sdk:
     name: python-sdk
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -359,7 +361,7 @@ jobs:
   typescript-sdk:
     name: typescript-sdk
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -380,7 +382,7 @@ jobs:
   rust-sdk:
     name: rust-sdk
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -406,7 +408,7 @@ jobs:
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     strategy:
@@ -439,7 +441,7 @@ jobs:
   deps-check:
     name: deps-check (allowlist, SDK parity, deadcode)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -458,7 +460,7 @@ jobs:
     # latest stable, which carries the patched stdlib).
     name: lint (repo hygiene, gofmt, staticcheck, govulncheck)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -554,7 +556,7 @@ jobs:
     # and allowlists only the known secret-shaped test fixtures.
     name: secrets (gitleaks)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
