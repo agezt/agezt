@@ -21,7 +21,7 @@ vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe }),
 }));
 
-import { Autonomy, PulseControl, cadenceLabel } from "@/views/Autonomy";
+import { Autonomy, PulseControl, cadenceLabel } from "@/features/autonomy/components/Autonomy";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {

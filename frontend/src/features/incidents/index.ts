@@ -21,9 +21,9 @@
 //
 // Cross-feature deps:
 //   - @/app/events (AgentEvent type) — global event hook (Day 4 carve-out)
-//   - @/lib/autonomy (AutonomyItem type) — owned by the autonomy feature
-//     (carved out later); kept as a direct lib/ import for now and will
-//     migrate to @/features/autonomy/lib once that feature exists.
+//   - @/features/autonomy/lib (AutonomyItem type) — Day 16 moved it
+//     from @/lib/autonomy to @/features/autonomy/lib/autonomy; the
+//     lib/incidents.ts consumer was rewritten to the new path.
 //
 // See docs/FRONTEND-REFACTOR-PLAN.md for the carve-out rationale.
 export { IncidentPage } from "./components/IncidentPage";

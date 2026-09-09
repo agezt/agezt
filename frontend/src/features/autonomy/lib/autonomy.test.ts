@@ -14,7 +14,7 @@ import {
   groupDetail,
   type AutonomyItem,
   filterDoctorAutonomy,
-} from "@/lib/autonomy";
+} from "./autonomy";
 
 describe("autonomy helpers", () => {
   it("treats doctor and operator incident subjects plus curated kinds as autonomy events", () => {

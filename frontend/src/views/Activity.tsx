@@ -38,7 +38,7 @@ import {
   doctorIncidentTrees,
   filterDoctorAutonomy,
   type AutonomyItem,
-} from "@/lib/autonomy";
+} from "@/features/autonomy/lib/autonomy";
 
 // Activity is the live fleet monitor: "is anything running right now, and what
 // is it doing?". It renders the app-wide daemon-seeded + SSE-folded activity

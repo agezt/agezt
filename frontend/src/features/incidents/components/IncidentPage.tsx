@@ -22,7 +22,7 @@ import {
   doctorIncidentTreeOpsSummary,
   doctorIncidentTrees,
   type AutonomyItem,
-} from "@/lib/autonomy";
+} from "@/features/autonomy/lib/autonomy";
 import {
   incidentActionContext,
   incidentDelegateCandidates,

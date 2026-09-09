@@ -3,7 +3,7 @@ import {
   doctorIncidentSourceLabel,
   type AutonomyItem,
   type DoctorIncidentPhaseTone,
-} from "@/lib/autonomy";
+} from "@/features/autonomy/lib/autonomy";
 
 type IncidentBadgeItem = Pick<AutonomyItem, "subject" | "phase" | "mode">;
 

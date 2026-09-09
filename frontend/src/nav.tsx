@@ -73,7 +73,7 @@ const Voice = lazyNamed(() => import("@/features/voice/components/Voice"), "Voic
 const ACPAgents = lazyNamed(() => import("@/features/agents/components/ACPAgents"), "ACPAgents");
 const Activity = lazyNamed(() => import("@/views/Activity"), "Activity");
 const Mission = lazyNamed(() => import("@/views/Mission"), "Mission");
-const Autonomy = lazyNamed(() => import("@/views/Autonomy"), "Autonomy");
+const Autonomy = lazyNamed(() => import("@/features/autonomy/components/Autonomy"), "Autonomy");
 const Health = lazyNamed(() => import("@/views/Health"), "Health");
 const Analyst = lazyNamed(() => import("@/views/Analyst"), "Analyst");
 const Alerts = lazyNamed(() => import("@/views/Alerts"), "Alerts");
@@ -81,7 +81,7 @@ const SearchView = lazyNamed(() => import("@/views/Search"), "Search");
 const Replay = lazyNamed(() => import("@/views/Replay"), "Replay");
 const Agents = lazyNamed(() => import("@/features/agents/components/Agents"), "Agents");
 const Roster = lazyNamed(() => import("@/features/agents/components/Roster"), "Roster");
-const Overseer = lazyNamed(() => import("@/views/Overseer"), "Overseer");
+const Overseer = lazyNamed(() => import("@/features/overseer/components/Overseer"), "Overseer");
 const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
 const Mcp = lazyNamed(() => import("@/views/Mcp"), "Mcp");
 const Workflows = lazyNamed(() => import("@/features/workflows/components/Workflows"), "Workflows");
@@ -128,7 +128,7 @@ const Inbox = lazyNamed(() => import("@/views/Inbox"), "Inbox");
 const Board = lazyNamed(() => import("@/views/Board"), "Board");
 const Reflect = lazyNamed(() => import("@/views/Reflect"), "Reflect");
 const Approvals = lazyNamed(() => import("@/views/Approvals"), "Approvals");
-const Sandbox = lazyNamed(() => import("@/views/Sandbox"), "Sandbox");
+const Sandbox = lazyNamed(() => import("@/features/sandbox/components/Sandbox"), "Sandbox");
 const Storage = lazyNamed(() => import("@/views/Storage"), "Storage");
 const Artifacts = lazyNamed(() => import("@/views/Artifacts"), "Artifacts");
 

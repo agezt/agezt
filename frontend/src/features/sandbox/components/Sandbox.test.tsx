@@ -11,7 +11,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Sandbox, isBuildNoise } from "@/views/Sandbox";
+import { Sandbox, isBuildNoise } from "@/features/sandbox/components/Sandbox";
 import { UIProvider } from "@/components/ui/feedback";
 
 // The Sandbox cards use useUI() (toast/confirm), which needs the provider.

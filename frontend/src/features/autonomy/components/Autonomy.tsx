@@ -42,7 +42,7 @@ import {
   groupConsecutive,
   groupDetail,
   type AutonomyItem,
-} from "@/lib/autonomy";
+} from "../lib/autonomy";
 
 interface Feed {
   items?: AutonomyItem[];

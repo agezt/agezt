@@ -350,9 +350,29 @@ Sırayla (önce küçük, sonra büyük):
   - **God file riski**: 3 god file (Skills 1047, Market 929, Setup 952) — hepsi Day 26+'da bölünecek
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (42.46s)
   - **Yardımcı**: `scripts/dev/rewrite-skills-market-setup-imports.py`
+- **Day 16** (bu commit): `features/autonomy/` + `features/overseer/` + `features/sandbox/` — 15. 16. 17. feature, orta boy (toplam 3599 satır, 8 dosya + 1 lib).
+  - **Taşınan (8 dosya, 3599 satır)**:
+    - `views/Autonomy.tsx` (863) + `views/Autonomy.test.tsx` (460) → `features/autonomy/components/`
+    - `lib/autonomy{,.test.ts}` (853) → `features/autonomy/lib/`
+    - `views/Overseer.tsx` (554) + `views/Overseer.test.tsx` (182) → `features/overseer/components/`
+    - `views/Sandbox.tsx` (485) + `views/Sandbox.test.tsx` (202) → `features/sandbox/components/`
+  - **Yeni**: 3 feature için 6 barrel dosyası (3 index + 3 types)
+  - **Internal relative path fix**: `features/autonomy/components/Autonomy.tsx` + `lib/autonomy.test.ts` 2 yerde `@/lib/autonomy` → relative
+  - **Güncellenen**: 9 dosyada import path rewrite
+    - `@/lib/autonomy` → `@/features/autonomy/lib/autonomy`: 5 (views/Activity.tsx, components/DoctorIncidentTrees.tsx, features/incidents/lib/incidents.ts, features/incidents/components/IncidentPage.tsx, features/incidents/components/IncidentBadges.tsx) — incidents feature heavy consumer
+    - `@/views/Autonomy` → `@/features/autonomy/components/Autonomy`: 2 (self test, nav)
+    - `@/views/Overseer` → `@/features/overseer/components/Overseer`: 2 (self test, nav)
+    - `@/views/Sandbox` → `@/features/sandbox/components/Sandbox`: 2 (self test, nav)
+  - **Yorum temizliği**: `features/incidents/index.ts` cross-feature-deps notu (Day 16 öncesi yazılmış "lib/autonomy owned by autonomy feature (carved out later)" — yeni path'e güncellendi)
+  - **Public surface (autonomy barrel)**: Autonomy + PulseControl + cadenceLabel + AutonomyItem tip
+  - **Public surface (overseer barrel)**: Overseer + overseerShouldRefresh
+  - **Public surface (sandbox barrel)**: Sandbox + isBuildNoise
+  - **Cross-feature consumers** (5): views/Activity, components/DoctorIncidentTrees, features/incidents/* (3 dosya) — hepsi rewrite edildi
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (39.86s)
+  - **Yardımcı**: `scripts/dev/rewrite-autonomy-overseer-sandbox-imports.py`
 
-## 10. Sonraki adaylar (Day 16+)
+## 10. Sonraki adaylar (Day 17+)
 
-- **Day 16-20**: kalan 9 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 17**: kalan 8 feature batch (data, mcp, models, artifacts, channels, policy, world, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 8 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952 → 9 ayrı 4-6 dosyalı split).
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 9 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952 → 9 ayrı 4-6 dosyalı split).

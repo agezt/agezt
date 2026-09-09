@@ -5,7 +5,7 @@ import {
   doctorIncidentTreeOpsSummary,
   type DoctorIncidentNode,
   type DoctorIncidentTree,
-} from "@/lib/autonomy";
+} from "@/features/autonomy/lib/autonomy";
 import {
   IncidentBadges,
   incidentPhaseBadgeClass,

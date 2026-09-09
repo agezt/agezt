@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@/app/events";
-import type { AutonomyItem } from "@/lib/autonomy";
+import type { AutonomyItem } from "@/features/autonomy/lib/autonomy";
 
 export interface IncidentMeta {
   incidentId?: string;

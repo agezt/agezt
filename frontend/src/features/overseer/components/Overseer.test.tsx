@@ -26,7 +26,7 @@ vi.mock("@/app/events", () => ({
   }),
 }));
 
-import { Overseer, overseerShouldRefresh } from "@/views/Overseer";
+import { Overseer, overseerShouldRefresh } from "@/features/overseer/components/Overseer";
 import { buildLiveRunContexts, liveWakeLabel } from "@/lib/liveruncontext";
 
 const withPage = (node: ReactNode) => <div>{node}</div>;
