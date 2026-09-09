@@ -18,7 +18,7 @@ import {
   scheduleIntentFieldHint,
   schedulePayloadContract,
   scheduleFormCadenceLabel,
-} from "@/views/Schedules";
+} from "@/features/schedules/components/Schedules";
 import {
   parseSchedulesJSON,
   scheduleActionTitle,
@@ -40,7 +40,7 @@ import {
   scheduleFrequencyIssue,
   scheduleSystemTaskPresetLabel,
   DUE_SOON_MS,
-} from "@/views/schedules/shared";
+} from "@/features/schedules/lib/shared";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 

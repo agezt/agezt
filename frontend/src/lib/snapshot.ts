@@ -1,7 +1,7 @@
 import { getJSON, postJSON, postAction } from "@/app/api";
 import { applyConfigBundle } from "@/lib/configbackup";
 import { parseStandingJSON } from "@/views/Standing";
-import { parseSchedulesJSON } from "@/views/schedules/shared";
+import { parseSchedulesJSON } from "@/features/schedules/lib/shared";
 import { parseMemoryJSON } from "@/views/Memory";
 import { parseWorldJSON } from "@/views/World";
 

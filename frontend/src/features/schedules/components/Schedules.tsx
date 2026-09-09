@@ -67,7 +67,7 @@ import {
   systemTaskDisplayName,
   systemTaskExecutionLabel,
   untilLabel,
-} from "./schedules/shared";
+} from "../lib/shared";
 import type {
   Sched,
   ScheduleAgent,
@@ -76,7 +76,7 @@ import type {
   ScheduleTargetFilter,
   ScheduleTool,
   ScheduleWorkflow,
-} from "./schedules/shared";
+} from "../lib/shared";
 
 export function Schedules() {
   const ui = useUI();

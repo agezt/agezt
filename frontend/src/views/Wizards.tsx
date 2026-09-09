@@ -9,7 +9,7 @@ import { useUI } from "@/components/ui/feedback";
 import { goToView } from "@/lib/nav";
 import { Setup } from "@/views/Setup";
 import { NewAgentForm, usdToMc } from "@/features/agents/components/Roster";
-import { NewScheduleForm } from "@/views/Schedules";
+import { NewScheduleForm } from "@/features/schedules/components/Schedules";
 import { NewServerForm } from "@/views/Mcp";
 import { NewOrderForm } from "@/views/Standing";
 import { ConnectForm, POPULAR_CHANNELS, type ChannelRow } from "@/views/Channels";

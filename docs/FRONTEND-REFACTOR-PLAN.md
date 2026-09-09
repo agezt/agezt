@@ -276,7 +276,7 @@ Sırayla (önce küçük, sonra büyük):
   - **Yardımcı**: `scripts/dev/rewrite-roster-imports.py`
   - **Agents feature tamamlandı**: 49 dosya, ~11K satır (12 lib + 28 component + 9 Roster/roster + 2 barrel). 5. feature, en büyüğü.
   - **Boş kalan**: `views/roster/` (boş subdir, 7 dosya taşındı) — git'te untracked olarak kalacak, ileride temizlenir.
-- **Day 12** (bu commit): `features/workflows/` — 6. feature, orta boy (~2600 satır, 5 dosya).
+- **Day 12** (`52aa777f`): `features/workflows/` — 6. feature, orta boy (~2600 satır, 5 dosya).
   - **Taşınan (5 dosya, 2628 satır)**:
     - `lib/chains.{ts,test.ts}` (2, 152 satır) → `features/workflows/lib/`
     - `views/Workflows.tsx` (1597 satır — god file) + `views/Workflows.test.tsx` (478 satır) → `features/workflows/components/`
@@ -291,12 +291,28 @@ Sırayla (önce küçük, sonra büyük):
   - **God file riski**: `Workflows.tsx` 1597 satır — 8 tip + 5 helper + 4 sub-component (WfNodeView, NodePanel, CopilotPanel, RunsDrawer) + Workflows() default + LastRun/freshID/TemplatePicker glue. Plan'a göre Day 26+ integration'da bölünecek (flow.ts, nodes.tsx, panels.tsx, CopilotPanel.tsx, RunsDrawer.tsx, Workflows.tsx); bugün sadece move.
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (36.6s)
   - **Yardımcı**: `scripts/dev/rewrite-workflows-imports.py`
+- **Day 13** (bu commit): `features/schedules/` + `features/execution-profiles/` — 7. ve 8. feature, küçük + orta boy (toplam 3984 satır, 6 dosya).
+  - **Taşınan (6 dosya, 3984 satır)**:
+    - `views/Schedules.tsx` (1518 — god file) + `views/Schedules.test.tsx` (1234) → `features/schedules/components/`
+    - `views/schedules/shared.ts` (616) → `features/schedules/lib/`
+    - `views/ExecutionProfiles.tsx` (1343) + `views/ExecutionProfiles.test.tsx` (290) → `features/execution-profiles/components/`
+  - **Yeni**: `features/schedules/{index,types}.ts` + `features/execution-profiles/{index,types}.ts` (4 barrel dosyası)
+  - **Güncellenen**: 5 dosyada import path rewrite
+    - `@/views/Schedules` → `@/features/schedules/components/Schedules`: 3 (nav lazy, views/Wizards.tsx NewScheduleForm, self test)
+    - `@/views/schedules/shared` → `@/features/schedules/lib/shared`: 2 (self test + lib/snapshot.ts parseSchedulesJSON consumer)
+    - `@/views/ExecutionProfiles` → `@/features/execution-profiles/components/ExecutionProfiles`: 2 (nav lazy + self test)
+    - Schedules.tsx internal relative `./schedules/shared` → `../lib/shared` (move sırasında path fix)
+  - **Public surface (schedules barrel)**: Schedules + NewScheduleForm (Wizards'ta kullanılır) + 4 form helper (scheduleSelectedAgentIssue, scheduleIntentFieldHint, schedulePayloadContract, scheduleFormCadenceLabel) + 2 tip (ScheduleTarget, ScheduleAgent)
+  - **Public surface (execution-profiles barrel)**: ExecutionProfiles + 6 helper (profileStatusTone, checkStatusTone, checksByProfileID, executionProfileRollup, executionProfilePolicyFromConfigValues, executionProfileBackendFromConfigValues) + 7 tip
+  - **Cross-feature consumers** (2): `views/Wizards.tsx` (NewScheduleForm) + `lib/snapshot.ts` (parseSchedulesJSON) — hepsi rewrite edildi
+  - **God file riski**: `Schedules.tsx` 1518 satır (page + 4 helper + NewScheduleForm sub-component) + `ExecutionProfiles.tsx` 1343 satır (page + 6 helper + 7 tip) — her ikisi de Day 26+'da bölünecek
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (33.14s)
+  - **Yardımcı**: `scripts/dev/rewrite-schedules-execution-profiles-imports.py`
 
-## 10. Sonraki adaylar (Day 13+)
+## 10. Sonraki adaylar (Day 14+)
 
-- **Day 13**: `features/schedules/` + `features/execution-profiles/`
 - **Day 14**: `features/memory/` + `features/standing/` + `features/configcenter/`
 - **Day 15**: `features/skills/` + `features/market/` + `features/setup/`
-- **Day 16-20**: kalan 14 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 16-20**: kalan 12 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 1597 satırlık `Workflows.tsx`'i `flow.ts/nodes.tsx/panels.tsx/...` 6 dosyaya böl.
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343 → 3 ayrı 4-6 dosyalı split).

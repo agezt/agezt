@@ -17,7 +17,7 @@ import {
   executionProfilePolicyFromConfigValues,
   executionProfileRollup,
   profileStatusTone,
-} from "@/views/ExecutionProfiles";
+} from "@/features/execution-profiles/components/ExecutionProfiles";
 
 const inventory = {
   host_os: "linux",
