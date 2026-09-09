@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdOverseer dispatches `agt overseer <subcommand>` — the CLI gateway to the
@@ -92,7 +93,7 @@ Diagnose:
 }
 
 func overseerStatus(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -107,7 +108,7 @@ func overseerStatus(stdout, stderr io.Writer) int {
 }
 
 func overseerAgents(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -122,7 +123,7 @@ func overseerAgents(stdout, stderr io.Writer) int {
 }
 
 func overseerRuns(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -137,7 +138,7 @@ func overseerRuns(stdout, stderr io.Writer) int {
 }
 
 func overseerHalt(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -151,7 +152,7 @@ func overseerHalt(stdout, stderr io.Writer) int {
 }
 
 func overseerResume(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -169,7 +170,7 @@ func overseerCancel(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer cancel: requires a correlation id\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -187,7 +188,7 @@ func overseerPauseResume(args []string, stdout, stderr io.Writer, enabled bool) 
 		fmt.Fprintf(stderr, "%s overseer %s: requires an agent slug\n", brand.CLI, map[bool]string{true: "unpause", false: "pause"}[enabled])
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -207,7 +208,7 @@ func overseerAgentImpact(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer impact: requires an agent slug\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -228,7 +229,7 @@ func overseerRetire(args []string, stdout, stderr io.Writer) int {
 	}
 	ref := strings.TrimSpace(args[0])
 	reason := strings.Join(args[1:], " ")
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -248,7 +249,7 @@ func overseerRevive(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer revive: requires an agent slug\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -268,7 +269,7 @@ func overseerGet(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer get: requires an agent slug or id\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -287,7 +288,7 @@ func overseerDelete(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer delete: requires an agent slug\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -316,7 +317,7 @@ func overseerBulk(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s overseer bulk: requires at least one slug\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

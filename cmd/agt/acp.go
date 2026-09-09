@@ -14,6 +14,8 @@ import (
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdACP runs the Agent Client Protocol bridge (SPEC-15 §3): it speaks ACP
@@ -57,7 +59,7 @@ func cmdACP(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -126,7 +128,7 @@ func cmdACPAgents(args []string, stdout, stderr io.Writer) int {
 			return 0
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -138,7 +140,7 @@ func cmdACPAgents(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if active, _ := res["active_command"].(string); active != "" {
 		fmt.Fprintf(stdout, "default ACP command: %s\n", active)

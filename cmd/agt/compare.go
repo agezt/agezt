@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 const (
@@ -132,7 +133,7 @@ func cmdCompareAudit(args []string, stdout, stderr io.Writer) int {
 	}
 	audit := buildCompareAudit(root, target)
 	if asJSON {
-		return encodeJSON(stdout, audit)
+		return jsonout.Write(stdout, audit)
 	}
 	renderCompareAudit(stdout, audit)
 	return 0

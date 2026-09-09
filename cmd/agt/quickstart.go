@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/catalog"
@@ -154,7 +155,7 @@ func persistProviderModel(pid, model string, stdout io.Writer) bool {
 	if err != nil {
 		return false
 	}
-	c := dialBase(base, io.Discard)
+	c := dialpkg.NewAtBase(base, io.Discard)
 	if c == nil {
 		return false
 	}

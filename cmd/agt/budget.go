@@ -12,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdBudget implements `agt budget` and `agt budget --json`.
@@ -46,7 +48,7 @@ func cmdBudget(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -150,7 +152,7 @@ func cmdBudgetSet(args []string, stdout, stderr io.Writer) int {
 		ceilingMC = mc
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -231,12 +233,5 @@ func usdToMicrocents(s string) (int64, error) {
 	return int64(mc), nil
 }
 
-// pct returns an integer-percent string ("47") for spent / cap.
-// "—" when cap is zero so the caller doesn't need a separate
-// branch in its format string.
-func pct(spent, cap int64) string {
-	if cap <= 0 {
-		return "—"
-	}
-	return fmt.Sprintf("%d", spent*100/cap)
-}
+// pct is a shim → format.Percent (Day 8 extraction).
+func pct(spent, cap int64) string { return format.Percent(spent, cap) }

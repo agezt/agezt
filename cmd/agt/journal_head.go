@@ -21,6 +21,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdJournalHead(args []string, stdout, stderr io.Writer) int {
@@ -39,7 +40,7 @@ func cmdJournalHead(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

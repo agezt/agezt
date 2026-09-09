@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdJournalGrep(args []string, stdout, stderr io.Writer) int {
@@ -97,7 +98,7 @@ func cmdJournalGrep(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdState dispatches `agt state <subcommand>`. State subsystem
@@ -62,7 +63,7 @@ func cmdStateList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -142,7 +143,7 @@ func cmdStateGet(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

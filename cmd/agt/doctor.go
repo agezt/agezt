@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/agezt/agezt/cmd/agt/format"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -1383,8 +1385,11 @@ func rateLimitCheckFromStats(res map[string]any) doctorCheck {
 // diskWarnPct / diskCritPct are the free-space thresholds for the disk check
 // (M131). Below crit the journal is in imminent danger of failing to write
 // (append-only, never shrinks); below warn it's worth acting before that.
+// diskWarnPct is sourced from the format package so the threshold lives
+// next to its unit test; diskCritPct is doctor-local because nothing else
+// cares about it.
 const (
-	diskWarnPct = 10.0
+	diskWarnPct = format.DiskWarnPct
 	diskCritPct = 3.0
 )
 
@@ -1425,19 +1430,9 @@ func diskCheckFromStats(res map[string]any) doctorCheck {
 	return ok(name, detail)
 }
 
-// humanBytes renders a byte count as B/KB/MB/GB/TB with one decimal (M131).
-func humanBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for x := n / unit; x >= unit; x /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
-}
+// humanBytes is a shim → format.Bytes (Day 8 extraction; the body used to
+// live here verbatim from M131).
+func humanBytes(n int64) string { return format.Bytes(n) }
 
 // checkExposure warns when a network-exposed HTTP server (web UI / REST / OpenAI
 // API) is bound beyond loopback (M137). Those surfaces drive the full agent loop

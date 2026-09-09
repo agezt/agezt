@@ -11,6 +11,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdSeat(args []string, stdout, stderr io.Writer) int {
@@ -41,7 +43,7 @@ func cmdSeat(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -53,7 +55,7 @@ func cmdSeat(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	seats, _ := res["seats"].([]any)
 	if len(seats) == 0 {
@@ -117,7 +119,7 @@ func cmdSeatAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s seats add <id> [--exec local|warden|container] [--name N] [--desc D] [--tool X ...]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -129,7 +131,7 @@ func cmdSeatAdd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "added seat %s\n", str(mapAny(res["seat"])["id"]))
 	return 0
@@ -148,7 +150,7 @@ func cmdSeatRemove(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s seats remove <id>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -160,7 +162,7 @@ func cmdSeatRemove(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "removed seat %s\n", str(res["deleted"]))
 	return 0

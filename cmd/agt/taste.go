@@ -11,6 +11,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdTaste(args []string, stdout, stderr io.Writer) int {
@@ -70,7 +72,7 @@ func cmdTasteList(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	exemplars, _ := res["exemplars"].([]any)
 	if len(exemplars) == 0 {
@@ -130,7 +132,7 @@ func cmdTasteAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	e := mapAny(res["exemplar"])
 	if asJSON {
-		return encodeJSON(stdout, e)
+		return jsonout.Write(stdout, e)
 	}
 	fmt.Fprintf(stdout, "added %s %s\n", shortID(str(e["id"])), str(e["title"]))
 	return 0
@@ -162,7 +164,7 @@ func cmdTasteRemove(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "removed %s\n", str(res["deleted"]))
 	return 0
@@ -178,7 +180,7 @@ func tasteFlagValue(args []string, i *int, flag string, stderr io.Writer) (strin
 }
 
 func callTaste(cmd string, args map[string]any, stderr io.Writer) (map[string]any, int) {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return nil, 1
 	}

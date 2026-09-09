@@ -16,6 +16,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/netguard"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdNetguard dispatches `agt netguard <subcommand>`. Today the only subcommand
@@ -82,7 +84,7 @@ func cmdNetguardLog(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -101,7 +103,7 @@ func cmdNetguardLog(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	rows, _ := res["blocks"].([]any)
 	if len(rows) == 0 {
@@ -214,7 +216,7 @@ func cmdNetguardTest(args []string, stdout, stderr io.Writer) int {
 				anyBlocked = true
 			}
 		}
-		code := encodeJSON(stdout, map[string]any{"target": target, "results": verdicts, "any_blocked": anyBlocked})
+		code := jsonout.Write(stdout, map[string]any{"target": target, "results": verdicts, "any_blocked": anyBlocked})
 		if anyBlocked {
 			return 3
 		}

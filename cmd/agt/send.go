@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdSend implements `agt send --channel KIND --to ID <text...>` — push a one-off
@@ -58,7 +59,7 @@ func cmdSend(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

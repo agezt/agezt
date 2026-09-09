@@ -21,6 +21,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdConfig(args []string, stdout, stderr io.Writer) int {
@@ -102,7 +103,7 @@ func cmdConfigShow(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -214,7 +215,7 @@ func cmdConfigLs(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -281,7 +282,7 @@ func cmdConfigGet(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s config get: ENV required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -326,7 +327,7 @@ func cmdConfigSet(args []string, stdout, stderr io.Writer) int {
 	}
 	env := args[0]
 	value := strings.Join(args[1:], " ")
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -377,7 +378,7 @@ func cmdConfigSchema(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -453,7 +454,7 @@ func cmdConfigSchemaRegister(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s config schema register: invalid JSON: %v\n", brand.CLI, err)
 		return 1
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -494,7 +495,7 @@ func cmdConfigSchemaUnregister(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s config schema unregister: ID required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

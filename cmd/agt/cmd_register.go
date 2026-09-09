@@ -7,6 +7,9 @@ package main
 
 import (
 	"io"
+
+	"github.com/agezt/agezt/cmd/agt/haltresume"
+	"github.com/agezt/agezt/cmd/agt/whoami"
 )
 
 // init registers all agt commands.
@@ -31,17 +34,13 @@ func registerRunCommands() {
 		Name:        "halt",
 		Aliases:     []string{},
 		Description: "freeze all in-flight runs",
-		Run: func(args []string, stdout, stderr io.Writer) int {
-			return cmdHaltResume("halt", args, stdout, stderr)
-		},
+		Run:         haltresume.Halt,
 	})
 	Register(&Command{
 		Name:        "resume",
 		Aliases:     []string{},
 		Description: "clear the halt flag",
-		Run: func(args []string, stdout, stderr io.Writer) int {
-			return cmdHaltResume("resume", args, stdout, stderr)
-		},
+		Run:         haltresume.Resume,
 	})
 	Register(&Command{
 		Name:    "agent",
@@ -70,7 +69,7 @@ func registerInfoCommands() {
 	Register(&Command{
 		Name:    "whoami",
 		Aliases: []string{},
-		Run:     cmdWhoami,
+		Run:     whoami.Run,
 	})
 	Register(&Command{
 		Name:    "status",

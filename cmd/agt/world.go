@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdWorld dispatches `agt world <subcommand>`. The world model is the
@@ -83,7 +85,7 @@ func cmdWorldForget(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s world forget: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -95,7 +97,7 @@ func cmdWorldForget(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if ok, _ := res["forgotten"].(bool); ok {
 		fmt.Fprintf(stdout, "forgot %s\n", id)
@@ -373,7 +375,7 @@ func cmdWorldShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s world show: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -386,7 +388,7 @@ func cmdWorldShow(args []string, stdout, stderr io.Writer) int {
 	}
 	found, _ := res["found"].(bool)
 	if asJSON {
-		_ = encodeJSON(stdout, res)
+		_ = jsonout.Write(stdout, res)
 		if !found {
 			return 3
 		}
@@ -397,14 +399,14 @@ func cmdWorldShow(args []string, stdout, stderr io.Writer) int {
 		return 3
 	}
 	ent, _ := res["entity"].(map[string]any)
-	return encodeJSON(stdout, ent)
+	return jsonout.Write(stdout, ent)
 }
 
 // worldCall dials the daemon, makes one control-plane call, and on --json
 // prints the raw result. Returns the result map, or nil on error (after
 // writing the error to stderr). On --json success it has already printed.
 func worldCall(cmd string, callArgs map[string]any, label string, stdout, stderr io.Writer, asJSON bool) map[string]any {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return nil
 	}
@@ -416,7 +418,7 @@ func worldCall(cmd string, callArgs map[string]any, label string, stdout, stderr
 		return nil
 	}
 	if asJSON {
-		_ = encodeJSON(stdout, res)
+		_ = jsonout.Write(stdout, res)
 	}
 	return res
 }
@@ -458,7 +460,7 @@ func cmdWorldAudit(args []string, stdout, stderr io.Writer) int {
 			}
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -508,7 +510,7 @@ func cmdWorldAudit(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if asJSON {
-		return encodeJSON(stdout, audit)
+		return jsonout.Write(stdout, audit)
 	}
 
 	fmt.Fprintf(stdout, "world audit:\n")

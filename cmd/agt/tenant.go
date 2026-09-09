@@ -10,6 +10,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdTenant dispatches `agt tenant <subcommand>` — the operator's management
@@ -65,7 +67,7 @@ func cmdTenantList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -77,7 +79,7 @@ func cmdTenantList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	list, _ := res["tenants"].([]any)
 	if len(list) == 0 {
@@ -118,7 +120,7 @@ func cmdTenantStats(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -130,7 +132,7 @@ func cmdTenantStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	rows, _ := res["tenants"].([]any)
 	if len(rows) == 0 {
@@ -192,7 +194,7 @@ func cmdTenantByID(args []string, stdout, stderr io.Writer, verb, cmd string) in
 		fmt.Fprintf(stderr, "%s tenant %s: an id is required\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -204,7 +206,7 @@ func cmdTenantByID(args []string, stdout, stderr io.Writer, verb, cmd string) in
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	switch cmd {
 	case controlplane.CmdTenantCreate:

@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdProviderChatGPT handles `agt provider chatgpt <login|import|logout|status>`
@@ -40,7 +41,7 @@ func cmdProviderChatGPT(args []string, stdout, stderr io.Writer) int {
 // chatgptLogin starts the OAuth flow, prints the authorize URL for the operator
 // to open, and polls until the daemon's 1455 listener completes the exchange.
 func chatgptLogin(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -87,7 +88,7 @@ func chatgptLogin(stdout, stderr io.Writer) int {
 }
 
 func chatgptImport(args []string, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -108,7 +109,7 @@ func chatgptImport(args []string, stdout, stderr io.Writer) int {
 }
 
 func chatgptLogout(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -123,7 +124,7 @@ func chatgptLogout(stdout, stderr io.Writer) int {
 }
 
 func chatgptStatus(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

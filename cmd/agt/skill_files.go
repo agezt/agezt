@@ -10,6 +10,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdSkillFiles implements `agt skill files <id>` (M847): list the on-disk
@@ -34,7 +36,7 @@ func cmdSkillFiles(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s skill files <id> [--json]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -46,7 +48,7 @@ func cmdSkillFiles(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	name, _ := res["name"].(string)
 	dir, _ := res["dir"].(string)
@@ -86,7 +88,7 @@ func cmdSkillCat(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s skill cat <id> <path>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdOKR(args []string, stdout, stderr io.Writer) int {
@@ -90,7 +92,7 @@ func cmdOKRList(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	objs, _ := res["objectives"].([]any)
 	if len(objs) == 0 {
@@ -114,7 +116,7 @@ func cmdOKRShow(args []string, stdout, stderr io.Writer) int {
 	}
 	obj := mapAny(res["objective"])
 	if asJSON {
-		return encodeJSON(stdout, obj)
+		return jsonout.Write(stdout, obj)
 	}
 	renderOKRObjective(stdout, obj)
 	return 0
@@ -292,7 +294,7 @@ func okrIDArg(args []string, name string, stderr io.Writer) (string, bool, bool)
 }
 
 func callOKR(cmd string, args map[string]any, stderr io.Writer) (map[string]any, int) {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return nil, 1
 	}
@@ -312,7 +314,7 @@ func renderOKRMutation(res map[string]any, code int, asJSON bool, stdout io.Writ
 	}
 	obj := mapAny(res["objective"])
 	if asJSON {
-		return encodeJSON(stdout, obj)
+		return jsonout.Write(stdout, obj)
 	}
 	renderOKRLine(stdout, obj)
 	return 0

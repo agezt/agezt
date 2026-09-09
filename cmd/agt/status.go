@@ -12,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/tools/peer"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdStatus implements `agt status` and `agt status --json`.
@@ -38,7 +40,7 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -248,18 +250,6 @@ func intOfStatus(v any) int64 {
 	return 0
 }
 
-// fmtUptime renders seconds as Hh Mm Ss with leading zero units
-// suppressed: "5s", "2m 5s", "1h 2m 5s". Operators eyeball this
-// at a glance — a raw integer "3725" is less useful than "1h 2m 5s".
-func fmtUptime(secs int64) string {
-	if secs < 60 {
-		return fmt.Sprintf("%ds", secs)
-	}
-	h := secs / 3600
-	m := (secs % 3600) / 60
-	s := secs % 60
-	if h == 0 {
-		return fmt.Sprintf("%dm %ds", m, s)
-	}
-	return fmt.Sprintf("%dh %dm %ds", h, m, s)
-}
+// fmtUptime is a shim → format.Uptime (Day 8 extraction). The body
+// is documented in cmd/agt/format/format.go.
+func fmtUptime(secs int64) string { return format.Uptime(secs) }

@@ -14,6 +14,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdEdict dispatches `agt edict <subcommand>`. The only
@@ -146,7 +148,7 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -177,7 +179,7 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	decisions, _ := res["decisions"].([]any)
 	if len(decisions) == 0 {
@@ -296,7 +298,7 @@ func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -321,7 +323,7 @@ func cmdEdictStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	total := intOfStatus(res["total"])
 	windowSuffix := ""
@@ -386,7 +388,7 @@ func cmdEdictMode(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -445,7 +447,7 @@ func cmdEdictLevel(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -518,7 +520,7 @@ func cmdEdictDenyList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -594,7 +596,7 @@ func cmdEdictDenyAdd(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -645,7 +647,7 @@ func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -692,7 +694,7 @@ func cmdEdictShow(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -800,7 +802,7 @@ func cmdEdictTest(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

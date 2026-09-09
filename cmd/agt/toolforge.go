@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdToolforge dispatches `agt toolforge <subcommand>` — the operator surface
@@ -71,7 +73,7 @@ func cmdToolforgeList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -83,7 +85,7 @@ func cmdToolforgeList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	tools, _ := res["tools"].([]any)
 	if len(tools) == 0 {
@@ -124,7 +126,7 @@ func cmdToolforgeShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s toolforge show <name|id> [--json]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -141,7 +143,7 @@ func cmdToolforgeShow(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, st)
+		return jsonout.Write(stdout, st)
 	}
 	fmt.Fprintf(stdout, "name:        %s\n", str(st["name"]))
 	fmt.Fprintf(stdout, "id:          %s\n", str(st["id"]))
@@ -253,7 +255,7 @@ func cmdToolforgeDraft(args []string, stdout, stderr io.Writer) int {
 		"name": rest[0], "description": f.desc, "language": f.lang,
 		"code": f.code, "input_schema": f.schema,
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -282,7 +284,7 @@ func cmdToolforgeEdit(args []string, stdout, stderr io.Writer) int {
 	tool := map[string]any{
 		"description": f.desc, "language": f.lang, "code": f.code, "input_schema": f.schema,
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -323,7 +325,7 @@ func cmdToolforgeTest(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s toolforge test <name|id> [--input JSON]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -350,7 +352,7 @@ func cmdToolforgePromote(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s toolforge promote <name|id>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -387,7 +389,7 @@ func cmdToolforgeQuarantine(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s toolforge quarantine <name|id> [--reason TEXT]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -408,7 +410,7 @@ func cmdToolforgeRemove(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s toolforge remove <name|id>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

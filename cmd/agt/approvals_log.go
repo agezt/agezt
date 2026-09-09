@@ -13,6 +13,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdApprovalsLog implements `agt approvals log [N] [--denied] [--since <dur>]
@@ -67,7 +69,7 @@ func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -89,7 +91,7 @@ func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	rows, _ := res["approvals"].([]any)
 	if len(rows) == 0 {
@@ -167,7 +169,7 @@ func cmdApprovalsStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -183,7 +185,7 @@ func cmdApprovalsStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	total := intOfStatus(res["total"])
 	windowSuffix := ""

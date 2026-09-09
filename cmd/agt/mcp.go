@@ -11,6 +11,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdMCP dispatches `agt mcp <subcommand>` — the operator surface of MCP
@@ -67,7 +69,7 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -79,7 +81,7 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	servers, _ := res["servers"].([]any)
 	if len(servers) == 0 {
@@ -203,7 +205,7 @@ func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 		}
 		server["args"] = list
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -224,7 +226,7 @@ func cmdMCPRefAction(args []string, stdout, stderr io.Writer, action string) int
 		fmt.Fprintf(stderr, "usage: %s mcp %s <name|id>\n", brand.CLI, action)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -271,7 +273,7 @@ func cmdMCPSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) int
 		fmt.Fprintf(stderr, "usage: %s mcp %s <name|id>\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/skill"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // skillBundle is the portable, shareable representation of a single skill — the
@@ -119,7 +120,7 @@ func safeSkillFilename(name, id string) string {
 // are exported — `skill export --all --agent <slug>` lifts one agent's private
 // skill set out as a portable bundle directory (M943).
 func exportAllSkills(dir, agentFilter string, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -292,7 +293,7 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

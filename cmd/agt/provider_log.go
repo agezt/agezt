@@ -13,6 +13,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdProviderLog implements `agt provider log [N] [--fallbacks] [--since <dur>]
@@ -68,7 +70,7 @@ func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -90,7 +92,7 @@ func cmdProviderLog(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	events, _ := res["events"].([]any)
 	if len(events) == 0 {
@@ -182,7 +184,7 @@ func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -198,7 +200,7 @@ func cmdProviderStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	routed := intOfStatus(res["routed"])
 	windowSuffix := ""
@@ -285,7 +287,7 @@ func cmdProviderRejections(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -304,7 +306,7 @@ func cmdProviderRejections(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	rows, _ := res["rejections"].([]any)
 	if len(rows) == 0 {

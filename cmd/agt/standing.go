@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdStanding dispatches `agt standing <subcommand>` — the management surface for
@@ -148,7 +150,7 @@ func cmdStandingEdit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s standing edit: at least one field flag is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -186,7 +188,7 @@ func cmdStandingWhy(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s standing why: an order id is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -198,7 +200,7 @@ func cmdStandingWhy(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	events, _ := res["events"].([]any)
 	if len(events) == 0 {
@@ -230,7 +232,7 @@ func cmdStandingList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -242,7 +244,7 @@ func cmdStandingList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	orders, _ := res["orders"].([]any)
 	if len(orders) == 0 {
@@ -436,7 +438,7 @@ func cmdStandingAdd(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -464,7 +466,7 @@ func cmdStandingSetEnabled(args []string, stdout, stderr io.Writer, enabled bool
 		return 2
 	}
 	id := args[0]
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -487,7 +489,7 @@ func cmdStandingRemove(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	id := args[0]
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

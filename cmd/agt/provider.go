@@ -12,11 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/keys"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/creds"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdProvider handles `agt provider <subcommand>`. M1.o introduced
@@ -30,7 +32,7 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 	case "creds":
 		return cmdProviderCreds(args[1:], stdout, stderr)
 	case "keys":
-		return cmdProviderKeys(args[1:], stdout, stderr)
+		return keys.Run(args[1:], stdout, stderr)
 	case "connect":
 		return cmdProviderConnect(args[1:], stdout, stderr)
 	case "chatgpt":
@@ -62,7 +64,7 @@ func cmdProvider(args []string, stdout, stderr io.Writer) int {
 // Replaces the "restart the daemon" friction that creds set/rm
 // previously printed.
 func cmdProviderReload(stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

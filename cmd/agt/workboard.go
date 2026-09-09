@@ -13,6 +13,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdWorkboard(args []string, stdout, stderr io.Writer) int {
@@ -133,7 +135,7 @@ func cmdWorkboardList(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	tasks, _ := res["tasks"].([]any)
 	if len(tasks) == 0 {
@@ -184,7 +186,7 @@ func cmdWorkboardLanes(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	lanes, _ := res["lanes"].([]any)
 	if len(lanes) == 0 {
@@ -215,7 +217,7 @@ func cmdWorkboardShow(args []string, stdout, stderr io.Writer) int {
 	}
 	task := mapAny(res["task"])
 	if asJSON {
-		return encodeJSON(stdout, task)
+		return jsonout.Write(stdout, task)
 	}
 	renderWorkboardTask(stdout, task)
 	return 0
@@ -307,7 +309,7 @@ func cmdWorkboardCreate(args []string, stdout, stderr io.Writer) int {
 	}
 	task := mapAny(res["task"])
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	verb := "updated"
 	if created, _ := res["created"].(bool); created {
@@ -379,7 +381,7 @@ func cmdWorkboardFail(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	task := mapAny(res["task"])
 	renderWorkboardTaskLine(stdout, task)
@@ -631,7 +633,7 @@ func cmdWorkboardSweep(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	tasks, _ := res["tasks"].([]any)
 	if len(tasks) == 0 {
@@ -683,7 +685,7 @@ func cmdWorkboardDispatch(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "dispatched %s to %s", shortID(id), str(res["agent"]))
 	if corr := str(res["correlation_id"]); corr != "" {
@@ -753,7 +755,7 @@ func cmdWorkboardWatch(args []string, stdout, stderr io.Writer) int {
 			return code
 		}
 		if asJSON {
-			if rc := encodeJSON(stdout, res); rc != 0 {
+			if rc := jsonout.Write(stdout, res); rc != 0 {
 				return rc
 			}
 		} else {
@@ -884,7 +886,7 @@ func workboardFlagValue(args []string, i *int, flag string, stderr io.Writer, cm
 }
 
 func callWorkboard(cmd string, args map[string]any, stderr io.Writer) (map[string]any, int) {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return nil, 1
 	}
@@ -904,7 +906,7 @@ func renderWorkboardMutation(res map[string]any, code int, asJSON bool, stdout i
 	}
 	task := mapAny(res["task"])
 	if asJSON {
-		return encodeJSON(stdout, task)
+		return jsonout.Write(stdout, task)
 	}
 	renderWorkboardTaskLine(stdout, task)
 	return 0

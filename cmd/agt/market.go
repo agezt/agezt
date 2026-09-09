@@ -13,6 +13,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/market"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdMarket dispatches `agt market <subcommand>` — the capability marketplace:
@@ -86,7 +88,7 @@ func cmdMarketList(args []string, query string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -98,7 +100,7 @@ func cmdMarketList(args []string, query string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	packs, _ := res["packs"].([]any)
 	if len(packs) == 0 {
@@ -148,7 +150,7 @@ func cmdMarketShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s market show: a pack name is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -160,7 +162,7 @@ func cmdMarketShow(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	pack, _ := res["pack"].(map[string]any)
 	sk, _ := res["skill_count"].(float64)
@@ -217,7 +219,7 @@ func cmdMarketInstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s market install: a pack name is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -231,7 +233,7 @@ func cmdMarketInstall(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	skills, _ := res["skill_ids"].([]any)
 	mcps, _ := res["mcp_servers"].([]any)
@@ -274,7 +276,7 @@ func cmdMarketUninstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s market uninstall: a pack name is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -286,7 +288,7 @@ func cmdMarketUninstall(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "uninstalled %s\n", name)
 	return 0
@@ -306,7 +308,7 @@ func cmdMarketSources(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -318,7 +320,7 @@ func cmdMarketSources(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	srcs, _ := res["sources"].([]any)
 	if len(srcs) == 0 {
@@ -370,7 +372,7 @@ func cmdMarketAddSource(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s market add: a marketplace URL is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -382,7 +384,7 @@ func cmdMarketAddSource(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	sn, _ := res["name"].(string)
 	fmt.Fprintf(stdout, "added source %q — now run `%s market sync %s`\n", sn, brand.CLI, sn)
@@ -410,7 +412,7 @@ func cmdMarketRemoveSource(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s market remove: a source name is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -422,7 +424,7 @@ func cmdMarketRemoveSource(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if found, _ := res["removed"].(bool); !found {
 		fmt.Fprintf(stdout, "no source named %q\n", name)
@@ -449,7 +451,7 @@ func cmdMarketSync(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -462,7 +464,7 @@ func cmdMarketSync(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	results, _ := res["results"].([]any)
 	for _, raw := range results {

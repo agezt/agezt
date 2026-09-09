@@ -15,6 +15,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/skill"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // isSkillMarkdown reports whether a path looks like an agentskills.io/ClawHub
@@ -82,7 +84,7 @@ func importSkillDir(dir string, asJSON bool, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -108,7 +110,7 @@ func importSkillDir(dir string, asJSON bool, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		_ = encodeJSON(stdout, res)
+		_ = jsonout.Write(stdout, res)
 		return 0
 	}
 	gotID, _ := res["id"].(string)
@@ -140,7 +142,7 @@ func importSkillMarkdownBytes(data []byte, asJSON bool, stdout, stderr io.Writer
 		return 1
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -166,7 +168,7 @@ func importSkillMarkdownBytes(data []byte, asJSON bool, stdout, stderr io.Writer
 	}
 
 	if asJSON {
-		_ = encodeJSON(stdout, res)
+		_ = jsonout.Write(stdout, res)
 		return 0
 	}
 	gotID, _ := res["id"].(string)

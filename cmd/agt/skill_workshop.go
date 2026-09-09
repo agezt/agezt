@@ -14,6 +14,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdSkillWorkshop is the Forge Workshop operator surface: proposals are still
@@ -84,7 +86,7 @@ func cmdSkillWorkshopList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -97,7 +99,7 @@ func cmdSkillWorkshopList(args []string, stdout, stderr io.Writer) int {
 	}
 	proposals := workshopProposals(res["skills"])
 	if asJSON {
-		return encodeJSON(stdout, map[string]any{"proposals": proposals, "count": len(proposals)})
+		return jsonout.Write(stdout, map[string]any{"proposals": proposals, "count": len(proposals)})
 	}
 	if len(proposals) == 0 {
 		fmt.Fprintln(stdout, "no pending workshop proposals")
@@ -134,7 +136,7 @@ func cmdSkillWorkshopInspect(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill workshop inspect: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -147,7 +149,7 @@ func cmdSkillWorkshopInspect(args []string, stdout, stderr io.Writer) int {
 	}
 	if !found {
 		if asJSON {
-			_ = encodeJSON(stdout, map[string]any{"found": false, "id": id})
+			_ = jsonout.Write(stdout, map[string]any{"found": false, "id": id})
 		} else {
 			fmt.Fprintf(stderr, "%s skill workshop inspect: %s not found\n", brand.CLI, id)
 		}
@@ -161,7 +163,7 @@ func cmdSkillWorkshopInspect(args []string, stdout, stderr io.Writer) int {
 	events, _ := history["events"].([]any)
 	if asJSON {
 		scan := workshopScanSkill(sk)
-		return encodeJSON(stdout, map[string]any{
+		return jsonout.Write(stdout, map[string]any{
 			"found": true, "skill": sk, "history": events, "history_count": len(events), "scan": scan,
 		})
 	}
@@ -193,7 +195,7 @@ func cmdSkillWorkshopScan(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill workshop scan: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -206,7 +208,7 @@ func cmdSkillWorkshopScan(args []string, stdout, stderr io.Writer) int {
 	}
 	if !found {
 		if asJSON {
-			_ = encodeJSON(stdout, map[string]any{"found": false, "id": id})
+			_ = jsonout.Write(stdout, map[string]any{"found": false, "id": id})
 		} else {
 			fmt.Fprintf(stderr, "%s skill workshop scan: %s not found\n", brand.CLI, id)
 		}
@@ -214,7 +216,7 @@ func cmdSkillWorkshopScan(args []string, stdout, stderr io.Writer) int {
 	}
 	report := workshopScanSkill(sk)
 	if asJSON {
-		return encodeJSON(stdout, map[string]any{"found": true, "id": str(sk["id"]), "scan": report})
+		return jsonout.Write(stdout, map[string]any{"found": true, "id": str(sk["id"]), "scan": report})
 	}
 	renderWorkshopScan(stdout, report)
 	return 0
@@ -229,7 +231,7 @@ func cmdSkillWorkshopCurate(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -277,7 +279,7 @@ func cmdSkillWorkshopCurate(args []string, stdout, stderr io.Writer) int {
 		"quarantined": quarantined,
 	}
 	if asJSON {
-		return encodeJSON(stdout, out)
+		return jsonout.Write(stdout, out)
 	}
 	renderWorkshopCurate(stdout, out)
 	return 0
@@ -378,7 +380,7 @@ func cmdSkillWorkshopReject(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill workshop reject: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -457,7 +459,7 @@ func cmdSkillWorkshopProposeUpdate(args []string, stdout, stderr io.Writer) int 
 		fmt.Fprintf(stderr, "%s skill workshop propose-update: --body or --body-file required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -500,7 +502,7 @@ func workshopHelpRequested(args []string) bool {
 }
 
 func callSkillWorkshopTransition(cmd, label, id, reason string, asJSON bool, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -524,7 +526,7 @@ func callSkillWorkshopTransitionWithClient(ctx context.Context, c *controlplane.
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	switch label {
 	case "apply":
@@ -538,7 +540,7 @@ func callSkillWorkshopTransitionWithClient(ctx context.Context, c *controlplane.
 }
 
 func callSkillWorkshopImport(callArgs map[string]any, asJSON bool, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -554,7 +556,7 @@ func callSkillWorkshopImportWithClient(ctx context.Context, c *controlplane.Clie
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	id := str(res["id"])
 	created, _ := res["created"].(bool)

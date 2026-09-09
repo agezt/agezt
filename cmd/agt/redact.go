@@ -11,6 +11,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdRedact dispatches `agt redact <subcommand>`. Today the only subcommand is
@@ -56,7 +58,7 @@ func cmdRedactTest(args []string, stdout, stderr io.Writer) int {
 	}
 	text := strings.Join(parts, " ")
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -68,7 +70,7 @@ func cmdRedactTest(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 
 	enabled, _ := res["enabled"].(bool)

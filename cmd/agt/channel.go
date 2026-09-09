@@ -14,6 +14,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdChannel(args []string, stdout, stderr io.Writer) int {
@@ -44,7 +46,7 @@ func cmdChannelList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -56,7 +58,7 @@ func cmdChannelList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	channels, _ := res["channels"].([]any)
 	if len(channels) == 0 {

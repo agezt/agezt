@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // journalBundle is the on-disk export format (M101): a manifest binding the
@@ -158,7 +159,7 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

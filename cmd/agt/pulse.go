@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdPulse runs `agt pulse` — a live tail of the daemon's bus.
@@ -187,7 +188,7 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

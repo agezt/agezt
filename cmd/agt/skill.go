@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdSkill dispatches `agt skill <subcommand>`. Forge is the journaled
@@ -98,7 +100,7 @@ func cmdSkillList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -110,7 +112,7 @@ func cmdSkillList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	sks, _ := res["skills"].([]any)
 	if len(sks) == 0 {
@@ -148,7 +150,7 @@ func cmdSkillShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill show: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -161,7 +163,7 @@ func cmdSkillShow(args []string, stdout, stderr io.Writer) int {
 	}
 	found, _ := res["found"].(bool)
 	if asJSON {
-		_ = encodeJSON(stdout, res)
+		_ = jsonout.Write(stdout, res)
 		if !found {
 			return 3
 		}
@@ -172,7 +174,7 @@ func cmdSkillShow(args []string, stdout, stderr io.Writer) int {
 		return 3
 	}
 	sk, _ := res["skill"].(map[string]any)
-	return encodeJSON(stdout, sk)
+	return jsonout.Write(stdout, sk)
 }
 
 func cmdSkillHistory(args []string, stdout, stderr io.Writer) int {
@@ -196,7 +198,7 @@ func cmdSkillHistory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill history: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -208,7 +210,7 @@ func cmdSkillHistory(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	events, _ := res["events"].([]any)
 	if len(events) == 0 {
@@ -266,7 +268,7 @@ func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writ
 	if reason != "" {
 		callArgs["reason"] = reason
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -278,7 +280,7 @@ func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writ
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	switch label {
 	case "promote":
@@ -345,7 +347,7 @@ func cmdSkillReassign(args []string, share bool, stdout, stderr io.Writer) int {
 		cmd = controlplane.CmdSkillShare
 		callArgs = map[string]any{"id": id}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -357,7 +359,7 @@ func cmdSkillReassign(args []string, share bool, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if agent == "" {
 		fmt.Fprintf(stdout, "shared %s with every agent\n", id)
@@ -479,7 +481,7 @@ func cmdSkillHygiene(args []string, stdout, stderr io.Writer) int {
 	if idleDays > 0 {
 		callArgs["idle_days"] = idleDays
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -491,7 +493,7 @@ func cmdSkillHygiene(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	days := intNumber(res["idle_days"])
 	total := intNumber(res["total"])

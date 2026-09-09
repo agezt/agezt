@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdAgent dispatches `agt agent <subcommand>` — the management surface for the
@@ -426,7 +429,7 @@ func cmdAgentList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -438,7 +441,7 @@ func cmdAgentList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	profiles, _ := res["profiles"].([]any)
 	if len(profiles) == 0 {
@@ -548,7 +551,7 @@ func cmdAgentShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s agent show <slug|id> [--json]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -566,7 +569,7 @@ func cmdAgentShow(args []string, stdout, stderr io.Writer) int {
 			continue
 		}
 		if asJSON {
-			return encodeJSON(stdout, p)
+			return jsonout.Write(stdout, p)
 		}
 		fmt.Fprintf(stdout, "slug:         %s\n", str(p["slug"]))
 		fmt.Fprintf(stdout, "id:           %s\n", str(p["id"]))
@@ -852,7 +855,7 @@ func cmdAgentAdd(args []string, stdout, stderr io.Writer) int {
 		}
 		profile["fallbacks"] = fb
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -878,7 +881,7 @@ func cmdAgentSet(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	ref := rest[0]
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -957,7 +960,7 @@ func cmdAgentTask(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1135,7 +1138,7 @@ func cmdAgentRepairStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s agent repair-status <slug|id> [--limit N]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1158,7 +1161,7 @@ func cmdAgentRepairStatus(args []string, stdout, stderr io.Writer) int {
 }
 
 func callAgentAsyncAction(cmd string, label string, payload map[string]any, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1263,7 +1266,7 @@ func cmdAgentSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) i
 		fmt.Fprintf(stderr, "usage: %s agent %s <slug|id>\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1316,7 +1319,7 @@ func cmdAgentAuthority(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1356,7 +1359,7 @@ func cmdAgentAuthority(args []string, stdout, stderr io.Writer) int {
 	authority := buildAgentAuthority(profile, edictRes)
 
 	if asJSON {
-		return encodeJSON(stdout, authority)
+		return jsonout.Write(stdout, authority)
 	}
 	renderAgentAuthority(stdout, authority)
 	return 0
@@ -1523,7 +1526,7 @@ func cmdAgentImpact(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s agent impact <slug|id>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1555,7 +1558,7 @@ func cmdAgentTombstone(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s agent tombstone <slug|id> [--json]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1567,7 +1570,7 @@ func cmdAgentTombstone(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	t, _ := res["tombstone"].(map[string]any)
 	if t == nil {
@@ -1654,7 +1657,7 @@ func cmdAgentGraveyard(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1666,7 +1669,7 @@ func cmdAgentGraveyard(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	rows, _ := res["graveyard"].([]any)
 	if len(rows) == 0 {
@@ -1700,7 +1703,7 @@ func cmdAgentRetire(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s agent retire <slug|id> [reason]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1732,7 +1735,7 @@ func cmdAgentRevive(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s agent revive <slug|id>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1757,7 +1760,7 @@ func cmdAgentRemove(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1924,24 +1927,9 @@ func stringsAny(v any) []any {
 	}
 }
 
-// str renders any JSON value as its string form ("" for nil/non-strings).
-func str(v any) string {
-	s, _ := v.(string)
-	return s
-}
-
-func intNumber(v any) int {
-	switch n := v.(type) {
-	case int:
-		return n
-	case int64:
-		return int(n)
-	case float64:
-		return int(n)
-	default:
-		return 0
-	}
-}
+// str / intNumber are shims → format.Str / format.Number (Day 8 extraction).
+func str(v any) string       { return format.Str(v) }
+func intNumber(v any) int    { return format.Number(v) }
 
 func parseNonNegativeFlag(args []string, i *int, flag string, stderr io.Writer, cmd string) (int, bool) {
 	if *i+1 >= len(args) {

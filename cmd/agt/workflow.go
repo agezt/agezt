@@ -14,6 +14,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdWorkflow dispatches `agt workflow <subcommand>` — the operator surface
@@ -80,7 +82,7 @@ func cmdWorkflowList(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -92,7 +94,7 @@ func cmdWorkflowList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	items, _ := res["workflows"].([]any)
 	if len(items) == 0 {
@@ -149,7 +151,7 @@ func cmdWorkflowShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s workflow show <name|id> [--json]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -174,7 +176,7 @@ func cmdWorkflowShow(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "%s (%s) — %v node(s), %v edge(s)\n", str(w["name"]), state, w["node_count"], w["edge_count"])
 	}
-	return encodeJSON(stdout, w)
+	return jsonout.Write(stdout, w)
 }
 
 func cmdWorkflowSave(args []string, stdout, stderr io.Writer) int {
@@ -203,7 +205,7 @@ func cmdWorkflowSave(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workflow save: %s is not valid JSON: %v\n", brand.CLI, file, err)
 		return 1
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -256,7 +258,7 @@ func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s workflow draft \"DESCRIPTION\" [--name N] [--save]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -278,7 +280,7 @@ func cmdWorkflowDraft(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "drafted %s — %v node(s), %v edge(s)\n", str(w["name"]), w["node_count"], w["edge_count"])
-	if rc := encodeJSON(stdout, w); rc != 0 {
+	if rc := jsonout.Write(stdout, w); rc != 0 {
 		return rc
 	}
 	if !save {
@@ -339,7 +341,7 @@ func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s workflow refine <name|id> \"CHANGE REQUEST\" [--save]\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -356,7 +358,7 @@ func cmdWorkflowRefine(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "refined %s — %v node(s), %v edge(s)\n", str(w["name"]), w["node_count"], w["edge_count"])
-	if rc := encodeJSON(stdout, w); rc != 0 {
+	if rc := jsonout.Write(stdout, w); rc != 0 {
 		return rc
 	}
 	if !save {
@@ -418,7 +420,7 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 			callArgs["payload"] = payloadRaw
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -431,7 +433,7 @@ func cmdWorkflowRun(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if accepted, _ := res["accepted"].(bool); accepted {
 		fmt.Fprintf(stdout, "started — follow it with `%s workflow runs %s` or `%s why <event>` (correlation %s)\n",
@@ -488,7 +490,7 @@ func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
 			name = args[i]
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -536,7 +538,7 @@ func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	for _, raw := range items {
 		t, _ := raw.(map[string]any)
@@ -577,7 +579,7 @@ func cmdWorkflowRuns(args []string, stdout, stderr io.Writer) int {
 	if limit > 0 {
 		callArgs["limit"] = limit
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -589,7 +591,7 @@ func cmdWorkflowRuns(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	runs, _ := res["runs"].([]any)
 	if len(runs) == 0 {
@@ -630,7 +632,7 @@ func cmdWorkflowSetEnabled(args []string, stdout, stderr io.Writer, enabled bool
 		fmt.Fprintf(stderr, "usage: %s workflow %s <name|id>\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -653,7 +655,7 @@ func cmdWorkflowRemove(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s workflow remove <name|id>\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

@@ -12,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdRuns dispatches `agt runs <subcommand>`. The only subcommand
@@ -90,7 +92,7 @@ func cmdRunsSteerVerb(cmd, verb string, args []string, stdout, stderr io.Writer)
 		fmt.Fprintf(stderr, "%s runs %s: correlation id required\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -140,7 +142,7 @@ func cmdRunsSteer(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	directive := strings.Join(parts, " ")
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -220,7 +222,7 @@ func cmdRunsIntervene(args []string, stdout, stderr io.Writer) int {
 	if key != "" {
 		callArgs["idempotency_key"] = key
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -276,7 +278,7 @@ func cmdRunsCancel(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -380,7 +382,7 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -655,7 +657,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -859,7 +861,7 @@ func cmdRunsShow(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1004,7 +1006,7 @@ func cmdRunsLast(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1451,22 +1453,6 @@ func renderTaskArc(w io.Writer, corr string, summary map[string]any, events []ma
 	}
 }
 
-// fmtDuration renders milliseconds as a human-readable duration.
-// 0 → "—"; <1s → "Nms"; <60s → "N.Ns"; otherwise "MmNs".
-// Distinct from fmtUptime (which uses seconds + always emits at
-// least seconds-level granularity) — runs typically last under
-// a minute so sub-second precision matters.
-func fmtDuration(ms int64) string {
-	switch {
-	case ms <= 0:
-		return "—"
-	case ms < 1000:
-		return fmt.Sprintf("%dms", ms)
-	case ms < 60_000:
-		return fmt.Sprintf("%.1fs", float64(ms)/1000)
-	default:
-		m := ms / 60_000
-		s := (ms % 60_000) / 1000
-		return fmt.Sprintf("%dm%ds", m, s)
-	}
-}
+// fmtDuration is a shim → format.Duration (Day 8 extraction). The body
+// is documented in cmd/agt/format/format.go.
+func fmtDuration(ms int64) string { return format.Duration(ms) }

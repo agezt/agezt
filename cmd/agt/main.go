@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,10 +29,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/format"
 )
 
 func main() {
@@ -64,42 +64,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func dial(stderr io.Writer) *controlplane.Client {
-	base, err := paths.BaseDir()
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return nil
-	}
-	return dialBase(base, stderr)
-}
-
-// dialBase builds a control-plane client for base and verifies the daemon is
-// actually reachable (M239). Two failure modes now give the same actionable
-// hint instead of two different errors: a missing runtime addr (the daemon was
-// never started) and a recorded-but-unreachable one (a stale socket the daemon
-// left when it crashed) — the latter previously surfaced only as a cryptic
-// "connection refused" on each command's own call. A server-side rejection
-// (e.g. a bad token) is NOT treated as unreachable: the daemon is alive, so the
-// client is returned and the command surfaces the real error.
-func dialBase(base string, stderr io.Writer) *controlplane.Client {
-	c, err := controlplane.NewClient(base)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		fmt.Fprintf(stderr, "Hint: start the daemon with `%s` in another terminal.\n", brand.Binary)
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if _, err := c.Call(ctx, controlplane.CmdStatus, nil); err != nil {
-		var serr *controlplane.ErrServerError
-		if !errors.As(err, &serr) {
-			fmt.Fprintf(stderr, "%s: daemon recorded but not responding — a stale socket from a crash?\n", brand.CLI)
-			fmt.Fprintf(stderr, "Hint: (re)start the daemon with `%s`.\n", brand.Binary)
-			return nil
-		}
-	}
-	return c
-}
+// dial and dialBase were 3-line shims that delegated to
+// cmd/agt/dial. They existed only during the rollout of the
+// dial package (Day 5 → Day 7); the bulk rewrite completed in
+// Day 7 and the shims were deleted. Code outside cmd/agt that
+// needs a control-plane client uses cmd/agt/dial.New directly;
+// the legacy bare `dialpkg.New(stderr)` and `dialpkg.NewAtBase(base, stderr)`
+// calls in cmd/agt/ are gone.
 
 // resolveRunIntent resolves the run intent from positional parts, an optional
 // --file path, or stdin. Precedence: --file (read the file); else if the sole
@@ -387,7 +358,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		runArgs["assure"] = float64(assureAttempts)
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -677,7 +648,7 @@ func toStringSlice(v any) []string {
 }
 
 func cmdSimple(cmd string, args map[string]any, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -744,7 +715,7 @@ func cmdApprovals(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -860,7 +831,7 @@ func cmdPlanGenerate(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	intent := strings.Join(args, " ")
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -925,7 +896,7 @@ func cmdPlanRun(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s plan run: --model is only used with --dry-run; ignored for execution\n", brand.CLI)
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -956,7 +927,7 @@ func cmdPlanRun(args []string, stdout, stderr io.Writer) int {
 // `agt plan <file>` (hand-authored) and `agt plan run` (generated)
 // paths so both render identically.
 func runPlanJSON(planJSON string, stdout, stderr io.Writer) int {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1026,7 +997,7 @@ func cmdCatalogList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1093,12 +1064,8 @@ func cmdCatalogList(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func formatTime(s string) string {
-	if s == "" || strings.HasPrefix(s, "0001-") {
-		return "never"
-	}
-	return s
-}
+// formatTime is a shim → format.Time (Day 8 extraction).
+func formatTime(s string) string { return format.Time(s) }
 
 func cmdDecide(decision string, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -1107,7 +1074,7 @@ func cmdDecide(decision string, args []string, stdout, stderr io.Writer) int {
 	}
 	id := args[0]
 	reason := strings.Join(args[1:], " ")
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdConfigCenter(args []string, stdout, stderr io.Writer) int {
@@ -146,7 +147,7 @@ func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -225,7 +226,7 @@ func cmdConfigCenterGet(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -280,7 +281,7 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -385,7 +386,7 @@ func cmdConfigCenterDelete(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -454,7 +455,7 @@ func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 
-		c := dial(stderr)
+		c := dialpkg.New(stderr)
 		if c == nil {
 			return 1
 		}
@@ -477,7 +478,7 @@ func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
 		}
 	} else {
 		// Get mode
-		c := dial(stderr)
+		c := dialpkg.New(stderr)
 		if c == nil {
 			return 1
 		}
@@ -557,7 +558,7 @@ func cmdConfigCenterAccessLog(args []string, stdout, stderr io.Writer) int {
 		i++
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -655,7 +656,7 @@ func cmdConfigCenterAudit(args []string, stdout, stderr io.Writer) int {
 		i++
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -713,7 +714,7 @@ func cmdConfigCenterHealth(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

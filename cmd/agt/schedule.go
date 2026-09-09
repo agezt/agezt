@@ -14,6 +14,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdSchedule dispatches `agt schedule <subcommand>` — the operator's
@@ -431,7 +433,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -443,7 +445,7 @@ func cmdScheduleAdd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	id, _ := res["id"].(string)
 	fmt.Fprintf(stdout, "scheduled %s (%s)\n", id, human)
@@ -745,7 +747,7 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -757,7 +759,7 @@ func cmdScheduleEdit(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if updated, _ := res["updated"].(bool); !updated {
 		fmt.Fprintf(stderr, "%s schedule edit: not found (%s)\n", brand.CLI, id)
@@ -794,7 +796,7 @@ func cmdScheduleEnable(args []string, stdout, stderr io.Writer, enabled bool) in
 		fmt.Fprintf(stderr, "%s schedule %s: an id is required\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -806,7 +808,7 @@ func cmdScheduleEnable(args []string, stdout, stderr io.Writer, enabled bool) in
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if updated, _ := res["updated"].(bool); !updated {
 		fmt.Fprintf(stderr, "%s schedule %s: not found (%s)\n", brand.CLI, verb, id)
@@ -830,7 +832,7 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -842,7 +844,7 @@ func cmdScheduleList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	list, _ := res["schedules"].([]any)
 	if len(list) == 0 {
@@ -1064,7 +1066,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1092,7 +1094,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fires, _ := res["fires"].([]any)
 	if len(fires) == 0 {
@@ -1193,7 +1195,7 @@ func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1212,7 +1214,7 @@ func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	total := intOfStatus(res["total"])
 	windowSuffix := ""
@@ -1282,7 +1284,7 @@ func scheduleByID(args []string, stdout, stderr io.Writer, verb, cmd, resultKey,
 		fmt.Fprintf(stderr, "%s schedule %s: an id is required\n", brand.CLI, verb)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -1294,7 +1296,7 @@ func scheduleByID(args []string, stdout, stderr io.Writer, verb, cmd, resultKey,
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	ok, _ := res[resultKey].(bool)
 	if !ok {

@@ -10,6 +10,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdPulseAsks implements `agt pulse asks [--json]` (list) and
@@ -42,7 +44,7 @@ func cmdPulseAsks(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -57,7 +59,7 @@ func cmdPulseAsks(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		if asJSON {
-			return encodeJSON(stdout, res)
+			return jsonout.Write(stdout, res)
 		}
 		if verb == "reject" {
 			fmt.Fprintf(stdout, "dismissed %s\n", key)
@@ -78,7 +80,7 @@ func cmdPulseAsks(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	asks, _ := res["asks"].([]any)
 	if len(asks) == 0 {
@@ -125,7 +127,7 @@ func cmdPulseControl(sub string, args []string, stdout, stderr io.Writer) int {
 		"resume": controlplane.CmdPulseResume,
 	}[sub]
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -137,7 +139,7 @@ func cmdPulseControl(sub string, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 
 	switch sub {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdPlanRefine implements `agt plan refine <file.json> --feedback "..."`.
@@ -74,7 +75,7 @@ func cmdPlanRefine(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

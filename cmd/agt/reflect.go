@@ -10,6 +10,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdReflect dispatches `agt reflect <subcommand>`. Reflection is the
@@ -41,7 +43,7 @@ func cmdReflectRun(args []string, stdout, stderr io.Writer) int {
 	if code >= 0 {
 		return code
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -53,7 +55,7 @@ func cmdReflectRun(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	renderReport(stdout, res)
 	return 0
@@ -64,7 +66,7 @@ func cmdReflectShow(args []string, stdout, stderr io.Writer) int {
 	if code >= 0 {
 		return code
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -76,7 +78,7 @@ func cmdReflectShow(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if found, _ := res["found"].(bool); !found {
 		fmt.Fprintln(stdout, "no reflection yet — run `agt reflect run`")

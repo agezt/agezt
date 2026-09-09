@@ -18,6 +18,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 const (
@@ -113,7 +115,7 @@ func cmdRollbackList(args []string, stdout, stderr io.Writer) int {
 		out["run_id"] = runID
 	}
 	if asJSON {
-		return encodeJSON(stdout, out)
+		return jsonout.Write(stdout, out)
 	}
 	if len(checkpoints) == 0 {
 		if runID != "" {
@@ -155,7 +157,7 @@ func cmdRollbackShow(cmd string, args []string, stdout, stderr io.Writer) int {
 	}
 	out := map[string]any{"checkpoint": *cp, "dry_run": true}
 	if asJSON {
-		return encodeJSON(stdout, out)
+		return jsonout.Write(stdout, out)
 	}
 	renderRollbackCheckpoint(stdout, *cp)
 	return 0
@@ -188,7 +190,7 @@ func cmdRollbackApply(args []string, stdout, stderr io.Writer) int {
 	if cp.AppliedMS > 0 {
 		out := map[string]any{"checkpoint": *cp, "applied": false, "reason": "already applied"}
 		if asJSON {
-			return encodeJSON(stdout, out)
+			return jsonout.Write(stdout, out)
 		}
 		fmt.Fprintf(stdout, "rollback %s already applied at %s\n", cp.ID, time.UnixMilli(cp.AppliedMS).Format(rollbackDefaultRenderTimeFmt))
 		return 0
@@ -210,7 +212,7 @@ func cmdRollbackApply(args []string, stdout, stderr io.Writer) int {
 	cp = &cat.Checkpoints[idx]
 	out := map[string]any{"checkpoint": *cp, "applied": true, "result": res}
 	if asJSON {
-		return encodeJSON(stdout, out)
+		return jsonout.Write(stdout, out)
 	}
 	fmt.Fprintf(stdout, "rolled back %s: %s\n", cp.ID, rollbackApplySummary(*cp))
 	return 0
@@ -222,7 +224,7 @@ func applyRollbackCheckpoint(cp rollbackCheckpoint, reason string, stderr io.Wri
 		if strings.TrimSpace(cp.SubjectID) == "" || strings.TrimSpace(cp.BeforeStatus) == "" {
 			return nil, fmt.Errorf("checkpoint %s is missing skill restore data", cp.ID)
 		}
-		c := dial(stderr)
+		c := dialpkg.New(stderr)
 		if c == nil {
 			return nil, errors.New("daemon unavailable")
 		}
@@ -235,7 +237,7 @@ func applyRollbackCheckpoint(cp rollbackCheckpoint, reason string, stderr io.Wri
 		if len(cp.Before) == 0 {
 			return nil, fmt.Errorf("checkpoint %s is missing workflow snapshot data", cp.ID)
 		}
-		c := dial(stderr)
+		c := dialpkg.New(stderr)
 		if c == nil {
 			return nil, errors.New("daemon unavailable")
 		}
@@ -264,7 +266,7 @@ func applyRollbackCheckpoint(cp rollbackCheckpoint, reason string, stderr io.Wri
 		if set, _ := cp.Before["set"].(bool); set {
 			value = str(cp.Before["value"])
 		}
-		c := dial(stderr)
+		c := dialpkg.New(stderr)
 		if c == nil {
 			return nil, errors.New("daemon unavailable")
 		}

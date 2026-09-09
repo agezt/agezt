@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agentgw"
@@ -208,17 +209,9 @@ func splitCSV(s string) []string {
 	return result
 }
 
-// parseDuration parses a duration string like "1h", "30m", "3600s".
-func parseDuration(s string) time.Duration {
-	// Try standard time.ParseDuration first
-	if d, err := time.ParseDuration(s); err == nil {
-		return d
-	}
-	// Try just a number (seconds)
-	var seconds int64
-	fmt.Sscanf(s, "%d", &seconds)
-	return time.Duration(seconds) * time.Second
-}
+// parseDuration is a shim → format.ParseDuration (Day 8 extraction). The
+// body is documented in cmd/agt/format/format.go.
+func parseDuration(s string) time.Duration { return format.ParseDuration(s) }
 
 // getTokenSecret returns the token signing secret shared with the daemon: the
 // per-install secret persisted under the AGEZT base dir (or

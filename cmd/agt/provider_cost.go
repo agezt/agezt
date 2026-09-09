@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // estimateCostMicrocents returns the cost in microcents of inToks input + outToks
@@ -95,7 +97,7 @@ func cmdProviderCost(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -116,7 +118,7 @@ func cmdProviderCost(args []string, stdout, stderr io.Writer) int {
 	_, hasCost := entry["cost_input_mc_per_mtok"]
 	if !hasCost || (inMc == 0 && outMc == 0) {
 		if asJSON {
-			return encodeJSON(stdout, map[string]any{"model": model, "provider": provider, "priced": false})
+			return jsonout.Write(stdout, map[string]any{"model": model, "provider": provider, "priced": false})
 		}
 		fmt.Fprintf(stdout, "%s (%s): no pricing in the catalog (a free/local or unpriced model)\n", model, provider)
 		return 0
@@ -136,7 +138,7 @@ func cmdProviderCost(args []string, stdout, stderr io.Writer) int {
 			out["output_tokens"] = outToks
 			out["estimate_mc"] = estimate
 		}
-		return encodeJSON(stdout, out)
+		return jsonout.Write(stdout, out)
 	}
 
 	fmt.Fprintf(stdout, "%s (provider %s):\n", model, provider)

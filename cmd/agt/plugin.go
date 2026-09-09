@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/plugin"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdPlugin dispatches `agt plugin <subcommand>`. M1.ff adds one
@@ -82,7 +83,7 @@ func cmdPluginList(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}

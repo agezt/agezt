@@ -18,12 +18,6 @@ func TestCoveragePureFormattingHelpers(t *testing.T) {
 	if got := pct(10, 0); got != "—" {
 		t.Fatalf("pct with zero cap = %q", got)
 	}
-	if got := reasonOrPlaceholder(""); got != "—" {
-		t.Fatalf("empty reason = %q", got)
-	}
-	if got := reasonOrPlaceholder("operator requested"); got != "operator requested" {
-		t.Fatalf("reason = %q", got)
-	}
 	if got := formatTime(""); got != "never" {
 		t.Fatalf("empty time = %q", got)
 	}

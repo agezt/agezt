@@ -16,6 +16,8 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/webhook"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdWebhook dispatches `agt webhook <subcommand>` (M112) — visibility into
@@ -160,7 +162,7 @@ func cmdWebhookTest(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if asJSON {
-		code := encodeJSON(stdout, map[string]any{"results": results, "any_failed": anyFail})
+		code := jsonout.Write(stdout, map[string]any{"results": results, "any_failed": anyFail})
 		if anyFail {
 			return 3
 		}
@@ -236,7 +238,7 @@ func cmdWebhookLog(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -258,7 +260,7 @@ func cmdWebhookLog(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	rows, _ := res["deliveries"].([]any)
 	if len(rows) == 0 {
@@ -335,7 +337,7 @@ func cmdWebhookStats(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -351,7 +353,7 @@ func cmdWebhookStats(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	total := intOfStatus(res["total"])
 	suffix := ""

@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdMemory dispatches `agt memory <subcommand>`. Memory-lite is the
@@ -184,7 +185,7 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 		callArgs["tags"] = tags
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -196,7 +197,7 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	id, _ := res["id"].(string)
 	created, _ := res["created"].(bool)
@@ -232,7 +233,7 @@ func cmdMemoryList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -244,7 +245,7 @@ func cmdMemoryList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	recs, _ := res["records"].([]any)
 	if len(recs) == 0 {
@@ -291,7 +292,7 @@ func cmdMemorySearch(args []string, stdout, stderr io.Writer) int {
 	if limit > 0 {
 		callArgs["limit"] = limit
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -303,7 +304,7 @@ func cmdMemorySearch(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	results, _ := res["results"].([]any)
 	if len(results) == 0 {
@@ -343,7 +344,7 @@ func cmdMemoryGet(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s memory get: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -356,7 +357,7 @@ func cmdMemoryGet(args []string, stdout, stderr io.Writer) int {
 	}
 	found, _ := res["found"].(bool)
 	if asJSON {
-		_ = encodeJSON(stdout, res)
+		_ = jsonout.Write(stdout, res)
 		if !found {
 			return 3
 		}
@@ -367,7 +368,7 @@ func cmdMemoryGet(args []string, stdout, stderr io.Writer) int {
 		return 3
 	}
 	rec, _ := res["record"].(map[string]any)
-	return encodeJSON(stdout, rec)
+	return jsonout.Write(stdout, rec)
 }
 
 // cmdMemoryForget implements `agt memory forget <id> [--json]`.
@@ -392,7 +393,7 @@ func cmdMemoryForget(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s memory forget: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -404,7 +405,7 @@ func cmdMemoryForget(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if ok, _ := res["forgotten"].(bool); ok {
 		fmt.Fprintf(stdout, "forgot %s\n", id)
@@ -439,7 +440,7 @@ func cmdMemoryPromote(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s memory promote: id required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -451,7 +452,7 @@ func cmdMemoryPromote(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if ok, _ := res["promoted"].(bool); ok {
 		fmt.Fprintf(stdout, "promoted %s to shared memory\n", id)
@@ -477,7 +478,7 @@ func cmdMemoryAudit(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -489,7 +490,7 @@ func cmdMemoryAudit(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "memory audit:\n")
 	fmt.Fprintf(stdout, "  usable       : %d\n", int(num(res["usable"])))
@@ -527,7 +528,7 @@ func cmdMemoryClean(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -539,7 +540,7 @@ func cmdMemoryClean(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	scanned := int(num(res["scanned"]))
 	rejected := int(num(res["rejected"]))
@@ -599,7 +600,7 @@ func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -612,7 +613,7 @@ func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	found, _ := res["clusters_found"].(float64)
 	merged, _ := res["clusters_merged"].(float64)
@@ -637,7 +638,7 @@ func cmdMemoryProfile(args []string, stdout, stderr io.Writer) int {
 			asJSON = true
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -649,7 +650,7 @@ func cmdMemoryProfile(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	input, _ := res["input_records"].(float64)
 	written, _ := res["facets_written"].(float64)
@@ -701,7 +702,7 @@ func cmdMemoryPrune(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -717,7 +718,7 @@ func cmdMemoryPrune(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	if dryRun {
 		stats, _ := res["stats"].(map[string]any)
@@ -776,7 +777,7 @@ func cmdMemoryBulkForget(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s memory bulk-forget: at most 500 IDs per call (got %d)\n", brand.CLI, len(ids))
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -792,7 +793,7 @@ func cmdMemoryBulkForget(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	forgotten, _ := res["forgotten"].(float64)
 	notFound, _ := res["not_found"].(float64)
@@ -852,7 +853,7 @@ func cmdMemoryFindRelated(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s memory find-related: --id is required\n", brand.CLI)
 		return 2
 	}
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -864,7 +865,7 @@ func cmdMemoryFindRelated(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	results, _ := res["results"].([]any)
 	count, _ := res["count"].(float64)
@@ -884,10 +885,7 @@ func cmdMemoryFindRelated(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// encodeJSON pretty-prints v to w and returns 0.
-func encodeJSON(w io.Writer, v any) int {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	_ = enc.Encode(v)
-	return 0
-}
+// encodeJSON was the local pretty-JSON helper. It was replaced
+// by cmd/agt/jsonout.Write (Day 5) and removed in Day 7's bulk
+// rewrite. New code outside cmd/agt/ that needs pretty JSON
+// uses cmd/agt/jsonout.Write directly.

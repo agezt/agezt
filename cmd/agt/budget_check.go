@@ -11,6 +11,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // budgetDim is one spend ceiling (global or a task-type cap) and what's spent
@@ -72,7 +74,7 @@ func cmdBudgetCheck(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return 1
 	}
@@ -120,7 +122,7 @@ func cmdBudgetCheck(args []string, stdout, stderr io.Writer) int {
 			out["task_spent_mc"] = taskSpent
 			out["task_ceiling_mc"] = taskCeiling
 		}
-		code := encodeJSON(stdout, out)
+		code := jsonout.Write(stdout, out)
 		if exhausted {
 			return 3
 		}

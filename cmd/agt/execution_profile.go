@@ -11,6 +11,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdExecProfile(args []string, stdout, stderr io.Writer) int {
@@ -61,7 +63,7 @@ func cmdExecProfileList(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "%d execution profile(s) on %s/%s:\n", intOfStatus(res["count"]), str(res["host_os"]), str(res["host_arch"]))
 	rows, _ := res["profiles"].([]any)
@@ -125,7 +127,7 @@ func cmdExecProfileShow(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	p, _ := res["profile"].(map[string]any)
 	if len(p) == 0 {
@@ -189,7 +191,7 @@ func cmdExecProfileCheck(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if asJSON {
-		return encodeJSON(stdout, res)
+		return jsonout.Write(stdout, res)
 	}
 	fmt.Fprintf(stdout, "execution profile check on %s/%s: %d ok, %d warning, %d fail\n",
 		str(res["host_os"]), str(res["host_arch"]), intOfStatus(res["ok_count"]), intOfStatus(res["warning_count"]), intOfStatus(res["fail_count"]))
@@ -216,7 +218,7 @@ func cmdExecProfileCheck(args []string, stdout, stderr io.Writer) int {
 }
 
 func callExecProfile(cmd string, args map[string]any, stderr io.Writer) (map[string]any, bool) {
-	c := dial(stderr)
+	c := dialpkg.New(stderr)
 	if c == nil {
 		return nil, false
 	}
