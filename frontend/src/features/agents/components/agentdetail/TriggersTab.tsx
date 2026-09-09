@@ -10,7 +10,7 @@ import { ErrorText } from "@/components/JsonView";
 import { type ConfirmOptions } from "@/components/ui/feedback";
 import { TriggerChip } from "@/components/Fleet";
 import { openAgent } from "@/features/agents/lib/agentnav";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetTrigger, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { AgentWakeAccess } from "@/features/agents/components/agentdetail/shared";
 import { agentMailboxSubjects, mailboxSubjectBinding, mailboxWakeArmIssue } from "@/features/agents/components/agentdetail/comms";

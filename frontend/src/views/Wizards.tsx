@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
 import { goToView } from "@/lib/nav";
 import { Setup } from "@/views/Setup";
-import { NewAgentForm, usdToMc } from "@/views/Roster";
+import { NewAgentForm, usdToMc } from "@/features/agents/components/Roster";
 import { NewScheduleForm } from "@/views/Schedules";
 import { NewServerForm } from "@/views/Mcp";
 import { NewOrderForm } from "@/views/Standing";

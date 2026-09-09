@@ -8,7 +8,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { useUI } from "@/components/ui/feedback";
 import { openIncident } from "@/features/incidents/lib/incidentnav";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type ApiOrder } from "@/lib/fleet";
 import { escalationCausalityLineage, mailboxWakeFor, type MailboxWakeRef, type EscalationCausalityLineage, type AgentEscalation } from "@/features/agents/lib/agentdetail";
 import { AgentWakeAccess, BoardMessage, Stat } from "@/features/agents/components/agentdetail/shared";

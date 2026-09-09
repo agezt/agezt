@@ -7,7 +7,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { summarizeProviderRoutingRow, type ProviderRoutingRow } from "@/features/agents/lib/agentdetail";
 import { isChainRef, chainName, type ChainsState } from "@/lib/chains";
 import { type ModelCatalog } from "@/lib/models";

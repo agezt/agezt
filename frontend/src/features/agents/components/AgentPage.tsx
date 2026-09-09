@@ -8,7 +8,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { AgentDetail } from "@/features/agents/components/AgentDetail";
-import type { AgentProfile } from "@/views/Roster";
+import type { AgentProfile } from "@/features/agents/components/Roster";
 import {
   buildFleet,
   type ApiProfile,

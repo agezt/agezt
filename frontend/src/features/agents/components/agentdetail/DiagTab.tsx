@@ -8,7 +8,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Disclosure } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
 import { openIncident } from "@/features/incidents/lib/incidentnav";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { incidentLineageLabel, type AgentHealthSnapshot, type AgentConfigOverrideSummary, type AgentRepairStatus, type AgentRepairSnapshot, type RunLite } from "@/features/agents/lib/agentdetail";
 import { AgentPermissionsSnapshot, ApprovalDecision, MiniPolicy, PolicyDecision, PolicyStats, RepairCommandCell, Stat, ToolCatalogRow, ToolInvocation } from "@/features/agents/components/agentdetail/shared";
 import { CapabilityControlPanel } from "@/features/agents/components/agentdetail/CapabilityPanel";

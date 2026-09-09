@@ -13,7 +13,7 @@ import { AgentRepair } from "@/features/agents/components/AgentRepair";
 import { ModelChip } from "@/components/ModelChip";
 import { ModelPicker } from "@/components/ModelPicker";
 import { openAgent } from "@/features/agents/lib/agentnav";
-import { agentEnableToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, guardianQuietPolicyPayload, type AgentEnableResult, type AgentProfile, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
+import { agentEnableToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, guardianQuietPolicyPayload, type AgentEnableResult, type AgentProfile, type AgentRetireResult, type AgentReviveResult } from "@/features/agents/components/Roster";
 import { scheduleAgentSlug, type FleetTrigger, type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { agentCorrelations, agentRunTrend, filterByCorrelation, filterAgentMemory, filterAgentSkills, summarizeAgent, lastFailure, healthSnapshot, summarizeConfigOverrides, summarizeAutoRepair, summarizeAgentRuntimeStatus, summarizeEscalations, escalationOperationalTasks, type ReaperReport, type AgentEscalation, type AgentRepairStatus, type MemoryRecord, type SkillLite, type RunLite, type ProviderRoutingRow } from "@/features/agents/lib/agentdetail";
 import { AgentDetailTabButton, AgentNowPanel, AgentPermissionsSnapshot, AgentWakeResult, ApprovalDecision, BoardMessage, DetailTab, EMPTY_BOARD_MESSAGES, PRIMARY_TABS, PolicyDecision, PolicyStats, RoutingInfo, StatePill, ToolCatalogRow, ToolInvocation, editableAgentProfile } from "@/features/agents/components/agentdetail/shared";

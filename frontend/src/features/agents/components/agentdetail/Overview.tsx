@@ -6,7 +6,7 @@ import { Advanced } from "@/components/ui/disclosure";
 import { KeyValue } from "@/components/JsonView";
 import { TriggerChip } from "@/components/Fleet";
 import { openIncident } from "@/features/incidents/lib/incidentnav";
-import { agentHierarchySummary, agentLifecycleSummary, type AgentProfile } from "@/views/Roster";
+import { agentHierarchySummary, agentLifecycleSummary, type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetTrigger, type ApiSchedule } from "@/lib/fleet";
 import { agentScope, incidentLineageLabel, type AgentHealthSnapshot, type AgentEscalation, type AgentOperationalTask, type AgentRepairStatus, type AgentRepairSnapshot, type MemoryRecord, type SkillLite, type RunLite } from "@/features/agents/lib/agentdetail";
 import { BoardMessage, BudgetBar, DetailTab } from "@/features/agents/components/agentdetail/shared";

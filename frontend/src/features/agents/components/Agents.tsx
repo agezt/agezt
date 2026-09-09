@@ -46,7 +46,7 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { useAgentsPager } from "@/app/cursor-pager";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import type { AgentProfile } from "@/views/Roster";
+import type { AgentProfile } from "@/features/agents/components/Roster";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
   buildFleet,

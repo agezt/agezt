@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { repairReadinessPassport, stripForEdit } from "@/features/agents/components/AgentRepair";
-import type { AgentProfile } from "@/views/Roster";
+import type { AgentProfile } from "@/features/agents/components/Roster";
 
 describe("stripForEdit", () => {
   it("preserves hierarchy, resilience, lifecycle, tasklist, and policy fields", () => {

@@ -6,7 +6,7 @@ import { money } from "@/app/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
 import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/features/agents/lib/agentdetail";
 

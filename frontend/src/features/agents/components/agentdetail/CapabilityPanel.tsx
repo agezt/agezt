@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { highImpactToolNames } from "@/lib/fleet";
 import { AgentConfigPermissionRow, AgentPermissionsSnapshot, DetailOptionPicker, ToolCatalogRow } from "@/features/agents/components/agentdetail/shared";
 import { HIGH_IMPACT_LOCKDOWN_TOOLS, WorkflowToolAccessCard, addCsvItem, addCsvItems, addListItem, configAccessDetail, configAccessLabel, configOverridesText, effectiveToolPermissions, mcToUsdInput, normalizeNoiseToolPolicy, parseConfigOverridesText, permissionRowFromSnapshot, removeCsvItem, removeCsvItems, removeListItem, splitCsv, toolPolicyOverlap, usdToMcInput, workflowToolAccessSummary } from "@/features/agents/components/agentdetail/capability";

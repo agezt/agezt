@@ -16,7 +16,7 @@ import {
   type RepairProposal,
   type RepairContext,
 } from "@/features/agents/lib/agentrepair";
-import type { AgentProfile } from "@/views/Roster";
+import type { AgentProfile } from "@/features/agents/components/Roster";
 import type { RunLite } from "@/features/agents/lib/agentdetail";
 
 interface DenialRow {

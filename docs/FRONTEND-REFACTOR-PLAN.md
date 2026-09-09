@@ -242,7 +242,7 @@ Sırayla (önce küçük, sonra büyük):
   - Doğrulama: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (34.4s).
   - Yardımcı: `scripts/dev/rewrite-runs-imports.py` (gelecek benzer bulk-rewrite'ler için şablon).
   - Kalan: `views/Runs.tsx` → `features/runs/components/Runs.tsx` göçü tamam; `RunDetail.tsx` (841 LOC) hâlâ `components/`'te paylaşılan bileşen — runs feature'ın dış yüzeyine bağımlı birden fazla sayfa (Dashboard, Mission, Inbox, Overseer, Replay) var; Runs sayfası `RunDetail`'ı doğrudan kullanmıyor (kendi tablo render'ı), bu yüzden şimdilik `components/RunDetail.tsx` ortak yerde kalıyor.
-- **Day 10** (bu commit): `features/agents/` — en büyük feature carve-out (Day 10/11 split).
+- **Day 10** (`ee7267da`): `features/agents/` — en büyük feature carve-out (Day 10/11 split).
   - **Taşınan (40 dosya)**:
     - `lib/agent*.{ts,test.ts}` (12 dosya, 4468 satır) → `features/agents/lib/` (6 lib çifti: agent, agentactivity, agentdetail, agentlive, agentnav, agentrepair)
     - `components/AgentDetail.{tsx,test.tsx}` (2, 3712) + `AgentActivity.{tsx,test.tsx}` (2, 385) + `AgentRepair.{tsx,test.tsx}` (2, 575) → `features/agents/components/`
@@ -260,6 +260,22 @@ Sırayla (önce küçük, sonra büyük):
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (40.2s).
   - **Yardımcı**: `scripts/dev/rewrite-agents-imports.py` — regex round-2 (agentdetail subpath'leri) dahil 2-pass tasarım.
   - **Kalan (Day 11)**: `views/Roster.tsx` (1499 satır) + `views/roster/*` (7 dosya, 1720 satır) — Roster'ın import'ları forward-compatible olarak bu commit'te güncellendi (`@/lib/agentdetail` → `@/features/agents/lib/agentdetail`); Day 11'de `views/Roster.tsx` → `features/agents/components/Roster.tsx` taşıması + bulk rewrite yapılacak.
+- **Day 11** (bu commit): `features/agents/components/{Roster,roster/*}` — agents feature'ı tamamlandı.
+  - **Taşınan (9 dosya, 5043 satır)**:
+    - `views/Roster.tsx` (1499 satır) + `views/Roster.test.tsx` (1824 satır) → `features/agents/components/`
+    - `views/roster/*` (7 dosya, 1720 satır: cards, filters, form, guardians, passports, removal, shared) → `features/agents/components/roster/`
+  - **Yeni barrel surface**: `features/agents/index.ts` artık `Roster`'ı da export ediyor (4 sayfa görünümü: Agents, ACPAgents, AgentPage, Roster)
+  - **Güncellenen**: 21 dosyada `@/views/Roster` → `@/features/agents/components/Roster` rewrite
+    - `nav.tsx` (lazy import), `views/Wizards.tsx` (NewAgentForm + usdToMc)
+    - `features/agents/components/AgentDetail.tsx` (multi-import, en büyük consumer — 5 sembol: agentEnableToast, agentRetireToast, agentReviveToast, agentSchedulePressurePassport, guardianQuietPolicyPayload, + 4 tip)
+    - `features/agents/components/agentdetail/*` (12 dosya — CapabilityPanel, LifecyclePanel, Overview, comms, capability, lifecycle, tasks, shared, MindTab, ModelTab, DiagTab, TriggersTab — hepsi `AgentProfile` tipini kullanıyor)
+    - `features/agents/components/{Agents,AgentPage,AgentRepair,AgentRepair.test}.tsx` (4 dosya)
+    - `features/incidents/components/IncidentPage.tsx` (cross-feature — AgentProfile tipi)
+    - `features/agents/components/Roster.test.tsx` (self-import, 35+ sembol)
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (34.75s)
+  - **Yardımcı**: `scripts/dev/rewrite-roster-imports.py`
+  - **Agents feature tamamlandı**: 49 dosya, ~11K satır (12 lib + 28 component + 9 Roster/roster + 2 barrel). 5. feature, en büyüğü.
+  - **Boş kalan**: `views/roster/` (boş subdir, 7 dosya taşındı) — git'te untracked olarak kalacak, ileride temizlenir.
 
 ## 10. Sonraki adaylar (Day 11+)
 

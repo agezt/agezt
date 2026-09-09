@@ -4,7 +4,7 @@ import { getJSON, postAction, postJSON } from "@/app/api";
 import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
-import { agentRemoveToast, agentRetireToast, agentReviveToast, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
+import { agentRemoveToast, agentRetireToast, agentReviveToast, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/features/agents/components/Roster";
 import { type ApiSchedule } from "@/lib/fleet";
 import { type MemoryRecord, type SkillLite } from "@/features/agents/lib/agentdetail";
 import { AgentImpactSummary, AgentLifecycleActionResultSummary, AgentLifecycleLedgerEntry, agentDetailRemovalCascadePreset, agentLifecycleActionResultSummary, agentLifecycleDecisionLedger, agentLifecycleInterventionSummary, agentRemovalImpactPlan, agentRemovalRiskLabel } from "@/features/agents/components/agentdetail/lifecycle";

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Play, AlertTriangle, Wrench, CheckCheck, Archive, Trash2, Plus, Repeat } from "lucide-react";
 import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
-import { type AgentProfile } from "@/views/Roster";
+import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type AgentOperationalTask } from "@/features/agents/lib/agentdetail";
 import { DetailOptionPicker } from "@/features/agents/components/agentdetail/shared";
 

@@ -45,7 +45,7 @@ import {
   summarizeEscalations,
   type AgentEscalation,
 } from "@/features/agents/lib/agentdetail";
-import type { AgentProfile } from "@/views/Roster";
+import type { AgentProfile } from "@/features/agents/components/Roster";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";

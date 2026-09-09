@@ -80,7 +80,7 @@ const Alerts = lazyNamed(() => import("@/views/Alerts"), "Alerts");
 const SearchView = lazyNamed(() => import("@/views/Search"), "Search");
 const Replay = lazyNamed(() => import("@/views/Replay"), "Replay");
 const Agents = lazyNamed(() => import("@/features/agents/components/Agents"), "Agents");
-const Roster = lazyNamed(() => import("@/views/Roster"), "Roster");
+const Roster = lazyNamed(() => import("@/features/agents/components/Roster"), "Roster");
 const Overseer = lazyNamed(() => import("@/views/Overseer"), "Overseer");
 const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
 const Mcp = lazyNamed(() => import("@/views/Mcp"), "Mcp");
