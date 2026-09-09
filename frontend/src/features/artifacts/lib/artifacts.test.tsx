@@ -10,7 +10,7 @@ vi.mock("@/app/api", () => ({
   authHeaders: () => new Headers({ Authorization: "Bearer test-token" }),
 }));
 
-import { isImage, rawURL, isPdf, textKind, isRunInternal, BlobArtifact } from "@/lib/artifacts";
+import { isImage, rawURL, isPdf, textKind, isRunInternal, BlobArtifact } from "./artifacts";
 
 afterEach(() => {
   cleanup();

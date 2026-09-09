@@ -48,7 +48,7 @@ import {
   humanSize,
   BlobArtifact,
   downloadArtifact,
-} from "@/lib/artifacts";
+} from "../lib/artifacts";
 
 // Artifacts (M931 + the 2026-09 Files merge): the ONE surface for everything the
 // daemon stored, in two modes.

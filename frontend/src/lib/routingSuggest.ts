@@ -11,7 +11,7 @@
 // (chat/plan/code/…) take the strongest model per provider, light tasks
 // (summarize/salience/…) the cheapest non-reasoning one.
 
-import { flattenModels, type ModelCatalog, type ModelOption } from "./models";
+import { flattenModels, type ModelCatalog, type ModelOption } from "@/features/models/lib/models";
 
 export const SUGGEST_CHAIN_MAX = 5;
 

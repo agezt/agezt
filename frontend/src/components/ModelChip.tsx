@@ -1,7 +1,7 @@
 import { Waypoints } from "lucide-react";
 import { cn } from "@/app/utils";
 import { isChainRef, chainName } from "@/features/workflows/lib/chains";
-import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
+import { modelHealth, type ModelCatalog, type ModelHealth } from "@/features/models/lib/models";
 
 // ModelChip renders a single model slot consistently wherever chains can appear
 // (Routing rows, agent Model tab, …): a plain model id shows with an optional

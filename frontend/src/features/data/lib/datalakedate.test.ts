@@ -5,7 +5,7 @@
 // that lib/* holds the pure logic the views consume.
 import { describe, expect, it } from "vitest";
 
-import { canonicalDate, dayKey, localDayKey, localMonthKey, monthKey } from "@/lib/datalakedate";
+import { canonicalDate, dayKey, localDayKey, localMonthKey, monthKey } from "./datalakedate";
 
 describe("dayKey", () => {
   it("passes an already-canonical date through unchanged", () => {

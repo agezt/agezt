@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { categoryOf, type ArtifactEntry } from "@/lib/artifacts";
+import { categoryOf, type ArtifactEntry } from "../lib/artifacts";
 import { groupByCategory, matchesQuery, fileManagerHash, Artifacts } from "./Artifacts";
 import { UIProvider } from "@/components/ui/feedback";
 

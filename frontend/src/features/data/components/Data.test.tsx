@@ -12,7 +12,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Data, dataLakeActorAgent, dataLakeAgents, dataRecordAttribution, dataRecordWriter, filterDataRecordsByAgent } from "@/views/Data";
+import { Data, dataLakeActorAgent, dataLakeAgents, dataRecordAttribution, dataRecordWriter, filterDataRecordsByAgent } from "@/features/data/components/Data";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

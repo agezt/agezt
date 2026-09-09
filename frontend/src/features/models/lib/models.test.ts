@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flattenModels, filterModels, groupByProvider, pinnedOptions, fmtContext, findModelContext, modelHealth, type ModelCatalog } from "@/lib/models";
+import { flattenModels, filterModels, groupByProvider, pinnedOptions, fmtContext, findModelContext, modelHealth, type ModelCatalog } from "./models";
 
 const cat: ModelCatalog = {
   providers: [

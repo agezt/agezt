@@ -11,7 +11,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
-import { BlobArtifact, type ArtifactEntry } from "@/lib/artifacts";
+import { BlobArtifact, type ArtifactEntry } from "@/features/artifacts/lib/artifacts";
 import { focusRun } from "@/features/runs/lib/runfocus";
 import { goToView } from "@/lib/nav";
 

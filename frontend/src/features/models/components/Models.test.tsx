@@ -12,7 +12,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { Models } from "@/views/Models";
+import { Models } from "@/features/models/components/Models";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {

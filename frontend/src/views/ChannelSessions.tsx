@@ -6,7 +6,7 @@ import { cn, fmtTime } from "@/app/utils";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
-import { BlobArtifact, type ArtifactEntry } from "@/lib/artifacts";
+import { BlobArtifact, type ArtifactEntry } from "@/features/artifacts/lib/artifacts";
 import {
   sessionsFromInboxThreads,
   lastSnippet,

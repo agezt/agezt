@@ -22,7 +22,7 @@ import {
   Save,
 } from "lucide-react";
 import { getJSON, postJSON, postAction } from "@/app/api";
-import { canonicalDate, dayKey, localDayKey, localMonthKey, monthKey } from "@/lib/datalakedate";
+import { canonicalDate, dayKey, localDayKey, localMonthKey, monthKey } from "../lib/datalakedate";
 import { cn, fmtTime } from "@/app/utils";
 import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";

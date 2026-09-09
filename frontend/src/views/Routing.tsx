@@ -11,7 +11,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
 import { downloadText } from "@/app/export";
-import { type ModelCatalog } from "@/lib/models";
+import { type ModelCatalog } from "@/features/models/lib/models";
 import { suggestChains } from "@/lib/routingSuggest";
 
 // parseChainsJSON normalises an imported routing file into a {task: [models]} map,

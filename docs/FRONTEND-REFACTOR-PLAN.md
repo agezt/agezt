@@ -370,9 +370,33 @@ Sırayla (önce küçük, sonra büyük):
   - **Cross-feature consumers** (5): views/Activity, components/DoctorIncidentTrees, features/incidents/* (3 dosya) — hepsi rewrite edildi
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (39.86s)
   - **Yardımcı**: `scripts/dev/rewrite-autonomy-overseer-sandbox-imports.py`
+- **Day 17** (bu commit): `features/data/` + `features/models/` + `features/artifacts/` — 18. 19. 20. feature, orta boy (toplam 3789 satır, 9 dosya + 3 lib).
+  - **Taşınan (12 dosya, 3789 satır)**:
+    - `views/Data.tsx` (882) + `views/Data.test.tsx` (452) → `features/data/components/`
+    - `lib/datalakedate{,.test.ts}` (261) → `features/data/lib/`
+    - `views/Models.tsx` (616) + `views/Models.test.tsx` (234) → `features/models/components/`
+    - `lib/models{,.test.ts}` (288) → `features/models/lib/`
+    - `views/Artifacts.tsx` (617) + `views/Artifacts.test.tsx` (137) + `views/Artifacts.lookslikepath.test.ts` (39) → `features/artifacts/components/`
+    - `lib/artifacts{,.test.tsx}` (263) → `features/artifacts/lib/`
+  - **Yerinde (cross-feature shared)**: `components/DataView.{tsx,test.tsx}` (197 satır — EventFeed + Markdown + RunDetail + Search + Data view consumerları) + `components/ModelPicker.{tsx,test.tsx}` (488) + `components/ModelChip.{tsx,test.tsx}` (59)
+  - **Yeni**: 3 feature için 6 barrel dosyası (3 index + 3 types)
+  - **Internal relative path fix**: features/{data,artifacts}/components/* + lib/*.test.ts 6 yerde `@/lib/*` → relative (move sırasında)
+  - **Sibling file fix**: `lib/routingSuggest.ts` + `routingSuggest.test.ts` 2 dosyada relative `./models` → `@/features/models/lib/models` (lib/models.ts artık sibling değil)
+  - **Güncellenen**: 12 dosyada import path rewrite
+    - `@/lib/datalakedate` → `@/features/data/lib/datalakedate`: 1 (self test, moves with us)
+    - `@/lib/models` → `@/features/models/lib/models`: 9 — **en heavy cross-feature lib**: components/ModelChip, components/ModelPicker, features/agents/.../ModelTab, features/workflows/.../Chains, views/Chat/context, views/Routing, + 2 self test, nav
+    - `@/lib/artifacts` → `@/features/artifacts/lib/artifacts`: 4 (views/ChannelSessions, components/FileManagerWorkspace, views/Inbox, self test)
+    - `@/views/Data` → `@/features/data/components/Data`: 2 (self test, nav)
+    - `@/views/Models` → `@/features/models/components/Models`: 2 (self test, nav)
+    - `@/views/Artifacts` → `@/features/artifacts/components/Artifacts`: 2 (self test, nav)
+  - **Public surface (data barrel)**: Data + 5 helper (dataRecordAttribution, dataRecordWriter, dataLakeActorAgent, dataLakeAgents, filterDataRecordsByAgent)
+  - **Public surface (models barrel)**: Models + 2 tip (ModelCatalog, ModelHealth) — lib/models 9 cross-feature consumer
+  - **Public surface (artifacts barrel)**: Artifacts + BlobArtifact (cross-feature React component — Inbox + ChannelSessions) + 5 helper (isImage, rawURL, isPdf, textKind, isRunInternal) + 1 helper (categoryOf) + ArtifactEntry tip
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (37.30s)
+  - **Yardımcı**: `scripts/dev/rewrite-data-models-artifacts-imports.py`
 
-## 10. Sonraki adaylar (Day 17+)
+## 10. Sonraki adaylar (Day 18+)
 
-- **Day 17**: kalan 8 feature batch (data, mcp, models, artifacts, channels, policy, world, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 18**: kalan 5 feature batch (mcp, channels, policy, world, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 9 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952 → 9 ayrı 4-6 dosyalı split).
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 9 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952, Data 882, Artifacts 617, Models 616 → 12 ayrı 4-6 dosyalı split).

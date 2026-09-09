@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { suggestChains, SUGGEST_CHAIN_MAX } from "./routingSuggest";
-import { type ModelCatalog } from "./models";
+import { type ModelCatalog } from "@/features/models/lib/models";
 
 // A small keyed-vs-unkeyed catalog: two credentialed providers (one strong,
 // one cheap), one provider alias serving the same model id, one unkeyed

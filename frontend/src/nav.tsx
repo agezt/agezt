@@ -102,7 +102,7 @@ const Connections = lazyNamed(() => import("@/views/Connections"), "Connections"
 const Tools = lazyNamed(() => import("@/views/Tools"), "Tools");
 const ExecutionProfiles = lazyNamed(() => import("@/features/execution-profiles/components/ExecutionProfiles"), "ExecutionProfiles");
 const Catalog = lazyNamed(() => import("@/views/Catalog"), "Catalog");
-const Models = lazyNamed(() => import("@/views/Models"), "Models");
+const Models = lazyNamed(() => import("@/features/models/components/Models"), "Models");
 const Routing = lazyNamed(() => import("@/views/Routing"), "Routing");
 const Chains = lazyNamed(() => import("@/features/workflows/components/Chains"), "Chains");
 export const Setup = lazyNamed(() => import("@/features/setup/components/Setup"), "Setup");
@@ -111,7 +111,7 @@ const Market = lazyNamed(() => import("@/features/market/components/Market"), "M
 const Channels = lazyNamed(() => import("@/views/Channels"), "Channels");
 export const AgentPage = lazyNamed(() => import("@/features/agents/components/AgentPage"), "AgentPage");
 export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
-const Data = lazyNamed(() => import("@/views/Data"), "Data");
+const Data = lazyNamed(() => import("@/features/data/components/Data"), "Data");
 const Council = lazyNamed(() => import("@/features/council/components/Council"), "Council");
 const Conductor = lazyNamed(() => import("@/views/Conductor"), "Conductor");
 const Research = lazyNamed(() => import("@/views/Research"), "Research");
@@ -130,7 +130,7 @@ const Reflect = lazyNamed(() => import("@/views/Reflect"), "Reflect");
 const Approvals = lazyNamed(() => import("@/views/Approvals"), "Approvals");
 const Sandbox = lazyNamed(() => import("@/features/sandbox/components/Sandbox"), "Sandbox");
 const Storage = lazyNamed(() => import("@/views/Storage"), "Storage");
-const Artifacts = lazyNamed(() => import("@/views/Artifacts"), "Artifacts");
+const Artifacts = lazyNamed(() => import("@/features/artifacts/components/Artifacts"), "Artifacts");
 
 /**
  * NavItem is one VIEW — the addressable unit. Its `id` is the URL hash
