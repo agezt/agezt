@@ -12,6 +12,9 @@
 *.temp
 # stale structure-md snapshot from an earlier sprint regeneration attempt
 /.project/STRUCTURE.generated.v2/
+# stray diagnostic files left behind by shell sessions (the tool
+# name in the filename is the script that wrote it; safe to delete).
+/diff.txt
 *.prof
 *.pprof
 *.cover
