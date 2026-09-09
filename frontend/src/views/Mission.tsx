@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Radar, Zap, Coins, Wrench, Brain, Activity, Waypoints, ListTree, Bell } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/app/events";
-import { eventDedupKey } from "@/lib/rundetail";
+import { eventDedupKey } from "@/features/runs/lib/rundetail";
 import { getJSON } from "@/app/api";
 import { money } from "@/app/format";
 import { cn, fmtWhen } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
-import { focusRun } from "@/lib/runfocus";
+import { focusRun } from "@/features/runs/lib/runfocus";
 import { SpendArea } from "@/components/Charts";
 import { Page } from "@/components/ui/page";
 import { MetricWidget } from "@/components/ui/metric-widget";

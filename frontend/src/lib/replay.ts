@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@/app/events";
-import { num } from "@/lib/rundetail";
+import { num } from "@/features/runs/lib/rundetail";
 import {
   incidentBadgeItem,
   incidentEventSummary,

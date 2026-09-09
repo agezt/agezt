@@ -19,7 +19,7 @@ vi.mock("@/components/ui/feedback", () => ({
   useUI: () => ({ toast: () => {}, confirm: () => Promise.resolve(true) }),
 }));
 
-import { Runs, runMatches, runBucket, runCounts } from "@/views/Runs";
+import { Runs, runMatches, runBucket, runCounts } from "@/features/runs/components/Runs";
 
 afterEach(cleanup);
 beforeEach(() => {

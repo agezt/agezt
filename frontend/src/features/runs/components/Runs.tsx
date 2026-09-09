@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { cn, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { RunDetailLoader } from "@/components/RunDetail";
-import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
+import { useRunFocus, clearRunFocus } from "@/features/runs/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { useCursorPager } from "@/app/cursor-pager";
@@ -199,7 +199,8 @@ interface RunsPage {
  *
  * Implementation note: this is now a thin wrapper around the generic
  * `useCursorPager` helper (lib/cursorPager) — kept as a named export so
- * existing tests at `@/views/Runs` keep importing it from a stable path.
+ * existing tests at `@/features/runs/components/Runs` keep importing it
+ * from a stable path.
  */
 export function useRunsPager() {
   return useCursorPager<Run>(

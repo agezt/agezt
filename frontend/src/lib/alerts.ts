@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@/app/events";
 import { incidentMetaFromEvent } from "@/features/incidents/lib/incidents";
-import { eventDedupKey } from "@/lib/rundetail";
+import { eventDedupKey } from "@/features/runs/lib/rundetail";
 
 // Alerts: the daemon's PROACTIVE signals — what it flagged on its own, distinct
 // from the raw event firehose. Pulse observer deltas (e.g. the self-health

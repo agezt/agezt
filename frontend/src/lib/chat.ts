@@ -1,4 +1,4 @@
-import { num } from "@/lib/rundetail";
+import { num } from "@/features/runs/lib/rundetail";
 import { authHeaders } from "@/app/api";
 
 // A frame is one SSE `data:` object streamed by the webui /api/run proxy. Most

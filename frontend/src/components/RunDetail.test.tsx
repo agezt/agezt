@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { RunDetailCards, ToolCallRow, remoteArtifactsFromArc, runPhaseSteps } from "@/components/RunDetail";
-import type { ToolCall } from "@/lib/rundetail";
+import type { ToolCall } from "@/features/runs/lib/rundetail";
 
 afterEach(cleanup);
 

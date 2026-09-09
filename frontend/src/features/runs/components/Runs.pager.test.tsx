@@ -69,7 +69,7 @@ vi.mock("@/app/api", async (importOriginal) => {
 
 // Import AFTER the mock so React.hooks etc resolve against the
 // mocked module graph.
-import { useRunsPager } from "@/views/Runs";
+import { useRunsPager } from "@/features/runs/components/Runs";
 
 function runRow(id: string): Run {
   return {

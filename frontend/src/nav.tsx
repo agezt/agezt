@@ -92,7 +92,7 @@ const Seats = lazyNamed(() => import("@/views/Seats"), "Seats");
 const Wizards = lazyNamed(() => import("@/views/Wizards"), "Wizards");
 const Dashboard = lazyNamed(() => import("@/views/Dashboard"), "Dashboard");
 const Insights = lazyNamed(() => import("@/views/Insights"), "Insights");
-const Runs = lazyNamed(() => import("@/views/Runs"), "Runs");
+const Runs = lazyNamed(() => import("@/features/runs/components/Runs"), "Runs");
 const Budget = lazyNamed(() => import("@/views/Budget"), "Budget");
 const FlowStudio = lazyNamed(() => import("@/views/FlowStudio"), "FlowStudio");
 const ConfigCenter = lazyNamed(() => import("@/views/ConfigCenter"), "ConfigCenter");

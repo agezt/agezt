@@ -10,7 +10,7 @@ vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 const focusRun = vi.fn();
-vi.mock("@/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a) }));
+vi.mock("@/features/runs/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a) }));
 
 import { Alerts, mergeAlerts } from "@/views/Alerts";
 

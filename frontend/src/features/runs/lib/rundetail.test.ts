@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { deriveDetail, num, mergeEvents, eventDedupKey } from "@/lib/rundetail";
+import { deriveDetail, num, mergeEvents, eventDedupKey } from "@/features/runs/lib/rundetail";
 import type { AgentEvent } from "@/app/events";
 
 function contractFixture<T>(name: string): T {

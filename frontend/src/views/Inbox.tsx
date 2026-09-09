@@ -12,7 +12,7 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { BlobArtifact, type ArtifactEntry } from "@/lib/artifacts";
-import { focusRun } from "@/lib/runfocus";
+import { focusRun } from "@/features/runs/lib/runfocus";
 import { goToView } from "@/lib/nav";
 
 // COMMON_CHANNELS pre-fills the kind picker with the channels the daemon can carry;

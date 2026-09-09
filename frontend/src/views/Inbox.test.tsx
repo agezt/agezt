@@ -14,7 +14,7 @@ vi.mock("@/app/api", () => ({
 vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
-vi.mock("@/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a) }));
+vi.mock("@/features/runs/lib/runfocus", () => ({ focusRun: (...a: unknown[]) => focusRun(...a) }));
 
 import { SendMessageForm, Inbox, threadMatches } from "@/views/Inbox";
 import { UIProvider } from "@/components/ui/feedback";

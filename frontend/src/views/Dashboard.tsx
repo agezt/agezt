@@ -30,7 +30,7 @@ import { useEvents, type AgentEvent } from "@/app/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { incidentRootId } from "@/features/incidents/lib/incidents";
-import { focusRun } from "@/lib/runfocus";
+import { focusRun } from "@/features/runs/lib/runfocus";
 import { openIncident } from "@/features/incidents/lib/incidentnav";
 import {
   IncidentBadges,

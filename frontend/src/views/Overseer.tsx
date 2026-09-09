@@ -20,7 +20,7 @@ import {
   ArchiveRestore,
 } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
-import { focusRun } from "@/lib/runfocus";
+import { focusRun } from "@/features/runs/lib/runfocus";
 import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";

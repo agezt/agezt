@@ -225,3 +225,31 @@ Sırayla (önce küçük, sonra büyük):
 - Testler yeşil, knip temiz, typecheck temiz
 - Bir kez review/PR akışı test edilmiş
 - Kalan 27 feature için kalıp net
+
+## 9. Sprint ilerlemesi (commit başına)
+
+- **Day 1-2** (plan): `docs/FRONTEND-REFACTOR-PLAN.md` — 441 dosya, 58 god file, top-6 lib cluster analizi, hedef layout.
+- **Day 3** (`030ecb34`): `lib/utils.ts` (104) + `lib/api.ts` (152) → `app/utils/` + `app/api/`.
+- **Day 4** (`d0db493d`): `lib/events.tsx` + `lib/format.ts` + `lib/cursorPager.ts` + `lib/export.ts` → `app/{events,format,cursor-pager,export}/`.
+- **Day 5a** (`451a1033`): `lib/help.ts` (2795) → `app/help/` (5 dosya; topic split Day 5b'de).
+- **Day 6** (`db31cc8f`): `features/voice/` — ilk feature carve-out (29 dosya, 87 test).
+- **Day 7** (`64b0b28f`): `features/incidents/` (31 dosya, 27 test).
+- **Day 8** (`5fc5af85`): `features/council/` (10 dosya, 14 test).
+- **Day 9** (bu commit): `features/runs/` — 5 lib + 1 sayfa + 2 test taşıma, 23 dosyada import path bulk-replace, doc-block yorumları güncel.
+  - Yeni: `frontend/src/features/runs/{index,types}.ts` + `components/{Runs.tsx, Runs.test.tsx, Runs.pager.test.tsx}` + `lib/{rundetail.ts, rundetail.test.ts, runfocus.ts, runfocus.test.ts}` (9 dosya).
+  - Silinen: `frontend/src/lib/{rundetail,runfocus}{,.test}.ts` + `frontend/src/views/Runs{,.test,.pager.test}.tsx` (7 dosya).
+  - Güncellenen: 23 dosyada import path rewrite (`@/lib/{rundetail,runfocus}` → `@/features/runs/lib/...`, `@/views/Runs` → `@/features/runs/components/Runs`).
+  - Doğrulama: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (34.4s).
+  - Yardımcı: `scripts/dev/rewrite-runs-imports.py` (gelecek benzer bulk-rewrite'ler için şablon).
+  - Kalan: `views/Runs.tsx` → `features/runs/components/Runs.tsx` göçü tamam; `RunDetail.tsx` (841 LOC) hâlâ `components/`'te paylaşılan bileşen — runs feature'ın dış yüzeyine bağımlı birden fazla sayfa (Dashboard, Mission, Inbox, Overseer, Replay) var; Runs sayfası `RunDetail`'ı doğrudan kullanmıyor (kendi tablo render'ı), bu yüzden şimdilik `components/RunDetail.tsx` ortak yerde kalıyor.
+
+## 10. Sonraki adaylar (Day 10+)
+
+- **Day 10**: `features/workflows/` (Workflows.tsx + helpers — God file riski yüksek, önce haritala)
+- **Day 11**: `features/agents/` (en büyük, 12 lib + Roster + AgentDetail — 2 güne böl)
+- **Day 12**: `features/schedules/` + `features/execution-profiles/`
+- **Day 13**: `features/memory/` + `features/standing/` + `features/configcenter/`
+- **Day 14**: `features/skills/` + `features/market/` + `features/setup/`
+- **Day 15-18**: kalan 17 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting.

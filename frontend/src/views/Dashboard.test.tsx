@@ -11,7 +11,7 @@ vi.mock("@/app/api", () => ({
 vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: liveEvents, connected: true, subscribe: () => () => {} }),
 }));
-vi.mock("@/lib/runfocus", () => ({ focusRun: vi.fn() }));
+vi.mock("@/features/runs/lib/runfocus", () => ({ focusRun: vi.fn() }));
 vi.mock("@/views/Agents", () => ({
   summarizeRoots: () => [],
 }));

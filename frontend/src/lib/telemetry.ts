@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@/app/events";
-import { num } from "@/lib/rundetail";
+import { num } from "@/features/runs/lib/rundetail";
 
 // Real-time telemetry: per-second buckets folded from the live event firehose,
 // summarised into rolling rates. Pure (no React, no timers) so the bucketing and

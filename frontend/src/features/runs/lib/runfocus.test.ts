@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { focusRun, clearRunFocus, getRunFocus } from "@/lib/runfocus";
+import { focusRun, clearRunFocus, getRunFocus } from "@/features/runs/lib/runfocus";
 
 beforeEach(() => clearRunFocus());
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard, RefreshCw, Radio } from "lucide-react";
 import { getJSON } from "@/app/api";
 import { useEvents, type AgentEvent } from "@/app/events";
-import { mergeEvents } from "@/lib/rundetail";
+import { mergeEvents } from "@/features/runs/lib/rundetail";
 import { humanizeIntent } from "@/lib/intent";
 import { buildReplay } from "@/lib/replay";
 import { cn } from "@/app/utils";
