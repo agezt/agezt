@@ -36,7 +36,7 @@ import {
   uniqueSetupChainName,
   type SetupCatalog,
   type SetupProvider,
-} from "@/lib/setup";
+} from "../lib/setup";
 export {
   anyCredentialed,
   defaultSetupFallbacks,
@@ -51,7 +51,7 @@ export {
   type SetupFallbackCandidate,
   type SetupModel,
   type SetupProvider,
-} from "@/lib/setup";
+} from "../lib/setup";
 
 // First-run setup wizard (M816): guided onboarding that syncs the catalog, adds
 // a provider key, picks a model, configures fallback/routing, and optionally

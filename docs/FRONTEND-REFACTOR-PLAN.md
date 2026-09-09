@@ -328,10 +328,31 @@ Sırayla (önce küçük, sonra büyük):
   - **God file riski**: 3 god file (Memory 1073, Standing 1071, ConfigCenter 1061) — hepsi Day 26+'da bölünecek
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (34.10s)
   - **Yardımcı**: `scripts/dev/rewrite-memory-standing-configcenter-imports.py`
+- **Day 15** (bu commit): `features/skills/` + `features/market/` + `features/setup/` — 12. 13. 14. feature, orta boy (toplam 3628 satır, 6 view + 3 lib).
+  - **Taşınan (9 dosya, 3628 satır)**:
+    - `views/Skills.tsx` (1047 — god file) + `views/Skills.test.tsx` (216) → `features/skills/components/`
+    - `views/Market.tsx` (929 — god file) + `views/Market.test.tsx` (191) → `features/market/components/`
+    - `lib/market.{ts,test.ts}` (2, 117 satır) → `features/market/lib/`
+    - `views/Setup.tsx` (952 — god file) + `views/Setup.test.tsx` (293) → `features/setup/components/`
+    - `lib/setup.ts` (137 satır) → `features/setup/lib/`
+  - **Yeni**: 3 feature için 6 barrel dosyası (3 index + 3 types)
+  - **Internal relative path fix**: features/setup/components/Setup.tsx 2 yerde `@/lib/setup` → `../lib/setup`; features/market/components/Market.tsx + Market.test.tsx + lib/market.test.ts `@/lib/market` → relative (move sırasında)
+  - **Güncellenen**: 5 dosyada import path rewrite (cross-feature)
+    - `App.tsx` → `@/features/setup/lib/setup` (anyCredentialed + SetupCatalog tip)
+    - `views/Wizards.tsx` → `@/features/setup/components/Setup` (Setup component)
+    - `views/Skills.test.tsx` → `@/features/skills/components/Skills` (self, 7 sembol)
+    - `features/setup/components/Setup.test.tsx` → `@/features/setup/components/Setup` (self)
+    - `nav.tsx` → 3 view (lazyNamed)
+  - **Public surface (skills barrel)**: Skills + AuthorSkillForm + 5 helper (skillMatches, isWorkshopProposal, scanSkill, lineDiff, diffSkillAgainstParent)
+  - **Public surface (market barrel)**: Market + 3 tip (MarketStep, PackDetails, VetReport) — sadece 1 sayfa export
+  - **Public surface (setup barrel)**: Setup + 9 fonksiyon (anyCredentialed, defaultSetupFallbacks, mergeSetupTaskRouting, providerKeyEnv, rankProviders, setupFallbackCandidates, setupModelChain, setupTaskSelection, uniqueSetupChainName) + 4 tip (SetupModel, SetupProvider, SetupCatalog, SetupFallbackCandidate) — Setup.tsx'in re-export pattern'i korundu
+  - **Cross-feature consumers** (2): App.tsx (lib/setup), views/Wizards.tsx (Setup page)
+  - **God file riski**: 3 god file (Skills 1047, Market 929, Setup 952) — hepsi Day 26+'da bölünecek
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (42.46s)
+  - **Yardımcı**: `scripts/dev/rewrite-skills-market-setup-imports.py`
 
-## 10. Sonraki adaylar (Day 15+)
+## 10. Sonraki adaylar (Day 16+)
 
-- **Day 15**: `features/skills/` + `features/market/` + `features/setup/`
 - **Day 16-20**: kalan 9 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 5 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061 → 6 ayrı 4-6 dosyalı split).
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 8 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952 → 9 ayrı 4-6 dosyalı split).

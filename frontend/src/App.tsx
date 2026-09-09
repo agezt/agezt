@@ -26,7 +26,7 @@ import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/features/configcenter/lib/configbackup";
 import { downloadText } from "@/app/export";
 import { ConsoleName } from "@/components/ConsoleName";
-import { anyCredentialed, type SetupCatalog } from "@/lib/setup";
+import { anyCredentialed, type SetupCatalog } from "@/features/setup/lib/setup";
 import { SectionNav, Header, ViewTabs } from "@/components/AppNav";
 import {
   NAV,

@@ -11,7 +11,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { AuthorSkillForm, Skills, diffSkillAgainstParent, isWorkshopProposal, lineDiff, scanSkill, skillMatches } from "@/views/Skills";
+import { AuthorSkillForm, Skills, diffSkillAgainstParent, isWorkshopProposal, lineDiff, scanSkill, skillMatches } from "@/features/skills/components/Skills";
 import { UIProvider } from "@/components/ui/feedback";
 
 afterEach(cleanup);

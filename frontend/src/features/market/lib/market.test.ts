@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stepFromFrame } from "@/lib/market";
+import { stepFromFrame } from "./market";
 
 describe("market helpers", () => {
   it("extracts install progress steps", () => {

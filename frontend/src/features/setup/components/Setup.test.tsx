@@ -24,7 +24,7 @@ import {
   setupTaskSelection,
   uniqueSetupChainName,
   type SetupProvider,
-} from "@/views/Setup";
+} from "@/features/setup/components/Setup";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

@@ -12,12 +12,12 @@ vi.mock("@/app/api", () => ({
 }));
 
 const streamMarket = vi.fn();
-vi.mock("@/lib/market", async (importActual) => {
-  const actual = await importActual<typeof import("@/lib/market")>();
+vi.mock("../lib/market", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/market")>();
   return { ...actual, streamMarket: (...a: unknown[]) => streamMarket(...a) };
 });
 
-import { Market } from "@/views/Market";
+import { Market } from "./Market";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

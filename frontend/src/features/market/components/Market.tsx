@@ -23,7 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/app/api";
-import { streamMarket, stepFromFrame, fetchPackDetails, type MarketStep, type PackDetails, type VetReport } from "@/lib/market";
+import { streamMarket, stepFromFrame, fetchPackDetails, type MarketStep, type PackDetails, type VetReport } from "../lib/market";
 import { cn } from "@/app/utils";
 import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
