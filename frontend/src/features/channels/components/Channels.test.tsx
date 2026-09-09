@@ -10,7 +10,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-import { Channels } from "@/views/Channels";
+import { Channels } from "@/features/channels/components/Channels";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

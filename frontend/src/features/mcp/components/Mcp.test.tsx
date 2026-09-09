@@ -25,7 +25,7 @@ import {
   filterCatalog,
   CATALOG,
   CATEGORY_LABELS,
-} from "@/views/Mcp";
+} from "@/features/mcp/components/Mcp";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

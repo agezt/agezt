@@ -12,7 +12,7 @@ vi.mock("@/app/api", () => ({
 vi.mock("@/app/events", () => ({ useEvents: () => ({ events: [] }) }));
 vi.mock("@/views/Files", () => ({ rawURL: () => "" }));
 
-import { ChannelSessions } from "@/views/ChannelSessions";
+import { ChannelSessions } from "@/features/channels/components/ChannelSessions";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

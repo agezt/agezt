@@ -3,7 +3,7 @@ import { applyConfigBundle } from "@/features/configcenter/lib/configbackup";
 import { parseStandingJSON } from "@/features/standing/components/Standing";
 import { parseSchedulesJSON } from "@/features/schedules/lib/shared";
 import { parseMemoryJSON } from "@/features/memory/components/Memory";
-import { parseWorldJSON } from "@/views/World";
+import { parseWorldJSON } from "@/features/world/components/World";
 
 // Full snapshot (M741): a record of daemon-level defaults and knowledge — default
 // identity, prompt templates, routing, standing orders, schedules, memory and the

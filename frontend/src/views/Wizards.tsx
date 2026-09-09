@@ -10,9 +10,9 @@ import { goToView } from "@/lib/nav";
 import { Setup } from "@/features/setup/components/Setup";
 import { NewAgentForm, usdToMc } from "@/features/agents/components/Roster";
 import { NewScheduleForm } from "@/features/schedules/components/Schedules";
-import { NewServerForm } from "@/views/Mcp";
+import { NewServerForm } from "@/features/mcp/components/Mcp";
 import { NewOrderForm } from "@/features/standing/components/Standing";
-import { ConnectForm, POPULAR_CHANNELS, type ChannelRow } from "@/views/Channels";
+import { ConnectForm, POPULAR_CHANNELS, type ChannelRow } from "@/features/channels/components/Channels";
 
 // Wizards (M949) is the "get things done without hunting through menus" hub:
 // guided, step-by-step flows that complete a whole task in a focused overlay.

@@ -11,7 +11,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 
-import { DenyAddForm, PolicyTestForm, RedactionCheckForm } from "@/views/Policy";
+import { DenyAddForm, PolicyTestForm, RedactionCheckForm } from "@/features/policy/components/Policy";
 
 afterEach(cleanup);
 beforeEach(() => {

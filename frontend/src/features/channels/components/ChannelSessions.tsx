@@ -12,7 +12,7 @@ import {
   lastSnippet,
   type ChannelSession,
   type InboxThread,
-} from "@/lib/channelSessions";
+} from "../lib/channelSessions";
 
 // ChannelSessions (M841): a "Channels" section for the Chat sidebar. Each inbound
 // channel message (Telegram/Slack/…) is grouped into a per-user SESSION the owner

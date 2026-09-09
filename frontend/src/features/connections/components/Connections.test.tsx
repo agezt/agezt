@@ -10,7 +10,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-import { Connections, ConnectivityStrip } from "@/views/Connections";
+import { Connections, ConnectivityStrip } from "@/features/connections/components/Connections";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

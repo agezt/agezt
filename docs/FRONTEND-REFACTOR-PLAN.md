@@ -394,9 +394,51 @@ Sırayla (önce küçük, sonra büyük):
   - **Public surface (artifacts barrel)**: Artifacts + BlobArtifact (cross-feature React component — Inbox + ChannelSessions) + 5 helper (isImage, rawURL, isPdf, textKind, isRunInternal) + 1 helper (categoryOf) + ArtifactEntry tip
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (37.30s)
   - **Yardımcı**: `scripts/dev/rewrite-data-models-artifacts-imports.py`
+- **Day 18** (bu commit): `features/mcp/` + `features/channels/` + `features/policy/` + `features/world/` + `features/connections/` — son 5 feature. **SPRINT TAMAMLANDI: 25/25 feature (%).**
+  - **Taşınan (14 dosya, 5510 satır)**:
+    - `views/Mcp.tsx` (829) + test (312) → `features/mcp/components/`
+    - `views/Channels.tsx` (771) + test (212) + `ChannelSessions.tsx` (233) + test (60) → `features/channels/components/`
+    - `lib/channelSessions{,.test.ts}` (168) → `features/channels/lib/`
+    - `views/Policy.tsx` (800) + test (151) → `features/policy/components/`
+    - `views/World.tsx` (789) + test (340) → `features/world/components/`
+    - `views/Connections.tsx` (693) + test (152) → `features/connections/components/`
+  - **Yerinde (cross-feature shared)**: `components/WorldGraph.tsx` (75 — Dünya grafik shared widget) + `components/ConnectionChip.{tsx,test.tsx}` (157 — bağlantı durum pill'i)
+  - **Yeni**: 5 feature için 10 barrel dosyası (5 index + 5 types)
+  - **Internal relative path fix**: `features/channels/components/ChannelSessions.tsx` `@/lib/channelSessions` → `../lib/channelSessions`
+  - **Type re-export fix**: `features/channels/types.ts` ilk denemede `ChannelRow`'ı `./lib/channelSessions`'tan import etti, ama aslında `./components/Channels`'tan export oluyor — düzeltildi
+  - **Güncellenen**: 10 dosyada import path rewrite (5 self test + 5 nav + 3 cross-feature)
+    - `@/lib/channelSessions` → `@/features/channels/lib/channelSessions`: 1 (self, moves with us)
+    - `@/views/Mcp` → `@/features/mcp/components/Mcp`: 3 (self test, nav, Wizards NewServerForm)
+    - `@/views/Channels` → `@/features/channels/components/Channels`: 3 (self test, nav, Wizards ConnectForm+POPULAR_CHANNELS)
+    - `@/views/ChannelSessions` → `@/features/channels/components/ChannelSessions`: 3 (self test, Chat/Chat.tsx, ChannelSessions.tsx self)
+    - `@/views/Connections` → `@/features/connections/components/Connections`: 2 (self test, nav)
+    - `@/views/Policy` → `@/features/policy/components/Policy`: 2 (self test, nav)
+    - `@/views/World` → `@/features/world/components/World`: 3 (self test, nav, lib/snapshot.ts parseWorldJSON)
+  - **Public surface**:
+    - mcp: Mcp + NewServerForm (Wizards consumer)
+    - channels: Channels + ChannelSessions (Chat consumer) + ConnectForm + POPULAR_CHANNELS (Wizards consumer) + ChannelRow tip
+    - policy: Policy + DenyAddForm + PolicyTestForm + RedactionCheckForm
+    - world: World + parseWorldJSON (snapshot consumer) + entityMatches
+    - connections: Connections + ConnectivityStrip
+  - **Cross-feature consumers** (4): Wizards.tsx (Mcp + Channels), views/Chat/Chat.tsx (ChannelSessions), lib/snapshot.ts (parseWorldJSON) — hepsi rewrite edildi
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (33.95s)
+  - **Yardımcı**: `scripts/dev/rewrite-mcp-channels-policy-world-connections-imports.py`
 
-## 10. Sonraki adaylar (Day 18+)
+## 🎉 SPRINT TAMAMLANDI — 25/25 feature (100%)
 
-- **Day 18**: kalan 5 feature batch (mcp, channels, policy, world, connections, toolforge, health, dashboard, jarvis, …)
+**Final istatistik (Day 1-18):**
+- **25 feature** hepsi `features/*` altında (voice, incidents, council, runs, agents, workflows, schedules, execution-profiles, memory, standing, configcenter, skills, market, setup, autonomy, overseer, sandbox, data, models, artifacts, mcp, channels, policy, world, connections)
+- **7 cross-cutting app module** `app/*` altında (utils, api, events, format, cursor-pager, export, help)
+- **18 frontend commit** + **7 Go kernel/runtime commit** = **25 commit toplam PR #576'da**
+- **Frontend LOC taşınan**: ~49K satır (17K component + ~8K lib + ~24K view)
+- **tsc --noEmit** ve **1628 vitest** hepsi yeşil — 18 commit boyunca sıfır regression
+
+## Sonraki adaylar (Day 19+ — integration)
+
+- **Day 19**: `views/` thin-page indirgeme (kalan views'ları features'a taşı veya thin page'e indir)
+- **Day 20**: `App.tsx` + `nav.tsx` refactor (sadece `app/` + `features/*/index.ts`'i import etsin)
+- **Day 21**: knip deadcode check temiz, vitest full yeşil
+- **Day 22**: Bundle size before/after ölçümü + perf regression yok
+- **Day 23**: God file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952, Data 882, Mcp 829, Policy 800, World 789, Channels 771, Connections 693, Artifacts 617, Models 616 → 17 ayrı 4-6 dosyalı split)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 9 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952, Data 882, Artifacts 617, Models 616 → 12 ayrı 4-6 dosyalı split).
+- **Day 26+**: Final PR + docs güncellemesi.

@@ -20,7 +20,7 @@ import {
   parseWorldJSON,
   kindBreakdown,
   filterEntities,
-} from "@/views/World";
+} from "@/features/world/components/World";
 import { UIProvider } from "@/components/ui/feedback";
 
 describe("kindBreakdown (M918)", () => {
@@ -303,7 +303,7 @@ describe("World entity editing surface", () => {
 
 describe("World entity search (M774)", () => {
   it("entityMatches matches on name, kind, or alias (case-insensitive)", async () => {
-    const { entityMatches } = await import("@/views/World");
+    const { entityMatches } = await import("@/features/world/components/World");
     const e = { name: "AGEZT", kind: "project", aliases: ["the daemon"] };
     expect(entityMatches(e, "agezt")).toBe(true);
     expect(entityMatches(e, "project")).toBe(true);

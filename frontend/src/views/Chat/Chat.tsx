@@ -8,7 +8,7 @@ import { MicButton } from "@/components/MicButton";
 import { speechSupported } from "@/features/voice/lib/speech";
 import { conversationToMarkdown, slugify, downloadText } from "@/app/export";
 import { filterConversations, sortConversations } from "@/lib/conversations";
-import { ChannelSessions } from "@/views/ChannelSessions";
+import { ChannelSessions } from "@/features/channels/components/ChannelSessions";
 import { SuggestionsBar } from "@/components/SuggestionsBar";
 import { ConversationItem, EmptyState, lastAssistantTools, QueuePanel } from "./conversation";
 import { useChatSession } from "./useChatSession";
