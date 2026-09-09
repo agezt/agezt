@@ -26,8 +26,8 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
-import { IncidentBadges } from "@/components/IncidentBadges";
-import { openIncident } from "@/lib/incidentnav";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
+import { openIncident } from "@/features/incidents/lib/incidentnav";
 import {
   buildTree,
   type ActiveRun,

@@ -14,7 +14,7 @@ import {
   incidentRef,
   incidentRootId,
   validateIncidentDelegateTarget,
-} from "@/lib/incidents";
+} from "@/features/incidents/lib/incidents";
 
 describe("incidents helpers", () => {
   it("extracts incident metadata from events and autonomy items", () => {

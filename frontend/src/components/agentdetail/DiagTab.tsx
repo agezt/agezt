@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Disclosure } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
-import { openIncident } from "@/lib/incidentnav";
+import { openIncident } from "@/features/incidents/lib/incidentnav";
 import { type AgentProfile } from "@/views/Roster";
 import { incidentLineageLabel, type AgentHealthSnapshot, type AgentConfigOverrideSummary, type AgentRepairStatus, type AgentRepairSnapshot, type RunLite } from "@/lib/agentdetail";
 import { AgentPermissionsSnapshot, ApprovalDecision, MiniPolicy, PolicyDecision, PolicyStats, RepairCommandCell, Stat, ToolCatalogRow, ToolInvocation } from "@/components/agentdetail/shared";

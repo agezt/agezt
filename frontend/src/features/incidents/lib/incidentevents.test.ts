@@ -3,7 +3,7 @@ import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/lib/incidentevents";
+} from "@/features/incidents/lib/incidentevents";
 
 describe("incidentevents", () => {
   it("recognizes doctor/operator incident-family subjects", () => {

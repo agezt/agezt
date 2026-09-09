@@ -4,13 +4,13 @@ import { useEvents, type AgentEvent } from "@/app/events";
 import { categoryOf, isErrorKind, CATEGORIES } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/app/utils";
 import { DataView } from "@/components/DataView";
-import { IncidentBadges } from "@/components/IncidentBadges";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
 import { ToggleChip, FilterToken } from "@/components/ui/segmented";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/lib/incidentevents";
+} from "@/features/incidents/lib/incidentevents";
 
 // EventFeed is the live stream console: the daemon's whole journal firehose,
 // colour-coded by category, filterable by category + free text + correlation,

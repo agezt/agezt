@@ -29,12 +29,12 @@ import { Advanced } from "@/components/ui/advanced";
 import { useEvents, type AgentEvent } from "@/app/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
-import { incidentRootId } from "@/lib/incidents";
+import { incidentRootId } from "@/features/incidents/lib/incidents";
 import { focusRun } from "@/lib/runfocus";
-import { openIncident } from "@/lib/incidentnav";
+import { openIncident } from "@/features/incidents/lib/incidentnav";
 import {
   IncidentBadges,
-} from "@/components/IncidentBadges";
+} from "@/features/incidents/components/IncidentBadges";
 import { Button } from "@/components/ui/button";
 import { fmtTime, fmtWhen, clip } from "@/app/utils";
 import { Sparkline, BarRow } from "@/components/Widgets";

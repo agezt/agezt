@@ -20,7 +20,7 @@ import { toggleAdvanced } from "@/lib/advanced";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/lib/runfocus";
 import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
-import { incidentIdFromHash } from "@/lib/incidentnav";
+import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
 import { goToView } from "@/lib/nav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Advanced } from "@/components/ui/disclosure";
 import { KeyValue } from "@/components/JsonView";
 import { TriggerChip } from "@/components/Fleet";
-import { openIncident } from "@/lib/incidentnav";
+import { openIncident } from "@/features/incidents/lib/incidentnav";
 import { agentHierarchySummary, agentLifecycleSummary, type AgentProfile } from "@/views/Roster";
 import { type FleetTrigger, type ApiSchedule } from "@/lib/fleet";
 import { agentScope, incidentLineageLabel, type AgentHealthSnapshot, type AgentEscalation, type AgentOperationalTask, type AgentRepairStatus, type AgentRepairSnapshot, type MemoryRecord, type SkillLite, type RunLite } from "@/lib/agentdetail";

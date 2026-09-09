@@ -9,12 +9,12 @@ import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/app/events";
 import { agentActivityEventMatches, agentActivityOperationalState, agentActivityPulse, agentRunCorrelations, filterAgentLogEvents } from "@/lib/agentactivity";
 import { RunDetailLoader } from "@/components/RunDetail";
-import { IncidentBadges } from "@/components/IncidentBadges";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/lib/incidentevents";
+} from "@/features/incidents/lib/incidentevents";
 
 interface ActivityItem {
   seq: number;

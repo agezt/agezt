@@ -26,7 +26,7 @@ vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe }),
 }));
 
-import { IncidentPage } from "@/views/IncidentPage";
+import { IncidentPage } from "@/features/incidents/components/IncidentPage";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {

@@ -4,7 +4,7 @@ import {
   INCIDENT_HASH_PREFIX,
   incidentIdFromHash,
   openIncident,
-} from "@/lib/incidentnav";
+} from "@/features/incidents/lib/incidentnav";
 
 describe("incidentnav", () => {
   beforeEach(() => {

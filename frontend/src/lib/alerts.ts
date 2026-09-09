@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@/app/events";
-import { incidentMetaFromEvent } from "@/lib/incidents";
+import { incidentMetaFromEvent } from "@/features/incidents/lib/incidents";
 import { eventDedupKey } from "@/lib/rundetail";
 
 // Alerts: the daemon's PROACTIVE signals — what it flagged on its own, distinct

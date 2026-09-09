@@ -38,7 +38,7 @@ import {
   incidentRootId,
   validateIncidentDelegateTarget,
   type IncidentResolutionRow,
-} from "@/lib/incidents";
+} from "@/features/incidents/lib/incidents";
 import { openAgent } from "@/lib/agentnav";
 import {
   summarizeAgentRuntimeStatus,
@@ -51,7 +51,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText, KeyValue } from "@/components/JsonView";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
-import { IncidentBadges, incidentPhaseBadgeClass } from "@/components/IncidentBadges";
+import { IncidentBadges, incidentPhaseBadgeClass } from "@/features/incidents/components/IncidentBadges";
 import { Page } from "@/components/ui/page";
 import { PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";

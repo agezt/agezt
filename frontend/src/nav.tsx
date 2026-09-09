@@ -57,7 +57,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { agentSlugFromHash } from "@/lib/agentnav";
-import { incidentIdFromHash } from "@/lib/incidentnav";
+import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
 
 type LazyView = LazyExoticComponent<ComponentType<any>>;
 type NavRender = ComponentType<any> | LazyView;
@@ -110,7 +110,7 @@ const Toolbox = lazyNamed(() => import("@/views/Toolbox"), "Toolbox");
 const Market = lazyNamed(() => import("@/views/Market"), "Market");
 const Channels = lazyNamed(() => import("@/views/Channels"), "Channels");
 export const AgentPage = lazyNamed(() => import("@/views/AgentPage"), "AgentPage");
-export const IncidentPage = lazyNamed(() => import("@/views/IncidentPage"), "IncidentPage");
+export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
 const Data = lazyNamed(() => import("@/views/Data"), "Data");
 const Council = lazyNamed(() => import("@/views/Council"), "Council");
 const Conductor = lazyNamed(() => import("@/views/Conductor"), "Conductor");

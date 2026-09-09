@@ -29,12 +29,12 @@ import { money } from "@/app/format";
 import { useUI } from "@/components/ui/feedback";
 import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
 import { useEvents, type AgentEvent } from "@/app/events";
-import { IncidentBadges } from "@/components/IncidentBadges";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/lib/incidentevents";
+} from "@/features/incidents/lib/incidentevents";
 
 interface RunPhaseStep {
   key: string;

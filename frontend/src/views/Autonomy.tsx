@@ -32,8 +32,8 @@ import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
-import { IncidentBadges } from "@/components/IncidentBadges";
-import { openIncident } from "@/lib/incidentnav";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
+import { openIncident } from "@/features/incidents/lib/incidentnav";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Segmented } from "@/components/ui/segmented";
 import {

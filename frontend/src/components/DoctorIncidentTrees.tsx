@@ -9,7 +9,7 @@ import {
 import {
   IncidentBadges,
   incidentPhaseBadgeClass,
-} from "@/components/IncidentBadges";
+} from "@/features/incidents/components/IncidentBadges";
 
 export function DoctorIncidentTrees({
   trees,

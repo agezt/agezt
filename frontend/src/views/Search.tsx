@@ -8,12 +8,12 @@ import { cn, fmtTime } from "@/app/utils";
 import { DataView } from "@/components/DataView";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { Page } from "@/components/ui/page";
-import { IncidentBadges } from "@/components/IncidentBadges";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/lib/incidentevents";
+} from "@/features/incidents/lib/incidentevents";
 
 // Search queries the FULL journal server-side (CmdJournalGrep) — the historical
 // counterpart to the live stream. Filter by free-text pattern plus

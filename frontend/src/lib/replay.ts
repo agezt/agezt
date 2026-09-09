@@ -4,7 +4,7 @@ import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/lib/incidentevents";
+} from "@/features/incidents/lib/incidentevents";
 
 // A ReplayStep is one meaningful moment in a run's life, derived from its
 // journaled event arc. The flight recorder scrubs/plays through these, and each

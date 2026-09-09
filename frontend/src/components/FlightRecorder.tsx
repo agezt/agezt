@@ -21,7 +21,7 @@ import {
 import { cn, fmtTime } from "@/app/utils";
 import { money } from "@/app/format";
 import type { ReplayStep, StepTone } from "@/lib/replay";
-import { IncidentBadges } from "@/components/IncidentBadges";
+import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
 import { StatTile } from "@/components/ui/metric-widget";
 
 const TONE: Record<StepTone, { color: string; ring: string; Icon: typeof Circle }> = {

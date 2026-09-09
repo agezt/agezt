@@ -8,7 +8,7 @@ import { Chat } from "@/views/Chat";
 import { ConfigInventory } from "@/components/ConfigInventory";
 import { Council } from "@/views/Council";
 import { FlowStudio } from "@/views/FlowStudio";
-import { IncidentPage } from "@/views/IncidentPage";
+import { IncidentPage } from "@/features/incidents/components/IncidentPage";
 import { Mission } from "@/views/Mission";
 import { Reflect } from "@/views/Reflect";
 import { Replay } from "@/views/Replay";

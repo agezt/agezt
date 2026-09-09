@@ -32,7 +32,7 @@ import { Page } from "@/components/ui/page";
 import { Advanced } from "@/components/ui/disclosure";
 import { useUI } from "@/components/ui/feedback";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { incidentEventSummary, isIncidentFamilyEvent } from "@/lib/incidentevents";
+import { incidentEventSummary, isIncidentFamilyEvent } from "@/features/incidents/lib/incidentevents";
 import { StatTile } from "@/components/ui/metric-widget";
 
 // Shapes mirror the read routes this view aggregates — kept loose (all optional)
