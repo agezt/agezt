@@ -1,9 +1,270 @@
 # Agezt — Plugin Contracts & Event Schema (SPEC-01)
-> ⚠️ **AUTHORITY NOTICE:** This document is subordinate to `DECISIONS.md`. Where anything here conflicts with DECISIONS, **DECISIONS wins** — especially the foundational revisions **B0 (transport = stdio + JSON-RPC 2.0, NOT gRPC/protobuf)**, **B0a (plugins default in-process; out-of-process only for isolation)**, **B0b (minimal contract, grows append-only)**, **B0c (mutable state store is first-class alongside the event log)**, and **B0d (DAG is a second layer over a first-party single-agent tool-loop)**. Any mention of gRPC, protobuf, or "all plugins out-of-process" in this file is superseded. The contract source of truth is `agezt-contract.jsonc`.
 
+> ## ⚠️ SUPERSEDED — read this first
+>
+> The body of this document (everything below the AUTHORITY NOTICE) was
+> written **before DECISIONS B0 (M1)** and still describes the original
+> gRPC + Protocol Buffers + Unix-domain-socket design. **That design is
+> not what the kernel implements.** The current implementation uses:
+>
+> - **stdio + newline-delimited JSON** as the wire (DECISIONS B0). The
+>   `kernel/plugin/protocol.go` file is the source of truth for the
+>   message shapes; `kernel/plugin/host.go` is the host. See **§0.5
+>   Current wire contract** below for the actual code-level shapes.
+> - **JSON Schema** as the contract source of truth (`.project/agezt-contract.jsonc`),
+>   not `.proto` files. `make gen` runs `tools/jsonschemagen` to emit
+>   `contract/gen/types.gen.go`; the SDKs and the in-kernel event
+>   taxonomy all consume that.
+> - **In-process plugin default** (DECISIONS B0a). Out-of-process is
+>   reserved for plugins that need crash isolation.
+> - **Single binary** (DECISIONS A1). The plugin wire is the only
+>   out-of-process edge; the CLI `agt` talks to the daemon over
+>   loopback TCP (DECISIONS B0 + the control plane), not over gRPC.
+>
+> The historical gRPC text below is preserved for **archaeology only**
+> and is **NOT** the implemented contract. New contributors must read
+> `kernel/plugin/protocol.go` and `.project/agezt-contract.jsonc`
+> directly. The CI guardrail is `make check` → `make gen` (regenerates
+> the contract types and fails on drift).
+>
+> Where this document says "gRPC" / "Protocol Buffers" / "UDS" /
+> "all plugins out-of-process", **substitute the corresponding
+> DECISIONS B0 / B0a / B0b sentence**:
+>
+> | This document (historical) | DECISIONS (current) |
+> |---|---|
+> | gRPC over Unix domain socket | stdio + JSON over child stdio |
+> | `.proto` files in agezt.proto | `agezt-contract.jsonc` (JSON Schema) |
+> | Generated `sdk-go` from `buf` | `contract/gen/types.gen.go` from `jsonschemagen` |
+> | All plugins out-of-process | Default in-process; out-of-process for isolation only |
+> | Service `Kernel` with 5 RPCs | 3 host→plugin methods + 1 plugin→host method (kernel is the host, not a peer) |
+> | Transport = mTLS over TCP (mesh) | (future) — same JSON shapes, just the dialer changes |
+>
+> ---
+>
+> **AUTHORITY NOTICE (original):** This document is subordinate to
+> `DECISIONS.md`. Where anything here conflicts with DECISIONS,
+> **DECISIONS wins** — especially the foundational revisions
+> **B0 (transport = stdio + JSON-RPC 2.0, NOT gRPC/protobuf)**,
+> **B0a (plugins default in-process; out-of-process only for isolation)**,
+> **B0b (minimal contract, grows append-only)**,
+> **B0c (mutable state store is first-class alongside the event log)**, and
+> **B0d (DAG is a second layer over a first-party single-agent tool-loop)**.
+> Any mention of gRPC, protobuf, or "all plugins out-of-process" in
+> this file is superseded. The contract source of truth is
+> `agezt-contract.jsonc`.
 
 > Status: Active · Domain: github.com/agezt/agezt · License: MIT · Language: English
 > This is the **backbone document**. Every other component binds to the contracts defined here. If this is wrong, everything downstream is wrong.
+
+## 0.5. Current wire contract (post-DECISIONS B0)
+
+> **Read this first if you're integrating a new plugin or SDK.** The
+> gRPC-shaped text in the rest of the file is historical.
+
+### 0.5.1 Plugin transport (DECISIONS B0)
+
+```
+┌──────────────┐                                ┌──────────────────┐
+│  kernel/     │  {"id":"i1","method":          │  plugin process  │
+│  plugin/     │   "initialize", "params":{}}   │  (Go / Python /  │
+│  host.go     │ ──────────────────────────►  │   Rust / TS /    │
+│  (the host)  │                                │   shell)         │
+│              │  {"id":"i1","result":          │                  │
+│              │   {"protocol_version":1,       │                  │
+│              │    "tools":[{...}]}}           │                  │
+│              │ ◄──────────────────────────  │                  │
+└──────────────┘                                └──────────────────┘
+```
+
+- **Transport:** stdio. The host pipes the child's stdin/stdout.
+  Newline (`\n`) is the frame delimiter. UTF-8 JSON.
+- **Per-frame cap:** 16 MiB (`kernel/plugin/host.go:43` — `DefaultMaxFrameBytes`).
+  A frame larger than this tears the plugin down (no host OOM).
+- **Concurrent callbacks:** 16 (`DefaultMaxConcurrentCallbacks`).
+- **Advertised tools:** 256 (`DefaultMaxAdvertisedTools`).
+
+### 0.5.2 Wire shapes (the actual protocol)
+
+Authoritative source: `kernel/plugin/protocol.go`. Reproduced here for
+readability.
+
+**Host → plugin** (`Request`, `kernel/plugin/protocol.go:62-73`):
+
+```json
+{"id":"i1","method":"initialize","params":{}}
+{"id":"q-1","method":"tool/invoke","params":{"name":"mytool","input":{...}}}
+{"id":"end","method":"shutdown","params":{}}
+```
+
+**Plugin → host** (`Response`, `protocol.go:91-96`):
+
+```json
+{"id":"i1","result":{"protocol_version":1,"tools":[…]}}   // initialize
+{"id":"q-1","result":{"output":"…","is_error":false}}       // tool/invoke OK
+{"id":"q-1","error":"human-readable reason"}                // tool/invoke failed
+{"id":"q-1","progress":"downloaded 17/42 chunks"}          // progress (M1.ss)
+```
+
+**Plugin → host callback** (`host/invoke`, `protocol.go:149-163`):
+A plugin may call back into the host by sending a `Request` on its
+**stdin** and reading a `Response` on its stdout. Symmetric with
+`tool/invoke` (reuses `InvokeParams` + `InvokeResult`).
+
+### 0.5.3 Versioning
+
+`ProtocolVersion = 1` (`protocol.go:178`). Major bump = breaking wire
+change. Minor changes (new optional field, new method) do not bump.
+The host rejects a major mismatch at spawn with a clear error.
+
+### 0.5.4 The contract source of truth
+
+`.project/agezt-contract.jsonc` is the JSON Schema definition. It is
+parsed by `tools/jsonschemagen` and emitted to
+`contract/gen/types.gen.go`. The CI guardrail is `make gen` + `git diff
+--exit-code contract/gen/types.gen.go` — a hand-edited generated file
+fails the build.
+
+### 0.5.5 The seven plugin interfaces (post-B0)
+
+DECISIONS B0b says the base contract is **minimal** and grows
+**append-only**. The seven interfaces are:
+
+1. **Tool** — fully implemented (`kernel/plugin/` host + `agent.Tool`).
+2. **Provider** — fully implemented in-process (`plugins/providers/`,
+   `kernel/catalog/`, `kernel/governor/`).
+3. **Channel** — fully implemented (`kernel/channel/`, `plugins/channels/`,
+   `plugins/builtinchannels/`).
+4. **Memory** — in-process only today (`kernel/memory/`); out-of-process
+   seam is reserved.
+5. **Storage** — in-process only today (`kernel/journal/`, `kernel/state/`,
+   `kernel/jsonstore/`); CobaltDB driver is M2+ (DECISIONS D2).
+6. **CodingAgent** — M5; ACP bridge ready (`kernel/acp/`, `kernel/agentgw/`).
+7. **Tunnel** — M6; `kernel/tunnel/` skeleton.
+
+Each interface is owned by exactly one kernel package; out-of-process
+adapters live under `plugins/external/`. The `kernel/plugin/` host is
+the **shared transport** for any interface that runs out-of-process.
+
+### 0.5.6 The SDKs (post-B0)
+
+Four languages, **all clients of the HTTP surface**, not peers in the
+plugin protocol. The plugin protocol is the **in-binary line-JSON
+contract** between the kernel and its out-of-process plugins; the SDKs
+talk to `kernel/httpserver/`.
+
+- **Go** (`sdk/sdk.go`): uses `kernel/controlplane` Client over loopback
+  TCP. Methods: `Run/RunStream`, `Runs`, `SendMail/Broadcast/Inbox`,
+  `PendingApprovals/Approve/Deny`.
+- **Python** (`sdk/python/agezt/client.py`): stdlib only (`urllib`).
+  Same-origin redirect defense (PY-002). SSE parser per spec.
+- **Rust** (`sdk/rust/src/client.rs`): stdlib `TcpStream` HTTP/1.1.
+  Explicit `https://` rejection at parse time.
+- **TypeScript** (`sdk/typescript/src/client.ts`): global `fetch` with
+  AbortController. SSE reader cancels the underlying request on early
+  consumer break.
+
+The canonical SDK surface — every language has `client.run /
+runStream / health / models / mailbox_*` with the same JSON shapes —
+lives in `.project/agezt-contract.jsonc` (re-exported into each SDK's
+handwritten module).
+
+### 0.5.7 Why we do not use gRPC (restated)
+
+From `kernel/plugin/protocol.go:12-23` (the actual file's own rationale):
+
+1. Forces a transitive `google.golang.org/grpc` dep on every plugin
+   author. The lean-deps policy (POLICY §1) applies to plugins too; a
+   plugin written in Python or shell needs only "read a line of JSON,
+   write a line of JSON" to talk to agezt.
+2. The control plane (`kernel/controlplane`) already uses
+   line-delimited JSON; we keep the wire shape consistent across both
+   edges of the kernel.
+3. Plugins run on the same host as the kernel — there's no network
+   hop to amortise the JSON cost. Wire protocol simplicity beats
+   wire efficiency at this scale.
+
+A future **mesh** plugin (DECISIONS E1.4, M8) that needs to talk
+cross-host will use the same JSON shapes; only the dialer changes.
+gRPC is not in the base.
+
+---
+
+## 0.6. Internal kernel package layout (post-Day 23 sprint)
+
+This section documents the **internal** package boundaries inside
+`kernel/runtime/`. The wire contract (§0.5) is unchanged; what changed
+is the in-binary organization of the kernel after the 30-day
+refactor sprint.
+
+### 0.6.1 The five sub-packages
+
+`kernel/runtime/` was a single ~2,500-line `runtime.go` god file on
+Day 0. By Day 23 it is split into:
+
+| Sub-package | Owner of | Public surface |
+|---|---|---|
+| `kernel/runtime/lifecycle` | Halt / Resume / Cancel / Drain / correlation minting | `lifecycle.Manager` (Halt, HaltWith, Resume, ResumeWith, CancelRun, DrainAndHalt, IsHalted, ActiveRuns, ActiveRunIDs, NewCorrelation, SubjectForRun) |
+| `kernel/runtime/accessors` | Read-side getters + Standing/Roster CRUD | `accessors.Accessor` (47 methods: Journal, Bus, State, Edict, Warden, …, AddStanding, AddProfile, …) |
+| `kernel/runtime/types` | Shared value types | `types.SubAgentLimits`, `types.PluginInfo`, `types.CouncilMember` |
+| `kernel/runtime/compose` | Composition-root surface | `compose.OpenAPI` (30 read-only config accessors) + a stub for future per-store openers (Day 20b rolled back) |
+| `kernel/runtime/runexec` | Run engine | `runexec.Runner` (Run, RunAssured, RunWith, RunWithRetry, Why, Causes, ParentOf, Verify) |
+
+The sub-packages do **not** import `kernel/runtime` — the dependency
+arrow is one-way:
+
+```
+kernel/runtime  →  kernel/runtime/{lifecycle, accessors, types, compose, runexec}
+```
+
+### 0.6.2 The KernelAPI pattern
+
+Each sub-package defines a `KernelAPI` interface in its `api.go` that
+lists exactly the public methods the sub-package needs from the host
+kernel. `*Kernel` implements the interface implicitly — the Go
+compiler verifies the implementation at the `var _ XKernelAPI =
+(*Kernel)(nil)` line in `kernel/runtime/compose.go`.
+
+This pattern is shared with `lifecycle.KernelAPI`, `accessors.KernelAPI`,
+`runexec.KernelAPI`, and `compose.OpenAPI`. Adding a method to a
+sub-package that the kernel does not yet expose surfaces a compile
+error in `compose.go` — the guardrail is a one-line assertion, not
+a test.
+
+### 0.6.3 Why `RunWith` still lives on `*Kernel`
+
+`runexec.Runner.RunWith` delegates to `*Kernel.RunWith` because the
+260-line body touches ~30 private fields and ~15 private methods
+(`k.halted`, `k.runs`, `k.runsMu`, `k.steers`, `k.fanout`, `k.tree`,
+`k.spawns` and the matching mutexes, plus `k.claimResumeTicket`,
+`k.completeAux`, `k.buildLoopConfig`, `k.buildRunPrompt`, …). Two
+paths to migrate the body:
+
+1. **Bloat the `runexec.KernelAPI` interface** to ~80 entries. The
+   interface becomes a "kitchen sink" of the kernel; every new
+   private accessor added to `*Kernel` would have to be mirrored
+   there.
+2. **Break the dependency cycle** by relocating the `Runner`
+   construction out of `kernel/runtime/compose.go` (e.g. into
+   `kernel/runtime/lifecycle/manager.go` or a new init package).
+   Then `runexec` can hold a concrete `*Kernel` and access private
+   fields directly.
+
+Day 23 ships the smaller methods (RunWithRetry, Why, Causes,
+ParentOf, Verify) and records the gap. The lock-ordering invariant
+on the kernel — `configMu < runsMu < fanoutMu < treeMu < steersMu <
+spawnsMu < mcpMu` — is the load-bearing constraint; any future
+migration of `RunWith` must audit every mutex acquisition site
+again (see `kernel/runtime/runexec.go:33-45`).
+
+### 0.6.4 Auto-generated documentation
+
+`make structure-md` (or `go run ./tools/structure-md -out
+.project/STRUCTURE.generated`) regenerates the per-package
+sections in `STRUCTURE.kernel.md` from each package's `doc.go`
+first paragraph. CI runs `make structure-md-check` to fail on
+drift. New packages are picked up automatically the moment their
+`doc.go` exists.
 
 ---
 

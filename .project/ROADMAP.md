@@ -1,5 +1,30 @@
 # Agezt — Path to Product (ROADMAP.md)
 
+> **STATUS — read this first.** This document is the **historical
+> planning path**, written before implementation began. It uses a
+> version scheme (v0.1.0 MVP → v0.7 M7 → v1.0 M8) that **does not
+> match the current release scheme**. The actual current version is
+> in `internal/brand/brand.go` (`Version`, default `1.1.0`,
+> ldflags-stamped at build time); the live release notes are in
+> `CHANGELOG.md` (current: v1.1.0 — 2026-09-01); the per-milestone
+> work history is in `.project/PHASE-M*.md` (900+ files, M918+ are
+> current; earlier is archive).
+>
+> The body of this document (Sections 0.5 → 6) is preserved for
+> traceability: it captures the original scope discipline and the
+> build order that produced the working v1.1.0. **Do not use the
+> v0.x version references in this document as the source of truth**;
+> consult `CHANGELOG.md` and the `Version` constant.
+>
+> ---
+>
+> **FROZEN** at the top: the v0.1.0-MVP-first scope discipline
+> (Section 4 / 6.5) is still load-bearing — see DECISIONS H1. Even
+> though we are past v1.0, **new features must respect the
+> "smallest working thing first" rule**, and big refactors
+> (Path-A from the architecture review) should ship as numbered
+> work, not as scope creep into a release.
+
 > Status: v1.0 · Language: English · License: MIT · Open source
 > The concrete path from the current design suite to a shipped, usable product. Decisions are frozen (DECISIONS.md); contracts are written and compile (`agezt.proto`). This is the execution plan.
 
@@ -108,6 +133,81 @@ Each milestone is a release that adds a coherent capability layer, following the
 4. **Build P1** to `agt run "..."` working end-to-end with one provider + sandboxed tools.
 5. Proceed through the MVP build order (§2.3) to the MVP success test (§2.2) → tag **v0.1.0**.
 6. Announce, gather contributors, grow along M2+.
+
+---
+
+## 7. Recent refactor work (post-v1.0)
+
+The product roadmap above is frozen at v1.0. The 30-day
+**Yol B (Domain Carve-out) refactor sprint** that ran
+2026-08-12 → 2026-09-10 is a separate workstream — pure
+in-binary reorganization with **no contract change** (§0.5
+wire shapes are unchanged, `agezt-contract.jsonc` is
+unchanged, `CHANGELOG.md` has no v1.1.x entry for it).
+
+### 7.1 What the sprint shipped (Days 1-23)
+
+| Slice | Days | Outcome |
+|---|---|---|
+| `cmd/agt/*` utility packages | 1-6 | 8 new packages (router, providerlookup, dial, jsonout, whoami, haltresume, keys, +doc for each) |
+| Shim rewrite + format package | 7-8 | 374 shim call sites converted to direct package references; `cmd/agt/format` (9 helpers) |
+| `kernel/runtime` god file split | 9-11 | 2,516-line `runtime.go` → 4 files (`runtime.go` ~770 satır, `lifecycle.go`, `compose.go`, `accessors.go`, `runexec.go`) |
+| `lifecycle` + `accessors` sub-packages | 12-16 | `Manager` (11 metot) + `Accessor` (33 metot) |
+| `types` sub-package | 17 | `SubAgentLimits`, `PluginInfo`, `CouncilMember` extracted as value types |
+| `accessors` CRUD (Day 18a-19) | 18-19 | 14 more metot (47 total) + live mutators under `configMu` |
+| `compose` sub-package | 20 | `OpenAPI` skeleton (Day 20b stores.go rolled back) |
+| `runexec` sub-package | 21-23 | `Runner` (8 metot: Run, RunAssured, RunWith, RunWithRetry, Why, Causes, ParentOf, Verify) + 7 `KernelAPI` extensions for the `RunWithRetry` body move |
+
+Cumulative test additions: **74 unit tests** across 6 new test
+files (`lifecycle` 9, `accessors` 9, `runtime` retry helpers 6,
+`runtime/runexec.go` 1, `runexec` 1, plus 48 pre-existing in
+`runtime` consumed as integration coverage).
+
+### 7.2 What stayed on `*Kernel` (and why)
+
+Day 23's sprint plan was to move 27 metot from
+`kernel/runtime/runexec.go` into the `runexec.Runner`. The
+movement stalled at 5 because the 260-line `RunWith` body
+touches ~30 private fields and ~15 private methods. Migrating
+it would require either:
+
+- bloating `runexec.KernelAPI` from 17 to ~80 entries, or
+- breaking the dependency cycle (kernel/runtime → runexec)
+  by relocating the `Runner` construction out of
+  `kernel/runtime/compose.go`.
+
+Both are out of scope for the 30-day sprint. The remaining
+methods (`RunWith` body, `RunAssured` body, post-run trio
+`maybeDistill`/`maybeForge`/`maybeShadowEval`,
+`completeAgentLifecycle`, `verifyCompletion`,
+`publishHeuristicBypass`, `DescribeImages`, helpers
+`deterministicHeuristicBypass`/`buildTranscript`/etc.) stay
+on `*Kernel` for now and are documented as the **next-slice
+backlog** (see SPEC-01 §0.6.3 for the full constraint and
+the two paths forward).
+
+### 7.3 Test + build status at sprint end (Day 23)
+
+- `go build ./...` — clean
+- `go test ./kernel/runtime/... ./kernel/controlplane/...
+  ./cmd/agezt/... ./cmd/agt/...` — 17/17 yeşil
+- `go vet ./kernel/runtime/...` — clean
+- `go run ./tools/structure-md -check -out
+  .project/STRUCTURE.generated` — no drift
+- `kernel/runtime/runtime.go` size: ~770 satır (was 2,516;
+  **−69%**)
+- `STRUCTURE.generated/STRUCTURE.kernel.md`: 91 packages
+  (was 78; +13 from the sprint)
+
+### 7.4 Days 24-30 (docs + final integration)
+
+- **Day 24-25 (this slice):** `make structure-md`,
+  `SPEC-01 §0.6` (internal package layout), this `ROADMAP.md`
+  addendum, `DECISIONS.md` C-section (runner pattern +
+  `kernelapi-bloat-policy`).
+- **Day 26-30:** final integration tests, sprint summary
+  report, optional follow-up backlog (the `RunWith` body
+  move, the `compose` per-store opener retry).
 
 ---
 

@@ -5,9 +5,13 @@
 /agt
 *.test
 *.out
+*.err
+*.out2
 *.log
 *.tmp
 *.temp
+# stale structure-md snapshot from an earlier sprint regeneration attempt
+/.project/STRUCTURE.generated.v2/
 *.prof
 *.pprof
 *.cover
