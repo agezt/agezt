@@ -61,7 +61,6 @@ describe("operator-job navigation", () => {
     expect(rowForView.tools.id).toBe("health");
     // Provider management lives in Connect, together.
     expect(rowForView.models.id).toBe("providers-models");
-    expect(rowForView.quickconnect.id).toBe("providers-models");
   });
 
   it("keeps Agents and Roster as their own destinations", () => {

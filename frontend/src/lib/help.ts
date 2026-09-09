@@ -2286,7 +2286,7 @@ export const HELP: Record<string, HelpTopic> = {
         items: [
           {
             term: "AI Providers",
-            desc: "How many providers are keyed (have a usable credential) out of the catalog total, with the connected ones listed. 'Connect a provider' jumps to Quick Connect.",
+            desc: "How many providers are keyed (have a usable credential) out of the catalog total, with the connected ones listed. 'Add provider' switches to the Provider Keys tab in this view, where the catalog is the source of truth for env var names.",
           },
           {
             term: "Channels",
@@ -2301,45 +2301,9 @@ export const HELP: Record<string, HelpTopic> = {
     ],
     tips: ["Green = connected/live/attached; amber = configured but needs a restart or attach."],
     related: [
-      { id: "quickconnect", label: "Quick Connect" },
+      { id: "models", label: "Models & Keys" },
       { id: "channels", label: "Channels" },
       { id: "mcp", label: "MCP Servers" },
-    ],
-  },
-  quickconnect: {
-    title: "Quick Connect",
-    intro:
-      "A branded gallery to connect an AI provider in one step: pick a card, paste an API key, and the provider is registered and keyed — no manual catalog or endpoint setup.",
-    sections: [
-      {
-        heading: "Connecting a provider",
-        items: [
-          {
-            term: "Pick a card, paste a key",
-            desc: "Each card targets a coding/token-plan provider (Z.ai/GLM, MiniMax, Kimi/Moonshot, DeepSeek, opencode and more) or a popular OpenAI-compatible endpoint. Paste the key and press Connect — the provider is written to the catalog's custom layer and the key stored in the keyring, live, no restart.",
-          },
-          {
-            term: "Endpoint & model are editable",
-            desc: "Each card pre-fills the base URL and a default model, but both are editable under the 'Endpoint & model' disclosure — so a provider with a non-standard endpoint still works.",
-          },
-          {
-            term: "Custom provider",
-            desc: "The Custom card connects any OpenAI- or Anthropic-compatible API: give it a name, base URL, key env var, model, and key.",
-          },
-          {
-            term: "Get a key",
-            desc: "Every card links to the provider's API-key page so you can grab a key without leaving the flow.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Connecting only stores the provider and key — set it as the default or wire it into routing afterwards from Models/Routing.",
-    ],
-    related: [
-      { id: "models", label: "Models" },
-      { id: "routing", label: "Routing" },
-      { id: "providers", label: "Providers" },
     ],
   },
   providers: {

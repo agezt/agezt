@@ -98,7 +98,6 @@ const FlowStudio = lazyNamed(() => import("@/views/FlowStudio"), "FlowStudio");
 const ConfigCenter = lazyNamed(() => import("@/views/ConfigCenter"), "ConfigCenter");
 const Cache = lazyNamed(() => import("@/views/Cache"), "Cache");
 const Providers = lazyNamed(() => import("@/views/Providers"), "Providers");
-const QuickConnect = lazyNamed(() => import("@/views/QuickConnect"), "QuickConnect");
 const Connections = lazyNamed(() => import("@/views/Connections"), "Connections");
 const Tools = lazyNamed(() => import("@/views/Tools"), "Tools");
 const ExecutionProfiles = lazyNamed(() => import("@/views/ExecutionProfiles"), "ExecutionProfiles");
@@ -651,13 +650,6 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: Plug,
     rows: [
       row("providers-models", "Providers & Models", Cpu, [
-        {
-          id: "quickconnect",
-          label: "Quick Connect",
-          icon: Plug,
-          render: QuickConnect,
-          keywords: "add provider paste api key connect openai anthropic deepseek openrouter custom byok bağlan",
-        },
         {
           id: "models",
           label: "Models & Keys",

@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
 import { goToView } from "@/lib/nav";
 import { Setup } from "@/views/Setup";
-import { QuickConnect } from "@/views/QuickConnect";
 import { NewAgentForm, usdToMc } from "@/views/Roster";
 import { NewScheduleForm } from "@/views/Schedules";
 import { NewServerForm } from "@/views/Mcp";
@@ -273,14 +272,6 @@ const WIZARDS: WizardDef[] = [
     icon: KeyRound,
     hue: "var(--accent)",
     render: (close) => <Setup onDone={close} />,
-  },
-  {
-    id: "quickconnect",
-    title: "Quick Connect a coding plan",
-    desc: "Paste a key for Z.ai/GLM, MiniMax, Kimi, DeepSeek, opencode and more — one click, no endpoint setup.",
-    icon: Plug,
-    hue: "#2563eb",
-    render: () => <QuickConnect />,
   },
   {
     id: "channel",
