@@ -12,7 +12,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
   authHeaders: (h?: HeadersInit) => new Headers(h),
 }));
-vi.mock("@/lib/voiceStatus", () => ({
+vi.mock("@/features/voice/lib/voiceStatus", () => ({
   getVoiceReadiness: (...a: unknown[]) => getVoiceReadiness(...a),
 }));
 vi.mock("@/lib/nav", () => ({

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { speak, stopSpeaking, speechSupported } from "@/lib/speech";
+import { speak, stopSpeaking, speechSupported } from "@/features/voice/lib/speech";
 
 // jsdom has no speech synthesis; install a minimal fake.
 class FakeUtterance {

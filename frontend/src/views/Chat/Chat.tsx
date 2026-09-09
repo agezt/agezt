@@ -5,7 +5,7 @@ import { ModelPicker } from "@/components/ModelPicker";
 import { AgentPicker } from "@/components/AgentPicker";
 import { AttachPicker } from "@/components/AttachPicker";
 import { MicButton } from "@/components/MicButton";
-import { speechSupported } from "@/lib/speech";
+import { speechSupported } from "@/features/voice/lib/speech";
 import { conversationToMarkdown, slugify, downloadText } from "@/app/export";
 import { filterConversations, sortConversations } from "@/lib/conversations";
 import { ChannelSessions } from "@/views/ChannelSessions";

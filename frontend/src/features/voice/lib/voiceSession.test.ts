@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { VoiceSession, type VoiceIO, type Utterance } from "@/lib/voiceSession";
+import { VoiceSession, type VoiceIO, type Utterance } from "@/features/voice/lib/voiceSession";
 
 // Note: Utterance is re-exported from tts via voiceSession's import; declare the
 // shape locally to avoid importing the audio module.

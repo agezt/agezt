@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
-import { transcribeAudio } from "@/lib/voice";
+import { transcribeAudio } from "@/features/voice";
 
 // MicButton records a short voice message and transcribes it into the chat
 // composer (M689) — the "talk to Jarvis" affordance. It captures audio with the

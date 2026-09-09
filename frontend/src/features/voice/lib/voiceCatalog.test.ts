@@ -6,7 +6,7 @@ import {
   selectProvider,
   voicesFor,
   type SpeechProvider,
-} from "@/lib/voiceCatalog";
+} from "@/features/voice/lib/voiceCatalog";
 
 describe("voice provider catalog helpers", () => {
   it("matches compatible endpoints across case, slash, and v1 variants", () => {

@@ -12,7 +12,7 @@ vi.mock("@/app/api", () => ({
   authHeaders: () => new Headers(),
   withToken: (p: string) => p,
 }));
-vi.mock("@/lib/voiceStatus", () => ({
+vi.mock("@/features/voice/lib/voiceStatus", () => ({
   getVoiceReadiness: (...a: unknown[]) => getVoiceReadiness(...a),
 }));
 
@@ -23,7 +23,7 @@ const stop = vi.fn();
 const createBrowserVoiceIO = vi.fn((..._args: unknown[]) => ({}));
 let callbacks: Record<string, (...args: unknown[]) => void> = {};
 let options: Record<string, unknown> = {};
-vi.mock("@/lib/voiceSession", () => ({
+vi.mock("@/features/voice/lib/voiceSession", () => ({
   VoiceSession: class {
     constructor(_io: unknown, cb: Record<string, (...args: unknown[]) => void>, opts: Record<string, unknown>) {
       callbacks = cb;
@@ -35,7 +35,7 @@ vi.mock("@/lib/voiceSession", () => ({
   createBrowserVoiceIO: (...args: unknown[]) => createBrowserVoiceIO(...args),
 }));
 
-import { Voice } from "@/views/Voice";
+import { Voice } from "@/features/voice/components/Voice";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

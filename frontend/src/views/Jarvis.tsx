@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
 import type { AgentEvent } from "@/app/events";
-import { getVoiceReadiness, type VoiceReadiness } from "@/lib/voiceStatus";
+import { getVoiceReadiness, type VoiceReadiness } from "@/features/voice/lib/voiceStatus";
 import { cn } from "@/app/utils";
 import { goToView } from "@/lib/nav";
 import { Button } from "@/components/ui/button";

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchSpeech, playBlob, speak, resetServerTTS, stopSpeech } from "@/lib/tts";
+import { fetchSpeech, playBlob, speak, resetServerTTS, stopSpeech } from "@/features/voice/lib/tts";
 
 beforeEach(() => resetServerTTS());
 afterEach(() => vi.restoreAllMocks());

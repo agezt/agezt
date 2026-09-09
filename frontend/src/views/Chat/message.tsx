@@ -25,8 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { ToolOutput } from "@/components/DataView";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { speechSupported } from "@/lib/speech";
-import { speak, stopSpeech, type Utterance } from "@/lib/tts";
+import { speechSupported } from "@/features/voice/lib/speech";
+import { speak, stopSpeech, type Utterance } from "@/features/voice/lib/tts";
 import {
   turnText,
   type ChatTurn,

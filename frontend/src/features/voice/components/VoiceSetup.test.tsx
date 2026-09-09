@@ -57,7 +57,7 @@ vi.mock("@/views/ConfigCenter", () => ({
     </button>
   ),
 }));
-vi.mock("@/lib/voiceCatalog", () => ({
+vi.mock("@/features/voice/lib/voiceCatalog", () => ({
   STT_PROVIDERS: stt,
   TTS_PROVIDERS: tts,
   dialectOf: (provider: { dialect?: string }) => provider.dialect || "openai",
@@ -69,7 +69,7 @@ vi.mock("@/lib/voiceCatalog", () => ({
     (model && provider?.voicesByModel?.[model]) || provider?.voices || [],
 }));
 
-import { VoiceSetup } from "@/views/VoiceSetup";
+import { VoiceSetup } from "@/features/voice/components/VoiceSetup";
 
 const values = (fields: { env: string; value?: string; set?: boolean; env_pinned?: boolean }[]) => ({ fields });
 

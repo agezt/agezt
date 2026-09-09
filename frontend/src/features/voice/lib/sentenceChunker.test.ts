@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSpeechChunker } from "@/lib/sentenceChunker";
+import { createSpeechChunker } from "@/features/voice/lib/sentenceChunker";
 
 describe("createSpeechChunker", () => {
   it("emits a sentence as soon as its terminator arrives", () => {

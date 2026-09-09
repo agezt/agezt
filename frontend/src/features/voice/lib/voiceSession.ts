@@ -9,12 +9,12 @@
 // unit-testable with fakes. createBrowserVoiceIO() supplies the real Web Audio /
 // MediaRecorder / STT / TTS implementation for the view.
 
-import { transcribeAudio } from "@/lib/voice";
+import { transcribeAudio } from "@/features/voice";
 import { streamRun } from "@/lib/chat";
-import { speak as ttsSpeak, type Utterance } from "@/lib/tts";
-import { createSpeechChunker } from "@/lib/sentenceChunker";
+import { speak as ttsSpeak, type Utterance } from "@/features/voice/lib/tts";
+import { createSpeechChunker } from "@/features/voice/lib/sentenceChunker";
 
-export type { Utterance } from "@/lib/tts";
+export type { Utterance } from "@/features/voice/lib/tts";
 
 export type VoiceState = "idle" | "waking" | "listening" | "thinking" | "speaking";
 

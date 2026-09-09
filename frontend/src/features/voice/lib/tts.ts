@@ -6,7 +6,7 @@
 // reply the moment the user starts talking).
 
 import { authHeaders } from "@/app/api";
-import { speak as browserSpeak, stopSpeaking as browserStop, speechSupported } from "@/lib/speech";
+import { speak as browserSpeak, stopSpeaking as browserStop, speechSupported } from "@/features/voice/lib/speech";
 
 // A missing backend is cached briefly, not forever: the daemon may be restarted
 // with a newly configured provider while this browser tab stays open.

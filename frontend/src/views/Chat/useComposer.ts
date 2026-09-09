@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { buildContext, type AttachRef } from "@/lib/attach";
-import { stopSpeech } from "@/lib/tts";
+import { stopSpeech } from "@/features/voice/lib/tts";
 
 interface UseComposerParams {
   busy: boolean;

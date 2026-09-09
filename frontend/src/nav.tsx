@@ -69,7 +69,7 @@ function lazyNamed<T extends Record<string, unknown>>(loader: () => Promise<T>, 
 const EventFeed = lazyNamed(() => import("@/components/EventFeed"), "EventFeed");
 const Chat = lazyNamed(() => import("@/views/Chat"), "Chat");
 const Jarvis = lazyNamed(() => import("@/views/Jarvis"), "Jarvis");
-const Voice = lazyNamed(() => import("@/views/Voice"), "Voice");
+const Voice = lazyNamed(() => import("@/features/voice/components/Voice"), "Voice");
 const ACPAgents = lazyNamed(() => import("@/views/ACPAgents"), "ACPAgents");
 const Activity = lazyNamed(() => import("@/views/Activity"), "Activity");
 const Mission = lazyNamed(() => import("@/views/Mission"), "Mission");

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { transcribeAudio } from "@/lib/voice";
+import { transcribeAudio } from "@/features/voice";
 
 afterEach(() => vi.restoreAllMocks());
 

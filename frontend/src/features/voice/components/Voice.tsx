@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { getJSON } from "@/app/api";
 import { cn } from "@/app/utils";
-import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/lib/voiceSession";
-import { getVoiceReadiness, type VoiceReadiness } from "@/lib/voiceStatus";
-import { VoiceSetup } from "@/views/VoiceSetup";
+import { VoiceSession, createBrowserVoiceIO, type VoiceState } from "@/features/voice/lib/voiceSession";
+import { getVoiceReadiness, type VoiceReadiness } from "@/features/voice/lib/voiceStatus";
+import { VoiceSetup } from "@/features/voice/components/VoiceSetup";
 
 const WAKE_KEY = "agezt.voice.wake";
 const AGENT_KEY = "agezt.voice.agent";

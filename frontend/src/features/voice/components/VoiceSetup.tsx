@@ -26,7 +26,7 @@ import {
   dialectOf,
   voicesFor,
   type SpeechProvider,
-} from "@/lib/voiceCatalog";
+} from "@/features/voice/lib/voiceCatalog";
 
 // VoiceSetup is the friendly "set it up right here" panel inside the Voice
 // cockpit — pick who listens and who talks, no trip to the Config Center and no

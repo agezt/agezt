@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { turnText } from "@/lib/chat";
 import { type Msg } from "@/lib/conversations";
-import { speak, stopSpeech } from "@/lib/tts";
+import { speak, stopSpeech } from "@/features/voice/lib/tts";
 
 const AUTOSPEAK_KEY = "agezt.chat.autospeak";
 

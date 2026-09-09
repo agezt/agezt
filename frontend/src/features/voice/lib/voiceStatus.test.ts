@@ -7,11 +7,11 @@ const speechSupported = vi.fn();
 vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
 }));
-vi.mock("@/lib/speech", () => ({
+vi.mock("@/features/voice/lib/speech", () => ({
   speechSupported: () => speechSupported(),
 }));
 
-import { browserVoiceCapabilities, getVoiceReadiness } from "@/lib/voiceStatus";
+import { browserVoiceCapabilities, getVoiceReadiness } from "@/features/voice/lib/voiceStatus";
 
 describe("voice readiness", () => {
   beforeEach(() => {

@@ -7,11 +7,11 @@ const deps = vi.hoisted(() => ({
   ttsSpeak: vi.fn(),
 }));
 
-vi.mock("@/lib/voice", () => ({ transcribeAudio: deps.transcribeAudio }));
+vi.mock("@/features/voice", () => ({ transcribeAudio: deps.transcribeAudio }));
 vi.mock("@/lib/chat", () => ({ streamRun: deps.streamRun }));
-vi.mock("@/lib/tts", () => ({ speak: deps.ttsSpeak }));
+vi.mock("@/features/voice/lib/tts", () => ({ speak: deps.ttsSpeak }));
 
-import { createBrowserVoiceIO } from "@/lib/voiceSession";
+import { createBrowserVoiceIO } from "@/features/voice/lib/voiceSession";
 
 class FakeAnalyser {
   fftSize = 0;
