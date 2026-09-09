@@ -1,4 +1,4 @@
-import type { AgentCardRuntimeSummary } from "@/lib/agentdetail";
+import type { AgentCardRuntimeSummary } from "@/features/agents/lib/agentdetail";
 import { agentIdentityKind, type AgentProfile, type AgentTask, type RosterBoardMessage } from "./shared";
 
 export function agentLifecycleSummary(profile: Pick<AgentProfile, "lifecycle">): string {

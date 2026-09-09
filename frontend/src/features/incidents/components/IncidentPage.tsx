@@ -39,12 +39,12 @@ import {
   validateIncidentDelegateTarget,
   type IncidentResolutionRow,
 } from "@/features/incidents/lib/incidents";
-import { openAgent } from "@/lib/agentnav";
+import { openAgent } from "@/features/agents/lib/agentnav";
 import {
   summarizeAgentRuntimeStatus,
   summarizeEscalations,
   type AgentEscalation,
-} from "@/lib/agentdetail";
+} from "@/features/agents/lib/agentdetail";
 import type { AgentProfile } from "@/views/Roster";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -55,7 +55,7 @@ import { IncidentBadges, incidentPhaseBadgeClass } from "@/features/incidents/co
 import { Page } from "@/components/ui/page";
 import { PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";
-import { AgentRepair } from "@/components/AgentRepair";
+import { AgentRepair } from "@/features/agents/components/AgentRepair";
 import { useUI } from "@/components/ui/feedback";
 import { fmtTime } from "@/app/utils";
 

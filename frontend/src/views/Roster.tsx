@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { openAgent } from "@/lib/agentnav";
+import { openAgent } from "@/features/agents/lib/agentnav";
 import { openIncident } from "@/features/incidents/lib/incidentnav";
 import { cn, fmtDateTime } from "@/app/utils";
 import { money } from "@/app/format";
@@ -17,10 +17,10 @@ import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { AgentActivity } from "@/components/AgentActivity";
-import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
+import { AgentActivity } from "@/features/agents/components/AgentActivity";
+import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/features/agents/lib/agentdetail";
 import { useEvents } from "@/app/events";
-import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/lib/agentlive";
+import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/features/agents/lib/agentlive";
 import {
   agentEnableToast,
   agentIdentityKind,
@@ -77,9 +77,9 @@ import {
 
 // agentHue maps a slug to a stable hue (0–359) so every agent gets a consistent
 // colored identity avatar across the UI. The deterministic hue + monogram now
-// live in @/lib/agent (M948) so the avatar can be shared; re-exported here for
+// live in @/features/agents/lib/agent so the avatar can be shared; re-exported here for
 // existing importers.
-import { agentHue, initials } from "@/lib/agent";
+import { agentHue, initials } from "@/features/agents/lib/agent";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Segmented } from "@/components/ui/segmented";
 export { agentHue, initials };

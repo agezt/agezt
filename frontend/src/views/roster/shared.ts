@@ -1,5 +1,5 @@
 import { fmtDue } from "@/app/utils";
-import type { AgentRuntimeStatus } from "@/lib/agentdetail";
+import type { AgentRuntimeStatus } from "@/features/agents/lib/agentdetail";
 
 export interface AgentProfile {
   id: string;

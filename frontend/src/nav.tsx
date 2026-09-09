@@ -56,7 +56,7 @@ import {
   Lightbulb,
   type LucideIcon,
 } from "lucide-react";
-import { agentSlugFromHash } from "@/lib/agentnav";
+import { agentSlugFromHash } from "@/features/agents/lib/agentnav";
 import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
 
 type LazyView = LazyExoticComponent<ComponentType<any>>;
@@ -70,7 +70,7 @@ const EventFeed = lazyNamed(() => import("@/components/EventFeed"), "EventFeed")
 const Chat = lazyNamed(() => import("@/views/Chat"), "Chat");
 const Jarvis = lazyNamed(() => import("@/views/Jarvis"), "Jarvis");
 const Voice = lazyNamed(() => import("@/features/voice/components/Voice"), "Voice");
-const ACPAgents = lazyNamed(() => import("@/views/ACPAgents"), "ACPAgents");
+const ACPAgents = lazyNamed(() => import("@/features/agents/components/ACPAgents"), "ACPAgents");
 const Activity = lazyNamed(() => import("@/views/Activity"), "Activity");
 const Mission = lazyNamed(() => import("@/views/Mission"), "Mission");
 const Autonomy = lazyNamed(() => import("@/views/Autonomy"), "Autonomy");
@@ -79,7 +79,7 @@ const Analyst = lazyNamed(() => import("@/views/Analyst"), "Analyst");
 const Alerts = lazyNamed(() => import("@/views/Alerts"), "Alerts");
 const SearchView = lazyNamed(() => import("@/views/Search"), "Search");
 const Replay = lazyNamed(() => import("@/views/Replay"), "Replay");
-const Agents = lazyNamed(() => import("@/views/Agents"), "Agents");
+const Agents = lazyNamed(() => import("@/features/agents/components/Agents"), "Agents");
 const Roster = lazyNamed(() => import("@/views/Roster"), "Roster");
 const Overseer = lazyNamed(() => import("@/views/Overseer"), "Overseer");
 const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
@@ -109,7 +109,7 @@ export const Setup = lazyNamed(() => import("@/views/Setup"), "Setup");
 const Toolbox = lazyNamed(() => import("@/views/Toolbox"), "Toolbox");
 const Market = lazyNamed(() => import("@/views/Market"), "Market");
 const Channels = lazyNamed(() => import("@/views/Channels"), "Channels");
-export const AgentPage = lazyNamed(() => import("@/views/AgentPage"), "AgentPage");
+export const AgentPage = lazyNamed(() => import("@/features/agents/components/AgentPage"), "AgentPage");
 export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
 const Data = lazyNamed(() => import("@/views/Data"), "Data");
 const Council = lazyNamed(() => import("@/features/council/components/Council"), "Council");

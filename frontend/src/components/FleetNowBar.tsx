@@ -4,7 +4,7 @@ import { useEvents, type AgentEvent } from "@/app/events";
 import { cn, clip, fmtAgo } from "@/app/utils";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Sparkline } from "@/components/Sparkline";
-import { openAgent } from "@/lib/agentnav";
+import { openAgent } from "@/features/agents/lib/agentnav";
 import type { ActivityState } from "@/lib/activity";
 
 // activitySeries buckets the recent event buffer into a small per-interval count

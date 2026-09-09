@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACPAgents } from "@/views/ACPAgents";
+import { ACPAgents } from "@/features/agents/components/ACPAgents";
 import { Analyst } from "@/views/Analyst";
 import { Cache } from "@/views/Cache";
 import { Catalog } from "@/views/Catalog";

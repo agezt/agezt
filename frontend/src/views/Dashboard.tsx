@@ -38,7 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { fmtTime, fmtWhen, clip } from "@/app/utils";
 import { Sparkline, BarRow } from "@/components/Widgets";
-import { summarizeRoots, type RootSummary } from "@/views/Agents";
+import { summarizeRoots, type RootSummary } from "@/features/agents/components/Agents";
 import { TabNav } from "@/components/ui/tab-nav";
 import { Page } from "@/components/ui/page";
 import { SectionPanel } from "@/components/ui/section-panel";

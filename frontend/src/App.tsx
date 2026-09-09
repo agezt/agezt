@@ -19,7 +19,7 @@ import { toggleTheme } from "@/lib/theme";
 import { toggleAdvanced } from "@/lib/advanced";
 import { useChat } from "@/lib/chatStore";
 import { focusRun } from "@/features/runs/lib/runfocus";
-import { agentSlugFromHash, openAgent } from "@/lib/agentnav";
+import { agentSlugFromHash, openAgent } from "@/features/agents/lib/agentnav";
 import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
 import { goToView } from "@/lib/nav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";

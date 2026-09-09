@@ -235,21 +235,39 @@ Sırayla (önce küçük, sonra büyük):
 - **Day 6** (`db31cc8f`): `features/voice/` — ilk feature carve-out (29 dosya, 87 test).
 - **Day 7** (`64b0b28f`): `features/incidents/` (31 dosya, 27 test).
 - **Day 8** (`5fc5af85`): `features/council/` (10 dosya, 14 test).
-- **Day 9** (bu commit): `features/runs/` — 5 lib + 1 sayfa + 2 test taşıma, 23 dosyada import path bulk-replace, doc-block yorumları güncel.
+- **Day 9** (`7e17d0e3`): `features/runs/` — 5 lib + 1 sayfa + 2 test taşıma, 23 dosyada import path bulk-replace, doc-block yorumları güncel.
   - Yeni: `frontend/src/features/runs/{index,types}.ts` + `components/{Runs.tsx, Runs.test.tsx, Runs.pager.test.tsx}` + `lib/{rundetail.ts, rundetail.test.ts, runfocus.ts, runfocus.test.ts}` (9 dosya).
   - Silinen: `frontend/src/lib/{rundetail,runfocus}{,.test}.ts` + `frontend/src/views/Runs{,.test,.pager.test}.tsx` (7 dosya).
   - Güncellenen: 23 dosyada import path rewrite (`@/lib/{rundetail,runfocus}` → `@/features/runs/lib/...`, `@/views/Runs` → `@/features/runs/components/Runs`).
   - Doğrulama: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (34.4s).
   - Yardımcı: `scripts/dev/rewrite-runs-imports.py` (gelecek benzer bulk-rewrite'ler için şablon).
   - Kalan: `views/Runs.tsx` → `features/runs/components/Runs.tsx` göçü tamam; `RunDetail.tsx` (841 LOC) hâlâ `components/`'te paylaşılan bileşen — runs feature'ın dış yüzeyine bağımlı birden fazla sayfa (Dashboard, Mission, Inbox, Overseer, Replay) var; Runs sayfası `RunDetail`'ı doğrudan kullanmıyor (kendi tablo render'ı), bu yüzden şimdilik `components/RunDetail.tsx` ortak yerde kalıyor.
+- **Day 10** (bu commit): `features/agents/` — en büyük feature carve-out (Day 10/11 split).
+  - **Taşınan (40 dosya)**:
+    - `lib/agent*.{ts,test.ts}` (12 dosya, 4468 satır) → `features/agents/lib/` (6 lib çifti: agent, agentactivity, agentdetail, agentlive, agentnav, agentrepair)
+    - `components/AgentDetail.{tsx,test.tsx}` (2, 3712) + `AgentActivity.{tsx,test.tsx}` (2, 385) + `AgentRepair.{tsx,test.tsx}` (2, 575) → `features/agents/components/`
+    - `components/agentdetail/*` (16 dosya, 211K byte) → `features/agents/components/agentdetail/`
+    - `views/Agents.{tsx,test.tsx}` (2, 927) + `views/ACPAgents.{tsx,test.tsx}` (2, 312) + `views/AgentPage.{tsx,test.tsx}` (2, 289) → `features/agents/components/`
+  - **Silinen**: 28 dosya (12 lib + 6 component + 16 subdir dosyası + 6 view/test çifti)
+  - **Yeni**: `features/agents/{index,types}.ts` (barrel + type re-exports)
+  - **Güncellenen**: 57 dosyada import path rewrite (43 string match + 14 regex subpath match)
+    - lib: `@/lib/agent*` → `@/features/agents/lib/agent*` (6 pattern)
+    - components: `@/components/AgentDetail|AgentActivity|AgentRepair` → `@/features/agents/components/...` (3 pattern)
+    - components/agentdetail: regex ile `@/components/agentdetail(/...)?` → `@/features/agents/components/agentdetail(/...)?`
+    - views: `@/views/Agents|ACPAgents|AgentPage` → `@/features/agents/components/...` (3 pattern)
+  - **Çapraz feature kullanıcılar**: `nav.tsx`, `App.tsx`, `components/AgentAvatar.tsx` (avatar shared, agent.ts'ten hue+initials kullanır), `components/Fleet.tsx` + `FleetNowBar.tsx` (openAgent + summarizeAgentRuntimeStatus), `features/incidents/components/IncidentPage.tsx` (AgentRepair + openAgent + agentdetail types) — hepsi rewrite edildi.
+  - **Cross-feature component'ler yerinde**: `AgentAvatar` (8 kullanıcı: chat, fleet, fleetnowbar, overseer, message, agentdetail, agents, roster) ve `AgentPicker` (3 kullanıcı: chat, standing, kendi test'i) `components/`'te kalıyor.
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (40.2s).
+  - **Yardımcı**: `scripts/dev/rewrite-agents-imports.py` — regex round-2 (agentdetail subpath'leri) dahil 2-pass tasarım.
+  - **Kalan (Day 11)**: `views/Roster.tsx` (1499 satır) + `views/roster/*` (7 dosya, 1720 satır) — Roster'ın import'ları forward-compatible olarak bu commit'te güncellendi (`@/lib/agentdetail` → `@/features/agents/lib/agentdetail`); Day 11'de `views/Roster.tsx` → `features/agents/components/Roster.tsx` taşıması + bulk rewrite yapılacak.
 
-## 10. Sonraki adaylar (Day 10+)
+## 10. Sonraki adaylar (Day 11+)
 
-- **Day 10**: `features/workflows/` (Workflows.tsx + helpers — God file riski yüksek, önce haritala)
-- **Day 11**: `features/agents/` (en büyük, 12 lib + Roster + AgentDetail — 2 güne böl)
-- **Day 12**: `features/schedules/` + `features/execution-profiles/`
-- **Day 13**: `features/memory/` + `features/standing/` + `features/configcenter/`
-- **Day 14**: `features/skills/` + `features/market/` + `features/setup/`
-- **Day 15-18**: kalan 17 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 11**: `views/Roster.tsx` + `views/roster/*` → `features/agents/components/Roster.tsx` + `features/agents/components/roster/*` (import'lar zaten forward-compatible, sadece move + rewrite).
+- **Day 12**: `features/workflows/` (Workflows.tsx + helpers — God file riski yüksek, önce haritala)
+- **Day 13**: `features/schedules/` + `features/execution-profiles/`
+- **Day 14**: `features/memory/` + `features/standing/` + `features/configcenter/`
+- **Day 15**: `features/skills/` + `features/market/` + `features/setup/`
+- **Day 16-20**: kalan 17 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
 - **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting.
