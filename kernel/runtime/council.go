@@ -20,14 +20,12 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime/types"
 )
 
 // CouncilMember is one seat: a human-readable label and the model id it speaks
 // with (a bare model id the Governor routes to its serving provider).
-type CouncilMember struct {
-	Seat  string `json:"seat"`
-	Model string `json:"model"`
-}
+type CouncilMember = types.CouncilMember
 
 // Opinion is one member's position in one round.
 type Opinion struct {

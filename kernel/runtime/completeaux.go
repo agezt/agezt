@@ -30,3 +30,10 @@ func (k *Kernel) completeAux(ctx context.Context, corr, taskType string, req age
 	}
 	return k.cfg.Provider.Complete(ctx, req)
 }
+
+// CompleteAux is the public wrapper for the aux-completion funnel.
+// The runexec sub-package uses it through KernelAPI (Day 33) for
+// the verifyCompletion and DescribeImages body moves.
+func (k *Kernel) CompleteAux(ctx context.Context, corr, taskType string, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+	return k.completeAux(ctx, corr, taskType, req)
+}

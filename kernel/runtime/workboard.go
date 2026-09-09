@@ -297,7 +297,7 @@ func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workbo
 // back to the plain completion judge (verifyCompletion) and returns no criteria.
 func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, criteria []proof.Criterion) (assure.Verdict, []proof.Criterion, error) {
 	if len(criteria) == 0 {
-		v, err := k.verifyCompletion(ctx, corr, task, answer)
+		v, err := k.VerifyCompletion(ctx, corr, task, answer)
 		return v, nil, err
 	}
 	var cb strings.Builder

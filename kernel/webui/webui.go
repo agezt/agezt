@@ -592,8 +592,12 @@ var jsonRoutes = map[string]writeRoute{
 	"/api/provider/oauth/status": {controlplane.CmdProviderOAuthStatus, []string{"state"}},
 	"/api/provider/oauth/import": {controlplane.CmdProviderOAuthImport, []string{"path"}},
 	"/api/provider/oauth/logout": {controlplane.CmdProviderOAuthLogout, []string{}},
-	// Quick Connect (provider gallery): register a provider in custom.json + reload.
-	// JSON body (id, name, npm, api, env, model); the key follows on keys/add.
+	// Register a provider + key. Catalog-aware: if `id` already exists in the
+	// merged catalog (api+local+custom) the existing entry is preserved (no
+	// custom.json write) — the orphan-with-one-model bug a naive upsert
+	// caused is gone. For new ids, a minimal partial entry is written to
+	// custom.json and the daemon is reloaded. JSON body (id, name, npm, api,
+	// env, model); the key follows on keys/add.
 	"/api/provider/connect": {controlplane.CmdProviderConnect, []string{"id", "name", "npm", "api", "env", "model"}},
 	// Provider reachability probe (key in body → jsonRoute): is the endpoint up?
 	"/api/provider/probe": {controlplane.CmdProviderProbe, []string{"url", "key"}},

@@ -18,7 +18,17 @@ import (
 // context compaction, and no tool memo. Run-identity fields (Model chain,
 // Agent, Actor, CorrelationID, System, Wake*, Steer, cost ceiling source) stay
 // with the caller; everything governance- and capacity-shaped lives here.
+// BuildLoopConfig is the public version of buildLoopConfig, exposed
+// for the runexec sub-package's KernelAPI (Day 22). It returns the
+// same LoopConfig the legacy private method did. Day 23 will move
+// the body of RunWith into the runexec sub-package, which will
+// call this directly.
+func (k *Kernel) BuildLoopConfig(runCtx context.Context, corr, model string) agent.LoopConfig {
+	return k.buildLoopConfig(runCtx, corr, model)
+}
+
 func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) agent.LoopConfig {
+	// Every knob below comes from the run's EFFECTIVE config — the daemon-wide
 	// Every knob below comes from the run's EFFECTIVE config — the daemon-wide
 	// config plus the operator's live edits plus this agent's own overrides — so
 	// a named agent retuning e.g. AGEZT_MAX_ITER is honoured here without this

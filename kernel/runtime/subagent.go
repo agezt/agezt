@@ -718,7 +718,9 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("sub-agent %s: %w", p.childCorr, err)
 	}
-	k.completeAgentLifecycle(p.childCtx, p.childCorr)
+	// Day 33: lifecycle-advance lives in the runexec sub-package;
+	// call through the public wrapper.
+	k.CompleteAgentLifecycle(p.childCtx, p.childCorr)
 	return answer, nil
 }
 

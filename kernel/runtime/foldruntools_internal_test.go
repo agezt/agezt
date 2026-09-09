@@ -8,13 +8,15 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-// foldRunTools builds the memory-distillation transcript for a run: it counts the
+// FoldRunTools builds the memory-distillation transcript for a run: it counts the
 // run's tool.result events and collects the tool names. The filter
 // `e.CorrelationID != corr || e.Kind != event.KindToolResult` isolates THIS run's
 // tool results. Nothing tested that isolation, so mutation testing (M501) showed the
 // `||` and the two `!=` could flip undetected — a `||`→`&&` regression would fold
 // OTHER runs' tool results (and this run's non-tool events) into the transcript,
-// corrupting the distilled memory with another run's activity.
+// corrupting the distilled memory with another run's activity. Day 32: this
+// used to be the private foldRunTools; renamed to FoldRunTools when the body
+// moved into the runexec sub-package's reach via KernelAPI.
 func TestFoldRunTools_OnlyCountsThisCorrelationsToolResults(t *testing.T) {
 	k := openCausesKernel(t)
 	const corr, other = "run-A", "run-B"
@@ -43,7 +45,7 @@ func TestFoldRunTools_OnlyCountsThisCorrelationsToolResults(t *testing.T) {
 		t.Fatalf("publish task.received: %v", err)
 	}
 
-	count, names := k.foldRunTools(corr)
+	count, names := k.FoldRunTools(corr)
 	if count != 2 {
 		t.Errorf("count = %d, want 2 (only this run's tool results, not run-B's and not the non-tool event)", count)
 	}

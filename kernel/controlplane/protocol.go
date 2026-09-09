@@ -57,10 +57,13 @@ const (
 	// (M1.r). Replaces the "restart the daemon" friction printed by
 	// `agt provider creds set` since M1.o.
 	CmdProviderReload = "provider_reload"
-	// CmdProviderConnect registers (or replaces) a provider in the custom.json
-	// catalog layer and reloads in place — the backend of the Web UI "Quick
-	// Connect" gallery (args: id, name, npm, api, env, model). The API key is
-	// added separately via CmdProviderKeyAdd (secret path).
+	// CmdProviderConnect is the catalog-aware "register a provider + key"
+	// entry point. If the id already exists in the merged catalog, the
+	// existing entry is preserved (no custom.json write) — the caller
+	// attaches the key separately via CmdProviderKeyAdd. If the id is new,
+	// a minimal partial entry (no synthetic model list) is written to
+	// custom.json and the daemon is reloaded. args: id, name, npm, api,
+	// env, model. The API key itself never sits on this handler.
 	CmdProviderConnect = "provider_connect"
 	// CmdProviderProbe checks whether a provider endpoint is reachable (args:
 	// url, key) by GETting its OpenAI-compatible /models list. The connectivity

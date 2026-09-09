@@ -124,8 +124,12 @@ func (s *Store) SaveLocal(c *Catalog, source string) error {
 
 // SaveCustom writes the operator-curated catalog fragment to custom.json,
 // preserving api.json + local.json. custom.json wins the Load() merge, so a
-// provider written here overrides any models.dev entry with the same id — this
-// is how Quick Connect pins an exact base URL (e.g. a coding-plan endpoint).
+// provider written here overrides any models.dev entry with the same id. This
+// is the right precedence for a brand-new id (the new entry is the only
+// source of truth) but is dangerous for an id already in api.json — that's
+// why the Web UI's /api/provider/connect handler is catalog-aware and skips
+// UpsertCustomProvider entirely when the id is already known to the merged
+// catalog. See kernel/controlplane/catalog.go handleProviderConnect.
 // Atomic via tmp+rename; no meta update (custom has no sync timestamp).
 func (s *Store) SaveCustom(c *Catalog) error {
 	if err := s.ensureDir(); err != nil {

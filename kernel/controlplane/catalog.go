@@ -247,12 +247,36 @@ func envOrDefault(name, fallback string) string {
 	return fallback
 }
 
-// handleProviderConnect registers (or replaces) a provider in the custom.json
-// catalog layer and reloads in place — the backend half of the Web UI's "Quick
-// Connect" gallery. It writes only the provider definition (id/name/npm/api/env
-// + one model); the API key itself travels separately on the secret
-// keys/add path. custom.json wins the merge, so this pins the exact base URL a
-// coding-plan endpoint needs even when models.dev ships a different default.
+// handleProviderConnect is the catalog-aware "register a provider + key" path
+// for the Web UI's Provider Keys tab and the CLI's `provider connect`.
+//
+// Behavior, by id presence in the merged catalog (api + local + custom):
+//
+//	id already in catalog  → DO NOT touch custom.json. The existing entry
+//	                         (full model list from models.dev, prices,
+//	                         capabilities) is preserved as-is. Returns
+//	                         {added:false, exists:true, ...} so the caller
+//	                         knows no upsert happened. This is the fix for
+//	                         the orphan-with-one-model bug: previously
+//	                         custom.json WINS the merge, so any upsert
+//	                         would wholesale-replace a models.dev-synced
+//	                         entry with the user's stripped-down shape
+//	                         and lose the model list.
+//
+//	id is new              → write a MINIMAL partial Provider to custom.json:
+//	                         {id, name, npm, api, env} only. Models is
+//	                         intentionally left nil (unknown coverage) so
+//	                         the Governor accepts whatever model id the
+//	                         operator names at chat time — the catalog no
+//	                         longer pretends to know what this endpoint
+//	                         serves. The `model` arg is purely a UI hint
+//	                         for the caller to push to AGEZT_MODEL; the
+//	                         backend does not seed it into Models.
+//
+// The API key itself always travels separately on the keys/add path so
+// the secret value never sits on this handler. custom.json still wins
+// the merge when the id is new, which is the intended behavior for a
+// brand-new provider.
 func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 	sa, err := argStrings(req.Args, "id", "api", "model", "env", "name", "npm")
 	if err != nil {
@@ -261,7 +285,10 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 	}
 	id := strings.TrimSpace(sa["id"])
 	api := strings.TrimSpace(sa["api"])
-	model := strings.TrimSpace(sa["model"])
+	// `model` is now informational — see the catalog-aware note above. The
+	// UI/CLI uses it to push AGEZT_MODEL when the user asks for a default
+	// brain; the backend no longer seeds it into the catalog Models map.
+	_ = strings.TrimSpace(sa["model"])
 	// env is OPTIONAL: a keyless local runtime (Ollama, LM Studio, …) connects
 	// with no API key. When present it must be a valid provider env var.
 	var envs []string
@@ -273,8 +300,8 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 		}
 		envs = []string{env}
 	}
-	if id == "" || api == "" || model == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id, args.api and args.model are required"})
+	if id == "" || api == "" {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id and args.api are required"})
 		return
 	}
 	name := sa["name"]
@@ -286,15 +313,36 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 		npm = "@ai-sdk/openai-compatible"
 	}
 
+	// Catalog-aware gate: if the merged catalog already knows this id
+	// (from models.dev sync, local.json discovery, or a prior custom.json
+	// write), preserve the existing entry. No upsert, no clobber. The
+	// caller attaches the key on the separate keys/add path.
+	cat := s.k.Catalog()
+	if _, exists := cat.Providers[id]; exists {
+		_, providersReloaded, rerr := s.k.Reload()
+		result := map[string]any{
+			"provider_id":         id,
+			"added":               false,
+			"exists":              true,
+			"providers_reloaded":  providersReloaded,
+			"note":                "id already in catalog; custom.json was NOT written — existing entry preserved. Attach the key via /api/provider/keys/add.",
+		}
+		if rerr != nil {
+			result["reload_error"] = rerr.Error()
+		}
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+		return
+	}
+
+	// New id: minimal partial entry. No synthetic model list — see the
+	// type-level doc above for why.
 	p := &catalog.Provider{
-		ID:   id,
-		Name: strings.TrimSpace(name),
-		NPM:  strings.TrimSpace(npm),
-		API:  api,
-		Env:  envs,
-		Models: map[string]*catalog.Model{
-			model: {ID: model, Name: model, ToolCall: true},
-		},
+		ID:     id,
+		Name:   strings.TrimSpace(name),
+		NPM:    strings.TrimSpace(npm),
+		API:    api,
+		Env:    envs,
+		Models: nil, // unknown coverage — see kernel/governor/modelchain_skip_test.go
 	}
 	added, err := s.k.CatalogStore().UpsertCustomProvider(p)
 	if err != nil {
@@ -302,7 +350,12 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 		return
 	}
 	_, providersReloaded, rerr := s.k.Reload()
-	result := map[string]any{"provider_id": id, "added": added, "providers_reloaded": providersReloaded}
+	result := map[string]any{
+		"provider_id":        id,
+		"added":              added,
+		"exists":             false,
+		"providers_reloaded": providersReloaded,
+	}
 	if rerr != nil {
 		result["reload_error"] = rerr.Error()
 	}
