@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
 const getJSON = vi.fn();
-vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
+vi.mock("@/app/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 // Empty live SSE buffer — the point of M777 is that history comes from the journal, not
 // the live stream.
 vi.mock("@/lib/events", () => ({

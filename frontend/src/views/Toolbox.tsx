@@ -3,8 +3,8 @@ import {
   Wrench, RefreshCw, Search, Download, PackageCheck, PackageX, ArrowUpCircle,
   TerminalSquare, CheckCircle2, XCircle, MinusCircle, Boxes, Cpu, Loader2, X,
 } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty";

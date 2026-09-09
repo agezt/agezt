@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff, Boxes, KeyRound, ListChecks } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";

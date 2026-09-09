@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { connectionState, useEvents } from "@/lib/events";
 
 // ConnectionChip — the three-state "live / stale / disconnected" indicator

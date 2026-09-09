@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 const getJSON = vi.fn();
 const postAction = vi.fn();
 const postJSON = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),

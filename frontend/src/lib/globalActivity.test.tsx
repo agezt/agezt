@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   connected: false,
 }));
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...args: unknown[]) => mocks.getJSON(...args),
 }));
 

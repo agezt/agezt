@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Waypoints, RefreshCw, Save, ArrowUp, ArrowDown, X, Plus, Zap, Star, Pencil, Trash2, Users, Route, AlertTriangle } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

@@ -1,4 +1,4 @@
-import { fmtDateTime, clip } from "@/lib/utils";
+import { fmtDateTime, clip } from "@/app/utils";
 import { agentLifecycleSummary, agentRemovalCascadePreset, agentTaskProgressSummary, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/views/Roster";
 import { type ApiSchedule } from "@/lib/fleet";
 import { incidentLineageLabel, type AgentRepairEvent, type AgentRepairStatus } from "@/lib/agentdetail";

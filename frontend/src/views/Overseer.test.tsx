@@ -9,7 +9,7 @@ const postAction = vi.fn();
 const confirm = vi.fn();
 const liveEvents = vi.hoisted(() => ({ events: [] as any[] }));
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));

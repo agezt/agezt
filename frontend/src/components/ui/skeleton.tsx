@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // Skeleton is a content-shaped loading placeholder: a muted block with a soft
 // shimmer sweep (reduced-motion aware via the .skeleton class in index.css), so

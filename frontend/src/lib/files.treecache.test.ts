@@ -9,8 +9,8 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 
 const treeByPath = new Map<string, { nodes: Array<{ name: string; path: string; type: "dir" | "file" }> }>();
 
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/app/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/api")>();
   return {
     ...actual,
     HTTPError: class HTTPError extends Error {
@@ -45,7 +45,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 import { useFileTree, __resetTreeCacheForTest } from "@/lib/files";
-import * as api from "@/lib/api";
+import * as api from "@/app/api";
 const mockGetJSON = vi.mocked(api.getJSON);
 
 function setTree(path: string, nodes: Array<{ name: string; path: string; type: "dir" | "file" }>) {

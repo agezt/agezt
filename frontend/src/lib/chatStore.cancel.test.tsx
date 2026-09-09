@@ -5,8 +5,8 @@ import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-libra
 // Mock the network seams while keeping the rest of the store real (M907).
 const postAction = vi.fn();
 const getJSON = vi.fn();
-vi.mock("@/lib/api", async (orig) => {
-  const actual = await orig<typeof import("@/lib/api")>();
+vi.mock("@/app/api", async (orig) => {
+  const actual = await orig<typeof import("@/app/api")>();
   return {
     ...actual,
     postAction: (...a: unknown[]) => postAction(...a),

@@ -5,7 +5,7 @@ import type { AgentEvent } from "@/lib/events";
 
 const getJSON = vi.fn();
 let liveEvents: AgentEvent[] = [];
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
 }));
 vi.mock("@/lib/events", () => ({

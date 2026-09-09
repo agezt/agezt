@@ -11,10 +11,10 @@ import {
   ChevronDown,
   LifeBuoy,
 } from "lucide-react";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { money } from "@/lib/format";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";

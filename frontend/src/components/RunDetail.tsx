@@ -18,13 +18,13 @@ import {
   Copy,
   Download,
 } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/app/api";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { KeyValue, Muted, ErrorText } from "@/components/JsonView";
 import { ToolOutput } from "@/components/DataView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import { fmtTime, clip } from "@/lib/utils";
+import { cn } from "@/app/utils";
+import { fmtTime, clip } from "@/app/utils";
 import { money } from "@/lib/format";
 import { useUI } from "@/components/ui/feedback";
 import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";

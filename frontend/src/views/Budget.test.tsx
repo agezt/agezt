@@ -7,7 +7,7 @@ const reload = vi.fn();
 const confirm = vi.fn();
 let panelData: any = null;
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 

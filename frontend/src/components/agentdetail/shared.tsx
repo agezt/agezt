@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Activity as ActivityIcon, ScrollText, Anchor, Brain, Bot, Coins, Cpu, Wrench, Skull, Archive, Repeat, Gauge } from "lucide-react";
-import { postJSON } from "@/lib/api";
-import { cn, fmtAgo } from "@/lib/utils";
+import { postJSON } from "@/app/api";
+import { cn, fmtAgo } from "@/app/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

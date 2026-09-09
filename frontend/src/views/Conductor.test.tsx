@@ -7,7 +7,7 @@ const postJSON = vi.fn();
 const startConductorRun = vi.fn();
 const applyConductorResult = vi.fn();
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));

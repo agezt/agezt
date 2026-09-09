@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // TabNav — a proper icon+label tab system. Uses Radix UI Tabs under the hood.
 // Each tab has an icon, label, optional count badge, and a pill active indicator.

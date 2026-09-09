@@ -48,11 +48,11 @@ import {
 } from "@/lib/fleet";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Button } from "@/components/ui/button";
-import { cn, clip, fmtDateTime, fmtAgo } from "@/lib/utils";
+import { cn, clip, fmtDateTime, fmtAgo } from "@/app/utils";
 import { money } from "@/lib/format";
 import { summarizeAgentRuntimeStatus, fleetCardIssueSummary } from "@/lib/agentdetail";
 import { useUI } from "@/components/ui/feedback";
-import { postAction } from "@/lib/api";
+import { postAction } from "@/app/api";
 
 export function fleetAgentRepairOpsSummary(
   profile: Pick<ApiProfile, "retired" | "retry_policy" | "health_policy" | "self_repair">,

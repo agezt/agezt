@@ -20,8 +20,8 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import { getJSON, postJSON, postAction } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON, postAction } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";

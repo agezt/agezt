@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@/lib/events";
-import { clip } from "@/lib/utils";
+import { clip } from "@/app/utils";
 
 const INCIDENT_SUBJECTS = new Set([
   "doctor.auto_repair",

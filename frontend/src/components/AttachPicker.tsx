@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Sparkles, Brain, ListTree, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getJSON } from "@/lib/api";
+import { cn } from "@/app/utils";
+import { getJSON } from "@/app/api";
 import { skillToRef, memoryToRef, runToRef, type AttachRef, type RefKind } from "@/lib/attach";
 
 // AttachPicker is the modal behind the composer's paperclip: pick an existing

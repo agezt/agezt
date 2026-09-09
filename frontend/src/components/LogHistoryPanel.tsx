@@ -1,7 +1,7 @@
 import { type LucideIcon } from "lucide-react";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Muted } from "@/components/JsonView";
-import { fmtDateTime } from "@/lib/utils";
+import { fmtDateTime } from "@/app/utils";
 
 interface LogHistoryPanelProps<T extends Record<string, unknown>> {
   icon: LucideIcon;

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Database, RefreshCw, PiggyBank, Download, Upload, Hash } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

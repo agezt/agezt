@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Wrench, RefreshCw, Activity, AlertTriangle, Boxes, Search, ShieldCheck } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { useEvents } from "@/lib/events";
-import { cn, clip, fmtTime } from "@/lib/utils";
+import { cn, clip, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Brain, RefreshCw, Lightbulb, Play } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
-import { cn, fmtDateTime } from "@/lib/utils";
+import { getJSON, postAction } from "@/app/api";
+import { cn, fmtDateTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

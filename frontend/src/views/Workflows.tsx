@@ -42,8 +42,8 @@ import {
   Workflow as WorkflowIcon,
   type LucideIcon,
 } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, clip, fmtWhen } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn, clip, fmtWhen } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";

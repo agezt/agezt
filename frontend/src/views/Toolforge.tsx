@@ -13,8 +13,8 @@ import {
   Code2,
   type LucideIcon,
 } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";

@@ -1,5 +1,5 @@
 import { Waypoints } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { isChainRef, chainName } from "@/lib/chains";
 import { modelHealth, type ModelCatalog, type ModelHealth } from "@/lib/models";
 

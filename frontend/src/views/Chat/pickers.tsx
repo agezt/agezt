@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Bot, Check, ChevronDown, ChevronRight, CornerDownRight, Forward, Scissors, ShieldCheck, ShieldX, Sparkles, StickyNote, Terminal } from "lucide-react";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { money } from "@/lib/format";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { type ChatTurn } from "@/lib/chat";
 import { type HistorySummary } from "@/lib/conversations";
 

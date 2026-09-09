@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles, Plus, RefreshCw, Trash2, Globe, Target } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { StatTile } from "@/components/ui/metric-widget";
 import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";

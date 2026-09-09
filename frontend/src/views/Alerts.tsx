@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ShieldAlert, AlertTriangle, Info, Bell, BellOff, X, RotateCcw } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";
 import { eventDedupKey } from "@/lib/rundetail";
 import { incidentMetaFromEvent, incidentRootId } from "@/lib/incidents";
 import { openIncident } from "@/lib/incidentnav";
-import { cn, fmtWhen } from "@/lib/utils";
+import { cn, fmtWhen } from "@/app/utils";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { Badge } from "@/components/ui/badge";
 import { TabNav } from "@/components/ui/tab-nav";

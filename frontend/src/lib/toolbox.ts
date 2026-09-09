@@ -3,7 +3,7 @@
 // real host package managers there); this module shapes the wire data for the
 // view and is unit-tested. Mirrors the lib/fleet.ts / lib/agentdetail.ts
 // discipline: pure logic here, rendering in views/Toolbox.tsx.
-import { authHeaders } from "@/lib/api";
+import { authHeaders } from "@/app/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
 
 // ToolStatus mirrors kernel/toolbox.ToolStatus (the /api/toolbox wire shape).

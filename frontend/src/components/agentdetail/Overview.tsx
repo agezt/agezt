@@ -1,5 +1,5 @@
 import { Activity as ActivityIcon, AlertTriangle, ArrowUpRight, ChevronRight, LifeBuoy, Skull, Wrench, ShieldCheck } from "lucide-react";
-import { cn, fmtTime, fmtDateTime, clip } from "@/lib/utils";
+import { cn, fmtTime, fmtDateTime, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Advanced } from "@/components/ui/disclosure";

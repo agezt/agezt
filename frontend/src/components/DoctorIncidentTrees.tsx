@@ -1,4 +1,4 @@
-import { fmtTime } from "@/lib/utils";
+import { fmtTime } from "@/app/utils";
 import {
   doctorIncidentLabel,
   doctorIncidentNodeTitle,

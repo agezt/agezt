@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 
 export function useConversationRouting() {
   // The chat task's routing chain (M931): pinned to the top of the model picker

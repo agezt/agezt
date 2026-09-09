@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, Volume2, HeartPulse, Check, X, Power,
 } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import type { AgentEvent } from "@/lib/events";
 import { getVoiceReadiness, type VoiceReadiness } from "@/lib/voiceStatus";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { goToView } from "@/lib/nav";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";

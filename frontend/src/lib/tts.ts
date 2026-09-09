@@ -5,7 +5,7 @@
 // stop instantly — that's what makes barge-in possible (interrupt the spoken
 // reply the moment the user starts talking).
 
-import { authHeaders } from "@/lib/api";
+import { authHeaders } from "@/app/api";
 import { speak as browserSpeak, stopSpeaking as browserStop, speechSupported } from "@/lib/speech";
 
 // A missing backend is cached briefly, not forever: the daemon may be restarted

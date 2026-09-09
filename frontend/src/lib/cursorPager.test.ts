@@ -20,8 +20,8 @@ let nextResponse: ((cursor: string | null) => unknown) | "throw" = () => ({
 
 const messages: string[] = [];
 
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/app/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/api")>();
   return {
     ...actual,
     HTTPError: actual.HTTPError,

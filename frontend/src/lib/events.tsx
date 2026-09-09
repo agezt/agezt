@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { eventsURLAsync } from "@/lib/api";
+import { eventsURLAsync } from "@/app/api";
 
 export interface AgentEvent {
   id?: string;

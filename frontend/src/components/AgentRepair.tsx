@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
 import { useUI } from "@/components/ui/feedback";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn, clip, fmtTime } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn, clip, fmtTime } from "@/app/utils";
 import { newTurn, foldChatFrame, turnText, streamRun, type ChatTurn } from "@/lib/chat";
 import {
   buildRepairBrief,

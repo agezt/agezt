@@ -8,8 +8,8 @@ import {
   HelpCircle,
   Menu,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { postAction } from "@/lib/api";
+import { cn } from "@/app/utils";
+import { postAction } from "@/app/api";
 import { ConnectionChip } from "@/components/ConnectionChip";
 import { AlertBell } from "@/components/AlertBell";
 import { ApprovalsBell } from "@/components/ApprovalsBell";

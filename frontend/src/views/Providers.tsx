@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Cpu, RefreshCw, Route, GitFork, RotateCw } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { useUI } from "@/components/ui/feedback";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

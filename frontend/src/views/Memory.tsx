@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle, UserRound, Tags, FileText, History, type LucideIcon } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/app/api";
 import { downloadText } from "@/lib/export";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonGrid } from "@/components/ui/skeleton";

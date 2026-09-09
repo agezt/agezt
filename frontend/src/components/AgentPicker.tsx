@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Users, Check } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 
 interface AgentOption {
   slug: string;

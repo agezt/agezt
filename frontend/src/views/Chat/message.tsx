@@ -19,7 +19,7 @@ import {
   VolumeX,
   Pencil,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";

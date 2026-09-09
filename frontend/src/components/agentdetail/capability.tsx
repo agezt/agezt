@@ -1,5 +1,5 @@
 import { Waypoints } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { type AgentProfile } from "@/views/Roster";
 import { AgentConfigPermissionRow, AgentPermissionRow, AgentWakeAccess, ToolCatalogRow } from "@/components/agentdetail/shared";
 

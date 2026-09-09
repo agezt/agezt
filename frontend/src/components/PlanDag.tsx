@@ -10,7 +10,7 @@ import {
   type Edge,
   type NodeProps,
 } from "@xyflow/react";
-import { clip } from "@/lib/utils";
+import { clip } from "@/app/utils";
 
 interface PlanNode {
   id: string;

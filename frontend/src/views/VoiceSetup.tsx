@@ -11,13 +11,13 @@ import {
   Sliders,
   ExternalLink,
 } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
+import { getJSON, postJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useUI } from "@/components/ui/feedback";
 import { Disclosure } from "@/components/ui/disclosure";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { FieldRow, type Field, type ValueEntry } from "@/views/ConfigCenter";
 import {
   STT_PROVIDERS,

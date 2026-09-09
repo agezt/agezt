@@ -1,5 +1,5 @@
 import { ArrowDown, Download, Forward, ListPlus, Paperclip, Plus, Radio, Search, Send, Square, StickyNote, Volume2, VolumeX, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/ModelPicker";
 import { AgentPicker } from "@/components/AgentPicker";

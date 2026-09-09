@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Play, Sparkles, Wand2, RefreshCw, Workflow, X, FileJson2 } from "lucide-react";
-import { postJSON, getJSON } from "@/lib/api";
+import { postJSON, getJSON } from "@/app/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Page } from "@/components/ui/page";
@@ -9,7 +9,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { PlanDag, type Plan } from "@/components/PlanDag";
-import { prettyJSON } from "@/lib/utils";
+import { prettyJSON } from "@/app/utils";
 
 interface PlanRow {
   correlation_id?: string;

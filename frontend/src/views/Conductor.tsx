@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Network, Send, Loader2, CheckCircle2, XCircle, Play, X } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";

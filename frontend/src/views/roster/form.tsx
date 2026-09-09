@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { X, Plus, Pencil, Zap, GitBranch, Activity, RefreshCw, Archive, ShieldCheck, AlertTriangle, Pause, CalendarClock, Wrench, IdCard, ListTree, Cpu, CheckCheck, type LucideIcon } from "lucide-react";
-import { postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Advanced, Disclosure } from "@/components/ui/disclosure";
 import { ModelPicker } from "@/components/ModelPicker";

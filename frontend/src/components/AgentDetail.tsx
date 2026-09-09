@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Activity as ActivityIcon, ArrowUpRight, Play, Pause, Bot, CalendarClock, Coins, Cpu, HeartPulse, Megaphone, Wrench, Zap, Archive, ArchiveRestore } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, fmtAgo, fmtDue } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn, fmtAgo, fmtDue } from "@/app/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { MetricGrid, MetricWidget } from "@/components/ui/metric-widget";

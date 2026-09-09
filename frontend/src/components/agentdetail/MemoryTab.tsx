@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Brain, ArrowUpRight, Share2 } from "lucide-react";
-import { fmtAgo, clip } from "@/lib/utils";
+import { fmtAgo, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";

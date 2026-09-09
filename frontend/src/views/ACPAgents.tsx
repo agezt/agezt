@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Plug, RefreshCw, Cpu, PackageCheck, PackageX, Boxes, ExternalLink, Star, Copy,
 } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty";

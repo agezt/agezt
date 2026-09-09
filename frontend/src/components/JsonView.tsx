@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // A compact, theme-aware pretty-printed JSON block — the fallback renderer for
 // panels that don't yet have a bespoke view (their data still surfaces fully).

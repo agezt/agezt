@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, RefreshCw, Save, Sparkles, Eraser, Pencil, X } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
+import { getJSON, postJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { Skeleton } from "@/components/ui/skeleton";

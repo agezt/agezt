@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles, ArrowRight, Ear, Zap, UserRound } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 
 // JarvisPresenceCard — a compact entry point to the Jarvis presence page, dropped on
 // the Dashboard so the triad (hear / act / know) is discoverable from the landing

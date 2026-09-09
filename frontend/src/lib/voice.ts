@@ -1,4 +1,4 @@
-import { authHeaders } from "@/lib/api";
+import { authHeaders } from "@/app/api";
 
 // transcribeAudio uploads a recorded clip to the webui /api/transcribe route and
 // returns the recognised text. The daemon hands the audio to its configured STT

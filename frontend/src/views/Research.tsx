@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Telescope, Send, Loader2, CheckCircle2, XCircle, HelpCircle, ExternalLink } from "lucide-react";
-import { postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Scale, Users, Send, Loader2, Gavel, AlertTriangle, Pencil, Plus, X, Check, Globe, type LucideIcon } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
@@ -11,7 +11,7 @@ import { Page } from "@/components/ui/page";
 import { ModelPicker } from "@/components/ModelPicker";
 import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr, hydrateCouncilRun } from "@/lib/councilStore";
 import type { AgentEvent } from "@/lib/events";
-import { fmtWhen } from "@/lib/utils";
+import { fmtWhen } from "@/app/utils";
 import { History } from "lucide-react";
 import {
   type CouncilRun,

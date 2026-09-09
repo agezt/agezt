@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJSON, authHeaders, HTTPError } from "@/lib/api";
+import { getJSON, authHeaders, HTTPError } from "@/app/api";
 
 // Files workspace — types + hooks backed by /api/files/{tree,raw,…}. The Go
 // side lands in Slice 5; until then the tree hook falls back to a small in-memory

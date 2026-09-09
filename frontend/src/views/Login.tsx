@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Eye, EyeOff, Lock, RefreshCw, ShieldCheck } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
+import { getJSON, postJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 
 // Password second factor (M817). The daemon's URL token gets the SPA shell to

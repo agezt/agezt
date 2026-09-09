@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // AnimatedNumber count-ups (or down) to its target whenever the value changes
 // (M975), so the cockpit's counters feel alive instead of snapping. Eases out

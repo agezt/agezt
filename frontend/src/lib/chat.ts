@@ -1,5 +1,5 @@
 import { num } from "@/lib/rundetail";
-import { authHeaders } from "@/lib/api";
+import { authHeaders } from "@/app/api";
 
 // A frame is one SSE `data:` object streamed by the webui /api/run proxy. Most
 // frames carry a forwarded agent event ({kind, payload, ...}); the proxy also

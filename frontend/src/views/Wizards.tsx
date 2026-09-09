@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Wand2, X, Bot, CalendarClock, KeyRound, Check, ArrowRight, ArrowLeft, Plug, Anchor, Wallet, Radio, type LucideIcon } from "lucide-react";
 import { Page } from "@/components/ui/page";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

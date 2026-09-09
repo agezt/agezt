@@ -19,9 +19,9 @@ import {
   Archive,
   ArchiveRestore,
 } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import { focusRun } from "@/lib/runfocus";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

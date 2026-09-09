@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 
 interface PanelState<T> {
   data: T | null;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { clip, prettyJSON, fmtTime, fmtWhen, __resetPrettyJSONCacheForTest } from "@/lib/utils";
+import { clip, prettyJSON, fmtTime, fmtWhen, __resetPrettyJSONCacheForTest } from "@/app/utils";
 
 beforeEach(() => {
   // The cache lives at module scope; reset between tests so the cache

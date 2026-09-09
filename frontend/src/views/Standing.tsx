@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, X, Pencil, Save, Download, Upload, Users, AlertTriangle, ClipboardList, TimerReset, type LucideIcon } from "lucide-react";
 import { AgentPicker } from "@/components/AgentPicker";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, fmtTime } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn, fmtTime } from "@/app/utils";
 import { downloadText } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";

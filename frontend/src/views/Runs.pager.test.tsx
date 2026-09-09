@@ -46,8 +46,8 @@ let nextResponse: Response | ((cursor: string | null) => Response) | "throw" = {
 const messages: string[] = [];
 let throwOn: string | null = null;
 
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
+vi.mock("@/app/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/api")>();
   return {
     ...actual,
     HTTPError: actual.HTTPError,

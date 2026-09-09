@@ -6,7 +6,7 @@ import { renderHook, waitFor, cleanup } from "@testing-library/react";
 // branch and the HTTPError / 404 fallback path. The mock is hoisted before the
 // import of `files.ts`, which vitest requires for the spies to be in place when
 // the module evaluates.
-vi.mock("@/lib/api", async (importOriginal) => {
+vi.mock("@/app/api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -24,7 +24,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-import { HTTPError, getJSON } from "@/lib/api";
+import { HTTPError, getJSON } from "@/app/api";
 import { useFileTree, basename, isPathSafe, joinPath, parentPath, __resetTreeCacheForTest } from "./files";
 
 const mockedGetJSON = vi.mocked(getJSON);

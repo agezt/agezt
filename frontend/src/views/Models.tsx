@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, Trash2, Check, X, type LucideIcon } from "lucide-react";
-import { getJSON, postJSON, postAction } from "@/lib/api";
-import { cn, fmtDateTime, fmtAgo} from "@/lib/utils";
+import { getJSON, postJSON, postAction } from "@/app/api";
+import { cn, fmtDateTime, fmtAgo} from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty";

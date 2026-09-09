@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { RefreshCw, Wallet, Check, Infinity as InfinityIcon, SlidersHorizontal, X, Gauge } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { postAction } from "@/lib/api";
+import { postAction } from "@/app/api";
 import { money } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

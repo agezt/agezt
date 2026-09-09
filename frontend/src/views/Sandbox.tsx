@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FlaskConical, RefreshCw, ChevronRight, ChevronDown, FileCode, FileText, Download, Trash2, ShieldAlert } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
-import { cn, fmtDateTime } from "@/lib/utils";
+import { getJSON, postAction } from "@/app/api";
+import { cn, fmtDateTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";

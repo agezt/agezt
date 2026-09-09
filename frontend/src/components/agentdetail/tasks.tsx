@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Play, AlertTriangle, Wrench, CheckCheck, Archive, Trash2, Plus, Repeat } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { type AgentProfile } from "@/views/Roster";
 import { type AgentOperationalTask } from "@/lib/agentdetail";

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // Disclosure — the console's progressive-disclosure primitive. Lead with a humane
 // summary; fold everything power-user/diagnostic underneath until the operator

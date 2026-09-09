@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Sparkles, ArrowUpRight, Share2 } from "lucide-react";
-import { clip } from "@/lib/utils";
+import { clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";

@@ -4,8 +4,8 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import { ExecutionProfilePicker } from "@/views/Chat";
 
 const getJSON = vi.fn();
-vi.mock("@/lib/api", async (orig) => {
-  const actual = await orig<typeof import("@/lib/api")>();
+vi.mock("@/app/api", async (orig) => {
+  const actual = await orig<typeof import("@/app/api")>();
   return { ...actual, getJSON: (...a: unknown[]) => getJSON(...a) };
 });
 

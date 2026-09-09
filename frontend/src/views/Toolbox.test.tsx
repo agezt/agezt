@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-li
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   authHeaders: (h?: Record<string, string>) => h || {},
 }));

@@ -22,9 +22,9 @@ import {
   CheckCircle2,
   XOctagon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { money } from "@/lib/format";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { Advanced } from "@/components/ui/advanced";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
@@ -36,7 +36,7 @@ import {
   IncidentBadges,
 } from "@/components/IncidentBadges";
 import { Button } from "@/components/ui/button";
-import { fmtTime, fmtWhen, clip } from "@/lib/utils";
+import { fmtTime, fmtWhen, clip } from "@/app/utils";
 import { Sparkline, BarRow } from "@/components/Widgets";
 import { summarizeRoots, type RootSummary } from "@/views/Agents";
 import { TabNav } from "@/components/ui/tab-nav";

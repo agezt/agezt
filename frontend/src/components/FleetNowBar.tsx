@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Radio, CircleDot, Activity, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
-import { cn, clip, fmtAgo } from "@/lib/utils";
+import { cn, clip, fmtAgo } from "@/app/utils";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Sparkline } from "@/components/Sparkline";
 import { openAgent } from "@/lib/agentnav";

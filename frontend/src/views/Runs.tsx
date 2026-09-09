@@ -11,7 +11,7 @@ import {
   CircleDot,
   CircleStop,
 } from "lucide-react";
-import { postAction } from "@/lib/api";
+import { postAction } from "@/app/api";
 import { useUI } from "@/components/ui/feedback";
 import { useEvents } from "@/lib/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
@@ -20,7 +20,7 @@ import { Page } from "@/components/ui/page";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";
 import { EmptyState } from "@/components/ui/empty";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/lib/runfocus";

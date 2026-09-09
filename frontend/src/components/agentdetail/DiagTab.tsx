@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, ShieldCheck, AlertTriangle, Wrench } from "lucide-react";
-import { postJSON } from "@/lib/api";
-import { cn, fmtTime, fmtDateTime, fmtAgo, clip } from "@/lib/utils";
+import { postJSON } from "@/app/api";
+import { cn, fmtTime, fmtDateTime, fmtAgo, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";

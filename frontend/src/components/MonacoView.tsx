@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, FileText, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { languageFor } from "@/lib/language";
 import { PINNED_MONACO_VERSION } from "@/lib/monaco";
 

@@ -41,7 +41,7 @@ const { getJSON, postJSON, toast, stt, tts } = vi.hoisted(() => ({
   }] as TestProvider[],
 }));
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...args: unknown[]) => getJSON(...args),
   postJSON: (...args: unknown[]) => postJSON(...args),
 }));

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ListPlus, Pencil, Pin, Send, Sparkles, Trash2, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getJSON } from "@/lib/api";
+import { cn } from "@/app/utils";
+import { getJSON } from "@/app/api";
 import { type Msg } from "@/lib/conversations";
 import type { QueuedMsg } from "@/lib/queue";
 import { type Suggestion } from "@/components/SuggestionsBar";

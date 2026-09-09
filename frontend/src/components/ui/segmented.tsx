@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 /**
  * Segmented — an exclusive choice between a few modes, as a pill row.

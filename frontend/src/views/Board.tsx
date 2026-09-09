@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { MessagesSquare, RefreshCw, Hash, User, ArrowRight, CornerDownRight, LifeBuoy, Megaphone, Send, X, CheckCheck, Zap, Inbox, MessageSquare, Terminal, AtSign, BellRing, Columns3, CircleDot, type LucideIcon } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, fmtTime } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Armchair, Plus, RefreshCw, Trash2, Shield, Lock } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

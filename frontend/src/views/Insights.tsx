@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { BarChart3, RefreshCw, Wallet, ListTree, Activity, Timer, Repeat } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { money, pct } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { toneForStatus, toneText } from "@/lib/tone";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";

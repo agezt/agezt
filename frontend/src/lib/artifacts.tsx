@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { authHeaders } from "@/lib/api";
+import { authHeaders } from "@/app/api";
 
 // The artifact domain: what a stored artifact IS, how to classify it, and how to
 // get its bytes. The daemon indexes every agent output and inbound channel file

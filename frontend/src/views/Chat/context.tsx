@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Gauge, Scissors, Sparkles, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { fmtCount } from "@/lib/format";
 import { findModelContext, fmtContext, type ModelCatalog } from "@/lib/models";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { CHARS_PER_TOKEN, contextTokensUsed, type ChatTurn, type TurnCompaction } from "@/lib/chat";
 
 // loadCatalog caches the /api/catalog fetch for the context chips: every turn

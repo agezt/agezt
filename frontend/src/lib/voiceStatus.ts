@@ -1,4 +1,4 @@
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { speechSupported } from "@/lib/speech";
 
 interface ServerVoiceStatus {

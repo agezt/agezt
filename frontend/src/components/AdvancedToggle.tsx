@@ -1,6 +1,6 @@
 import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { useAdvanced } from "@/lib/advanced";
 
 // AdvancedToggle flips global Advanced mode. Calm by default; when on it lights

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // ActivityChip is the always-visible "something is working" signal in the global
 // header ([[product-layer-priority]]). When a run is in flight ANYWHERE — a chat

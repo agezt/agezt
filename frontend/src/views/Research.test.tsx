@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const postJSON = vi.fn();
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: vi.fn(),
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));

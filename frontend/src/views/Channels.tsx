@@ -4,8 +4,8 @@ import {
   Image as ImageIcon, Mic, ArrowDown, ArrowUp, ArrowLeftRight, ArrowRight,
   Plus, Pencil, Trash2, X, ListChecks, KeyRound, Send,
 } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

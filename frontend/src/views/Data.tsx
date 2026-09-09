@@ -21,9 +21,9 @@ import {
   ExternalLink,
   Save,
 } from "lucide-react";
-import { getJSON, postJSON, postAction } from "@/lib/api";
+import { getJSON, postJSON, postAction } from "@/app/api";
 import { canonicalDate, dayKey, localDayKey, localMonthKey, monthKey } from "@/lib/datalakedate";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { safeHref } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";

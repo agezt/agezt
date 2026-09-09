@@ -11,9 +11,9 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { LogDetail } from "@/components/LogDetail";
-import { getJSON, postAction, postJSON } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/app/api";
 import { byDescValue, pct } from "@/lib/format";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 
 interface EdictShow {
   ask_policy?: string;

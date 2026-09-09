@@ -25,10 +25,10 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { money } from "@/lib/format";
-import { cn, clip, fmtTime } from "@/lib/utils";
+import { cn, clip, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";

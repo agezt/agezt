@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 
 const getJSON = vi.fn();
-vi.mock("@/lib/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
+vi.mock("@/app/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 
 import { JarvisPresenceCard } from "@/components/JarvisPresenceCard";
 

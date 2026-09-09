@@ -6,7 +6,7 @@ import { pctOf, Storage } from "./Storage";
 import { UIProvider } from "@/components/ui/feedback";
 
 const postAction = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: vi.fn(),
   postAction: (...a: unknown[]) => postAction(...a),
 }));

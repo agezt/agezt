@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, CornerDownLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { filterCommands, type CommandItem } from "@/lib/commands";
 
 // CommandPalette is the ⌘K launcher: fuzzy-search every view, action and recent

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, Search, X } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { categoryOf, isErrorKind, CATEGORIES } from "@/lib/eventmeta";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { DataView } from "@/components/DataView";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { ToggleChip, FilterToken } from "@/components/ui/segmented";

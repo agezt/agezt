@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // A small kit of pure-SVG/CSS data widgets — gauges, sparklines, bars — so views
 // can show state visually instead of as flat tables. No chart library: each is a

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Cpu, ArrowRight, Waypoints } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn, fmtTime, clip } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn, fmtTime, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";

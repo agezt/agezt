@@ -4,8 +4,8 @@ import {
   List, Play, RefreshCw, Scale, Search, Shield, Star, Stethoscope,
   Wrench, Zap, type LucideIcon
 } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 
 // IconMap maps icon names from the backend to Lucide components.
 const iconMap: Record<string, LucideIcon> = {

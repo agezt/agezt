@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import type { LucideIcon } from "lucide-react";
 import { toneBg, toneBorder, toneChip, toneText, type Tone } from "@/lib/tone";
 

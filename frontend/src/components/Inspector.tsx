@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEvents, type AgentEvent } from "@/lib/events";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { toneForStatus, toneText } from "@/lib/tone";
 
 // ───────────────────────── Inspector types ─────────────────────────

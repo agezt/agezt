@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ReactFlow, Background, Controls, MarkerType, type Node, type Edge } from "@xyflow/react";
-import { clip } from "@/lib/utils";
+import { clip } from "@/app/utils";
 
 interface Entity {
   id: string;

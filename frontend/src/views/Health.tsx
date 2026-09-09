@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HeartPulse, RefreshCw, Clock, ShieldAlert, Brain, ListTree, Pause, CheckSquare, Stethoscope, CalendarClock, CheckCircle2, XOctagon, Activity, Cpu, Server, Database, Network, Sparkles, Wrench, KeyRound } from "lucide-react";
-import { cn, fmtWhen } from "@/lib/utils";
-import { getJSON } from "@/lib/api";
+import { cn, fmtWhen } from "@/app/utils";
+import { getJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
 import { SectionPanel } from "@/components/ui/section-panel";

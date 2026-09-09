@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // Sparkline (M976) — a zero-dependency inline trend graphic: a smoothed area +
 // line for a small number series, sized to fit beside a counter. No chart lib,

@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, X, RefreshCw } from "lucide-react";
-import { postAction, getJSON } from "@/lib/api";
+import { postAction, getJSON } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { ingestCouncilEvent } from "@/lib/councilStore";
 import { ingestConductorEvent } from "@/lib/conductorStore";

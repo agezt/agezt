@@ -17,8 +17,8 @@ import {
   XOctagon,
   type LucideIcon,
 } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { toneBorder, toneChip } from "@/lib/tone";
 import { StatTile } from "@/components/ui/metric-widget";
 import { Button } from "@/components/ui/button";

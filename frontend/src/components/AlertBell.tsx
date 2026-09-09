@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { useEvents } from "@/lib/events";
 import { classifyAlert } from "@/lib/alerts";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // AlertBell is the global proactive-signal indicator: it lives in the header on
 // EVERY view and counts the daemon's warning/critical alerts (self-health

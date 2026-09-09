@@ -22,8 +22,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { authHeaders, postAction } from "@/lib/api";
-import { cn, fmtTime } from "@/lib/utils";
+import { authHeaders, postAction } from "@/app/api";
+import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonGrid } from "@/components/ui/skeleton";

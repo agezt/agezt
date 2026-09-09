@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ListTree, ScrollText } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn, fmtTime } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn, fmtTime } from "@/app/utils";
 import { money } from "@/lib/format";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Badge, statusVariant } from "@/components/ui/badge";

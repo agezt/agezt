@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/app/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import {
   streamRun,

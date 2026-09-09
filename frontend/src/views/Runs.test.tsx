@@ -7,7 +7,7 @@ import type { AgentEvent } from "@/lib/events";
 const getJSON = vi.fn();
 const postAction = vi.fn();
 let liveEvents: AgentEvent[] = [];
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquarePlus, RefreshCw, Save, Plus, Trash2, ArrowUp, ArrowDown, Download, Upload, ListChecks, Pencil, X } from "lucide-react";
-import { getJSON, postJSON } from "@/lib/api";
+import { getJSON, postJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

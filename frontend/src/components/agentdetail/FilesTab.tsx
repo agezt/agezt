@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FolderOpen, ChevronRight } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { cn } from "@/app/utils";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
 import { type SkillLite } from "@/lib/agentdetail";

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageSquare, X, Maximize2, Send, Square, Sparkles, User } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { useChat } from "@/lib/chatStore";
 import { turnText } from "@/lib/chat";
 import type { Msg } from "@/lib/conversations";

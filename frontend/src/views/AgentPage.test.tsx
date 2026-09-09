@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const getJSON = vi.fn();
 const postJSON = vi.fn();
 const postAction = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...args: unknown[]) => getJSON(...args),
   postJSON: (...args: unknown[]) => postJSON(...args),
   postAction: (...args: unknown[]) => postAction(...args),

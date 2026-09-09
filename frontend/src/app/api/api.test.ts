@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { readAndScrubToken } from "@/lib/api";
+import { readAndScrubToken } from "@/app/api";
 
 beforeEach(() => {
   history.replaceState(null, "", "/");

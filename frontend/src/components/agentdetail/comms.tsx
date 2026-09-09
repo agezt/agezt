@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, Share2, Zap, Mail, ArrowRight, Send, CheckCheck, CornerDownRight, LifeBuoy, Megaphone } from "lucide-react";
-import { postJSON } from "@/lib/api";
-import { cn, fmtAgo, clip } from "@/lib/utils";
+import { postJSON } from "@/app/api";
+import { cn, fmtAgo, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";

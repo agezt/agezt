@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // PageHeader (M978) — the consistent top of every view: a gradient-ringed icon
 // badge, a strong title (gradient on the dark command-center theme), a one-line

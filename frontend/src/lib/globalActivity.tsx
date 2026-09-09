@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import {
   foldActivityEvent,
   seedFromRuns,

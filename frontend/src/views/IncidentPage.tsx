@@ -14,7 +14,7 @@ import {
   GitBranch,
   type LucideIcon,
 } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/app/api";
 import { useEvents, type AgentEvent } from "@/lib/events";
 import { classifyAlert, type RankedAlert } from "@/lib/alerts";
 import {
@@ -57,7 +57,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AgentRepair } from "@/components/AgentRepair";
 import { useUI } from "@/components/ui/feedback";
-import { fmtTime } from "@/lib/utils";
+import { fmtTime } from "@/app/utils";
 
 interface IncidentAlert extends RankedAlert {}
 

@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { HardDrive, RefreshCw, Trash2, Brain, Combine, Skull, Loader2, FolderTree, X, type LucideIcon } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
-import { getJSON, postAction } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { getJSON, postAction } from "@/app/api";
+import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { SkeletonGrid } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";

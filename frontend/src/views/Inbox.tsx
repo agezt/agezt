@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Inbox as InboxIcon, RefreshCw, ArrowDownLeft, ArrowUpRight, Send, Plus, X, Search, ListTree, AtSign } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import { useEvents } from "@/lib/events";
 import { useInboxPager } from "@/lib/cursorPager";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorText } from "@/components/JsonView";

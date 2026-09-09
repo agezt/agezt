@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles, RefreshCw, ChevronRight, ChevronDown, Check, ShieldX, Undo2, Plus, Pencil, Search, Bot, Share2, AlertTriangle, X, FileText, Tags, History, type LucideIcon } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
-import { cn, fmtTime, fmtAgo } from "@/lib/utils";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn, fmtTime, fmtAgo } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";

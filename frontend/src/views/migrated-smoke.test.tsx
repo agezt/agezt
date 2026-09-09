@@ -14,7 +14,7 @@ import { UIProvider } from "@/components/ui/feedback";
 
 // Data-less mounts: getJSON never resolves with real data, so each view renders
 // its skeleton/empty branch — enough to exercise the Page root + header.
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: vi.fn(() => new Promise(() => {})),
   postAction: vi.fn(),
 }));

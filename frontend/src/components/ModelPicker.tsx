@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search, Check, Cpu, Wrench, Brain, KeyRound, X, Route, Waypoints } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getJSON } from "@/lib/api";
+import { cn } from "@/app/utils";
+import { getJSON } from "@/app/api";
 import {
   flattenModels,
   filterModels,

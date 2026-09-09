@@ -1,4 +1,4 @@
-import { authHeaders, getJSON } from "@/lib/api";
+import { authHeaders, getJSON } from "@/app/api";
 import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
 
 // One security-review finding from the pre-install vet (kernel/market.VetFinding).

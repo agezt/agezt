@@ -4,7 +4,7 @@ import { render, cleanup, waitFor } from "@testing-library/react";
 
 const getJSON = vi.fn();
 const postAction = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
   authHeaders: () => new Headers({ Authorization: "Bearer test-token" }),

@@ -4,7 +4,7 @@
 // daemon-level defaults without pretending to export every roster agent identity.
 // Each section already has its own get/set command; this just bundles + restores them.
 
-import { getJSON, postJSON } from "@/lib/api";
+import { getJSON, postJSON } from "@/app/api";
 
 export interface ConfigBundle {
   persona?: string;

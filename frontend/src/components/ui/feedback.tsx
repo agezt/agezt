@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { CheckCircle2, XCircle, Info, AlertTriangle, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // A small, self-contained feedback layer so the app never falls back to the
 // browser's alert()/confirm()/prompt() — every transient message is a toast,

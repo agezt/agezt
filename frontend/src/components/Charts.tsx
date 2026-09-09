@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // Lightweight, dependency-free, theme-aware charts (inline SVG + flex bars).
 // Colours come from `currentColor` driven by Tailwind text classes, so they

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Search as SearchIcon, Loader2, GitBranch, ShieldCheck, ShieldAlert, ShieldQuestion, Download } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { downloadText } from "@/lib/export";
 import type { AgentEvent } from "@/lib/events";
 import { categoryOf, isErrorKind } from "@/lib/eventmeta";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { DataView } from "@/components/DataView";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { Page } from "@/components/ui/page";

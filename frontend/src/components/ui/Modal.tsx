@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 
 // Modal — a small, opinionated, accessible modal primitive that consolidates the
 // three slightly-different inline modals the app accumulated before this layer

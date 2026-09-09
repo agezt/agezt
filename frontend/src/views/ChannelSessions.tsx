@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Radio, ChevronDown, ChevronRight, X, MessageCircle, Send } from "lucide-react";
-import { getJSON, postAction } from "@/lib/api";
+import { getJSON, postAction } from "@/app/api";
 import { useEvents } from "@/lib/events";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";

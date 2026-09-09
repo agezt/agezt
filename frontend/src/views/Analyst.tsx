@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Sparkles, Send, Loader2, Brain } from "lucide-react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { money } from "@/lib/format";
 import { Markdown } from "@/components/Markdown";
 import { ErrorText } from "@/components/JsonView";

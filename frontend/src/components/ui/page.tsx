@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { PageHeader } from "@/components/ui/page-header";
 
 // Page — the single scroll-safe, responsive scaffold every view sits on. It

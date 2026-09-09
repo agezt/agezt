@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { getJSON } from "@/lib/api";
+import { getJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";

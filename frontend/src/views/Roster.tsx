@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/lib/api";
+import { getJSON, postAction, postJSON } from "@/app/api";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
-import { cn, fmtDateTime } from "@/lib/utils";
+import { cn, fmtDateTime } from "@/app/utils";
 import { money } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";

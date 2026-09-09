@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/utils";
 import { agentHue, initials } from "@/lib/agent";
 
 // AgentAvatar (M948) is the shared agent identity chip: a gradient monogram in

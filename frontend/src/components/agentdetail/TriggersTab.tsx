@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Anchor, Clock, ArrowUpRight, Play, Pause, Flame, CalendarClock, Zap, Mail, LifeBuoy, Megaphone, Trash2 } from "lucide-react";
-import { getJSON } from "@/lib/api";
-import { fmtTime, fmtDateTime, clip } from "@/lib/utils";
+import { getJSON } from "@/app/api";
+import { fmtTime, fmtDateTime, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";

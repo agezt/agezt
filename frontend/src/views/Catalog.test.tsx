@@ -5,7 +5,7 @@ import { Catalog } from "@/views/Catalog";
 
 const getJSON = vi.fn();
 const postAction = vi.fn();
-vi.mock("@/lib/api", () => ({
+vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));

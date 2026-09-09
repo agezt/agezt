@@ -1,4 +1,4 @@
-import { getJSON, postJSON, postAction } from "@/lib/api";
+import { getJSON, postJSON, postAction } from "@/app/api";
 import { applyConfigBundle } from "@/lib/configbackup";
 import { parseStandingJSON } from "@/views/Standing";
 import { parseSchedulesJSON } from "@/views/schedules/shared";

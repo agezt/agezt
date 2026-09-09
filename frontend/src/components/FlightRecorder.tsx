@@ -18,7 +18,7 @@ import {
   Circle,
   Gauge,
 } from "lucide-react";
-import { cn, fmtTime } from "@/lib/utils";
+import { cn, fmtTime } from "@/app/utils";
 import { money } from "@/lib/format";
 import type { ReplayStep, StepTone } from "@/lib/replay";
 import { IncidentBadges } from "@/components/IncidentBadges";
