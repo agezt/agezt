@@ -9,7 +9,7 @@ import {
   removeAt,
   renameChain,
   deleteChain,
-} from "@/lib/chains";
+} from "@/features/workflows/lib/chains";
 
 describe("chain references", () => {
   it("isChainRef / chainName / chainRef round-trip", () => {

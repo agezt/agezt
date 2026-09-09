@@ -28,7 +28,7 @@ import {
   workflowRunSourceLabel,
   type Wf,
   type WfRun,
-} from "@/views/Workflows";
+} from "@/features/workflows/components/Workflows";
 import { UIProvider } from "@/components/ui/feedback";
 
 const withUI = (node: ReactNode) => <UIProvider>{node}</UIProvider>;

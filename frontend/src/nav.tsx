@@ -84,7 +84,7 @@ const Roster = lazyNamed(() => import("@/features/agents/components/Roster"), "R
 const Overseer = lazyNamed(() => import("@/views/Overseer"), "Overseer");
 const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
 const Mcp = lazyNamed(() => import("@/views/Mcp"), "Mcp");
-const Workflows = lazyNamed(() => import("@/views/Workflows"), "Workflows");
+const Workflows = lazyNamed(() => import("@/features/workflows/components/Workflows"), "Workflows");
 const Workboard = lazyNamed(() => import("@/views/Workboard"), "Workboard");
 const OKR = lazyNamed(() => import("@/views/OKR"), "OKR");
 const Taste = lazyNamed(() => import("@/views/Taste"), "Taste");
@@ -104,7 +104,7 @@ const ExecutionProfiles = lazyNamed(() => import("@/views/ExecutionProfiles"), "
 const Catalog = lazyNamed(() => import("@/views/Catalog"), "Catalog");
 const Models = lazyNamed(() => import("@/views/Models"), "Models");
 const Routing = lazyNamed(() => import("@/views/Routing"), "Routing");
-const Chains = lazyNamed(() => import("@/views/Chains"), "Chains");
+const Chains = lazyNamed(() => import("@/features/workflows/components/Chains"), "Chains");
 export const Setup = lazyNamed(() => import("@/views/Setup"), "Setup");
 const Toolbox = lazyNamed(() => import("@/views/Toolbox"), "Toolbox");
 const Market = lazyNamed(() => import("@/views/Market"), "Market");

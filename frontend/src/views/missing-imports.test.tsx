@@ -3,7 +3,7 @@ import { ACPAgents } from "@/features/agents/components/ACPAgents";
 import { Analyst } from "@/views/Analyst";
 import { Cache } from "@/views/Cache";
 import { Catalog } from "@/views/Catalog";
-import { Chains } from "@/views/Chains";
+import { Chains } from "@/features/workflows/components/Chains";
 import { Chat } from "@/views/Chat";
 import { ConfigInventory } from "@/components/ConfigInventory";
 import { Council } from "@/features/council/components/Council";

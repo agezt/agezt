@@ -11,7 +11,7 @@ import {
   type ModelCatalog,
   type ModelOption,
 } from "@/lib/models";
-import { isChainRef, chainName, chainRef, type ChainsState } from "@/lib/chains";
+import { isChainRef, chainName, chainRef, type ChainsState } from "@/features/workflows/lib/chains";
 
 // PinnedModels is an ordered id list shown as the picker's FIRST group (M931) —
 // e.g. the chat task's routing chain, so the models the run will actually fall

@@ -260,7 +260,7 @@ Sırayla (önce küçük, sonra büyük):
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (40.2s).
   - **Yardımcı**: `scripts/dev/rewrite-agents-imports.py` — regex round-2 (agentdetail subpath'leri) dahil 2-pass tasarım.
   - **Kalan (Day 11)**: `views/Roster.tsx` (1499 satır) + `views/roster/*` (7 dosya, 1720 satır) — Roster'ın import'ları forward-compatible olarak bu commit'te güncellendi (`@/lib/agentdetail` → `@/features/agents/lib/agentdetail`); Day 11'de `views/Roster.tsx` → `features/agents/components/Roster.tsx` taşıması + bulk rewrite yapılacak.
-- **Day 11** (bu commit): `features/agents/components/{Roster,roster/*}` — agents feature'ı tamamlandı.
+- **Day 11** (`a83732a0`): `features/agents/components/{Roster,roster/*}` — agents feature'ı tamamlandı.
   - **Taşınan (9 dosya, 5043 satır)**:
     - `views/Roster.tsx` (1499 satır) + `views/Roster.test.tsx` (1824 satır) → `features/agents/components/`
     - `views/roster/*` (7 dosya, 1720 satır: cards, filters, form, guardians, passports, removal, shared) → `features/agents/components/roster/`
@@ -276,14 +276,27 @@ Sırayla (önce küçük, sonra büyük):
   - **Yardımcı**: `scripts/dev/rewrite-roster-imports.py`
   - **Agents feature tamamlandı**: 49 dosya, ~11K satır (12 lib + 28 component + 9 Roster/roster + 2 barrel). 5. feature, en büyüğü.
   - **Boş kalan**: `views/roster/` (boş subdir, 7 dosya taşındı) — git'te untracked olarak kalacak, ileride temizlenir.
+- **Day 12** (bu commit): `features/workflows/` — 6. feature, orta boy (~2600 satır, 5 dosya).
+  - **Taşınan (5 dosya, 2628 satır)**:
+    - `lib/chains.{ts,test.ts}` (2, 152 satır) → `features/workflows/lib/`
+    - `views/Workflows.tsx` (1597 satır — god file) + `views/Workflows.test.tsx` (478 satır) → `features/workflows/components/`
+    - `views/Chains.tsx` (401 satır) → `features/workflows/components/`
+  - **Yeni**: `features/workflows/{index,types}.ts` (barrel + 8 tip re-export + 9 helper re-export)
+  - **Güncellenen**: 9 dosyada import path rewrite
+    - `lib/chains` → `@/features/workflows/lib/chains`: 4 consumer (components/ModelChip, components/ModelPicker, features/agents/.../ModelTab, features/agents/.../roster/form)
+    - `views/Workflows` → `@/features/workflows/components/Workflows`: 3 (self test, nav lazy, views/missing-imports smoke test)
+    - `views/Chains` → `@/features/workflows/components/Chains`: 3 (self, nav lazy, views/missing-imports smoke test)
+  - **Public surface (workflows barrel)**: 2 sayfa (Workflows, Chains) + 9 helper/component re-export (CopilotPanel, RunsDrawer, toFlow, fromFlow, portsForNode, summarize, workflowChainKind, workflowRunSourceLabel, runToStatus) + 9 tip (Wf, WfNode, WfEdge, WfSettings, WorkflowChainKind, WfTemplate, WfRunNodeEvent, WfRun, ChainUsage)
+  - **Cross-feature consumers** (4): ModelChip + ModelPicker (shared model widget'lar), features/agents/ModelTab + features/agents/roster/form (chain-ref UI) — hepsi rewrite edildi
+  - **God file riski**: `Workflows.tsx` 1597 satır — 8 tip + 5 helper + 4 sub-component (WfNodeView, NodePanel, CopilotPanel, RunsDrawer) + Workflows() default + LastRun/freshID/TemplatePicker glue. Plan'a göre Day 26+ integration'da bölünecek (flow.ts, nodes.tsx, panels.tsx, CopilotPanel.tsx, RunsDrawer.tsx, Workflows.tsx); bugün sadece move.
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (36.6s)
+  - **Yardımcı**: `scripts/dev/rewrite-workflows-imports.py`
 
-## 10. Sonraki adaylar (Day 11+)
+## 10. Sonraki adaylar (Day 13+)
 
-- **Day 11**: `views/Roster.tsx` + `views/roster/*` → `features/agents/components/Roster.tsx` + `features/agents/components/roster/*` (import'lar zaten forward-compatible, sadece move + rewrite).
-- **Day 12**: `features/workflows/` (Workflows.tsx + helpers — God file riski yüksek, önce haritala)
 - **Day 13**: `features/schedules/` + `features/execution-profiles/`
 - **Day 14**: `features/memory/` + `features/standing/` + `features/configcenter/`
 - **Day 15**: `features/skills/` + `features/market/` + `features/setup/`
-- **Day 16-20**: kalan 17 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 16-20**: kalan 14 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting.
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 1597 satırlık `Workflows.tsx`'i `flow.ts/nodes.tsx/panels.tsx/...` 6 dosyaya böl.

@@ -9,7 +9,7 @@ import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { summarizeProviderRoutingRow, type ProviderRoutingRow } from "@/features/agents/lib/agentdetail";
-import { isChainRef, chainName, type ChainsState } from "@/lib/chains";
+import { isChainRef, chainName, type ChainsState } from "@/features/workflows/lib/chains";
 import { type ModelCatalog } from "@/lib/models";
 import { RoutingInfo, Row, editableAgentProfile } from "@/features/agents/components/agentdetail/shared";
 
