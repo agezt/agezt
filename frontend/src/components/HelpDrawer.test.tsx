@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { MessageSquare } from "lucide-react";
 import { HelpDrawer } from "@/components/HelpDrawer";
-import { HELP } from "@/lib/help";
+import { HELP } from "@/app/help";
 
 afterEach(cleanup);
 

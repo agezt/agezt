@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { HELP, FALLBACK_TOPIC, helpTopicFor } from "@/lib/help";
+import { HELP, FALLBACK_TOPIC, helpTopicFor } from "@/app/help";
 import { NAV } from "@/nav";
 
 // Coverage is DERIVED from nav.tsx, not a hand-kept list. The list version drifted

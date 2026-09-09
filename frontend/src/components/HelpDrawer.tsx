@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { X, Lightbulb, ArrowUpRight, type LucideIcon } from "lucide-react";
-import { helpTopicFor } from "@/lib/help";
+import { helpTopicFor } from "@/app/help";
 
 // HelpDrawer — the in-app manual (M920). A right-hand sheet that slides in over
 // the current view (never squeezing it) and explains the page the operator is
