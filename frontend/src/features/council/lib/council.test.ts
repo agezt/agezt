@@ -9,7 +9,7 @@ import {
   progressLabel,
   lastOpinionFor,
   type CouncilRun,
-} from "@/lib/council";
+} from "@/features/council/lib/council";
 import type { AgentEvent } from "@/app/events";
 
 const ev = (kind: string, payload: Record<string, unknown>, corr = "wc-1"): AgentEvent => ({

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { AgentEvent } from "@/app/events";
-import { newCouncilRun, foldCouncilEvent, type CouncilRun, type CouncilSeat } from "@/lib/council";
+import { newCouncilRun, foldCouncilEvent, type CouncilRun, type CouncilSeat } from "@/features/council/lib/council";
 
 // Council store (M987): a module-level singleton — deliberately ABOVE the view
 // router, like the chat store — so a council keeps assembling from the live event

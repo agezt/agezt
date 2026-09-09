@@ -19,7 +19,7 @@ vi.mock("@/components/ModelPicker", () => ({
 }));
 
 import { UIProvider } from "@/components/ui/feedback";
-import { Council } from "@/views/Council";
+import { Council } from "@/features/council/components/Council";
 
 afterEach(cleanup);
 

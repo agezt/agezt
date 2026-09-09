@@ -6,7 +6,7 @@ import { Catalog } from "@/views/Catalog";
 import { Chains } from "@/views/Chains";
 import { Chat } from "@/views/Chat";
 import { ConfigInventory } from "@/components/ConfigInventory";
-import { Council } from "@/views/Council";
+import { Council } from "@/features/council/components/Council";
 import { FlowStudio } from "@/views/FlowStudio";
 import { IncidentPage } from "@/features/incidents/components/IncidentPage";
 import { Mission } from "@/views/Mission";

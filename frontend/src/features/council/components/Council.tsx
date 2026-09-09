@@ -9,7 +9,7 @@ import { Markdown } from "@/components/Markdown";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { ModelPicker } from "@/components/ModelPicker";
-import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr, hydrateCouncilRun } from "@/lib/councilStore";
+import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr, hydrateCouncilRun } from "@/features/council/lib/councilStore";
 import type { AgentEvent } from "@/app/events";
 import { fmtWhen } from "@/app/utils";
 import { History } from "lucide-react";
@@ -21,7 +21,7 @@ import {
   roundLabel,
   progressLabel,
   lastOpinionFor,
-} from "@/lib/council";
+} from "@/features/council/lib/council";
 
 // Council of Elders view (M839): consult the multi-model panel (kernel/runtime
 // M837). It shows which models sit on the council, takes a question, convenes the

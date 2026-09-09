@@ -112,7 +112,7 @@ const Channels = lazyNamed(() => import("@/views/Channels"), "Channels");
 export const AgentPage = lazyNamed(() => import("@/views/AgentPage"), "AgentPage");
 export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
 const Data = lazyNamed(() => import("@/views/Data"), "Data");
-const Council = lazyNamed(() => import("@/views/Council"), "Council");
+const Council = lazyNamed(() => import("@/features/council/components/Council"), "Council");
 const Conductor = lazyNamed(() => import("@/views/Conductor"), "Conductor");
 const Research = lazyNamed(() => import("@/views/Research"), "Research");
 const Persona = lazyNamed(() => import("@/views/Persona"), "Persona");
