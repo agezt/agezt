@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
-import { useWebhookLogPager } from "@/lib/cursorPager";
+import { useWebhookLogPager } from "@/app/cursor-pager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 // One account field of a channel (mirrors kernel/settings.Field + set-state).

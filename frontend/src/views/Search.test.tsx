@@ -5,7 +5,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 const getJSON = vi.fn();
 vi.mock("@/app/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 const downloadText = vi.fn();
-vi.mock("@/lib/export", () => ({ downloadText: (...a: unknown[]) => downloadText(...a) }));
+vi.mock("@/app/export", () => ({ downloadText: (...a: unknown[]) => downloadText(...a) }));
 
 import { Search, CausationTrace, JournalIntegrity, JournalExport, journalExportBundle } from "@/views/Search";
 

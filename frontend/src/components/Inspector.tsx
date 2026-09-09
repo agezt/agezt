@@ -11,7 +11,7 @@ import {
   Bug,
   type LucideIcon,
 } from "lucide-react";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { cn, fmtTime } from "@/app/utils";
 import { toneForStatus, toneText } from "@/lib/tone";
 

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const getJSON = vi.fn();
 const postAction = vi.fn();
@@ -11,7 +11,7 @@ vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: liveEvents, connected: true, subscribe: () => () => {} }),
 }));
 // Stub the UI feedback context: confirm auto-approves so the stop flow proceeds.

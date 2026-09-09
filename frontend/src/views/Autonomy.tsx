@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { useUI } from "@/components/ui/feedback";
 import { cn, fmtWhen } from "@/app/utils";
 import { Button } from "@/components/ui/button";

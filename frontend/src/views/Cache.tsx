@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Database, RefreshCw, PiggyBank, Download, Upload, Hash } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { useEvents } from "@/lib/events";
-import { money } from "@/lib/format";
+import { useEvents } from "@/app/events";
+import { money } from "@/app/format";
 import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";

@@ -11,7 +11,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import { clip } from "@/app/utils";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 
 type DelegationData = {

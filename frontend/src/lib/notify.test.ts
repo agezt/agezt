@@ -5,7 +5,7 @@ import {
   notifyEnabled,
   setNotifyEnabled,
 } from "@/lib/notify";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const ev = (
   kind: string,

@@ -1,5 +1,5 @@
 import { num } from "@/lib/rundetail";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 // ActiveRun is one agent run as the Activity monitor sees it live — folded from
 // the event firehose so the operator can answer "is anything running right now,

@@ -5,7 +5,7 @@
 // several (connected, lastEventAt, now) triples.
 
 import { describe, it, expect } from "vitest";
-import { connectionState, STALE_MS } from "@/lib/events";
+import { connectionState, STALE_MS } from "@/app/events";
 
 describe("connectionState", () => {
   it("reports disconnected when the socket is closed", () => {

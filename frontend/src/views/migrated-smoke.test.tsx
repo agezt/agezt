@@ -25,7 +25,7 @@ vi.mock("@/lib/usePanel", () => ({
 // FlowStudio subscribes to the event stream and renders a React-Flow DAG
 // (@xyflow/react needs ResizeObserver, absent in jsdom) — stub both so the
 // smoke exercises FlowStudio's own Page shell, not the graph internals.
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 vi.mock("@/components/PlanDag", () => ({ PlanDag: () => null }));

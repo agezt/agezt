@@ -22,7 +22,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 const subscribe = vi.fn(() => () => {});
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe }),
 }));
 

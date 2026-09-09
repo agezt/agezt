@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { classifyAlert } from "@/lib/alerts";
 import { cn } from "@/app/utils";
 

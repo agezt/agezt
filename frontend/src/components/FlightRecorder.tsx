@@ -19,7 +19,7 @@ import {
   Gauge,
 } from "lucide-react";
 import { cn, fmtTime } from "@/app/utils";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import type { ReplayStep, StepTone } from "@/lib/replay";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import { StatTile } from "@/components/ui/metric-widget";

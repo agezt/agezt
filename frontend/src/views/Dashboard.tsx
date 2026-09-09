@@ -23,10 +23,10 @@ import {
   XOctagon,
 } from "lucide-react";
 import { cn } from "@/app/utils";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { getJSON } from "@/app/api";
 import { Advanced } from "@/components/ui/advanced";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { recentAttentionAlerts, type RankedAlert } from "@/lib/alerts";
 import { incidentRootId } from "@/lib/incidents";

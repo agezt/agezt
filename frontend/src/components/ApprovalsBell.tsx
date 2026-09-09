@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck, ShieldAlert, Check, X, ArrowRight } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { cn } from "@/app/utils";
 
 // PendingApproval is one HITL request awaiting the operator's decision, as

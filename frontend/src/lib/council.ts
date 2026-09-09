@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 // Council live model (M987). The backend emits a stream of council.* events as a
 // deliberation unfolds — convened → each member starts its turn → each opinion

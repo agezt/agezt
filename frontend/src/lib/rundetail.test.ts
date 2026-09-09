@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { deriveDetail, num, mergeEvents, eventDedupKey } from "@/lib/rundetail";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 function contractFixture<T>(name: string): T {
   return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;

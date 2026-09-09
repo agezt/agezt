@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 // Proactive desktop notifications (M919): AGEZT reaches OUT to the operator for
 // the few high-signal events that genuinely need a human — an approval waiting,

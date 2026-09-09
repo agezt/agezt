@@ -3,7 +3,7 @@ import { Archive, Download, Upload, Palette, Server, Info, Camera } from "lucide
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
 import { useUI } from "@/components/ui/feedback";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
 import { fetchFullSnapshot, snapshotCounts, parseSnapshotJSON, applyFullSnapshot } from "@/lib/snapshot";

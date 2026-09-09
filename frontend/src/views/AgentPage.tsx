@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Bot } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";

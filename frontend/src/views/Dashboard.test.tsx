@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const getJSON = vi.fn();
 let liveEvents: AgentEvent[] = [];
 vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
 }));
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: liveEvents, connected: true, subscribe: () => () => {} }),
 }));
 vi.mock("@/lib/runfocus", () => ({ focusRun: vi.fn() }));

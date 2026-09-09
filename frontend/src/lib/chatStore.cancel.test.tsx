@@ -31,7 +31,7 @@ vi.mock("@/lib/chat", async (orig) => {
 });
 
 // The store subscribes to the global firehose; a no-op subscription is enough.
-vi.mock("@/lib/events", () => ({ useEvents: () => ({ subscribe: () => () => {} }) }));
+vi.mock("@/app/events", () => ({ useEvents: () => ({ subscribe: () => () => {} }) }));
 
 import { ChatProvider, useChat } from "@/lib/chatStore";
 

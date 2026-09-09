@@ -3,7 +3,7 @@ import {
   Sparkles, Mic, Zap, UserRound, RefreshCw, ArrowRight, Activity, Ear, Volume2, HeartPulse, Check, X, Power,
 } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { getVoiceReadiness, type VoiceReadiness } from "@/lib/voiceStatus";
 import { cn } from "@/app/utils";
 import { goToView } from "@/lib/nav";

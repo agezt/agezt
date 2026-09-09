@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { byDescValue, pct } from "@/lib/format";
+import { byDescValue, pct } from "@/app/format";
 import { cn, fmtTime } from "@/app/utils";
 
 interface EdictShow {

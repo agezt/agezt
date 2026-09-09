@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 // One tool call, assembled across the policy.decision / tool.invoked /
 // tool.result events that share a call_id.

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { newConductorRun, foldConductorEvent, type ConductorRun, type ConductorRoles, type ConductorStep } from "@/lib/conductor";
 
 // Conductor store (M997): a module-level singleton — deliberately ABOVE the view

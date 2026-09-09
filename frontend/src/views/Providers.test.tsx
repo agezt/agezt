@@ -10,7 +10,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 // Avoid the SSE EventSource (not in jsdom): stub the events hook.
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 

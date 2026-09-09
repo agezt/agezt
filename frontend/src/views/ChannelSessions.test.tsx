@@ -9,7 +9,7 @@ vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));
-vi.mock("@/lib/events", () => ({ useEvents: () => ({ events: [] }) }));
+vi.mock("@/app/events", () => ({ useEvents: () => ({ events: [] }) }));
 vi.mock("@/views/Files", () => ({ rawURL: () => "" }));
 
 import { ChannelSessions } from "@/views/ChannelSessions";

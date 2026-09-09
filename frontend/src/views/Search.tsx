@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Search as SearchIcon, Loader2, GitBranch, ShieldCheck, ShieldAlert, ShieldQuestion, Download } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { downloadText } from "@/lib/export";
-import type { AgentEvent } from "@/lib/events";
+import { downloadText } from "@/app/export";
+import type { AgentEvent } from "@/app/events";
 import { categoryOf, isErrorKind } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/app/utils";
 import { DataView } from "@/components/DataView";

@@ -125,7 +125,7 @@ export async function downloadArtifact(e: ArtifactEntry): Promise<void> {
 
 // humanSize is the artifact domain's name for the shared byte formatter; the
 // implementation lives in lib/format so every page agrees on it.
-export { bytes as humanSize } from "@/lib/format";
+export { bytes as humanSize } from "@/app/format";
 
 // BlobArtifact renders bytes that a plain <img src>/<iframe src> cannot fetch:
 // the raw route needs a bearer header, so the blob is fetched then handed to the

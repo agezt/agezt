@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Wrench, RefreshCw, Activity, AlertTriangle, Boxes, Search, ShieldCheck } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { cn, clip, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Muted, ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
 import { Ring } from "@/components/Widgets";
-import { useToolLogPager } from "@/lib/cursorPager";
+import { useToolLogPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { StatTile } from "@/components/ui/metric-widget";
 import { Segmented } from "@/components/ui/segmented";

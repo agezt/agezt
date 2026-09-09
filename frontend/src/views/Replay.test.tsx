@@ -7,7 +7,7 @@ vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
 }));
 
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ subscribe: vi.fn(() => vi.fn()) }),
 }));
 

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { newCouncilRun, foldCouncilEvent, type CouncilRun, type CouncilSeat } from "@/lib/council";
 
 // Council store (M987): a module-level singleton — deliberately ABOVE the view

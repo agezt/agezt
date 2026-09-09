@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { RefreshCw, Wallet, Check, Infinity as InfinityIcon, SlidersHorizontal, X, Gauge } from "lucide-react";
 import { usePanel } from "@/lib/usePanel";
 import { postAction } from "@/app/api";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
@@ -10,7 +10,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Page } from "@/components/ui/page";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Ring, BarRow } from "@/components/Widgets";
-import { useRateLimitLogPager } from "@/lib/cursorPager";
+import { useRateLimitLogPager } from "@/app/cursor-pager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { useUI } from "@/components/ui/feedback";
 

@@ -12,7 +12,7 @@ vi.mock("@/app/api", () => ({
 }));
 
 import { SteerControls } from "@/components/RunDetail";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const liveArc: AgentEvent[] = [{ kind: "task.received", correlation_id: "run-7", payload: {} }];
 

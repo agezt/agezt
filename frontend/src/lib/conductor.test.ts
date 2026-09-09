@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { newConductorRun, foldConductorEvent, progressLabel, type ConductorRun } from "@/lib/conductor";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const ev = (kind: string, payload: Record<string, unknown>, corr = "c1"): AgentEvent => ({
   kind,

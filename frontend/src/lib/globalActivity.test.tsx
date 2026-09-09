@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GlobalActivityProvider, useGlobalActivity } from "@/lib/globalActivity";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("@/app/api", () => ({
   getJSON: (...args: unknown[]) => mocks.getJSON(...args),
 }));
 
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({
     connected: mocks.connected,
     subscribe: (listener: (event: AgentEvent) => void) => {

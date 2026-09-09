@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { conversationToMarkdown, slugify } from "@/lib/export";
+import { conversationToMarkdown, slugify } from "@/app/export";
 import { newTurn, type ChatTurn } from "@/lib/chat";
 import type { Msg } from "@/lib/conversations";
 

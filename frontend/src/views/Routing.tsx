@@ -10,7 +10,7 @@ import { Page } from "@/components/ui/page";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { type ModelCatalog } from "@/lib/models";
 import { suggestChains } from "@/lib/routingSuggest";
 

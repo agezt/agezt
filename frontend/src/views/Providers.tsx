@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cpu, RefreshCw, Route, GitFork, RotateCw } from "lucide-react";
 import { getJSON, postAction } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { useUI } from "@/components/ui/feedback";
 import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Page } from "@/components/ui/page";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { BarList } from "@/components/Charts";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { useProviderLogPager } from "@/lib/cursorPager";
+import { useProviderLogPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 interface Stats {

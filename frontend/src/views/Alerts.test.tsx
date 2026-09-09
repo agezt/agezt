@@ -6,7 +6,7 @@ const getJSON = vi.fn();
 vi.mock("@/app/api", () => ({ getJSON: (...a: unknown[]) => getJSON(...a) }));
 // Empty live SSE buffer — the point of M777 is that history comes from the journal, not
 // the live stream.
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 const focusRun = vi.fn();

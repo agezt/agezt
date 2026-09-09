@@ -19,7 +19,7 @@ applyTheme();
 applyAccentHue(loadAccentHue());
 applyConsoleTitle(loadConsoleName());
 applyAdvanced();
-import { EventsProvider } from "@/lib/events";
+import { EventsProvider } from "@/app/events";
 import { GlobalActivityProvider } from "@/lib/globalActivity";
 import { UIProvider } from "@/components/ui/feedback";
 import { ChatProvider } from "@/lib/chatStore";

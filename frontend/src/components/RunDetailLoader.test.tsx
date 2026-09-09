@@ -10,7 +10,7 @@ vi.mock("@/app/api", () => ({
   postAction: (...a: unknown[]) => postAction(...a),
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({
     subscribe: () => () => {},
   }),

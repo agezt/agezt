@@ -49,7 +49,7 @@ import {
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Button } from "@/components/ui/button";
 import { cn, clip, fmtDateTime, fmtAgo } from "@/app/utils";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { summarizeAgentRuntimeStatus, fleetCardIssueSummary } from "@/lib/agentdetail";
 import { useUI } from "@/components/ui/feedback";
 import { postAction } from "@/app/api";

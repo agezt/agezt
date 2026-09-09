@@ -9,7 +9,7 @@ import {
   buildTree,
   type ActivityState,
 } from "@/lib/activity";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 function fold(events: AgentEvent[], init: ActivityState = {}): ActivityState {
   return events.reduce(foldActivityEvent, init);

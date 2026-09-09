@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Radar, Zap, Coins, Wrench, Brain, Activity, Waypoints, ListTree, Bell } from "lucide-react";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { eventDedupKey } from "@/lib/rundetail";
 import { getJSON } from "@/app/api";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { cn, fmtWhen } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { focusRun } from "@/lib/runfocus";

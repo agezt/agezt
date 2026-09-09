@@ -1,4 +1,4 @@
-import { type AgentEvent } from "@/lib/events";
+import { type AgentEvent } from "@/app/events";
 
 // LiveRunContext is the reconstructed "what is this run doing right now" view of a
 // correlation, folded from the live event stream: which agent owns it, the current

@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ActionButton } from "@/components/ActionButton";
 import { usePanel } from "@/lib/usePanel";
-import { useApprovalsLogPager } from "@/lib/cursorPager";
+import { useApprovalsLogPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { cn, fmtTime } from "@/app/utils";
 import { ErrorText, Muted } from "@/components/JsonView";

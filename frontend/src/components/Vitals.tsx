@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Activity, Wallet, CalendarClock, Sparkles, CheckSquare, Pause } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { cn } from "@/app/utils";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 

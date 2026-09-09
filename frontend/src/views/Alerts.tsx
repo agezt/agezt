@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ShieldAlert, AlertTriangle, Info, Bell, BellOff, X, RotateCcw } from "lucide-react";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { getJSON } from "@/app/api";
 import { focusRun } from "@/lib/runfocus";
 import { classifyAlert, type Alert, type AlertLevel } from "@/lib/alerts";

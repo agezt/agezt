@@ -7,7 +7,7 @@ vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
 }));
 // Avoid the SSE EventSource (not in jsdom): stub the events hook.
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 

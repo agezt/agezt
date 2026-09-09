@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { emptyBucket, addEvent, summarize, type Bucket } from "@/lib/telemetry";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 function ev(kind: string, payload: any = {}): AgentEvent {
   return { kind, payload };

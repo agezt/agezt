@@ -18,7 +18,7 @@ vi.mock("@/components/ui/feedback", () => ({
   useUI: () => ({ toast: vi.fn(), confirm: (...a: unknown[]) => confirm(...a) }),
 }));
 
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({
     events: liveEvents.events,
     connected: true,

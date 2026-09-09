@@ -25,10 +25,10 @@ import { ToolOutput } from "@/components/DataView";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/app/utils";
 import { fmtTime, clip } from "@/app/utils";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { useUI } from "@/components/ui/feedback";
 import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { IncidentBadges } from "@/components/IncidentBadges";
 import {
   incidentBadgeItem,

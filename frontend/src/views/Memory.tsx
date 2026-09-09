@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Brain, RefreshCw, Search, Trash2, Plus, X, Pencil, Save, Download, Upload, Lock, Share2, Users, Sparkles, ShieldCheck, AlertTriangle, UserRound, Tags, FileText, History, type LucideIcon } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
@@ -14,7 +14,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Disclosure } from "@/components/ui/disclosure";
-import { useMemoryLogPager, useMemoryPager } from "@/lib/cursorPager";
+import { useMemoryLogPager, useMemoryPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { Segmented } from "@/components/ui/segmented";

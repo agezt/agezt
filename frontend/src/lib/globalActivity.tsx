@@ -16,7 +16,7 @@ import {
   type ActivityState,
   type ActivitySummary,
 } from "@/lib/activity";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 
 interface GlobalActivityContext {
   state: ActivityState;

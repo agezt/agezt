@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard, RefreshCw, Radio } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { mergeEvents } from "@/lib/rundetail";
 import { humanizeIntent } from "@/lib/intent";
 import { buildReplay } from "@/lib/replay";

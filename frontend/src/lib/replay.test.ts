@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { buildReplay } from "@/lib/replay";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 function ev(seq: number, kind: string, payload: any = {}): AgentEvent {
   return { seq, kind, ts_unix_ms: 1000 + seq, payload, correlation_id: "r1" };

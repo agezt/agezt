@@ -11,7 +11,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...args: unknown[]) => postJSON(...args),
   postAction: (...args: unknown[]) => postAction(...args),
 }));
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: [], connected: true, subscribe: () => () => {} }),
 }));
 

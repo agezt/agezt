@@ -2,7 +2,7 @@
 // chatStore pulls in api.ts (reads location at module load) — jsdom provides it.
 import { describe, it, expect } from "vitest";
 import { collectLearned, type LearnedMem } from "@/lib/chatStore";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 const written = (corr: string, p: Record<string, unknown>): AgentEvent => ({
   kind: "memory.written",

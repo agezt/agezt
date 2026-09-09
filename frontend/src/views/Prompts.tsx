@@ -7,7 +7,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { EmptyState } from "@/components/ui/empty";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { SectionPanel } from "@/components/ui/section-panel";
 
 // parsePromptsJSON normalises an imported prompt file into clean {title,text} rows,

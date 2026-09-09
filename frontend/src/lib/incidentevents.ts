@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { clip } from "@/app/utils";
 
 const INCIDENT_SUBJECTS = new Set([

@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { classifyAlert, type RankedAlert } from "@/lib/alerts";
 import {
   autonomyEventMatches,

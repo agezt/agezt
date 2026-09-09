@@ -21,7 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { cn, fmtDateTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -34,7 +34,7 @@ import { Page } from "@/components/ui/page";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { useScheduleFiresPager } from "@/lib/cursorPager";
+import { useScheduleFiresPager } from "@/app/cursor-pager";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Segmented } from "@/components/ui/segmented";
 import {

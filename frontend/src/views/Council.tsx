@@ -10,7 +10,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { ModelPicker } from "@/components/ModelPicker";
 import { useCouncilStore, startCouncilRun, applyCouncilResult, genCouncilCorr, hydrateCouncilRun } from "@/lib/councilStore";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { fmtWhen } from "@/app/utils";
 import { History } from "lucide-react";
 import {

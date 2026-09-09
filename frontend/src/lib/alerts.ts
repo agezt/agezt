@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { incidentMetaFromEvent } from "@/lib/incidents";
 import { eventDedupKey } from "@/lib/rundetail";
 

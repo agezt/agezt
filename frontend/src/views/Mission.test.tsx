@@ -5,7 +5,7 @@
 // here; the component rendering is exercised by the view-level smoke tests.
 
 import { describe, it, expect } from "vitest";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import { notableEvents } from "@/views/Mission";
 
 describe("notableEvents", () => {

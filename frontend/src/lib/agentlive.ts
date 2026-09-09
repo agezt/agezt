@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 import type { AgentRuntimeStatus } from "@/lib/agentdetail";
 
 interface AgentLivePatch {

@@ -26,8 +26,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { getJSON } from "@/app/api";
-import { useEvents } from "@/lib/events";
-import { money } from "@/lib/format";
+import { useEvents } from "@/app/events";
+import { money } from "@/app/format";
 import { cn, clip, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ import { AgentDetail } from "@/components/AgentDetail";
 import { openAgent } from "@/lib/agentnav";
 import { Page } from "@/components/ui/page";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { useAgentsPager } from "@/lib/cursorPager";
+import { useAgentsPager } from "@/app/cursor-pager";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import type { AgentProfile } from "@/views/Roster";

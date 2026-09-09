@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Play, Sparkles, Wand2, RefreshCw, Workflow, X, FileJson2 } from "lucide-react";
 import { postJSON, getJSON } from "@/app/api";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { Page } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";

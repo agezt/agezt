@@ -7,7 +7,7 @@ import {
   recentAttentionAlerts,
   daemonHalted,
 } from "@/lib/alerts";
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 function ev(kind: string, payload: any = {}): AgentEvent {
   return { kind, payload } as AgentEvent;

@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, X, RefreshCw } from "lucide-react";
 import { postAction, getJSON } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { ingestCouncilEvent } from "@/lib/councilStore";
 import { ingestConductorEvent } from "@/lib/conductorStore";
 import { attentionAlertCount } from "@/lib/alerts";
@@ -24,7 +24,7 @@ import { incidentIdFromHash } from "@/lib/incidentnav";
 import { goToView } from "@/lib/nav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
 import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { ConsoleName } from "@/components/ConsoleName";
 import { anyCredentialed, type SetupCatalog } from "@/lib/setup";
 import { SectionNav, Header, ViewTabs } from "@/components/AppNav";

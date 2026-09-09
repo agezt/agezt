@@ -9,8 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, act } from "@testing-library/react";
 
-vi.mock("@/lib/events", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/events")>();
+vi.mock("@/app/events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app/events")>();
   return {
     ...actual,
     useEvents: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock("@/lib/events", async (importOriginal) => {
 });
 
 import { ConnectionChip } from "@/components/ConnectionChip";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 
 const mockedUseEvents = vi.mocked(useEvents);
 

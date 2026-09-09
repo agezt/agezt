@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { money, pct, byDescValue, fmtCount } from "@/lib/format";
+import { money, pct, byDescValue, fmtCount } from "@/app/format";
 
 describe("money", () => {
   it("renders microcents (1e-9 USD) as a 4-dp dollar string", () => {

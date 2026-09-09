@@ -25,7 +25,7 @@ import { cn, fmtTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorText } from "@/components/JsonView";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { buildLiveRunContexts, liveWakeLabel } from "@/lib/liveruncontext";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { Page } from "@/components/ui/page";

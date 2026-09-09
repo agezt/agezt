@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff, BellRing } from "lucide-react";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { useUI } from "@/components/ui/feedback";
 import { cn } from "@/app/utils";
 import {

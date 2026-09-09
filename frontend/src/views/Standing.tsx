@@ -3,7 +3,7 @@ import { Anchor, RefreshCw, Pause, Play, Trash2, Clock, Zap, ShieldCheck, Plus, 
 import { AgentPicker } from "@/components/AgentPicker";
 import { getJSON, postAction, postJSON } from "@/app/api";
 import { cn, fmtTime } from "@/app/utils";
-import { downloadText } from "@/lib/export";
+import { downloadText } from "@/app/export";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
 import { useUI, type ConfirmOptions } from "@/components/ui/feedback";

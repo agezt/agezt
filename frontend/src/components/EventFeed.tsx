@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, Search, X } from "lucide-react";
-import { useEvents, type AgentEvent } from "@/lib/events";
+import { useEvents, type AgentEvent } from "@/app/events";
 import { categoryOf, isErrorKind, CATEGORIES } from "@/lib/eventmeta";
 import { cn, fmtTime } from "@/app/utils";
 import { DataView } from "@/components/DataView";

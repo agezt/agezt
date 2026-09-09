@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { bytes as fmtBytes } from "@/lib/format";
+import { bytes as fmtBytes } from "@/app/format";
 import { pctOf, Storage } from "./Storage";
 import { UIProvider } from "@/components/ui/feedback";
 

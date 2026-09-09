@@ -28,7 +28,7 @@ import {
   type FileNode,
 } from "@/lib/files";
 import { textKind } from "@/lib/artifacts";
-import { bytes as humanSize } from "@/lib/format";
+import { bytes as humanSize } from "@/app/format";
 
 // FileManagerWorkspace is the dedicated 3-pane manager: folder tree on the left,
 // file list in the middle, file detail/preview on the right. Reached via the

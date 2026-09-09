@@ -4,7 +4,7 @@ import { getJSON, postAction, postJSON } from "@/app/api";
 import { openAgent } from "@/lib/agentnav";
 import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtDateTime } from "@/app/utils";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -19,7 +19,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/components/AgentActivity";
 import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/lib/agentlive";
 import {
   agentEnableToast,

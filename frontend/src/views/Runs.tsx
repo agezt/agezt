@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { postAction } from "@/app/api";
 import { useUI } from "@/components/ui/feedback";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { buildLiveRunContexts, type LiveRunContext } from "@/lib/liveruncontext";
 import { Button } from "@/components/ui/button";
 import { Page } from "@/components/ui/page";
@@ -26,7 +26,7 @@ import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { useCursorPager } from "@/lib/cursorPager";
+import { useCursorPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 interface Run {

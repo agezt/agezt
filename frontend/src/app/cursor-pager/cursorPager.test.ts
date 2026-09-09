@@ -42,7 +42,7 @@ vi.mock("@/app/api", async (importOriginal) => {
   };
 });
 
-import { useCursorPager } from "@/lib/cursorPager";
+import { useCursorPager } from "@/app/cursor-pager";
 import {
   useAgentsPager,
   useInboxPager,
@@ -52,7 +52,7 @@ import {
   useAgentEscalationsPager,
   useToolLogPager,
   usePlanHistoryPager,
-} from "@/lib/cursorPager";
+} from "@/app/cursor-pager";
 
 function row(id: string): Row {
   return { id };

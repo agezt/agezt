@@ -13,9 +13,9 @@ import {
 } from "lucide-react";
 import { cn, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
-import { money } from "@/lib/format";
+import { money } from "@/app/format";
 import { getJSON, postAction } from "@/app/api";
-import { useEvents } from "@/lib/events";
+import { useEvents } from "@/app/events";
 import { useUI } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

@@ -10,11 +10,11 @@ import { ErrorText } from "@/components/JsonView";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Page } from "@/components/ui/page";
-import { useWardenLogPager, useNetguardLogPager } from "@/lib/cursorPager";
+import { useWardenLogPager, useNetguardLogPager } from "@/app/cursor-pager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Segmented, ToggleChip } from "@/components/ui/segmented";
-import { bytes as fmtBytes } from "@/lib/format";
+import { bytes as fmtBytes } from "@/app/format";
 import { SectionPanel } from "@/components/ui/section-panel";
 
 // PROJECT_WINDOW is how many project cards render at once. /api/sandbox has no

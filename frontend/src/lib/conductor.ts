@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@/lib/events";
+import type { AgentEvent } from "@/app/events";
 
 // Conductor live model (M997). The backend emits a stream of conductor.* events
 // as the panel works — started → one step per role turn (thinker, worker,

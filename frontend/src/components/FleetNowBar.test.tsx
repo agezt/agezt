@@ -5,7 +5,7 @@ import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 // Mutable handle the mocked useEvents reads from, so each test can vary the
 // live buffer / connection state (vi.hoisted survives vi.mock hoisting).
 const h = vi.hoisted(() => ({ events: [] as any[], connected: true }));
-vi.mock("@/lib/events", () => ({
+vi.mock("@/app/events", () => ({
   useEvents: () => ({ events: h.events, connected: h.connected, subscribe: () => () => {} }),
 }));
 

@@ -11,7 +11,7 @@ import { Page } from "@/components/ui/page";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Advanced } from "@/components/ui/disclosure";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
-import { bytes as fmtBytes } from "@/lib/format";
+import { bytes as fmtBytes } from "@/app/format";
 
 // Storage view (M927): what under ~/.agezt is taking the space, and the
 // collectors that reclaim it. The breakdown comes from /api/storage
