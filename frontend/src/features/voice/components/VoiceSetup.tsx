@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useUI } from "@/components/ui/feedback";
 import { Disclosure } from "@/components/ui/disclosure";
 import { cn } from "@/app/utils";
-import { FieldRow, type Field, type ValueEntry } from "@/views/ConfigCenter";
+import { FieldRow, type Field, type ValueEntry } from "@/features/configcenter/components/ConfigCenter";
 import {
   STT_PROVIDERS,
   TTS_PROVIDERS,

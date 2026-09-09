@@ -1,8 +1,8 @@
 import { getJSON, postJSON, postAction } from "@/app/api";
-import { applyConfigBundle } from "@/lib/configbackup";
-import { parseStandingJSON } from "@/views/Standing";
+import { applyConfigBundle } from "@/features/configcenter/lib/configbackup";
+import { parseStandingJSON } from "@/features/standing/components/Standing";
 import { parseSchedulesJSON } from "@/features/schedules/lib/shared";
-import { parseMemoryJSON } from "@/views/Memory";
+import { parseMemoryJSON } from "@/features/memory/components/Memory";
 import { parseWorldJSON } from "@/views/World";
 
 // Full snapshot (M741): a record of daemon-level defaults and knowledge — default

@@ -291,7 +291,7 @@ Sırayla (önce küçük, sonra büyük):
   - **God file riski**: `Workflows.tsx` 1597 satır — 8 tip + 5 helper + 4 sub-component (WfNodeView, NodePanel, CopilotPanel, RunsDrawer) + Workflows() default + LastRun/freshID/TemplatePicker glue. Plan'a göre Day 26+ integration'da bölünecek (flow.ts, nodes.tsx, panels.tsx, CopilotPanel.tsx, RunsDrawer.tsx, Workflows.tsx); bugün sadece move.
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (36.6s)
   - **Yardımcı**: `scripts/dev/rewrite-workflows-imports.py`
-- **Day 13** (bu commit): `features/schedules/` + `features/execution-profiles/` — 7. ve 8. feature, küçük + orta boy (toplam 3984 satır, 6 dosya).
+- **Day 13** (`63ae84c9`): `features/schedules/` + `features/execution-profiles/` — 7. ve 8. feature, küçük + orta boy (toplam 3984 satır, 6 dosya).
   - **Taşınan (6 dosya, 3984 satır)**:
     - `views/Schedules.tsx` (1518 — god file) + `views/Schedules.test.tsx` (1234) → `features/schedules/components/`
     - `views/schedules/shared.ts` (616) → `features/schedules/lib/`
@@ -308,11 +308,30 @@ Sırayla (önce küçük, sonra büyük):
   - **God file riski**: `Schedules.tsx` 1518 satır (page + 4 helper + NewScheduleForm sub-component) + `ExecutionProfiles.tsx` 1343 satır (page + 6 helper + 7 tip) — her ikisi de Day 26+'da bölünecek
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (33.14s)
   - **Yardımcı**: `scripts/dev/rewrite-schedules-execution-profiles-imports.py`
+- **Day 14** (bu commit): `features/memory/` + `features/standing/` + `features/configcenter/` — 9. 10. 11. feature, orta boy (toplam 4396 satır, 8 dosya + 1 lib).
+  - **Taşınan (8 dosya, 4396 satır)**:
+    - `views/Memory.tsx` (1073 — god file) + `views/Memory.test.tsx` (361) → `features/memory/components/`
+    - `views/Standing.tsx` (1071 — god file) + `views/Standing.test.tsx` (498) → `features/standing/components/`
+    - `views/ConfigCenter.tsx` (1061 — god file) + `views/ConfigCenter.test.tsx` (332) → `features/configcenter/components/`
+    - `lib/configbackup.{ts,test.ts}` (2, 168 satır) → `features/configcenter/lib/`
+  - **Yerinde (cross-feature shared)**: `components/ConfigInventory.tsx` (169 satır — 8+ kullanıcı) → `components/`'te kaldı
+  - **Yeni**: 3 feature için 6 barrel dosyası (3 index + 3 types)
+  - **Güncellenen**: 11 dosyada import path rewrite
+    - `@/lib/configbackup` → `@/features/configcenter/lib/configbackup`: 4 (App.tsx, views/Backup.tsx, lib/snapshot.ts, self test)
+    - `@/views/Memory` → `@/features/memory/components/Memory`: 2 (lib/snapshot.ts parseMemoryJSON, self test)
+    - `@/views/Standing` → `@/features/standing/components/Standing`: 3 (lib/snapshot.ts parseStandingJSON, views/Wizards.tsx NewOrderForm, self test)
+    - `@/views/ConfigCenter` → `@/features/configcenter/components/ConfigCenter`: 3 (self test, features/voice/VoiceSetup.tsx FieldRow+Field+ValueEntry, features/voice/VoiceSetup.test.tsx vi.mock)
+  - **Public surface (memory barrel)**: Memory + parseMemoryJSON + TeachFactForm + ReviseFactForm
+  - **Public surface (standing barrel)**: Standing + NewOrderForm (Wizards consumer) + parseStandingJSON (snapshot consumer) + 6 formatter (initiativeEnforcement, standingResumeIssue, standingAttentionReasons, standingNeedsAttention, standingAttentionCount, standingFrequencyIssue)
+  - **Public surface (configcenter barrel)**: ConfigCenter + FieldRow (voice consumer) + 4 helper (reloadBoundariesFromSections, summarizeReloadBoundaries, agentConfigScopeLabel, summarizeAgentConfigEntries) + 3 tip (Field, ValueEntry, ConfigBundle)
+  - **Cross-feature consumers** (6): App.tsx, views/Backup.tsx, lib/snapshot.ts, views/Wizards.tsx, features/voice/VoiceSetup.tsx, features/voice/VoiceSetup.test.tsx — hepsi rewrite edildi
+  - **God file riski**: 3 god file (Memory 1073, Standing 1071, ConfigCenter 1061) — hepsi Day 26+'da bölünecek
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (34.10s)
+  - **Yardımcı**: `scripts/dev/rewrite-memory-standing-configcenter-imports.py`
 
-## 10. Sonraki adaylar (Day 14+)
+## 10. Sonraki adaylar (Day 15+)
 
-- **Day 14**: `features/memory/` + `features/standing/` + `features/configcenter/`
 - **Day 15**: `features/skills/` + `features/market/` + `features/setup/`
-- **Day 16-20**: kalan 12 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
+- **Day 16-20**: kalan 9 feature (autonomy, data, mcp, models, artifacts, channels, policy, world, overseer, sandbox, connections, toolforge, health, dashboard, jarvis, …)
 - **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343 → 3 ayrı 4-6 dosyalı split).
+- **Day 26+**: `views/` thin-page indirgeme + `App.tsx` + `nav.tsx` refactor + bundle/code-splitting + 5 god file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061 → 6 ayrı 4-6 dosyalı split).

@@ -11,7 +11,7 @@ import { Setup } from "@/views/Setup";
 import { NewAgentForm, usdToMc } from "@/features/agents/components/Roster";
 import { NewScheduleForm } from "@/features/schedules/components/Schedules";
 import { NewServerForm } from "@/views/Mcp";
-import { NewOrderForm } from "@/views/Standing";
+import { NewOrderForm } from "@/features/standing/components/Standing";
 import { ConnectForm, POPULAR_CHANNELS, type ChannelRow } from "@/views/Channels";
 
 // Wizards (M949) is the "get things done without hunting through menus" hub:

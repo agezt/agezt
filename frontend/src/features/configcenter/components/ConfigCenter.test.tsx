@@ -17,7 +17,7 @@ import {
   reloadBoundariesFromSections,
   summarizeAgentConfigEntries,
   summarizeReloadBoundaries,
-} from "@/views/ConfigCenter";
+} from "@/features/configcenter/components/ConfigCenter";
 import { UIProvider } from "@/components/ui/feedback";
 
 function withUI(node: ReactNode) {

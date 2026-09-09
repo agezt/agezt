@@ -20,7 +20,7 @@ import {
   standingFrequencyIssue,
   standingResumeIssue,
   initiativeEnforcement,
-} from "@/views/Standing";
+} from "@/features/standing/components/Standing";
 import { UIProvider } from "@/components/ui/feedback";
 import type { ReactNode } from "react";
 

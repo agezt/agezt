@@ -23,7 +23,7 @@ import { agentSlugFromHash, openAgent } from "@/features/agents/lib/agentnav";
 import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
 import { goToView } from "@/lib/nav";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
-import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
+import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/features/configcenter/lib/configbackup";
 import { downloadText } from "@/app/export";
 import { ConsoleName } from "@/components/ConsoleName";
 import { anyCredentialed, type SetupCatalog } from "@/lib/setup";

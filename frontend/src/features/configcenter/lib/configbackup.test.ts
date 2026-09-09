@@ -7,7 +7,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
+import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/features/configcenter/lib/configbackup";
 
 beforeEach(() => {
   getJSON.mockReset();

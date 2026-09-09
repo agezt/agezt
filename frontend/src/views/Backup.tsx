@@ -5,7 +5,7 @@ import { Page } from "@/components/ui/page";
 import { useUI } from "@/components/ui/feedback";
 import { downloadText } from "@/app/export";
 import { exportAppearance, parseAppearanceJSON, applyAppearanceBundle } from "@/lib/appearance";
-import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/lib/configbackup";
+import { parseConfigBundle, fetchConfigBundle, applyConfigBundle } from "@/features/configcenter/lib/configbackup";
 import { fetchFullSnapshot, snapshotCounts, parseSnapshotJSON, applyFullSnapshot } from "@/lib/snapshot";
 
 // configSummary describes what a daemon-config bundle currently holds — shown so you

@@ -17,7 +17,7 @@ vi.mock("@/components/ui/feedback", () => ({
   useUI: () => ({ confirm: (...a: unknown[]) => confirm(...a), toast }),
 }));
 
-import { Memory, TeachFactForm, ReviseFactForm, parseMemoryJSON } from "@/views/Memory";
+import { Memory, TeachFactForm, ReviseFactForm, parseMemoryJSON } from "@/features/memory/components/Memory";
 
 afterEach(cleanup);
 beforeEach(() => {
