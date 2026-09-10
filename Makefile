@@ -6,7 +6,7 @@
 # Requires: Go 1.26.4+ (see go.mod), Make, git (for version stamping)
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps
+.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -86,6 +86,21 @@ gen:
 	@echo "Generating contract types..."
 	go run ./tools/jsonschemagen -in .project/agezt-contract.jsonc -out contract/gen/types.gen.go -pkg gen
 
+# Regenerates .project/STRUCTURE.generated/ from each Go package's
+# `doc.go`. The high-level commentary in .project/STRUCTURE.md is
+# still human-edited; only the per-package tables are auto-generated.
+# Run after adding/removing/renaming a kernel/ or plugins/ package
+# (or after writing its first doc.go).
+structure-md:
+	@echo "Regenerating STRUCTURE.generated from doc.go files..."
+	go run ./tools/structure-md -out .project/STRUCTURE.generated
+
+# CI mode: fail if generated output differs from what's on disk.
+# Add to `check` so any drift in package doc comments surfaces in CI.
+structure-md-check:
+	@echo "Checking STRUCTURE.generated is up to date..."
+	go run ./tools/structure-md -check -out .project/STRUCTURE.generated
+
 deps-check:
 	@echo "Checking dependency allowlist..."
 	go run ./tools/depscheck
@@ -113,7 +128,7 @@ frontend-deadcode:
 e2e:
 	bash scripts/e2e-smoke.sh
 
-check: gen vet test deps-check sdk-parity deadcode-check frontend-deadcode frontend-test
+check: gen vet test deps-check sdk-parity deadcode-check structure-md-check frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT (version=$(VERSION), commit=$(COMMIT))..."

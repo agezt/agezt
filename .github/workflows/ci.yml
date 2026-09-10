@@ -5,13 +5,17 @@
 
 name: CI
 
-# All jobs run on self-hosted WSL-Ubuntu runners (wsl-runner-1..3): the org's
-# GitHub-hosted minutes are blocked by Actions billing ("payments have failed /
-# spending limit"), and self-hosted runners are free and unaffected. The
-# macOS/Windows legs of the test matrix are parked until hosted runners are
-# back (cross-build below still compile-gates darwin/windows/freebsd, and the
-# owner develops on Windows daily). To restore: matrix os
-# [ubuntu-latest, macos-latest, windows-latest] + runs-on ${{ matrix.os }}.
+# Most jobs run on self-hosted WSL-Ubuntu runners (wsl-runner-1..3), which cost
+# nothing. But hosted Linux is NOT blocked: as measured on 2026-09-06, race-depth
+# below runs on ubuntu-latest and concluded success in 6 of the 12 most recent
+# CI runs, while every self-hosted job in those same runs was cancelled because
+# the pool had zero runners registered. Cheap new gates therefore belong on
+# ubuntu-latest: a job that never gets a runner enforces nothing.
+#
+# Hosted macOS/Windows remain unproven (the successful hosted job is Linux-only),
+# so the test matrix legs stay parked (cross-build below still compile-gates
+# darwin/windows/freebsd, and the owner develops on Windows daily). To restore:
+# matrix os [ubuntu-latest, macos-latest, windows-latest] + runs-on ${{ matrix.os }}.
 
 on:
   push:

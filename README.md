@@ -212,7 +212,7 @@ noun, and a tab is a facet of that noun (see
 - **Govern** — Approvals · Policy · Oversight (Overseer / Council / Conductor) · Seats
 - **Agents** — Agents · Roster · Skills · Capabilities (Tool registry / Toolbox / Tool Forge / Marketplace / Execution Profiles) · Sandbox
 - **Knowledge** — Memory (Memory / Taste) · World · Thinking (Research / Analyst / Reflection) · Search · Data & Files (Data Lake / Artifacts & Files / Storage)
-- **Connect** — Providers & Models (Quick Connect / Models & Keys) · Routing (Routing / Fallback Chains) · Channels · Integrations (MCP Servers / ACP Agents / Connections)
+- **Connect** — Providers & Models (Models & Keys) · Routing (Routing / Fallback Chains) · Channels · Integrations (MCP Servers / ACP Agents / Connections)
 - **Admin** — Setup · Config Center · Identity (Default Identity / Prompts) · Backup
 
 The Activity tab shows what is running this second — each in-flight run with its

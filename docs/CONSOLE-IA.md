@@ -69,8 +69,8 @@ these views hit the same endpoints:
 | `/api/runs` | AgentPage, Agents, Analyst, Dashboard, Insights, Mission, Overseer, Replay, Runs |
 | `/api/agents` | AgentPage, Board, Dashboard, IncidentPage, Overseer, Roster, Schedules, Standing, Voice |
 | `/api/journal` | Alerts, Council, Dashboard, IncidentPage, Jarvis, Replay |
-| `/api/catalog` | Chains, Connections, Models, QuickConnect, Routing, Setup |
-| `/api/config/set` | ConfigCenter, ExecutionProfiles, QuickConnect, Setup, VoiceSetup |
+| `/api/catalog` | Chains, Connections, Models, Routing, Setup |
+| `/api/config/set` | ConfigCenter, ExecutionProfiles, Setup, VoiceSetup |
 | `/api/artifacts` | Artifacts, ChannelSessions, Files, Inbox |
 
 ### 2.3 Monitor and manager shared a label — under the wrong one
@@ -79,13 +79,16 @@ The single biggest findability trap in the console:
 
 | Nav label | What it actually is | Where the *management* lives |
 |---|---|---|
-| **Providers** | a routing/fallback **telemetry log** | Models (keys), Quick Connect, Setup |
+| **Providers** | a routing/fallback **telemetry log** | Models (keys), Connections (Provider Keys tab), Setup |
 | **Tools** | a tool-call **usage monitor** | Catalog, Toolbox, Tool Forge, Marketplace |
 | **Catalog** | the tool **registry + trust levels** | — (but named like a model catalog) |
 | **Models** | model catalog **and** provider API keys | — (keys are not discoverable from the label) |
 
 "Where do I add an API key?" had no obviously right answer: it was in Models,
-Quick Connect and Setup — and *not* in Providers.
+Quick Connect and Setup — and *not* in Providers. (Quick Connect was
+subsequently removed: the curated preset list drifted from models.dev env
+names and the catalog-aware `/api/provider/connect` orphan bug surfaced.
+Add-key is now the **Connections → Provider Keys** tab.)
 
 ### 2.4 Near-duplicate view pairs
 
@@ -95,7 +98,7 @@ Quick Connect and Setup — and *not* in Providers.
 | `Config` vs `Config Center` | Config is a raw `/api/config` dump; Config Center is the schema-driven editor |
 | `Health` vs `System` (Status) | two vitals dashboards, in two different sections |
 | `Agents` vs `Roster` vs `Overseer` | census vs identity CRUD vs live supervision, all agent-shaped |
-| `Setup` vs `Quick Connect` vs `Models` | three ways to credential a provider |
+| `Setup` vs `Models` (and the Connections → Provider Keys tab) | guided first-run vs catalog-driven add-key — different jobs, no longer overlapping with the removed Quick Connect gallery |
 | `Inbox` vs `Agent Board` | human threads vs agent threads, presented identically |
 | `Workflows` vs `Flow Studio` | saved-workflow CRUD vs the generate/refine canvas |
 | `Tool registry` vs `Tool usage` | both drew the whole tool catalogue — name, capability, description — one under call-volume charts |
@@ -169,7 +172,7 @@ Three principles:
 | | Thinking | `research` · `analyst` · `reflect` |
 | | Search | `search` |
 | | Data & Files | `data` · `artifacts` (gallery + file manager) · `storage` — `files` merged in |
-| **Connect** | Providers & Models | `quickconnect` · `models` |
+| **Connect** | Providers & Models | `models` |
 | | Routing | `routing` · `chains` |
 | | Channels | `channels` |
 | | Integrations | `mcp` · `acp` · `connections` |

@@ -64,9 +64,11 @@ strip at the top of the page — the tabs are ordinary views with their own
 - **Knowledge** — Memory (*Memory* · *Taste*), World, Thinking (*Research* ·
   *Analyst* · *Reflection*), Search (the journal), Data & Files (*Data Lake* ·
   *Artifacts & Files* · *Storage*).
-- **Connect** — Providers & Models (*Quick Connect* · *Models & Keys* — this is
-  where API keys live), Routing (*Routing* · *Fallback Chains*), Channels,
-  Integrations (*MCP Servers* · *ACP Agents* · *Connections*).
+- **Connect** — Providers & Models (*Models & Keys* — this is where API keys live),
+  Routing (*Routing* · *Fallback Chains*), Channels, Integrations (*MCP Servers* ·
+  *ACP Agents* · *Connections* — the *Provider Keys* tab there is the add-key flow
+  that used to be the standalone Quick Connect gallery; the catalog is the source
+  of truth for env var names so they match what the Governor looks up).
 - **Admin** — Setup, Config Center, Identity (*Default Identity* · *Prompts*),
   Backup.
 

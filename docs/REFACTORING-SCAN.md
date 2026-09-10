@@ -119,8 +119,8 @@ list-endpoint paginations.
 - **C4.** `views/Chat.tsx` is a router, not a page (9 separate `Chat.*.test.tsx` files).
   Decompose into `views/Chat/{Layout,Composer,Bubble,Summary,Fallback,Persona,ExecutionProfile}.tsx`.
 - **C5.** Modal migration incomplete. `grep -rn "fixed inset-0 z-50" frontend/src` should
-  return only the `components/ui/Modal.tsx` import — audit CommandPalette, QuickConnect,
-  toggle drawers.
+  return only the `components/ui/Modal.tsx` import — audit CommandPalette, Setup,
+  toggle drawers (QuickConnect was removed; see CONSOLE-IA.md).
 - **C6.** Path-safety logic duplicated across `lib/files.ts` (`isPathSafe`), `lib/markdown.ts`
   (mention regex), `components/FileMention.tsx`, and `kernel/webui/files_route.go`. Consolidate
   the frontend rules under `lib/files.ts`; document 1:1 with the kernel rule.
