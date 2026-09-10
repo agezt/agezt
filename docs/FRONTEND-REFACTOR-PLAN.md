@@ -423,15 +423,31 @@ Sırayla (önce küçük, sonra büyük):
   - **Cross-feature consumers** (4): Wizards.tsx (Mcp + Channels), views/Chat/Chat.tsx (ChannelSessions), lib/snapshot.ts (parseWorldJSON) — hepsi rewrite edildi
   - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (33.95s)
   - **Yardımcı**: `scripts/dev/rewrite-mcp-channels-policy-world-connections-imports.py`
+- **Day 5b** (bu commit): `app/help/` topic split — 64 topic 6 modüle bölündü.
+  - **Taşınan (`app/help/`)**:
+    - `help.ts` (2864 satır) → 6 modül + types + aggregator
+    - `converse.ts` (8 topic: jarvis, chat, voice, inbox, artifacts, data, board, approvals) — section marker line 31-429
+    - `monitor.ts` (12 topic: mission, health, activity, autonomy, taste, seats, okr, alerts, feed, insights, runs, budget) — 430-904
+    - `agents.ts` (15 topic: agents, agent, roster, overseer, council, conductor, research, toolforge, mcp, acp, sandbox, flow, replay, analyst, search) — 905-1585
+    - `automation.ts` (3 topic: workflows, schedules, standing) — 1586-1748
+    - `knowledge.ts` (4 topic: memory, world, skills, reflect) — 1749-1932
+    - `system.ts` (22 topic: overview, setup, toolbox, channels, market, persona, prompts, configcenter, connections, providers, models, routing, chains, tools, catalog, policy, cache, storage, backup, wizards, workboard, incident) — 1933-2843
+  - **Yeni**: `app/help/types.ts` (HelpItem + HelpSection + HelpTopic interface'leri — daha önce inline)
+  - **Aggregator**: `app/help/help.ts` (36 satır) — 6 modülü spread edip HELP + FALLBACK_TOPIC + helpTopicFor export ediyor. Public API değişmedi.
+  - **Public API**: `HelpTopic` (re-exported from types) + `HELP` (Record<string, HelpTopic>) + `FALLBACK_TOPIC` + `helpTopicFor()`. Mevcut `@/app/help` import'ları (`components/HelpDrawer.tsx` + `HelpDrawer.test.tsx` + `help.test.ts`) sıfır değişiklikle çalışıyor.
+  - **Day 5b önizlemesi**: `app/help/index.ts` daha önce bu split'i planlamıştı: "the topic-by-topic split into app/help/{converse,monitor,agents,automation,knowledge,system} lands in Day 5b. See docs/FRONTEND-REFACTOR-PLAN.md." — bu commit o önizlemeyi gerçekleştirdi.
+  - **Doğrulama**: `tsc --noEmit` temiz, `vitest run` 191 dosya / 1628 test yeşil (55.52s) — help.test.ts'in 5 coverage guard'ı (every nav id, no orphans, every topic substantial, related link real, fallback) hepsi geçti
+  - **Yardımcı**: `scripts/dev/split-help-topics.py` (bir kerelik split — `python scripts/dev/split-help-topics.py` çalıştırıldı, ileride gerekirse regenerate için korundu)
 
-## 🎉 SPRINT TAMAMLANDI — 25/25 feature (100%)
+## 🎉 SPRINT TAMAMLANDI — 25/25 feature (100%) + Day 5b
 
-**Final istatistik (Day 1-18):**
+**Final istatistik (Day 1-18 + Day 5b + chore):**
 - **25 feature** hepsi `features/*` altında (voice, incidents, council, runs, agents, workflows, schedules, execution-profiles, memory, standing, configcenter, skills, market, setup, autonomy, overseer, sandbox, data, models, artifacts, mcp, channels, policy, world, connections)
-- **7 cross-cutting app module** `app/*` altında (utils, api, events, format, cursor-pager, export, help)
-- **18 frontend commit** + **7 Go kernel/runtime commit** = **25 commit toplam PR #576'da**
-- **Frontend LOC taşınan**: ~49K satır (17K component + ~8K lib + ~24K view)
-- **tsc --noEmit** ve **1628 vitest** hepsi yeşil — 18 commit boyunca sıfır regression
+- **7 cross-cutting app module** `app/*` altında (utils, api, events, format, cursor-pager, export, help) — help modülü 6 topic dosyasına bölündü
+- **18 frontend commit** + **1 chore** (13fada06) + **1 Day 5b** (bu) = **20 frontend commit**
+- **7 Go kernel/runtime commit** = **27 commit toplam PR #576'da**
+- **Frontend LOC taşınan**: ~52K satır (17K component + ~8K lib + ~24K view + ~3K help/6)
+- **tsc --noEmit** ve **1628 vitest** hepsi yeşil — 19 commit boyunca sıfır regression
 
 ## Sonraki adaylar (Day 19+ — integration)
 
@@ -440,5 +456,4 @@ Sırayla (önce küçük, sonra büyük):
 - **Day 21**: knip deadcode check temiz, vitest full yeşil
 - **Day 22**: Bundle size before/after ölçümü + perf regression yok
 - **Day 23**: God file bölünmeleri (Workflows 1597, Schedules 1518, ExecutionProfiles 1343, Memory 1073, Standing 1071, ConfigCenter 1061, Skills 1047, Market 929, Setup 952, Data 882, Mcp 829, Policy 800, World 789, Channels 771, Connections 693, Artifacts 617, Models 616 → 17 ayrı 4-6 dosyalı split)
-- **Day 5b** (henüz yapılmadı): `app/help/` topic split (`converse/monitor/agents/automation/knowledge/system`).
-- **Day 26+**: Final PR + docs güncellemesi.
+- **Day 26+**: Final PR + docs güncellemesi + `.project/STRUCTURE.md` frontend bölümü (features/ sonrası gerçeği yansıtacak şekilde güncelleme).
