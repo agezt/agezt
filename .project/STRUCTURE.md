@@ -256,7 +256,7 @@ frontend/
 │   ├── nav.tsx                # NAV_GROUPS registry: 8 sections → 30+ rows → 67 views
 │   ├── index.css              # design tokens (Tailwind 4 @theme inline)
 │   │
-│   ├── components/            # 45 files, ~7,874 LOC
+│   ├── components/            # 75 files, ~12K LOC (cross-cutting shared widgets)
 │   │   ├── ui/                # primitives: button, card, page, modal, …
 │   │   ├── AppNav.tsx         # two-level rail (M974)
 │   │   ├── Header.tsx         # status bar
@@ -266,42 +266,89 @@ frontend/
 │   │   ├── Inspector.tsx      # LLM/tool traces (Ctrl+Shift+I)
 │   │   ├── MiniChat.tsx       # overlay chat
 │   │   ├── Widgets.tsx        # data viz primitives (Ring/Sparkline/…)
-│   │   ├── AgentDetail/       # 15-tab agent page
-│   │   ├── RunDetail/         # run page + steering
-│   │   └── …                  # domain widgets
+│   │   ├── AgentAvatar.tsx     # cross-feature shared: 8+ users across chat/fleet/overseer
+│   │   ├── AgentPicker.tsx    # cross-feature shared: chat + standing
+│   │   ├── ConfigInventory.tsx  # cross-feature shared: 8+ users across configcenter etc.
+│   │   ├── ConnectionChip.tsx # cross-feature shared: dashboard + connectors
+│   │   ├── DataView.tsx       # cross-feature shared: eventfeed + markdown + run + search
+│   │   ├── ModelChip.tsx      # cross-feature shared: chains + agentdetail
+│   │   ├── ModelPicker.tsx    # cross-feature shared: chains + modeleditor
+│   │   ├── WorldGraph.tsx     # cross-feature shared: world page
+│   │   └── …                  # 30+ more shared widgets
 │   │
-│   ├── views/                 # 20 page-level entry points (route targets)
-│   │   ├── Chat/              # the canonical conversation surface
-│   │   ├── Connections.tsx    # cockpit + Provider Keys tab
-│   │   ├── Models.tsx, Routing.tsx, Channels.tsx, …  # Connect surface
-│   │   ├── Roster.tsx, Agents.tsx, Skills.tsx, …     # Fleet surface
-│   │   ├── Memory.tsx, Taste.tsx, World.tsx, …       # Knowledge surface
-│   │   ├── Backup.tsx, Setup.tsx, ConfigCenter.tsx, … # Admin surface
-│   │   └── …                  # all lazy-imported via nav.tsx
+│   ├── features/              # 25 feature carve-outs (Day 3-18 sprint)
+│   │   # Each feature follows the same template:
+│   │   #   features/<name>/
+│   │   #     components/   # page + sub-components (co-located)
+│   │   #     lib/          # business logic (package-internal; external via barrel)
+│   │   #     index.ts      # public surface barrel
+│   │   #     types.ts      # shared shapes re-exported
+│   │   #
+│   │   voice                  # 29 files, ~2000 LOC — STT/TTS + voice session state machine
+│   │   incidents              # 31 files, ~3000 LOC — IncidentPage + Badges + events
+│   │   council                # 10 files, ~1000 LOC — deliberation + verdict aggregation
+│   │   runs                   # 9 files, ~2300 LOC — Runs list + detail + pager + focus
+│   │   agents                 # 51 files, ~16K LOC — 4 pages + Roster/roster/* + 28 component
+│   │   workflows              # 5 files, ~2600 LOC — Workflows + Chains (1597 god file)
+│   │   schedules              # 3 files, ~1800 LOC — Schedules + formatters
+│   │   execution-profiles     # 2 files, ~1600 LOC — profile inventory + health
+│   │   memory                 # 2 files, ~1400 LOC — Memory + TeachFact/ReviseFact forms
+│   │   standing               # 2 files, ~1500 LOC — Standing orders + graveyard
+│   │   configcenter           # 4 files, ~1400 LOC — editor + configbackup
+│   │   skills                 # 2 files, ~1300 LOC — Skills + AuthorSkillForm
+│   │   market                 # 4 files, ~1300 LOC — marketplace + stream/frame
+│   │   setup                  # 3 files, ~1400 LOC — wizard + anyCredentialed
+│   │   autonomy               # 4 files, ~2200 LOC — pulse + cadence + attention
+│   │   overseer               # 2 files, ~750 LOC — system dashboard
+│   │   sandbox                # 2 files, ~700 LOC — sandbox explorer + isBuildNoise
+│   │   data                   # 4 files, ~1600 LOC — Data + datalakedate
+│   │   models                 # 4 files, ~1400 LOC — Models + flattenModels + filters
+│   │   artifacts              # 4 files, ~1300 LOC — Artifacts + BlobArtifact
+│   │   mcp                    # 2 files, ~1200 LOC — MCP server browser
+│   │   channels               # 6 files, ~1500 LOC — Channels + ChannelSessions
+│   │   policy                 # 2 files, ~1000 LOC — Policy + 3 forms
+│   │   world                  # 2 files, ~1200 LOC — World + entity graph
+│   │   connections            # 2 files, ~850 LOC — cockpit + ConnectivityStrip
 │   │
-│   └── lib/                   # ~100 support files
-│       ├── api.ts             # getJSON/postAction + bearer-token scrubbing
-│       ├── events.tsx         # single EventSource + subscribe() context
-│       ├── usePanel.ts        # mount-fetch + manual reload
-│       ├── cursorPager.ts     # generic ?cursor=&limit= pager
-│       ├── chatStore.tsx      # cross-navigation chat state
-│       ├── councilStore.ts    # module-level council event accumulator
-│       ├── conductorStore.ts  # ditto
-│       ├── commands.ts        # ⌘K item builder
-│       ├── nav.ts             # hash→view resolver
-│       ├── agentnav.ts        # #agent/<slug> deep links
-│       ├── incidentnav.ts     # #incident/<id> deep links
-│       ├── appearance.ts      # theme/console-name bundle I/O
-│       ├── configbackup.ts    # config bundle I/O
-│       ├── theme.ts           # theme tokens
-│       ├── accent.ts          # accent-hue picker
-│       ├── brand.ts           # console name
-│       ├── advanced.ts        # Calm/Advanced mode
-│       ├── setup.ts           # anyCredentialed() helper
-│       ├── alerts.ts          # attention alert count
-│       ├── globalActivity.ts  # global activity provider
-│       ├── help.ts            # page-aware help content
-│       └── …                  # 80+ more
+│   ├── app/                   # 7 cross-cutting app modules (Day 3-5a)
+│   │   # Carved from lib/ — pure utility, no feature home.
+│   │   api/                   # 3 files — getJSON/postAction + bearer-token scrubbing
+│   │   cursor-pager/          # 3 files — generic ?cursor=&limit= pager
+│   │   events/                # 3 files — single EventSource + subscribe() context
+│   │   export/                # 3 files — text/file download helpers
+│   │   format/                # 3 files — formatting primitives (fmtWhen, fmtBytes, …)
+│   │   help/                  # 10 files — 64 HelpTopics split into 6 sections
+│   │   │   #   converse.ts   (8 topics: jarvis, chat, voice, inbox, artifacts, data, board, approvals)
+│   │   │   #   monitor.ts    (12 topics: mission, health, activity, autonomy, …)
+│   │   │   #   agents.ts     (15 topics: agents, agent, roster, overseer, …)
+│   │   │   #   automation.ts (3 topics: workflows, schedules, standing)
+│   │   │   #   knowledge.ts  (4 topics: memory, world, skills, reflect)
+│   │   │   #   system.ts    (22 topics: overview, setup, toolbox, channels, …)
+│   │   │   #   + types.ts (HelpItem/HelpSection/HelpTopic) + help.ts (aggregator + dispatcher)
+│   │   utils/                 # 3 files — cn(), clip(), fmtWhen() + primitives
+│   │
+│   ├── views/                 # 78 files — LEFTOVER (Day 19+ integration backlog)
+│   │   # Includes Board, Dashboard, Workboard, Jarvis, Health, Storage,
+│   │   # Chat/, Routing, Inbox, Activity, Search, Wizards, FlowStudio,
+│   │   # Toolbox, Tools, Conductor, OKR, Budget, Alerts, Prompts,
+│   │   # Research, Mission, Backup, Catalog, Persona, Providers, Taste,
+│   │   # Seats, Insights, Analyst, Approvals, Reflect, Login, Replay,
+│   │   # Cache, Toolforge, Chat/* (8 files) + roster/ + schedules/
+│   │   # subdirs (empty after sprint). To be carved into features or
+│   │   # thinned to wrapper pages that re-export from features/*/index.ts.
+│   │
+│   └── lib/                   # 73 files — cross-cutting support (stayed in lib/)
+│       # NOT feature-specific; intentionally flat. Examples:
+│       # chatStore.tsx (cross-navigation chat state)
+│       # conductor.ts, conductorStore.ts (orchestration)
+│       # fleet.ts (Fleet view, used by Dashboard + others)
+│       # snapshot.ts (snapshot generation for backup)
+│       # routingSuggest.ts (model routing suggestion — uses features/models/lib)
+│       # help.ts (page-aware help dispatcher — barrel re-exports from app/help/)
+│       # theme.ts, accent.ts, advanced.ts, brand.ts (theme tokens)
+│       # See each file's top comment for its role. Future carve-out:
+│       # lib/help.ts should be deleted (replaced by app/help/help.ts);
+│       # see commit 451a1033 for the original move.
 │
 ├── package.json               # React 19 + Vite 8 + TypeScript 7
 ├── vite.config.ts             # tailwind plugin + path alias
@@ -313,6 +360,47 @@ frontend/
 (`talk / observe / automate / govern / fleet / knowledge / connect / admin`).
 View IDs are stable across renames — the URL hash, the help topic, and the
 ⌘K target all key on the view id.
+
+**Carve-out template (per `docs/FRONTEND-REFACTOR-PLAN.md` §3).** Every
+`features/<name>/` follows the same shape:
+
+```
+features/<name>/
+├── components/   # page + sub-components (co-located)
+├── lib/          # business logic (package-internal)
+├── index.ts      # public surface barrel (page + sub-components + types)
+└── types.ts      # shared shapes re-exported from lib/
+```
+
+External code reaches a feature **only** through `import { … } from
+"@/features/<name>"` (or the deeper `@/features/<name>/components/<X>` /
+`/lib/<Y>` paths for tests). The `lib/` files are package-internal —
+the index barrel is the contract.
+
+**Cross-feature shared components** stay in `components/` (used by
+≥2 features): `AgentAvatar` (8 users), `ConfigInventory` (8),
+`DataView` (5: eventfeed, markdown, run, search, data),
+`ModelPicker`/`ModelChip` (chains + agentdetail), `AgentPicker` (chat
++ standing), `ConnectionChip`, `WorldGraph`. Any new feature that
+needs a per-feature equivalent carves its own (e.g. the
+features/agents/components/agentdetail/ subdir is the agents-only
+detail panel — NOT a shared component).
+
+**Sprint artifacts (Day 1-18).** The frontend domain carve-out
+moved ~52K satır into 25 feature packages + 7 app/* modules. Full
+day-by-day detail: `docs/FRONTEND-REFACTOR-PLAN.md` §9. The
+`scripts/dev/rewrite-*-imports.py` files (one per feature) are
+preserved as a template for future bulk-rewrites; the
+`split-help-topics.py` script captures the one-time help/ split.
+
+**Integration backlog (Day 19+).** `views/` (78 files) and `lib/`
+(73 files) still hold page-level + cross-cutting support code that
+didn't fit a feature home. The next slice threads them through
+one of three paths: (a) carve into a new feature (e.g. `features/board/`,
+`features/dashboard/`), (b) move to `components/` if shared by ≥2
+features, or (c) leave in `views/` as a thin wrapper that
+re-exports from the appropriate `features/*/index.ts`. Day 26+ also
+covers 17 god file splits (Workflows 1597, Schedules 1518, etc.).
 
 ## SDK layout
 
