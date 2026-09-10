@@ -9,7 +9,7 @@ vi.mock("@/app/api", () => ({
   postJSON: (...a: unknown[]) => postJSON(...a),
 }));
 
-import { AuthGate, Login } from "@/views/Login";
+import { AuthGate, Login } from "./Login";
 
 afterEach(cleanup);
 beforeEach(() => {

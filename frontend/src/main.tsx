@@ -23,7 +23,7 @@ import { EventsProvider } from "@/app/events";
 import { GlobalActivityProvider } from "@/lib/globalActivity";
 import { UIProvider } from "@/components/ui/feedback";
 import { ChatProvider } from "@/lib/chatStore";
-import { AuthGate } from "@/views/Login";
+import { AuthGate } from "@/features/auth/components/Login";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

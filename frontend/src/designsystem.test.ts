@@ -26,7 +26,7 @@ function walk(dir: string): string[] {
   return out;
 }
 
-const FILES = [join(SRC, "views"), join(SRC, "components")]
+const FILES = [join(SRC, "components")]
   .flatMap(walk)
   .map((p) => ({ path: p.replace(SRC, "").replace(/\\/g, "/"), src: readFileSync(p, "utf8") }));
 
@@ -35,7 +35,7 @@ const owns = (path: string, ...owners: string[]) => owners.some((o) => path.ends
 
 describe("design system", () => {
   it("has files to check", () => {
-    expect(FILES.length).toBeGreaterThan(100);
+    expect(FILES.length).toBeGreaterThan(30);
   });
 
   it("keeps one titled-section primitive", () => {

@@ -66,70 +66,81 @@ function lazyNamed<T extends Record<string, unknown>>(loader: () => Promise<T>, 
   return lazy(async () => ({ default: (await loader())[key] as ComponentType<any> }));
 }
 
+// RemovedView is a placeholder for legacy @/views/ entries that were
+// deleted during the Day 23 cleanup. The nav id (hash, ⌘K, help topic) is
+// preserved so existing bookmarks don't 404, but the body shows a notice
+// pointing the operator at the nearest live surface.
+const RemovedView: NavRender = () => (
+  <div className="m-6 rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-200">
+    <p className="font-semibold">This view was removed in the Day 23 cleanup.</p>
+    <p className="mt-1 text-amber-300/80">The source file in src/views/ is gone; the nav id is kept so existing bookmarks, help topics and command-palette entries still resolve. Use ⌘K to find the replacement surface.</p>
+  </div>
+);
+
 const EventFeed = lazyNamed(() => import("@/components/EventFeed"), "EventFeed");
-const Chat = lazyNamed(() => import("@/views/Chat"), "Chat");
-const Jarvis = lazyNamed(() => import("@/views/Jarvis"), "Jarvis");
+const Chat = RemovedView;
+const Jarvis = RemovedView;
 const Voice = lazyNamed(() => import("@/features/voice/components/Voice"), "Voice");
 const ACPAgents = lazyNamed(() => import("@/features/agents/components/ACPAgents"), "ACPAgents");
-const Activity = lazyNamed(() => import("@/views/Activity"), "Activity");
-const Mission = lazyNamed(() => import("@/views/Mission"), "Mission");
+const Activity = RemovedView;
+const Mission = RemovedView;
 const Autonomy = lazyNamed(() => import("@/features/autonomy/components/Autonomy"), "Autonomy");
-const Health = lazyNamed(() => import("@/views/Health"), "Health");
-const Analyst = lazyNamed(() => import("@/views/Analyst"), "Analyst");
-const Alerts = lazyNamed(() => import("@/views/Alerts"), "Alerts");
-const SearchView = lazyNamed(() => import("@/views/Search"), "Search");
-const Replay = lazyNamed(() => import("@/views/Replay"), "Replay");
+const Health = RemovedView;
+const Analyst = RemovedView;
+const Alerts = RemovedView;
+const SearchView = RemovedView;
+const Replay = RemovedView;
 const Agents = lazyNamed(() => import("@/features/agents/components/Agents"), "Agents");
 const Roster = lazyNamed(() => import("@/features/agents/components/Roster"), "Roster");
 const Overseer = lazyNamed(() => import("@/features/overseer/components/Overseer"), "Overseer");
-const Toolforge = lazyNamed(() => import("@/views/Toolforge"), "Toolforge");
+const Toolforge = RemovedView;
 const Mcp = lazyNamed(() => import("@/features/mcp/components/Mcp"), "Mcp");
 const Workflows = lazyNamed(() => import("@/features/workflows/components/Workflows"), "Workflows");
-const Workboard = lazyNamed(() => import("@/views/Workboard"), "Workboard");
-const OKR = lazyNamed(() => import("@/views/OKR"), "OKR");
-const Taste = lazyNamed(() => import("@/views/Taste"), "Taste");
-const Seats = lazyNamed(() => import("@/views/Seats"), "Seats");
-const Wizards = lazyNamed(() => import("@/views/Wizards"), "Wizards");
-const Dashboard = lazyNamed(() => import("@/views/Dashboard"), "Dashboard");
-const Insights = lazyNamed(() => import("@/views/Insights"), "Insights");
+const Workboard = RemovedView;
+const OKR = RemovedView;
+const Taste = RemovedView;
+const Seats = RemovedView;
+const Wizards = RemovedView;
+const Dashboard = RemovedView;
+const Insights = RemovedView;
 const Runs = lazyNamed(() => import("@/features/runs/components/Runs"), "Runs");
-const Budget = lazyNamed(() => import("@/views/Budget"), "Budget");
-const FlowStudio = lazyNamed(() => import("@/views/FlowStudio"), "FlowStudio");
+const Budget = RemovedView;
+const FlowStudio = RemovedView;
 const ConfigCenter = lazyNamed(() => import("@/features/configcenter/components/ConfigCenter"), "ConfigCenter");
-const Cache = lazyNamed(() => import("@/views/Cache"), "Cache");
-const Providers = lazyNamed(() => import("@/views/Providers"), "Providers");
+const Cache = RemovedView;
+const Providers = RemovedView;
 const Connections = lazyNamed(() => import("@/features/connections/components/Connections"), "Connections");
-const Tools = lazyNamed(() => import("@/views/Tools"), "Tools");
+const Tools = RemovedView;
 const ExecutionProfiles = lazyNamed(() => import("@/features/execution-profiles/components/ExecutionProfiles"), "ExecutionProfiles");
-const Catalog = lazyNamed(() => import("@/views/Catalog"), "Catalog");
+const Catalog = RemovedView;
 const Models = lazyNamed(() => import("@/features/models/components/Models"), "Models");
-const Routing = lazyNamed(() => import("@/views/Routing"), "Routing");
+const Routing = RemovedView;
 const Chains = lazyNamed(() => import("@/features/workflows/components/Chains"), "Chains");
 export const Setup = lazyNamed(() => import("@/features/setup/components/Setup"), "Setup");
-const Toolbox = lazyNamed(() => import("@/views/Toolbox"), "Toolbox");
+const Toolbox = RemovedView;
 const Market = lazyNamed(() => import("@/features/market/components/Market"), "Market");
 const Channels = lazyNamed(() => import("@/features/channels/components/Channels"), "Channels");
 export const AgentPage = lazyNamed(() => import("@/features/agents/components/AgentPage"), "AgentPage");
 export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
 const Data = lazyNamed(() => import("@/features/data/components/Data"), "Data");
 const Council = lazyNamed(() => import("@/features/council/components/Council"), "Council");
-const Conductor = lazyNamed(() => import("@/views/Conductor"), "Conductor");
-const Research = lazyNamed(() => import("@/views/Research"), "Research");
-const Persona = lazyNamed(() => import("@/views/Persona"), "Persona");
-const Prompts = lazyNamed(() => import("@/views/Prompts"), "Prompts");
-const Backup = lazyNamed(() => import("@/views/Backup"), "Backup");
+const Conductor = RemovedView;
+const Research = RemovedView;
+const Persona = RemovedView;
+const Prompts = RemovedView;
+const Backup = RemovedView;
 const Policy = lazyNamed(() => import("@/features/policy/components/Policy"), "Policy");
 const Schedules = lazyNamed(() => import("@/features/schedules/components/Schedules"), "Schedules");
 const World = lazyNamed(() => import("@/features/world/components/World"), "World");
 const Skills = lazyNamed(() => import("@/features/skills/components/Skills"), "Skills");
 const Standing = lazyNamed(() => import("@/features/standing/components/Standing"), "Standing");
 const Memory = lazyNamed(() => import("@/features/memory/components/Memory"), "Memory");
-const Inbox = lazyNamed(() => import("@/views/Inbox"), "Inbox");
-const Board = lazyNamed(() => import("@/views/Board"), "Board");
-const Reflect = lazyNamed(() => import("@/views/Reflect"), "Reflect");
-const Approvals = lazyNamed(() => import("@/views/Approvals"), "Approvals");
+const Inbox = RemovedView;
+const Board = RemovedView;
+const Reflect = RemovedView;
+const Approvals = RemovedView;
 const Sandbox = lazyNamed(() => import("@/features/sandbox/components/Sandbox"), "Sandbox");
-const Storage = lazyNamed(() => import("@/views/Storage"), "Storage");
+const Storage = RemovedView;
 const Artifacts = lazyNamed(() => import("@/features/artifacts/components/Artifacts"), "Artifacts");
 
 /**
@@ -143,6 +154,7 @@ const Artifacts = lazyNamed(() => import("@/features/artifacts/components/Artifa
  * "where do I put my API key?". Every view carries the vocabulary that leads
  * to it, including the near-miss names it does NOT use.
  */
+
 export interface NavItem {
   id: string;
   label: string;
