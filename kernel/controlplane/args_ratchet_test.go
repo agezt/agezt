@@ -21,10 +21,13 @@ import (
 // deleting the entry at zero). Do not raise a number to make the test pass —
 // that re-opens the silent-failure class the accessors were written to close.
 var rawArgCastBaseline = map[string]int{
-	// roster.go's 3 residual casts are deliberate polymorphic transports
-	// (enabled bool-or-string, older_than_days number-or-string,
-	// task_model_chain []any) — not migration debt.
-	"roster.go":        3,
+	// roster.go's 2 residual casts are deliberate polymorphic transports
+	// (older_than_days number-or-string, task_model_chain []any) — not
+	// migration debt. The third was the "enabled bool-or-string" in
+	// handleAgentSetEnabled, which moved to roster_crud.go with the
+	// Day 24 god file split #3.
+	"roster.go":        2,
+	"roster_crud.go":   1, // residual: enabled bool-or-string switch (moved from roster.go)
 	"schedule.go":      1, // residual: enabled bool-or-string switch
 	"workflow.go":      3, // residual: enabled/limit/async dual-type switches
 	"standing.go":      1, // residual: enabled bool-or-string switch
