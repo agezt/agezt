@@ -1,0 +1,798 @@
+// page.tsx — mcp page + helpers + sub-components (extracted from Mcp.tsx). Day 23 god file split.
+//
+// Still ~792 satır because the sub-components stay inline (the
+// page uses them; future slices can peel off nodes/panels/flow once the
+// cross-import graph is mapped out).
+
+import { useEffect, useState } from "react";
+import { Plug, PlugZap, RefreshCw, Plus, X, Trash2, Power, PowerOff, Boxes, KeyRound, ListChecks } from "lucide-react";
+import { getJSON, postAction, postJSON } from "@/app/api";
+import { cn } from "@/app/utils";
+import { Button } from "@/components/ui/button";
+import { useUI, type ConfirmOptions } from "@/components/ui/feedback";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty";
+import { Badge } from "@/components/ui/badge";
+import { Page } from "@/components/ui/page";
+import { ErrorText } from "@/components/JsonView";
+import { Disclosure } from "@/components/ui/disclosure";
+import { Segmented } from "@/components/ui/segmented";
+
+
+
+// ---- types (extracted to ./types) ----
+import type { MCPServer, CatalogCategory, CatalogEntry } from "./types";
+// serverNameOk mirrors the kernel's mcp name rule: lowercase letter first,
+// then letters/digits, ≤16 — deliberately NO underscore/dash, because the
+// name is parsed out of mcp_<name>_<tool> by the policy mapper. Pure +
+// unit-tested.
+export function serverNameOk(s: string): boolean {
+  return /^[a-z][a-z0-9]{0,15}$/.test(s);
+}
+
+// splitArgs turns the form's one-line args field into the wire list:
+// whitespace-separated, blanks dropped. Pure + unit-tested.
+export function splitArgs(s: string): string[] {
+  return s.split(/\s+/).filter(Boolean);
+}
+
+// splitTools turns the form's tool-allowlist field into the wire list:
+// split on whitespace or commas, blanks dropped. Pure + unit-tested (M899).
+export function splitTools(s: string): string[] {
+  return (s || "").split(/[\s,]+/).filter(Boolean);
+}
+
+// parseEnv turns the form's "KEY=value" lines into the wire env map (M898).
+// Blank lines and lines without "=" are dropped; the value keeps any later "="
+// (e.g. a base64 token). Pure + unit-tested.
+export function parseEnv(s: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of (s || "").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq <= 0) continue;
+    const key = t.slice(0, eq).trim();
+    if (key) out[key] = t.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+// parseHeaders turns the form's "Name: value" lines into the wire header map for
+// a remote server (M904) — e.g. "Authorization: Bearer ...". Blank/"#" lines and
+// lines without ":" are dropped; the value keeps any later ":". Pure + tested.
+export function parseHeaders(s: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of (s || "").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const c = t.indexOf(":");
+    if (c <= 0) continue;
+    const key = t.slice(0, c).trim();
+    if (key) out[key] = t.slice(c + 1).trim();
+  }
+  return out;
+}
+
+// urlOk is a light client-side check mirroring the kernel: http(s) with a host.
+// The server re-validates; this just keeps the Register button honest. Pure.
+export function urlOk(s: string): boolean {
+  try {
+    const u = new URL((s || "").trim());
+    return (u.protocol === "http:" || u.protocol === "https:") && u.host !== "";
+  } catch {
+    return false;
+  }
+}
+
+// CatalogCategory groups the (now ~40-entry) gallery so the operator can browse
+// by intent instead of scrolling one flat grid (M912).
+
+export const CATEGORY_LABELS: Record<CatalogCategory, string> = {
+  core: "Core",
+  web: "Web & search",
+  data: "Databases",
+  dev: "Dev & cloud",
+  apps: "Apps & docs",
+};
+
+// CatalogEntry is one preset in the popular-servers gallery (M897). `args` is in
+// the form's space-separated shape; `needs` flags a path/secret the operator must
+// supply before it works. Names obey the kernel rule (≤16 lowercase alnum).
+
+// transportOf reports a catalog entry's transport from its shape. Pure + tested.
+export function transportOf(e: CatalogEntry): "stdio" | "http" {
+  return e.url ? "http" : "stdio";
+}
+
+// filterCatalog narrows the gallery by category chip and a free-text query over
+// name + description (M912). Pure + unit-tested.
+export function filterCatalog(
+  entries: CatalogEntry[],
+  cat: CatalogCategory | "all",
+  query: string,
+): CatalogEntry[] {
+  const q = query.trim().toLowerCase();
+  return entries.filter(
+    (e) =>
+      (cat === "all" || e.category === cat) &&
+      (q === "" || e.name.includes(q) || e.description.toLowerCase().includes(q)),
+  );
+}
+
+// CATALOG: popular Model Context Protocol servers, offered as one-click examples.
+// Picking one prefills the register form so the operator can review/adjust the
+// path or note the credential before adding. Sourced from the maintained official
+// reference servers, first-party vendor servers, and widely-used community
+// servers (package names verified against npm/PyPI, 2026-06). Archived reference
+// servers that still install fine (postgres, gdrive, google-maps, github stdio)
+// stay listed; dead/never-published ones don't.
+export const CATALOG: CatalogEntry[] = [
+  // ── Core: the maintained official reference servers ──────────────────────
+  { name: "everything", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-everything", description: "Reference server exercising every MCP feature — ideal for a first test." },
+  { name: "filesystem", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-filesystem /path/to/dir", description: "Read and write files within an allowed directory.", needs: "set the directory path in args" },
+  { name: "fetch", category: "core", command: "uvx", args: "mcp-server-fetch", description: "Fetch a URL and return its content as clean markdown." },
+  { name: "memory", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-memory", description: "Persistent knowledge-graph memory the model can read and write." },
+  { name: "git", category: "core", command: "uvx", args: "mcp-server-git --repository /path/to/repo", description: "Inspect and operate a local Git repository.", needs: "set the repo path in args" },
+  { name: "time", category: "core", command: "uvx", args: "mcp-server-time", description: "Current time and timezone conversions." },
+  { name: "thinking", category: "core", command: "npx", args: "-y @modelcontextprotocol/server-sequential-thinking", description: "A structured step-by-step reasoning scratchpad." },
+  // ── Web, search & browsing ────────────────────────────────────────────────
+  { name: "playwright", category: "web", command: "npx", args: "-y @playwright/mcp@latest", description: "Browser automation via Playwright — navigate, click, fill forms, screenshot (official Microsoft)." },
+  { name: "duckduckgo", category: "web", command: "uvx", args: "duckduckgo-mcp-server", description: "Free web search via DuckDuckGo — no API key required." },
+  { name: "brave", category: "web", command: "npx", args: "-y @brave/brave-search-mcp-server", description: "Web, image, news and local search via the Brave Search API (official).", needs: "BRAVE_API_KEY (env)", env: ["BRAVE_API_KEY"] },
+  { name: "tavily", category: "web", command: "npx", args: "-y tavily-mcp@latest", description: "AI-grade web search and page extraction via the Tavily API.", needs: "TAVILY_API_KEY (env)", env: ["TAVILY_API_KEY"] },
+  { name: "exa", category: "web", command: "npx", args: "-y exa-mcp-server", description: "Neural web search built for agents — web, code, company and paper search.", needs: "EXA_API_KEY (env)", env: ["EXA_API_KEY"] },
+  { name: "firecrawl", category: "web", command: "npx", args: "-y firecrawl-mcp", description: "Scrape, crawl and extract whole websites as clean markdown.", needs: "FIRECRAWL_API_KEY (env)", env: ["FIRECRAWL_API_KEY"] },
+  { name: "googlemaps", category: "web", command: "npx", args: "-y @modelcontextprotocol/server-google-maps", description: "Geocoding, directions and place details via Google Maps.", needs: "GOOGLE_MAPS_API_KEY (env)", env: ["GOOGLE_MAPS_API_KEY"] },
+  { name: "youtube", category: "web", command: "npx", args: "-y @kimtaeyoon83/mcp-server-youtube-transcript", description: "Fetch YouTube video transcripts/subtitles for summarizing." },
+  // ── Databases & vector stores ─────────────────────────────────────────────
+  { name: "postgres", category: "data", command: "npx", args: "-y @modelcontextprotocol/server-postgres postgresql://user:pass@host/db", description: "Read-only SQL queries against a PostgreSQL database.", needs: "set the connection string in args" },
+  { name: "sqlite", category: "data", command: "uvx", args: "mcp-server-sqlite --db-path /path/to.db", description: "Query a local SQLite database file.", needs: "set the db path in args" },
+  { name: "mongodb", category: "data", command: "npx", args: "-y mongodb-mcp-server", description: "MongoDB & Atlas — query collections, inspect schemas, run aggregations (official).", needs: "MDB_MCP_CONNECTION_STRING (env)", env: ["MDB_MCP_CONNECTION_STRING"] },
+  { name: "redis", category: "data", command: "uvx", args: "--from redis-mcp-server@latest redis-mcp-server --url redis://localhost:6379/0", description: "Manage and search data in Redis (official).", needs: "set the redis url in args" },
+  { name: "supabase", category: "data", command: "npx", args: "-y @supabase/mcp-server-supabase@latest --access-token sbp_YOUR_TOKEN", description: "Manage Supabase projects — SQL, migrations, logs, types (official).", needs: "Supabase personal access token in args" },
+  { name: "neon", category: "data", command: "npx", args: "-y @neondatabase/mcp-server-neon start napi_YOUR_KEY", description: "Neon serverless Postgres — projects, branches, SQL (official).", needs: "Neon API key in args" },
+  { name: "qdrant", category: "data", command: "uvx", args: "mcp-server-qdrant", description: "Semantic memory on the Qdrant vector database (official).", needs: "QDRANT_URL + COLLECTION_NAME (env)", env: ["QDRANT_URL", "COLLECTION_NAME"] },
+  { name: "chroma", category: "data", command: "uvx", args: "chroma-mcp --client-type persistent --data-dir /path/to/data", description: "Chroma vector database — collections, embeddings, semantic search (official).", needs: "set the data dir in args" },
+  { name: "pinecone", category: "data", command: "npx", args: "-y @pinecone-database/mcp", description: "Pinecone vector database — search docs, manage indexes (official).", needs: "PINECONE_API_KEY (env)", env: ["PINECONE_API_KEY"] },
+  // ── Dev & cloud ───────────────────────────────────────────────────────────
+  { name: "github", category: "dev", command: "npx", args: "-y @modelcontextprotocol/server-github", description: "GitHub API — issues, pull requests, repos, code search.", needs: "GITHUB_PERSONAL_ACCESS_TOKEN (env)", env: ["GITHUB_PERSONAL_ACCESS_TOKEN"] },
+  { name: "githubremote", category: "dev", url: "https://api.githubcopilot.com/mcp/", description: "GitHub's hosted MCP endpoint — issues, PRs, repos, code search (no local install).", needs: "Authorization: Bearer <GitHub PAT>", headers: ["Authorization"] },
+  { name: "kubernetes", category: "dev", command: "npx", args: "-y mcp-server-kubernetes", description: "Manage a Kubernetes cluster — kubectl and Helm tools over your local kubeconfig." },
+  { name: "awsdocs", category: "dev", command: "uvx", args: "awslabs.aws-documentation-mcp-server@latest", description: "Search and read AWS documentation (official AWS Labs)." },
+  { name: "azure", category: "dev", command: "npx", args: "-y @azure/mcp@latest server start", description: "Azure resources — storage, Cosmos DB, CLI and more (official Microsoft).", needs: "Azure credentials (az login on this machine)" },
+  { name: "sentry", category: "dev", command: "npx", args: "-y @sentry/mcp-server@latest", description: "Sentry issues, stack traces and error analysis (official).", needs: "SENTRY_ACCESS_TOKEN (env)", env: ["SENTRY_ACCESS_TOKEN"] },
+  { name: "deepwiki", category: "dev", url: "https://mcp.deepwiki.com/mcp", description: "Ask questions about any public GitHub repo's docs via DeepWiki (hosted, no auth)." },
+  { name: "context7", category: "dev", url: "https://mcp.context7.com/mcp", description: "Up-to-date library/framework docs for coding questions (hosted by Upstash).", needs: "Authorization: Bearer <Context7 API key> (optional)", headers: ["Authorization"] },
+  { name: "huggingface", category: "dev", url: "https://huggingface.co/mcp", description: "Hugging Face Hub — search models, datasets, papers and Spaces (official, hosted).", needs: "Authorization: Bearer <HF token>", headers: ["Authorization"] },
+  // ── Apps, docs & productivity ─────────────────────────────────────────────
+  { name: "notion", category: "apps", command: "npx", args: "-y @notionhq/notion-mcp-server", description: "Notion pages and databases — read, search, create, update (official).", needs: "NOTION_TOKEN (env)", env: ["NOTION_TOKEN"] },
+  { name: "linear", category: "apps", command: "npx", args: "-y mcp-remote https://mcp.linear.app/mcp", description: "Linear issues and projects via the hosted endpoint (bridged with mcp-remote).", needs: "browser OAuth login on first attach" },
+  { name: "atlassian", category: "apps", command: "uvx", args: "mcp-atlassian", description: "Jira and Confluence — issues, sprints, pages; set CONFLUENCE_* env too if you use it.", needs: "JIRA_URL + JIRA_USERNAME + JIRA_API_TOKEN (env)", env: ["JIRA_URL", "JIRA_USERNAME", "JIRA_API_TOKEN"] },
+  { name: "slack", category: "apps", command: "npx", args: "-y slack-mcp-server@latest --transport stdio", description: "Slack channels, DMs and history — no workspace app approval needed.", needs: "SLACK_MCP_XOXC_TOKEN + SLACK_MCP_XOXD_TOKEN (env)", env: ["SLACK_MCP_XOXC_TOKEN", "SLACK_MCP_XOXD_TOKEN"] },
+  { name: "gdrive", category: "apps", command: "npx", args: "-y @modelcontextprotocol/server-gdrive", description: "Search and read files in Google Drive.", needs: "OAuth credentials (env)" },
+  { name: "airtable", category: "apps", command: "npx", args: "-y airtable-mcp-server", description: "Read and write Airtable bases, tables and records.", needs: "AIRTABLE_API_KEY (env)", env: ["AIRTABLE_API_KEY"] },
+  { name: "stripe", category: "apps", command: "npx", args: "-y @stripe/mcp --tools=all --api-key=sk_YOUR_KEY", description: "Stripe — customers, products, payment links, invoices (official).", needs: "Stripe secret key in args" },
+  { name: "obsidian", category: "apps", command: "npx", args: "-y mcp-obsidian /path/to/vault", description: "Read and search an Obsidian vault (markdown notes).", needs: "set the vault path in args" },
+  { name: "excel", category: "apps", command: "uvx", args: "excel-mcp-server stdio", description: "Create and edit Excel workbooks — formulas, charts, pivots (no Excel install needed)." },
+  { name: "arxiv", category: "apps", command: "uvx", args: "arxiv-mcp-server", description: "Search, download and read arXiv papers." },
+];
+
+const inputCls =
+  "rounded-md border border-border bg-panel px-2 py-1 text-sm text-foreground outline-none focus-visible:border-accent";
+
+// NewServerForm registers an MCP server (M797). Exported for tests and reuse
+// (the M714 "creatable from UI" recipe). `initial` pre-fills the fields — used
+// by the popular-servers catalog (M897) to seed name/command/args/description.
+export function NewServerForm({
+  onCreated,
+  onError,
+  initial,
+}: {
+  onCreated: (name: string) => void;
+  onError: (msg: string) => void;
+  initial?: Record<string, string>;
+}) {
+  const [state, setState] = useState<Record<string, string>>(initial || {});
+  const [submitting, setSubmitting] = useState(false);
+  const set = (k: string, v: string) => setState((s) => ({ ...s, [k]: v }));
+  const name = (state.name || "").trim();
+  const remote = (state.transport || "stdio") === "http";
+  const valid =
+    serverNameOk(name) &&
+    (remote ? urlOk(state.url || "") : (state.command || "").trim() !== "");
+  const advancedConfigured = Boolean(state.env || state.headers || state.tool_allow || state.lazy);
+  const secretLineCount = remote ? Object.keys(parseHeaders(state.headers || "")).length : Object.keys(parseEnv(state.env || "")).length;
+  const toolAllowCount = splitTools(state.tool_allow || "").length;
+
+  async function create() {
+    if (!valid) return;
+    setSubmitting(true);
+    try {
+      const server: Record<string, unknown> = {
+        name,
+        description: (state.description || "").trim(),
+      };
+      if (remote) {
+        server.url = (state.url || "").trim();
+        const headers = parseHeaders(state.headers || "");
+        if (Object.keys(headers).length > 0) server.headers = headers;
+      } else {
+        server.command = (state.command || "").trim();
+        const args = splitArgs(state.args || "");
+        if (args.length > 0) server.args = args;
+        const env = parseEnv(state.env || "");
+        if (Object.keys(env).length > 0) server.env = env;
+      }
+      const toolAllow = splitTools(state.tool_allow || "");
+      if (toolAllow.length > 0) server.tool_allow = toolAllow;
+      if (state.lazy === "true") server.lazy = true;
+      await postJSON("/api/mcp/add", { server });
+      onCreated(name);
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-card p-3">
+      <div className="mb-2 inline-flex rounded-md border border-border bg-panel p-0.5 text-xs" role="tablist" aria-label="Transport">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!remote}
+          onClick={() => set("transport", "stdio")}
+          className={cn("rounded px-2.5 py-1", !remote ? "bg-accent text-accent-foreground" : "text-muted")}
+        >
+          Local (stdio)
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={remote}
+          onClick={() => set("transport", "http")}
+          className={cn("rounded px-2.5 py-1", remote ? "bg-accent text-accent-foreground" : "text-muted")}
+        >
+          Remote (HTTP)
+        </button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Name — permanent handle (lowercase letters/digits); its tools appear as mcp_&lt;name&gt;_&lt;tool&gt;
+          <input
+            value={state.name || ""}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="e.g. everything"
+            aria-label="Server name"
+            className={cn(inputCls, name !== "" && !serverNameOk(name) && "border-bad")}
+          />
+        </label>
+        {remote ? (
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            URL — the remote MCP endpoint (Streamable HTTP)
+            <input
+              value={state.url || ""}
+              onChange={(e) => set("url", e.target.value)}
+              placeholder="https://api.example.com/mcp"
+              aria-label="Server URL"
+              className={cn(inputCls, "font-mono text-xs", (state.url || "").trim() !== "" && !urlOk(state.url || "") && "border-bad")}
+            />
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Command — the stdio MCP server executable
+            <input
+              value={state.command || ""}
+              onChange={(e) => set("command", e.target.value)}
+              placeholder="e.g. npx"
+              aria-label="Server command"
+              className={inputCls}
+            />
+          </label>
+        )}
+        {!remote && (
+          <label className="flex flex-col gap-1 text-[11px] text-muted">
+            Arguments (space-separated)
+            <input
+              value={state.args || ""}
+              onChange={(e) => set("args", e.target.value)}
+              placeholder="-y @modelcontextprotocol/server-everything"
+              aria-label="Server arguments"
+              className={cn(inputCls, "font-mono text-xs")}
+            />
+          </label>
+        )}
+        <label className="flex flex-col gap-1 text-[11px] text-muted">
+          Description (optional)
+          <input
+            value={state.description || ""}
+            onChange={(e) => set("description", e.target.value)}
+            placeholder="what this server provides"
+            aria-label="Server description"
+            className={inputCls}
+          />
+        </label>
+        <div className="sm:col-span-2">
+          <Disclosure
+            defaultOpen={advancedConfigured}
+            className="rounded-lg border border-border bg-panel/45"
+            summaryClassName="px-2.5 py-2 hover:bg-card/60"
+            contentClassName="px-2.5 pb-2"
+            summary={
+              <span className="flex min-w-0 items-center gap-2">
+                <KeyRound className="size-3.5 shrink-0 text-accent" />
+                <span className="truncate text-xs font-semibold text-foreground">Advanced guardrails</span>
+                <span className="ml-auto text-[11px] text-muted">
+                  {secretLineCount} secret · {toolAllowCount} tools · lazy {state.lazy === "true" ? "on" : "off"}
+                </span>
+              </span>
+            }
+          >
+          <div className="grid gap-2">
+            {remote ? (
+              <label className="flex flex-col gap-1 rounded-lg border border-border/70 bg-card/50 p-2 text-[11px] text-muted">
+                <span className="flex items-center gap-1.5 font-semibold text-foreground"><KeyRound className="size-3.5 text-accent" /> Headers</span>
+                <textarea
+                  value={state.headers || ""}
+                  onChange={(e) => set("headers", e.target.value)}
+                  placeholder={"Authorization: Bearer ..."}
+                  aria-label="Server headers"
+                  rows={2}
+                  className={cn(inputCls, "font-mono text-xs")}
+                />
+              </label>
+            ) : (
+              <label className="flex flex-col gap-1 rounded-lg border border-border/70 bg-card/50 p-2 text-[11px] text-muted">
+                <span className="flex items-center gap-1.5 font-semibold text-foreground"><KeyRound className="size-3.5 text-accent" /> Environment</span>
+                <textarea
+                  value={state.env || ""}
+                  onChange={(e) => set("env", e.target.value)}
+                  placeholder={"GITHUB_PERSONAL_ACCESS_TOKEN=ghp_..."}
+                  aria-label="Server environment"
+                  rows={2}
+                  className={cn(inputCls, "font-mono text-xs")}
+                />
+              </label>
+            )}
+            <label className="flex flex-col gap-1 rounded-lg border border-border/70 bg-card/50 p-2 text-[11px] text-muted">
+              <span className="flex items-center gap-1.5 font-semibold text-foreground"><ListChecks className="size-3.5 text-accent" /> Tool allowlist</span>
+              <input
+                value={state.tool_allow || ""}
+                onChange={(e) => set("tool_allow", e.target.value)}
+                placeholder="create_issue search_code"
+                aria-label="Server tool allowlist"
+                className={cn(inputCls, "font-mono text-xs")}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => set("lazy", state.lazy === "true" ? "" : "true")}
+              className={cn(
+                "flex items-center justify-between rounded-lg border px-2.5 py-2 text-left text-xs transition-colors",
+                state.lazy === "true" ? "border-accent bg-accent/10 text-accent" : "border-border bg-card text-muted hover:text-foreground",
+              )}
+              aria-pressed={state.lazy === "true"}
+              aria-label="Lazy load tools"
+            >
+              <span>Lazy dispatcher</span>
+              <Badge variant={state.lazy === "true" ? "default" : "bad"}>{state.lazy === "true" ? "on" : "off"}</Badge>
+            </button>
+          </div>
+          </Disclosure>
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button size="sm" onClick={create} disabled={!valid || submitting}>
+          <Plus className="h-3.5 w-3.5" /> Register server
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Mcp is the MCP self-install console (M797): register a Model Context
+// Protocol server, attach it at runtime (its tools go live for every run as
+// mcp_<name>_<tool> — no restart), detach (kill switch), flip auto-attach,
+// remove. Every transition is journaled (mcp.*).
+export function Mcp() {
+  const ui = useUI();
+  const [servers, setServers] = useState<MCPServer[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+  // Pre-fill values for the register form when a catalog entry is picked (M897).
+  const [prefill, setPrefill] = useState<Record<string, string> | undefined>(undefined);
+  // Gallery filters (M912): category chip + free-text search over name/description.
+  const [catFilter, setCatFilter] = useState<CatalogCategory | "all">("all");
+  const [catQuery, setCatQuery] = useState("");
+  const registered = new Set((servers || []).map((s) => s.name));
+
+  function useCatalogEntry(e: CatalogEntry) {
+    const transport = transportOf(e);
+    setPrefill({
+      name: e.name,
+      transport,
+      command: e.command || "",
+      args: e.args || "",
+      url: e.url || "",
+      description: e.description,
+      // Prefill blank KEY= / "Name: " lines so the operator just pastes the secret.
+      env: (e.env || []).map((k) => `${k}=`).join("\n"),
+      headers: (e.headers || []).map((k) => `${k}: `).join("\n"),
+    });
+    setShowCatalog(false);
+    setShowForm(true);
+  }
+
+  async function reload() {
+    setLoading(true);
+    try {
+      const d = await getJSON<{ servers?: MCPServer[] }>("/api/mcp");
+      setServers(d.servers || []);
+      setErr(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    reload();
+    const t = setInterval(reload, 8000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function act(
+    ref: string,
+    path: string,
+    params?: Record<string, string>,
+    opts?: { confirm?: ConfirmOptions; success?: (res: any) => string },
+  ) {
+    if (opts?.confirm && !(await ui.confirm(opts.confirm))) return;
+    setBusy(ref);
+    try {
+      const res = await postAction(path, { ref, ...params });
+      if (opts?.success) ui.toast(opts.success(res), "success");
+      await reload();
+    } catch (e) {
+      ui.toast((e as Error).message, "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const attached = (servers || []).filter((s) => s.attached).length;
+
+  return (
+    <Page
+      icon={Plug}
+      title={
+        <span className="inline-flex items-center gap-2">
+          MCP servers
+          {servers && (
+            <span className="text-xs font-normal text-muted">
+              {servers.length} server(s) · {attached} attached
+            </span>
+          )}
+        </span>
+      }
+      description="self-install Model Context Protocol servers"
+      width="wide"
+      mode="scroll"
+      actions={
+        <>
+          <Button size="sm" variant="ghost" onClick={reload} disabled={loading} aria-label="Refresh">
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+          </Button>
+          <Button
+            size="sm"
+            variant={showCatalog ? "default" : "ghost"}
+            onClick={() => {
+              setShowCatalog((v) => !v);
+              setShowForm(false);
+            }}
+          >
+            <Boxes className="h-3.5 w-3.5" /> Popular servers
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowForm(true);
+              setShowCatalog(false);
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Register server
+          </Button>
+        </>
+      }
+    >
+      <Disclosure summary={<span className="text-xs font-medium text-muted">How MCP attach works</span>}>
+        <p className="px-2 text-xs text-muted">
+          Attach a Model Context Protocol server and its tools go live for every run as{" "}
+          <span className="font-mono">mcp_&lt;name&gt;_&lt;tool&gt;</span> — no restart. The spawned process gets a
+          scrubbed environment (no secrets), calls are policy-gated, and detach is the kill switch. Enabled servers
+          auto-attach when the daemon starts.
+        </p>
+      </Disclosure>
+
+      {showCatalog && (
+        <div className="rounded-lg border border-accent/30 bg-card p-3">
+          <div className="mb-2 flex items-center gap-2 text-xs text-muted">
+            <Boxes className="h-3.5 w-3.5 text-accent" />
+            Popular MCP servers — pick one to prefill the form, then adjust any path or credential and register.
+            Most run via <span className="font-mono">npx</span>/<span className="font-mono">uvx</span> (Node/Python must be installed).
+          </div>
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <Segmented
+              ariaLabel="Filter the MCP catalog by category"
+              className="flex-wrap gap-1.5"
+              value={catFilter}
+              onChange={setCatFilter}
+              options={[
+                { value: "all" as const, label: "All", count: CATALOG.length },
+                ...(Object.keys(CATEGORY_LABELS) as CatalogCategory[]).map((c) => ({
+                  value: c,
+                  label: CATEGORY_LABELS[c],
+                })),
+              ]}
+            />
+            <input
+              value={catQuery}
+              onChange={(e) => setCatQuery(e.target.value)}
+              placeholder="search servers…"
+              aria-label="Search catalog"
+              className={cn(inputCls, "ml-auto w-44 text-xs")}
+            />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {filterCatalog(CATALOG, catFilter, catQuery).map((e) => {
+              const already = registered.has(e.name);
+              return (
+                <div key={e.name} className="flex flex-col rounded-md border border-border bg-panel/40 p-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-foreground">{e.name}</span>
+                    {transportOf(e) === "http" && <Badge variant="default">remote</Badge>}
+                    {already && <Badge variant="good">added</Badge>}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto"
+                      disabled={already}
+                      aria-label={`Use ${e.name}`}
+                      onClick={() => useCatalogEntry(e)}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Use
+                    </Button>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted" title={e.description}>{e.description}</p>
+                  <p
+                    className="mt-1 truncate font-mono text-xs text-muted/80"
+                    title={e.url || `${e.command} ${e.args}`}
+                  >
+                    {e.url || `${e.command} ${e.args}`}
+                  </p>
+                  {e.needs && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-warn/90">
+                      <KeyRound className="h-3 w-3" /> needs: {e.needs}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {filterCatalog(CATALOG, catFilter, catQuery).length === 0 && (
+            <p className="py-3 text-center text-xs text-muted">No presets match “{catQuery.trim()}”.</p>
+          )}
+          <p className="mt-2 text-xs text-muted/80">
+            Note: servers marked “needs … (env)” get the secret injected only into that server’s process via the env
+            field — the rest of the environment stays scrubbed. “Use” prefills the key names so you just paste the value.
+          </p>
+        </div>
+      )}
+
+      {showForm && (
+        <McpModal title={prefill?.name ? `Register ${prefill.name}` : "Register MCP server"} onClose={() => {
+          setShowForm(false);
+          setPrefill(undefined);
+        }}>
+          <NewServerForm
+            key={prefill?.name || "blank"}
+            initial={prefill}
+            onCreated={(name) => {
+              setShowForm(false);
+              setPrefill(undefined);
+              ui.toast(`server ${name} registered — attach it to make its tools callable`, "success");
+              reload();
+            }}
+            onError={(msg) => ui.toast(msg, "error")}
+          />
+        </McpModal>
+      )}
+
+      {err && <ErrorText>{err}</ErrorText>}
+      {!servers && !err && <SkeletonList count={3} />}
+      {servers && servers.length === 0 && !showForm && (
+        <EmptyState
+          icon={Plug}
+          title="No MCP servers yet"
+          hint='Register one here (e.g. command "npx", args "-y @modelcontextprotocol/server-everything"), or let an agent install its own with the mcp tool.'
+        />
+      )}
+
+      <ul className="space-y-2">
+        {(servers || []).map((s) => (
+          <li key={s.id} className={cn("glass rounded-xl border-l-2 p-3", s.attached ? "border-good/40" : "border-border")}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn("shrink-0", s.attached ? "text-good" : "text-muted")}>
+                {s.attached ? <PlugZap className="h-4 w-4" /> : <Plug className="h-4 w-4" />}
+              </span>
+              <span className="font-mono text-sm text-foreground">{s.name}</span>
+              {s.transport === "http" && <Badge variant="default">remote</Badge>}
+              {s.attached ? (
+                <Badge variant="good">attached · {s.tool_count ?? 0} tools</Badge>
+              ) : (
+                <Badge variant="default">registered</Badge>
+              )}
+              {s.enabled && <Badge variant="default">auto-attach</Badge>}
+              {s.lazy && (
+                <Badge variant="default" title="Tools collapsed into one mcp_<name> dispatcher">
+                  lazy
+                </Badge>
+              )}
+              <span className="ml-auto flex items-center gap-1">
+                {!s.attached && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === s.name}
+                    aria-label={`Attach ${s.name}`}
+                    onClick={() =>
+                      act(s.name, "/api/mcp/attach", undefined, {
+                        confirm: {
+                          title: `Attach ${s.name}?`,
+                          message:
+                            s.transport === "http"
+                              ? `The daemon connects to "${s.url || ""}" now (Streamable HTTP); every run will be offered its tools as mcp_${s.name}_<tool>.`
+                              : `The daemon spawns "${s.command || ""}" now; every run will be offered its tools as mcp_${s.name}_<tool>. The process gets a scrubbed environment.`,
+                          confirmLabel: "Attach",
+                        },
+                        success: (res) => {
+                          const tools = (res?.tools as unknown[]) || [];
+                          return `${s.name} attached — ${tools.length} tool(s) live`;
+                        },
+                      })
+                    }
+                  >
+                    <PlugZap className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {s.attached && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === s.name}
+                    aria-label={`Detach ${s.name}`}
+                    onClick={() =>
+                      act(s.name, "/api/mcp/detach", undefined, {
+                        confirm: {
+                          title: `Detach ${s.name}?`,
+                          message: "The server process stops and its tools vanish from the next run. You can re-attach later.",
+                          confirmLabel: "Detach",
+                          danger: true,
+                        },
+                        success: () => `${s.name} detached`,
+                      })
+                    }
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy === s.name}
+                  aria-label={s.enabled ? `Disable auto-attach for ${s.name}` : `Enable auto-attach for ${s.name}`}
+                  title={s.enabled ? "Auto-attach at daemon start: ON" : "Auto-attach at daemon start: OFF"}
+                  onClick={() =>
+                    act(s.name, "/api/mcp/enable", { enabled: s.enabled ? "false" : "true" }, {
+                      success: () =>
+                        s.enabled ? `${s.name} will not auto-attach at start` : `${s.name} will auto-attach at start`,
+                    })
+                  }
+                >
+                  {s.enabled ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy === s.name}
+                  aria-label={`Remove ${s.name}`}
+                  onClick={() =>
+                    act(s.name, "/api/mcp/remove", undefined, {
+                      confirm: {
+                        title: `Remove server ${s.name}?`,
+                        message: "It is detached first if live, then the registration is deleted. Past activity stays in the journal.",
+                        confirmLabel: "Remove",
+                        danger: true,
+                      },
+                      success: () => `${s.name} removed`,
+                    })
+                  }
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </span>
+            </div>
+            <Disclosure
+              className="mt-1"
+              summary={<span className="text-[11px] font-medium text-muted">Details</span>}
+            >
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                <span className="font-mono">
+                  {s.transport === "http"
+                    ? s.url
+                    : `${s.command || ""}${(s.args || []).length > 0 ? " " + (s.args || []).join(" ") : ""}`}
+                </span>
+                {(s.env_keys || []).length > 0 && (
+                  <span className="flex items-center gap-1 text-[11px]">
+                    <KeyRound className="h-3 w-3" /> env: {(s.env_keys || []).join(", ")}
+                  </span>
+                )}
+                {(s.header_keys || []).length > 0 && (
+                  <span className="flex items-center gap-1 text-[11px]">
+                    <KeyRound className="h-3 w-3" /> headers: {(s.header_keys || []).join(", ")}
+                  </span>
+                )}
+                {(s.tool_allow || []).length > 0 && (
+                  <span className="text-xs" title="Only these tools are exposed to runs">
+                    tools: {(s.tool_allow || []).join(", ")}
+                  </span>
+                )}
+              </div>
+              {s.description && <div className="mt-1 text-xs text-muted">{s.description}</div>}
+            </Disclosure>
+          </li>
+        ))}
+      </ul>
+    </Page>
+  );
+}
+
+function McpModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="modal-in mt-10 w-full max-w-3xl rounded-lg border border-border bg-card p-4 shadow-xl shadow-black/30"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded-lg bg-accent/10 text-accent ring-1 ring-inset ring-accent/25">
+            <Plug className="size-4" />
+          </span>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button className="ml-auto rounded-md p-1 text-muted transition-colors hover:bg-panel hover:text-foreground" onClick={onClose} aria-label="Close MCP modal">
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
