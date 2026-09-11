@@ -22,12 +22,21 @@ import (
 var cmdConstRe = regexp.MustCompile(`(?m)^\s*(Cmd\w+)\s*=\s*"([^"]+)"`)
 
 // protocolCommands returns constName→value for every Cmd* const declared in
-// protocol.go + protocol_commands.go (the command const block lives in the
-// latter since the Day 28 god file split #1).
+// protocol.go + the protocol_commands*.go split files (the command const block
+// has been carved into themed files: protocol_commands, _edict, _data,
+// _domains, _misc; see Day 28 + Day 43 god file splits).
 func protocolCommands(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{}
-	for _, path := range []string{"protocol.go", "protocol_commands.go"} {
+	paths := []string{
+		"protocol.go",
+		"protocol_commands.go",
+		"protocol_commands_edict.go",
+		"protocol_commands_data.go",
+		"protocol_commands_domains.go",
+		"protocol_commands_misc.go",
+	}
+	for _, path := range paths {
 		src, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
@@ -40,7 +49,7 @@ func protocolCommands(t *testing.T) map[string]string {
 		}
 	}
 	if len(out) == 0 {
-		t.Fatal("protocol.go + protocol_commands.go: no Cmd* constants matched — regexp or file layout changed")
+		t.Fatal("protocol.go + protocol_commands*.go: no Cmd* constants matched — regexp or file layout changed")
 	}
 	return out
 }
