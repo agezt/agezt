@@ -11,30 +11,36 @@ import (
 
 // Registry invariants: the command registry IS the dispatch surface (handleConn
 // routes every request through it), so these tests pin it against protocol.go
-// and enforce the tenant-isolation invariant. The tenant allowlist itself is
-// swept end-to-end by tenant_auth_test.go's registry-driven exhaustive test.
+// + protocol_commands.go and enforce the tenant-isolation invariant. The
+// tenant allowlist itself is swept end-to-end by tenant_auth_test.go's
+// registry-driven exhaustive test.
 
-// cmdConstRe matches the Cmd* string constants in protocol.go, e.g.
+// cmdConstRe matches the Cmd* string constants in protocol.go /
+// protocol_commands.go, e.g.
 //
 //	CmdVersion       = "version"
 var cmdConstRe = regexp.MustCompile(`(?m)^\s*(Cmd\w+)\s*=\s*"([^"]+)"`)
 
-// protocolCommands returns constName→value for every Cmd* const in protocol.go.
+// protocolCommands returns constName→value for every Cmd* const declared in
+// protocol.go + protocol_commands.go (the command const block lives in the
+// latter since the Day 28 god file split #1).
 func protocolCommands(t *testing.T) map[string]string {
 	t.Helper()
-	src, err := os.ReadFile("protocol.go")
-	if err != nil {
-		t.Fatalf("read protocol.go: %v", err)
-	}
 	out := map[string]string{}
-	for _, m := range cmdConstRe.FindAllStringSubmatch(string(src), -1) {
-		if prev, dup := out[m[1]]; dup {
-			t.Fatalf("protocol.go: const %s defined twice (%q, %q)", m[1], prev, m[2])
+	for _, path := range []string{"protocol.go", "protocol_commands.go"} {
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
 		}
-		out[m[1]] = m[2]
+		for _, m := range cmdConstRe.FindAllStringSubmatch(string(src), -1) {
+			if prev, dup := out[m[1]]; dup {
+				t.Fatalf("%s: const %s defined twice (%q, %q)", path, m[1], prev, m[2])
+			}
+			out[m[1]] = m[2]
+		}
 	}
 	if len(out) == 0 {
-		t.Fatal("protocol.go: no Cmd* constants matched — regexp or file layout changed")
+		t.Fatal("protocol.go + protocol_commands.go: no Cmd* constants matched — regexp or file layout changed")
 	}
 	return out
 }
