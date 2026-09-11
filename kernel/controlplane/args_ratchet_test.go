@@ -21,16 +21,14 @@ import (
 // deleting the entry at zero). Do not raise a number to make the test pass —
 // that re-opens the silent-failure class the accessors were written to close.
 var rawArgCastBaseline = map[string]int{
-	// roster.go's 1 residual cast is a deliberate polymorphic transport
-	// (older_than_days number-or-string) — not migration debt. The
-	// task_model_chain []any moved to roster_list.go with the Day 24
-	// god file split #2; the "enabled bool-or-string" moved to
-	// roster_crud.go with #3; the tombstone limit cast moved to
-	// roster_tombstone.go with #4.
-	"roster.go":        1,
-	"roster_crud.go":   1, // residual: enabled bool-or-string switch (moved from roster.go)
+	// roster.go's 0 residual casts is the target; once it hits zero the
+	// entry can be deleted. The older_than_days number-or-string moved
+	// to roster_wake.go with the Day 24 god file split #7.
+	"roster.go":          0,
+	"roster_crud.go":     1, // residual: enabled bool-or-string switch (moved from roster.go)
 	"roster_tombstone.go": 1, // residual: limit number-or-string (moved from roster.go)
-	"schedule.go":      1, // residual: enabled bool-or-string switch
+	"roster_wake.go":     1, // residual: older_than_days number-or-string (moved from roster.go)
+	"schedule.go":        1, // residual: enabled bool-or-string switch
 	"workflow.go":      3, // residual: enabled/limit/async dual-type switches
 	"standing.go":      1, // residual: enabled bool-or-string switch
 	"pulse_control.go": 3, // residual: approve/seconds/min_pct dual-type switches
