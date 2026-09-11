@@ -1,0 +1,730 @@
+// SPDX-License-Identifier: MIT
+
+// Workflow handlers: handleWorkflowList/Show/Save/Restore/Remove/SetEnabled/TestNode/Webhook/Templates/Runs/Draft/Refine/Run + runWorkflowDetached.
+// Code extracted from workflow.go during the Day-38 god-file split. Public API unchanged.
+package controlplane
+
+
+import (
+	"context"
+	"crypto/subtle"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/agezt/agezt/kernel/event"
+	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/workflow"
+)
+
+
+func (s *Server) handleWorkflowList(conn net.Conn, req Request) {
+	items := s.k.Workflows().List()
+
+	// The journal fold is opt-in: `agt workflow list` wants the cheap answer,
+	// the console's list wants to show whether each workflow last succeeded.
+	var runs map[string]lastRunSummary
+	// argFlag, not argBool: the web console reaches this through the HTTP proxy,
+	// where every query arg arrives as a string.
+	withRuns, _, err := argFlag(req.Args, "with_runs")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	if withRuns {
+		names := make([]string, 0, len(items))
+		for _, w := range items {
+			names = append(names, w.Name)
+		}
+		runs = s.workflowLastRuns(names)
+	}
+
+	out := make([]any, 0, len(items))
+	enabled := 0
+	for _, w := range items {
+		view := workflowView(w, false)
+		if r, ok := runs[w.Name]; ok {
+			last := map[string]any{"status": r.status, "at_ms": r.atMS}
+			if r.durationMS > 0 {
+				last["duration_ms"] = r.durationMS
+			}
+			view["last_run"] = last
+		}
+		out = append(out, view)
+		if w.Enabled {
+			enabled++
+		}
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflows": out, "count": len(out), "enabled_count": enabled},
+	})
+}
+
+func (s *Server) handleWorkflowShow(conn net.Conn, req Request) {
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, true)}})
+}
+
+func (s *Server) handleWorkflowSave(conn net.Conn, req Request) {
+	raw, ok := req.Args["workflow"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow required"})
+		return
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	var w workflow.Workflow
+	if err := json.Unmarshal(b, &w); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	saved, created, err := s.k.SaveWorkflow("", w)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(saved, true), "created": created},
+	})
+}
+
+func (s *Server) handleWorkflowRestore(conn net.Conn, req Request) {
+	raw, ok := req.Args["workflow"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow required"})
+		return
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	var w workflow.Workflow
+	if err := json.Unmarshal(b, &w); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	reason, _, err := argString(req.Args, "reason")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	restored, created, err := s.k.RestoreWorkflow("", w, reason)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(restored, true), "created": created},
+	})
+}
+
+func (s *Server) handleWorkflowRemove(conn net.Conn, req Request) {
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	ok, err := s.k.RemoveWorkflow("", ref)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": ok}})
+}
+
+func (s *Server) handleWorkflowSetEnabled(conn net.Conn, req Request) {
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	enabled := false
+	switch v := req.Args["enabled"].(type) {
+	case bool:
+		enabled = v
+	case string:
+		enabled = strings.EqualFold(v, "true") || v == "1"
+	}
+	w, err := s.k.SetWorkflowEnabled("", ref, enabled)
+	if err != nil {
+		if errors.Is(err, workflow.ErrNotFound) {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+			return
+		}
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"workflow": workflowView(w, false)}})
+}
+
+// workflowTestNodeTimeout bounds one single-node probe — a node's own
+// timeout_sec applies inside it; this is the outer hard stop.
+const workflowTestNodeTimeout = 3 * time.Minute
+
+// workflowWebhookReplyTimeout bounds one SYNC webhook run (M812) — reply
+// workflows are request/response, not pipelines; long work stays async.
+const workflowWebhookReplyTimeout = 2 * time.Minute
+
+// handleWorkflowTestNode (M811) runs ONE node of the POSTED graph with
+// caller-supplied upstream data — the canvas's "Test node" button. The graph
+// rides in the request (the canvas's truth, unsaved edits included).
+func (s *Server) handleWorkflowTestNode(conn net.Conn, req Request) {
+	raw, ok := req.Args["workflow"]
+	if !ok {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow required"})
+		return
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	var w workflow.Workflow
+	if err := json.Unmarshal(b, &w); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+		return
+	}
+	nodeID, err := requiredArgString(req.Args, "node")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var data map[string]any
+	if raw, ok := req.Args["data"]; ok {
+		m, isMap := raw.(map[string]any)
+		if !isMap {
+			s.failMsg(conn, req, "args.data must be an object")
+			return
+		}
+		data = m
+	}
+	payload := req.Args["payload"]
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowTestNodeTimeout)
+	defer cancel()
+	res, err := s.k.TestWorkflowNode(ctx, corr, w, nodeID, data, payload)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"output": res.Output, "port": res.Port, "attempts": res.Attempts,
+			"correlation_id": corr,
+		},
+	})
+}
+
+// handleWorkflowWebhook (M809) authenticates an external webhook POST and
+// fires the workflow ASYNC. The gate is strict and entirely here, the single
+// source of truth: the workflow must exist, be ENABLED, declare a webhook
+// trigger, and the presented secret must match in constant time. Refusals
+// are deliberately uniform ("webhook refused") so a probing caller cannot
+// distinguish unknown-name from bad-secret from disabled.
+func (s *Server) handleWorkflowWebhook(conn net.Conn, req Request) {
+	refuse := func() {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "webhook refused"})
+	}
+	// Wrong-typed args refuse uniformly too — the gate must not leak which
+	// input was malformed.
+	ref, _, refErr := argString(req.Args, "ref")
+	secret, _, secErr := argString(req.Args, "secret")
+	if refErr != nil || secErr != nil || strings.TrimSpace(ref) == "" || secret == "" {
+		refuse()
+		return
+	}
+	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+	if !found || !w.Enabled {
+		refuse()
+		return
+	}
+	spec := w.TriggerSpec()
+	if spec.Kind != "webhook" ||
+		subtle.ConstantTimeCompare([]byte(spec.Secret), []byte(secret)) != 1 {
+		refuse()
+		return
+	}
+	corr := s.k.NewCorrelation()
+	payload := req.Args["payload"]
+
+	// Reply mode (M812): the AUTHENTICATED caller holds the line and gets
+	// the run's outputs back — n8n's "respond to webhook". Post-auth run
+	// failures may be honest (the caller proved knowledge of the secret);
+	// only the auth gate stays uniform.
+	if w.TriggerSpec().Reply {
+		ctx, cancel := context.WithTimeout(context.Background(), workflowWebhookReplyTimeout)
+		defer cancel()
+		ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "webhook", TriggerSubject: "webhook:" + w.Name})
+		runRes, err := s.k.RunWorkflow(ctx, corr, w.Name, payload)
+		if err != nil {
+			s.writeResp(conn, Response{
+				ID: req.ID, Type: RespError,
+				Error: "webhook run failed: " + err.Error() + " (correlation " + corr + ")",
+			})
+			return
+		}
+		s.writeResp(conn, Response{
+			ID:   req.ID,
+			Type: RespResult,
+			Result: map[string]any{
+				"correlation_id": corr, "workflow": w.Name,
+				"executed": runRes.Executed, "outputs": runRes.Outputs,
+			},
+		})
+		return
+	}
+
+	// Fire-and-return: a webhook caller gets an immediate accept; the run
+	// proceeds under its own deadline and the journal carries the arc.
+	go s.runWorkflowDetached(kernelruntime.WakeContext{Source: "webhook", TriggerSubject: "webhook:" + w.Name}, corr, w.Name, payload)
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"accepted": true, "correlation_id": corr, "workflow": w.Name},
+	})
+}
+
+// runWorkflowDetached runs a workflow on its own deadline, disconnected from the
+// caller's connection: the webhook and async-run handlers both answer "accepted"
+// immediately and let the journal carry the arc.
+//
+// Panic firewall (WF-001). These are the two paths that reach the engine on a
+// bare `go` WITHOUT passing through the trigger runner's safeFire, so they had no
+// recover of their own — and a workflow executes third-party code (plugin
+// subprocesses, MCP servers, scripts), so one bad node took the daemon down. The
+// caller has already been answered by the time this runs, which is exactly why
+// the panic must be journaled: there is no request left to return an error on.
+func (s *Server) runWorkflowDetached(wake kernelruntime.WakeContext, corr, name string, payload any) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "workflow %q (%s) panicked: %v\n", name, wake.Source, r)
+		if s.k == nil || s.k.Bus() == nil {
+			return
+		}
+		_, _ = s.k.Bus().Publish(event.Spec{
+			Subject:       "workflow." + name,
+			Kind:          event.KindWorkflowPanic,
+			Actor:         "controlplane",
+			CorrelationID: corr,
+			Payload: map[string]any{
+				"workflow": name,
+				"source":   wake.Source,
+				"panic":    fmt.Sprintf("%v", r),
+			},
+		})
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
+	defer cancel()
+	ctx = kernelruntime.WithWakeContext(ctx, wake)
+	_, _ = s.k.RunWorkflow(ctx, corr, name, payload) // failures land in workflow.failed
+}
+
+// handleWorkflowTemplates (M807) returns the built-in gallery — curated,
+// validated starting points with their full graphs. Read-only; the caller
+// instantiates by saving under a new name.
+func (s *Server) handleWorkflowTemplates(conn net.Conn, req Request) {
+	all := workflow.Templates()
+	out := make([]any, 0, len(all))
+	for _, t := range all {
+		out = append(out, map[string]any{
+			"name":        t.Name,
+			"title":       t.Title,
+			"description": t.Description,
+			"category":    t.Category,
+			"node_count":  len(t.Workflow.Nodes),
+			"workflow":    workflowView(t.Workflow, true),
+		})
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"templates": out, "count": len(out)},
+	})
+}
+
+// workflowDraftTimeout bounds one copilot draft — up to two provider
+// round-trips (the draft and one repair).
+const workflowDraftTimeout = 3 * time.Minute
+
+// workflowRunsDefaultLimit / Max bound the run-history fold (M806).
+const (
+	workflowRunsDefaultLimit = 20
+	workflowRunsMaxLimit     = 100
+)
+
+// handleWorkflowRuns (M806) folds the journal into a workflow's run
+// history: every started→node…→completed|failed arc under subject
+// workflow.<name>, grouped by correlation, newest first. This is what the
+// console's Runs drawer replays on the canvas — the journal is the truth,
+// nothing new is stored.
+func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+	if !found {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+		return
+	}
+	limit := workflowRunsDefaultLimit
+	switch v := req.Args["limit"].(type) {
+	case float64:
+		limit = int(v)
+	case string:
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	if limit <= 0 {
+		limit = workflowRunsDefaultLimit
+	}
+	if limit > workflowRunsMaxLimit {
+		limit = workflowRunsMaxLimit
+	}
+
+	subject := "workflow." + w.Name
+	type runFold struct {
+		corr     string
+		started  int64
+		finished int64
+		status   string // running|completed|failed
+		errText  string
+		source   string
+		runner   string
+		agent    string
+		schedule string
+		standing string
+		trigger  string
+		parent   string
+		executed []any
+		nodes    []map[string]any
+	}
+	byCorr := map[string]*runFold{}
+	var order []string // first-seen order == chronological (journal is append-only)
+	get := func(corr string) *runFold {
+		r := byCorr[corr]
+		if r == nil {
+			r = &runFold{corr: corr, status: "running"}
+			byCorr[corr] = r
+			order = append(order, corr)
+		}
+		return r
+	}
+	if err := s.k.Journal().Range(func(e *event.Event) error {
+		if e.Subject != subject || e.CorrelationID == "" {
+			return nil
+		}
+		switch e.Kind {
+		case event.KindWorkflowStarted:
+			var p struct {
+				Source            string `json:"source"`
+				Runner            string `json:"runner"`
+				Agent             string `json:"agent"`
+				ScheduleID        string `json:"schedule_id"`
+				StandingID        string `json:"standing_id"`
+				TriggerSubject    string `json:"trigger_subject"`
+				ParentCorrelation string `json:"parent_correlation_id"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			r := get(e.CorrelationID)
+			r.started = e.TSUnixMS
+			r.source = p.Source
+			r.runner = p.Runner
+			r.agent = p.Agent
+			r.schedule = p.ScheduleID
+			r.standing = p.StandingID
+			r.trigger = p.TriggerSubject
+			r.parent = p.ParentCorrelation
+		case event.KindWorkflowNode:
+			var p struct {
+				Node     string `json:"node"`
+				Type     string `json:"type"`
+				Label    string `json:"label"`
+				OK       *bool  `json:"ok"`
+				Port     string `json:"port"`
+				Handled  *bool  `json:"handled"`
+				Error    string `json:"error"`
+				Input    string `json:"input"`
+				Output   string `json:"output"`
+				Attempts int    `json:"attempts"`
+				Test     bool   `json:"test"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			if p.Node == "" || p.Test {
+				// Single-node tests (M811) are probes, not arcs — they never
+				// belong in run history.
+				return nil
+			}
+			nv := map[string]any{"node": p.Node, "ts_ms": e.TSUnixMS}
+			nv["ok"] = p.OK == nil || *p.OK
+			if p.Type != "" {
+				nv["type"] = p.Type
+			}
+			if p.Label != "" {
+				nv["label"] = p.Label
+			}
+			if p.Port != "" {
+				nv["port"] = p.Port
+			}
+			if p.Handled != nil {
+				nv["handled"] = *p.Handled
+			}
+			if p.Error != "" {
+				nv["error"] = p.Error
+			}
+			// Per-node data snippets (M808): what the node consumed/produced.
+			if p.Input != "" {
+				nv["input"] = p.Input
+			}
+			if p.Output != "" {
+				nv["output"] = p.Output
+			}
+			if p.Attempts > 1 {
+				nv["attempts"] = p.Attempts
+			}
+			get(e.CorrelationID).nodes = append(get(e.CorrelationID).nodes, nv)
+		case event.KindWorkflowCompleted, event.KindWorkflowFailed:
+			var p struct {
+				Executed []any  `json:"executed"`
+				Error    string `json:"error"`
+			}
+			_ = json.Unmarshal(e.Payload, &p)
+			r := get(e.CorrelationID)
+			r.finished = e.TSUnixMS
+			r.executed = p.Executed
+			if e.Kind == event.KindWorkflowFailed {
+				r.status = "failed"
+				r.errText = p.Error
+			} else {
+				r.status = "completed"
+			}
+		}
+		return nil
+	}); err != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "journal: " + err.Error()})
+		return
+	}
+
+	// Newest first, capped.
+	out := make([]any, 0, limit)
+	for i := len(order) - 1; i >= 0 && len(out) < limit; i-- {
+		r := byCorr[order[i]]
+		rv := map[string]any{
+			"correlation_id": r.corr,
+			"status":         r.status,
+			"started_ms":     r.started,
+			"node_events":    r.nodes,
+		}
+		if r.finished > 0 {
+			rv["finished_ms"] = r.finished
+		}
+		if len(r.executed) > 0 {
+			rv["executed"] = r.executed
+		}
+		if r.errText != "" {
+			rv["error"] = r.errText
+		}
+		if r.source != "" {
+			rv["source"] = r.source
+		}
+		if r.runner != "" {
+			rv["runner"] = r.runner
+		}
+		if r.agent != "" {
+			rv["agent"] = r.agent
+		}
+		if r.schedule != "" {
+			rv["schedule_id"] = r.schedule
+		}
+		if r.standing != "" {
+			rv["standing_id"] = r.standing
+		}
+		if r.trigger != "" {
+			rv["trigger_subject"] = r.trigger
+		}
+		if r.parent != "" {
+			rv["parent_correlation_id"] = r.parent
+		}
+		out = append(out, rv)
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": w.Name, "runs": out, "count": len(out)},
+	})
+}
+
+func (s *Server) handleWorkflowDraft(conn net.Conn, req Request) {
+	desc, err := requiredArgString(req.Args, "description")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	name, _, err := argString(req.Args, "name")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowDraftTimeout)
+	defer cancel()
+	w, err := s.k.DraftWorkflow(ctx, corr, name, desc)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	// The draft is NOT saved — the caller (canvas, CLI) reviews and saves.
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(w, true), "correlation_id": corr},
+	})
+}
+
+// handleWorkflowRefine (M805): revise an existing graph from a plain-language
+// instruction. The base is the POSTED graph when args.workflow is present
+// (the canvas's truth, unsaved edits included), else the STORED one at
+// args.ref (the CLI's path). The revision returns UNSAVED, like a draft.
+func (s *Server) handleWorkflowRefine(conn net.Conn, req Request) {
+	instruction, err := requiredArgString(req.Args, "instruction")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var base workflow.Workflow
+	if raw, ok := req.Args["workflow"]; ok && raw != nil {
+		b, err := json.Marshal(raw)
+		if err == nil {
+			err = json.Unmarshal(b, &base)
+		}
+		if err != nil {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.workflow: " + err.Error()})
+			return
+		}
+	} else {
+		ref, _, err := argString(req.Args, "ref")
+		if err != nil {
+			s.fail(conn, req, err)
+			return
+		}
+		if strings.TrimSpace(ref) == "" {
+			s.failMsg(conn, req, "args.workflow or args.ref required")
+			return
+		}
+		w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+		if !found {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+			return
+		}
+		base = w
+	}
+	corr := s.k.NewCorrelation()
+	ctx, cancel := context.WithTimeout(context.Background(), workflowDraftTimeout)
+	defer cancel()
+	w, err := s.k.RefineWorkflow(ctx, corr, base, instruction)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:     req.ID,
+		Type:   RespResult,
+		Result: map[string]any{"workflow": workflowView(w, true), "correlation_id": corr},
+	})
+}
+
+func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
+	ref, err := requiredArgString(req.Args, "ref")
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	// payload may be any JSON value (object on the canvas, a string from the
+	// CLI's --payload) — passed verbatim into {{trigger.payload}}.
+	payload := req.Args["payload"]
+	corr := s.k.NewCorrelation()
+
+	// Async mode (M810): start the run and return immediately — the canvas
+	// follows it live on the SSE arc, long runs stop being hostage to wire
+	// timeouts (the webui's JSON proxy caps a held connection at 120s while
+	// the engine legitimately allows 15m). The ref is resolved BEFORE
+	// detaching so a typo is still an honest, synchronous error.
+	async := false
+	switch v := req.Args["async"].(type) {
+	case bool:
+		async = v
+	case string:
+		async = strings.EqualFold(v, "true") || v == "1"
+	}
+	if async {
+		w, found := s.k.Workflows().Get(strings.TrimSpace(ref))
+		if !found {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+			return
+		}
+		go s.runWorkflowDetached(kernelruntime.WakeContext{Source: "manual"}, corr, w.Name, payload)
+		s.writeResp(conn, Response{
+			ID:     req.ID,
+			Type:   RespResult,
+			Result: map[string]any{"accepted": true, "async": true, "correlation_id": corr, "workflow": w.Name},
+		})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), workflowRunTimeout)
+	defer cancel()
+	ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "manual"})
+	res, err := s.k.RunWorkflow(ctx, corr, ref, payload)
+	if err != nil {
+		if errors.Is(err, workflow.ErrNotFound) {
+			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workflow: " + ref})
+			return
+		}
+		s.writeResp(conn, Response{
+			ID: req.ID, Type: RespError,
+			Error: err.Error() + " (correlation " + corr + ")",
+		})
+		return
+	}
+	s.writeResp(conn, Response{
+		ID:   req.ID,
+		Type: RespResult,
+		Result: map[string]any{
+			"correlation_id": corr,
+			"executed":       res.Executed,
+			"outputs":        res.Outputs,
+		},
+	})
+}
+
+// registerWorkflowCommands registers this file's protocol commands into the dispatch registry (phase 2.3).

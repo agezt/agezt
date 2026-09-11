@@ -29,7 +29,8 @@ var rawArgCastBaseline = map[string]int{
 	"roster_tombstone.go": 1, // residual: limit number-or-string (moved from roster.go)
 	"roster_wake.go":     1, // residual: older_than_days number-or-string (moved from roster.go)
 	"schedule.go":        1, // residual: enabled bool-or-string switch
-	"workflow.go":      3, // residual: enabled/limit/async dual-type switches
+	"workflow.go":          0, // residual: enabled/limit/async dual-type switches moved to workflow_handlers.go (Day 38 #1)
+	"workflow_handlers.go": 3, // residual: enabled/limit/async dual-type switches (moved from workflow.go)
 	"standing.go":      1, // residual: enabled bool-or-string switch
 	"pulse_control.go": 3, // residual: approve/seconds/min_pct dual-type switches
 	// server.go's 0 residual casts is the target; once it hits zero the
