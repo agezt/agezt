@@ -32,10 +32,11 @@ var rawArgCastBaseline = map[string]int{
 	"workflow.go":      3, // residual: enabled/limit/async dual-type switches
 	"standing.go":      1, // residual: enabled bool-or-string switch
 	"pulse_control.go": 3, // residual: approve/seconds/min_pct dual-type switches
-	// server.go/provider_keys.go residuals sit inside auth/validation gates
-	// (tenant auth pin, whoami echo, keyEnv/keyTarget funnels) where a wrong
-	// type already collapses to an honest refusal — not migration debt.
-	"server.go":          2,
+	// server.go's 0 residual casts is the target; once it hits zero the
+	// entry can be deleted. The 2 residual casts (whoami echo + auth pin)
+	// moved to server_handlers.go with the Day 27 god file split #2.
+	"server.go":          0,
+	"server_handlers.go": 2, // residual: whoami echo + auth pin (moved from server.go)
 	"provider_keys.go":   2,
 	"tenant.go":          1, // residual: tenantOf's documented lenient read
 	"mcp.go":             1, // residual: enabled bool-or-string switch
