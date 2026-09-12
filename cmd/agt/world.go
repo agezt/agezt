@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt world command: dispatcher + Forget/Add/Relate/Resolve/Neighbors/List/Show subcommands + worldCall helper.
-// Code extracted from world.go during the Day-98 god-file split.
+// agt world command: dispatcher + Forget/Add/Relate/Resolve/Neighbors/List/Show subcommands.
+// Code extracted from world.go during the Day-132 god-file split.
 // Public API unchanged.
 package main
+
 
 
 import (
@@ -19,6 +20,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 
 
 // cmdWorld dispatches `agt world <subcommand>`. The world model is the
@@ -410,23 +412,3 @@ func cmdWorldShow(args []string, stdout, stderr io.Writer) int {
 // worldCall dials the daemon, makes one control-plane call, and on --json
 // prints the raw result. Returns the result map, or nil on error (after
 // writing the error to stderr). On --json success it has already printed.
-func worldCall(cmd string, callArgs map[string]any, label string, stdout, stderr io.Writer, asJSON bool) map[string]any {
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	res, err := c.Call(ctx, cmd, callArgs)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s %s: %v\n", brand.CLI, label, err)
-		return nil
-	}
-	if asJSON {
-		_ = jsonout.Write(stdout, res)
-	}
-	return res
-}
-
-// renderEntityLine formats an entity map (as returned over the wire) into a
-// single human-readable line: "<id12> [kind] name (aka ...)".
