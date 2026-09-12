@@ -1,46 +1,30 @@
 // SPDX-License-Identifier: MIT
 
-// Package nostr is a two-way Nostr channel. It connects to a set of relays over
-// WebSocket, subscribes to kind-1 notes that mention the agent's pubkey, and
-// replies with signed, threaded kind-1 events (NIP-01 / NIP-10). Outbound-only
-// use (Pulse briefs, `agt send`) publishes a standalone note.
-//
-// Nostr is the one channel that can't ride AGEZT's stdlib-only convention: it
-// needs a WebSocket transport (github.com/coder/websocket) and BIP340 schnorr
-// signing over secp256k1 (github.com/btcsuite/btcd/btcec) — both added
-// deliberately for this channel.
-//
-// Security (SPEC-04 §1.7): inbound events are data, never kernel instructions.
-// Every inbound event's schnorr signature is verified locally against its id and
-// author pubkey BEFORE it is trusted — a malicious relay cannot forge an event
-// attributed to an allowlisted author. An Allowlist of author pubkeys gates who
-// may drive the agent (empty = fail-closed for driving; still journaled), and
-// event ids are de-duplicated across relays. The private key signs outbound
-// events and never leaves the process.
+// Nostr channel: types + lifecycle + receive + send + emit + helpers.
+// Code extracted from nostr.go during the Day-107 god-file split.
+// Public API unchanged.
 package nostr
 
+
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/agezt/agezt/internal/strutil"
 	"time"
 
-	btcec "github.com/btcsuite/btcd/btcec/v2"
-	"github.com/btcsuite/btcd/btcec/v2/schnorr"
-	"github.com/coder/websocket"
-
+	"encoding/hex"
+	"encoding/json"
+	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
+	btcec "github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/coder/websocket"
 )
+
 
 const (
 	maxChars     = 8000    // generous per-note cap
@@ -419,83 +403,3 @@ func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
 
 // --- event model + crypto -------------------------------------------------
 
-type nostrEvent struct {
-	ID        string     `json:"id"`
-	Pubkey    string     `json:"pubkey"`
-	CreatedAt int64      `json:"created_at"`
-	Kind      int        `json:"kind"`
-	Tags      [][]string `json:"tags"`
-	Content   string     `json:"content"`
-	Sig       string     `json:"sig"`
-}
-
-// serialize produces the NIP-01 canonical form whose sha256 is the event id:
-// [0,pubkey,created_at,kind,tags,content] with no extra whitespace and HTML
-// escaping disabled (Nostr uses standard minimal JSON string escapes).
-func (e *nostrEvent) serialize() []byte {
-	tags := e.Tags
-	if tags == nil {
-		tags = [][]string{}
-	}
-	arr := []any{0, e.Pubkey, e.CreatedAt, e.Kind, tags, e.Content}
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(arr)
-	return bytes.TrimRight(buf.Bytes(), "\n")
-}
-
-// sign computes the id and schnorr signature, filling ID and Sig.
-func (e *nostrEvent) sign(priv *btcec.PrivateKey) error {
-	sum := sha256.Sum256(e.serialize())
-	sig, err := schnorr.Sign(priv, sum[:])
-	if err != nil {
-		return err
-	}
-	e.ID = hex.EncodeToString(sum[:])
-	e.Sig = hex.EncodeToString(sig.Serialize())
-	return nil
-}
-
-// verify recomputes the id, checks it matches e.ID, and verifies the schnorr
-// signature against the author pubkey. False on any malformed field.
-func (e *nostrEvent) verify() bool {
-	sum := sha256.Sum256(e.serialize())
-	if hex.EncodeToString(sum[:]) != e.ID {
-		return false
-	}
-	pkBytes, err := hex.DecodeString(e.Pubkey)
-	if err != nil || len(pkBytes) != 32 {
-		return false
-	}
-	pub, err := schnorr.ParsePubKey(pkBytes)
-	if err != nil {
-		return false
-	}
-	sigBytes, err := hex.DecodeString(e.Sig)
-	if err != nil {
-		return false
-	}
-	sig, err := schnorr.ParseSignature(sigBytes)
-	if err != nil {
-		return false
-	}
-	return sig.Verify(sum[:], pub)
-}
-
-// seenBefore records an event id and reports whether it was already processed.
-func (c *Channel) seenBefore(id string) bool {
-	c.dmu.Lock()
-	defer c.dmu.Unlock()
-	if _, ok := c.seen[id]; ok {
-		return true
-	}
-	c.seen[id] = struct{}{}
-	c.ring = append(c.ring, id)
-	if len(c.ring) > dedupCap {
-		old := c.ring[0]
-		c.ring = c.ring[1:]
-		delete(c.seen, old)
-	}
-	return false
-}
