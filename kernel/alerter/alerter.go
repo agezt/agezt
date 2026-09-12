@@ -1,31 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-// Package alerter pushes warning/critical alerts to the configured channels
-// (M782). It watches the bus for proactive-signal event kinds (run failures,
-// blocked egress, budget/rate trips, halts, and a pending approval — M922) and
-// delivers a short brief through the existing Pulse channel sinks — so the
-// operator hears about problems, and is asked to approve a blocked run, without
-// the console open. (The console surfaces a pending approval through its own
-// ApprovalsBell rather than the Alerts view, so the two stay in sync on intent
-// even though only the daemon classifies approvals here.)
-//
-// Pulse-originated kinds (observer.delta, briefing.sent) are deliberately NOT
-// handled here: the Pulse engine already delivers its own briefs through the
-// same sinks, and notifying them twice would double every heartbeat signal.
+// Alerter: Level type + ParseLevel + Alert type + Classify + Config + Notifier + Start (lifecycle + classification).
+// Code extracted from alerter.go during the Day-133 god-file split.
+// Public API unchanged.
 package alerter
 
+
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/pulse"
 )
+
 
 // Level ranks alert severity. Mirrors the console's classifier
 // (frontend/src/lib/alerts.ts): info signals exist but never notify.
@@ -313,125 +303,3 @@ func ParseMuteSources(s string) map[string]bool {
 // brief renders an Alert as a Pulse brief. DispAlert is the "send now, high
 // priority" disposition — these are exactly the signals that should break
 // through digests and quiet hours.
-func brief(a Alert, ev *event.Event) pulse.Brief {
-	title := "⚠ " + a.Title
-	if a.Level == LevelCritical {
-		title = "🚨 " + a.Title
-	}
-	body := a.Detail
-	if a.Source != "" {
-		body = joinNonEmpty("\n", body, "source: "+a.Source)
-	}
-	return pulse.Brief{
-		Title:         title,
-		Body:          body,
-		Disposition:   pulse.DispAlert,
-		IssueKey:      alertIssueKey(a, ev),
-		CorrelationID: ev.CorrelationID,
-		Items:         1,
-	}
-}
-
-func dedupeKey(a Alert, ev *event.Event, p map[string]any) string {
-	key := string(a.Kind) + "/" + ev.CorrelationID
-	if ev.CorrelationID != "" {
-		return key
-	}
-	if strings.EqualFold(strings.TrimSpace(ev.Subject), "doctor.auto_repair") {
-		parts := []string{ev.Subject, str(p, "agent"), str(p, "phase"), str(p, "fingerprint")}
-		out := make([]string, 0, len(parts))
-		for _, part := range parts {
-			if part = strings.TrimSpace(part); part != "" {
-				out = append(out, part)
-			}
-		}
-		if len(out) > 0 {
-			return strings.Join(out, "/")
-		}
-	}
-	return key
-}
-
-func alertIssueKey(a Alert, ev *event.Event) string {
-	if strings.EqualFold(strings.TrimSpace(ev.Subject), "doctor.auto_repair") {
-		return "alert/" + ev.Subject
-	}
-	return "alert/" + string(a.Kind)
-}
-
-// Start wires the notifier onto the bus: subscribe to everything, classify,
-// gate, deliver. Returns false (nothing started) when bus or sink is missing.
-// The goroutine stops on ctx cancellation or bus close; a panic in the loop is
-// recovered so a notifier bug can never crash the daemon (anomaly pattern).
-func Start(ctx context.Context, b *bus.Bus, sink pulse.BriefSink, cfg Config) bool {
-	if b == nil || sink == nil {
-		return false
-	}
-	sub, err := b.Subscribe(">", 256)
-	if err != nil {
-		return false
-	}
-	n := New(sink, cfg)
-	go func() {
-		defer func() {
-			sub.Cancel()
-			_ = recover() // a watcher panic must never take down the daemon
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case ev, ok := <-sub.C:
-				if !ok {
-					return
-				}
-				n.Handle(ev)
-			}
-		}
-	}()
-	return true
-}
-
-// payloadMap decodes an event payload object, tolerating nil/non-object
-// payloads (→ nil map, so every field lookup just comes back empty).
-func payloadMap(raw json.RawMessage) map[string]any {
-	if len(raw) == 0 {
-		return nil
-	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil
-	}
-	return m
-}
-
-func str(p map[string]any, key string) string {
-	if p == nil {
-		return ""
-	}
-	if v, ok := p[key]; ok && v != nil {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-func firstStr(p map[string]any, keys ...string) string {
-	for _, k := range keys {
-		if s := str(p, k); s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
-func joinNonEmpty(sep string, parts ...string) string {
-	var out []string
-	for _, p := range parts {
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return strings.Join(out, sep)
-}
