@@ -1,25 +1,13 @@
 // SPDX-License-Identifier: MIT
 
+// Config surface: types + configEnvVars (the giant env-var listing).
+// Code extracted from config.go during the Day-74 god-file split. Public API unchanged.
 package controlplane
 
-// Daemon config snapshot. The "what is this daemon actually running
-// with?" command. Today the answer is scattered across the kernel's
-// startup log, ad-hoc grepping for AGEZT_*, and inferring paths
-// from the OS user-home — none of which are scriptable. CmdConfig
-// gives operators (and CI smoke tests) one round-trip that returns
-// the resolved view.
-//
-// Privacy: env-var VALUES are never returned. The handler reports
-// only PRESENCE — `{ "AGEZT_VAULT_PASSPHRASE": true }` when the
-// var is set, omitted when unset. Same rule for the system prompt:
-// `system_prompt_set: bool` reports whether one is configured but
-// never echoes its content (could contain proprietary instructions).
 
-import (
-	"net"
-	"os"
-	"path/filepath"
-)
+
+
+
 
 // configEnvVars is the canonical set of AGEZT_* env vars the daemon
 // reads at startup. Surface PRESENCE only; the values can contain
@@ -487,75 +475,4 @@ var configEnvVars = []string{
 	// Run-reaper retry-pressure window (kernel/runtime).
 	"AGEZT_RETRY_PRESSURE_THRESHOLD",
 	"AGEZT_RETRY_PRESSURE_WINDOW",
-}
-
-func (s *Server) handleConfig(conn net.Conn, req Request) {
-	base := s.k.BaseDir()
-	paths := map[string]any{
-		"base":    base,
-		"journal": filepath.Join(base, "journal"),
-		"state":   filepath.Join(base, "state"),
-		"runtime": filepath.Join(base, "runtime"),
-		"catalog": filepath.Join(base, "catalog"),
-		"vault":   filepath.Join(base, "vault.json"),
-	}
-
-	env := map[string]any{}
-	for _, name := range configEnvVars {
-		if _, ok := os.LookupEnv(name); ok {
-			env[name] = true
-		}
-	}
-
-	result := map[string]any{
-		"paths":             paths,
-		"model":             s.k.Model(),
-		"system_prompt_set": s.k.System() != "",
-		"tool_count":        len(s.k.Tools()),
-		"plugin_count":      len(s.k.Plugins()),
-		"ask_policy":        askPolicyLabel(s.k.Edict().AskPolicy()),
-		"env":               env,
-	}
-
-	// Effective routing tables (M108): surface what AGEZT_TASK_ROUTES /
-	// _ROUTE_REQUIRES / _MODEL_OVERRIDES actually parsed to, so an operator can
-	// confirm a rule loaded rather than reading the boot log. Only present when
-	// the provider is the governor (the usual case) and a table is non-empty.
-	if gov, ok := s.k.Provider().(interface {
-		TaskRoutesView() map[string][]string
-		TaskRouteRequiresView() map[string][]string
-		TaskModelOverridesView() map[string]string
-	}); ok {
-		routing := map[string]any{}
-		if r := gov.TaskRoutesView(); len(r) > 0 {
-			routing["routes"] = stringSliceMapToAny(r)
-		}
-		if r := gov.TaskRouteRequiresView(); len(r) > 0 {
-			routing["requires"] = stringSliceMapToAny(r)
-		}
-		if o := gov.TaskModelOverridesView(); len(o) > 0 {
-			m := make(map[string]any, len(o))
-			for k, v := range o {
-				m[k] = v
-			}
-			routing["model_overrides"] = m
-		}
-		if len(routing) > 0 {
-			result["routing"] = routing
-		}
-	}
-
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
-}
-
-func stringSliceMapToAny(in map[string][]string) map[string]any {
-	out := make(map[string]any, len(in))
-	for k, v := range in {
-		arr := make([]any, len(v))
-		for i, s := range v {
-			arr[i] = s
-		}
-		out[k] = arr
-	}
-	return out
 }
