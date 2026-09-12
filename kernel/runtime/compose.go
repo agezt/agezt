@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 
+// Runtime composition: types + Open (the composition root).
+// Code extracted from compose.go during the Day-79 god-file split. Public API unchanged.
 package runtime
+
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"maps"
-	"os"
-	"path/filepath"
-	"time"
-
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
@@ -21,18 +19,17 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
-	imagetool "github.com/agezt/agezt/kernel/imagetool"
+	"github.com/agezt/agezt/kernel/imagetool"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/okr"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/roster"
-	reranktool "github.com/agezt/agezt/kernel/reranktool"
+	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/resume"
+	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/seat"
 	"github.com/agezt/agezt/kernel/skill"
@@ -40,16 +37,22 @@ import (
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/taste"
 	"github.com/agezt/agezt/kernel/toolforge"
-	voicetool "github.com/agezt/agezt/kernel/voicetool"
+	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/runtime/accessors"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
+	"log/slog"
+	"maps"
+	"os"
+	"path/filepath"
+	"time"
 )
+
+
 
 // This file is the kernel's composition root: Open + Close + closeAll +
 // DefaultShutdownDrainTimeout. Pulled out of the runtime.go god file as
@@ -422,67 +425,3 @@ func Open(cfg Config) (*Kernel, error) {
 var _ runexec.KernelAPI = (*Kernel)(nil)
 
 // Close stops the bus, then closes state and the journal. Pending runs are
-// cancelled via Halt, then given a bounded drain window (M883) so a run
-// mid-journal-write finishes cleanly instead of racing store teardown.
-func (k *Kernel) Close() error {
-	k.Suspend("close") // M1002: classify in-flight runs as resumable before Halt cancels them
-	k.Halt()           // cancel any in-flight runs first
-	// Drain: cancelled runs still need to unwind — publish their terminal
-	// task.failed, release fan-out tallies, return from tools that honour the
-	// cancel late. Wait bounded; a run wedged in a cancel-ignoring tool must
-	// not block shutdown forever.
-	drain := k.cfg.ShutdownDrainTimeout
-	if drain == 0 {
-		drain = DefaultShutdownDrainTimeout
-	}
-	if drain > 0 {
-		settled := make(chan struct{})
-		go func() {
-			k.runWG.Wait()
-			close(settled)
-		}()
-		t := time.NewTimer(drain)
-		select {
-		case <-settled:
-			t.Stop()
-		case <-t.C:
-			// Best-effort breadcrumb: the journal is still open here, so the
-			// abandonment is auditable. The wedged goroutine dies with the
-			// process.
-			_, _ = k.bus.Publish(event.Spec{
-				Subject: "kernel.shutdown",
-				Kind:    event.KindAnomalyDetected,
-				Actor:   "kernel",
-				Payload: map[string]any{
-					"anomaly":  "shutdown_drain_timeout",
-					"waited":   drain.String(),
-					"detail":   "in-flight runs did not settle after Halt; closing stores anyway",
-					"severity": "warning",
-				},
-			})
-		}
-	}
-	k.closeMCPConns() // detach every live MCP server (kills the children)
-	k.bus.Close()
-	// Close every store even if an earlier one errors — the previous short-circuit
-	// returned on the first error and leaked the remaining handles, notably the
-	// journal's OS file descriptor (a held handle blocks a re-Open of the dir on
-	// Windows). errors.Join reports all failures. (M477)
-	return closeAll(
-		k.state.Close,
-		k.memoryDir.Close,
-		k.worldDir.Close,
-		k.skillDir.Close,
-		k.journal.Close,
-		func() error { return k.agentGW.Close() },
-	)
-}
-
-// closeAll invokes every close func (none skipped) and joins their errors.
-func closeAll(closers ...func() error) error {
-	errs := make([]error, 0, len(closers))
-	for _, c := range closers {
-		errs = append(errs, c())
-	}
-	return errors.Join(errs...)
-}
