@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: MIT
-
-// Workboard handlers (excluding List): handleWorkboardLanes/Show/Create/Claim/Heartbeat/Comment/Block/Fail/Unblock/Complete/Prove/Seat/Archive/Link/Policy/Depend/Reclaim/Sweep/Dispatch/Watch.
-// Code extracted from workboard.go during the Day-48 god-file split. Public API unchanged.
+//
+// Workboard control-plane handlers — read-only + lifecycle.
+// handleWorkboardLanes + handleWorkboardShow (the read-only handlers)
+// + handleWorkboardClaim + handleWorkboardHeartbeat +
+// handleWorkboardComment + handleWorkboardBlock + handleWorkboardFail +
+// handleWorkboardUnblock + handleWorkboardComplete + handleWorkboardProve +
+// handleWorkboardSeat + handleWorkboardArchive (the lifecycle handlers).
+// The link/policy/depend handlers live in workboard_handlers_link.go;
+// the dispatch/watch handlers live in workboard_handlers_dispatch.go.
+// Extracted from workboard_handlers.go during the Day-211 god-file split.
+// Public API unchanged.
 package controlplane
-
 
 import (
 	"context"
@@ -14,7 +21,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/workboard"
 )
-
 
 func (s *Server) handleWorkboardLanes(conn net.Conn, req Request) {
 	var filter workboard.Filter
@@ -210,156 +216,3 @@ func (s *Server) handleWorkboardArchive(conn net.Conn, req Request) {
 	workboardWriteResp(s, conn, req, task, err)
 }
 
-func (s *Server) handleWorkboardLink(conn net.Conn, req Request) {
-	task, err := s.k.LinkWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "type"), stringArg(req.Args, "target"))
-	workboardWriteResp(s, conn, req, task, err)
-}
-
-func (s *Server) handleWorkboardPolicy(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_policy requires id"})
-		return
-	}
-	var policy *workboard.RetryPolicy
-	cleared, _, err := argBool(req.Args, "clear")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	if !cleared {
-		if _, ok := req.Args["max_attempts"]; !ok {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_policy requires max_attempts or clear"})
-			return
-		}
-		maxAttempts := intArgAllowZero(req.Args["max_attempts"])
-		if maxAttempts < 1 {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_policy max_attempts must be positive"})
-			return
-		}
-		policy = &workboard.RetryPolicy{MaxAttempts: maxAttempts, EscalateTo: stringArg(req.Args, "escalate_to")}
-	}
-	task, err := s.k.SetWorkboardRetryPolicy(workboardCorr(s, req), id, stringArg(req.Args, "actor"), policy)
-	workboardWriteResp(s, conn, req, task, err)
-}
-
-func (s *Server) handleWorkboardDepend(conn net.Conn, req Request) {
-	task, err := s.k.AddWorkboardDependency(workboardCorr(s, req), stringArg(req.Args, "id"), firstNonEmpty(stringArg(req.Args, "depends_on"), stringArg(req.Args, "on")))
-	workboardWriteResp(s, conn, req, task, err)
-}
-
-func (s *Server) handleWorkboardReclaim(conn net.Conn, req Request) {
-	staleAfterMS := intArg(req.Args["stale_after_ms"], 10*60*1000)
-	task, err := s.k.ReclaimStaleWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"), time.Duration(staleAfterMS)*time.Millisecond)
-	workboardWriteResp(s, conn, req, task, err)
-}
-
-func (s *Server) handleWorkboardSweep(conn net.Conn, req Request) {
-	staleAfterMS := intArg(req.Args["stale_after_ms"], 10*60*1000)
-	limit := intArg(req.Args["limit"], 100)
-	if limit > 1000 {
-		limit = 1000
-	}
-	tasks, err := s.k.SweepStaleWorkboardClaims(workboardCorr(s, req), firstNonEmpty(stringArg(req.Args, "actor"), "workboard-sweeper"), time.Duration(staleAfterMS)*time.Millisecond, limit)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	out := make([]any, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, workboardTaskView(t))
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tasks": out, "reclaimed_count": len(out), "stale_after_ms": staleAfterMS}})
-}
-
-func (s *Server) handleWorkboardDispatch(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_dispatch requires id"})
-		return
-	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	blocked, err := s.k.Workboard().BlockingDependencies(task.ID)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	if len(blocked) > 0 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard task blocked by dependencies: " + workboardDependencySummary(blocked)})
-		return
-	}
-	agentRef := firstNonEmpty(stringArg(req.Args, "agent"), task.Assignee)
-	if agentRef == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_dispatch requires --agent or a task assignee"})
-		return
-	}
-	p, ok := s.k.Roster().Get(agentRef)
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + agentRef})
-		return
-	}
-	if p.Retired {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is retired — revive it first"})
-		return
-	}
-	if !p.Enabled {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is paused"})
-		return
-	}
-	if !p.AllowsDirectCall() {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: managedSubagentDirectCallError(p, "dispatched")})
-		return
-	}
-
-	corr := s.k.NewCorrelation()
-	claimed, err := s.k.ClaimWorkboardTask(corr, task.ID, p.Slug, corr)
-	if err != nil {
-		workboardWriteResp(s, conn, req, claimed, err)
-		return
-	}
-	if linked, err := s.k.LinkWorkboardTask(corr, task.ID, "run", corr); err != nil {
-		workboardWriteResp(s, conn, req, linked, err)
-		return
-	} else {
-		claimed = linked
-	}
-	reason := firstNonEmpty(stringArg(req.Args, "reason"), "workboard dispatch")
-	intent := buildWorkboardDispatchIntent(stringArg(req.Args, "intent"), claimed)
-	publishWorkboardDispatch(s.k, corr, claimed, "requested", p.Slug, reason, "", "")
-	go s.runWorkboardDispatch(corr, p, claimed, intent, reason)
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"accepted":       true,
-		"task":           workboardTaskView(claimed),
-		"agent":          p.Slug,
-		"correlation_id": corr,
-	}})
-}
-
-func (s *Server) handleWorkboardWatch(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_watch requires id"})
-		return
-	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	runID := firstNonEmpty(stringArg(req.Args, "run_id"), latestWorkboardRunID(task))
-	limit := intArg(req.Args["limit"], 50)
-	if limit > 200 {
-		limit = 200
-	}
-	events := workboardWatchEvents(s.k, task.ID, runID, limit)
-	blocked, _ := s.k.Workboard().BlockingDependencies(task.ID)
-	res := map[string]any{"task": workboardTaskView(task), "events": events, "count": len(events), "blocked_dependencies": workboardDependencyStateViews(blocked)}
-	if runID != "" {
-		res["run_id"] = runID
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
-}
