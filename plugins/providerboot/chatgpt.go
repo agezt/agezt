@@ -1,21 +1,11 @@
 // SPDX-License-Identifier: MIT
-
+//
+// ChatGPT provider-boot: types + cache + resolvers (the package surface).
+// The seeding path lives in chatgpt_seed.go; the provider construction
+// (TokenFunc + factory + primary + alternate) lives in chatgpt_build.go.
+// Extracted from chatgpt.go during the Day-207 god-file split.
+// Public API unchanged.
 package providerboot
-
-// ChatGPT subscription provider wiring ("Sign in with ChatGPT"). The token store
-// + login flow live in kernel/chatgptauth + the control plane; this is the boot/
-// reload glue that turns a signed-in token set into a registered governor
-// provider speaking the Responses backend (plugins/providers/openairesponses).
-//
-// The provider is registered ONLY when tokens are present, with AuthMode
-// Subscription (which the governor prefers). It is never auto-selected as the
-// primary unless the operator sets AGEZT_PROVIDER=chatgpt — honoring the
-// no-default-provider rule.
-//
-// The served model set is DISCOVERED, not hardcoded: OpenAI ships Codex models
-// on its own cadence, so a constant here goes stale and leaves operators routing
-// to ids the backend no longer knows. See resolveChatGPTModels for the three
-// sources and their precedence.
 
 import (
 	"context"
@@ -26,10 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/chatgptauth"
-	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/openairesponses"
 )
 
@@ -239,139 +227,3 @@ func chatgptCatalogEntry(set chatgptModelSet) *catalog.Provider {
 	}
 }
 
-// SeedChatGPTCatalog keeps the chatgpt entry in custom.json in step with what
-// the backend actually serves, so it survives reloads and appears in Models.
-//
-// It seeds when absent, and REFRESHES an existing entry whenever the model set
-// is authoritative — the seed-once-and-never-update behaviour it replaces is
-// what left signed-in installs pinned to a model list frozen at first boot. A
-// builtin (offline) set never overwrites an entry already on disk.
-func SeedChatGPTCatalog(store *catalog.Store, baseDir string) {
-	writeChatGPTEntry(store, resolveChatGPTModels(chatgptauth.NewManager(baseDir)))
-}
-
-// SyncChatGPTCatalog refreshes the catalog entry after a sign-in and reports the
-// served model surface (ids most-preferred first + the default to pin). The
-// control plane calls this through a Deps hook — the kernel never imports the
-// provider layer.
-//
-// It is called on every sign-in status poll, so it must stay cheap: discovery is
-// memoized and the catalog write is skipped when the entry already matches.
-func SyncChatGPTCatalog(store *catalog.Store, baseDir string) (models []string, defaultModel string) {
-	// Signing in unlocks the backend source, so drop a memo that came from the
-	// weaker CLI-cache one. A backend result is already the best available and
-	// stays memoized — otherwise polling would mean one request per poll.
-	chatgptModelCache.mu.Lock()
-	if chatgptModelCache.set.Source != chatgptSourceBackend {
-		chatgptModelCache.set, chatgptModelCache.at = chatgptModelSet{}, time.Time{}
-	}
-	chatgptModelCache.mu.Unlock()
-
-	set := resolveChatGPTModels(chatgptauth.NewManager(baseDir))
-	writeChatGPTEntry(store, set)
-	return set.IDs, set.Default
-}
-
-// writeChatGPTEntry persists the entry when it would actually change anything: a
-// builtin (offline) set never overwrites what is already on disk, and a set that
-// matches the stored model ids is a no-op.
-func writeChatGPTEntry(store *catalog.Store, set chatgptModelSet) {
-	if store == nil {
-		return
-	}
-	cur, _ := store.Load()
-	var existing *catalog.Provider
-	if cur != nil {
-		existing = cur.Providers["chatgpt"]
-	}
-	if existing != nil {
-		if !set.Authoritative() {
-			return // nothing better to say than what's already stored
-		}
-		if sameModelIDs(existing.Models, set.IDs) {
-			return
-		}
-	}
-	_, _ = store.UpsertCustomProvider(chatgptCatalogEntry(set))
-}
-
-// sameModelIDs reports whether a stored model map holds exactly ids.
-func sameModelIDs(stored map[string]*catalog.Model, ids []string) bool {
-	if len(stored) != len(ids) {
-		return false
-	}
-	for _, id := range ids {
-		if stored[id] == nil {
-			return false
-		}
-	}
-	return true
-}
-
-// chatgptTokenFn adapts a token Manager to the adapter's TokenFunc.
-func chatgptTokenFn(mgr *chatgptauth.Manager) openairesponses.TokenFunc {
-	return func(ctx context.Context, force bool) (string, string, error) {
-		if force {
-			return mgr.ForceRefresh(ctx)
-		}
-		return mgr.Token(ctx)
-	}
-}
-
-// newChatGPTProvider builds the Responses adapter with the discovered per-model
-// system prompts attached.
-func newChatGPTProvider(mgr *chatgptauth.Manager, model string, set chatgptModelSet) *openairesponses.Provider {
-	p := openairesponses.New("chatgpt", model, chatgptTokenFn(mgr))
-	p.Instructions = set.Instructions
-	return p
-}
-
-// buildChatGPTPrimary builds the ChatGPT provider for use as the primary
-// (AGEZT_PROVIDER=chatgpt). ok is false when not signed in.
-func buildChatGPTPrimary(baseDir, modelOverride string) (prov agent.Provider, desc string, auth governor.AuthMode, ok bool) {
-	mgr := chatgptauth.NewManager(baseDir)
-	if !mgr.HasTokens() {
-		return nil, "", "", false
-	}
-	set := resolveChatGPTModels(mgr)
-	model := modelOverride
-	if model == "" {
-		model = set.Default
-	}
-	p := newChatGPTProvider(mgr, model, set)
-	desc = "chatgpt (Sign in with ChatGPT"
-	if email, _ := mgr.Account(); email != "" {
-		desc += " — " + email
-	}
-	desc += ")"
-	return p, desc, governor.AuthSubscription, true
-}
-
-// registerChatGPTAlternate registers ChatGPT as a model-routable alternate when
-// signed in (and not already the primary). replace uses Registry.Replace (reload
-// path) vs Register (boot). The provider is wrapped in the shared M997
-// middleware stack, same as every other registered provider. Returns true when
-// registered.
-func registerChatGPTAlternate(reg *governor.Registry, baseDir, primaryName string, replace bool, mw []agent.Middleware) bool {
-	if primaryName == "chatgpt" {
-		return false
-	}
-	mgr := chatgptauth.NewManager(baseDir)
-	if !mgr.HasTokens() {
-		return false
-	}
-	set := resolveChatGPTModels(mgr)
-	info := &governor.ProviderInfo{
-		Name:     "chatgpt",
-		Provider: agent.Wrap(newChatGPTProvider(mgr, set.Default, set), mw...),
-		AuthMode: governor.AuthSubscription,
-		Models:   set.IDs,
-	}
-	var err error
-	if replace {
-		err = reg.Replace(info)
-	} else {
-		err = reg.Register(info)
-	}
-	return err == nil
-}
