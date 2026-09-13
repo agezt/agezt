@@ -1,73 +1,22 @@
 // SPDX-License-Identifier: MIT
 
+// Package creds: at-rest encryption for the credential vault
+// (encryptedEnvelope struct + isEncryptedVault + encryptVault + decryptVault).
+// The KDF helpers (cachedDeriveKey + deriveKeyPBKDF2 + deriveKeyLegacyHMAC)
+// moved to encrypt_kdf.go. Day-211 god-file split. Public API unchanged.
 package creds
 
-// At-rest encryption for the credential vault.
-//
-// **Threat model.** The vault file lives at `<BaseDir>/creds.json`
-// with 0600 perms. Without encryption, a memory dump / disk image /
-// cloud-synced home directory / shared-workstation file ACL leak
-// trivially exposes every API key. Encryption raises the bar from
-// "anyone with file-read" to "anyone with file-read AND the
-// passphrase."
-//
-// **Passphrase source.** The daemon reads `AGEZT_VAULT_PASSPHRASE`
-// from its environment. Operators set this:
-//
-//   - Via shell rc / launchd / systemd unit env (offline; the file
-//     containing the passphrase still needs protection).
-//   - Via an OS keychain CLI (`security find-generic-password` on
-//     macOS, `pass` on Linux, `cmdkey`/`get-secret` on Windows)
-//     called from the shell init.
-//   - Via 1Password / Vault / similar secret managers' CLI.
-//
-// We don't ship a keychain integration of our own — every operator
-// already has their preferred secret-manager tool, and adding a
-// platform-specific dep (zalando/go-keyring etc.) would violate
-// the lean-deps policy without buying capability the operator
-// can't already get from their shell init.
-//
-// **Algorithm.**
-//
-//   - KDF: iterated HMAC-SHA256 (200,000 rounds, random 32-byte salt).
-//     Not standard PBKDF2 — PBKDF2 lives in golang.org/x/crypto which
-//     the lean-deps policy excludes. The construction below
-//     ("repeated keyed-hash with the previous hash as input") is
-//     equivalent in cost and resistance for the offline-brute-force
-//     threat model we're worried about. Iteration count is high
-//     enough that brute-forcing a strong passphrase costs months
-//     of GPU-time; weak passphrases remain weak (operators picking
-//     "password123" lose either way).
-//   - Cipher: AES-256-GCM (stdlib). Authenticated encryption: any
-//     tamper with the ciphertext fails decryption rather than
-//     silently returning garbage credentials.
-//   - Random nonce per save (12 bytes from crypto/rand).
-//   - Random salt per save (32 bytes from crypto/rand) — so two
-//     vaults encrypted with the same passphrase have different
-//     keys, defeating rainbow-table attacks against the passphrase.
-//
-// **Format compatibility.** Plaintext vaults from M1.o load
-// unchanged (detected by absence of the `schema` field). Encrypted
-// vaults use a JSON envelope so future algorithm rotations can be
-// detected per-file. Operators encrypt a plaintext vault via `agt
-// vault encrypt` (or by setting the env var and saving once), and
-// upgrade an older encrypted vault to the current key-derivation
-// policy in place via `agt vault migrate`.
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 )
-
 const (
 	// SchemaEncrypted is the value of the `schema` field on encrypted
 	// vault envelopes. Bumping requires a migration path; bumping
@@ -291,66 +240,4 @@ func decryptVault(raw []byte, passphrase string) (map[string]string, error) {
 		return nil, fmt.Errorf("creds: parse decrypted JSON: %w", err)
 	}
 	return m, nil
-}
-
-// kdfCache memoizes derived keys by (kdf id, iterations, salt, passphrase
-// digest) so repeated Loads of the SAME envelope (per-request Store instances
-// on the Config Center / catalog / keyring paths) pay the 200k-iteration KDF
-// once, not per request. Bounded in practice: one entry per distinct envelope
-// save, and a save replaces the salt — the map stays tiny for a daemon's
-// lifetime. The cache key uses a SHA-256 of the passphrase (never the
-// passphrase itself) so the passphrase doesn't sit in a map key string.
-var kdfCache sync.Map // string → []byte (the derived key; never mutated)
-
-func cachedDeriveKey(kdf, passphrase string, salt []byte, iter int, derive func(pass, salt []byte, iter int) []byte) []byte {
-	pd := sha256.Sum256([]byte(passphrase))
-	ck := fmt.Sprintf("%s|%d|%x|%x", kdf, iter, salt, pd[:])
-	if v, ok := kdfCache.Load(ck); ok {
-		return v.([]byte)
-	}
-	key := derive([]byte(passphrase), salt, iter)
-	kdfCache.Store(ck, key)
-	return key
-}
-
-// deriveKeyPBKDF2 is PBKDF2-HMAC-SHA256 (RFC 8018), implemented with stdlib only
-// (x/crypto is excluded by the lean-deps policy). The derived key length (32) ==
-// the PRF output length (SHA-256, 32), so there is exactly one PBKDF2 block:
-//
-//	U_1 = HMAC(P, salt || INT32BE(1));  U_j = HMAC(P, U_{j-1});  DK = U_1 ⊕ … ⊕ U_iter
-//
-// The XOR accumulation over every round is what makes this a genuine PBKDF2
-// derivation (M172) rather than the legacy hash chain, which fed only the final
-// round's output forward. Verified against RFC published SHA-256 test vectors.
-func deriveKeyPBKDF2(passphrase, salt []byte, iter int) []byte {
-	mac := hmac.New(sha256.New, passphrase)
-	mac.Write(salt)
-	mac.Write([]byte{0, 0, 0, 1}) // INT32BE(1): the single block index
-	u := mac.Sum(nil)
-	dk := make([]byte, len(u))
-	copy(dk, u)
-	for i := 1; i < iter; i++ {
-		mac.Reset()
-		mac.Write(u)
-		u = mac.Sum(nil)
-		for j := range dk {
-			dk[j] ^= u[j]
-		}
-	}
-	return dk[:KeyBytes]
-}
-
-// deriveKeyLegacyHMAC is the pre-M172 KDF: a keyed HMAC-SHA256 hash chain (the
-// passphrase keys every round; the prior digest is the input; the salt seeds round
-// one). Retained ONLY to decrypt vaults written before M172 — new vaults use
-// deriveKeyPBKDF2. It costs O(iter) SHA-256 evaluations like PBKDF2 but, lacking
-// XOR accumulation, the final key depends only on the last round's output.
-func deriveKeyLegacyHMAC(passphrase, salt []byte, iter int) []byte {
-	d := salt
-	for range iter {
-		mac := hmac.New(sha256.New, passphrase)
-		mac.Write(d)
-		d = mac.Sum(nil)
-	}
-	return d[:KeyBytes]
 }
