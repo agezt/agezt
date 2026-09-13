@@ -24,24 +24,18 @@
 package webhook
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
 
 const (
 	// DefaultPath is the route the channel serves for inbound deliveries.
@@ -258,147 +252,3 @@ func (c *Channel) handleInbound(w http.ResponseWriter, r *http.Request) {
 
 // verify checks the X-Agezt-Signature header: sha256=<hex HMAC-SHA256(secret,
 // body)>, constant-time. An empty secret fails closed (no unsigned inbound).
-func (c *Channel) verify(sig string, body []byte) bool {
-	if c.secret == "" || sig == "" {
-		return false
-	}
-	got := strings.TrimPrefix(sig, "sha256=")
-	want := sign(c.secret, body)
-	return hmac.Equal([]byte(got), []byte(want))
-}
-
-// --- outbound -------------------------------------------------------------
-
-// Send implements channel.Channel: POST the message to the configured
-// OutboundURL, signed with the same scheme inbound expects. Errors when no
-// OutboundURL is configured (the channel is inbound/synchronous-reply only).
-func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
-	if c.outboundURL == "" {
-		return fmt.Errorf("webhook: no outbound URL configured (set it to send async messages)")
-	}
-	corr := "chan-" + ulid.New()
-	return c.send(ctx, out, corr)
-}
-
-func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
-	body, err := json.Marshal(map[string]any{
-		"channel_id": out.ChannelID,
-		"text":       out.Text,
-		"priority":   string(out.Priority),
-		"ts_ms":      c.now().UnixMilli(),
-	})
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.outboundURL, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if c.secret != "" {
-		req.Header.Set("X-Agezt-Signature", "sha256="+sign(c.secret, body))
-	}
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("webhook: outbound POST returned status %d", resp.StatusCode)
-	}
-	c.emitOutbound(out, corr)
-	return nil
-}
-
-// --- events ---------------------------------------------------------------
-
-func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed bool) {
-	if c.bus == nil {
-		return
-	}
-	_, _ = c.bus.Publish(event.Spec{
-		Subject:       "channel.inbound.webhook",
-		Kind:          event.KindChannelInbound,
-		Actor:         "channel-webhook",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": msg.ChannelKind,
-			"channel_id":   msg.ChannelID,
-			"sender":       msg.Sender,
-			"text":         msg.Text,
-			"allowed":      allowed,
-		},
-	})
-}
-
-func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
-	if c.bus == nil {
-		return
-	}
-	_, _ = c.bus.Publish(event.Spec{
-		Subject:       "channel.outbound.webhook",
-		Kind:          event.KindChannelOutbound,
-		Actor:         "channel-webhook",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_id": out.ChannelID,
-			"text":       out.Text,
-			"priority":   string(out.Priority),
-		},
-	})
-}
-
-// --- helpers --------------------------------------------------------------
-
-// sign returns the hex HMAC-SHA256 of body under secret (same as the outbound
-// webhook dispatcher in kernel/webhook).
-func sign(secret string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-// dedup is a small bounded set of recently-seen message ids (replay guard). It
-// keeps two generations (live + previous) so eviction never forgets every id in
-// one shot: a key is dropped only after it ages out of BOTH, bounding memory at
-// 2×cap while roughly doubling the replay window's coverage.
-type dedup struct {
-	mu   sync.Mutex
-	seen map[string]struct{}
-	prev map[string]struct{}
-	cap  int
-}
-
-func newDedup(capacity int) *dedup {
-	return &dedup{seen: make(map[string]struct{}, capacity), cap: capacity}
-}
-
-// seenBefore records key and reports whether it had been seen already (in either
-// generation). When the live set fills it rotates to become the previous
-// generation and a fresh live set starts — unlike a wholesale clear, which would
-// forget every recently-seen id at once and let a captured signed body replay
-// (the freshness window only guards replays when the client sends ts_ms; with no
-// timestamp this set is the sole replay guard, so it must not flush so coarsely).
-func (d *dedup) seenBefore(key string) bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if _, ok := d.seen[key]; ok {
-		return true
-	}
-	if _, ok := d.prev[key]; ok {
-		return true
-	}
-	if len(d.seen) >= d.cap {
-		d.prev = d.seen
-		d.seen = make(map[string]struct{}, d.cap)
-	}
-	d.seen[key] = struct{}{}
-	return false
-}
