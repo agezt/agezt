@@ -5,25 +5,22 @@
 // Public API unchanged.
 package nostr
 
-
 import (
 	"context"
-	"fmt"
+	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
 
-	"encoding/hex"
-	"encoding/json"
-	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 	btcec "github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/coder/websocket"
 )
+
 
 
 const (
@@ -270,136 +267,4 @@ func (c *Channel) dispatch(ctx context.Context, ev nostrEvent) {
 	tags := [][]string{{"e", ev.ID, "", "reply"}, {"p", ev.Pubkey}}
 	_ = c.publishKind1(rep.Text, tags, corr)
 }
-
-// Send implements channel.Channel: publish out.Text as a standalone note.
-func (c *Channel) Send(_ context.Context, out channel.Outbound) error {
-	text := strings.TrimSpace(out.Text)
-	if text == "" {
-		return nil
-	}
-	return c.publishKind1(text, [][]string{}, "chan-"+ulid.New())
-}
-
-// publishKind1 builds, signs and broadcasts a kind-1 (public note) event.
-func (c *Channel) publishKind1(text string, tags [][]string, corr string) error {
-	if tags == nil {
-		tags = [][]string{}
-	}
-	ev := nostrEvent{Pubkey: c.pubHex, CreatedAt: time.Now().Unix(), Kind: 1, Tags: tags, Content: truncate(text)}
-	return c.signAndBroadcast(ev, text, corr)
-}
-
-// publishKind4 sends an encrypted DM (NIP-04) to recipient, journaling the
-// plaintext so the operator can read what was sent.
-func (c *Channel) publishKind4(recip *btcec.PublicKey, recipHex, text, corr string) error {
-	enc, err := nip04Encrypt(c.priv, recip, truncate(text))
-	if err != nil {
-		return err
-	}
-	ev := nostrEvent{Pubkey: c.pubHex, CreatedAt: time.Now().Unix(), Kind: 4, Tags: [][]string{{"p", recipHex}}, Content: enc}
-	return c.signAndBroadcast(ev, text, corr)
-}
-
-// signAndBroadcast signs ev and queues it to every connected relay. journalText
-// is the human-readable text recorded in the outbound event (plaintext for DMs).
-func (c *Channel) signAndBroadcast(ev nostrEvent, journalText, corr string) error {
-	if err := ev.sign(c.priv); err != nil {
-		return err
-	}
-	frame, err := json.Marshal([]any{"EVENT", ev})
-	if err != nil {
-		return err
-	}
-	if c.broadcast(frame) == 0 {
-		return fmt.Errorf("nostr: no connected relay to publish to")
-	}
-	c.emitOutbound(channel.Outbound{ChannelID: c.pubHex, Text: journalText, Priority: channel.PriorityNotify}, corr)
-	return nil
-}
-
-func truncate(s string) string {
-	return strutil.Ellipsis(s, maxChars, "")
-}
-
-// parseXOnly turns a 32-byte hex x-only pubkey into a btcec public key.
-func parseXOnly(hexKey string) (*btcec.PublicKey, error) {
-	b, err := hex.DecodeString(hexKey)
-	if err != nil {
-		return nil, err
-	}
-	return schnorr.ParsePubKey(b)
-}
-
-// broadcast queues frame to every connected relay; returns how many accepted it.
-func (c *Channel) broadcast(frame []byte) int {
-	c.mu.Lock()
-	conns := append([]*relayConn(nil), c.conns...)
-	c.mu.Unlock()
-	sent := 0
-	for _, rc := range conns {
-		select {
-		case rc.out <- frame:
-			sent++
-		default: // relay's write queue is full; skip it rather than block
-		}
-	}
-	return sent
-}
-
-func (c *Channel) register(rc *relayConn) {
-	c.mu.Lock()
-	c.conns = append(c.conns, rc)
-	c.mu.Unlock()
-}
-
-func (c *Channel) unregister(rc *relayConn) {
-	c.mu.Lock()
-	for i, x := range c.conns {
-		if x == rc {
-			c.conns = append(c.conns[:i], c.conns[i+1:]...)
-			break
-		}
-	}
-	c.mu.Unlock()
-}
-
-// --- events ---------------------------------------------------------------
-
-func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed bool) {
-	if c.bus == nil {
-		return
-	}
-	_, _ = c.bus.Publish(event.Spec{
-		Subject:       "channel.inbound.nostr",
-		Kind:          event.KindChannelInbound,
-		Actor:         "channel-nostr",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": msg.ChannelKind,
-			"channel_id":   msg.ChannelID,
-			"sender":       msg.Sender,
-			"text":         msg.Text,
-			"allowed":      allowed,
-		},
-	})
-}
-
-func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
-	if c.bus == nil {
-		return
-	}
-	_, _ = c.bus.Publish(event.Spec{
-		Subject:       "channel.outbound.nostr",
-		Kind:          event.KindChannelOutbound,
-		Actor:         "channel-nostr",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_id": out.ChannelID,
-			"text":       out.Text,
-			"priority":   string(out.Priority),
-		},
-	})
-}
-
-// --- event model + crypto -------------------------------------------------
 
