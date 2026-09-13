@@ -3,10 +3,9 @@
 package compat
 
 // Base URL helpers for compat providers: compatVendorBaseURL + defaultBaseURL.
-// Carved out of compat.go during the Day 178 god-file split so the main
-// file can stay focused on error vars + CredLookup + Build +
-// IsSupportedFamily + envLookup + providerEnvLookup + FirstModelID +
-// namedProvider + namedStreamingProvider + wrapNamed.
+// Carved out of compat.go during the Day 178 god-file split (further
+// trimmed during Day 183) so the main file can stay focused on
+// error vars + CredLookup + Build + family dispatch.
 // Public API unchanged.
 
 import (
