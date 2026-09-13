@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+// Package main: `agt overseer` CLI dispatcher and the read/pause/resume ops.
+// Fleet supervisory commands mirror the agent-facing overseer tool. Lifecycle
+// CRUD (impact/retire/revive/get/delete) moved to overseer_lifecycle.go;
+// bulk operations and the jsonOrString helper moved to overseer_bulk.go.
+// Day-211 god-file split. Public API unchanged.
 package main
+
 
 import (
 	"context"
@@ -13,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
-
 // cmdOverseer dispatches `agt overseer <subcommand>` — the CLI gateway to the
 // same fleet supervisory operations the agent-facing overseer tool provides.
 // It mirrors the tool's ops through the daemon's control-plane RPC so operators
@@ -201,165 +206,4 @@ func overseerPauseResume(args []string, stdout, stderr io.Writer, enabled bool) 
 		fmt.Fprintf(stdout, "agent %s %s\n", slug, map[bool]string{true: "resumed", false: "paused"}[enabled])
 	}
 	return 0
-}
-
-func overseerAgentImpact(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
-		fmt.Fprintf(stderr, "%s overseer impact: requires an agent slug\n", brand.CLI)
-		return 2
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentImpact, map[string]any{"ref": strings.TrimSpace(args[0])})
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return 1
-	}
-	b, _ := json.MarshalIndent(res, "", "  ")
-	fmt.Fprintln(stdout, string(b))
-	return 0
-}
-
-func overseerRetire(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
-		fmt.Fprintf(stderr, "%s overseer retire: requires an agent slug\n", brand.CLI)
-		return 2
-	}
-	ref := strings.TrimSpace(args[0])
-	reason := strings.Join(args[1:], " ")
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentRetire, map[string]any{"ref": ref, "reason": reason})
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return 1
-	}
-	if slug, _ := res["slug"].(string); slug != "" {
-		fmt.Fprintf(stdout, "agent %s retired\n", slug)
-	}
-	return 0
-}
-
-func overseerRevive(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
-		fmt.Fprintf(stderr, "%s overseer revive: requires an agent slug\n", brand.CLI)
-		return 2
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentRevive, map[string]any{"ref": strings.TrimSpace(args[0])})
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return 1
-	}
-	if slug, _ := res["slug"].(string); slug != "" {
-		fmt.Fprintf(stdout, "agent %s revived\n", slug)
-	}
-	return 0
-}
-
-func overseerGet(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
-		fmt.Fprintf(stderr, "%s overseer get: requires an agent slug or id\n", brand.CLI)
-		return 2
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentList, map[string]any{"ref": strings.TrimSpace(args[0])})
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return 1
-	}
-	b, _ := json.MarshalIndent(res, "", "  ")
-	fmt.Fprintln(stdout, string(b))
-	return 0
-}
-
-func overseerDelete(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
-		fmt.Fprintf(stderr, "%s overseer delete: requires an agent slug\n", brand.CLI)
-		return 2
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	res, err := c.Call(context.TODO(), controlplane.CmdAgentRemove, map[string]any{"ref": strings.TrimSpace(args[0])})
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return 1
-	}
-	if removed, _ := res["removed"].(bool); removed {
-		fmt.Fprintf(stdout, "agent %s removed\n", args[0])
-	} else {
-		fmt.Fprintf(stderr, "%s overseer delete: unknown agent %q\n", brand.CLI, args[0])
-		return 1
-	}
-	return 0
-}
-
-func overseerBulk(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 2 {
-		fmt.Fprintf(stderr, "%s overseer bulk: requires an action (pause|unpause|retire|revive|delete) and comma-separated slugs\n", brand.CLI)
-		return 2
-	}
-	action := strings.TrimSpace(args[0])
-	slugs := strings.Split(strings.TrimSpace(args[1]), ",")
-	if len(slugs) == 0 || (len(slugs) == 1 && slugs[0] == "") {
-		fmt.Fprintf(stderr, "%s overseer bulk: requires at least one slug\n", brand.CLI)
-		return 2
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	var cpCmd string
-	var payload map[string]any
-	switch action {
-	case "pause":
-		cpCmd = controlplane.CmdAgentSetEnabled
-		payload = map[string]any{"refs": slugs, "enabled": false}
-	case "unpause":
-		cpCmd = controlplane.CmdAgentSetEnabled
-		payload = map[string]any{"refs": slugs, "enabled": true}
-	case "retire":
-		cpCmd = controlplane.CmdAgentRetire
-		payload = map[string]any{"refs": slugs}
-	case "revive":
-		cpCmd = controlplane.CmdAgentRevive
-		payload = map[string]any{"refs": slugs}
-	case "delete", "rm":
-		cpCmd = controlplane.CmdAgentRemove
-		payload = map[string]any{"refs": slugs}
-	default:
-		fmt.Fprintf(stderr, "%s overseer bulk: unknown action %q (pause|unpause|retire|revive|delete)\n", brand.CLI, action)
-		return 2
-	}
-	res, err := c.Call(context.TODO(), cpCmd, payload)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s: %v\n", brand.CLI, err)
-		return 1
-	}
-	b, _ := json.MarshalIndent(res, "", "  ")
-	fmt.Fprintln(stdout, string(b))
-	return 0
-}
-
-func jsonOrString(v any) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
-	}
-	return string(b)
 }
