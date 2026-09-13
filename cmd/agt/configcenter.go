@@ -2,23 +2,17 @@
 
 package main
 
-// `agt configcenter` — Operator CLI for the Config Center system.
-// This manages config entries with ratings, access policies, and audit logs.
-
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
+
 
 func cmdConfigCenter(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -69,142 +63,6 @@ func cmdConfigCenterHelp(stdout io.Writer) int {
 	return 0
 }
 
-// cmdConfigCenterSet sets a config value
-func cmdConfigCenterSet(args []string, stdout, stderr io.Writer) int {
-	var key, value, rating, description, allowAgents, denyAgents string
-
-	i := 0
-	for i < len(args) {
-		switch args[i] {
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s configcenter set <key> <value> [--rating <rating>] [--description <desc>] [--allow-agent csv] [--deny-agent csv]\n", brand.CLI)
-			return 0
-		case "--rating":
-			if i+1 >= len(args) {
-				fmt.Fprintf(stderr, "%s configcenter set: --rating requires a value\n", brand.CLI)
-				return 2
-			}
-			i++
-			rating = args[i]
-		case "--description":
-			if i+1 >= len(args) {
-				fmt.Fprintf(stderr, "%s configcenter set: --description requires a value\n", brand.CLI)
-				return 2
-			}
-			i++
-			description = args[i]
-		case "--allow-agent", "--allow-agents":
-			if i+1 >= len(args) {
-				fmt.Fprintf(stderr, "%s configcenter set: %s requires a value\n", brand.CLI, args[i])
-				return 2
-			}
-			i++
-			allowAgents = args[i]
-		case "--deny-agent", "--deny-agents":
-			if i+1 >= len(args) {
-				fmt.Fprintf(stderr, "%s configcenter set: %s requires a value\n", brand.CLI, args[i])
-				return 2
-			}
-			i++
-			denyAgents = args[i]
-		default:
-			if key == "" {
-				key = args[i]
-			} else if value == "" {
-				value = args[i]
-			} else {
-				fmt.Fprintf(stderr, "%s configcenter set: unexpected arg %q\n", brand.CLI, args[i])
-				return 2
-			}
-		}
-		i++
-	}
-
-	if key == "" {
-		fmt.Fprintf(stderr, "%s configcenter set: key required\n", brand.CLI)
-		return 2
-	}
-	if value == "" {
-		fmt.Fprintf(stderr, "%s configcenter set: value required\n", brand.CLI)
-		return 2
-	}
-
-	// Determine rating
-	r := configcenter.RatingInternal
-	if rating != "" {
-		switch strings.ToLower(rating) {
-		case "public":
-			r = configcenter.RatingPublic
-		case "internal":
-			r = configcenter.RatingInternal
-		case "restricted":
-			r = configcenter.RatingRestricted
-		case "secret":
-			r = configcenter.RatingSecret
-		default:
-			fmt.Fprintf(stderr, "%s configcenter set: invalid rating %q (public, internal, restricted, secret)\n", brand.CLI, rating)
-			return 2
-		}
-	}
-
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	params := map[string]any{
-		"key":    key,
-		"value":  value,
-		"rating": string(r),
-	}
-	if description != "" {
-		params["description"] = description
-	}
-	if allowAgents != "" {
-		params["allowed_agents"] = splitList(allowAgents)
-	}
-	if denyAgents != "" {
-		params["excluded_agents"] = splitList(denyAgents)
-	}
-
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterSet, params)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s configcenter set: %v\n", brand.CLI, err)
-		return 1
-	}
-
-	entry, _ := res["entry"].(map[string]any)
-	if entry != nil {
-		fmt.Fprintf(stdout, "%s: ", key)
-		if val, _ := entry["value"].(string); val != "" {
-			// Truncate long values
-			if len(val) > 60 {
-				fmt.Fprintf(stdout, "%s...\n", val[:60])
-			} else {
-				fmt.Fprintf(stdout, "%s\n", val)
-			}
-		}
-		fmt.Fprintf(stdout, "  rating: %s\n", entry["rating"])
-		if desc, _ := entry["description"].(string); desc != "" {
-			fmt.Fprintf(stdout, "  description: %s\n", desc)
-		}
-		if allowed, _ := entry["allowed_agents"].([]any); len(allowed) > 0 {
-			fmt.Fprintf(stdout, "  allow agents: %s\n", joinAnyStrings(allowed, ", "))
-		}
-		if denied, _ := entry["excluded_agents"].([]any); len(denied) > 0 {
-			fmt.Fprintf(stdout, "  deny agents: %s\n", joinAnyStrings(denied, ", "))
-		}
-	} else {
-		fmt.Fprintf(stdout, "%s set\n", key)
-	}
-
-	return 0
-}
-
-// cmdConfigCenterGet gets a config value (admin only - bypasses access control)
 func cmdConfigCenterGet(args []string, stdout, stderr io.Writer) int {
 	var key string
 	for _, a := range args {
@@ -257,114 +115,6 @@ func cmdConfigCenterGet(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// cmdConfigCenterList lists all config entries
-func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
-	var rating string
-	asJSON := false
-
-	for _, a := range args {
-		switch a {
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s configcenter list [--rating <rating>] [--json]\n", brand.CLI)
-			return 0
-		case "--rating":
-			// Will be processed below
-		case "--json":
-			asJSON = true
-		default:
-			if rating == "" && !strings.HasPrefix(a, "--rating") {
-				rating = a
-			} else {
-				fmt.Fprintf(stderr, "%s configcenter list: unexpected arg %q\n", brand.CLI, a)
-				return 2
-			}
-		}
-	}
-
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	params := map[string]any{}
-	if rating != "" {
-		params["rating"] = rating
-	}
-
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterList, params)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s configcenter list: %v\n", brand.CLI, err)
-		return 1
-	}
-
-	if asJSON {
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(res)
-		return 0
-	}
-
-	entries, _ := res["entries"].([]any)
-	fmt.Fprintf(stdout, "%s configcenter: %d entries\n", brand.CLI, len(entries))
-
-	// Sort by rating (secret first, then restricted, internal, public)
-	type entryInfo struct {
-		key       string
-		rating    string
-		value     string
-		updatedAt int64
-	}
-	byRating := make(map[configcenter.Rating][]entryInfo)
-
-	for _, e := range entries {
-		em := e.(map[string]any)
-		ei := entryInfo{
-			key:       em["key"].(string),
-			rating:    em["rating"].(string),
-			value:     em["value"].(string),
-			updatedAt: int64(em["updated_at"].(float64)),
-		}
-		byRating[configcenter.Rating(em["rating"].(string))] = append(byRating[configcenter.Rating(em["rating"].(string))], ei)
-	}
-
-	// Print by rating order
-	for _, r := range []configcenter.Rating{configcenter.RatingSecret, configcenter.RatingRestricted, configcenter.RatingInternal, configcenter.RatingPublic} {
-		entries := byRating[r]
-		if len(entries) == 0 {
-			continue
-		}
-		sort.Slice(entries, func(i, j int) bool { return entries[i].key < entries[j].key })
-
-		ratingLabel := string(r)
-		if r == configcenter.RatingSecret {
-			fmt.Fprintf(stdout, "\n🔴 %s (%d):\n", ratingLabel, len(entries))
-		} else if r == configcenter.RatingRestricted {
-			fmt.Fprintf(stdout, "\n🟡 %s (%d):\n", ratingLabel, len(entries))
-		} else if r == configcenter.RatingInternal {
-			fmt.Fprintf(stdout, "\n🔵 %s (%d):\n", ratingLabel, len(entries))
-		} else {
-			fmt.Fprintf(stdout, "\n🟢 %s (%d):\n", ratingLabel, len(entries))
-		}
-
-		for _, e := range entries {
-			val := e.value
-			if len(val) > 40 {
-				val = val[:40] + "..."
-			}
-			if r == configcenter.RatingSecret {
-				val = "********"
-			}
-			fmt.Fprintf(stdout, "  %-40s = %s\n", e.key, val)
-		}
-	}
-
-	return 0
-}
-
-// cmdConfigCenterDelete deletes a config entry
 func cmdConfigCenterDelete(args []string, stdout, stderr io.Writer) int {
 	var key string
 	for _, a := range args {
@@ -410,3 +160,4 @@ func cmdConfigCenterDelete(args []string, stdout, stderr io.Writer) int {
 }
 
 // cmdConfigCenterRating gets or sets rating for a key
+
