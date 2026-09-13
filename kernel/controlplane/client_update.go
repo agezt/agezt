@@ -11,7 +11,9 @@ import (
 	"strings"
 )
 
+// UpdateCheckResult is the result of an update check.
 type UpdateCheckResult struct {
+
 	Current  string
 	UpToDate bool
 	Update   *UpdateInfo
