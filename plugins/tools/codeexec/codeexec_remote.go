@@ -2,27 +2,19 @@
 
 package codeexec
 
-// Remote/backend transport for the codeexec tool: invokeSSH + invokeK8s +
-// invokeModal + runSSHCommand + runK8sCommand + the remote workdir /
-// mount-dir / runtime / pip-install / run-command helpers, plus the
-// ssh/kubectl/modal/daytona client env builders. Carved out of codeexec.go
-// during the Day 156 god-file split so the main file can stay focused on
-// lifecycle + local Invoke + render/publish.
-// Public API unchanged.
-
 import (
 	"context"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/executionprofile"
+	"github.com/agezt/agezt/kernel/warden"
 )
+
 func (t *Tool) invokeSSH(
 	ctx context.Context,
 	cfg executionprofile.SSHConfig,
@@ -283,198 +275,3 @@ func wrapModalArtifactExport(runCmd, artifactDir string) string {
 		"fi; exit $status"
 }
 
-func remoteWorkDir(cfg executionprofile.SSHConfig, localDir, projectSlug string) string {
-	root := strings.Trim(strings.TrimSpace(cfg.WorkDir), "/")
-	if root == "" {
-		root = ".agezt/code_exec"
-	}
-	if strings.HasPrefix(strings.TrimSpace(cfg.WorkDir), "/") {
-		root = "/" + root
-	}
-	if projectSlug != "" {
-		return path.Join(root, "projects", projectSlug)
-	}
-	base := filepath.Base(localDir)
-	if base == "." || base == string(filepath.Separator) || strings.TrimSpace(base) == "" {
-		base = fmt.Sprintf("run-%d", time.Now().UnixNano())
-	}
-	return path.Join(root, "runs", base)
-}
-
-func modalMountDir(localDir string) string {
-	base := filepath.Base(localDir)
-	if base == "." || base == string(filepath.Separator) || strings.TrimSpace(base) == "" {
-		base = fmt.Sprintf("run-%d", time.Now().UnixNano())
-	}
-	return path.Join("/mnt", base)
-}
-
-func k8sWorkDir(cfg executionprofile.K8sConfig, localDir, projectSlug string) string {
-	root := strings.Trim(strings.TrimSpace(cfg.WorkDir), "/")
-	if root == "" {
-		root = ".agezt/code_exec"
-	}
-	if strings.HasPrefix(strings.TrimSpace(cfg.WorkDir), "/") {
-		root = "/" + root
-	}
-	if projectSlug != "" {
-		return path.Join(root, "projects", projectSlug)
-	}
-	base := filepath.Base(localDir)
-	if base == "." || base == string(filepath.Separator) || strings.TrimSpace(base) == "" {
-		base = fmt.Sprintf("run-%d", time.Now().UnixNano())
-	}
-	return path.Join(root, "runs", base)
-}
-
-func remoteRuntimeCommand(lang, interp string) string {
-	switch lang {
-	case LangPython:
-		base := strings.ToLower(filepath.Base(interp))
-		if strings.HasPrefix(base, "python3") {
-			return "python3"
-		}
-		return "python3"
-	case LangNode:
-		return "node"
-	case LangDeno:
-		return "deno"
-	default:
-		return filepath.Base(interp)
-	}
-}
-
-func remotePipInstallCommand(runtime string, pkgs []string) string {
-	args := []string{runtime, "-m", "pip", "install", "--target", pyDepsName, "--no-input", "--disable-pip-version-check", "--no-warn-script-location"}
-	args = append(args, pkgs...)
-	return quoteCommand(args)
-}
-
-func remoteRunCommand(lang, runtime, entry string, allowNet bool, hasDeps bool) string {
-	switch lang {
-	case LangPython:
-		args := []string{runtime, entry}
-		cmd := quoteCommand(args)
-		if hasDeps {
-			cmd = "PYTHONPATH=" + executionprofile.ShellQuote(pyDepsName) + " " + cmd
-		}
-		return cmd
-	case LangDeno:
-		args := []string{runtime, "run", "--quiet", "--no-prompt", "--allow-read=.", "--allow-write=.", "--allow-env"}
-		if allowNet {
-			args = append(args, "--allow-net")
-		}
-		args = append(args, entry)
-		return quoteCommand(args)
-	default:
-		return quoteCommand([]string{runtime, entry})
-	}
-}
-
-func quoteCommand(args []string) string {
-	out := make([]string, 0, len(args))
-	for _, a := range args {
-		out = append(out, executionprofile.ShellQuote(a))
-	}
-	return strings.Join(out, " ")
-}
-
-func sshClientEnv() []string {
-	allow := map[string]bool{
-		"PATH": true, "PATHEXT": true, "COMSPEC": true,
-		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
-		"HOME": true, "USERPROFILE": true, "SSH_AUTH_SOCK": true,
-		"LANG": true,
-	}
-	var out []string
-	for _, kv := range os.Environ() {
-		name, _, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-		up := strings.ToUpper(name)
-		if isSecretName(up) {
-			continue
-		}
-		if allow[up] || strings.HasPrefix(up, "LC_") {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
-func kubectlClientEnv() []string {
-	allow := map[string]bool{
-		"PATH": true, "PATHEXT": true, "COMSPEC": true,
-		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
-		"HOME": true, "USERPROFILE": true, "KUBECONFIG": true,
-		"LANG": true,
-	}
-	var out []string
-	for _, kv := range os.Environ() {
-		name, _, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-		up := strings.ToUpper(name)
-		if isSecretName(up) {
-			continue
-		}
-		if allow[up] || strings.HasPrefix(up, "LC_") {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
-func modalClientEnv() []string {
-	allow := map[string]bool{
-		"PATH": true, "PATHEXT": true, "COMSPEC": true,
-		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
-		"HOME": true, "USERPROFILE": true, "MODAL_CONFIG_PATH": true,
-		"LANG": true,
-	}
-	var out []string
-	for _, kv := range os.Environ() {
-		name, _, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-		up := strings.ToUpper(name)
-		if isSecretName(up) {
-			continue
-		}
-		if allow[up] || strings.HasPrefix(up, "LC_") {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
-func daytonaClientEnv() []string {
-	allow := map[string]bool{
-		"PATH": true, "PATHEXT": true, "COMSPEC": true,
-		"SYSTEMROOT": true, "SYSTEMDRIVE": true, "WINDIR": true,
-		"HOME": true, "USERPROFILE": true, "DAYTONA_CONFIG_PATH": true,
-		"LANG": true,
-	}
-	var out []string
-	for _, kv := range os.Environ() {
-		name, _, ok := strings.Cut(kv, "=")
-		if !ok {
-			continue
-		}
-		up := strings.ToUpper(name)
-		if isSecretName(up) {
-			continue
-		}
-		if allow[up] || strings.HasPrefix(up, "LC_") {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
-// render builds the model-facing Result: a one-line header (language / project /
-// effective isolation profile / dir) followed by combined output, with the same
-// truncation / timeout / non-zero-exit semantics as the shell tool.
