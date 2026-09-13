@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: MIT
-
-// iMessage channel: types + lifecycle + receive + send + emit.
-// Code extracted from imessage.go during the Day-102 god-file split.
+//
+// iMessage channel: types + lifecycle + receive + Send (the public surface).
+// Extracted from imessage.go during the Day-202 god-file split.
 // Public API unchanged.
 package imessage
 
-
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -17,16 +14,13 @@ import (
 	"time"
 
 	"crypto/subtle"
-	"encoding/json"
+	"net/http"
+
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
-	"mime/multipart"
-	"net/http"
-	"net/url"
 )
-
 
 const (
 	// DefaultPath is the inbound webhook route the BlueBubbles server should POST to.
@@ -263,115 +257,3 @@ func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 	return nil
 }
 
-func (c *Channel) sendOne(ctx context.Context, guid, text string) error {
-	endpoint := c.base + "/api/v1/message/text"
-	if c.cfg.Password != "" {
-		endpoint += "?password=" + url.QueryEscape(c.cfg.Password)
-	}
-	payload := map[string]any{
-		"chatGuid": guid,
-		"tempGuid": "agezt-" + ulid.New(),
-		"message":  text,
-		"method":   c.method,
-	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return scrubURLError(err)
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("imessage: BlueBubbles returned status %d", resp.StatusCode)
-	}
-	return nil
-}
-
-// sendAttachment uploads one media attachment to a chat via BlueBubbles'
-// /api/v1/message/attachment endpoint (multipart/form-data).
-func (c *Channel) sendAttachment(ctx context.Context, guid string, att channel.Attachment) error {
-	if len(att.Data) == 0 {
-		return nil
-	}
-	fn := att.Filename
-	if fn == "" {
-		fn = "attachment"
-	}
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	_ = mw.WriteField("chatGuid", guid)
-	_ = mw.WriteField("tempGuid", "agezt-"+ulid.New())
-	_ = mw.WriteField("name", fn)
-	_ = mw.WriteField("method", "private-api")
-	fw, err := mw.CreateFormFile("attachment", fn)
-	if err != nil {
-		return err
-	}
-	if _, err := fw.Write(att.Data); err != nil {
-		return err
-	}
-	if err := mw.Close(); err != nil {
-		return err
-	}
-	endpoint := c.base + "/api/v1/message/attachment"
-	if c.cfg.Password != "" {
-		endpoint += "?password=" + url.QueryEscape(c.cfg.Password)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &buf)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return scrubURLError(err)
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 8<<10))
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("imessage: attachment upload returned status %d", resp.StatusCode)
-	}
-	return nil
-}
-
-func (c *Channel) emitInbound(msg channel.UnifiedMessage, corr string, allowed bool) {
-	if c.cfg.Bus == nil {
-		return
-	}
-	_, _ = c.cfg.Bus.Publish(event.Spec{
-		Subject:       "channel.inbound.imessage",
-		Kind:          event.KindChannelInbound,
-		Actor:         "channel-imessage",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"channel_kind": "imessage", "channel_id": msg.ChannelID,
-			"sender": msg.Sender, "text": msg.Text, "allowed": allowed,
-		},
-	})
-}
-
-// scrubURLError redacts the query string from a *url.Error so the BlueBubbles
-// password (passed as ?password=… per the BlueBubbles API) never reaches logs
-// or surfaced errors. Transport errors from net/http are *url.Error values
-// whose .URL carries the full request URL including the query.
-func scrubURLError(err error) error {
-	var ue *url.Error
-	if errors.As(err, &ue) {
-		if u, perr := url.Parse(ue.URL); perr == nil {
-			u.RawQuery = ""
-			ue.URL = u.String()
-		}
-	}
-	return err
-}
-
-// fetchAttachmentData downloads a BlueBubbles attachment by guid and returns it
-// as an inline data: URL. Best-effort: returns "" on any failure.

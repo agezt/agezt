@@ -17,6 +17,8 @@ import (
 	"net/url"
 )
 
+// fetchAttachmentData downloads a BlueBubbles attachment by guid and returns it
+// as an inline data: URL. Best-effort: returns "" on any failure.
 func (c *Channel) fetchAttachmentData(ctx context.Context, a imAttachment) string {
 	endpoint := c.base + "/api/v1/attachment/" + url.PathEscape(a.guid) + "/download"
 	if c.cfg.Password != "" {
