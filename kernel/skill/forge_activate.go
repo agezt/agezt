@@ -13,6 +13,10 @@ import (
 )
 
 
+// visibleTo reports whether an acting agent may retrieve a skill (M932):
+// shared skills (no owner) are everyone's; a private skill is its owner's
+// alone — the default daemon identity (empty slug) sees only the shared pool. The
+// same scope wall per-agent memory draws (M915).
 func visibleTo(sk Skill, agentSlug string) bool {
 	return sk.Agent == "" || sk.Agent == agentSlug
 }
