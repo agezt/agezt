@@ -1,31 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package bedrock is the in-process AWS Bedrock Provider.
-//
-// **Scope (M1.m):** bearer-token auth + Anthropic body shape only.
-//
-//   - Auth: AWS_BEARER_TOKEN_BEDROCK (long-lived, no SigV4 needed).
-//     SigV4-signed requests (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
-//     land in M1.m.x.
-//   - Body: Anthropic Messages API shape (the largest Bedrock use case
-//     by usage). Other vendor body shapes — Mistral, Meta, Amazon Titan,
-//     Cohere, AI21, DeepSeek — return ErrVendorUnsupported with a hint.
-//
-// Bedrock's HTTP wire:
-//
-//	POST https://bedrock-runtime.{region}.amazonaws.com/model/{modelID}/invoke
-//	Authorization: Bearer {AWS_BEARER_TOKEN_BEDROCK}
-//	Content-Type: application/json
-//
-// The model ID is interpolated into the URL path (not the request body),
-// and the body carries `anthropic_version: "bedrock-2023-05-31"` instead
-// of a `model` field. Otherwise the body is the same Messages-API shape
-// the anthropic adapter speaks.
-//
-// Cross-region inference profiles (`us.anthropic.*`, `eu.anthropic.*`,
-// `global.anthropic.*`, etc.) are recognised as Anthropic too — vendor
-// detection looks for the `anthropic.` segment anywhere in the model id.
+// Package bedrock: AWS Bedrock Provider — consts + Provider struct + auth +
+// New + APIError + Name + ResolveEndpoint + Complete + headerTokenCount.
+// The vendor-detection predicates (isAnthropicModel + isMistralModel +
+// isCohereModel + isMetaLlamaModel) moved to bedrock_models.go.
+// Day-211 god-file split. Public API unchanged.
 package bedrock
+
 
 import (
 	"bytes"
@@ -42,7 +23,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
-
 const (
 	// AnthropicBedrockVersion is the value sent in the
 	// `anthropic_version` body field. Bedrock pins this; updating
@@ -170,63 +150,6 @@ func (p *Provider) ResolveEndpoint(model string) string {
 	return base + "/model/" + model + "/invoke"
 }
 
-// isAnthropicModel reports whether the Bedrock model id maps to the
-// Anthropic Messages-API body shape. Covers both direct ids
-// (`anthropic.claude-...`) and regional cross-inference profiles
-// (`us.anthropic.claude-...`, `eu.anthropic.claude-...`, etc.).
-func isAnthropicModel(id string) bool {
-	if strings.HasPrefix(id, "anthropic.") {
-		return true
-	}
-	// Regional profile: prefix segment + "." + "anthropic." + ...
-	if i := strings.Index(id, ".anthropic."); i >= 0 && i < len(id)-len(".anthropic.") {
-		return true
-	}
-	return false
-}
-
-// isMistralModel reports whether the model id maps to the
-// Mistral-on-Bedrock body shape (M1.tt). Covers both direct ids
-// (`mistral.mistral-large-2407-v1:0`) and regional cross-inference
-// profiles (`eu.mistral.*`, `us.mistral.*`).
-func isMistralModel(id string) bool {
-	if strings.HasPrefix(id, "mistral.") {
-		return true
-	}
-	if i := strings.Index(id, ".mistral."); i >= 0 && i < len(id)-len(".mistral.") {
-		return true
-	}
-	return false
-}
-
-// isCohereModel reports whether the model id maps to the
-// Cohere-on-Bedrock body shape (M1.tt-2). Cohere Command R/R+
-// use a `message` / `chat_history` request shape.
-func isCohereModel(id string) bool {
-	if strings.HasPrefix(id, "cohere.") {
-		return true
-	}
-	if i := strings.Index(id, ".cohere."); i >= 0 && i < len(id)-len(".cohere.") {
-		return true
-	}
-	return false
-}
-
-// isMetaLlamaModel reports whether the model id maps to the
-// Meta-Llama-on-Bedrock body shape (M1.tt-3). Uses the
-// prompt-template format: `<|begin_of_text|><|start_header_id|>user
-// <|end_header_id|>...<|eot_id|>` etc. No tool use through the
-// raw prompt template; chat-only.
-func isMetaLlamaModel(id string) bool {
-	if strings.HasPrefix(id, "meta.") {
-		return true
-	}
-	if i := strings.Index(id, ".meta."); i >= 0 && i < len(id)-len(".meta.") {
-		return true
-	}
-	return false
-}
-
 // Complete implements agent.Provider.
 func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
 	if !p.hasAuth() {
@@ -340,15 +263,3 @@ func headerTokenCount(h http.Header, name string) int {
 	}
 	return n
 }
-
-// ----- dialect translation (canonical ↔ Anthropic-on-Bedrock body) -----
-//
-// The shape is identical to plugins/providers/anthropic with two
-// differences:
-//   - No `model` field (model id is in the URL path).
-//   - `anthropic_version: "bedrock-2023-05-31"` is required.
-//
-// We re-encode rather than reuse plugins/providers/anthropic's
-// unexported helpers; the duplication is small and keeps Bedrock
-// independent of the direct-Anthropic adapter's evolution.
-
