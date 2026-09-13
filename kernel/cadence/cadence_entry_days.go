@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence Entry: FormatDays + ParseDays (the days-bitmask helpers).
+// Cadence Entry: FormatDays + ParseDays + dayAbbr + maskWeekdays/maskWeekends (days-bitmask helpers).
 // Code extracted from cadence_entry.go during the Day-128 god-file split.
 // Public API unchanged.
 package cadence
@@ -9,8 +9,20 @@ package cadence
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
+// dayAbbr maps time.Weekday indices to short labels used by FormatDays.
+var dayAbbr = [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+
+// Weekday bitmask shortcuts (over time.Weekday: Sunday=0 .. Saturday=6).
+const (
+	maskWeekdays = 1<<int(time.Monday) | 1<<int(time.Tuesday) | 1<<int(time.Wednesday) | 1<<int(time.Thursday) | 1<<int(time.Friday)
+	maskWeekends = 1<<int(time.Sunday) | 1<<int(time.Saturday)
+)
+
+// FormatDays renders a weekday bitmask compactly ("" for every day, "Mon-Fri",
+// "Sat,Sun", or "Mon,Wed,Fri").
 func FormatDays(days int) string {
 	if days == 0 || days == AllDays {
 		return ""
