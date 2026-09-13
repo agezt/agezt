@@ -17,6 +17,13 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
+// parseProfile decodes the op=edit/create profile into a roster.Profile. The
+// canonical shape is a nested "profile" object, but some models flatten the
+// fields straight onto the tool input (e.g. {"op":"create","slug":"x",...})
+// instead of nesting them — so when "profile" is missing/empty we fall back to
+// reading the profile fields off the top-level input. Either shape works; only
+// a genuinely empty payload (no profile object AND no flat fields) is an error,
+// so a guardian still can't silently no-op an edit.
 func parseProfile(profileRaw, fullRaw json.RawMessage) (roster.Profile, error) {
 	if hasProfileObject(profileRaw) {
 		var p roster.Profile
