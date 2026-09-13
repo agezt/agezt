@@ -2,24 +2,18 @@
 
 // Package providerboot owns provider bootstrap for the daemon: primary
 // selection, alternate registration, the governor's construction, and the
-// hot-reload path — Boot and Reload share ONE registration path
-// (registerAlternates), retiring the boot-vs-reload drift class (M928/M816
-// and the 2026-08 survey's live drifts: middleware dropped on reload, the
-// cross-provider down-route eligibility set frozen at boot).
-//
-// The package is deliberately concrete (imports compat/mock/openairesponses/
-// chatgptauth); it lives under plugins/ so the kernel never grows a
-// kernel→plugins edge.
+// hot-reload path. The unconfiguredProvider stub moved to
+// providerboot_stub.go; the cross-provider down-route eligibleSet moved to
+// providerboot_set.go. Day-211 god-file split. Public API unchanged.
 package providerboot
 
+
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
@@ -28,7 +22,6 @@ import (
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
-
 // Deps bundles everything Boot/Reload need from the daemon. Get and Stderr
 // are nil-defaulted (os.Getenv / io.Discard) so tests can inject a map-backed
 // environment and capture warnings without touching the process env.
@@ -85,51 +78,6 @@ type Result struct {
 // cross-provider down-route altFinder (drift fix: the old implementation
 // closed over a plain map built once in buildGovernor, so a reload mutated
 // the registry but the down-route search kept the boot-time snapshot).
-type eligibleSet struct {
-	mu sync.RWMutex
-	m  map[string]bool
-}
-
-func (s *eligibleSet) has(id string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.m[id]
-}
-
-func (s *eligibleSet) set(m map[string]bool) {
-	s.mu.Lock()
-	s.m = m
-	s.mu.Unlock()
-}
-
-// liveEligible maps a governor's *Registry to its eligibleSet so Reload —
-// which only receives the *governor.Governor — can refresh the set Boot's
-// altFinder closure reads. Entries live as long as the process (one governor
-// per daemon; test governors leak a map entry each, which is fine).
-var liveEligible sync.Map // *governor.Registry → *eligibleSet
-
-// UnconfiguredName is the Name() of the sentinel primary registered when no
-// LLM provider is configured. The reload path keys off it to swap in a real
-// provider once the operator configures one, and the daemon's first-run nudge
-// compares Result.Primary against it.
-const UnconfiguredName = "unconfigured"
-
-// unconfiguredProvider is the daemon's primary when NO LLM provider is
-// configured (AGEZT_PROVIDER unset). The daemon ships with no default provider
-// or model (owner rule: "hiçbir default provider/model"), so a fresh install
-// boots with this sentinel: the daemon, Web UI, and Setup all run, but any LLM
-// call fails fast with an actionable message telling the operator to add a
-// provider + key and a model (via AGEZT_MODEL or a routing/fallback chain). It
-// is swapped for a real provider by the reload path once one is configured.
-type unconfiguredProvider struct{}
-
-func (unconfiguredProvider) Name() string { return UnconfiguredName }
-func (unconfiguredProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return nil, fmt.Errorf("no LLM provider configured — add a provider and API key (Setup → Providers, or set %sPROVIDER) and a model (%sMODEL, a per-task route, or a fallback chain)", brand.EnvPrefix, brand.EnvPrefix)
-}
 
 // Eligible reports whether a catalog provider can serve requests: a supported
 // compat family AND resolvable credentials. This is THE eligibility predicate —
@@ -347,4 +295,3 @@ func governorConfigFromEnv(get func(string) string) (govEnvConfig, error) {
 // silently stopped applying after any provider reload until restart).
 //
 // Returns the eligible set (catalog provider id → true, primary included) —
-// the cross-provider down-route eligibility map.
