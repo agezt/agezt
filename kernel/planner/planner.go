@@ -1,51 +1,22 @@
 // SPDX-License-Identifier: MIT
 
-// Package planner generates `scheduler.Plan`-shaped JSON from a
-// natural-language intent by asking the configured Provider to
-// emit a DAG. The output is the same JSON shape `agt plan <file>`
-// already executes (handlePlan in kernel/controlplane), so
-// running a generated plan is identical to running a hand-authored
-// one — same node types, same scheduler, same audit trail.
-//
-// **Scope (M1.v).** Two node kinds: `loop` and `gate`. The
-// scheduler supports both; the planner can emit either. Future
-// node kinds (llm/tool/agent — SPEC-02 §4.2) will need both a
-// scheduler implementation and a planner-prompt update.
-//
-// **No agentic-meta nonsense.** The planner is a *single*
-// LLM call that returns a static DAG. It does NOT recurse into
-// sub-planners, it does NOT re-plan mid-execution, and it does
-// NOT call tools during planning. Those are real capabilities,
-// but they're deliberately out of scope for v1 — they invite
-// runaway behaviour the audit story can't keep up with.
-//
-// **Output validation.** We don't trust the model. After parsing
-// the JSON the planner verifies:
-//
-//   - at least one node
-//   - every node id is unique and non-empty
-//   - every `deps` reference resolves
-//   - no cycles (handled by the scheduler's existing topological
-//     sort, but we duplicate the check here so the operator sees
-//     "your planner emitted a bad DAG" rather than "scheduler
-//     refused")
-//   - every node kind ∈ {loop, gate}
-//
-// Failures return a descriptive error; the prompt asks for JSON
-// in a fenced code block, and we strip the fence before parsing.
+// Planner: Config + Generate + GenerateFromIntent + marshalIntentFrame + Plan + Node + extractJSONBlock.
+// Code extracted from planner.go during the Day-143 god-file split.
+// Public API unchanged.
 package planner
+
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/internal/strutil"
+	"encoding/json"
 	"github.com/agezt/agezt/kernel/agent"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
+
 
 // TaskType is the per-task-type routing hint (M1.cc) the planner
 // stamps onto every CompletionRequest. Operators wire this through
@@ -276,156 +247,3 @@ func extractJSONBlock(body string) (string, error) {
 // by hand can verify them in CI without spinning up the daemon —
 // matches the validators the daemon applies before executing a
 // plan submitted via `agt plan <file>`.
-func ValidateJSON(raw []byte) (Plan, error) { return parseAndValidate(string(raw)) }
-
-// parseAndValidate decodes the JSON, runs the structural checks
-// described in the package doc, and returns the typed Plan.
-func parseAndValidate(raw string) (Plan, error) {
-	var p Plan
-	if err := json.Unmarshal([]byte(raw), &p); err != nil {
-		return Plan{}, fmt.Errorf("plan JSON parse: %w", err)
-	}
-	if len(p.Nodes) == 0 {
-		return Plan{}, errors.New("plan has no nodes")
-	}
-	if p.MaxParallel < 0 {
-		return Plan{}, fmt.Errorf("max_parallel must be >= 0 (got %d)", p.MaxParallel)
-	}
-
-	ids := make(map[string]struct{}, len(p.Nodes))
-	for i, n := range p.Nodes {
-		if strings.TrimSpace(n.ID) == "" {
-			return Plan{}, fmt.Errorf("node[%d]: id is empty", i)
-		}
-		if _, dup := ids[n.ID]; dup {
-			return Plan{}, fmt.Errorf("node[%d]: duplicate id %q", i, n.ID)
-		}
-		ids[n.ID] = struct{}{}
-		switch n.Kind {
-		case "loop":
-			if strings.TrimSpace(n.Intent) == "" {
-				return Plan{}, fmt.Errorf("node %q (loop): intent is empty", n.ID)
-			}
-		case "gate":
-			if strings.TrimSpace(n.Description) == "" {
-				return Plan{}, fmt.Errorf("node %q (gate): description is empty", n.ID)
-			}
-		default:
-			return Plan{}, fmt.Errorf("node %q: unknown kind %q (want loop|gate)", n.ID, n.Kind)
-		}
-	}
-	// Dep resolution + cycle check (Kahn-style topological walk).
-	if err := validateDAG(p.Nodes, ids); err != nil {
-		return Plan{}, err
-	}
-	return p, nil
-}
-
-// validateDAG ensures every dep id exists and there are no cycles.
-// We run our own check rather than relying on the scheduler so a
-// bad plan from the LLM produces a clear "node X depends on Y
-// which doesn't exist" message at the planner boundary.
-func validateDAG(nodes []Node, ids map[string]struct{}) error {
-	// Reference check.
-	for _, n := range nodes {
-		for _, d := range n.Deps {
-			if d == n.ID {
-				return fmt.Errorf("node %q depends on itself", n.ID)
-			}
-			if _, ok := ids[d]; !ok {
-				return fmt.Errorf("node %q: dep %q does not exist", n.ID, d)
-			}
-		}
-	}
-	// Cycle check via Kahn (count incoming, repeatedly drop nodes
-	// with zero remaining inputs).
-	indeg := map[string]int{}
-	deps := map[string][]string{}
-	for _, n := range nodes {
-		indeg[n.ID] = 0
-		deps[n.ID] = nil
-	}
-	for _, n := range nodes {
-		for _, d := range n.Deps {
-			indeg[n.ID]++
-			deps[d] = append(deps[d], n.ID)
-		}
-	}
-	queue := []string{}
-	for id, deg := range indeg {
-		if deg == 0 {
-			queue = append(queue, id)
-		}
-	}
-	processed := 0
-	for len(queue) > 0 {
-		id := queue[0]
-		queue = queue[1:]
-		processed++
-		for _, downstream := range deps[id] {
-			indeg[downstream]--
-			if indeg[downstream] == 0 {
-				queue = append(queue, downstream)
-			}
-		}
-	}
-	if processed != len(nodes) {
-		return fmt.Errorf("plan has a cycle (processed %d of %d nodes via topological walk)", processed, len(nodes))
-	}
-	return nil
-}
-
-func validateIntentBoundary(frame intentmodel.Frame, plan Plan) error {
-	if !frame.Underdetermined || frame.AmbiguityScore < 0.6 {
-		return nil
-	}
-	nodes := make(map[string]Node, len(plan.Nodes))
-	for _, n := range plan.Nodes {
-		nodes[n.ID] = n
-	}
-	for _, n := range plan.Nodes {
-		if n.Kind != "loop" {
-			continue
-		}
-		axes := intentmodel.RegretForAction(intentmodel.Action{
-			ToolName:    "planner.loop",
-			Capability:  "plan.loop",
-			EffectClass: "read_only",
-			Input:       n.Intent,
-		})
-		if !intentmodel.RequiresConfirmation(frame, axes) {
-			continue
-		}
-		if !hasGateDependency(n, nodes, map[string]bool{}) {
-			return fmt.Errorf("underdetermined intent requires a gate before high-regret loop node %q", n.ID)
-		}
-	}
-	return nil
-}
-
-func hasGateDependency(n Node, nodes map[string]Node, seen map[string]bool) bool {
-	for _, depID := range n.Deps {
-		if seen[depID] {
-			continue
-		}
-		seen[depID] = true
-		dep, ok := nodes[depID]
-		if !ok {
-			continue
-		}
-		if dep.Kind == "gate" {
-			return true
-		}
-		if hasGateDependency(dep, nodes, seen) {
-			return true
-		}
-	}
-	return false
-}
-
-// snippet returns the first ~200 chars of s for error messages.
-// Truncates so a verbose LLM doesn't dump a multi-kilobyte
-// response into the operator's terminal as part of an error.
-func snippet(s string) string {
-	return strutil.Ellipsis(strings.TrimSpace(s), 200, "...")
-}
