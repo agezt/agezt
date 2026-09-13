@@ -5,18 +5,16 @@
 // Public API unchanged.
 package controlplane
 
-
 import (
 	"net"
 	"sort"
 	"strings"
 
-	"encoding/json"
-	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/runtime"
 )
+
 
 
 // scheduleLastFiring is the most-recent firing of a schedule and its outcome
@@ -264,123 +262,3 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 	})
 }
 
-type scheduleFiredPayload struct {
-	ScheduleID      string         `json:"schedule_id"`
-	Intent          string         `json:"intent"`
-	Model           string         `json:"model"`
-	Target          string         `json:"target"`
-	Agent           string         `json:"agent"`
-	Workflow        string         `json:"workflow"`
-	SystemTask      string         `json:"system_task"`
-	Tool            string         `json:"tool"`
-	Executor        string         `json:"executor"`
-	Category        string         `json:"category"`
-	EffectClass     string         `json:"effect_class"`
-	UsesLLM         *bool          `json:"uses_llm"`
-	AutonomyRunbook map[string]any `json:"autonomy_runbook"`
-}
-
-// extractScheduleFired pulls schedule_id + intent + model out of a
-// schedule.fired payload (M54; schedule_id added M55). Returns zero values on
-// parse failure so a malformed firing still lists with its correlation and
-// outcome. schedule_id is "" for firings journaled before M55.
-func extractScheduleFired(payload json.RawMessage) scheduleFiredPayload {
-	if len(payload) == 0 {
-		return scheduleFiredPayload{}
-	}
-	var p scheduleFiredPayload
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return scheduleFiredPayload{}
-	}
-	return p
-}
-
-func scheduleFiredSystemTaskInfo(name string) (cadence.SystemTaskInfo, bool) {
-	name = strings.TrimSpace(name)
-	for _, info := range cadence.SystemTaskInfos() {
-		if info.Name == name {
-			return info, true
-		}
-	}
-	return cadence.SystemTaskInfo{}, false
-}
-
-func scheduleFiredExecutor(p scheduleFiredPayload) string {
-	if strings.TrimSpace(p.Executor) != "" {
-		return strings.TrimSpace(p.Executor)
-	}
-	if p.Target == cadence.TargetSystemTask {
-		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok && strings.TrimSpace(info.Executor) != "" {
-			return info.Executor
-		}
-		return "daemon"
-	}
-	if p.Target == cadence.TargetWorkflow {
-		return "workflow"
-	}
-	if p.Target == cadence.TargetTool {
-		return "tool"
-	}
-	return "agent"
-}
-
-func scheduleFiredCategory(p scheduleFiredPayload) string {
-	if strings.TrimSpace(p.Category) != "" {
-		return strings.TrimSpace(p.Category)
-	}
-	if p.Target == cadence.TargetSystemTask {
-		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok {
-			return strings.TrimSpace(info.Category)
-		}
-	}
-	return ""
-}
-
-func scheduleFiredEffectClass(p scheduleFiredPayload) string {
-	if strings.TrimSpace(p.EffectClass) != "" {
-		return strings.TrimSpace(p.EffectClass)
-	}
-	if p.Target == cadence.TargetSystemTask {
-		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok {
-			return strings.TrimSpace(info.EffectClass)
-		}
-	}
-	return ""
-}
-
-func scheduleFiredUsesLLM(p scheduleFiredPayload) bool {
-	if p.UsesLLM != nil {
-		return *p.UsesLLM
-	}
-	return p.Target == "" || p.Target == cadence.TargetWorkflow
-}
-
-func scheduleFiredAction(p scheduleFiredPayload) string {
-	switch p.Target {
-	case cadence.TargetWorkflow:
-		if p.Workflow != "" {
-			return "run workflow " + p.Workflow
-		}
-	case cadence.TargetSystemTask:
-		if p.SystemTask != "" {
-			return "run system task " + p.SystemTask
-		}
-	case cadence.TargetTool:
-		if p.Tool != "" {
-			return "run tool " + p.Tool
-		}
-	}
-	if p.Agent != "" && p.Intent != "" {
-		return "wake " + p.Agent + ": " + p.Intent
-	}
-	if p.Intent != "" {
-		return p.Intent
-	}
-	return p.ScheduleID
-}
-
-// handleScheduleStats aggregates scheduled-run firings (M57) — the autonomy
-// analogue of handleRunsStats. Folds the journal's schedule.fired events, joins
-// each with its run outcome (collectRuns), and reports counts, success rate, and
-// total spend over scheduled runs. Optional args.id scopes to one schedule;
-// args.since_ms windows by firing time.
