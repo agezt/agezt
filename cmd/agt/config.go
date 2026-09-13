@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt config command: dispatcher + Show/Ls/Get/Set + renderRoutingTable + sortedKeys + configValues.
-// Code extracted from config.go during the Day-105 god-file split.
-// Public API unchanged.
+// Package main: `agt config` dispatcher + sortedKeys helper + cmdConfigSet
+// (the write op). Snapshot display (renderRoutingTable + cmdConfigShow +
+// configValues) moved to config_show.go; read-only queries (cmdConfigLs +
+// cmdConfigGet) moved to config_query.go. Day-211 god-file split. Public API
+// unchanged.
 package main
 
 
@@ -14,13 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"encoding/json"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
-
-
 func cmdConfig(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintf(stderr, "%s config: subcommand required (show, ls, get, set, schema)\n", brand.CLI)
@@ -52,27 +51,6 @@ func cmdConfig(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 }
-
-// renderRoutingTable prints a "task → [providers]" table for routes / requires.
-func renderRoutingTable(stdout io.Writer, label string, raw any) {
-	m, ok := raw.(map[string]any)
-	if !ok || len(m) == 0 {
-		return
-	}
-	fmt.Fprintf(stdout, "    %s:\n", label)
-	for _, k := range sortedKeys(m) {
-		provs, _ := m[k].([]any)
-		names := make([]string, 0, len(provs))
-		for _, p := range provs {
-			if s, ok := p.(string); ok {
-				names = append(names, s)
-			}
-		}
-		fmt.Fprintf(stdout, "      %-12s → %v\n", k, names)
-	}
-}
-
-// sortedKeys returns the keys of a map[string]any sorted for stable output.
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -81,237 +59,6 @@ func sortedKeys(m map[string]any) []string {
 	sort.Strings(keys)
 	return keys
 }
-
-func cmdConfigShow(args []string, stdout, stderr io.Writer) int {
-	asJSON := false
-	for _, a := range args {
-		switch a {
-		case "--json":
-			asJSON = true
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s config show [--json]\n", brand.CLI)
-			fmt.Fprintf(stdout, "snapshot of the daemon's effective config — what AGEZT_* env vars,\n")
-			fmt.Fprintf(stdout, "model, system prompt (presence only), and on-disk paths it's using.\n")
-			fmt.Fprintf(stdout, "  --json   emit the full snapshot (pipe to jq / CI parsers)\n")
-			return 0
-		default:
-			fmt.Fprintf(stderr, "%s config show: unexpected arg %q\n", brand.CLI, a)
-			return 2
-		}
-	}
-
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfig, nil)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s config show: %v\n", brand.CLI, err)
-		return 1
-	}
-
-	if asJSON {
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(res)
-		return 0
-	}
-
-	paths, _ := res["paths"].(map[string]any)
-	model, _ := res["model"].(string)
-	sysSet, _ := res["system_prompt_set"].(bool)
-	askPolicy, _ := res["ask_policy"].(string)
-	toolCount := intOfStatus(res["tool_count"])
-	pluginCount := intOfStatus(res["plugin_count"])
-	envMap, _ := res["env"].(map[string]any)
-
-	fmt.Fprintf(stdout, "%s config:\n", brand.CLI)
-	fmt.Fprintf(stdout, "  paths:\n")
-	// Stable path key order so consecutive runs look identical.
-	for _, k := range []string{"base", "journal", "state", "runtime", "catalog", "vault"} {
-		if v, ok := paths[k].(string); ok {
-			fmt.Fprintf(stdout, "    %-8s : %s\n", k, v)
-		}
-	}
-	if model == "" {
-		fmt.Fprintf(stdout, "  model           : (provider default)\n")
-	} else {
-		fmt.Fprintf(stdout, "  model           : %s\n", model)
-	}
-	if sysSet {
-		fmt.Fprintf(stdout, "  system prompt   : set (content not shown)\n")
-	} else {
-		fmt.Fprintf(stdout, "  system prompt   : unset\n")
-	}
-	fmt.Fprintf(stdout, "  ask_policy      : %s\n", askPolicy)
-	fmt.Fprintf(stdout, "  tools           : %d registered\n", toolCount)
-	fmt.Fprintf(stdout, "  plugins         : %d spawned\n", pluginCount)
-
-	// Effective routing tables (M108) — only present when configured, so the
-	// common no-routing daemon stays compact.
-	if routing, ok := res["routing"].(map[string]any); ok && len(routing) > 0 {
-		fmt.Fprintf(stdout, "  routing (effective):\n")
-		renderRoutingTable(stdout, "routes", routing["routes"])
-		renderRoutingTable(stdout, "requires", routing["requires"])
-		if ov, ok := routing["model_overrides"].(map[string]any); ok && len(ov) > 0 {
-			fmt.Fprintf(stdout, "    model_overrides:\n")
-			for _, k := range sortedKeys(ov) {
-				if m, _ := ov[k].(string); m != "" {
-					fmt.Fprintf(stdout, "      %-12s → %s\n", k, m)
-				}
-			}
-		}
-	}
-
-	if len(envMap) == 0 {
-		fmt.Fprintf(stdout, "  env (AGEZT_*)   : none set\n")
-		return 0
-	}
-	keys := make([]string, 0, len(envMap))
-	for k := range envMap {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	fmt.Fprintf(stdout, "  env (AGEZT_*)   : %d set (values not shown)\n", len(keys))
-	for _, k := range keys {
-		fmt.Fprintf(stdout, "    %s\n", k)
-	}
-	return 0
-}
-
-// configValues fetches the Config Center field state (CmdConfigValues). Secrets
-// report presence only — the value never leaves the daemon.
-func configValues(c *controlplane.Client, stderr io.Writer, label string) ([]any, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfigValues, nil)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s %s: %v\n", brand.CLI, label, err)
-		return nil, false
-	}
-	fields, _ := res["fields"].([]any)
-	return fields, true
-}
-
-// cmdConfigLs lists every Config Center setting and its current state — the
-// machine-friendly companion to `config show` that the `config` skill/tool and
-// operators use to see what's editable.
-func cmdConfigLs(args []string, stdout, stderr io.Writer) int {
-	asJSON := false
-	for _, a := range args {
-		switch a {
-		case "--json":
-			asJSON = true
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s config ls [--json]\n", brand.CLI)
-			return 0
-		default:
-			fmt.Fprintf(stderr, "%s config ls: unexpected arg %q\n", brand.CLI, a)
-			return 2
-		}
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	if asJSON {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		res, err := c.Call(ctx, controlplane.CmdConfigValues, nil)
-		if err != nil {
-			fmt.Fprintf(stderr, "%s config ls: %v\n", brand.CLI, err)
-			return 1
-		}
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		_ = enc.Encode(res)
-		return 0
-	}
-	fields, ok := configValues(c, stderr, "config ls")
-	if !ok {
-		return 1
-	}
-	fmt.Fprintf(stdout, "%s config (%d settings):\n", brand.CLI, len(fields))
-	for _, fi := range fields {
-		m, _ := fi.(map[string]any)
-		env, _ := m["env"].(string)
-		secret, _ := m["secret"].(bool)
-		set, _ := m["set"].(bool)
-		pinned, _ := m["env_pinned"].(bool)
-		state := "unset"
-		if secret {
-			if set {
-				state = "set (secret)"
-			} else {
-				state = "unset (secret)"
-			}
-		} else if val, _ := m["value"].(string); val != "" {
-			state = val
-		}
-		tag := ""
-		if pinned {
-			tag = " [env-pinned]"
-		}
-		fmt.Fprintf(stdout, "  %-34s %s%s\n", env, state, tag)
-	}
-	return 0
-}
-
-// cmdConfigGet prints one setting's value (secrets: presence only).
-func cmdConfigGet(args []string, stdout, stderr io.Writer) int {
-	var env string
-	for _, a := range args {
-		switch a {
-		case "-h", "--help":
-			fmt.Fprintf(stdout, "usage: %s config get <ENV>\n", brand.CLI)
-			return 0
-		default:
-			if env != "" {
-				fmt.Fprintf(stderr, "%s config get: unexpected arg %q\n", brand.CLI, a)
-				return 2
-			}
-			env = a
-		}
-	}
-	if env == "" {
-		fmt.Fprintf(stderr, "%s config get: ENV required\n", brand.CLI)
-		return 2
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	fields, ok := configValues(c, stderr, "config get")
-	if !ok {
-		return 1
-	}
-	for _, fi := range fields {
-		m, _ := fi.(map[string]any)
-		if m["env"] != env {
-			continue
-		}
-		secret, _ := m["secret"].(bool)
-		set, _ := m["set"].(bool)
-		if secret {
-			if set {
-				fmt.Fprintf(stdout, "%s: set (secret, value not shown)\n", env)
-			} else {
-				fmt.Fprintf(stdout, "%s: not set\n", env)
-			}
-		} else {
-			val, _ := m["value"].(string)
-			fmt.Fprintf(stdout, "%s=%s\n", env, val)
-		}
-		return 0
-	}
-	fmt.Fprintf(stderr, "%s config get: unknown setting %q\n", brand.CLI, env)
-	return 1
-}
-
-// cmdConfigSet writes one setting. An empty value clears it. Provider/model apply
-// live; everything else needs a restart (the response says which).
 func cmdConfigSet(args []string, stdout, stderr io.Writer) int {
 	if len(args) >= 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprintf(stdout, "usage: %s config set <ENV> [value]\n", brand.CLI)
@@ -351,5 +98,3 @@ func cmdConfigSet(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-
-// cmdConfigSchema lists the editable schema, or dispatches register/unregister.
