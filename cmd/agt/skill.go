@@ -5,7 +5,6 @@
 // Public API unchanged.
 package main
 
-
 import (
 	"context"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 
 
 // cmdSkill dispatches `agt skill <subcommand>`. Forge is the journaled
@@ -231,146 +231,3 @@ func cmdSkillHistory(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// cmdSkillTransition handles the promote/quarantine/revert commands, which all
-// take a single <id> and an optional --reason (quarantine).
-func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writer) int {
-	asJSON := false
-	reason := ""
-	var id string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "--json":
-			asJSON = true
-		case a == "-h" || a == "--help":
-			if label == "quarantine" || label == "archive" {
-				fmt.Fprintf(stdout, "usage: %s skill %s <id> [--reason R] [--json]\n", brand.CLI, label)
-			} else {
-				fmt.Fprintf(stdout, "usage: %s skill %s <id> [--json]\n", brand.CLI, label)
-			}
-			return 0
-		case a == "--reason":
-			if i+1 >= len(args) {
-				fmt.Fprintf(stderr, "%s skill %s: --reason needs a value\n", brand.CLI, label)
-				return 2
-			}
-			i++
-			reason = args[i]
-		case id == "":
-			id = a
-		default:
-			fmt.Fprintf(stderr, "%s skill %s: unexpected arg %q\n", brand.CLI, label, a)
-			return 2
-		}
-	}
-	if id == "" {
-		fmt.Fprintf(stderr, "%s skill %s: id required\n", brand.CLI, label)
-		return 2
-	}
-	callArgs := map[string]any{"id": id}
-	if reason != "" {
-		callArgs["reason"] = reason
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	res, err := c.Call(ctx, cmd, callArgs)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s skill %s: %v\n", brand.CLI, label, err)
-		return 1
-	}
-	if asJSON {
-		return jsonout.Write(stdout, res)
-	}
-	switch label {
-	case "promote":
-		fmt.Fprintf(stdout, "%s -> %v\n", id, res["status"])
-	case "quarantine":
-		fmt.Fprintf(stdout, "quarantined %s\n", id)
-	case "archive":
-		fmt.Fprintf(stdout, "archived %s\n", id)
-	case "revert":
-		if restored, _ := res["restored"].(string); restored != "" {
-			fmt.Fprintf(stdout, "reverted %s (restored %s)\n", id, restored)
-		} else {
-			fmt.Fprintf(stdout, "reverted %s (archived; no parent to restore)\n", id)
-		}
-	}
-	return 0
-}
-
-// cmdSkillReassign handles `skill share <id>` (promote a private skill to the
-// shared pool) and `skill reassign <id> --agent <slug>` (change the owning
-// agent; --agent "" or omitted shares it). share is the one-arg ownership
-// valve that mirrors `memory promote`; reassign is its general form.
-func cmdSkillReassign(args []string, share bool, stdout, stderr io.Writer) int {
-	label := "reassign"
-	if share {
-		label = "share"
-	}
-	asJSON := false
-	agent := ""
-	var id string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "--json":
-			asJSON = true
-		case a == "-h" || a == "--help":
-			if share {
-				fmt.Fprintf(stdout, "usage: %s skill share <id> [--json]\n", brand.CLI)
-			} else {
-				fmt.Fprintf(stdout, "usage: %s skill reassign <id> [--agent <slug>] [--json]   (omit --agent to share)\n", brand.CLI)
-			}
-			return 0
-		case a == "--agent" && !share:
-			if i+1 >= len(args) {
-				fmt.Fprintf(stderr, "%s skill reassign: --agent needs a value\n", brand.CLI)
-				return 2
-			}
-			i++
-			agent = args[i]
-		case id == "":
-			id = a
-		default:
-			fmt.Fprintf(stderr, "%s skill %s: unexpected arg %q\n", brand.CLI, label, a)
-			return 2
-		}
-	}
-	if id == "" {
-		fmt.Fprintf(stderr, "%s skill %s: id required\n", brand.CLI, label)
-		return 2
-	}
-	cmd := controlplane.CmdSkillReassign
-	callArgs := map[string]any{"id": id, "agent": agent}
-	if share {
-		cmd = controlplane.CmdSkillShare
-		callArgs = map[string]any{"id": id}
-	}
-	c := dialpkg.New(stderr)
-	if c == nil {
-		return 1
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	res, err := c.Call(ctx, cmd, callArgs)
-	if err != nil {
-		fmt.Fprintf(stderr, "%s skill %s: %v\n", brand.CLI, label, err)
-		return 1
-	}
-	if asJSON {
-		return jsonout.Write(stdout, res)
-	}
-	if agent == "" {
-		fmt.Fprintf(stdout, "shared %s with every agent\n", id)
-	} else {
-		fmt.Fprintf(stdout, "reassigned %s to %s\n", id, agent)
-	}
-	return 0
-}
-
-// renderSkillLine formats a skill map into a single line:
-// "<id12> [status] name — description".
