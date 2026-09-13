@@ -261,45 +261,6 @@ func reconcileExistingGuardian(h Host, p roster.Profile) error {
 	return err
 }
 
-func defaultGuardianNoisePolicy() *roster.NoisePolicy {
-	return &roster.NoisePolicy{
-		SilentOnSuccess:      true,
-		DisableMemoryWrites:  true,
-		MinNotifySeverity:    defaultMinNotifySeverity,
-		MinNotifyIntervalSec: minNotifyIntervalSec,
-	}
-}
-
-func notifySeverityRank(severity string) int {
-	switch strings.ToLower(strings.TrimSpace(severity)) {
-	case "critical":
-		return 3
-	case "warning":
-		return 2
-	case "info":
-		return 1
-	default:
-		return 0
-	}
-}
-
-func trustRank(level string) int {
-	switch strings.ToUpper(strings.TrimSpace(level)) {
-	case "L0":
-		return 0
-	case "L1":
-		return 1
-	case "L2":
-		return 2
-	case "L3":
-		return 3
-	case "L4":
-		return 4
-	default:
-		return 4
-	}
-}
-
 func reconcileExistingGuardianStanding(h Host, g guardian) error {
 	if g.eventCooldownSec <= 0 || len(g.events) == 0 {
 		return nil
@@ -378,33 +339,3 @@ func seedTrigger(h Host, g guardian) (string, error) {
 	return "none", nil
 }
 
-func appendUnique(xs []string, want string) []string {
-	for _, x := range xs {
-		if x == want {
-			return xs
-		}
-	}
-	return append(xs, want)
-}
-
-func sameEventSubjects(triggers []standing.Trigger, subjects []string) bool {
-	if len(subjects) == 0 {
-		return false
-	}
-	got := map[string]int{}
-	for _, t := range triggers {
-		if t.Type != standing.TriggerEvent || t.Subject == "" {
-			return false
-		}
-		got[t.Subject]++
-	}
-	if len(got) != len(subjects) {
-		return false
-	}
-	for _, s := range subjects {
-		if got[s] != 1 {
-			return false
-		}
-	}
-	return true
-}
