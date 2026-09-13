@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
+// Package agent: context budget + compaction + utilities
+// (AutoContextBudgetChars + headSnippet + compactMessagesDetailed +
+// rescuedToolOutput + contextSize + truncateForJournal).
+// Artifact offload (ArtifactPutter + offloadToolOutput) moved to
+// agent_context_offload.go; policy contract (PolicyVerdict + Policy) moved to
+// agent_context_policy.go. Day-211 god-file split. Public API unchanged.
 package agent
 
-// Agent context budget + compaction + offload helpers
-// (AutoContextBudgetChars + headSnippet + compactMessagesDetailed +
-// rescuedToolOutput + offloadToolOutput + contextSize + truncateForJournal).
-// Carved out of agent.go during the Day 31 god file split #1 so the
-// main file can focus on Run + ToolCapability.
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -129,114 +129,6 @@ func rescuedToolOutput(content string, markers []string) bool {
 	return false
 }
 
-// ArtifactPutter is the slice of a content-addressed store the loop needs to
-// offload large outputs. kernel/artifact.Store satisfies it. An interface keeps
-// kernel/agent decoupled from the storage package.
-type ArtifactPutter interface {
-	Put(data []byte) (ref string, err error)
-}
-
-// DefaultArtifactThreshold is the tool-output size above which the journal event
-// offloads to the artifact store (the model still sees the full output). 8 KiB
-// keeps ordinary results inline while bounding the event for big dumps.
-const DefaultArtifactThreshold = 8 << 10
-
-// artifactPreviewBytes is how much of an offloaded output stays inline on the
-// event as a human-readable preview.
-const artifactPreviewBytes = 512
-
-// offloadToolOutput decides how a tool output is represented ON THE EVENT. When a
-// store is configured and the output exceeds the threshold, it stores the full
-// bytes and returns a preview + ref + true; otherwise (no store, small output, or
-// a Put error) it returns the output unchanged and offloaded=false. It never
-// returns an error — offload is best-effort and must not fail the run.
-func offloadToolOutput(store ArtifactPutter, threshold int, output string) (eventOutput, rawRef string, fullBytes int, offloaded bool) {
-	fullBytes = len(output)
-	if store == nil {
-		return output, "", fullBytes, false
-	}
-	if threshold <= 0 {
-		threshold = DefaultArtifactThreshold
-	}
-	if fullBytes <= threshold {
-		return output, "", fullBytes, false
-	}
-	ref, err := store.Put([]byte(output))
-	if err != nil || ref == "" {
-		return output, "", fullBytes, false // fall back to inlining
-	}
-	preview := output
-	if len(preview) > artifactPreviewBytes {
-		preview = preview[:artifactPreviewBytes] + "…[offloaded; full output in artifact " + ref + "]"
-	}
-	return preview, ref, fullBytes, true
-}
-
-// PolicyVerdict is the contract between the loop and the policy engine
-// (kernel/edict). The loop journals it as the payload of policy.decision.
-type PolicyVerdict struct {
-	// Allow is true → the tool will be invoked.
-	Allow bool
-	// Capability is the policy-engine's classification of this call
-	// (e.g. "shell", "file.write", "http.post"). Free-form string so the
-	// loop need not import kernel/edict.
-	Capability string
-	// Reason is human-readable; used in journal entries and (on deny) in
-	// the synthetic tool result returned to the model.
-	Reason string
-	// WouldAsk indicates an approval would have been requested in a future
-	// release with live HITL routing. Captured for audit.
-	WouldAsk bool
-	// HardDenied indicates a non-overridable rule fired.
-	HardDenied bool
-	// EffectClass is the runtime/tool classification used for governance
-	// routing. Empty means unknown.
-	EffectClass string
-	// AffectedResources is a compact operator-facing resource list, when known.
-	AffectedResources []string
-	// EpistemicAction is the system-level calibration verdict for this proposed
-	// tool call: allow, escalate, or deny. It is advisory unless the runtime
-	// explicitly wires escalation into HITL.
-	EpistemicAction string
-	// EpistemicReason explains the calibration verdict in operator-facing text.
-	EpistemicReason string
-	// EpistemicSignals are structured reasons such as temporal_sensitive,
-	// matched_failure_conditions:N, or low_effect_confidence:X.
-	EpistemicSignals []string
-	// EpistemicConfidence is the runtime confidence in the effect prediction.
-	EpistemicConfidence float64
-	// FailureMatches counts historical failures whose conditions match this call.
-	FailureMatches int
-	// WeightedFailures is FailureMatches with time decay applied.
-	WeightedFailures float64
-	// SchemaHash and InputShape identify the validated call condition used for
-	// historical failure matching without storing raw schema/input twice.
-	SchemaHash string
-	InputShape string
-	// TemporalSensitive marks calls whose correctness depends on fresh external
-	// state, dates, versions, prices, schedules, or similar changing facts.
-	TemporalSensitive bool
-	// NovelTool marks calls whose tool/schema conditions have not appeared in the
-	// journal window used by the runtime epistemic gate.
-	NovelTool bool
-	// UntrustedObservation marks proposals made after external-world data entered
-	// the model context. This signal is produced by the loop, not by the model.
-	UntrustedObservation bool
-	// ObservationSources lists the external observation sources currently tainting
-	// the run. Used for audit and HITL prompts.
-	ObservationSources []string
-	// ObservationDirectiveLike indicates that the external data contained text
-	// resembling hidden instructions or social-engineering attempts.
-	ObservationDirectiveLike bool
-	// ObservationDirectiveMatches lists the directive-like patterns that fired.
-	ObservationDirectiveMatches []string
-}
-
-// Policy is the signature the loop expects. Implementations are free to
-// be pure functions (e.g. kernel/edict.Engine.Decide adapted by
-// kernel/runtime).
-type Policy func(ctx context.Context, tc ToolCall) PolicyVerdict
-
 // DefaultMaxIter caps tool-call rounds per run (DECISIONS E5). Raised from 25 to
 // 50 (M824) so deeper agentic tasks finish in one run; AGEZT_MAX_ITER overrides,
 // and the chat's "Continue" resumes a run that still hits the cap.
@@ -354,18 +246,3 @@ func truncateForJournal(s string) string {
 	}
 	return string(r[:maxJournaledAnswerRunes]) + "…[truncated]"
 }
-
-// Run executes the tool-loop end-to-end:
-//
-//  1. Publish task.received with the user's intent.
-//  2. For up to MaxIter rounds:
-//     a. Publish llm.request with the current messages.
-//     b. Call Provider.Complete.
-//     c. Publish llm.response with the assistant's message.
-//     d. If stop_reason is not tool_use → publish task.completed and
-//     return Content.
-//     e. Otherwise for each ToolCall: publish tool.invoked, invoke the
-//     tool, publish tool.result, append a tool message.
-//  3. If MaxIter elapses, return ErrMaxIter.
-//
-// Every step is durable-before-publish through cfg.Bus.
