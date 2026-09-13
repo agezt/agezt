@@ -1,9 +1,5 @@
-// SPDX-License-Identifier: MIT
-
-// Slack channel: outbound API calls + emit helpers + tiny utilities.
-// Code extracted from slack.go during the Day-92 god-file split.
-// Public API unchanged.
 package slack
+
 
 
 import (
@@ -247,3 +243,51 @@ func slackTSMillis(ts string) int64 {
 	}
 	return int64(f * 1000)
 }
+
+// ============================================================================
+
+// Send + send + postMessageResp type. Carved out of slack.go during
+// the Day 200 god-file split so the main file can stay focused on
+// types + lifecycle + verify and the inbound file can stay focused
+// on the receive flow.
+
+func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
+	return c.send(ctx, out, "")
+}
+
+type postMessageResp struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
+// slackMaxChars is Slack's per-message text limit (40000 characters). A longer
+// message is rejected, so a long answer is split into sequential messages rather
+// than lost (M240) — same treatment as Telegram/Discord (M234/M235).
+const slackMaxChars = 40000
+
+func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) error {
+	// Slack rejects an empty message (errors with "no_text"); no-op rather than
+	// fail, covering the Send path and whitespace-only answers (M236).
+	if strings.TrimSpace(out.Text) == "" && len(out.Attachments) == 0 {
+		return nil
+	}
+	for _, chunk := range channel.SplitText(out.Text, slackMaxChars) {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
+		if err := c.postMessage(ctx, out.ChannelID, out.ThreadID, chunk); err != nil {
+			return err
+		}
+	}
+	for _, att := range out.Attachments {
+		if err := c.sendFile(ctx, out.ChannelID, out.ThreadID, att); err != nil {
+			return err
+		}
+	}
+	c.emitOutbound(out, corr)
+	return nil
+}
+
+// sendFile uploads an attachment via Slack's external-upload flow:
+// files.getUploadURLExternal → POST bytes to the upload URL →
+// files.completeUploadExternal (which shares it into the channel/thread).
