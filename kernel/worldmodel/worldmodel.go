@@ -1,33 +1,15 @@
 // SPDX-License-Identifier: MIT
 
 // Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled,
-// content-addressed graph of the operator's world — the projects, repos,
-// people, accounts, channels and topics they care about, and the weighted
-// relations between them. It is the substrate the retrieval pipeline resolves
-// against *before* anything else (SPEC-05 §7): "what does 'the portfolio'
-// mean?" → a set of repo entities. It is also what lets Pulse's Salience judge
-// relevance *to this operator specifically* — the hole salience.go left open
-// for "the full world-model relevance signals land with Memory".
-//
-// It deliberately mirrors kernel/memory's two-layer split, because the same
-// properties are wanted (auditability, reversibility, dedupe):
-//
-//   - Store (this file) is a pure, file-backed graph store — no bus, no
-//     journaling — owning content-addressing and the (pure) resolve ranking
-//     (resolve.go). A CobaltDB-class adjacency engine (DECISIONS D2) can
-//     replace it behind the Store interface later.
-//   - Graph (manager.go) wraps a Store with the kernel bus so every node/edge
-//     mutation is a durable-before-publish event carrying the run's
-//     correlation_id — which is what makes `agt why` able to explain why the
-//     system believes "the portfolio" is those repos.
-//
-// Nodes and edges are content-addressed (BLAKE3) so identical entities and
-// relations dedupe and reinforce instead of duplicating; updates are soft
-// (SupersededBy) and forgets are soft (Tombstoned) — history is never
-// destructively edited, and the graph is diffable across time.
-//
-// Concurrency: a single Store instance is safe for concurrent use.
+// content-addressed graph of the operator's world. The Kind + Verb + Entity
+// + Relation + Store + graphData + FileStore types + Open + EntityID +
+// RelationID + NormalizeKind + NormalizeVerb + Active + sortEntities +
+// sortRelations helpers live here. The FileStore method implementations
+// (PutEntity + GetEntity + AllEntities + PutRelation + GetRelation +
+// AllRelations + Count + Close + snapshotLocked) moved to
+// worldmodel_store.go. Day-211 god-file split. Public API unchanged.
 package worldmodel
+
 
 import (
 	"encoding/hex"
@@ -40,7 +22,6 @@ import (
 	"github.com/agezt/agezt/kernel/jsonstore"
 	"lukechampine.com/blake3"
 )
-
 // Kind classifies an entity (SPEC-05 §3.2). It is an open string — the set
 // below is the validated, well-known vocabulary, but an unknown kind is
 // accepted (NormalizeKind keeps it verbatim) so the graph never refuses to
@@ -241,83 +222,6 @@ func Open(dir string) (*FileStore, error) {
 }
 
 // PutEntity implements Store.
-func (s *FileStore) PutEntity(e Entity) error {
-	if e.ID == "" {
-		return errors.New("worldmodel: entity id required")
-	}
-	if strings.TrimSpace(e.Name) == "" {
-		return ErrEmptyName
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.entities[e.ID] = e
-	return s.snapshotLocked()
-}
-
-// GetEntity implements Store.
-func (s *FileStore) GetEntity(id string) (Entity, bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	e, ok := s.entities[id]
-	return e, ok, nil
-}
-
-// AllEntities implements Store. Sorted by CreatedMS then ID so two consecutive
-// calls produce identical output (deterministic CLI + snapshot tests).
-func (s *FileStore) AllEntities() ([]Entity, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]Entity, 0, len(s.entities))
-	for _, e := range s.entities {
-		out = append(out, e)
-	}
-	sortEntities(out)
-	return out, nil
-}
-
-// PutRelation implements Store.
-func (s *FileStore) PutRelation(r Relation) error {
-	if r.ID == "" {
-		return errors.New("worldmodel: relation id required")
-	}
-	if r.From == "" || r.To == "" {
-		return errors.New("worldmodel: relation needs from and to")
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.relations[r.ID] = r
-	return s.snapshotLocked()
-}
-
-// GetRelation implements Store.
-func (s *FileStore) GetRelation(id string) (Relation, bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	r, ok := s.relations[id]
-	return r, ok, nil
-}
-
-// AllRelations implements Store. Sorted by CreatedMS then ID.
-func (s *FileStore) AllRelations() ([]Relation, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]Relation, 0, len(s.relations))
-	for _, r := range s.relations {
-		out = append(out, r)
-	}
-	sortRelations(out)
-	return out, nil
-}
-
-// Count implements Store — the number of entities (all states).
-func (s *FileStore) Count() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.entities)
-}
-
-// Close implements Store. Mutations persist synchronously, so this is a no-op.
-func (s *FileStore) Close() error { return nil }
 
 // snapshotLocked writes the whole graph atomically. Caller holds s.mu.
 func (s *FileStore) snapshotLocked() error {
