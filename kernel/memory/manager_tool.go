@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Memory tool surface: correlation/scope context helpers + Tool/Definition/Invoke + toolActor/toolTags/scopeOf/filterScope/renderHits/plural helpers.
-// Code extracted from manager.go during the Day-44 god-file split. Public API unchanged.
+// Package memory: agent.Tool surface for the memory manager (toolInput +
+// memoryTool + Tool + Definition + Invoke). The context.Context helpers
+// (WithCorrelation + CorrelationFrom + WithScope + ScopeFrom) moved to
+// manager_tool_ctx.go; the small tool helpers (toolActor + toolTags +
+// scopeOf + filterScope + renderHits + plural + distillResult) moved to
+// manager_tool_helpers.go. Day-211 god-file split. Public API unchanged.
 package memory
 
 
@@ -14,66 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
 )
-
-
-func WithCorrelation(ctx context.Context, corr string) context.Context {
-	return context.WithValue(ctx, ctxKeyCorrelation, corr)
-}
-
-// CorrelationFrom extracts the correlation id set by WithCorrelation.
-func CorrelationFrom(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
-		return v
-	}
-	return ""
-}
-
-const ctxKeyScope ctxKey = iota + 1
-
-// WithScope returns a child context carrying the run's per-agent memory scope
-// (M786): when a run executes AS a named agent (M783), its recalls — the
-// context injection and the memory tool — default to this scope, so the agent
-// sees its own private notes on top of shared memory without having to name
-// itself. Writes default to this scope too (M915 — each agent keeps its own
-// memory; the shared brain is opt-in via the tool's shared=true and kept
-// selective). The explicit tool scope param always wins over this default.
-func WithScope(ctx context.Context, scope string) context.Context {
-	if scope == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxKeyScope, scope)
-}
-
-// ScopeFrom extracts the per-agent memory scope set by WithScope ("" = none).
-func ScopeFrom(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyScope).(string); ok {
-		return v
-	}
-	return ""
-}
-
-// --- agent tool -----------------------------------------------------------
-
-// toolInputSchema is the JSON Schema advertised to the model for the
-// in-process `memory` tool.
-const toolInputSchema = `{
-  "type": "object",
-  "properties": {
-    "action":  {"type": "string", "enum": ["remember", "recall", "forget", "find_related", "bulk_forget"], "description": "what to do"},
-    "subject": {"type": "string", "description": "entity/topic the memory is about (remember)"},
-    "content": {"type": "string", "description": "the text to remember (remember)"},
-    "type":    {"type": "string", "enum": ["FACT","SUMMARY","RELATION","PREFERENCE","OBSERVATION"], "description": "memory type (remember; default FACT)"},
-    "evidence":{"type": "string", "enum": ["observed","inferred","curated","constraint"], "description": "epistemic source class (remember; default inferred/derived from source)"},
-    "half_life_ms":{"type": "integer", "description": "mechanical expiration budget in milliseconds (remember; default by evidence/type)"},
-    "query":   {"type": "string", "description": "search text (recall)"},
-    "limit":   {"type": "integer", "description": "max results (recall; default 5)"},
-    "id":      {"type": "string", "description": "record id (forget, find_related)"},
-    "ids":     {"type": "array", "items": {"type": "string"}, "description": "record ids (bulk_forget)"},
-    "shared":  {"type": "boolean", "description": "remember only: write to the SHARED memory every agent recalls. Be selective — share only durable facts useful to ALL agents (owner preferences, project-wide decisions). Default false: the note stays private to you."},
-    "scope":   {"type": "string", "description": "optional namespace override, e.g. a role like \"researcher\". On remember: store the note private to that scope (default: your own agent scope). On recall: also surface that scope's private notes. Shared memory is ALWAYS visible; another scope's private notes never are."}
-  },
-  "required": ["action"]
-}`
 
 type toolInput struct {
 	Action     string   `json:"action"`
@@ -249,98 +193,3 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		return agent.Result{Output: "unknown action " + in.Action + " (remember|recall|forget|find_related|bulk_forget)", IsError: true}, nil
 	}
 }
-
-// toolActor resolves who an agent's memory write should be attributed to (M851):
-// the named roster agent's slug when the run executes AS one, else the generic
-// "agent" (a default-identity run). Operator (console/CLI) and distilled writes
-// set their own actor at their call sites.
-func toolActor(ctx context.Context) string {
-	if slug := agent.AgentFromContext(ctx); slug != "" {
-		return slug
-	}
-	return "agent"
-}
-
-// toolTags builds a tool write's tag map. Tool writes are tagged source=agent so
-// they are distinguishable from operator and distilled writes; a non-empty scope
-// tag makes the note private to that namespace (recall only surfaces it when the
-// same scope is requested) — the per-agent layer over shared memory (M652/M915).
-func toolTags(scope string) map[string]string {
-	t := map[string]string{"source": "agent"}
-	if scope != "" {
-		t["scope"] = scope
-	}
-	return t
-}
-
-// scopeOf extracts the scope tag from a record's tag map ("" = shared).
-func scopeOf(tags map[string]string) string {
-	if tags == nil {
-		return ""
-	}
-	return tags["scope"]
-}
-
-// filterScope drops records private to a scope other than the requested one.
-// A record is visible when it carries no scope tag (shared) or its scope equals
-// the caller's. Returns a new slice; the input is not mutated.
-func filterScope(recs []Record, scope string) []Record {
-	out := make([]Record, 0, len(recs))
-	for _, r := range recs {
-		rs := ""
-		if r.Tags != nil {
-			rs = r.Tags["scope"]
-		}
-		if rs == "" || rs == scope {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-func renderHits(hits []Scored) string {
-	if len(hits) == 0 {
-		return "no relevant memory found"
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "%d relevant memor%s:\n", len(hits), plural(len(hits)))
-	for _, h := range hits {
-		scope := ""
-		if h.Record.Tags != nil && h.Record.Tags["scope"] != "" {
-			scope = " (scope: " + h.Record.Tags["scope"] + ")"
-		}
-		fmt.Fprintf(&b, "- [%s] %s: %s%s\n", h.Record.Type, h.Record.Subject, h.Record.Content, scope)
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
-
-func plural(n int) string {
-	if n == 1 {
-		return "y"
-	}
-	return "ies"
-}
-
-// --- distillation ---------------------------------------------------------
-
-// distillSystem instructs the provider to extract durable, reusable facts
-// from a completed task. The model must return a JSON object so parsing is
-// deterministic; any non-JSON or empty response yields zero facts (the
-// best-effort contract — distillation never fails a task).
-const distillSystem = `You review a completed agent task and extract durable, reusable facts worth remembering for future tasks. ` +
-	`Return ONLY a JSON object of the form {"facts":[{"subject":"...","content":"...","type":"FACT|SUMMARY|PREFERENCE"}]}. ` +
-	`Extract at most 3 facts. Prefer specific, durable knowledge (project structure, decisions, user preferences) over transient details. ` +
-	`If nothing is worth remembering, return {"facts":[]}.`
-
-type distillResult struct {
-	Facts []struct {
-		Subject string `json:"subject"`
-		Content string `json:"content"`
-		Type    Type   `json:"type"`
-	} `json:"facts"`
-}
-
-// Distill runs one best-effort LLM call over a task transcript and stores any
-// extracted facts (tagged source=distill) under corr. It returns the ids it
-// created. Errors are returned for the caller to journal, but the caller must
-// never let a distillation error fail the underlying task.
