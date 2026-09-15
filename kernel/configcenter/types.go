@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 
+// Package configcenter data types: ConfigEntry, ConfigAccessRequest,
+// ConfigAccessResponse, AccessDecision + AccessDecision constants, AuditEntry,
+// Store. Split from types.go during Day 211 god-file refactor (#55).
+// Public API unchanged.
 package configcenter
 
 import (
@@ -7,7 +11,6 @@ import (
 	"time"
 )
 
-// ConfigEntry represents a single configuration entry.
 type ConfigEntry struct {
 	// Key is the unique identifier for this config value.
 	Key string `json:"key"`
@@ -53,69 +56,6 @@ type ConfigEntry struct {
 	CreatedAt int64  `json:"created_at"`
 	UpdatedAt int64  `json:"updated_at"`
 }
-
-// NewConfigEntry creates a new config entry with defaults.
-func NewConfigEntry(key, value string) *ConfigEntry {
-	now := time.Now().Unix()
-	return &ConfigEntry{
-		Key:       key,
-		Value:     value,
-		Rating:    RatingInternal, // Default rating
-		Tags:      []string{},
-		Version:   1,
-		CreatedAt: now,
-		UpdatedAt: now,
-		Metadata:  make(map[string]string),
-	}
-}
-
-// SetRating sets the rating and returns self for chaining.
-func (e *ConfigEntry) SetRating(r Rating) *ConfigEntry {
-	e.Rating = r
-	return e
-}
-
-// SetTags sets the tags and returns self for chaining.
-func (e *ConfigEntry) SetTags(tags ...string) *ConfigEntry {
-	e.Tags = tags
-	return e
-}
-
-// SetDescription sets the description and returns self for chaining.
-func (e *ConfigEntry) SetDescription(desc string) *ConfigEntry {
-	e.Description = desc
-	return e
-}
-
-// SetAccessPolicy sets a custom access policy.
-func (e *ConfigEntry) SetAccessPolicy(p Policy) *ConfigEntry {
-	e.AccessPolicy = p
-	return e
-}
-
-// AllowAgent allows a specific agent ID to access this config.
-func (e *ConfigEntry) AllowAgent(agentID string) *ConfigEntry {
-	for _, a := range e.AllowedAgents {
-		if a == agentID {
-			return e
-		}
-	}
-	e.AllowedAgents = append(e.AllowedAgents, agentID)
-	return e
-}
-
-// DenyAgent denies a specific agent ID from accessing this config.
-func (e *ConfigEntry) DenyAgent(agentID string) *ConfigEntry {
-	for _, a := range e.ExcludedAgents {
-		if a == agentID {
-			return e
-		}
-	}
-	e.ExcludedAgents = append(e.ExcludedAgents, agentID)
-	return e
-}
-
-// ConfigAccessRequest represents a request to access a config value.
 type ConfigAccessRequest struct {
 	// AgentID is the subprocess ID requesting access.
 	AgentID string
@@ -135,8 +75,6 @@ type ConfigAccessRequest struct {
 	// Timestamp of the request.
 	Timestamp time.Time
 }
-
-// ConfigAccessResponse represents the response to a config access request.
 type ConfigAccessResponse struct {
 	// Decision is the access decision.
 	Decision AccessDecision
@@ -159,16 +97,13 @@ type ConfigAccessResponse struct {
 	// Extra contains additional context.
 	Extra map[string]string
 }
-
 // AccessDecision represents the outcome of an access request.
 type AccessDecision string
-
 const (
 	AccessAllowed AccessDecision = "allowed"
 	AccessDenied  AccessDecision = "denied"
 	AccessPending AccessDecision = "pending"
 )
-
 // AuditEntry represents an audit log entry.
 type AuditEntry struct {
 	// ID is the unique identifier for this audit entry.
@@ -198,170 +133,9 @@ type AuditEntry struct {
 	ApprovalID string            `json:"approval_id,omitempty"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
 }
-
 // Store provides persistent storage for config entries.
 type Store struct {
 	mu      sync.RWMutex
 	entries map[string]*ConfigEntry
 	audit   []*AuditEntry
-}
-
-// NewStore creates a new in-memory store.
-func NewStore() *Store {
-	return &Store{
-		entries: make(map[string]*ConfigEntry),
-		audit:   make([]*AuditEntry, 0),
-	}
-}
-
-// Get retrieves a config entry by key.
-func (s *Store) Get(key string) (*ConfigEntry, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	entry, ok := s.entries[key]
-	if !ok {
-		return nil, NewConfigError(ErrKeyNotFound, "config key not found: "+key)
-	}
-	return entry, nil
-}
-
-// Set creates or updates a config entry.
-func (s *Store) Set(entry *ConfigEntry) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	now := time.Now().Unix()
-	entry.UpdatedAt = now
-
-	if existing, ok := s.entries[entry.Key]; ok {
-		entry.Version = existing.Version + 1
-		entry.CreatedAt = existing.CreatedAt
-		entry.CreatedBy = existing.CreatedBy
-	} else {
-		entry.Version = 1
-		entry.CreatedAt = now
-	}
-
-	s.entries[entry.Key] = entry
-	return nil
-}
-
-// Delete removes a config entry.
-func (s *Store) Delete(key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.entries[key]; !ok {
-		return NewConfigError(ErrKeyNotFound, "config key not found: "+key)
-	}
-	delete(s.entries, key)
-	return nil
-}
-
-// List returns all config entries.
-func (s *Store) List() []*ConfigEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]*ConfigEntry, 0, len(s.entries))
-	for _, entry := range s.entries {
-		result = append(result, entry)
-	}
-	return result
-}
-
-// ListByRating returns entries filtered by rating.
-func (s *Store) ListByRating(rating Rating) []*ConfigEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]*ConfigEntry, 0)
-	for _, entry := range s.entries {
-		if entry.Rating == rating {
-			result = append(result, entry)
-		}
-	}
-	return result
-}
-
-// ListAccessible returns entries that are accessible without HITL (public/internal).
-func (s *Store) ListAccessible() []*ConfigEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]*ConfigEntry, 0)
-	for _, entry := range s.entries {
-		if entry.Rating == RatingPublic || entry.Rating == RatingInternal {
-			result = append(result, entry)
-		}
-	}
-	return result
-}
-
-// Search finds entries by key prefix or tag.
-func (s *Store) Search(query string, limit int) []*ConfigEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	result := make([]*ConfigEntry, 0)
-	for _, entry := range s.entries {
-		// Skip secrets and restricted from search results
-		if entry.Rating == RatingSecret {
-			continue
-		}
-
-		// Check key prefix match
-		if len(entry.Key) >= len(query) && entry.Key[:len(query)] == query {
-			result = append(result, entry)
-			if limit > 0 && len(result) >= limit {
-				break
-			}
-			continue
-		}
-
-		// Check tag match
-		for _, tag := range entry.Tags {
-			if len(tag) >= len(query) && tag[:len(query)] == query {
-				result = append(result, entry)
-				if limit > 0 && len(result) >= limit {
-					break
-				}
-				break
-			}
-		}
-	}
-	return result
-}
-
-// AddAuditEntry adds an audit entry.
-func (s *Store) AddAuditEntry(entry *AuditEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.audit = append(s.audit, entry)
-}
-
-// GetAuditLog returns audit entries, optionally filtered.
-func (s *Store) GetAuditLog(limit int) []*AuditEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if limit <= 0 || limit > len(s.audit) {
-		limit = len(s.audit)
-	}
-	return s.audit[len(s.audit)-limit:]
-}
-
-// UpdateRating updates only the rating of an entry.
-func (s *Store) UpdateRating(key string, rating Rating) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	entry, ok := s.entries[key]
-	if !ok {
-		return NewConfigError(ErrKeyNotFound, "config key not found: "+key)
-	}
-	entry.Rating = rating
-	entry.UpdatedAt = time.Now().Unix()
-	return nil
 }
