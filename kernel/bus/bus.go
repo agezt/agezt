@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
-
-// Package bus is the in-process event bus.
+//
+// Package bus is the in-process event bus. Core types, constructor, the
+// redactor/subscription machinery, Subscribe, and Close. Split from bus.go
+// during Day 211 god-file refactor (#33).
 //
 // Publishing semantics: every Publish persists the event to the journal
 // (which fsyncs) BEFORE notifying any subscriber. This is the
@@ -29,8 +31,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -41,9 +41,6 @@ import (
 // DefaultSubBuffer is used when Subscribe is called with buf <= 0.
 const DefaultSubBuffer = 256
 
-// Redactor scrubs secrets from a string / byte slice. A *redact.Redactor
-// satisfies it; the bus takes the narrow interface so this package stays free of
-// a redact dependency.
 type Redactor interface {
 	Redact(string) string
 	RedactBytes([]byte) []byte
@@ -184,85 +181,6 @@ func (b *Bus) Subscribe(pattern string, buf int) (*Subscription, error) {
 	return &Subscription{C: sub.ch, Dropped: &sub.dropped, cancel: cancel}, nil
 }
 
-// Publish appends the event to the journal (fsyncs) and then notifies every
-// subscriber whose pattern matches spec.Subject. The append is the
-// durable-before-publish point; if the journal returns an error, no
-// subscriber sees the event.
-func (b *Bus) Publish(spec event.Spec) (*event.Event, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		return nil, ErrClosed
-	}
-
-	spec = b.redactSpecLocked(spec)
-	e, err := b.j.Append(spec)
-	if err != nil {
-		return nil, err
-	}
-	subjectTokens := strings.Split(spec.Subject, ".")
-	for _, sub := range b.subs {
-		if !matches(sub.pattern, subjectTokens) {
-			continue
-		}
-		select {
-		case sub.ch <- e:
-		default:
-			sub.dropped.Add(1)
-		}
-	}
-	return e, nil
-}
-
-// PublishStreaming fans out an ephemeral event to matching subscribers
-// WITHOUT persisting it to the journal. Use only for high-rate
-// display-only signals (LLM token chunks via KindLLMToken) where
-// the durable record lives elsewhere — the full assembled text and
-// usage land in the regular llm.response event published right
-// after the stream completes.
-//
-// Ephemeral events have Hash="" — subscribers that care about the
-// durable chain can filter them out with `if !ev.IsEphemeral() { ... }`.
-// The CLI's `agt run` renderer special-cases ev.Kind==KindLLMToken
-// to print payload text inline.
-//
-// Secret redaction (M418): streaming deltas are scrubbed with the same redactor
-// as Publish before fan-out. They never hit the journal, but they DO reach every
-// subscriber — including the outbound webhook dispatcher (default `>` subject),
-// the pulse stream, the OpenAI-compat relay, and the web UI — so a credential the
-// model echoes mid-stream must not egress unredacted. Redaction is a pure
-// deterministic transform, harmless to display.
-//
-// Why not durable? Streaming a 5KB response can produce 200+ token
-// chunks. Persisting each as a chain-linked journal entry would
-// 5× the journal volume for no audit benefit; the assembled
-// llm.response already carries the canonical output. This method
-// is the explicit escape hatch.
-func (b *Bus) PublishStreaming(spec event.Spec) (*event.Event, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		return nil, ErrClosed
-	}
-	spec = b.redactSpecLocked(spec)
-	e, err := event.NewEphemeral(spec)
-	if err != nil {
-		return nil, err
-	}
-	subjectTokens := strings.Split(spec.Subject, ".")
-	for _, sub := range b.subs {
-		if !matches(sub.pattern, subjectTokens) {
-			continue
-		}
-		select {
-		case sub.ch <- e:
-		default:
-			sub.dropped.Add(1)
-		}
-	}
-	return e, nil
-}
-
 // Close cancels every subscription, prevents future Publish calls, and
 // returns. Idempotent.
 func (b *Bus) Close() {
@@ -276,68 +194,4 @@ func (b *Bus) Close() {
 		close(sub.ch)
 		delete(b.subs, id)
 	}
-}
-
-// MatchSubject reports whether subject matches pattern using the
-// bus's NATS-style wildcard rules. Exported for callers (notably
-// the controlplane's pulse historical-replay path in M1.aa) that
-// need to filter journal events by the same pattern the live
-// subscription uses, without going through the full Subscribe
-// machinery. Returns false on a malformed pattern rather than
-// erroring; pulse's caller validates patterns at subscribe time.
-func MatchSubject(pattern, subject string) bool {
-	pat, err := parsePattern(pattern)
-	if err != nil {
-		return false
-	}
-	return matches(pat, strings.Split(subject, "."))
-}
-
-// matches reports whether subject matches pattern. Both are pre-tokenized.
-func matches(pattern, subject []string) bool {
-	pi, si := 0, 0
-	for pi < len(pattern) && si < len(subject) {
-		tok := pattern[pi]
-		if tok == ">" {
-			return true // consumes all remaining subject tokens
-		}
-		if tok != "*" && tok != subject[si] {
-			return false
-		}
-		pi++
-		si++
-	}
-	if pi == len(pattern) && si == len(subject) {
-		return true
-	}
-	// Pattern still has tokens but subject exhausted: only "> with nothing
-	// behind it" doesn't make sense, and "*" requires at least one segment.
-	// So only acceptable case is pattern fully consumed already (handled).
-	return false
-}
-
-// ValidatePattern reports whether p is a well-formed NATS-style subject pattern
-// (non-empty, no empty tokens, '>' only as the final token), returning ErrPattern-
-// wrapped detail otherwise. Exported so config parsers (e.g. webhook sink subject
-// filters) can reject a malformed pattern at startup instead of silently never
-// matching it at delivery time.
-func ValidatePattern(p string) error {
-	_, err := parsePattern(p)
-	return err
-}
-
-func parsePattern(p string) ([]string, error) {
-	if p == "" {
-		return nil, fmt.Errorf("%w: empty", ErrPattern)
-	}
-	tokens := strings.Split(p, ".")
-	for i, t := range tokens {
-		if t == "" {
-			return nil, fmt.Errorf("%w: empty token in %q", ErrPattern, p)
-		}
-		if t == ">" && i != len(tokens)-1 {
-			return nil, fmt.Errorf("%w: %q: '>' must be the last token", ErrPattern, p)
-		}
-	}
-	return tokens, nil
 }
