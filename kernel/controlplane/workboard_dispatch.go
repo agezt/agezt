@@ -1,27 +1,21 @@
 // SPDX-License-Identifier: MIT
-
-// Workboard dispatch + watch internals: runWorkboardDispatch, applyWardenExecutionProfile, buildWorkboardDispatchIntent, publishWorkboardDispatch, latestWorkboardRunID, workboardWatchEvents, workboardWriteResp, retryPolicyFromArgs, retryDecisionView, workboardCorr, intArgAllowZero, workboardStringSliceArg, registerWorkboardCommands.
-// Code extracted from workboard.go during the Day-48 god-file split. Public API unchanged.
+//
+// Workboard dispatch Server methods (runWorkboardDispatch, applyWardenExecutionProfile).
+// Extracted from workboard_dispatch.go during Day 211 god-file refactor (#70).
+// Public API unchanged.
 package controlplane
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net"
-	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/workboard"
 )
-
-
 
 func (s *Server) runWorkboardDispatch(corr string, p roster.Profile, task workboard.Task, intent, reason string) {
 	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
@@ -115,7 +109,6 @@ func (s *Server) runWorkboardDispatch(corr string, p roster.Profile, task workbo
 	}
 	publishWorkboardDispatch(s.k, corr, task, "completed", p.Slug, reason, truncate(answer, 300), "")
 }
-
 // applyWardenExecutionProfile resolves a warden-family execution profile id
 // (local|warden|container) and layers its sandbox override onto ctx, returning
 // the effective label. It mirrors the warden branch of the run handler
@@ -143,146 +136,3 @@ func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (co
 	}
 	return warden.WithProfileOverride(ctx, p), string(p), nil
 }
-
-func buildWorkboardDispatchIntent(explicit string, task workboard.Task) string {
-	if explicit = strings.TrimSpace(explicit); explicit != "" {
-		return explicit
-	}
-	var b strings.Builder
-	b.WriteString("Workboard task dispatch.\n")
-	b.WriteString("You are assigned a durable AGEZT workboard task. Use the workboard tool to heartbeat, comment, block, link artifacts/runs, and complete the task when it is actually done.\n")
-	b.WriteString("Task ID: ")
-	b.WriteString(task.ID)
-	b.WriteString("\nTitle: ")
-	b.WriteString(task.Title)
-	b.WriteString("\nStatus: ")
-	b.WriteString(string(task.Status))
-	if task.Priority != 0 {
-		b.WriteString("\nPriority: ")
-		b.WriteString(fmt.Sprintf("%d", task.Priority))
-	}
-	if task.Tenant != "" {
-		b.WriteString("\nTenant: ")
-		b.WriteString(task.Tenant)
-	}
-	if task.Description != "" {
-		b.WriteString("\nDescription:\n")
-		b.WriteString(task.Description)
-	}
-	if len(task.Tags) > 0 {
-		b.WriteString("\nTags: ")
-		b.WriteString(strings.Join(task.Tags, ", "))
-	}
-	b.WriteString("\nExpected finish: call workboard {\"op\":\"complete\",\"id\":\"")
-	b.WriteString(task.ID)
-	b.WriteString("\"} only when complete; otherwise call workboard block/comment with the concrete reason or next step.")
-	return b.String()
-}
-
-func publishWorkboardDispatch(k *kernelruntime.Kernel, corr string, task workboard.Task, phase, agent, reason, answer, errText string) {
-	if k == nil || k.Bus() == nil {
-		return
-	}
-	payload := map[string]any{
-		"phase":          phase,
-		"id":             task.ID,
-		"title":          task.Title,
-		"status":         string(task.Status),
-		"agent":          agent,
-		"reason":         reason,
-		"correlation_id": corr,
-	}
-	if answer != "" {
-		payload["answer"] = answer
-	}
-	if errText != "" {
-		payload["error"] = errText
-	}
-	if task.Seat != "" {
-		payload["seat"] = task.Seat
-	}
-	_, _ = k.Bus().Publish(event.Spec{
-		Subject:       "workboard." + task.ID,
-		Kind:          event.KindWorkboardTaskDispatched,
-		Actor:         "workboard",
-		CorrelationID: corr,
-		Payload:       payload,
-	})
-}
-
-func latestWorkboardRunID(task workboard.Task) string {
-	if task.Claim != nil && strings.TrimSpace(task.Claim.RunID) != "" {
-		return strings.TrimSpace(task.Claim.RunID)
-	}
-	var best string
-	var bestMS int64
-	for _, a := range task.Attempts {
-		ts := a.StartedMS
-		if a.FinishedMS > ts {
-			ts = a.FinishedMS
-		}
-		if strings.TrimSpace(a.RunID) != "" && ts >= bestMS {
-			bestMS = ts
-			best = strings.TrimSpace(a.RunID)
-		}
-	}
-	for _, l := range task.Links {
-		if strings.EqualFold(l.Type, "run") && strings.TrimSpace(l.Target) != "" && l.CreatedMS >= bestMS {
-			bestMS = l.CreatedMS
-			best = strings.TrimSpace(l.Target)
-		}
-	}
-	return best
-}
-
-func workboardWatchEvents(k *kernelruntime.Kernel, taskID, runID string, limit int) []map[string]any {
-	if k == nil || k.Journal() == nil {
-		return nil
-	}
-	subject := "workboard." + taskID
-	var rows []map[string]any
-	_ = k.Journal().Range(func(e *event.Event) error {
-		if e.Subject != subject && (runID == "" || e.CorrelationID != runID) {
-			return nil
-		}
-		var payload any
-		if len(e.Payload) > 0 {
-			var m map[string]any
-			if json.Unmarshal(e.Payload, &m) == nil {
-				payload = m
-			}
-		}
-		row := map[string]any{
-			"seq":            e.Seq,
-			"ts_unix_ms":     e.TSUnixMS,
-			"kind":           string(e.Kind),
-			"subject":        e.Subject,
-			"correlation_id": e.CorrelationID,
-		}
-		if payload != nil {
-			row["payload"] = payload
-		}
-		rows = append(rows, row)
-		return nil
-	})
-	sort.SliceStable(rows, func(i, j int) bool {
-		return intNumber(rows[i]["seq"]) < intNumber(rows[j]["seq"])
-	})
-	if limit > 0 && len(rows) > limit {
-		rows = rows[len(rows)-limit:]
-	}
-	return rows
-}
-
-func workboardWriteResp(s *Server, conn net.Conn, req Request, task workboard.Task, err error) {
-	if err != nil {
-		msg := err.Error()
-		if errors.Is(err, workboard.ErrNotFound) {
-			msg = "unknown workboard task: " + stringArg(req.Args, "id")
-		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: msg})
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task)}})
-}
-
