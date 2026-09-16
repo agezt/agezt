@@ -1,25 +1,16 @@
 // SPDX-License-Identifier: MIT
-
-// Package market is AGEZT's capability marketplace: it packages skills, MCP
-// servers, and CLI-tool requirements into installable "packs", catalogues them
-// in "marketplaces" (a built-in Official one plus, later, synced remotes), and
-// installs a pack by materializing its parts into the systems that already run
-// them — skills into the Forge, MCP servers into the MCP registry, tool needs
-// reported to the Toolbox. It deliberately reuses those subsystems rather than
-// reimplementing capability execution; the marketplace is only discovery +
-// packaging + install/sync on top.
 //
-// Manifest shapes mirror the Claude Code plugin.json / marketplace.json open
-// standard (and agentskills.io bundles) so packs are portable across tools.
+// kernel/market public types (PackSkill, Signature, Pack, MarketplaceEntry,
+// Marketplace, InstalledPack) + consts/var declarations (FormatVersion,
+// MarketplaceOfficial, nameRe, semverRe) + top-level functions (SkillSummary,
+// safeRelPath).
+// Extracted from market.go during Day 211 god-file refactor (#87).
+// Public API unchanged.
 package market
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/mcp"
@@ -129,13 +120,6 @@ type InstalledPack struct {
 }
 
 // Counts summarizes a pack's contents for at-a-glance UI ("3 skills · 1 MCP · 2 tools").
-func (p Pack) Counts() (skills, mcps, tools int) {
-	return len(p.Skills), len(p.MCPServers), len(p.ToolRequirements)
-}
-
-// SkillSummary parses a pack skill's SKILL.md and returns a one-line
-// "name — description" for display (UI / the agent-facing market tool). Errors
-// if the SKILL.md is malformed.
 func SkillSummary(ps PackSkill) (string, error) {
 	md, err := skill.ParseSkillMD([]byte(ps.SkillMD))
 	if err != nil {
@@ -146,43 +130,6 @@ func SkillSummary(ps PackSkill) (string, error) {
 	}
 	return md.Name + " — " + md.Description, nil
 }
-
-// Validate checks a pack's user-supplied fields before install/publish. It
-// reuses mcp.Validate for each server and parses every SKILL.md so a malformed
-// pack fails loudly rather than half-installing.
-func (p Pack) Validate() error {
-	if !nameRe.MatchString(p.Name) {
-		return fmt.Errorf("market: pack name must match %s", nameRe)
-	}
-	if !semverRe.MatchString(p.Version) {
-		return fmt.Errorf("market: pack %q version %q must be semver (major.minor.patch)", p.Name, p.Version)
-	}
-	if len(p.Skills) == 0 && len(p.MCPServers) == 0 && len(p.ToolRequirements) == 0 {
-		return fmt.Errorf("market: pack %q is empty (needs at least one skill, MCP server, or tool)", p.Name)
-	}
-	for i, ps := range p.Skills {
-		if strings.TrimSpace(ps.SkillMD) == "" {
-			return fmt.Errorf("market: pack %q skill #%d has empty SKILL.md", p.Name, i)
-		}
-		if _, err := skill.ParseSkillMD([]byte(ps.SkillMD)); err != nil {
-			return fmt.Errorf("market: pack %q skill #%d: %w", p.Name, i, err)
-		}
-		for rel := range ps.Resources {
-			if err := safeRelPath(rel); err != nil {
-				return fmt.Errorf("market: pack %q skill #%d resource %q: %w", p.Name, i, rel, err)
-			}
-		}
-	}
-	for i := range p.MCPServers {
-		if err := mcp.Validate(p.MCPServers[i]); err != nil {
-			return fmt.Errorf("market: pack %q mcp #%d: %w", p.Name, i, err)
-		}
-	}
-	return nil
-}
-
-// safeRelPath rejects path traversal and absolute paths in bundled resource
-// keys — the same guard the remote skill registry applies to fetched files.
 func safeRelPath(rel string) error {
 	if rel == "" {
 		return fmt.Errorf("empty path")
@@ -196,69 +143,4 @@ func safeRelPath(rel string) error {
 		}
 	}
 	return nil
-}
-
-// CanonicalBytes returns the deterministic JSON encoding of a pack used for
-// content-hashing and signing. The Signature field is excluded so the hash is
-// over the payload the signature attests to.
-func (p Pack) CanonicalBytes() ([]byte, error) {
-	c := p
-	c.Signature = nil
-	// json.Marshal sorts map keys; slices keep author order. Stable enough for a
-	// content hash because packs are built deterministically.
-	return json.Marshal(c)
-}
-
-// ContentHash is the hex SHA-256 of the canonical pack bytes.
-func (p Pack) ContentHash() (string, error) {
-	b, err := p.CanonicalBytes()
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-// Entry builds the catalogue row for this pack (metadata + content hash).
-func (p Pack) Entry(source string) MarketplaceEntry {
-	hash, _ := p.ContentHash()
-	skills, mcps, tools := p.Counts()
-	return MarketplaceEntry{
-		Name:        p.Name,
-		Version:     p.Version,
-		Description: p.Description,
-		Category:    p.Category,
-		Tags:        append([]string(nil), p.Tags...),
-		Source:      source,
-		SHA256:      hash,
-		Signed:      p.Signature != nil,
-		SkillCount:  skills,
-		MCPCount:    mcps,
-		ToolCount:   tools,
-	}
-}
-
-// matchesQuery reports whether a free-text query hits a pack's searchable fields.
-func matchesQuery(e MarketplaceEntry, q string) bool {
-	q = strings.ToLower(strings.TrimSpace(q))
-	if q == "" {
-		return true
-	}
-	hay := strings.ToLower(e.Name + " " + e.Description + " " + e.Category + " " + strings.Join(e.Tags, " "))
-	for _, tok := range strings.Fields(q) {
-		if !strings.Contains(hay, tok) {
-			return false
-		}
-	}
-	return true
-}
-
-// sortEntries orders catalogue rows deterministically: category, then name.
-func sortEntries(entries []MarketplaceEntry) {
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Category != entries[j].Category {
-			return entries[i].Category < entries[j].Category
-		}
-		return entries[i].Name < entries[j].Name
-	})
 }
