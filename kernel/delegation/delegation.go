@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
-
-// Package delegation provides sub-agent orchestration for the agent loop:
-// sync/async delegate tools, spawn bookkeeping, depth tracking, and ancestry
-// helpers. It is extracted from kernel/runtime to narrow the composition root.
+//
+// kernel/delegation sub-agent tool types (DepthKey, Prep, SubAgentTool,
+// SubAgentAwaitTool) + DefaultSubAgentMaxDepth const + SubAgentTool + SubAgentAwaitTool
+// Definition/Invoke methods.
+// Extracted from delegation.go during Day 211 god-file refactor (#90).
+// Public API unchanged.
 package delegation
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
-	"strings"
-	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
@@ -21,17 +20,6 @@ import (
 type DepthKey struct{}
 
 // DepthFromCtx returns the current sub-agent nesting depth from ctx, or 0.
-func DepthFromCtx(ctx context.Context) int {
-	if v, ok := ctx.Value(DepthKey{}).(int); ok {
-		return v
-	}
-	return 0
-}
-
-// WithDepth returns a new context with the given sub-agent nesting depth.
-func WithDepth(ctx context.Context, depth int) context.Context {
-	return context.WithValue(ctx, DepthKey{}, depth)
-}
 
 // SystemPrompt is the system message used for all sub-agent runs.
 const SystemPrompt = "You are a focused sub-agent spawned to complete ONE delegated task. " +
@@ -76,8 +64,6 @@ type SubAgentTool struct {
 
 // NewSubAgentTool creates a SubAgentTool with nil runners (wired externally).
 func NewSubAgentTool() *SubAgentTool { return &SubAgentTool{} }
-
-// Definition implements agent.Tool.
 func (t *SubAgentTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name:        "delegate",
@@ -95,8 +81,6 @@ func (t *SubAgentTool) Definition() agent.ToolDef {
 		}`),
 	}
 }
-
-// Invoke implements agent.Tool by calling the synchronous runner.
 func (t *SubAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	var params struct {
 		Task     string `json:"task"`
@@ -128,7 +112,6 @@ type SubAgentAwaitTool struct {
 // NewSubAgentAwaitTool creates a SubAgentAwaitTool with nil runner.
 func NewSubAgentAwaitTool() *SubAgentAwaitTool { return &SubAgentAwaitTool{} }
 
-// Definition implements agent.Tool.
 func (t *SubAgentAwaitTool) Definition() agent.ToolDef {
 	return agent.ToolDef{
 		Name:        "delegate_await",
@@ -143,8 +126,6 @@ func (t *SubAgentAwaitTool) Definition() agent.ToolDef {
 		}`),
 	}
 }
-
-// Invoke implements agent.Tool by calling the await runner.
 func (t *SubAgentAwaitTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
 	var params struct {
 		SpawnID string `json:"spawn_id"`
@@ -159,102 +140,4 @@ func (t *SubAgentAwaitTool) Invoke(ctx context.Context, input json.RawMessage) (
 		return agent.Result{}, fmt.Errorf("delegate_await: not initialized")
 	}
 	return t.Await(ctx, params.SpawnID)
-}
-
-// SpawnLink extracts child and parent correlation IDs from a subagent.spawned event payload.
-func SpawnLink(payload json.RawMessage) (child, parent string) {
-	var ev struct {
-		Child  string `json:"child_correlation"`
-		Parent string `json:"parent"`
-	}
-	if json.Unmarshal(payload, &ev) == nil {
-		return ev.Child, ev.Parent
-	}
-	return "", ""
-}
-
-// BudgetCostMicrocents extracts the cost_microcents from a budget.consumed event payload.
-func BudgetCostMicrocents(payload json.RawMessage) int64 {
-	var ev struct {
-		CostMicrocents int64 `json:"cost_microcents"`
-	}
-	if json.Unmarshal(payload, &ev) == nil {
-		return ev.CostMicrocents
-	}
-	return 0
-}
-
-// KeyedModelChain merges a sub-agent's explicit model override and model chain
-// into one de-duped ordered list, keeps only those for which avail() is true,
-// and — if nothing keyed survives — falls back to def (the daemon's active,
-// keyed model). Returns the chosen primary model and the chain (nil when a single
-// model, matching the pre-filter convention). A nil/empty result leaves the
-// caller's values unchanged.
-func KeyedModelChain(subModel string, modelChain []string, avail func(string) bool, def string) (string, []string) {
-	chain := []string{}
-	if subModel != "" {
-		chain = append(chain, subModel)
-	}
-	for _, m := range modelChain {
-		if m != "" && !slices.Contains(chain, m) {
-			chain = append(chain, m)
-		}
-	}
-	kept := make([]string, 0, len(chain))
-	for _, m := range chain {
-		if avail(m) {
-			kept = append(kept, m)
-		}
-	}
-	if len(kept) == 0 {
-		if d := strings.TrimSpace(def); d != "" {
-			kept = append(kept, d)
-		}
-	}
-	if len(kept) == 0 {
-		return subModel, modelChain // nothing to do; keep originals
-	}
-	if len(kept) == 1 {
-		return kept[0], nil
-	}
-	return kept[0], kept
-}
-
-// AppendUniqueStrings appends values that are not already present in the slice.
-func AppendUniqueStrings(in []string, values ...string) []string {
-	for _, v := range values {
-		in = AppendUniqueString(in, v)
-	}
-	return in
-}
-
-// AppendUniqueString appends a value if not already present.
-func AppendUniqueString(in []string, value string) []string {
-	if slices.Contains(in, value) {
-		return in
-	}
-	return append(in, value)
-}
-
-// ValidateSpawnTask checks that a spawn task is non-empty and not too long.
-func ValidateSpawnTask(task string) error {
-	if strings.TrimSpace(task) == "" {
-		return fmt.Errorf("sub-agent task is empty")
-	}
-	if len(task) > 10000 {
-		return fmt.Errorf("sub-agent task too long (%d chars, max 10000)", len(task))
-	}
-	return nil
-}
-
-// FormatDuration formats a duration for sub-agent result reporting.
-func FormatDuration(d time.Duration) string {
-	switch {
-	case d < time.Second:
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	case d < time.Minute:
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	default:
-		return fmt.Sprintf("%.1fm", d.Minutes())
-	}
 }
