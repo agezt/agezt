@@ -1,49 +1,21 @@
 // SPDX-License-Identifier: MIT
-
+//
+// kernel/creds AssumeRoleWithWebIdentity + AWSWebIdentityLookup + types
+// (WebIdentityParams, webIdentityCache).
+// Extracted from web_identity.go during Day 211 god-file refactor (#93).
+// Public API unchanged.
 package creds
-
-// AWS STS AssumeRoleWithWebIdentity support — IRSA / EKS Pod Identity
-// (M1.ww). The AWS counterpart of the GCP/GKE metadata token source: a
-// workload running on EKS (or any OIDC-federated environment) is handed a
-// short-lived OIDC token on disk plus a role ARN, and exchanges them at STS
-// for temporary AWS credentials. No long-lived access key ever exists.
-//
-// What EKS injects automatically (the IAM-Roles-for-Service-Accounts
-// webhook, or EKS Pod Identity):
-//
-//	AWS_WEB_IDENTITY_TOKEN_FILE — path to a projected ServiceAccount OIDC
-//	                              token; the kubelet rotates the file, so we
-//	                              re-read it on every refresh.
-//	AWS_ROLE_ARN                — the role to assume.
-//	AWS_ROLE_SESSION_NAME        — optional session name (we synthesise one).
-//
-// Why it's distinct from AssumeRole (sts.go): AssumeRole needs *base*
-// credentials and SigV4-signs the STS request with them. Web identity needs
-// NO base credentials — the OIDC token itself is the proof of identity, so
-// the STS call is unsigned. That's exactly what makes IRSA keyless.
-//
-// Wiring: `AWSWebIdentityLookup` returns a `func(name string) string` in the
-// ChainLookup shape. cmd/agezt auto-activates it when the standard
-// AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN env vars are present, placed
-// ahead of the IMDS/default chain so a pod gets its OWN role rather than the
-// node's instance-profile role.
 
 import (
 	"context"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
 // WebIdentityParams configures a single AssumeRoleWithWebIdentity call.
@@ -131,89 +103,6 @@ func AssumeRoleWithWebIdentity(ctx context.Context, p WebIdentityParams) (*Assum
 	}
 	return parseWebIdentityResponse(resp)
 }
-
-func parseWebIdentityResponse(resp *http.Response) (*AssumedCreds, error) {
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	if err != nil {
-		return nil, fmt.Errorf("sts web-identity: read body: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		excerpt := string(raw)
-		if len(excerpt) > 512 {
-			excerpt = strutil.Ellipsis(excerpt, 512, "...")
-		}
-		return nil, fmt.Errorf("sts web-identity: %s: %s", resp.Status, excerpt)
-	}
-
-	var env struct {
-		XMLName xml.Name `xml:"AssumeRoleWithWebIdentityResponse"`
-		Result  struct {
-			Credentials struct {
-				AccessKeyID     string `xml:"AccessKeyId"`
-				SecretAccessKey string `xml:"SecretAccessKey"`
-				SessionToken    string `xml:"SessionToken"`
-				Expiration      string `xml:"Expiration"`
-			} `xml:"Credentials"`
-		} `xml:"AssumeRoleWithWebIdentityResult"`
-	}
-	if err := xml.Unmarshal(raw, &env); err != nil {
-		return nil, fmt.Errorf("sts web-identity: parse XML: %w", err)
-	}
-	c := env.Result.Credentials
-	if c.AccessKeyID == "" || c.SecretAccessKey == "" || c.SessionToken == "" {
-		return nil, fmt.Errorf("sts web-identity: response missing credential fields: %s", string(raw))
-	}
-	exp, err := time.Parse(time.RFC3339, c.Expiration)
-	if err != nil {
-		return nil, fmt.Errorf("sts web-identity: parse Expiration %q: %w", c.Expiration, err)
-	}
-	return &AssumedCreds{
-		Creds: sigv4.Creds{
-			AccessKeyID:     c.AccessKeyID,
-			SecretAccessKey: c.SecretAccessKey,
-			SessionToken:    c.SessionToken,
-		},
-		Expiration: exp,
-	}, nil
-}
-
-// webIdentityCache holds the most recent successful web-identity result.
-// Mirrors assumeRoleCache; refreshes when within refreshLeadTime of expiry.
-type webIdentityCache struct {
-	mu       sync.Mutex
-	creds    *AssumedCreds
-	params   WebIdentityParams
-	negCache time.Time // last failed fetch; retries suppressed for negCacheTTL
-}
-
-func (c *webIdentityCache) get(ctx context.Context, now time.Time) (*AssumedCreds, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.creds != nil && now.Before(c.creds.Expiration.Add(-refreshLeadTime)) {
-		return c.creds, nil
-	}
-	// Negative cache, mirroring assumeRoleCache/imdsCache: a just-failed
-	// fetch is doomed; don't re-run it for every credential name in one
-	// chain resolution.
-	if !c.negCache.IsZero() && now.Sub(c.negCache) < negCacheTTL {
-		return nil, errCredFetchSuppressed
-	}
-	fresh, err := AssumeRoleWithWebIdentity(ctx, c.params)
-	if err != nil {
-		c.negCache = now
-		return nil, err
-	}
-	c.creds = fresh
-	c.negCache = time.Time{}
-	return fresh, nil
-}
-
-// AWSWebIdentityLookup returns a ChainLookup-compatible function that maps
-// the canonical AWS_* credential names to a cached web-identity result.
-// Non-credential names fall through (empty). Construct once at daemon start
-// so the cache persists; on any exchange failure the credential names return
-// empty so the chain falls through to the next source.
 func AWSWebIdentityLookup(params WebIdentityParams) func(name string) string {
 	cache := &webIdentityCache{params: params}
 	now := time.Now
