@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
-
+//
+// cmd/agt `status` top-level command (cmdStatus).
+// Extracted from status.go during Day 211 god-file refactor (#81).
+// Public API unchanged.
 package main
 
 import (
@@ -8,22 +11,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/cmd/agt/format"
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/tools/peer"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
-// cmdStatus implements `agt status` and `agt status --json`.
-// One round-trip dashboard for the operator: client+daemon
-// versions (with skew detection), uptime, halt state, in-flight
-// work, tool count, journal head. The first thing to run when
-// debugging "is my daemon healthy?".
 func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	for _, a := range args {
@@ -192,64 +188,3 @@ func cmdStatus(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-
-// meshSummary returns the configured peer mesh (AGEZT_PEERS) as name+url objects
-// for the `--json` output, sorted by name. Tokens are never included. Returns nil
-// when no peers are configured or the spec is malformed (the text path stays quiet
-// too). This is client-side config, not a health probe (M208).
-func meshSummary() []map[string]any {
-	peers, err := peer.ParsePeers(os.Getenv(brand.EnvPrefix + "PEERS"))
-	if err != nil || len(peers) == 0 {
-		return nil
-	}
-	names := make([]string, 0, len(peers))
-	for n := range peers {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	out := make([]map[string]any, 0, len(peers))
-	for _, n := range names {
-		out = append(out, map[string]any{"name": n, "url": peers[n].URL})
-	}
-	return out
-}
-
-func scheduleStatusLine(sched map[string]any) string {
-	total := intOfStatus(sched["total"])
-	if total <= 0 {
-		return ""
-	}
-	enabled := intOfStatus(sched["enabled"])
-	running := intOfStatus(sched["running"])
-	resident, hasResident := sched["resident"].(bool)
-	switch {
-	case running > 0 && hasResident && !resident:
-		return fmt.Sprintf("%d (%d enabled, %d running, resident offline)", total, enabled, running)
-	case running > 0:
-		return fmt.Sprintf("%d (%d enabled, %d running)", total, enabled, running)
-	case enabled > 0 && hasResident && !resident:
-		return fmt.Sprintf("%d (%d enabled, resident offline)", total, enabled)
-	default:
-		return fmt.Sprintf("%d (%d enabled)", total, enabled)
-	}
-}
-
-// intOfStatus mirrors mcFromAny/intOf — JSON decodes numbers as
-// float64, so a direct int cast loses values >2^53. Status counts
-// never reach that range (would imply quintillions of runs), so
-// truncation here is harmless.
-func intOfStatus(v any) int64 {
-	switch n := v.(type) {
-	case float64:
-		return int64(n)
-	case int64:
-		return n
-	case int:
-		return int64(n)
-	}
-	return 0
-}
-
-// fmtUptime is a shim → format.Uptime (Day 8 extraction). The body
-// is documented in cmd/agt/format/format.go.
-func fmtUptime(secs int64) string { return format.Uptime(secs) }
