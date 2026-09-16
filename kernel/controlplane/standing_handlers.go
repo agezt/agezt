@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: MIT
-
-// controlplane/standing: CRUD handlers (handleStandingList +
-// handleStandingAdd + handleStandingEdit + validateStandingAgent +
-// handleStandingSetEnabled + handleStandingWhy + handleStandingRemove).
-// Split from standing.go during Day 211 god-file refactor (#46).
+//
+// kernel/controlplane standing-order CRUD handlers (List, Add, Edit, SetEnabled, Remove).
+// Extracted from standing_handlers.go during Day 211 god-file refactor (#83).
 // Public API unchanged.
 package controlplane
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -40,7 +36,6 @@ func (s *Server) handleStandingList(conn net.Conn, req Request) {
 		Result: map[string]any{"orders": out, "count": len(out), "enabled_count": enabled},
 	})
 }
-
 func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 	raw, ok := req.Args["order"]
 	if !ok {
@@ -68,12 +63,6 @@ func (s *Server) handleStandingAdd(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(saved)}})
 }
-
-// handleStandingEdit edits an order's mutable fields in place (M729): any subset
-// of name/plan/initiative-mode/max-trust/briefing-disposition/assure/cooldown. Triggers,
-// observers and scope are not touched here (they keep their current values), and
-// enabled has its own pause/resume path. Unknown id → {updated:false}, mirroring
-// the schedule-edit path. Every edit is journaled (standing.updated, "edited").
 func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
@@ -151,28 +140,6 @@ func (s *Server) handleStandingEdit(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": true, "order": standingView(o)}})
 }
-
-func (s *Server) validateStandingAgent(ref string) error {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return nil
-	}
-	p, ok := s.k.Roster().Get(ref)
-	if !ok {
-		return fmt.Errorf("unknown standing agent: %s", ref)
-	}
-	if p.Retired {
-		return fmt.Errorf("standing agent %s is retired", p.Slug)
-	}
-	if !p.Enabled {
-		return fmt.Errorf("standing agent %s is paused", p.Slug)
-	}
-	if !p.AllowsDirectCall() {
-		return fmt.Errorf("standing %s", managedSubagentDirectCallError(p, "called"))
-	}
-	return nil
-}
-
 func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
@@ -206,45 +173,6 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"order": standingView(o)}})
 }
-
-// handleStandingWhy folds the journal for every standing.* event naming this
-// order id — its life story: created, paused/resumed, every time it fired, and
-// removed (SPEC-16 §4). Mirrors `agt skill history`.
-func (s *Server) handleStandingWhy(conn net.Conn, req Request) {
-	id, err := requiredArgString(req.Args, "id")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	var events []any
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		if !strings.HasPrefix(string(e.Kind), "standing.") {
-			return nil
-		}
-		var p map[string]any
-		if json.Unmarshal(e.Payload, &p) != nil {
-			return nil
-		}
-		if p["id"] != id {
-			return nil
-		}
-		events = append(events, map[string]any{
-			"seq":            e.Seq,
-			"id":             e.ID,
-			"kind":           string(e.Kind),
-			"correlation_id": e.CorrelationID,
-			"ts_unix_ms":     e.TSUnixMS,
-			"payload":        p,
-		})
-		return nil
-	})
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"id": id, "events": events, "count": len(events)},
-	})
-}
-
 func (s *Server) handleStandingRemove(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
@@ -258,7 +186,3 @@ func (s *Server) handleStandingRemove(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": removed, "id": id}})
 }
-
-// SetStandingFire wires the on-demand fire path (M765). The daemon injects a closure
-// that looks up the order and launches it through the same governed run path a cron/
-// event trigger uses, so the control plane stays decoupled from the run launcher.
