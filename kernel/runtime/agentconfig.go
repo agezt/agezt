@@ -4,8 +4,6 @@ package runtime
 
 import (
 	"context"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -73,96 +71,6 @@ const (
 	issueInt  = "must be an integer"
 	issueBool = "must be a boolean like true/false or 1/0"
 )
-
-// The overrideX helpers turn a typed setter into an Apply: parse once, assign
-// only on success, so a malformed value leaves the config at its inherited
-// value rather than zeroing the knob.
-
-func overrideString(set func(*Config, string)) func(*Config, string) bool {
-	return func(c *Config, raw string) bool {
-		v, ok := agentConfigStringValue(raw)
-		if ok {
-			set(c, v)
-		}
-		return ok
-	}
-}
-
-func overrideInt(set func(*Config, int)) func(*Config, string) bool {
-	return func(c *Config, raw string) bool {
-		v, ok := agentConfigIntValue(raw)
-		if ok {
-			set(c, v)
-		}
-		return ok
-	}
-}
-
-func overrideBool(set func(*Config, bool)) func(*Config, string) bool {
-	return func(c *Config, raw string) bool {
-		v, ok := agentConfigBoolValue(raw)
-		if ok {
-			set(c, v)
-		}
-		return ok
-	}
-}
-
-func overrideDuration(set func(*Config, time.Duration)) func(*Config, string) bool {
-	return func(c *Config, raw string) bool {
-		v, ok := agentConfigDurationValue(raw)
-		if ok {
-			set(c, v)
-		}
-		return ok
-	}
-}
-
-func agentConfigOverrideRaw(overrides map[string]string, key string) (string, bool) {
-	if overrides == nil {
-		return "", false
-	}
-	raw, ok := overrides[strings.TrimSpace(strings.ToUpper(key))]
-	if !ok {
-		return "", false
-	}
-	return strings.TrimSpace(raw), true
-}
-
-func agentConfigStringValue(raw string) (string, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return "", false
-	}
-	return raw, true
-}
-
-func agentConfigBoolValue(raw string) (bool, bool) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "1", "true", "yes", "on", "enabled":
-		return true, true
-	case "0", "false", "no", "off", "disabled":
-		return false, true
-	default:
-		return false, false
-	}
-}
-
-func agentConfigIntValue(raw string) (int, bool) {
-	n, err := strconv.Atoi(strings.TrimSpace(raw))
-	if err != nil {
-		return 0, false
-	}
-	return n, true
-}
-
-func agentConfigDurationValue(raw string) (time.Duration, bool) {
-	d, err := time.ParseDuration(strings.TrimSpace(raw))
-	if err != nil {
-		return 0, false
-	}
-	return d, true
-}
 
 // applyAgentOverrides applies every override present in overrides to cfg and
 // returns the ones whose value did not parse. Malformed values are skipped, not
