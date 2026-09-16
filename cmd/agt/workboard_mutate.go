@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
-// cmd/agt workboard mutation sub-commands (create/claim/heartbeat/comment/
-// block/fail/seat/actor/link). Split from workboard_mutate.go during
-// Day 211 god-file refactor (#30).
+// cmd/agt `workboard create` subcommand (cmdWorkboardCreate).
+// Extracted from workboard_mutate.go during Day 211 god-file refactor (#96).
 // Public API unchanged.
 package main
 
@@ -12,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdWorkboardCreate(args []string, stdout, stderr io.Writer) int {
@@ -112,135 +111,4 @@ func cmdWorkboardCreate(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "%s ", verb)
 	renderWorkboardTaskLine(stdout, task)
 	return 0
-}
-
-func cmdWorkboardClaim(args []string, stdout, stderr io.Writer) int {
-	id, agent, runID, asJSON, ok := parseWorkboardAgentArgs(args, "claim", stderr)
-	if !ok {
-		return 2
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardClaim, map[string]any{"id": id, "agent": agent, "run_id": runID}, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
-}
-
-func cmdWorkboardHeartbeat(args []string, stdout, stderr io.Writer) int {
-	id, agent, runID, asJSON, ok := parseWorkboardAgentArgs(args, "heartbeat", stderr)
-	if !ok {
-		return 2
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardHeartbeat, map[string]any{"id": id, "agent": agent, "run_id": runID}, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
-}
-
-func cmdWorkboardComment(args []string, stdout, stderr io.Writer) int {
-	id, asJSON, callArgs, ok := parseWorkboardIDActorArgs(args, "comment", "author", stderr)
-	if !ok {
-		return 2
-	}
-	callArgs["id"] = id
-	if str(callArgs["body"]) == "" {
-		fmt.Fprintf(stderr, "%s workboard comment: --body required\n", brand.CLI)
-		return 2
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardComment, callArgs, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
-}
-
-func cmdWorkboardBlock(args []string, stdout, stderr io.Writer) int {
-	id, asJSON, callArgs, ok := parseWorkboardIDActorArgs(args, "block", "actor", stderr)
-	if !ok {
-		return 2
-	}
-	callArgs["id"] = id
-	if str(callArgs["reason"]) == "" {
-		fmt.Fprintf(stderr, "%s workboard block: --reason required\n", brand.CLI)
-		return 2
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardBlock, callArgs, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
-}
-
-func cmdWorkboardFail(args []string, stdout, stderr io.Writer) int {
-	id, asJSON, callArgs, ok := parseWorkboardIDActorArgs(args, "fail", "actor", stderr)
-	if !ok {
-		return 2
-	}
-	callArgs["id"] = id
-	if str(callArgs["reason"]) == "" {
-		fmt.Fprintf(stderr, "%s workboard fail: --reason required\n", brand.CLI)
-		return 2
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardFail, callArgs, stderr)
-	if code != 0 {
-		return code
-	}
-	if asJSON {
-		return jsonout.Write(stdout, res)
-	}
-	task := mapAny(res["task"])
-	renderWorkboardTaskLine(stdout, task)
-	if decision := mapAny(res["decision"]); len(decision) > 0 {
-		fmt.Fprintf(stdout, "policy: action=%s failures=%d/%d", str(decision["action"]), intNumber(decision["failure_count"]), intNumber(decision["max_attempts"]))
-		if next := intNumber(decision["next_attempt"]); next > 0 {
-			fmt.Fprintf(stdout, " next=%d", next)
-		}
-		if esc := str(decision["escalate_to"]); esc != "" {
-			fmt.Fprintf(stdout, " escalate_to=%s", esc)
-		}
-		fmt.Fprintln(stdout)
-	}
-	return 0
-}
-
-func cmdWorkboardSeat(args []string, stdout, stderr io.Writer) int {
-	id, seatID, asJSON := "", "", false
-	for _, a := range args {
-		switch a {
-		case "--json":
-			asJSON = true
-		default:
-			if strings.HasPrefix(a, "-") {
-				fmt.Fprintf(stderr, "%s workboard seat: unexpected flag %q\n", brand.CLI, a)
-				return 2
-			}
-			if id == "" {
-				id = a
-			} else if seatID == "" {
-				seatID = a
-			}
-		}
-	}
-	if id == "" || seatID == "" {
-		fmt.Fprintf(stderr, "usage: %s workboard seat <id> <seat>   (seat: default|reader|builder|isolated; \"default\" clears)\n", brand.CLI)
-		return 2
-	}
-	if seatID == "default" || seatID == "none" || seatID == "clear" {
-		seatID = ""
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardSeat, map[string]any{"id": id, "seat": seatID}, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
-}
-
-func cmdWorkboardActor(args []string, stdout, stderr io.Writer, name, cmd string) int {
-	id, asJSON, callArgs, ok := parseWorkboardIDActorArgs(args, name, "actor", stderr)
-	if !ok {
-		return 2
-	}
-	callArgs["id"] = id
-	res, code := callWorkboard(cmd, callArgs, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
-}
-
-func cmdWorkboardLink(args []string, stdout, stderr io.Writer) int {
-	id, asJSON, callArgs, ok := parseWorkboardIDActorArgs(args, "link", "actor", stderr)
-	if !ok {
-		return 2
-	}
-	callArgs["id"] = id
-	if str(callArgs["type"]) == "" || str(callArgs["target"]) == "" {
-		fmt.Fprintf(stderr, "%s workboard link: --type and --target required\n", brand.CLI)
-		return 2
-	}
-	res, code := callWorkboard(controlplane.CmdWorkboardLink, callArgs, stderr)
-	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
