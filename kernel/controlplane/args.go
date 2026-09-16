@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
-
+//
+// kernel/controlplane request-arg typed primitives (argString, argTruthy, argBool,
+// requiredArgString, argFloat64, argInt64).
+// Extracted from args.go during Day 211 god-file refactor (#99).
+// Public API unchanged.
 package controlplane
 
 import (
@@ -7,19 +11,6 @@ import (
 	"strings"
 )
 
-// Typed accessors for request args (decoded JSON, so values are string / bool /
-// float64 / []any / map[string]any). Each distinguishes three cases:
-//   - absent      → ok=false, err=nil  (caller uses its default)
-//   - present, OK → ok=true,  err=nil
-//   - present, wrong type → ok=true, err!=nil  (a client-side mistake the caller
-//     should REPORT, not silently swallow — a mistyped `dry_run` that fell through
-//     to its zero value would execute a run the operator meant to only preview)
-//
-// The previous inline `v, _ := args[k].(T)` form collapsed "absent" and "wrong
-// type" into the same zero value, turning typos into silent wrong behavior.
-
-// argString extracts a string arg. The value is returned verbatim (not trimmed);
-// callers trim as needed.
 func argString(args map[string]any, key string) (string, bool, error) {
 	v, present := args[key]
 	if !present {
@@ -31,13 +22,6 @@ func argString(args map[string]any, key string) (string, bool, error) {
 	}
 	return s, true, nil
 }
-
-// argBool extracts a boolean arg.
-// argTruthy reports whether a control-plane arg is set to a truthy value,
-// accepting either a real bool (the canonical form) or a common string form
-// ("on"/"true"/"yes"/"1") for clients that send the toggle as text. Anything
-// else, including absent, is false. Lenient by design — it gates an opt-in
-// convenience (trust-this-run), never a security-relevant default.
 func argTruthy(v any) bool {
 	switch t := v.(type) {
 	case bool:
@@ -50,7 +34,6 @@ func argTruthy(v any) bool {
 	}
 	return false
 }
-
 func argBool(args map[string]any, key string) (bool, bool, error) {
 	v, present := args[key]
 	if !present {
@@ -62,11 +45,6 @@ func argBool(args map[string]any, key string) (bool, bool, error) {
 	}
 	return b, true, nil
 }
-
-// requiredArgString extracts a string arg that must be present and non-empty —
-// the id/name-shaped inputs nearly every mutating handler starts with. The
-// error reads exactly like the hand-written "args.<key> required" messages it
-// replaces, so client-visible wording is unchanged.
 func requiredArgString(args map[string]any, key string) (string, error) {
 	v, _, err := argString(args, key)
 	if err != nil {
@@ -77,8 +55,6 @@ func requiredArgString(args map[string]any, key string) (string, error) {
 	}
 	return v, nil
 }
-
-// argFloat64 extracts a numeric arg (JSON numbers decode to float64).
 func argFloat64(args map[string]any, key string) (float64, bool, error) {
 	v, present := args[key]
 	if !present {
@@ -90,117 +66,6 @@ func argFloat64(args map[string]any, key string) (float64, bool, error) {
 	}
 	return f, true, nil
 }
-
-// argStrings extracts several OPTIONAL string args at once (absent → "" in the
-// returned map), failing on the first wrong-typed key. For the handler headers
-// that start by pulling half a dozen optional strings out of the request.
-func argStrings(args map[string]any, keys ...string) (map[string]string, error) {
-	out := make(map[string]string, len(keys))
-	for _, k := range keys {
-		v, _, err := argString(args, k)
-		if err != nil {
-			return nil, err
-		}
-		out[k] = v
-	}
-	return out, nil
-}
-
-// argLimit reads the ubiquitous paging `limit` arg: absent or non-positive
-// falls back to def, anything above max is clamped to max, and a non-numeric
-// present value is an error. def=0 conventionally means "no limit" at sites
-// that support returning everything.
-func argLimit(args map[string]any, def, max int) (int, error) {
-	f, _, err := argFloat64(args, "limit")
-	if err != nil {
-		return 0, err
-	}
-	limit := def
-	if f > 0 {
-		limit = int(f)
-	}
-	if limit > max {
-		limit = max
-	}
-	return limit, nil
-}
-
-// argStringMap extracts a JSON object whose values are strings. A non-string
-// value is an error rather than silently dropped (the previous inline form
-// skipped them, so a mistyped tag value vanished without a trace).
-func argStringMap(args map[string]any, key string) (map[string]string, bool, error) {
-	v, present := args[key]
-	if !present {
-		return nil, false, nil
-	}
-	m, ok := v.(map[string]any)
-	if !ok {
-		return nil, true, fmt.Errorf("args.%s must be an object", key)
-	}
-	out := make(map[string]string, len(m))
-	for k, e := range m {
-		s, ok := e.(string)
-		if !ok {
-			return nil, true, fmt.Errorf("args.%s.%s must be a string", key, k)
-		}
-		out[k] = s
-	}
-	return out, true, nil
-}
-
-// argDryRun reads the confirm-first dry_run toggle shared by the destructive
-// maintenance commands (prune/tidy/clean/collect): ABSENT defaults to true
-// (preview — the safe direction), an explicit bool is honored, and the string
-// forms "false"/"0" mean false (CLI clients send the flag as text). Any other
-// present value is an error — a mistyped dry_run that silently fell through to
-// a default is exactly the typo class the typed accessors exist to surface.
-func argDryRun(args map[string]any) (bool, error) {
-	v, present := args["dry_run"]
-	if !present {
-		return true, nil
-	}
-	switch t := v.(type) {
-	case bool:
-		return t, nil
-	case string:
-		return !(t == "false" || t == "0"), nil
-	default:
-		return true, fmt.Errorf("args.dry_run must be a boolean")
-	}
-}
-
-// argFlag extracts a boolean arg that may arrive as a STRING.
-//
-// argBool is deliberately strict: on the typed protocol path a string where a
-// boolean belongs is a client bug worth surfacing. But the Web UI reaches read
-// commands through a query string, which carries text and nothing else — there
-// is no boolean to send. argDryRun has quietly been the workaround for exactly
-// one key; this is the same rule for any other web-reachable flag.
-//
-// Accepts a real bool, or "true"/"1"/"yes" and "false"/"0"/"no" (case
-// insensitive). Anything else is an error rather than a silent false, so a typo
-// still gets caught.
-func argFlag(args map[string]any, key string) (bool, bool, error) {
-	v, present := args[key]
-	if !present {
-		return false, false, nil
-	}
-	switch t := v.(type) {
-	case bool:
-		return t, true, nil
-	case string:
-		switch strings.ToLower(strings.TrimSpace(t)) {
-		case "true", "1", "yes":
-			return true, true, nil
-		case "false", "0", "no":
-			return false, true, nil
-		}
-	}
-	return false, true, fmt.Errorf("args.%s must be a boolean", key)
-}
-
-// argInt64 extracts an integer arg. JSON numbers decode to float64, so that's the
-// accepted form (an integer-valued float); a non-numeric present value is an error.
 func argInt64(args map[string]any, key string) (int64, bool, error) {
 	v, present := args[key]
 	if !present {
@@ -211,30 +76,4 @@ func argInt64(args map[string]any, key string) (int64, bool, error) {
 		return 0, true, fmt.Errorf("args.%s must be a number", key)
 	}
 	return int64(f), true, nil
-}
-
-// argStringList extracts a JSON array of strings, trimming each element and
-// skipping empties. A present-but-non-array value is an error (not silently an
-// empty list — for `tools` that would scope the run to NO tools). A non-string
-// element is likewise an error rather than silently dropped.
-func argStringList(args map[string]any, key string) ([]string, bool, error) {
-	v, present := args[key]
-	if !present {
-		return nil, false, nil
-	}
-	list, ok := v.([]any)
-	if !ok {
-		return nil, true, fmt.Errorf("args.%s must be an array", key)
-	}
-	out := make([]string, 0, len(list))
-	for i, e := range list {
-		s, ok := e.(string)
-		if !ok {
-			return nil, true, fmt.Errorf("args.%s[%d] must be a string", key, i)
-		}
-		if s = strings.TrimSpace(s); s != "" {
-			out = append(out, s)
-		}
-	}
-	return out, true, nil
 }
