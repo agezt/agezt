@@ -1,28 +1,15 @@
 // SPDX-License-Identifier: MIT
-
+//
+// kernel/controlplane tool-log + tool-stats handlers (handleToolLog, handleToolStats).
+// Extracted from tool_log.go during Day 211 god-file refactor (#78).
+// Public API unchanged.
 package controlplane
 
-// Tool-invocation audit log (M66) — a read-only view of the journal's
-// tool.invoked + tool.result events (the agent loop journals one pair per tool
-// call: tool, call_id, input, then output + error). `agt tool list` shows the
-// tools the daemon ADVERTISES; this shows the calls the agent actually MADE and
-// how each turned out, so an operator can audit "what did the agent run, and
-// what broke?". It is the execution analogue of `agt edict log` (which audits
-// the policy GATING of those same calls) — together they answer "was the call
-// allowed?" and "what did it do?".
-
 import (
-	"encoding/json"
 	"net"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
-// toolOutputPreviewRunes bounds the one-line output/input excerpt folded into a
-// tool-log row — long enough to read an error message or a short result, short
-// enough to keep the response compact. Mirrors answerPreviewRunes' role for runs.
-const toolOutputPreviewRunes = 100
 
 func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	errorsOnly, _, err := argBool(req.Args, "errors")
@@ -97,11 +84,6 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 		}
 	})
 }
-
-// handleToolStats aggregates tool invocations (M67) — the execution-dashboard
-// analogue of handleEdictStats. Folds the journal's tool.result events into
-// total / errored / error-rate plus a per-tool breakdown ({calls, errors}).
-// Optional tool scopes to one tool; since_ms windows by call time. Tenant-scoped.
 func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	toolFilter, _, err := argString(req.Args, "tool")
 	if err != nil {
@@ -215,79 +197,4 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			},
 		},
 	})
-}
-
-// decodeToolInvoked pulls call_id + a whitespace-collapsed input preview out of
-// a tool.invoked payload (M66). Returns zero values on parse failure so a
-// malformed event simply contributes no input annotation.
-func decodeToolInvoked(payload json.RawMessage) (callID, input string) {
-	if len(payload) == 0 {
-		return "", ""
-	}
-	var p struct {
-		CallID string          `json:"call_id"`
-		Input  json.RawMessage `json:"input"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return "", ""
-	}
-	return p.CallID, previewString(string(p.Input))
-}
-
-type decodedToolResult struct {
-	tool              string
-	callID            string
-	output            string
-	isError           bool
-	observationTrust  string
-	observationSource string
-	directiveLike     bool
-	directiveMatches  []string
-}
-
-// decodeToolResult pulls tool + call_id + output preview + error flag out of a
-// tool.result payload (M66), plus observation-security metadata when present.
-// Returns zero values on parse failure.
-func decodeToolResult(payload json.RawMessage) decodedToolResult {
-	if len(payload) == 0 {
-		return decodedToolResult{}
-	}
-	var p struct {
-		Tool              string   `json:"tool"`
-		CallID            string   `json:"call_id"`
-		Output            string   `json:"output"`
-		Error             bool     `json:"error"`
-		ObservationTrust  string   `json:"observation_trust"`
-		ObservationSource string   `json:"observation_source"`
-		DirectiveLike     bool     `json:"directive_like"`
-		DirectiveMatches  []string `json:"directive_matches"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return decodedToolResult{}
-	}
-	return decodedToolResult{
-		tool:              p.Tool,
-		callID:            p.CallID,
-		output:            previewString(p.Output),
-		isError:           p.Error,
-		observationTrust:  p.ObservationTrust,
-		observationSource: p.ObservationSource,
-		directiveLike:     p.DirectiveLike,
-		directiveMatches:  p.DirectiveMatches,
-	}
-}
-
-// previewString collapses all whitespace runs to single spaces, trims, and
-// truncates to toolOutputPreviewRunes with an ellipsis. Shared by the invoked
-// (input) and result (output) decoders so both excerpts read the same way.
-func previewString(s string) string {
-	one := strings.Join(strings.Fields(s), " ")
-	if one == "" {
-		return ""
-	}
-	r := []rune(one)
-	if len(r) > toolOutputPreviewRunes {
-		return string(r[:toolOutputPreviewRunes]) + "…"
-	}
-	return one
 }
