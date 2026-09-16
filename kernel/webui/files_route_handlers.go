@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI files route: HTTP handlers + tiny format helpers.
-// Code extracted from files_route.go during the Day-89 god-file split.
-// Public API unchanged.
+// WebUI files route: HTTP handlers (Server.handleFileTree /
+// Raw / Mkdir / Rename / Delete). The tiny format helpers
+// (typeOf, readJSONBody) live in files_route_helpers.go.
+// Code extracted from files_route.go during the Day-89
+// god-file split. Public API unchanged.
 package webui
-
 
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
-
-	"encoding/json"
-	"net/http"
-	"path/filepath"
 )
+
 
 func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
 	rootAbs, targetAbs, rel, err := s.resolveFileRoot(r.URL.Query().Get("path"))
@@ -276,23 +276,3 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 
 // typeOf returns "dir" or "file" for an os.DirEntry — keeping the JSON
 // contract exactly two-value and lowercase.
-func typeOf(e os.DirEntry) string {
-	if e.IsDir() {
-		return "dir"
-	}
-	return "file"
-}
-
-// readJSONBody decodes a JSON body whose route-level cap has already been
-// applied by Handler. It writes a 4xx response and returns ok=false when the
-// body is missing, malformed, or over the cap; the caller should just return.
-func readJSONBody(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
-	defer r.Body.Close()
-	var out map[string]any
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&out); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return nil, false
-	}
-	return out, true
-}
