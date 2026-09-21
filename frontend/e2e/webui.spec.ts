@@ -19,8 +19,8 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await nav.getByRole("button", { name: "Talk", exact: true }).first().click();
     await nav.getByRole("button", { name: "Jarvis", exact: true }).last().click();
     await expect(page.getByRole("heading", { level: 2, name: "Jarvis" })).toBeVisible();
-    await expect(page.getByText("Voice needs setup")).toBeVisible();
-    await expect(page.getByText("provider not configured")).toBeVisible();
+    await expect(page.getByText("Voice needs setup").first()).toBeVisible();
+    await expect(page.getByText("provider not configured").first()).toBeVisible();
 
     await nav.getByRole("button", { name: "Voice", exact: true }).last().click();
     await expect(page.getByRole("heading", { level: 2, name: "Voice" })).toBeVisible();
@@ -100,25 +100,38 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
       if (row) await page.getByRole("tab", { name: item, exact: true }).click();
     };
 
-    // --- Landing: the humane chat surface --------------------------------
+    // --- Chat: the humane chat surface is part of the nav, not the landing
+    // (landing is Observe › Overview — Dashboard — since the 2026-09 IA pass;
+    // the chat quick opener lives in MiniChat and the Cmd+K "New chat"
+    // shortcut). Navigate to it explicitly so the lazy chunk for the legacy
+    // Chat panel loads before we assert the EmptyState h2.
+    await openView("Talk", "Chat");
+    // Generous timeout: clicking the row + lazy-loading the Chat chunk + the
+    // chat engine's first render + InitialMessage fetch can exceed the
+    // default 10s under load. Same rationale as the 30s Overview timeout
+    // above.
     await expect(
       page.getByRole("heading", { level: 2, name: "Talk to your agent" }),
-    ).toBeVisible();
-
-    // --- Dashboard (Observe → Overview): live status pulled from the daemon ---
-    // The seeded run shows up in the completed counter; the vitals strip and
-    // widgets are real daemon state, not placeholders.
-    await openView("Observe", "Overview");
-    // Generous timeout for the first post-nav heading: a click + React re-mount
-    // + initial data fetch under WSL runner load can exceed the default 10s.
-    // Same rationale as the data-connection-state live-or-stale tolerance in
-    // the connection-state assertion above.
-    await expect(
-      // The page is named for the destination you clicked, not the component.
-      page.getByRole("heading", { level: 2, name: "Overview" }),
     ).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/success rate/i)).toBeVisible();
-    await expect(page.getByText(/active skills/i)).toBeVisible();
+
+    // --- Standing orders (Automate › Triggers › Standing orders): the operator's
+    // "what fires autonomously right now" view. Day 28 retired the misleading
+    // "Overview" first tab from the Observe section (it had been aliased to
+    // the same Standing surface), so this navigates the unambiguous Triggers
+    // path that surfaces the same real backend data without promising a
+    // Dashboard that no longer exists.
+    await openView("Automate", "Standing orders", "Triggers");
+    // Generous timeout: clicking + lazy-loaded chunk + journal-fetch under
+    // WSL runner load can exceed the default 10s.
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Standing orders" }),
+    ).toBeVisible({ timeout: 30_000 });
+    // Real daemon state — the seeded fleet gives us the pulse.observer reaper
+    // guardian + budget + routing guardians out of the box.
+    await expect(page.getByText(/wake rules/i)).toBeVisible();
+    await expect(
+      page.getByText(/Guardian · (Doctor|Health|Budget|Routing|Stuck)/i).first(),
+    ).toBeVisible();
 
     // Mobile shell regression guard: the top command bar and two-level nav may
     // scroll internally, but they must not create document-level horizontal
@@ -195,13 +208,15 @@ test.describe("Agezt Web UI — embedded SPA against a real daemon", () => {
     await expect(page.getByRole("button", { name: /Test decision/ })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Secret redaction" }).first()).toBeVisible();
 
-    // --- Search: the journal's tamper-evident hash chain verifies clean -
-    // (M759 integrity verify). The seeded run wrote hash-linked events.
-    await openView("Knowledge", "Search");
-    const verify = page.getByRole("button", { name: /verify integrity/ });
-    await expect(verify).toBeVisible();
-    await verify.click();
-    await expect(page.getByText("chain intact")).toBeVisible();
+    // --- Search: the journal-verify affordance retired from the UI in Day 28.
+    // The "Search" nav row used to alias to Data Lake (SearchView = Data in
+    // nav.tsx); Day 28 dropped both the row and its alias entirely rather than
+    // keep misleading the operator that "#search" goes anywhere near the
+    // journal. Tamper-evidence runs every minute on the daemon and is covered
+    // by kernel/journal_verify_test.go — the cron is the auditor, the e2e is
+    // not. We navigate directly to a different Knowledge surface that has
+    // real data so the breadth walk stays loud on broken consoles.
+    await openView("Knowledge", "World");
 
     // --- Fleet: roster agents open as identity-bearing entities ----------
     // Schedules/standing/workflows can trigger work, but roster agents must be

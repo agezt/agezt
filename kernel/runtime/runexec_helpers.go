@@ -9,6 +9,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -48,7 +49,19 @@ func retryDelay(pol roster.RetryPolicy, attempt int) time.Duration {
 	}
 	delay := base
 	if strings.TrimSpace(pol.Backoff) == "exponential" {
+		// Cap inside the loop so the next *= 2 cannot overflow time.Duration's
+		// int64 backing (base=1s overflows at attempt=35, base=60s at attempt=29;
+		// the post-loop clamp below does not catch a wrapped negative value).
+		var hardCap time.Duration
+		if pol.MaxDelaySec > 0 {
+			hardCap = time.Duration(pol.MaxDelaySec) * time.Second
+		} else {
+			hardCap = math.MaxInt64 / 2
+		}
 		for i := 1; i < attempt; i++ {
+			if delay >= hardCap {
+				return hardCap
+			}
 			delay *= 2
 		}
 	}

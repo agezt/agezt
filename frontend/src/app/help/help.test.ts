@@ -50,6 +50,8 @@ describe("help content coverage", () => {
 
   it("falls back gracefully for unknown view ids", () => {
     expect(helpTopicFor("not-a-view")).toBe(FALLBACK_TOPIC);
-    expect(helpTopicFor("chat")).toBe(HELP.chat);
+    // `chat` is no longer in NAV (Day 25 cleanup) so the topic also went
+    // away; verify a surviving topic returns itself.
+    expect(helpTopicFor("runs")).toBe(HELP.runs);
   });
 });

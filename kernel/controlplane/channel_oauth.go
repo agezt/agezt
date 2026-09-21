@@ -106,7 +106,7 @@ func (s *Server) handleChannelOAuthStart(conn net.Conn, req Request) {
 		return
 	}
 	if !isHTTPSURL(redirectURI) {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "redirect_uri must be an absolute http(s) URL"})
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "redirect_uri must be an https:// URL (http is allowed only for loopback dev: localhost, 127.0.0.1, ::1)"})
 		return
 	}
 

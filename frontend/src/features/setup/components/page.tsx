@@ -31,6 +31,7 @@ import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
+import { ApiKeyField, ChatGPTSignInCard } from "@/features/api-keys";
 import {
   defaultSetupFallbacks,
   mergeSetupTaskRouting,
@@ -125,7 +126,6 @@ export function Setup({
   const [chainsInfo, setChainsInfo] = useState<SetupChainsResp | null>(null);
   const [routingTasks, setRoutingTasks] = useState<string[]>([]);
   const [providerReadyText, setProviderReadyText] = useState("Provider ready");
-  const [chatGPT, setChatGPT] = useState<{ busy?: boolean; status?: string; error?: string }>({});
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramChatID, setTelegramChatID] = useState("");
 
@@ -218,52 +218,29 @@ export function Setup({
     }
   }
 
-  async function startChatGPTLogin() {
+  // Called by the ChatGPT sign-in card after a successful OAuth. Picks the
+  // chatgpt provider, reloads the catalog, and advances the wizard to the
+  // model step (NOT routing — the operator still picks the model).
+  const onChatGPTConnected = useCallback(async () => {
     setBusy(true);
-    setChatGPT({ busy: true, status: "Opening ChatGPT sign-in…", error: undefined });
     try {
-      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>("/api/provider/oauth/start", {
-        provider: "chatgpt",
-      });
-      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start ChatGPT sign-in");
-      window.open(r.authorize_url, "_blank", "noopener,noreferrer");
-      setChatGPT({ busy: true, status: "Waiting for ChatGPT authorization…", error: undefined });
-      for (let i = 0; i < 150; i++) {
-        await new Promise((res) => setTimeout(res, 2000));
-        const st = await postJSON<{
-          status?: string;
-          connected?: boolean;
-          email?: string;
-          account?: string;
-          error?: string;
-          models?: string[];
-          default_model?: string;
-        }>("/api/provider/oauth/status", { state: r.state });
-        if (st.status === "done" || st.connected) {
-          const model = (st.default_model || st.models?.[0] || "").trim() || CHATGPT_FALLBACK_MODEL;
-          await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: "chatgpt" });
-          await postJSON("/api/config/set", { name: "AGEZT_MODEL", value: model });
-          await postAction("/api/provider/reload", {});
-          const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
-          if (fresh) {
-            setCat(fresh);
-            setPicked(fresh.providers?.find((p) => p.id === "chatgpt") || null);
-          }
-          setSelectedModel(model);
-          setProviderReadyText(st.email ? `ChatGPT signed in as ${st.email}` : "ChatGPT signed in");
-          setChatGPT({ busy: false, status: "Connected", error: undefined });
-          setStep("routing");
-          return;
-        }
-        if (st.status === "error") throw new Error(st.error || "ChatGPT sign-in failed");
+      const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
+      if (fresh) {
+        setCat(fresh);
+        const gpt = fresh.providers?.find((p) => p.id === "chatgpt");
+        if (gpt) setPicked(gpt);
       }
-      throw new Error("timed out waiting for ChatGPT sign-in");
-    } catch (e) {
-      setChatGPT({ busy: false, error: (e as Error).message });
+      setSelectedModel("");
+      setProviderReadyText("ChatGPT signed in");
+      // Advance to model step so the operator can pick a model from the list.
+      // This replaces the previous behaviour that skipped straight to routing
+      // with a hardcoded model — which left the wizard out of sync with the
+      // operator's actual choice.
+      setStep("model");
     } finally {
       setBusy(false);
     }
-  }
+  }, []);
 
   async function activatePickedProvider(readyText: string) {
     if (!picked) return;
@@ -418,6 +395,14 @@ export function Setup({
     setStep("provider");
   }
 
+  // commitTelegram is the per-field submit handed to ApiKeyField — fires when
+  // the operator presses Enter or clicks Save. Setting the trimmed value into
+  // state lets the existing applyTelegram() (which validates both fields
+  // together) run unchanged.
+  function commitTelegram(value: string) {
+    setTelegramToken(value);
+  }
+
   async function applyTelegram() {
     const token = telegramToken.trim();
     const chat = telegramChatID.trim();
@@ -454,7 +439,11 @@ export function Setup({
       onDone();
       return;
     }
-    if (location.hash.replace(/^#\/?/, "") !== "chat") location.hash = "chat";
+    // The standalone-mode "go to chat on finish" was removed with the Day 25
+    // nav cleanup — there is no longer a "chat" view. Drop the operator on
+    // the Overview (system health / dashboard) instead, which is the closest
+    // "ready to use" landing surface.
+    if (location.hash.replace(/^#\/?/, "") !== "overview") location.hash = "overview";
   }
 
   const body = (
@@ -573,24 +562,11 @@ export function Setup({
 
       {step === "provider" && (
         <Card title="Choose a provider">
-          <div className="mb-3 rounded-md border border-good/30 bg-good/10 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-sm font-medium text-good">
-                  <LogIn className="h-4 w-4" />
-                  ChatGPT subscription login
-                </div>
-                <p className="mt-1 text-xs text-muted">
-                  Sign in with ChatGPT, then AGEZT uses the ChatGPT provider and the newest model your plan serves.
-                </p>
-              </div>
-              <Button size="sm" variant="accent" onClick={startChatGPTLogin} disabled={busy || chatGPT.busy} aria-label="Sign in with ChatGPT">
-                {chatGPT.busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
-                Sign in
-              </Button>
-            </div>
-            {chatGPT.status && <div className="mt-2 text-xs text-muted">{chatGPT.status}</div>}
-            {chatGPT.error && <div className="mt-2 text-xs text-bad">{chatGPT.error}</div>}
+          {/* Independent ChatGPT sign-in card. Same component Models & Keys uses;
+              OAuth completion picks chatgpt as the provider and advances the
+              wizard to the model step. */}
+          <div className="mb-3">
+            <ChatGPTSignInCard onChanged={() => void onChatGPTConnected()} compact />
           </div>
 
           <div className="flex items-center gap-2 rounded-md border border-border bg-panel px-2">
@@ -633,23 +609,22 @@ export function Setup({
             )}
           </ul>
           {picked && (
-            <div className="mt-3 space-y-2 border-t border-border pt-3">
+            <div className="mt-3 space-y-3 border-t border-border pt-3">
               {picked.credentialed ? (
                 <div className="rounded-md border border-good/30 bg-good/10 px-2 py-2 text-xs text-good">
                   A stored credential is already active for {picked.id}.
                 </div>
               ) : pickedKeyEnv ? (
-                <label className="flex flex-col gap-1 text-[11px] text-muted">
-                  {picked.id} API key — stored in AGEZT's encrypted provider vault
-                  <input
-                    type="password"
-                    value={keyVal}
-                    onChange={(e) => setKeyVal(e.target.value)}
-                    placeholder="paste your key"
-                    aria-label="API key"
-                    className="rounded-md border border-border bg-panel px-2 py-1 text-sm outline-none focus-visible:border-accent"
-                  />
-                </label>
+                <ApiKeyField
+                  env={pickedKeyEnv}
+                  value={keyVal}
+                  onChange={setKeyVal}
+                  onSubmit={applyKey}
+                  busy={busy}
+                  hint="paste your key"
+                  className="rounded-md border border-border bg-panel/40 p-2"
+                  ariaLabel="API key"
+                />
               ) : (
                 <p className="text-xs text-muted">{picked.id} is keyless (local) — nothing to paste.</p>
               )}
@@ -808,17 +783,16 @@ export function Setup({
             Add a bot token and chat id if you want AGEZT to send operator notifications and receive messages after restart.
           </p>
           <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-end">
-            <label className="flex flex-col gap-1 text-[11px] text-muted">
-              Bot token
-              <input
-                type="password"
-                value={telegramToken}
-                onChange={(e) => setTelegramToken(e.target.value)}
-                placeholder="123456:ABC..."
-                aria-label="Telegram bot token"
-                className="rounded-md border border-border bg-panel px-2 py-1.5 text-sm outline-none focus-visible:border-accent"
-              />
-            </label>
+            <ApiKeyField
+              env="AGEZT_TELEGRAM_BOT_TOKEN"
+              value={telegramToken}
+              onChange={setTelegramToken}
+              onSubmit={commitTelegram}
+              busy={busy}
+              hint="123456:ABC…"
+              link="https://t.me/BotFather"
+              ariaLabel="Telegram bot token"
+            />
             <label className="flex flex-col gap-1 text-[11px] text-muted">
               Chat id or allowlist
               <input

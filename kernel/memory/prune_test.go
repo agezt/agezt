@@ -69,14 +69,68 @@ func TestPrune_RemovesOnlySoftDeleted(t *testing.T) {
 }
 
 // TestPrune_RespectsAgeCutoff: a recent soft-delete is NOT pruned when the cutoff
-// is in the past (recently forgotten records stay recoverable).
+// is at-or-after LastSeenMS — i.e. when the record is not yet "old enough" relative
+// to the cutoff. The original test used cutoff=0, which accidentally only worked
+// because of the bug fixed by F1 (Prune's missing `<= 0` short-circuit). With the
+// fix, "<= 0" means "match all soft-deleted regardless of age", so this assertion
+// now uses an explicit positive cutoff equal to the pin-clock LastSeenMS.
 func TestPrune_RespectsAgeCutoff(t *testing.T) {
 	m, _ := newTestManager(t)
 	r, _, _ := m.Remember("c", RememberSpec{Type: TypeFact, Subject: "x", Content: "keep me a while"})
 	m.Forget("c", r.ID)
 
-	// Cutoff far in the past → nothing is old enough.
-	if n, _ := m.Prune("c", 0, true); n != 0 {
-		t.Errorf("recent soft-delete counted as prunable with past cutoff: %d", n)
+	// cuttoff == r.LastSeenMS (lastSeen pinned via fixedNow): "LastSeenMS < cutoff"
+	// is false, so the soft-deleted record is NOT prunable.
+	atLastSeen := fixedNow.UnixMilli()
+	if n, _ := m.Prune("c", atLastSeen, true); n != 0 {
+		t.Errorf("recent soft-delete counted as prunable with cutoff equal to LastSeenMS: %d", n)
+	}
+}
+
+// TestPrune_NonPositiveCutoffMatchesHygiene pins the F1 regression: the sibling
+// methods Hygiene and Prune must agree on the same olderThanMs value. Per the
+// Hygiene docstring ("olderThanMs <= 0 counts all soft-deleted records as
+// prunable"), Prune(<= 0) should also return ALL soft-deleted records, on the
+// `tombstoned OR superseded` predicate, regardless of age. Before the fix,
+// Prune(0) silently returned 0 because r.LastSeenMS < 0 is unsatisfiable.
+func TestPrune_NonPositiveCutoffMatchesHygiene(t *testing.T) {
+	m, _ := newTestManager(t)
+	gone, _, _ := m.Remember("c", RememberSpec{Type: TypeFact, Subject: "a", Content: "alpha"})
+	if ok, err := m.Forget("c", gone.ID); err != nil || !ok {
+		t.Fatalf("forget: ok=%v err=%v", ok, err)
+	}
+	old, _, _ := m.Remember("c", RememberSpec{Type: TypeFact, Subject: "b", Content: "beta v1"})
+	if _, err := m.Supersede("c", old.ID, RememberSpec{Type: TypeFact, Subject: "b", Content: "beta v2"}); err != nil {
+		t.Fatalf("supersede: %v", err)
+	}
+
+	for _, cutoff := range []int64{0, -1, math.MinInt64} {
+		hyg, err := m.Hygiene(cutoff)
+		if err != nil {
+			t.Fatalf("hygiene(%d): %v", cutoff, err)
+		}
+		if hyg.Prunable != 2 {
+			t.Errorf("Hygiene(%d).Prunable = %d, want 2", cutoff, hyg.Prunable)
+		}
+		n, err := m.Prune("c", cutoff, true)
+		if err != nil {
+			t.Fatalf("Prune(%d, dry=true): %v", cutoff, err)
+		}
+		if n != hyg.Prunable {
+			t.Errorf("Prune(%d, dry=true) = %d, want %d (must match Hygiene.Prunable)",
+				cutoff, n, hyg.Prunable)
+		}
+	}
+
+	// Real prune with a non-positive cutoff reclaims the dead weight.
+	pruned, err := m.Prune("c", 0, false)
+	if err != nil {
+		t.Fatalf("Prune(0, dry=false): %v", err)
+	}
+	if pruned != 2 {
+		t.Errorf("Prune(0, dry=false) reclaims %d, want 2", pruned)
+	}
+	if all, _ := m.All(); len(all) != 1 { // only the supersession's successor survives
+		t.Errorf("Prune(0) left %d records, want 1 (the active successor)", len(all))
 	}
 }

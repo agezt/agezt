@@ -148,12 +148,13 @@ func (s *Server) handleStandingSetEnabled(conn net.Conn, req Request) {
 	}
 	// Accept enabled as a bool (CLI/JSON) or a "true"/"false"/"1"/"0" string
 	// (the webui query-arg transport carries every value as a string).
+	// Use argBool/argString (typed accessors) for both arms so the ratchet
+	// stays at 0 raw casts in this file.
 	enabled := false
-	switch v := req.Args["enabled"].(type) {
-	case bool:
-		enabled = v
-	case string:
-		enabled = strings.EqualFold(v, "true") || v == "1"
+	if b, ok, _ := argBool(req.Args, "enabled"); ok {
+		enabled = b
+	} else if s, ok, _ := argString(req.Args, "enabled"); ok {
+		enabled = strings.EqualFold(s, "true") || s == "1"
 	}
 	if enabled {
 		o, ok := s.k.Standing().Get(id)

@@ -105,7 +105,6 @@ export const Agents: Record<string, HelpTopic> = {
       { id: "roster", label: "Roster" },
       { id: "standing", label: "Standing" },
       { id: "schedules", label: "Schedules" },
-      { id: "flow", label: "Flow Studio" },
       { id: "overseer", label: "Overseer" },
     ],
   },
@@ -142,7 +141,6 @@ export const Agents: Record<string, HelpTopic> = {
     related: [
       { id: "roster", label: "Roster" },
       { id: "agents", label: "Agents" },
-      { id: "routing", label: "Routing" },
     ],
   },
 
@@ -193,7 +191,6 @@ export const Agents: Record<string, HelpTopic> = {
     related: [
       { id: "agents", label: "Agents" },
       { id: "standing", label: "Standing" },
-      { id: "persona", label: "Default Identity" },
     ],
   },
 
@@ -229,7 +226,6 @@ export const Agents: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "agents", label: "Agents" },
-      { id: "board", label: "Agent Board" },
       { id: "activity", label: "Activity" },
     ],
   },
@@ -272,141 +268,6 @@ export const Agents: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "models", label: "Models" },
-      { id: "providers", label: "Providers" },
-    ],
-  },
-  conductor: {
-    title: "Conductor",
-    intro:
-      "Asymmetric, verify-driven collaboration: a Thinker plans, a Worker solves, and a Verifier checks — running the worker's code when it can — looping until the answer is verified or the round cap is hit.",
-    sections: [
-      {
-        heading: "Running a task",
-        items: [
-          {
-            term: "Task",
-            desc: "Describe a hard, verifiable task (coding, math, multi-step reasoning) where one model's answer isn't enough. Press Conduct (or ⌘/Ctrl+Enter).",
-          },
-          {
-            term: "Roles",
-            desc: "Each role defaults to a different keyed-provider model; override any with a model id or @chain under Role models.",
-          },
-          {
-            term: "Max rounds & plan",
-            desc: "Max rounds caps Worker↔Verifier retries (default 2). Plan adds a first call that tailors each role's instructions to the task.",
-          },
-        ],
-      },
-      {
-        heading: "Reading the result",
-        items: [
-          {
-            term: "Verified / Not verified",
-            desc: "The verdict header shows whether the Verifier accepted the final answer, and how many rounds it took.",
-          },
-          {
-            term: "Transcript",
-            desc: "Each role's turn in order: the Thinker's plan, the Worker's attempts, and the Verifier's check — including real code-execution output when it ran the code.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "The Conductor needs at least one keyed provider — empty role models mean no credentials are configured yet.",
-      "It shines on tasks the Verifier can actually run: ask the Worker for code with self-tests and the check becomes a real execution, not just an opinion.",
-    ],
-    related: [
-      { id: "council", label: "Council" },
-      { id: "models", label: "Models" },
-      { id: "chains", label: "Fallback chains" },
-    ],
-  },
-
-  research: {
-    title: "Research",
-    intro:
-      "The deep-research harness: a question is broken into sub-questions, each gathers independent web sources, the answer may only state claims it can cite, and every cited claim is then adversarially verified against its own source.",
-    sections: [
-      {
-        heading: "Running research",
-        items: [
-          {
-            term: "Question",
-            desc: "Ask an open question that needs current, cross-checked evidence rather than one model's memory. Press Research (or ⌘/Ctrl+Enter).",
-          },
-          {
-            term: "Adversarial verification",
-            desc: "On by default: each cited claim gets an independent, skeptical check that tries to refute it against the source text. Turn it off for a faster, unverified draft.",
-          },
-          {
-            term: "Advanced caps",
-            desc: "Bound the run: max sources gathered, max sub-questions explored, and max claims verified. Every search and fetch is still governed and journaled.",
-          },
-        ],
-      },
-      {
-        heading: "Reading the report",
-        items: [
-          {
-            term: "Confidence & verified",
-            desc: "Confidence is the share of verified claims the sources actually supported (or, unverified, the share of gathered sources the answer cited). The badge shows whether the adversarial pass ran.",
-          },
-          {
-            term: "Claims",
-            desc: "Each cited claim with its verdict — supported, refuted, or uncertain — the sources it cited, and the verifier's one-line reason. Refuted claims are the ones to distrust.",
-          },
-          {
-            term: "Sources",
-            desc: "Every gathered source, numbered [S1], [S2], …, linking out to the original page. The answer's citations refer to these.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Research needs a provider and the web_search + browser.read tools; both are governed by their own policy and leave a trail in `agt why`.",
-      "The report text is treated as untrusted external content, so it can never inject instructions back into an agent that reads it.",
-    ],
-    related: [
-      { id: "conductor", label: "Conductor" },
-      { id: "council", label: "Council" },
-      { id: "memory", label: "Memory" },
-    ],
-  },
-
-  toolforge: {
-    title: "Tool Forge",
-    intro:
-      "Mint new tools from scripts: draft → test → promote, with operator sign-off. Promoted tools go live for agents as forge_<name>, no restart needed.",
-    sections: [
-      {
-        heading: "The pipeline",
-        items: [
-          {
-            term: "New tool",
-            desc: "Name (lowercase, digits, underscores), language (python / node / deno), description, the code itself, and an optional JSON-Schema for its input.",
-          },
-          {
-            term: "Test",
-            desc: "Feed it JSON input and run it — a PASS/FAIL badge plus the actual output. Only tested tools can be promoted.",
-          },
-          {
-            term: "Promote / quarantine",
-            desc: "Promotion makes the tool callable by agents; quarantine pulls it from circulation without deleting it.",
-          },
-          {
-            term: "Edit",
-            desc: "Any code change demotes the tool back to draft — it must be re-tested before it can be promoted again.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "The tested badge is your safety rail: nothing reaches agents without at least one passing run you witnessed.",
-    ],
-    related: [
-      { id: "tools", label: "Tool usage" },
-      { id: "sandbox", label: "Sandbox" },
-      { id: "catalog", label: "Tool registry" },
     ],
   },
 
@@ -454,8 +315,6 @@ export const Agents: Record<string, HelpTopic> = {
       "stdio servers run with a scrubbed environment — secrets you didn't explicitly pass don't leak into them.",
     ],
     related: [
-      { id: "tools", label: "Tool usage" },
-      { id: "catalog", label: "Tool registry" },
       { id: "policy", label: "Policy" },
     ],
   },
@@ -494,7 +353,6 @@ export const Agents: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "mcp", label: "MCP Servers" },
-      { id: "tools", label: "Tool usage" },
       { id: "agents", label: "Agents" },
     ],
   },
@@ -530,53 +388,7 @@ export const Agents: Record<string, HelpTopic> = {
       "Ask the agent to \"build me a script that…\" in Chat — the resulting project appears here.",
     ],
     related: [
-      { id: "toolforge", label: "Tool Forge" },
       { id: "artifacts", label: "Artifacts & Files" },
-    ],
-  },
-
-  flow: {
-    title: "Flow Studio",
-    intro:
-      "The plan-authoring workbench: describe a task, let the AI generate a multi-step plan as a DAG, edit or refine it, then run it and watch nodes light up live.",
-    sections: [
-      {
-        heading: "Authoring",
-        items: [
-          {
-            term: "Generate",
-            desc: "Type the intent (optionally pick a model) and generate a plan — a JSON DAG of nodes you can edit directly in the textarea.",
-          },
-          {
-            term: "Refine",
-            desc: "Give a natural-language instruction (\"add a verification step\") and the plan is rewritten around it.",
-          },
-          {
-            term: "Run",
-            desc: "Executes the current plan text — including any manual edits you made.",
-          },
-        ],
-      },
-      {
-        heading: "Watching",
-        items: [
-          {
-            term: "Live DAG",
-            desc: "The right panel renders the plan as a graph; nodes recolor as they run, complete, or fail, driven by the live event stream.",
-          },
-          {
-            term: "History",
-            desc: "The last eight plans with status, node count, and duration.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "The plan JSON is the source of truth — what you see in the textarea is exactly what Run executes.",
-    ],
-    related: [
-      { id: "workflows", label: "Workflows" },
-      { id: "runs", label: "Runs" },
     ],
   },
 
@@ -608,86 +420,7 @@ export const Agents: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "runs", label: "Runs" },
-      { id: "search", label: "Search" },
-    ],
-  },
-
-  analyst: {
-    title: "Analyst",
-    intro:
-      "An AI observability assistant: it gathers a live snapshot of the system — stats, tools, cache, runs — and has the daemon's own model answer your questions about it.",
-    sections: [
-      {
-        heading: "Asking",
-        items: [
-          {
-            term: "Question box",
-            desc: "Ask anything about system state (\"why did spend spike today?\"). Suggested questions are offered until your first ask.",
-          },
-          {
-            term: "Streaming answer",
-            desc: "The analysis streams in as markdown, with a collapsible reasoning block and a footer showing cost, model, and iterations.",
-          },
-        ],
-      },
-      {
-        heading: "What it can and can't do",
-        paragraphs: [
-          "The Analyst reasons over the snapshot only — it makes no tool calls and changes nothing. It's a reading of the instruments, not a hand on the controls.",
-        ],
-      },
-    ],
-    tips: [
-      "Each question costs one model call — the price is shown under every answer.",
-    ],
-    related: [
-      { id: "insights", label: "Insights" },
-      { id: "health", label: "Health" },
-    ],
-  },
-
-  search: {
-    title: "Search",
-    intro:
-      "Full journal search: filter the daemon's entire event history by text, kind, actor, or correlation id — with payload expansion, causation tracing, and cryptographic integrity checks.",
-    sections: [
-      {
-        heading: "Querying",
-        items: [
-          {
-            term: "Filters",
-            desc: "Free-text pattern, event kind, actor, and correlation id — combine them and press Enter or Search.",
-          },
-          {
-            term: "Results",
-            desc: "Color-coded by category; click a row to expand the full payload.",
-          },
-          {
-            term: "Trace cause",
-            desc: "Walks an event's causation chain back to its root — across correlation boundaries, so you can trace a run all the way back to the heartbeat that initiated it.",
-          },
-        ],
-      },
-      {
-        heading: "Trust but verify",
-        items: [
-          {
-            term: "Integrity check",
-            desc: "Verifies the journal's hash chain server-side and reports the first broken link, if any.",
-          },
-          {
-            term: "Export",
-            desc: "Downloads a signed journal bundle that can be re-verified offline.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Live Stream answers \"what's happening now\"; this page answers \"what happened, ever\".",
-    ],
-    related: [
-      { id: "feed", label: "Live Stream" },
-      { id: "replay", label: "Replay" },
+      { id: "activity", label: "Activity" },
     ],
   },
 

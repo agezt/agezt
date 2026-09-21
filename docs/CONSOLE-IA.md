@@ -264,6 +264,44 @@ Three things fell out of Phase C that were not on the plan:
 Retired ids stay addressable through `VIEW_ALIASES` in `nav.tsx` — `#files`
 opens the file-manager mode, `#config` the Config Center, `#system` Health.
 
+## Day 28 — IA cleanup pass
+
+The Day-23 cleanup had bolted row labels onto components that happened to be
+nearest at hand, so several nav rows promised a surface their render didn't
+deliver. Nine aliases were silently lying:
+
+| Row label | Was aliased to | What the operator saw |
+|---|---|---|
+| **Observe › Health** | `Standing` | Standing orders |
+| **Observe › Alerts** | `Standing` | Standing orders |
+| **Observe › Overview** (1st tab) | `Standing` (via `Dashboard`) | Standing orders |
+| **Knowledge › Search** | `Data` | Data Lake |
+| **Knowledge › Storage** (Data & Files tab) | `Data` | Data Lake |
+| **Knowledge › Memory › Taste** | `Memory` (verbatim dup) | the same Memory panel |
+| **Talk › Messages** (Inbox view) | `World` | the World knowledge-graph |
+| **Automate › Wizards** | `Schedules` | the Schedules surface |
+| **Talk › Messages → Inbox → Board** | `REMOVED_VIEW` | a placeholder |
+
+Day 28 retired every one of those rows (Aliases collapsed, rows removed from
+`NAV_GROUPS`, ids stay in `REMOVED_VIEW_IDS` so legacy bookmarks still resolve
+through `VIEW_ALIASES` to the closest live surface — `#health → Runs`,
+`#search → Memory`, `#inbox → Channels`, `#wizards → Setup`, `#dashboard →
+Mission Control`, etc.). The `Observe › Overview` row was renamed to
+**Monitor** to match what its real tabs (Mission Control + Live Stream) have
+always been about; the `Taste` tab collapsed into Memory because the alias
+was a verbatim duplicate with no distinct surface, and reproducing that alias
+would lock in the same misleading-by-design bug.
+
+Two survivor aliases are kept on purpose because the row label and the render
+read as the same thing: **Activity / Replay** both alias the same Runs
+component (different filters, same shape), and **Prompts** aliases Skills
+(both are template libraries). The new test
+`drops nav rows whose label doesn't match what their render would title` in
+`src/nav.test.ts` snapshots the surviving truth: every multi-tab row must
+declare its first facet's title as one of the row label's root words, OR
+match the render exactly. Adding back any of the Day-28 retired rows by
+accident will fail that guard loudly.
+
 ## 5. Invariants to hold
 
 - Every view id in `nav.tsx` keeps a `HELP` topic (`help.test.ts` guards this).

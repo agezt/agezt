@@ -29,11 +29,10 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 		return
 	}
 	limit := workflowRunsDefaultLimit
-	switch v := req.Args["limit"].(type) {
-	case float64:
-		limit = int(v)
-	case string:
-		if n, err := strconv.Atoi(v); err == nil {
+	if n, ok, _ := argFloat64(req.Args, "limit"); ok {
+		limit = int(n)
+	} else if s, ok, _ := argString(req.Args, "limit"); ok {
+		if n, err := strconv.Atoi(s); err == nil {
 			limit = n
 		}
 	}

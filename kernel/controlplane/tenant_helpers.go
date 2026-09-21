@@ -15,7 +15,7 @@ import (
 )
 
 func tenantOf(req Request) string {
-	t, _ := req.Args["tenant"].(string)
+	t, _, _ := argString(req.Args, "tenant")
 	return t
 }
 func (s *Server) kernelFor(tenantID string) (*runtime.Kernel, error) {

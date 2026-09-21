@@ -56,7 +56,6 @@ export const Knowledge: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "world", label: "World" },
-      { id: "reflect", label: "Reflection" },
       { id: "data", label: "Data Lake" },
     ],
   },
@@ -106,7 +105,6 @@ export const Knowledge: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "memory", label: "Memory" },
-      { id: "reflect", label: "Reflection" },
     ],
   },
 
@@ -155,42 +153,156 @@ export const Knowledge: Record<string, HelpTopic> = {
       "Search by an agent's slug to see exactly what that agent has taught itself.",
     ],
     related: [
-      { id: "reflect", label: "Reflection" },
       { id: "roster", label: "Roster" },
-      { id: "toolforge", label: "Tool Forge" },
     ],
   },
 
-  reflect: {
-    title: "Reflection",
+  research: {
+    title: "Research",
     intro:
-      "The daemon's self-review: it folds its own journal into observations and advisory proposals about how it could run better.",
+      "The grounded-answer surface. Ask a question and the daemon drafts sub-questions, gathers sources, verifies its claims, and writes a final answer you can audit. Unlike Chat it is single-shot — no conversation, no follow-up turns, just one careful answer.",
     sections: [
       {
-        heading: "The report",
+        heading: "Inputs",
         items: [
           {
-            term: "Observation tiles",
-            desc: "Window events, tasks done/failed, briefings, skills used, approvals granted/denied, and world entities — the raw material of the reflection.",
+            term: "Question",
+            desc: "The intent you want grounded. Open-ended works; a question mark helps the daemon treat it as a probe rather than an action.",
           },
           {
-            term: "Proposals",
-            desc: "Each carries an area badge, the observation that motivated it, and a suggestion. Proposals are advisory only — the daemon never auto-applies them.",
+            term: "Sub-questions / Sources / Claims to verify",
+            desc: "How many sub-questions to decompose into, how many sources to pull, and how many of the final claims to push back through verification.",
           },
           {
-            term: "Run Now",
-            desc: "Triggers a fresh reflection pass on demand instead of waiting for the next scheduled one.",
+            term: "Verify claims (toggle)",
+            desc: "Off: faster, but the answer cites without checking. On (default): each claim gets a yes/no from the verifier and lands in the Verified claims list with its verdict.",
+          },
+        ],
+      },
+      {
+        heading: "Reading the answer",
+        items: [
+          {
+            term: "Sub-questions",
+            desc: "Each one the planner wrote, with its own intermediate answer. Use them to see how the final answer was assembled.",
+          },
+          {
+            term: "Sources",
+            desc: "Cards with title, URL, snippet, and a confidence percentage. Lower confidence = weaker grounding; cross-check before quoting.",
+          },
+          {
+            term: "Verified claims",
+            desc: "Green rows are confirmed by the verifier; amber rows failed and the answer hedges around them.",
+          },
+          {
+            term: "Transcript",
+            desc: "The raw planner output, collapsed by default. Open it when an answer surprises you — that is what the daemon actually saw.",
           },
         ],
       },
     ],
     tips: [
-      "The single exception to \"advisory only\" is world-model salience decay — entities that stop appearing slowly fade, which is safe by construction.",
+      "Recent questions land in the sidebar so a follow-up investigation is one click, not a re-ask.",
+      "Treat confidence below 60% as 'directional, not authoritative'.",
     ],
     related: [
-      { id: "skills", label: "Skills" },
-      { id: "world", label: "World" },
-      { id: "autonomy", label: "Autonomy" },
+      { id: "analyst", label: "Analyst" },
+      { id: "reflect", label: "Reflect" },
+    ],
+  },
+
+  analyst: {
+    title: "Analyst",
+    intro:
+      "Read the journal, not the model. Analyst is a view over the daemon's event log — every policy decision, provider fallback, tool invoke, run start/end, approval request — so you can see what has actually been happening and where the pressure points are.",
+    sections: [
+      {
+        heading: "Filtering",
+        items: [
+          {
+            term: "Pattern",
+            desc: "Substring search across kind, actor, subject, correlation_id, and note. Lowercase, no regex.",
+          },
+          {
+            term: "Kind",
+            desc: "Pick a specific event kind from the dropdown — the dropdown is populated from whatever kinds are in the current window so it never offers an empty bucket.",
+          },
+          {
+            term: "Limit",
+            desc: "How many of the most recent events to load. 50 is a good default; 500 only when chasing a multi-hour investigation.",
+          },
+        ],
+      },
+      {
+        heading: "Reading the rails",
+        items: [
+          {
+            term: "Event kinds",
+            desc: "Histogram of what kinds are firing. A sudden spike in policy.decision or provider.fallback is a smell worth clicking into.",
+          },
+          {
+            term: "Top actors",
+            desc: "Who is emitting events — agents, governors, routers, channels. An actor that fires constantly is either the busiest worker or a runaway loop.",
+          },
+          {
+            term: "The table",
+            desc: "One row per event with when, kind, actor, subject, and note. Click a row to see its full JSON in the journal search drawer.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "Sort by recency by default; when you spot something interesting, narrow by its correlation_id to get just that one story.",
+    ],
+    related: [
+      { id: "research", label: "Research" },
+      { id: "reflect", label: "Reflect" },
+    ],
+  },
+
+  reflect: {
+    title: "Reflect",
+    intro:
+      "Read what the daemon has been telling itself. Reflect surfaces the agent's self-talk — lessons written, corrections made, memories superseded, decisions logged — so the operator can audit not just what the daemon did, but what it learned from doing it.",
+    sections: [
+      {
+        heading: "What lands here",
+        items: [
+          {
+            term: "Lessons written",
+            desc: "Memory entries that match 'learned / lesson / remember / next time' patterns. Green-bordered cards.",
+          },
+          {
+            term: "Corrections",
+            desc: "Memory or journal entries that match 'mistake / wrong / rolled back / fixed' patterns. Amber-bordered cards.",
+          },
+          {
+            term: "Superseded memories",
+            desc: "Memory entries that supersede an older one or are superseded by a newer one — the chain is visible so you can follow what replaced what.",
+          },
+          {
+            term: "Top subjects",
+            desc: "Which entities the daemon has been thinking about. A spike on a new subject usually means a new agent is on stage.",
+          },
+        ],
+      },
+      {
+        heading: "Reading the journal section",
+        items: [
+          {
+            term: "Reflective kinds",
+            desc: "memory.write, memory.supersede, policy.decision, run.fail, approval.request, approval.decide — the events where the daemon was reasoning about itself.",
+          },
+        ],
+      },
+    ],
+    tips: [
+      "The lesson list is the closest thing to a written culture doc the daemon maintains. Read it before you re-prompt.",
+    ],
+    related: [
+      { id: "research", label: "Research" },
+      { id: "analyst", label: "Analyst" },
+      { id: "memory", label: "Memory" },
     ],
   },
 

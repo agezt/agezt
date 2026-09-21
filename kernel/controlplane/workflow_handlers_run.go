@@ -145,11 +145,10 @@ func (s *Server) handleWorkflowRun(conn net.Conn, req Request) {
 	// the engine legitimately allows 15m). The ref is resolved BEFORE
 	// detaching so a typo is still an honest, synchronous error.
 	async := false
-	switch v := req.Args["async"].(type) {
-	case bool:
-		async = v
-	case string:
-		async = strings.EqualFold(v, "true") || v == "1"
+	if b, ok, _ := argBool(req.Args, "async"); ok {
+		async = b
+	} else if s, ok, _ := argString(req.Args, "async"); ok {
+		async = strings.EqualFold(s, "true") || s == "1"
 	}
 	if async {
 		w, found := s.k.Workflows().Get(strings.TrimSpace(ref))

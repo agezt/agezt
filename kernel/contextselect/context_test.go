@@ -153,3 +153,68 @@ func TestSkillCandidates_Empty(t *testing.T) {
 		t.Fatalf("expected 0 candidates for nil input, got %d", len(cands))
 	}
 }
+
+// TestRejectReason_PerCandidateFirst pins F1: a rejected candidate's reason
+// must reflect its own quality issue (score=0 -> relevance, freshness<0.25
+// -> freshness) before being attributed to budget pressure. Before the fix,
+// any non-empty chosen set suppressed the per-candidate checks, so freshness
+// and zero-score rejections were both reported as "budget" — hiding the
+// real cause from operators reading the manifest's top_rejected_reason.
+//
+// The test exercises the contract through the public API (SplitCandidates
+// + Summary) and inspects Candidate.Reason (a public field populated by the
+// unexported rejectReason).
+func TestRejectReason_PerCandidateFirst(t *testing.T) {
+	cands := []contextselect.Candidate{
+		{ID: "alive", Score: 0.95, Tokens: 100, Freshness: 0.9},
+		{ID: "stale", Score: 0.6, Tokens: 80, Freshness: 0.1},
+		{ID: "dead", Score: 0.0, Tokens: 50, Freshness: 0.9},
+	}
+
+	// Case A: one item chosen -> stale must keep "freshness", dead must keep "relevance".
+	// Before the fix both were labelled "budget".
+	_, rejectedA := contextselect.SplitCandidates(cands, contextselect.ChosenIDSet([]string{"alive"}), "test")
+	gotByID := map[string]string{}
+	for _, c := range rejectedA {
+		gotByID[c.ID] = c.Reason
+	}
+	if gotByID["stale"] != "freshness" {
+		t.Errorf("with-chosen stale reason = %q, want %q", gotByID["stale"], "freshness")
+	}
+	if gotByID["dead"] != "relevance" {
+		t.Errorf("with-chosen dead reason = %q, want %q", gotByID["dead"], "relevance")
+	}
+
+	// Case B: Summary's top_rejected_reason must reflect the per-candidate
+	// issue, not blanket "budget".
+	sum := contextselect.Summary(nil, rejectedA)
+	if sum["top_rejected_reason"] != "freshness" {
+		t.Errorf("Summary.top_rejected_reason = %v, want %q", sum["top_rejected_reason"], "freshness")
+	}
+
+	// Case C: a healthy candidate rejected when a healthy sibling IS chosen
+	// is "budget" (its own score/freshness don't disqualify it).
+	mid := []contextselect.Candidate{
+		{ID: "picked", Score: 0.7, Tokens: 50, Freshness: 0.7},
+		{ID: "missed", Score: 0.7, Tokens: 50, Freshness: 0.7},
+	}
+	_, rejectedC := contextselect.SplitCandidates(mid, contextselect.ChosenIDSet([]string{"picked"}), "test")
+	if len(rejectedC) != 1 || rejectedC[0].Reason != "budget" {
+		t.Errorf("healthy non-chosen candidate reason = %+v, want budget", rejectedC)
+	}
+
+	// Case D: nothing chosen at all -> per-candidate reasons are pure
+	// (the budget case is skipped). alive is rejected with default
+	// "relevance", stale stays "freshness", dead stays "relevance".
+	_, rejectedD := contextselect.SplitCandidates(cands, contextselect.ChosenIDSet([]string{}), "test")
+	if len(rejectedD) != 3 {
+		t.Fatalf("expected 3 rejected, got %d", len(rejectedD))
+	}
+	byID := map[string]string{}
+	for _, c := range rejectedD {
+		byID[c.ID] = c.Reason
+	}
+	if byID["alive"] != "relevance" || byID["stale"] != "freshness" || byID["dead"] != "relevance" {
+		t.Errorf("nothing-chosen reasons = %+v, want alive/relevance stale/freshness dead/relevance", byID)
+	}
+}

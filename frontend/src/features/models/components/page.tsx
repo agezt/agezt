@@ -5,8 +5,8 @@
 // cross-import graph is mapped out).
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, Trash2, Check, X, type LucideIcon } from "lucide-react";
-import { getJSON, postJSON, postAction } from "@/app/api";
+import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, X, type LucideIcon } from "lucide-react";
+import { getJSON, postJSON } from "@/app/api";
 import { cn, fmtDateTime, fmtAgo} from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyInfo } from "@/features/api-keys";
 
 // Models is the LLM model catalog — the providers and models the daemon knows
 // about, synced from models.dev/api.json (the same source as `agt catalog sync`).
@@ -52,12 +53,6 @@ interface CatalogResp {
   api_source_url?: string;
   provider_count?: number;
 }
-interface KeyInfo {
-  label: string;
-  active: boolean;
-  last4: string;
-}
-
 function ModelsModal({
   title,
   icon: Icon,
@@ -215,7 +210,7 @@ export function Models() {
           2xl tile face, where it wrapped onto three lines and became the
           loudest thing on a page about providers. */}
 
-      <ChatGPTSignIn onChanged={reload} />
+      <ChatGPTSignInCard onChanged={reload} />
 
       {err ? (
         <ErrorText>{err}</ErrorText>
@@ -322,204 +317,50 @@ function ProviderCard({
   );
 }
 
-// ChatGPTSignIn is the "Sign in with ChatGPT" card: connect a ChatGPT
-// subscription (Plus/Pro) as a provider via OAuth — no API key. It gates behind
-// an explicit acknowledgement that this uses an unofficial backend, opens the
-// browser authorize flow (redirect lands on the daemon's 127.0.0.1:1455
-// listener), polls to completion, and offers importing a local Codex CLI login.
-function ChatGPTSignIn({ onChanged }: { onChanged: () => void }) {
-  const { toast, confirm } = useUI();
-  const [connected, setConnected] = useState(false);
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
-
-  const refresh = useCallback(async () => {
-    try {
-      const r = await postJSON<{ connected?: boolean; email?: string }>("/api/provider/oauth/status", { state: "" });
-      setConnected(!!r.connected);
-      setEmail(r.email || "");
-    } catch {
-      /* unauthenticated console or daemon down — leave as disconnected */
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  async function signIn() {
-    const ok = await confirm({
-      title: "Sign in with ChatGPT?",
-      message:
-        "This connects your ChatGPT subscription via the same login Codex CLI uses. It relies on an unofficial OpenAI backend — it may stop working or violate OpenAI's terms, and only ever uses your own account. Continue?",
-      confirmLabel: "Continue",
-      danger: true,
-    });
-    if (!ok) return;
-    setBusy(true);
-    setStatus("Opening ChatGPT…");
-    try {
-      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>(
-        "/api/provider/oauth/start",
-        { provider: "chatgpt" },
-      );
-      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start sign-in");
-      window.open(r.authorize_url, "_blank", "noopener,noreferrer");
-      setStatus("Waiting for you to authorize in the new tab…");
-      for (let i = 0; i < 90; i++) {
-        await new Promise((res) => setTimeout(res, 2000));
-        const st = await postJSON<{ status?: string; error?: string }>("/api/provider/oauth/status", { state: r.state });
-        if (st.status === "done") {
-          toast("Connected ChatGPT", "success");
-          setStatus("");
-          await refresh();
-          onChanged();
-          return;
-        }
-        if (st.status === "error") throw new Error(st.error || "authorization failed");
-      }
-      throw new Error("timed out waiting for authorization");
-    } catch (e) {
-      setStatus("");
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function importCodex() {
-    setBusy(true);
-    try {
-      const r = await postJSON<{ connected?: boolean; email?: string; error?: string }>(
-        "/api/provider/oauth/import",
-        {},
-      );
-      if (!r.connected) throw new Error(r.error || "no Codex CLI login found");
-      toast("Imported ChatGPT login from Codex CLI", "success");
-      await refresh();
-      onChanged();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function disconnect() {
-    setBusy(true);
-    try {
-      await postJSON("/api/provider/oauth/logout", {});
-      toast("Disconnected ChatGPT", "info");
-      await refresh();
-      onChanged();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="glass rounded-xl p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <KeyRound className="size-4 text-accent" />
-        <span className="text-sm font-medium text-foreground">Sign in with ChatGPT</span>
-        {connected ? (
-          <Badge variant="good">connected{email ? ` · ${email}` : ""}</Badge>
-        ) : (
-          <Badge variant="default">not connected</Badge>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {connected ? (
-            <Button variant="ghost" size="sm" onClick={disconnect} disabled={busy}>
-              Disconnect
-            </Button>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" onClick={importCodex} disabled={busy} title="Use a local `codex login` session">
-                Import from Codex CLI
-              </Button>
-              <Button size="sm" onClick={signIn} disabled={busy}>
-                {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />} Sign in with ChatGPT
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-      {status && <p className="mt-1.5 text-[11px] text-muted">{status}</p>}
-    </div>
-  );
-}
+// ChatGPTSignInCard lives in @/features/api-keys — same OAuth card as the Setup
+// wizard now uses. Keeping one implementation means login UX stays consistent.
 
 // KeyManager lists the keys stored for one provider env var and lets the operator
 // add another, switch the active one, or remove one — "store many, pick active".
 // Values are write-only: existing keys show only a last-4 fingerprint; the add
 // field is a password input. Lazy-loads when its provider card is expanded.
 function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) {
-  const { toast } = useUI();
   const [keys, setKeys] = useState<KeyInfo[] | null>(null);
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [makeActive, setMakeActive] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+
+  const { add, activate, remove, busy } = useApiKeySubmit({
+    provider: undefined,
+    onSuccess: async () => {
+      await load();
+      onChanged();
+    },
+  });
 
   const load = useCallback(async () => {
     try {
       const r = await getJSON<{ keys?: KeyInfo[] }>("/api/provider/keys", { env });
       setKeys(r.keys || []);
-    } catch (e) {
-      toast((e as Error).message, "error");
+    } catch {
       setKeys([]);
     }
-  }, [env, toast]);
+  }, [env]);
+
   useEffect(() => {
     load();
   }, [load]);
 
-  async function add() {
-    if (!label.trim() || !value.trim()) return;
-    setBusy(true);
-    try {
-      await postJSON("/api/provider/keys/add", { env, label: label.trim(), value, active: makeActive });
-      toast(`Added key “${label.trim()}”${makeActive ? " (now active)" : ""}`, "success");
+  async function commit() {
+    const v = value.trim();
+    if (!label.trim() || !v) return;
+    const ok = await add({ env, label: label.trim(), value: v, active: makeActive });
+    if (ok) {
       setLabel("");
       setValue("");
       setMakeActive(false);
       setAdding(false);
-      await load();
-      onChanged();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function activate(l: string) {
-    setBusy(true);
-    try {
-      await postAction("/api/provider/keys/activate", { env, label: l });
-      toast(`“${l}” is now the active key`, "success");
-      await load();
-      onChanged();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function remove(l: string) {
-    setBusy(true);
-    try {
-      await postAction("/api/provider/keys/remove", { env, label: l });
-      toast(`Removed key “${l}”`, "success");
-      await load();
-      onChanged();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -543,32 +384,13 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
         <div className="space-y-1">
           <ul className="space-y-1">
             {keys.map((k) => (
-              <li key={k.label} className="flex items-center gap-2 rounded-md border border-border/60 bg-panel/40 px-2 py-1 text-xs">
-                {k.active ? (
-                  <Badge variant="good">
-                    <Check className="size-2.5 mr-1" /> active
-                  </Badge>
-                ) : (
-                  <button
-                    onClick={() => activate(k.label)}
-                    disabled={busy}
-                    className="rounded border border-border px-1.5 py-0.5 text-[9px] font-medium text-muted transition-colors hover:text-foreground disabled:opacity-50"
-                    title="Make this the active key"
-                  >
-                    activate
-                  </button>
-                )}
-                <span className="font-medium text-foreground">{k.label}</span>
-                <span className="font-mono text-xs text-muted">{k.last4}</span>
-                <button
-                  onClick={() => remove(k.label)}
-                  disabled={busy}
-                  className="ml-auto text-muted transition-colors hover:text-bad disabled:opacity-50"
-                  title="Remove this key"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </li>
+              <KeyListItem
+                key={k.label}
+                keyInfo={k}
+                busy={busy}
+                onActivate={() => activate(env, k.label)}
+                onRemove={() => remove(env, k.label)}
+              />
             ))}
           </ul>
           <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
@@ -587,14 +409,14 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
               className="h-8 text-xs"
               aria-label="New key label"
             />
-            <Input
-              type="password"
+            <ApiKeyField
+              env={env}
               value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="key value"
-              autoComplete="new-password"
-              className="h-8 font-mono text-xs"
-              aria-label="New key value"
+              onChange={setValue}
+              onSubmit={commit}
+              busy={busy}
+              hint="key value"
+              ariaLabel="New key value"
             />
             <label className="flex items-center gap-1 text-xs text-muted">
               <input type="checkbox" checked={makeActive} onChange={(e) => setMakeActive(e.target.checked)} className="size-3 accent-accent" />
@@ -606,7 +428,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
               </Button>
               <Button
                 size="sm"
-                onClick={add}
+                onClick={() => void commit()}
                 disabled={busy || !label.trim() || !value.trim()}
                 title="Add key"
                 aria-label="Save new key"

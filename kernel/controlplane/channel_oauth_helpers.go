@@ -65,7 +65,24 @@ func normalizeInstanceURL(raw string) (string, error) {
 	return u.Scheme + "://" + u.Host, nil
 }
 
+// isHTTPSURL reports whether raw is an absolute URL acceptable as an OAuth
+// redirect_uri: https only on real hosts, with an explicit carve-out for
+// loopback http so a local dev daemon can still use http://localhost.
+// The single caller is the OAuth connect handler (channel_oauth.go:108),
+// which forwards the URI verbatim into the provider's authorize URL —
+// a non-loopback http:// would let any network attacker capture the auth
+// code on redirect, defeating the OAuth 2.0 TLS-for-redirect rule.
 func isHTTPSURL(raw string) bool {
 	u, err := url.Parse(raw)
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	if err != nil || u.Host == "" {
+		return false
+	}
+	switch u.Scheme {
+	case "https":
+		return true
+	case "http":
+		host := u.Hostname()
+		return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	}
+	return false
 }

@@ -76,12 +76,15 @@ func (s *Server) handlePulseWatch(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
+	// min_pct is a documented dual-type (number OR number-string) for
+	// backwards compatibility with pre-typed-arg callers. Try the strict
+	// numeric path first via argFloat64; fall back to argString +
+	// strconv.ParseFloat when the value is a non-numeric JSON string.
 	var pct float64
-	switch v := req.Args["min_pct"].(type) {
-	case float64:
-		pct = v
-	case string:
-		pct, _ = strconv.ParseFloat(v, 64)
+	if f, ok, err := argFloat64(req.Args, "min_pct"); err == nil && ok {
+		pct = f
+	} else if s, ok, _ := argString(req.Args, "min_pct"); ok {
+		pct, _ = strconv.ParseFloat(s, 64)
 	}
 	if pct <= 0 || pct >= 100 {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.min_pct must be between 0 and 100"})

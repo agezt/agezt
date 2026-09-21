@@ -5,11 +5,9 @@ import {
   Volume2,
   RefreshCw,
   Check,
-  KeyRound,
   Laptop,
   Cloud,
   Sliders,
-  ExternalLink,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/app/api";
 import { Button } from "@/components/ui/button";
@@ -19,6 +17,7 @@ import { useUI } from "@/components/ui/feedback";
 import { Disclosure } from "@/components/ui/disclosure";
 import { cn } from "@/app/utils";
 import { FieldRow, type Field, type ValueEntry } from "@/features/configcenter/components/ConfigCenter";
+import { ApiKeyField } from "@/features/api-keys";
 import {
   STT_PROVIDERS,
   TTS_PROVIDERS,
@@ -463,48 +462,25 @@ function KeyField({
   saveConfig: (env: string, value: string, quiet?: boolean) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState("");
-  const isSet = !!entry?.set;
-  const pinned = !!entry?.env_pinned;
+  // Shared inline API key input — same affordances as Connections / Setup.
+  // Wraps the VoiceSetup-specific `saveConfig(env, value)` so the parent keeps
+  // its quiet/restart semantics intact.
+  async function commit(value: string) {
+    const ok = await saveConfig(env, value);
+    if (ok) setDraft("");
+  }
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1.5">
-        <KeyRound className="size-3.5 text-muted" />
-        <span className="text-xs font-medium text-muted">API key</span>
-        {isSet && (
-          <span className="inline-flex items-center gap-0.5 text-xs text-good">
-            <Check className="size-3" /> set
-          </span>
-        )}
-        {link && (
-          <a href={link} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-0.5 text-xs text-accent hover:underline">
-            Get one <ExternalLink className="size-3" />
-          </a>
-        )}
-      </div>
-      {pinned ? (
-        <div className="rounded-md border border-dashed border-border bg-card/50 px-2.5 py-1.5 text-xs text-muted">Set from the environment.</div>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <Input
-            type="password"
-            value={draft}
-            disabled={busy}
-            autoComplete="new-password"
-            placeholder={isSet ? "•••••••• (set — type to replace)" : hint || "paste your key"}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && draft.trim()) {
-                saveConfig(env, draft.trim()).then(() => setDraft(""));
-              }
-            }}
-            className="font-mono"
-          />
-          <Button size="sm" disabled={busy || !draft.trim()} onClick={() => saveConfig(env, draft.trim()).then(() => setDraft(""))}>
-            Save
-          </Button>
-        </div>
-      )}
-    </div>
+    <ApiKeyField
+      env={env}
+      value={draft}
+      onChange={setDraft}
+      onSubmit={commit}
+      isSet={!!entry?.set}
+      pinned={!!entry?.env_pinned}
+      busy={busy}
+      hint={hint}
+      link={link}
+    />
   );
 }
 
