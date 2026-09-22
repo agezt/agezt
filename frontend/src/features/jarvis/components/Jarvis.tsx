@@ -16,6 +16,7 @@ import { useChat } from "@/lib/chatStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/app/utils";
 import { useUI } from "@/components/ui/feedback";
+import { goToView } from "@/lib/nav";
 
 // AgentRow is one entry in the "who's online" list. The daemon exposes a roster
 // at /api/agents; we render the readiness + last-seen for each.
@@ -180,7 +181,7 @@ export default function Jarvis() {
             <Button
               className="mt-3"
               variant="ghost"
-              onClick={() => ui.toast("Open Talk › Voice to set up hearing and speaking", "info")}
+              onClick={() => goToView("voice")}
             >
               Open Talk › Voice
             </Button>
@@ -250,7 +251,7 @@ export default function Jarvis() {
             onClick={() => {
               // Use the same engine — send is a no-op if the chat has an active thread.
               chat.newChat();
-              ui.toast("Fresh thread started — switch to Talk › Chat to compose", "info");
+              goToView("chat");
             }}
             aria-label="Open chat"
           >
@@ -278,13 +279,12 @@ function Stat({ icon: Icon, label, value, hint }: { icon: typeof Activity; label
 }
 
 function QuickPrompt({ label, icon: Icon }: { label: string; icon: typeof Activity }) {
-  const ui = useUI();
   const chat = useChat();
   return (
     <button
       onClick={() => {
         chat.send(label);
-        ui.toast("Sent to agent — switch to Chat to see the stream", "info");
+        goToView("chat");
       }}
       className="flex items-center gap-2 rounded-lg border border-border bg-card/30 px-3 py-2 text-left text-sm text-foreground/90 transition-colors hover:bg-accent/10 hover:border-accent/40"
     >
