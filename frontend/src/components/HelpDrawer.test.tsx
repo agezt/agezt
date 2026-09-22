@@ -10,30 +10,32 @@ afterEach(cleanup);
 describe("HelpDrawer", () => {
   it("renders nothing while closed", () => {
     const { container } = render(
-      <HelpDrawer open={false} viewId="chat" onClose={() => {}} />,
+      <HelpDrawer open={false} viewId="runs" onClose={() => {}} />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("renders the active view's topic with group chip, sections, tips and related chips", () => {
+    // `chat` was retired in Day 25; pick a still-live view that has a topic
+    // with sections and related chips.
     render(
       <HelpDrawer
         open
-        viewId="chat"
-        group="Converse"
+        viewId="runs"
+        group="Observe"
         icon={MessageSquare}
         onClose={() => {}}
         onNavigate={() => {}}
       />,
     );
     const dialog = screen.getByRole("dialog");
-    expect(dialog.getAttribute("aria-label")).toBe("Help: Chat");
-    expect(screen.getByText("Converse")).toBeTruthy();
-    expect(dialog.textContent).toContain(HELP.chat.intro);
+    expect(dialog.getAttribute("aria-label")).toBe("Help: Runs");
+    expect(screen.getByText("Observe")).toBeTruthy();
+    expect(dialog.textContent).toContain(HELP.runs.intro);
     // Every section heading is present.
-    for (const s of HELP.chat.sections) expect(screen.getByText(s.heading)).toBeTruthy();
+    for (const s of HELP.runs.sections) expect(screen.getByText(s.heading)).toBeTruthy();
     // Related chips render as buttons.
-    for (const r of HELP.chat.related || []) expect(screen.getByText(r.label)).toBeTruthy();
+    for (const r of HELP.runs.related || []) expect(screen.getByText(r.label)).toBeTruthy();
   });
 
   it("closes on Escape and on backdrop click, but not on a click inside", () => {
@@ -50,8 +52,8 @@ describe("HelpDrawer", () => {
   it("navigates via related chips without closing", () => {
     const onNavigate = vi.fn();
     const onClose = vi.fn();
-    render(<HelpDrawer open viewId="chat" onClose={onClose} onNavigate={onNavigate} />);
-    const first = (HELP.chat.related || [])[0];
+    render(<HelpDrawer open viewId="runs" onClose={onClose} onNavigate={onNavigate} />);
+    const first = (HELP.runs.related || [])[0];
     fireEvent.click(screen.getByText(first.label));
     expect(onNavigate).toHaveBeenCalledWith(first.id);
     expect(onClose).not.toHaveBeenCalled();

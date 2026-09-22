@@ -92,6 +92,11 @@ type Engine struct {
 	// pulse.initiative.act, taking the normal act path) or rejects it from the Jarvis
 	// presence pillar. Bounded by trimming oldest past maxPendingAsks.
 	asks map[string]*pendingAsk
+
+	// wg tracks the Start goroutine so callers (notably the test helper) can wait
+	// for it to drain before tearing down resources the goroutine touches. If Start
+	// was never called, wg has zero count and Wait returns immediately.
+	wg sync.WaitGroup
 }
 
 // maxPendingAsks bounds the pending-ask queue so a chatty observer can't grow it
@@ -167,7 +172,9 @@ func New(cfg Config) *Engine {
 // SIGTERM, and `agt shutdown` stop Pulse along with everything else). Returns
 // immediately; the loop runs in a goroutine.
 func (e *Engine) Start(ctx context.Context) {
+	e.wg.Add(1)
 	go func() {
+		defer e.wg.Done()
 		ticker := time.NewTicker(e.cadence)
 		defer ticker.Stop()
 		for {

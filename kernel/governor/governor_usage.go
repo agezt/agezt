@@ -191,13 +191,23 @@ func (g *Governor) Snapshot() BudgetSnapshot {
 		CeilingMicrocents: g.effectiveCeilingLocked(),
 		StrictPricing:     g.cfg.StrictPricing,
 	}
+	// Snap the per-task spend map UNDER the lock so the unlocked per-task
+	// loop below does not race recordUsage at governor_usage.go:60, which
+	// writes the same map (every successful Complete). Reading without
+	// synchronisation trips Go's runtime map race detector ("fatal error:
+	// concurrent map read and map write").
+	perTaskSpend := make(map[string]int64, len(g.spentByTaskToday))
+	for k, v := range g.spentByTaskToday {
+		perTaskSpend[k] = v
+	}
 	g.mu.Unlock()
+
 	if len(g.cfg.TaskBudgets) > 0 {
 		snap.PerTask = make([]TaskBudgetSnapshot, 0, len(g.cfg.TaskBudgets))
 		for taskType, cap := range g.cfg.TaskBudgets {
 			snap.PerTask = append(snap.PerTask, TaskBudgetSnapshot{
 				TaskType:        taskType,
-				SpentMicrocents: g.spentByTaskToday[taskType],
+				SpentMicrocents: perTaskSpend[taskType],
 				CapMicrocents:   cap,
 			})
 		}

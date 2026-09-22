@@ -104,3 +104,44 @@ func TestExchangeOAuthCode_AbortsOnContextCancel(t *testing.T) {
 		t.Fatal("exchangeOAuthCode did not return within 3s of ctx cancel (dropped ctx leaked)")
 	}
 }
+
+// TestIsHTTPSURL_HTTPSOnlyExceptLoopback pins F1: isHTTPSURL is the OAuth
+// redirect_uri validator (single caller: channel_oauth.go:108). Before the
+// fix, its body returned true for both http:// and https://, accepting any
+// http://attacker.example/ as the redirect target forwarded verbatim into
+// the provider's authorize URL. After the fix, only https is accepted on
+// real hosts; http is allowed only for loopback dev (localhost / 127.0.0.1
+// / ::1) so a local dev daemon can still use http://localhost. The name
+// now matches the implementation and the downgrade path is closed.
+func TestIsHTTPSURL_HTTPSOnlyExceptLoopback(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+		note string
+	}{
+		// Adversarial: http on a non-loopback host must be REJECTED.
+		{"http://attacker.example/oauth/callback", false, "attacker-controlled http"},
+		{"http://example.com/cb", false, "plain http on a real domain"},
+		{"http://192.168.1.10/cb", false, "private-network http"},
+		// Legit prod: https must be ACCEPTED.
+		{"https://myapp.example.com/oauth/callback", true, "https real host"},
+		// Dev loopback carve-out: http on loopback is still accepted.
+		{"http://localhost:8080/cb", true, "http localhost with port"},
+		{"http://localhost/cb", true, "http localhost no port"},
+		{"http://127.0.0.1/cb", true, "http IPv4 loopback"},
+		{"http://127.0.0.1:9000/cb", true, "http IPv4 loopback with port"},
+		{"http://[::1]/cb", true, "http IPv6 loopback"},
+		// Non-http(s) and malformed: must be REJECTED.
+		{"ftp://example.com/cb", false, "non-http scheme"},
+		{"javascript:alert(1)", false, "javascript scheme"},
+		{"file:///etc/passwd", false, "file scheme"},
+		{"not-a-url", false, "non-URL"},
+		{"", false, "empty"},
+		{"https://", false, "https without host"},
+	}
+	for _, c := range cases {
+		if got := isHTTPSURL(c.in); got != c.want {
+			t.Errorf("isHTTPSURL(%q) = %v, want %v (%s)", c.in, got, c.want, c.note)
+		}
+	}
+}

@@ -70,7 +70,10 @@ func (m *Manager) Prune(corr string, olderThanMs int64, dryRun bool) (int, error
 	}
 	var victims []string
 	for _, r := range all {
-		if (r.Tombstoned || r.SupersededBy != "") && r.LastSeenMS < olderThanMs {
+		// Mirror the Hygiene short-circuit: <= 0 means "match all soft-deleted
+		// regardless of age" so two sibling methods answer consistently for the
+		// degenerate input. Operators passing < 0 expect Hygiene(0)'s count.
+		if (r.Tombstoned || r.SupersededBy != "") && (olderThanMs <= 0 || r.LastSeenMS < olderThanMs) {
 			victims = append(victims, r.ID)
 		}
 	}

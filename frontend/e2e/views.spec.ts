@@ -167,9 +167,11 @@ test.describe("Agezt Web UI — every nav view mounts against a real daemon", ()
     // silently stops covering things is worse than one that fails.
     console.log(`views mounted: ${visited.length}\n  ${visited.join("\n  ")}`);
     // A silent drop from the full nav to a handful would mean the nav-reading
-    // logic broke, not that the app shrank. This is the vacuity guard — it is
-    // set above the DESTINATION count on purpose, so a walk that stopped
-    // descending into tabs fails here instead of quietly halving coverage.
-    expect(visited.length, `views visited: ${visited.join(", ")}`).toBeGreaterThanOrEqual(55);
+    // logic broke, not that the app shrank. This is the vacuity guard. The
+    // post-Day-28 nav walks 39 stop points (eight sections × destinations,
+    // plus the tabs that share a destination row). 35 catches a catastrophic
+    // drop while letting the trimmed, IA-consolidated nav pass; raise this
+    // only if the sidebar truly grows back above 39.
+    expect(visited.length, `views visited: ${visited.join(", ")}`).toBeGreaterThanOrEqual(35);
   });
 });

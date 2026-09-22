@@ -30,19 +30,19 @@ var rawArgCastBaseline = map[string]int{
 	"roster_wake.go":     1, // residual: older_than_days number-or-string (moved from roster.go)
 	"schedule.go":        1, // residual: enabled bool-or-string switch
 	"workflow.go":          0, // residual: enabled/limit/async dual-type switches moved to workflow_handlers.go (Day 38 #1)
-	"workflow_handlers.go": 3, // residual: enabled/limit/async dual-type switches (moved from workflow.go)
-	"standing.go":      1, // residual: enabled bool-or-string switch
-	"pulse_control.go": 3, // residual: approve/seconds/min_pct dual-type switches
+	"workflow_handlers.go": 1, // residual: one remaining inline cast (the other two were migrated to argBool/argInt64)
+	"standing.go":       0, // migrated to typed accessors; entry kept for visibility / future regressions
+	"pulse_control.go":  2, // residual: approve/seconds/min_pct dual-type switches (down from 3 — the seconds one was migrated)
 	// server.go's 0 residual casts is the target; once it hits zero the
 	// entry can be deleted. The 2 residual casts (whoami echo + auth pin)
 	// moved to server_handlers.go with the Day 27 god file split #2.
 	"server.go":          0,
-	"server_handlers.go": 2, // residual: whoami echo + auth pin (moved from server.go)
+	"server_handlers.go": 1, // residual: auth pin (down from 2 — whoami echo migrated to argString)
 	"provider_keys.go":   2,
-	"tenant.go":          1, // residual: tenantOf's documented lenient read
+	"tenant.go":          0, // migrated to typed accessors; entry kept for visibility / future regressions
 	"mcp.go":             1, // residual: enabled bool-or-string switch
 	"chatsuggestions.go": 1, // residual: tools string-or-list dual-type switch
-	"channels.go":        1, // residual: wgArg's documented lenient read
+	"channels.go":        0, // migrated to typed accessors; entry kept for visibility / future regressions
 }
 
 var rawArgCastRe = regexp.MustCompile(`req\.Args\[[^]]+\]\.\(`)

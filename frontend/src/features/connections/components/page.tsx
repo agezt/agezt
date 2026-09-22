@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useUI } from "@/components/ui/feedback";
+import { ApiKeyField } from "@/features/api-keys";
 
 // Connections — one cockpit for "what's actually wired up". Read-only on the
 // Status tab (AI providers, channels, MCP servers, peer nodes), and the
@@ -394,7 +395,7 @@ function KeyedRow({
 }) {
   const isKeyed = provider.credentialed;
   return (
-    <Card glass className="flex flex-col gap-2 p-3">
+    <Card glass className="flex flex-col gap-3 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold">{provider.name || provider.id}</span>
         <span className="font-mono text-[10px] text-muted">{provider.id}</span>
@@ -408,10 +409,11 @@ function KeyedRow({
           <span className="text-[10px] text-muted">{provider.model_count} models</span>
         )}
       </div>
-      <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1.4fr)_auto]">
-        <label className="flex flex-col gap-0.5 text-[10px] text-muted">
-          <span>Env</span>
-          {provider.env && provider.env.length > 1 ? (
+
+      <div className="grid gap-2 sm:grid-cols-1">
+        {provider.env && provider.env.length > 1 && (
+          <label className="flex flex-col gap-1 text-[10px] text-muted">
+            <span>Env var</span>
             <select
               aria-label={`${provider.name || provider.id} env`}
               value={form.env}
@@ -420,33 +422,22 @@ function KeyedRow({
             >
               {provider.env.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
-          ) : (
-            <span className="h-8 rounded-md border border-border bg-card/50 px-2 font-mono text-[11px] leading-8 text-muted">{form.env || "—"}</span>
-          )}
-        </label>
-        <label className="flex flex-col gap-0.5 text-[10px] text-muted">
-          <span>Key</span>
-          <div className="relative">
-            <Input
-              type={form.reveal ? "text" : "password"}
-              value={form.key}
-              onChange={(e) => onChange({ key: e.target.value })}
-              placeholder={isKeyed ? "Replace existing key" : "Paste API key"}
-              aria-label={`${provider.name || provider.id} key`}
-              className="h-8 pr-7 font-mono text-[11px]"
-              onKeyDown={(e) => { if (e.key === "Enter") onSave(); }}
-            />
-            <button
-              type="button"
-              onClick={() => onChange({ reveal: !form.reveal })}
-              aria-label={form.reveal ? "Hide key" : "Reveal key"}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
-            >
-              {form.reveal ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-            </button>
-          </div>
-        </label>
-        <label className="flex flex-col gap-0.5 text-[10px] text-muted">
+          </label>
+        )}
+        <ApiKeyField
+          env={form.env || "API_KEY"}
+          value={form.key}
+          onChange={(v) => onChange({ key: v })}
+          onSubmit={onSave}
+          isSet={isKeyed}
+          busy={form.saving}
+          hint="Paste API key"
+          ariaLabel={`${provider.name || provider.id} key`}
+        />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+        <label className="flex flex-col gap-1 text-[10px] text-muted">
           <span>Default model</span>
           {provider.models && provider.models.length > 0 ? (
             <select
@@ -467,7 +458,7 @@ function KeyedRow({
             />
           )}
         </label>
-        <label className="flex items-end gap-1.5 pb-1 text-[10px] text-muted">
+        <label className="flex items-center gap-1.5 pb-1 text-[10px] text-muted">
           <input
             type="checkbox"
             checked={form.makeDefault}
@@ -478,12 +469,10 @@ function KeyedRow({
           />
           Set as default brain
         </label>
-        <div className="flex items-end">
-          <Button size="sm" disabled={form.saving} onClick={onSave} className="h-8">
-            {form.saving ? <RefreshCw className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
-            {isKeyed ? "Replace key" : "Save key"}
-          </Button>
-        </div>
+        <Button size="sm" disabled={form.saving} onClick={onSave} className="h-8" title={`${isKeyed ? "Replace" : "Save"} ${provider.name || provider.id} key`}>
+          {form.saving ? <RefreshCw className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
+          {isKeyed ? "Replace key" : "Save key"}
+        </Button>
       </div>
     </Card>
   );
@@ -572,8 +561,17 @@ function CustomProviderCard({ onConnected }: { onConnected: () => void }) {
         <Input aria-label="Base URL" placeholder="https://…" value={api} onChange={(e) => setApi(e.target.value)} className="h-8 font-mono text-[11px]" />
         <Input aria-label="Env var" placeholder={effectiveEnv} value={env} onChange={(e) => setEnv(e.target.value)} className="h-8 font-mono text-[11px]" />
         <Input aria-label="Model" placeholder="model id" value={model} onChange={(e) => setModel(e.target.value)} className="h-8 font-mono text-[11px]" />
-        <Input aria-label="API key" type="password" placeholder="API key" value={key} onChange={(e) => setKey(e.target.value)} className="h-8 font-mono text-[11px]" />
-        <div className="flex items-center gap-2">
+        <ApiKeyField
+          env={effectiveEnv}
+          value={key}
+          onChange={setKey}
+          onSubmit={connect}
+          busy={busy}
+          hint="API key"
+          ariaLabel="API key"
+          className="sm:col-span-2"
+        />
+        <div className="flex items-center gap-2 sm:col-span-2">
           <div className="inline-flex rounded-md border border-border bg-card p-0.5" role="group" aria-label="Compatibility">
             {(["openai-compatible", "anthropic"] as const).map((f) => (
               <button

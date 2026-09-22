@@ -166,7 +166,7 @@ func (s *Server) handleWhoami(conn net.Conn, req Request) {
 		})
 		return
 	}
-	tenant, _ := req.Args["tenant"].(string)
+	tenant, _, _ := argString(req.Args, "tenant")
 	s.writeResp(conn, Response{
 		ID:   req.ID,
 		Type: RespResult,

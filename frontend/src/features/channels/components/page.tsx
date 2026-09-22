@@ -16,6 +16,7 @@ import { Page } from "@/components/ui/page";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ApiKeyField } from "@/features/api-keys";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
@@ -324,13 +325,14 @@ export function ConnectForm({
             aria-label="OAuth client id"
             className="h-8 w-full font-mono text-xs"
           />
-          <Input
-            type="password"
+          <ApiKeyField
+            env={`${row.kind}_CLIENT_SECRET`}
             value={oauth.clientSecret}
-            onChange={(e) => setOAuth((o) => ({ ...o, clientSecret: e.target.value }))}
-            placeholder="OAuth client secret"
-            aria-label="OAuth client secret"
-            className="h-8 w-full font-mono text-xs"
+            onChange={(v) => setOAuth((o) => ({ ...o, clientSecret: v }))}
+            onSubmit={() => undefined}
+            busy={oauth.busy}
+            hint="OAuth client secret"
+            ariaLabel="OAuth client secret"
           />
           <p className="text-xs text-muted">
             Redirect URL (add this to your OAuth app): <code className="text-foreground">{redirectURI}</code>

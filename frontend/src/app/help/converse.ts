@@ -11,120 +11,6 @@
 import type { HelpTopic } from "./types";
 
 export const Converse: Record<string, HelpTopic> = {
-  jarvis: {
-    title: "Jarvis",
-    intro:
-      "The presence surface — the three pillars that turn AGEZT from a tool into a companion, shown together as one live status: it hears you, acts for you, and knows you. Every number on this page is live.",
-    sections: [
-      {
-        heading: "The three pillars",
-        items: [
-          {
-            term: "It hears you (Voice)",
-            desc: "Hands-free conversation. Shows whether server text-to-speech is wired for a natural voice, or whether it falls back to the browser voice. Jumps to the Voice console to start talking.",
-          },
-          {
-            term: "It acts for you (Initiative)",
-            desc: "The Pulse heartbeat and its autonomy level — acting on its own, asking first, or just observing — plus live beats and how many observers are watching. Jumps to Autonomy to tune the dial.",
-          },
-          {
-            term: "It knows you (Profile)",
-            desc: "How many facets AGEZT has distilled about you as the operator, with a preview. Rebuild on demand, or jump to Memory to manage them.",
-          },
-        ],
-      },
-      {
-        heading: "Presence meter",
-        items: [
-          {
-            term: "X of 3 live",
-            desc: "A pillar is 'live' when it is actually doing its job: voice can speak, the heartbeat is running above 'observe only', and at least one profile facet exists. Three of three means fully present.",
-          },
-        ],
-      },
-    ],
-    related: [
-      { id: "voice", label: "Voice" },
-      { id: "autonomy", label: "Autonomy" },
-      { id: "memory", label: "Memory" },
-    ],
-  },
-
-  chat: {
-    title: "Chat",
-    intro:
-      "The front door to your agent. Type an intent and watch the governed loop answer live — streaming text, tool calls with their policy verdicts, and the final cost of the run.",
-    sections: [
-      {
-        heading: "The conversation",
-        items: [
-          {
-            term: "Streaming answers",
-            desc: "Assistant replies stream in as they are generated. A pulsing indicator shows the agent is still working; tool calls appear inline, in chronological order, each with the capability it used and the policy decision it received.",
-          },
-          {
-            term: "Reasoning block",
-            desc: "When the model emits reasoning, it shows as a collapsible block above the answer. It auto-expands while streaming and collapses once the answer is done.",
-          },
-          {
-            term: "Edit & re-run",
-            desc: "Hover any of your own messages and click the pencil to refine it. The conversation re-runs from that point with your revised wording.",
-          },
-          {
-            term: "Regenerate",
-            desc: "Re-sends the last user message for a fresh answer — useful when a reply came from a fallback model or just missed the mark.",
-          },
-          {
-            term: "Fallback note",
-            desc: "If the primary model failed and a fallback answered, the message is annotated with the model path (a → b → c) so you always know who actually replied.",
-          },
-        ],
-      },
-      {
-        heading: "The composer",
-        items: [
-          {
-            term: "Attachments",
-            desc: "Attach files to prepend them as context for the next message. They are cleared automatically after sending.",
-          },
-          {
-            term: "Mic input",
-            desc: "Dictate your message with the microphone button; speech is transcribed into the composer.",
-          },
-          {
-            term: "Model / agent / identity pickers",
-            desc: "Override which model answers, run as a specific roster agent, or apply a per-thread identity override — all without touching global config.",
-          },
-          {
-            term: "Auto-speak",
-            desc: "When enabled, finished answers are read aloud. It triggers on completion only, so reloading the page never re-reads an old answer.",
-          },
-        ],
-      },
-      {
-        heading: "Threads",
-        items: [
-          {
-            term: "Conversation sidebar",
-            desc: "Search past conversations, start a new chat, or pin a thread. Pinned threads auto-scroll with new messages; scroll up to unpin and read history undisturbed.",
-          },
-          {
-            term: "Saved prompts",
-            desc: "The empty state offers your saved prompt library as one-click starters — manage them on the Prompts page.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Press ⌘K / Ctrl+K and run \"New chat\" from anywhere in the console.",
-      "Learned-memory chips under an answer show what the agent chose to remember from the exchange.",
-    ],
-    related: [
-      { id: "prompts", label: "Prompts" },
-      { id: "runs", label: "Runs" },
-      { id: "persona", label: "Default Identity" },
-    ],
-  },
 
   voice: {
     title: "Voice",
@@ -175,54 +61,78 @@ export const Converse: Record<string, HelpTopic> = {
       "The same conversation runs through the normal governed agent loop — tools, policy, and memory all apply.",
     ],
     related: [
-      { id: "chat", label: "Chat" },
       { id: "agents", label: "Agents" },
       { id: "connections", label: "Connections" },
     ],
   },
 
-  inbox: {
-    title: "Inbox",
+  jarvis: {
+    title: "Jarvis",
     intro:
-      "Every channel conversation — Telegram, Slack, Discord, email and more — folded into one unified view, newest activity first.",
+      "Your operator-side companion. Where Chat is the long-form conversation, Jarvis is the 'what's my agent doing right now?' glance — readiness, recent runs, and one-click nudges.",
     sections: [
       {
-        heading: "Reading threads",
+        heading: "What it answers",
         items: [
-          {
-            term: "Thread cards",
-            desc: "Each thread shows its channel badge, the contact/channel id, and the latest messages inline. Blue down-arrows are inbound (from the person), orange up-arrows are outbound (from the agent).",
-          },
-          {
-            term: "Search",
-            desc: "Filters across channel names, contact ids, and full message content — not just titles.",
-          },
-          {
-            term: "Inbound images",
-            desc: "Pictures received on a channel render as gallery thumbnails inside the thread and link to the Files page for full preview.",
-          },
+          { term: "Who's online", desc: "The roster, with each agent's readiness chip — green for ready, dim for offline or paused." },
+          { term: "What's running", desc: "The most recent runs with their status and the active correlation id, refreshed every ten seconds." },
+          { term: "Quick prompts", desc: "Four one-click starters (summarize, diagnose, blockers, stand-up note) so a small nudge doesn't need a fresh sentence." },
         ],
       },
       {
-        heading: "Sending messages",
+        heading: "How it talks to Chat",
         items: [
-          {
-            term: "Send form",
-            desc: "Pick a channel, enter the recipient, type your text, and press Ctrl+Enter (or click Send). The daemon refuses if that channel isn't configured.",
-          },
-          {
-            term: "Reply button",
-            desc: "On any thread, Reply pre-fills the send form with the right channel and recipient so you can answer in two keystrokes.",
-          },
+          { term: "Quick prompts", desc: "Send to the same ChatEngine the floating MiniChat uses — there's only one thread per conversation across Jarvis, Chat, and MiniChat." },
+          { term: "Open chat", desc: "Switches the active conversation thread and jumps you to Talk › Chat to read the stream." },
         ],
       },
     ],
     tips: [
-      "Threads are reconstructed live from the journal's channel events — nothing here is a separate database that can drift.",
+      "Jarvis pulls from /api/agents and /api/runs every 30 / 10 seconds; the numbers will lag a real-time change by at most that long.",
     ],
     related: [
-      { id: "artifacts", label: "Artifacts & Files" },
       { id: "chat", label: "Chat" },
+      { id: "runs", label: "Runs" },
+      { id: "roster", label: "Roster" },
+    ],
+  },
+
+  chat: {
+    title: "Chat",
+    intro:
+      "Full-page conversation surface bound to the same ChatEngine that powers the floating MiniChat. One active thread across the two — switch in Chat, the MiniChat keeps the same conversation.",
+    sections: [
+      {
+        heading: "Left rail",
+        items: [
+          { term: "Threads", desc: "Pinned conversations first, then by recency. Pin / rename / delete via the hover buttons." },
+          { term: "Active thread", desc: "Highlighted in the rail. Its title is auto-derived from the first user message; rename via the + button." },
+        ],
+      },
+      {
+        heading: "Top bar",
+        items: [
+          { term: "Model / Agent / Profile / Persona", desc: "Per-conversation overrides — change once, that thread runs with the new identity until you reset it." },
+          { term: "Auto-approve forge / Trust web content", desc: "Session-scoped trust grants. Auto-approve skips HITL prompts when the agent forges new tools; trust web skips the prompt-injection guard for operator-driven research loops." },
+          { term: "Stop / New", desc: "Stop halts the active run; New starts a fresh thread (the previous one is preserved)." },
+        ],
+      },
+      {
+        heading: "Composer",
+        items: [
+          { term: "Enter to send, Shift+Enter for newline", desc: "Standard. While a run streams, Enter queues the message — M962 — and it sends as the run finishes." },
+          { term: "Queue indicator", desc: "Shows the front queued message and whether it auto-sends or waits. Open Chat to manage the queue manually." },
+        ],
+      },
+    ],
+    tips: [
+      "State persists per browser: same store as MiniChat, so switching between the two never loses your place.",
+      "History briefing (M925) keeps long threads from silently losing their start — the daemon folds older turns into one summary.",
+    ],
+    related: [
+      { id: "jarvis", label: "Jarvis" },
+      { id: "runs", label: "Runs" },
+      { id: "council", label: "Council" },
     ],
   },
 
@@ -292,9 +202,7 @@ export const Converse: Record<string, HelpTopic> = {
       "Text previews are capped at 2 MB; bigger artifacts offer a download instead.",
     ],
     related: [
-      { id: "artifacts", label: "Artifacts & Files" },
-      { id: "runs", label: "Runs" },
-      { id: "storage", label: "Storage" },
+      { id: "data", label: "Data Lake" },
     ],
   },
 
@@ -336,76 +244,6 @@ export const Converse: Record<string, HelpTopic> = {
     related: [
       { id: "artifacts", label: "Artifacts & Files" },
       { id: "memory", label: "Memory" },
-    ],
-  },
-
-  board: {
-    title: "Agent Board",
-    intro:
-      "The shared message board agents use to coordinate with each other — handoffs, questions, status notes. You're reading their internal radio traffic.",
-    sections: [
-      {
-        heading: "Reading the board",
-        items: [
-          {
-            term: "Topic chips",
-            desc: "Filter by topic. With many topics the chip row becomes searchable and caps at 24 visible with a \"show all\" toggle.",
-          },
-          {
-            term: "Message anatomy",
-            desc: "Each post shows the topic, the sender, who it was addressed to (an arrow for direct messages, a megaphone for broadcasts to *), any reply-to link, and the timestamp. Bodies render as markdown.",
-          },
-          {
-            term: "Awaiting-reply badge",
-            desc: "Direct messages that never got an answer are flagged. The check runs over the whole board — not just the current topic filter — so the badge never lies.",
-          },
-          {
-            term: "Help requests",
-            desc: "Posts flagged as help requests surface in a banner at the top so calls for assistance don't drown in traffic.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "The board is read-only from here — agents write to it via their board tool. To generate traffic, run a multi-agent task.",
-    ],
-    related: [
-      { id: "agents", label: "Agents" },
-      { id: "overseer", label: "Overseer" },
-    ],
-  },
-
-  approvals: {
-    title: "Approvals",
-    intro:
-      "Human-in-the-loop gating. When the agent hits a capability set to \"ask\", the request lands here and waits for your verdict.",
-    sections: [
-      {
-        heading: "Acting on requests",
-        items: [
-          {
-            term: "Pending panel",
-            desc: "Each waiting request shows the capability, the input, and why it was gated — with Approve and Deny buttons. The run is paused until you decide (or the request times out).",
-          },
-          {
-            term: "Decision history",
-            desc: "Below the pending list: an audit trail of past rulings — granted, denied, or timed out — with the capability, reason, resolver, and timestamp.",
-          },
-        ],
-      },
-      {
-        heading: "Where the gates come from",
-        paragraphs: [
-          "Which capabilities require approval is governed on the Policy page (trust levels and ask-mode). The bell in the header mirrors this page's pending count from anywhere in the console.",
-        ],
-      },
-    ],
-    tips: [
-      "A request that times out is recorded as such — silence is never treated as consent.",
-    ],
-    related: [
-      { id: "policy", label: "Policy" },
-      { id: "runs", label: "Runs" },
     ],
   },
 

@@ -60,8 +60,13 @@ func newEngine(t *testing.T, cfg Config) (*Engine, *journal.Journal) {
 	if cfg.Now == nil {
 		cfg.Now = func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }
 	}
-	t.Cleanup(func() { cfg.Bus.Close(); j.Close(); st.Close() })
-	return New(cfg), j
+	e := New(cfg)
+	// Wait for the Start goroutine (if any) to drain before tearing down the
+	// journal/state/bus the goroutine may still be writing to — otherwise
+	// t.TempDir() cleanup races an in-flight tickOnce and leaves files behind
+	// (the race-depth flake in TestBeatTriggersOnDemandTick).
+	t.Cleanup(func() { e.wg.Wait(); cfg.Bus.Close(); j.Close(); st.Close() })
+	return e, j
 }
 
 func countKind(t *testing.T, j *journal.Journal, k event.Kind) int {

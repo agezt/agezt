@@ -48,33 +48,36 @@ strip at the top of the page — the tabs are ordinary views with their own
 `#hash`, so every bookmark and deep link keeps working. See
 [CONSOLE-IA.md](CONSOLE-IA.md) for why it is shaped this way.
 
-- **Talk** — Jarvis (the presence surface), Chat, Voice, Messages (*Inbox* ·
-  *Agent Board*).
-- **Observe** — Overview (*Overview* · *Mission Control* · *Live Stream*), Runs
-  (*Runs* · *Activity* · *Insights* · *Replay*), Health (*Health* ·
-  *Prompt cache* · *Tool usage* · *Routing log*), Alerts, Budget.
-- **Automate** — Wizards, Workflows (*Workflows* · *Flow Studio*), Work
-  (*Workboard* · *Objectives*), Triggers (*Schedules* · *Standing orders*),
+- **Talk** — Jarvis (the presence surface), Chat, Voice.
+- **Observe** — Monitor (*Mission Control* · *Live Stream*), Runs
+  (*Runs* · *Activity* · *Replay*).
+- **Automate** — Workflows, Triggers (*Schedules* · *Standing orders*),
   Autonomy (the proactive heartbeat).
 - **Govern** — Approvals (grant/deny the agent's pending ask-class actions —
-  human-in-the-loop), Policy, Oversight (*Overseer* · *Council* · *Conductor*),
-  Seats.
-- **Agents** — Agents, Roster, Skills, Capabilities (*Tool registry* ·
-  *Toolbox* · *Tool Forge* · *Marketplace* · *Execution Profiles*), Sandbox.
-- **Knowledge** — Memory (*Memory* · *Taste*), World, Thinking (*Research* ·
-  *Analyst* · *Reflection*), Search (the journal), Data & Files (*Data Lake* ·
-  *Artifacts & Files* · *Storage*).
+  human-in-the-loop), Policy, Oversight (*Overseer* · *Council*).
+- **Agents** — Agents, Roster, Skills, Capabilities (*Marketplace* ·
+  *Execution Profiles*), Sandbox.
+- **Knowledge** — Memory, World, Thinking Partners (*Research* · *Analyst* ·
+  *Reflect*), Data & Files (*Data Lake* · *Artifacts & Files*).
 - **Connect** — Providers & Models (*Models & Keys* — this is where API keys live),
-  Routing (*Routing* · *Fallback Chains*), Channels, Integrations (*MCP Servers* ·
-  *ACP Agents* · *Connections* — the *Provider Keys* tab there is the add-key flow
-  that used to be the standalone Quick Connect gallery; the catalog is the source
-  of truth for env var names so they match what the Governor looks up).
-- **Admin** — Setup, Config Center, Identity (*Default Identity* · *Prompts*),
-  Backup.
+  Routing (*Fallback Chains*), Channels, Integrations (*MCP Servers* ·
+  *ACP Agents* · *Connections* — the catalog there is the source of truth for env
+  var names so they match what the Governor looks up).
+- **Admin** — Setup, Config Center, Identity (*Prompts*), Backups.
 
-Three hashes are aliases for the surfaces that absorbed them: `#files` opens
+Four legacy hashes are aliases for the surfaces that absorbed them: `#files` opens
 Artifacts & Files in its file-manager mode, `#config` opens Config Center (the
-effective-configuration fold), and `#system` opens Health.
+effective-configuration fold), `#dashboard` opens Mission Control, and any of
+`#health / #alerts / #search / #storage / #wizards / #overview / #taste / #inbox`
+open the closest live surface so legacy bookmarks don't land on a misleading
+page.
+
+Day 28 retired nine nav rows whose labels misrepresented the surface they
+rendered (Health → Standing orders, Search → Data Lake, Storage → Data Lake,
+Taste → Memory verbatim, Wizards → Schedules, Inbox → World graph). Dropped
+rows entirely rather than keep the misleading re-link; their legacy hashes still
+resolve to the closest live destination via `VIEW_ALIASES` in nav.tsx and the
+REMOVED_VIEW_IDS set documents what's been retired.
 
 Two views are not sidebar destinations: `#agent/<slug>` opens an agent's own
 page, `#incident/<id>` an incident's.
@@ -134,16 +137,18 @@ move just one:
   whether it would redact it, into which categories (api keys, JWTs, …), and shows the
   masked result. The probe text is sent in the request body, never a URL, and the response
   never echoes the matched secret.
-- **Search** view → **verify integrity**: walks the journal's tamper-evident hash chain and
-  confirms it's intact (green) or reports a break (red). The journal is the daemon's
-  append-only source of truth; this makes that audit guarantee checkable in one click.
+- **Search** was the journal-integrity surface; it shipped aliased to Data Lake and
+  has been retired from the UI (Day 28). Tamper-evidence still runs every minute
+  via the daemon's journal-verify cron and is covered by kernel/journal
+  unit tests — the kernel is the auditor, the e2e is not.
 
 ## Transparency — "why did it do that?"
 
-In **Search** (the journal browser), expand any event and click **trace cause**. It walks
-the event's *causation chain* — from the root cause down to this event — crossing
-correlation boundaries the filters can't, so you can see e.g. a heartbeat tick → the
-initiative it raised → the run that acted. A sub-agent's parent run is surfaced too.
+In **Live Stream** (the journal browser under Observe), expand any event and click
+**trace cause**. It walks the event's *causation chain* — from the root cause down to
+this event — crossing correlation boundaries the filters can't, so you can see e.g.
+a heartbeat tick → the initiative it raised → the run that acted. A sub-agent's
+parent run is surfaced too.
 
 ## Editing knowledge & autonomy
 

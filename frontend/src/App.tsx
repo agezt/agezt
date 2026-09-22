@@ -50,6 +50,13 @@ export default function App() {
   const [incidentId, setIncidentId] = useState<string | null>(() => incidentIdFromHash(location.hash));
   const { newChat } = useChat();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // MiniChat is now a floating panel that opens on demand from the header,
+  // the Cmd+K "New chat" action, or the first-run setup wizard. It used to be
+  // tied to a "chat" nav view that has since been retired (Day 25 cleanup) —
+  // `setActive("chat")` would leave the operator on a wrong page. The new
+  // contract: MiniChat is an overlay, owned by this state, and the main view
+  // doesn't move when it opens.
+  const [miniChatOpen, setMiniChatOpen] = useState(false);
   // Page-aware help drawer (M920): one global toggle, content follows `active`.
   const [helpOpen, setHelpOpen] = useState(false);
   // Collapsible debug inspector (Ctrl+Shift+I) — LLM calls, tool traces, live events.
@@ -309,7 +316,7 @@ export default function App() {
         keywords: "conversation thread compose ask message",
         run: () => {
           newChat();
-          setActive("chat");
+          setMiniChatOpen(true);
         },
       },
       {
@@ -444,7 +451,7 @@ export default function App() {
             overlay
             onDone={() => {
               setNeedsSetup(false);
-              setActive("chat");
+              setMiniChatOpen(true);
             }}
             onSkip={() => {
               localStorage.setItem("agezt.setup.skipped", "1");
@@ -477,16 +484,19 @@ export default function App() {
           e.target.value = "";
         }}
       />
-      <MiniChat hidden={active === "chat"} onExpand={() => setActive("chat")} />
+      <MiniChat
+        controlledOpen={miniChatOpen}
+        onOpenChange={setMiniChatOpen}
+      />
       <Header
         connected={connected}
-        chatActive={active === "chat" && !agentSlug}
+        chatActive={miniChatOpen}
         activeRunCount={activeRunCount}
         inspectorOpen={inspectorOpen}
         activeLlmCount={activeLlmCount}
         onNavigate={setActive}
         onOpenNav={() => setNavDrawerOpen(true)}
-        onOpenChat={() => setActive("chat")}
+        onOpenChat={() => setMiniChatOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}
         onToggleInspector={() => setInspectorOpen((v) => !v)}

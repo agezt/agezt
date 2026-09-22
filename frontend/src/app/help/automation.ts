@@ -60,7 +60,6 @@ export const Automation: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "schedules", label: "Schedules" },
-      { id: "flow", label: "Flow Studio" },
       { id: "standing", label: "Standing" },
     ],
   },

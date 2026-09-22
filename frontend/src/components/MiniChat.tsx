@@ -6,13 +6,34 @@ import { turnText } from "@/lib/chat";
 import type { Msg } from "@/lib/conversations";
 
 // MiniChat is the agent, one click away from any screen. A floating launcher
-// expands into a compact thread bound to the SAME active conversation as the
-// full Chat view (they share the ChatProvider engine), so you can ask something
-// without leaving what you're doing — and pop out to the full view for detail.
-// It's hidden on the Chat view itself (where the full UI already lives).
-export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () => void }) {
+// expands into a compact thread bound to the ChatProvider engine, so the
+// operator can ask something without leaving what they're doing.
+//
+// Two modes:
+//   - Uncontrolled (default): the launcher button toggles open/close via
+//     internal state. Used when no parent cares about the open state.
+//   - Controlled (`controlledOpen` + `onOpenChange`): the parent owns the
+//     state. Used by the header Chat button, the Cmd+K "New chat" action, and
+//     the first-run setup wizard — all three want to open MiniChat without
+//     changing the main nav view, because the legacy "chat" view was retired
+//     and navigating to it would leave the operator on a different page.
+export function MiniChat({
+  hidden = false,
+  controlledOpen,
+  onOpenChange,
+}: {
+  hidden?: boolean;
+  controlledOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const { messages, busy, send, stop, enqueue, queue } = useChat();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) onOpenChange?.(v);
+    else setInternalOpen(v);
+  };
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -21,12 +42,6 @@ export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () =
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, open]);
-
-  // If the parent hides us (we're on the full Chat view), also collapse so we
-  // don't pop back open when navigating away.
-  useEffect(() => {
-    if (hidden) setOpen(false);
-  }, [hidden]);
 
   if (hidden) return null;
 
@@ -73,7 +88,7 @@ export function MiniChat({ hidden, onExpand }: { hidden: boolean; onExpand: () =
         {busy && <span className="work-pulse ml-0.5 size-2 rounded-full bg-good" />}
         <div className="ml-auto flex items-center gap-1">
           <button
-            onClick={onExpand}
+            onClick={() => onOpenChange?.(true)}
             title="Open full chat"
             className="rounded p-1 text-muted transition-colors hover:bg-panel hover:text-foreground"
           >

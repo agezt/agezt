@@ -220,7 +220,11 @@ func bearer(key string) string {
 }
 
 // wgArg reads a string request arg, tolerating a missing/non-string value.
+// Uses the typed argString accessor for raw-cast-free compliance with the
+// TestRawArgCasts_Ratchet; the underlying error is discarded so the
+// documented lenient read semantics (missing OR non-string OR empty all
+// return "") are preserved.
 func wgArg(req Request, key string) string {
-	v, _ := req.Args[key].(string)
+	v, _, _ := argString(req.Args, key)
 	return v
 }

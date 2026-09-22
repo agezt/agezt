@@ -32,41 +32,48 @@ function rowForViewGroup(view: string): string {
 
 describe("ViewTabs", () => {
   it("renders nothing for a single-view destination", () => {
-    const { container } = render(<ViewTabs active="chat" onSelect={() => {}} />);
+    const { container } = render(<ViewTabs active="voice" onSelect={() => {}} />);
     expect(container.querySelector('[role="tablist"]')).toBeNull();
   });
 
   it("renders one tab per facet of a folded destination", () => {
-    render(<ViewTabs active="health" onSelect={() => {}} />);
+    // Runs is a multi-facet destination post-Day 25 (Runs + Activity + Replay).
+    render(<ViewTabs active="runs" onSelect={() => {}} />);
     const tabs = screen.getAllByRole("tab").map((el) => el.textContent);
-    expect(tabs).toEqual(["Health", "Prompt cache", "Tool usage", "Routing log"]);
+    expect(tabs).toEqual(["Runs", "Activity", "Replay"]);
   });
 
   it("marks the active facet, not the first one", () => {
-    render(<ViewTabs active="providers" onSelect={() => {}} />);
-    expect(screen.getByRole("tab", { selected: true }).textContent).toBe("Routing log");
+    render(<ViewTabs active="replay" onSelect={() => {}} />);
+    expect(screen.getByRole("tab", { selected: true }).textContent).toBe("Replay");
   });
 
   it("navigates by the facet's own view id, so deep links keep working", () => {
     const onSelect = vi.fn();
-    render(<ViewTabs active="health" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Tool usage" }));
-    expect(onSelect).toHaveBeenCalledWith("tools");
+    render(<ViewTabs active="runs" onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Replay" }));
+    expect(onSelect).toHaveBeenCalledWith("replay");
   });
 });
 
 describe("SectionNav rows", () => {
   it("lists destinations, not every view", () => {
-    renderNav("health");
-    // Observe has five rows; Health alone folds four views.
-    expect(screen.getByText("Health")).toBeTruthy();
-    expect(screen.queryByText("Routing log")).toBeNull();
+    // Mission Control is a tab of the Monitor row; the sidebar must show the
+    // row, not the tab label, so the operator sees "Monitor" as the
+    // destination and not "Mission Control" / "Live Stream" competing for
+    // scanner attention.
+    renderNav("mission");
+    expect(screen.getByText("Monitor")).toBeTruthy();
+    expect(screen.queryByText("Mission Control")).toBeNull();
   });
 
   it("clicking a destination lands on its first facet", () => {
-    const onSelect = renderNav("alerts");
-    fireEvent.click(screen.getByText("Overview"));
-    expect(onSelect).toHaveBeenCalledWith("overview");
+    // After Day 28 the Observe › Overview row was renamed to "Monitor" and
+    // its (misleading, aliased-to-Standing) first tab was dropped; the first
+    // surviving facet is Mission Control.
+    const onSelect = renderNav("mission");
+    fireEvent.click(screen.getByText("Monitor"));
+    expect(onSelect).toHaveBeenCalledWith("mission");
   });
 
   it("highlights the destination of a deep-linked facet", () => {

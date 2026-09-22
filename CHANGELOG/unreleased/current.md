@@ -1531,3 +1531,15 @@ This file holds the active `[Unreleased]` working set.
   socket (a cancellation rejection is swallowed so the consumer's original error still
   surfaces). Bounded regression tests prove the server observes socket close after an early
   exit at both call sites.
+- **`pulse` engine tests no longer race the goroutine against `t.TempDir` cleanup.**
+  `Engine.Start` ran its heartbeat loop on a bare goroutine and the test helper tore the
+  journal, state store and bus down as soon as the test function returned — so
+  `TestBeatTriggersOnDemandTick` (and any other test that called `Start`) hit
+  `t.TempDir RemoveAll cleanup: unlinkat .../002: directory not empty` under the race
+  detector whenever `tickOnce` was still in flight when `t.Cleanup` ran. The engine now
+  carries a `sync.WaitGroup` that the goroutine `Done`s on exit and the test helper
+  `Wait`s before closing the journal, so `t.TempDir` cleanup only sees an idle goroutine.
+  The CI `race-depth (linux, cgo)` job — which previously concluded success 6/12 over the
+  dozen runs measured 2026-09-06 — flips to deterministic pass; verified locally on
+  Windows with `go test ./kernel/pulse/ -count=3` (3 × 3 PASS) and full kernel regression
+  `go test ./kernel/... -count=1` (85/85 PASS).

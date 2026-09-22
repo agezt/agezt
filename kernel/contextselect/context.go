@@ -64,13 +64,17 @@ func SplitCandidates(all []Candidate, chosenIDs map[string]bool, reason string) 
 	return chosen, rejected
 }
 func rejectReason(c Candidate, chosenCount int) string {
+	// Per-candidate checks first: a candidate that the chooser would
+	// have rejected anyway (score == 0 or very stale) keeps that label
+	// even when the chosen set is non-empty. Only the leftover is
+	// attributed to budget pressure.
 	switch {
-	case chosenCount > 0:
-		return "budget"
 	case c.Score <= 0:
 		return "relevance"
 	case c.Freshness < 0.25:
 		return "freshness"
+	case chosenCount > 0:
+		return "budget"
 	default:
 		return "relevance"
 	}

@@ -10,13 +10,14 @@ import {
   Eye,
   Radar,
   Waves,
-  HeartPulse,
   Workflow,
   LayoutDashboard,
   BarChart3,
   ListTree,
   Wallet,
   Radio,
+  BookOpen,
+  Archive,
   Settings,
   Database,
   Cpu,
@@ -25,20 +26,16 @@ import {
   Store,
   Boxes,
   Shield,
-  Archive,
   CalendarClock,
   Network,
   Sparkles,
   Mic,
   Blocks,
-  Bell,
   Anchor,
   Brain,
-  Inbox as InboxIcon,
   MessagesSquare,
   CheckSquare,
   Target,
-  Search,
   FlaskConical,
   GitFork,
   Hammer,
@@ -50,7 +47,6 @@ import {
   Bot,
   MessageSquarePlus,
   Wand2,
-  HardDrive,
   Shapes,
   Terminal,
   Lightbulb,
@@ -67,80 +63,210 @@ function lazyNamed<T extends Record<string, unknown>>(loader: () => Promise<T>, 
 }
 
 // RemovedView is a placeholder for legacy @/views/ entries that were
-// deleted during the Day 23 cleanup. The nav id (hash, ⌘K, help topic) is
-// preserved so existing bookmarks don't 404, but the body shows a notice
-// pointing the operator at the nearest live surface.
-const RemovedView: NavRender = () => (
+// consolidated into features/* during the Day 1-18 sprint. Most nav slots
+// below have been re-linked to a real replacement (see the `= SomeComponent`
+// lines further down); the few that genuinely have no good map stay as
+// `RemovedView` so their nav id (hash, ⌘K, help topic) keeps resolving instead
+// of 404'ing — and the body now tells the operator what to do.
+//
+// Exported as `REMOVED_VIEW` (not just `RemovedView`) so nav.test.ts can
+// reference-count how many nav rows still render this placeholder. If you
+// add a new view that intentionally stays removed, update the
+// REMOVED_VIEW_IDS set below AND bump the size assertion in nav.test.ts.
+export const REMOVED_VIEW: NavRender = () => (
   <div className="m-6 rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-200">
-    <p className="font-semibold">This view was removed in the Day 23 cleanup.</p>
-    <p className="mt-1 text-amber-300/80">The source file in src/views/ is gone; the nav id is kept so existing bookmarks, help topics and command-palette entries still resolve. Use ⌘K to find the replacement surface.</p>
+    <p className="font-semibold">This view was retired during the Day 23 cleanup.</p>
+    <p className="mt-1 text-amber-300/80">
+      The original screen no longer exists — the Day 1-18 sprint consolidated its concerns into <code className="rounded bg-amber-500/10 px-1 font-mono text-xs">features/*</code>, and this slot has no perfect replacement.
+    </p>
+    <p className="mt-3 text-amber-300/80">
+      <strong className="font-semibold text-amber-200">Press <kbd className="rounded border border-amber-500/40 bg-amber-500/10 px-1 font-mono text-xs">⌘K</kbd></strong> to open the command palette and search for what you need — that's the supported way to find any surface today.
+    </p>
+    <p className="mt-2 text-xs text-amber-300/60">
+      The nav id is intentionally kept so existing bookmarks, help topics and command-palette entries still resolve here instead of 404'ing.
+    </p>
   </div>
 );
 
+// Lazy imports come first — re-linked views below bind to these.
+// Defining the lazy imports up top lets us point legacy @/views/* slots at
+// their closest live replacement without forward-reference runtime errors.
 const EventFeed = lazyNamed(() => import("@/components/EventFeed"), "EventFeed");
-const Chat = RemovedView;
-const Jarvis = RemovedView;
+// Day 25: Chat and Jarvis came back as first-class features/* modules, so
+// they sit next to Voice in the Talk section. Both export default, so we
+// wrap them in `lazy()` directly (lazyNamed wants a named export).
+const Chat = lazy(() => import("@/features/chat/components/Chat"));
+const Jarvis = lazy(() => import("@/features/jarvis/components/Jarvis"));
 const Voice = lazyNamed(() => import("@/features/voice/components/Voice"), "Voice");
 const ACPAgents = lazyNamed(() => import("@/features/agents/components/ACPAgents"), "ACPAgents");
-const Activity = RemovedView;
-const Mission = RemovedView;
 const Autonomy = lazyNamed(() => import("@/features/autonomy/components/Autonomy"), "Autonomy");
-const Health = RemovedView;
-const Analyst = RemovedView;
-const Alerts = RemovedView;
-const SearchView = RemovedView;
-const Replay = RemovedView;
+const MissionControl = lazy(() => import("@/features/observe/components/MissionControl"));
 const Agents = lazyNamed(() => import("@/features/agents/components/Agents"), "Agents");
 const Roster = lazyNamed(() => import("@/features/agents/components/Roster"), "Roster");
 const Overseer = lazyNamed(() => import("@/features/overseer/components/Overseer"), "Overseer");
-const Toolforge = RemovedView;
 const Mcp = lazyNamed(() => import("@/features/mcp/components/Mcp"), "Mcp");
 const Workflows = lazyNamed(() => import("@/features/workflows/components/Workflows"), "Workflows");
-const Workboard = RemovedView;
-const OKR = RemovedView;
-const Taste = RemovedView;
-const Seats = RemovedView;
-const Wizards = RemovedView;
-const Dashboard = RemovedView;
-const Insights = RemovedView;
 const Runs = lazyNamed(() => import("@/features/runs/components/Runs"), "Runs");
-const Budget = RemovedView;
-const FlowStudio = RemovedView;
 const ConfigCenter = lazyNamed(() => import("@/features/configcenter/components/ConfigCenter"), "ConfigCenter");
-const Cache = RemovedView;
-const Providers = RemovedView;
 const Connections = lazyNamed(() => import("@/features/connections/components/Connections"), "Connections");
-const Tools = RemovedView;
 const ExecutionProfiles = lazyNamed(() => import("@/features/execution-profiles/components/ExecutionProfiles"), "ExecutionProfiles");
-const Catalog = RemovedView;
 const Models = lazyNamed(() => import("@/features/models/components/Models"), "Models");
-const Routing = RemovedView;
 const Chains = lazyNamed(() => import("@/features/workflows/components/Chains"), "Chains");
-export const Setup = lazyNamed(() => import("@/features/setup/components/Setup"), "Setup");
-const Toolbox = RemovedView;
 const Market = lazyNamed(() => import("@/features/market/components/Market"), "Market");
 const Channels = lazyNamed(() => import("@/features/channels/components/Channels"), "Channels");
-export const AgentPage = lazyNamed(() => import("@/features/agents/components/AgentPage"), "AgentPage");
-export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
 const Data = lazyNamed(() => import("@/features/data/components/Data"), "Data");
 const Council = lazyNamed(() => import("@/features/council/components/Council"), "Council");
-const Conductor = RemovedView;
-const Research = RemovedView;
-const Persona = RemovedView;
-const Prompts = RemovedView;
-const Backup = RemovedView;
 const Policy = lazyNamed(() => import("@/features/policy/components/Policy"), "Policy");
+const Approvals = lazy(() => import("@/features/govern/components/Approvals"));
 const Schedules = lazyNamed(() => import("@/features/schedules/components/Schedules"), "Schedules");
 const World = lazyNamed(() => import("@/features/world/components/World"), "World");
 const Skills = lazyNamed(() => import("@/features/skills/components/Skills"), "Skills");
 const Standing = lazyNamed(() => import("@/features/standing/components/Standing"), "Standing");
 const Memory = lazyNamed(() => import("@/features/memory/components/Memory"), "Memory");
-const Inbox = RemovedView;
-const Board = RemovedView;
-const Reflect = RemovedView;
-const Approvals = RemovedView;
 const Sandbox = lazyNamed(() => import("@/features/sandbox/components/Sandbox"), "Sandbox");
-const Storage = RemovedView;
+const Research = lazyNamed(() => import("@/features/knowledge/components/Research"), "Research");
+const Analyst = lazyNamed(() => import("@/features/knowledge/components/Analyst"), "Analyst");
+const Reflect = lazyNamed(() => import("@/features/knowledge/components/Reflect"), "Reflect");
+const Backup = lazyNamed(() => import("@/features/admin/components/Backups"), "Backups");
+export const Setup = lazyNamed(() => import("@/features/setup/components/Setup"), "Setup");
+export const AgentPage = lazyNamed(() => import("@/features/agents/components/AgentPage"), "AgentPage");
+export const IncidentPage = lazyNamed(() => import("@/features/incidents/components/IncidentPage"), "IncidentPage");
+
+// Legacy @/views/* slots re-linked to their closest live surface in
+// features/*. Only slots whose label genuinely describes what the target
+// component renders are re-linked — every other slot stays as `REMOVED_VIEW`
+// so the operator never lands on a page whose content doesn't match what the
+// nav label promised. A wrong-feeling "Tool usage" tab that opens the MCP
+// server page is worse than a clearly-marked placeholder that tells the
+// operator to use ⌘K.
+//
+// The set of intentionally-removed ids is documented in REMOVED_VIEW_IDS
+// below and asserted by nav.test.ts.
+//
+// Day 25: Chat and Jarvis came back as proper features/* modules — those
+// two bindings are now lazy imports at the top of this file, not aliases
+// pointing at REMOVED_VIEW.
+const Activity = Runs;
+const Mission = MissionControl;
+const Replay = Runs;
+const Workboard = REMOVED_VIEW;
+const OKR = REMOVED_VIEW;
+const Seats = REMOVED_VIEW;
+const Insights = REMOVED_VIEW;
+const Budget = REMOVED_VIEW;
+const FlowStudio = REMOVED_VIEW;
+const Providers = REMOVED_VIEW;
+const Tools = REMOVED_VIEW;
+const Catalog = REMOVED_VIEW;
+const Routing = REMOVED_VIEW;
+const Toolbox = REMOVED_VIEW;
+const Conductor = REMOVED_VIEW;
+const Persona = REMOVED_VIEW;
+const Prompts = Skills;
+const Board = REMOVED_VIEW;
+const Toolforge = REMOVED_VIEW;
+const Cache = REMOVED_VIEW;
+
+// Activity / Replay alias the same Runs component (different filters); Prompts
+// alias is similar enough (Skills holds templates + the prompt library). These
+// are kept because the row label AND the underlying view both promise the same
+// thing to the operator — they differ only in framing, not in what renders.
+//
+// Every other alias that used to hide content behind a misleading label was
+// removed on Day 28 (Health → Standing orders, Alerts → Standing orders,
+// Search → Data Lake, Storage → Data Lake, Taste → Memory verbatim,
+// Wizards → Schedules, Inbox → World, Overview/Dashboard → Standing orders).
+// Those rows are gone from NAV; the legacy ids stay in REMOVED_VIEW_IDS as
+// bookmark fallbacks.
+
+/**
+ * View ids that intentionally still render `REMOVED_VIEW`. Every other view in
+ * NAV must render a real `features/*` component — see nav.test.ts. If you add a
+ * new view id here, also document why it has no replacement.
+ *
+ * Each entry groups under its nav row (Talk / Observe / Automate / Govern /
+ * Agents / Knowledge / Connect / Admin) so the operator who lands on the
+ * placeholder can see at a glance which row the retired slot used to live in.
+ */
+export const REMOVED_VIEW_IDS: ReadonlySet<string> = new Set([
+  // (Day 25 brought Mission Control back as features/observe/components/MissionControl,
+  //  and Approvals back as features/govern/components/Approvals.)
+  // ── Talk ───────────────────────────────────────────────────────────────
+  // (Chat and Jarvis came back in Day 25 as features/chat/components/Chat
+  // and features/jarvis/components/Jarvis; both render real surfaces now.)
+  // Talk › Messages had an Agent Board tab (multi-agent messaging). Day 28
+  // dropped the Messages row entirely; "messages" and "inbox" are bookmark
+  // fallbacks, "board" stays here as a no-equivalent id.
+  "board",
+  "messages",
+  "inbox",
+  // ── Observe ────────────────────────────────────────────────────────────
+  // Day 28 IA pass: the "Health" and "Alerts" rows lived as aliases to the
+  // Standing component — clicking either tab stood up "Standing orders",
+  // with no health metrics / no flagged-alerts surface of its own. Dropped
+  // both rows; their ids are bookmark fallbacks now. The Monitor row also
+  // dropped its alias "Overview" tab (was the same Standing alias); "overview"
+  // stays as a no-equivalent id pointing at Monitor's first tab via the
+  // VIEW_ALIASES table.
+  "health",
+  "alerts",
+  "overview",
+  // Observe › Runs › Insights — merged into the main Runs view (Insights
+  // showed run analytics; the Runs page already shows them).
+  "insights",
+  // Observe › Health used to host a "Prompt cache" panel ("cache"), a "Tool
+  // usage" stats panel ("tools") and a "Routing log" panel ("providers").
+  // Standing covers health telemetry, MCP covers server config — neither is
+  // the same content, so all three stay removed.
+  "cache",
+  "tools",
+  "providers",
+  // Observe › Budget (spend-tracking tab) had no live equivalent.
+  "budget",
+  // ── Automate ───────────────────────────────────────────────────────────
+  // Automate › Workflows › Flow Studio — visual canvas retired; Workflows
+  // list view is the live surface.
+  "flow",
+  // Automate › Work › Workboard + OKR — never re-implemented after Day 1-18.
+  "workboard",
+  "okr",
+  // Day 28: "Wizards" row aliased to Schedules — same component, different
+  // label, no distinct content. Dropped the row, "wizards" stays as a
+  // bookmark fallback.
+  "wizards",
+  // ── Govern ─────────────────────────────────────────────────────────────
+  // Govern › Seats (user/seat management) — Standing is related but is a
+  // different surface (recurring tasks, not users).
+  "seats",
+  // Govern › Oversight › Conductor — Council is related (multi-model
+  // deliberation) but renders a different shape.
+  "conductor",
+  // ── Knowledge ──────────────────────────────────────────────────────────
+  // (Day 26 brought Thinking Partners back as features/knowledge/components:
+  // Research, Analyst, Reflect — three real "thinking partner" surfaces.)
+  // Day 28 dropped the "Search" row (alias to Data Lake) and the "Taste" tab
+  // (verbatim Memory dup) and the "Storage" tab (alias to Data Lake). Their
+  // ids land on the closest live surface via VIEW_ALIASES but stay retired
+  // from NAV here so the rows don't grow back accidentally.
+  "search",
+  "taste",
+  "storage",
+  // ── Admin ──────────────────────────────────────────────────────────────
+  // Admin › Identity › Persona (operator identity settings). Prompts is
+  // re-linked to Skills; Persona has no equivalent.
+  "persona",
+  // (Day 26 brought Backups back as features/admin/components/Backups —
+  // surfaces the daemon's rollback checkpoints.)
+  // Connect › Routing — Chains is workflow-chains, not routing decisions.
+  "routing",
+  // ── Agents › Capabilities ──────────────────────────────────────────────
+  // Capabilities used to host Catalog (tool registry), Toolbox (tool mgmt)
+  // and Toolforge (tool authoring). The live Marketplace is a browse
+  // surface, MCP is server config — neither matches what these used to be.
+  "catalog",
+  "toolbox",
+  "toolforge",
+]);
 const Artifacts = lazyNamed(() => import("@/features/artifacts/components/Artifacts"), "Artifacts");
 
 /**
@@ -227,22 +353,6 @@ export const NAV_GROUPS: NavGroup[] = [
           keywords: "speak listen speech tts stt microphone hands-free wake word ses",
         },
       ]),
-      row("messages", "Messages", InboxIcon, [
-        {
-          id: "inbox",
-          label: "Inbox",
-          icon: InboxIcon,
-          render: Inbox,
-          keywords: "threads channel telegram slack discord email whatsapp conversations messages gelen",
-        },
-        {
-          id: "board",
-          label: "Agent Board",
-          icon: MessagesSquare,
-          render: Board,
-          keywords: "agent to agent backchannel handoff coordination peer chatter notes help",
-        },
-      ]),
     ],
   },
   {
@@ -250,20 +360,18 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Observe",
     icon: Eye,
     rows: [
-      row("overview", "Overview", LayoutDashboard, [
-        {
-          id: "overview",
-          label: "Overview",
-          icon: LayoutDashboard,
-          render: Dashboard,
-          keywords: "dashboard home summary at a glance now durum genel",
-        },
+      // Day 28 IA pass: the legacy "Overview" tab pointed at Standing orders,
+      // so the row was renamed to "Monitor" and the misleading alias tab was
+      // dropped. The two surviving tabs are the real-time surfaces:
+      // MissionControl (throughput / tokens / attention) and EventFeed
+      // (live SSE firehose).
+      row("overview", "Monitor", LayoutDashboard, [
         {
           id: "mission",
           label: "Mission Control",
           icon: Radar,
           render: Mission,
-          keywords: "mission control realtime throughput events per second tokens spend sparkline",
+          keywords: "mission control realtime throughput events per second tokens spend sparkline attention",
         },
         {
           id: "feed",
@@ -279,7 +387,8 @@ export const NAV_GROUPS: NavGroup[] = [
           label: "Runs",
           icon: ListTree,
           render: Runs,
-          keywords: "history executions correlation cancel stop trace transcript koşu",
+          keywords:
+            "history executions correlation cancel stop trace transcript koşu daemon recent activity log",
         },
         {
           id: "activity",
@@ -289,67 +398,11 @@ export const NAV_GROUPS: NavGroup[] = [
           keywords: "running now busy working in flight incidents in progress cancel",
         },
         {
-          id: "insights",
-          label: "Insights",
-          icon: BarChart3,
-          render: Insights,
-          keywords: "analytics charts spend over time per model outcomes throughput stats",
-        },
-        {
           id: "replay",
           label: "Replay",
           icon: Clapperboard,
           render: Replay,
           keywords: "replay reconstruct step through past run timeline journal",
-        },
-      ]),
-      row("health", "Health", HeartPulse, [
-        {
-          id: "health",
-          label: "Health",
-          icon: HeartPulse,
-          render: Health,
-          keywords:
-            "health vitals uptime error rate gauges resilience diagnostics doctor system status daemon counters limits http surface credentials version sağlık",
-        },
-        {
-          id: "cache",
-          label: "Prompt cache",
-          icon: Database,
-          render: Cache,
-          keywords: "cache savings prompt caching read write tokens cost saved",
-        },
-        {
-          id: "tools",
-          label: "Tool usage",
-          icon: Wrench,
-          render: Tools,
-          keywords: "tool calls invocation log error rate latency monitor telemetry how often a tool is used",
-        },
-        {
-          id: "providers",
-          label: "Routing log",
-          icon: Cpu,
-          render: Providers,
-          keywords: "fallback rate which provider served routed calls telemetry log reload",
-        },
-      ]),
-      row("alerts", "Alerts", Bell, [
-        {
-          id: "alerts",
-          label: "Alerts",
-          icon: Bell,
-          render: Alerts,
-          keywords: "warnings critical attention notifications flagged uyarı",
-        },
-      ]),
-      row("budget", "Budget", Wallet, [
-        {
-          id: "budget",
-          label: "Budget",
-          icon: Wallet,
-          render: Budget,
-          keywords: "cost spend limit cap quota money dollars ceiling bütçe",
         },
       ]),
     ],
@@ -359,15 +412,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Automate",
     icon: Workflow,
     rows: [
-      row("wizards", "Wizards", Wand2, [
-        {
-          id: "wizards",
-          label: "Wizards",
-          icon: Wand2,
-          render: Wizards,
-          keywords: "guided flows step by step setup helper how do i getting started sihirbaz",
-        },
-      ]),
       row("workflows", "Workflows", GitFork, [
         {
           id: "workflows",
@@ -375,29 +419,6 @@ export const NAV_GROUPS: NavGroup[] = [
           icon: GitFork,
           render: Workflows,
           keywords: "automation nodes pipeline webhook trigger n8n retry test node dag",
-        },
-        {
-          id: "flow",
-          label: "Flow Studio",
-          icon: Workflow,
-          render: FlowStudio,
-          keywords: "canvas plan generate refine visual editor graph copilot",
-        },
-      ]),
-      row("work", "Work", CheckSquare, [
-        {
-          id: "workboard",
-          label: "Workboard",
-          icon: CheckSquare,
-          render: Workboard,
-          keywords: "tasks lanes kanban dispatch acceptance criteria proof blocked görev",
-        },
-        {
-          id: "okr",
-          label: "Objectives",
-          icon: Target,
-          render: OKR,
-          keywords: "okr goals key results outcomes targets hedef",
         },
       ]),
       row("triggers", "Triggers", CalendarClock, [
@@ -465,22 +486,6 @@ export const NAV_GROUPS: NavGroup[] = [
           render: Council,
           keywords: "deliberation debate multiple models vote second opinion members",
         },
-        {
-          id: "conductor",
-          label: "Conductor",
-          icon: Network,
-          render: Conductor,
-          keywords: "orchestration roles ensemble delegate coordination ask",
-        },
-      ]),
-      row("seats", "Seats", Blocks, [
-        {
-          id: "seats",
-          label: "Seats",
-          icon: Blocks,
-          render: Seats,
-          keywords: "org chart positions roles assignment who does what koltuk",
-        },
       ]),
     ],
   },
@@ -522,27 +527,6 @@ export const NAV_GROUPS: NavGroup[] = [
       ]),
       row("capabilities", "Capabilities", Hammer, [
         {
-          id: "catalog",
-          label: "Tool registry",
-          icon: Boxes,
-          render: Catalog,
-          keywords: "which tools exist registry catalog documentation search find a tool trust level capability enable disable",
-        },
-        {
-          id: "toolbox",
-          label: "Toolbox",
-          icon: PackageOpen,
-          render: Toolbox,
-          keywords: "install cli binaries winget brew apt choco missing outdated machine host command line",
-        },
-        {
-          id: "toolforge",
-          label: "Tool Forge",
-          icon: Hammer,
-          render: Toolforge,
-          keywords: "write a new tool script forge draft test promote quarantine custom code",
-        },
-        {
           id: "market",
           label: "Marketplace",
           icon: Store,
@@ -581,13 +565,6 @@ export const NAV_GROUPS: NavGroup[] = [
           render: Memory,
           keywords: "facts remember forget distill prune promote shared brain profile hafıza",
         },
-        {
-          id: "taste",
-          label: "Taste",
-          icon: Sparkles,
-          render: Taste,
-          keywords: "preferences style likes dislikes tone opinions zevk",
-        },
       ]),
       row("world", "World", Network, [
         {
@@ -596,38 +573,6 @@ export const NAV_GROUPS: NavGroup[] = [
           icon: Network,
           render: World,
           keywords: "entities relations graph knowledge model people places things dünya",
-        },
-      ]),
-      row("thinking", "Thinking", Lightbulb, [
-        {
-          id: "research",
-          label: "Research",
-          icon: Telescope,
-          render: Research,
-          keywords: "deep research investigate sources report ask a question araştırma",
-        },
-        {
-          id: "analyst",
-          label: "Analyst",
-          icon: Sparkles,
-          render: Analyst,
-          keywords: "ask about the system self analysis observability assistant explain diagnose",
-        },
-        {
-          id: "reflect",
-          label: "Reflection",
-          icon: Lightbulb,
-          render: Reflect,
-          keywords: "retrospective lessons learned self review improve introspection",
-        },
-      ]),
-      row("search", "Search", Search, [
-        {
-          id: "search",
-          label: "Search",
-          icon: Search,
-          render: SearchView,
-          keywords: "journal audit trail why did it do that trace cause verify integrity export ara",
         },
       ]),
       row("data", "Data & Files", Database, [
@@ -644,14 +589,33 @@ export const NAV_GROUPS: NavGroup[] = [
           icon: Shapes,
           render: Artifacts,
           keywords:
-            "outputs images html markdown pdf generated gallery preview çıktı file manager browse download delete attachments uploads tree dosya collect",
+            "outputs images html markdown pdf generated gallery preview çıktı file manager browse download delete attachments uploads tree dosya collect disk usage reclaim",
+        },
+      ]),
+      row("thinking", "Thinking Partners", Sparkles, [
+        {
+          id: "research",
+          label: "Research",
+          icon: BookOpen,
+          render: Research,
+          keywords:
+            "research plan sub-question source citation verify claim grounded multi-hop answer think partner araştır kaynak doğrula",
         },
         {
-          id: "storage",
-          label: "Storage",
-          icon: HardDrive,
-          render: Storage,
-          keywords: "disk space usage reclaim collectors prune consolidate reaper cleanup gb",
+          id: "analyst",
+          label: "Analyst",
+          icon: BarChart3,
+          render: Analyst,
+          keywords:
+            "analyst journal audit log breakdown distribution pattern frequency actor kind count top entries analiz ne kadar kim ne yapmış",
+        },
+        {
+          id: "reflect",
+          label: "Reflect",
+          icon: Brain,
+          render: Reflect,
+          keywords:
+            "reflect self-talk lesson correction supersede journal memory audit agent reflection düşün öğren kendini düzelt",
         },
       ]),
     ],
@@ -671,13 +635,6 @@ export const NAV_GROUPS: NavGroup[] = [
         },
       ]),
       row("routing", "Routing", RouteIcon, [
-        {
-          id: "routing",
-          label: "Routing",
-          icon: RouteIcon,
-          render: Routing,
-          keywords: "which model for which task per agent routing rules default model yönlendirme",
-        },
         {
           id: "chains",
           label: "Fallback Chains",
@@ -746,13 +703,6 @@ export const NAV_GROUPS: NavGroup[] = [
       ]),
       row("identity", "Identity", Bot, [
         {
-          id: "persona",
-          label: "Default Identity",
-          icon: Bot,
-          render: Persona,
-          keywords: "persona system prompt soul character tone name default agent kimlik",
-        },
-        {
           id: "prompts",
           label: "Prompts",
           icon: MessageSquarePlus,
@@ -760,13 +710,14 @@ export const NAV_GROUPS: NavGroup[] = [
           keywords: "prompt library templates snippets reusable instructions",
         },
       ]),
-      row("backup", "Backup", Archive, [
+      row("backups", "Backups", Archive, [
         {
           id: "backup",
-          label: "Backup",
+          label: "Backups",
           icon: Archive,
           render: Backup,
-          keywords: "export import snapshot restore migrate save everything yedek",
+          keywords:
+            "rollback restore checkpoint snapshot revert undo file mutation backup yedek geri al",
         },
       ]),
     ],
@@ -807,10 +758,23 @@ export const sectionForView: Record<string, string> = Object.fromEntries(
 export const VIEW_ALIASES: Record<string, string> = {
   files: "artifacts", // 2026-09: the file manager became a mode of Artifacts
   config: "configcenter", // 2026-09: the raw inventory became a fold in Config Center
-  system: "health", // 2026-09: the System vitals page merged into Health
   // Renames are aliases too: a bookmark to the old name must not fall through
   // to the chat fallback, which looks exactly like the app losing the page.
-  dashboard: "overview", // 2026-09: "Dashboard" was renamed to "Overview"
+  dashboard: "mission", // 2026-09: "Dashboard" was renamed to "Overview"; 2026-09 (Day 28):
+                       // "Overview" was rolled into the Monitor row whose first tab is
+                       // Mission Control — old Dashboard bookmarks land there.
+  // Day 28: the eight legacy ids whose rows had a misleading label are gone from
+  // NAV entirely. Each alias sends bookmarks / help-chips / ⌘K history to the
+  // closest live surface so the operator doesn't end up on a misleading page.
+  health: "runs", // was Observe › Health (alias to Standing orders); Runs shows recent activity
+  alerts: "runs", // was Observe › Alerts (alias to Standing orders); Runs shows what to look at
+  search: "memory", // was Knowledge › Search (alias to Data Lake); Memory shows the journal search substitute
+  inbox: "channels", // was Talk › Messages → Inbox (alias to World graph); Channels owns message routing
+  messages: "channels", // was Talk › Messages row label
+  wizards: "setup", // was Automate › Wizards (alias to Schedules); Setup is the guided-flow home
+  overview: "mission", // was Observe › Overview's first tab (alias to Standing orders); Monitor › Mission Control
+  taste: "memory", // was Knowledge › Memory › Taste (verbatim Memory dup); Memory's the home
+  storage: "artifacts", // was Knowledge › Data & Files › Storage (alias to Data Lake); Artifacts owns file usage
 };
 
 // viewFromHash reads a valid view id from the URL hash (#agents → "agents"),
@@ -823,5 +787,5 @@ export function viewFromHash(): string {
   if (incidentIdFromHash(location.hash)) return "autonomy";
   const id = location.hash.replace(/^#\/?/, "").split("?")[0];
   if (NAV.some((n) => n.id === id)) return id;
-  return VIEW_ALIASES[id] || "chat";
+  return VIEW_ALIASES[id] || "mission";
 }
