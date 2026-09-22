@@ -154,6 +154,28 @@ const (
 	// budget.ceiling_set event.
 	CmdBudgetSet = "budget_set"
 
+	// CmdSpendToday is the slim counterpart of CmdBudget that powers the Mission
+	// Control "Spend today" tile. Returns just the total microcents USD spent so
+	// far today — no per-task breakdown, no ceiling, no other fields — under the
+	// exact shape the Web UI hook (useSpendToday) consumes: { "total": <int> }.
+	// Returning an empty total (0) is meaningful: the tile shows the day is at
+	// zero spend rather than "no data". Read-only.
+	CmdSpendToday = "spend_today"
+
+	// CmdAttention is the cross-cutting "needs your eyes" feed that powers the
+	// Mission Control attention panel. It is a derived roll-up: any item
+	// requiring operator action — pending HITL approvals, live pulse asks, and
+	// recent escalations — folded into a single, time-sorted, capped list.
+	// Args: window (e.g. "5m", "1h", "24h" — applied to time-sensitive kinds;
+	// pending approvals are always included regardless of window), limit
+	// (default 8, hard cap 50). Returns:
+	//   { "items": [
+	//       { "id": string, "kind": "approval"|"pulse_ask"|"escalation",
+	//         "summary": string, "ts": <int64 unix ms>, "href": string } ],
+	//     "count": <int> }
+	// Read-only.
+	CmdAttention = "attention"
+
 	// CmdToolList returns the in-process tool inventory the agent
 	// loop will advertise to the model. Sister command to
 	// CmdCatalogList (providers) — operators frequently want to

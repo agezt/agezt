@@ -15,6 +15,10 @@ var apiRoutes = map[string]string{
 	"/api/config":                  controlplane.CmdConfig,
 	"/api/stats":                   controlplane.CmdRunsStats,
 	"/api/budget":                  controlplane.CmdBudget,
+	// Mission Control "Spend today" tile (Day 28+1). Slim shape {total:int} the
+	// useSpendToday hook consumes — pairs with /api/budget which carries the
+	// full breakdown.
+	"/api/spend/today":             controlplane.CmdSpendToday,
 	"/api/cache":                   controlplane.CmdCacheStats,
 	"/api/providers":               controlplane.CmdProviderStats,
 	"/api/catalog":                 controlplane.CmdCatalogList,
@@ -195,6 +199,11 @@ var readArgsRoutes = map[string]writeRoute{
 	// Resolved HITL approval history (M773): a timeline of past approval requests
 	// joined with their granted/denied/timeout outcome. Read-only.
 	"/api/approvals_log": {controlplane.CmdApprovalsLog, []string{"limit", "cursor", "denied"}},
+	// Mission Control "Needs your attention" panel (Day 28+1). Cross-cuts pending
+	// approvals + recent pulse asks into one time-sorted feed. Optional window
+	// ("5m"/"1h"/"24h") filters pulse asks; approvals ignore it. limit caps the
+	// result (default 8, hard cap 50 enforced server-side). Read-only.
+	"/api/attention": {controlplane.CmdAttention, []string{"window", "limit"}},
 	"/api/plan_history":  {controlplane.CmdPlanHistory, []string{"limit", "cursor", "status"}},
 	// Provider keyring list (M700): labels + active + last-4 for one provider/env.
 	// Read-only — values never leave the daemon.
