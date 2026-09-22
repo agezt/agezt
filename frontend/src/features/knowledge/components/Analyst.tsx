@@ -6,7 +6,7 @@
 // shape of what's happening: top event kinds, recent actors, and the kinds
 // of decisions that took the longest. The view is read-only — analysts ask
 // questions of the data, not of the model — so the page never calls a
-// generation endpoint; it only ever fetches /api/journal_search.
+// generation endpoint; it only ever fetches /api/journal.
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, ChevronRight, Clock, Filter, Layers } from "lucide-react";
 import { getJSON } from "@/app/api";
