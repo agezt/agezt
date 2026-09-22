@@ -123,6 +123,15 @@ func registerChannelCommands() {
 // registerDaemonOpsCommands registers Daemon operations: runs listing, state/status, disk, storage, sandbox, updates, shutdown.
 func registerDaemonOpsCommands() {
 	register(
+		// Mission Control "Spend today" tile (Day 28+1). Slim counterpart of
+		// CmdBudget: just { total: int microcents } — no per-task breakdown. Lives
+		// here next to CmdBudget/CmdStatus rather than a new register func since
+		// it's a one-off and the route count stays readable.
+		commandSpec{Cmd: CmdSpendToday, Handler: func(dc *DispatchCtx) { dc.S.handleSpendToday(dc.Conn, dc.Req) }},
+		// Mission Control "Needs your attention" panel (Day 28+1). Cross-cuts
+		// pending approvals + recent pulse asks into one time-sorted, capped
+		// feed. Same rationale for placement as CmdSpendToday.
+		commandSpec{Cmd: CmdAttention, Handler: func(dc *DispatchCtx) { dc.S.handleAttention(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAutonomyFeed, Handler: func(dc *DispatchCtx) { dc.S.handleAutonomyFeed(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdDiskStats, Handler: func(dc *DispatchCtx) { dc.S.handleDiskStats(dc.Conn, dc.Req) }},
 		// pulse_subscribe is a long-lived stream but deliberately NOT StreamLive:

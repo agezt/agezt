@@ -912,6 +912,8 @@ func TestAPIReadOnly(t *testing.T) {
 		"seat_list":        true,
 		"toolbox_detect":   true,
 		"toolbox_outdated": true,
+		// Mission Control "Spend today" tile (Day 28+1) — read-only slim counterpart of budget.
+		"spend_today": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
