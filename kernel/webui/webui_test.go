@@ -300,19 +300,10 @@ func firstAsset(t *testing.T, s *Server) string {
 	return ""
 }
 
-func TestStatsRouteProxiesRunsStats(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"total": 0}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/stats?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "runs_stats" {
-		t.Errorf("expected one runs_stats call, got %v", fc.calls)
-	}
-}
+// TestStatsRouteProxiesRunsStats was removed in the Day 28+ dead-route prune —
+// the /api/stats webui route no longer exists (the audit confirmed no app
+// caller). CmdRunsStats is still registered in controlplane/registry.go and
+// exercised directly by kernel/controlplane/*_test.go files.
 
 func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
@@ -534,33 +525,13 @@ func TestConfigCenterSetRouteForwardsAgentAccessLists(t *testing.T) {
 	}
 }
 
-func TestCacheRouteProxiesCacheStats(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"saved_microcents": 0}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/cache?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "cache_stats" {
-		t.Errorf("expected one cache_stats call, got %v", fc.calls)
-	}
-}
+// TestCacheRouteProxiesCacheStats was removed in the Day 28+ dead-route prune —
+// /api/cache has no app caller (audit §2). CmdCacheStats is still registered
+// and exercised by kernel/controlplane/cache_stats_test.go.
 
-func TestProvidersRouteProxiesProviderStats(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"routed": 0}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/providers?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "provider_stats" {
-		t.Errorf("expected one provider_stats call, got %v", fc.calls)
-	}
-}
+// TestProvidersRouteProxiesProviderStats was removed in the Day 28+ dead-route
+// prune — /api/providers has no app caller (audit §2). CmdProviderStats is
+// still registered and exercised by kernel/controlplane/*_test.go.
 
 func TestCatalogRouteProxiesCatalogList(t *testing.T) {
 	// The Chat model picker reads the full provider/model catalog via /api/catalog.
@@ -577,19 +548,10 @@ func TestCatalogRouteProxiesCatalogList(t *testing.T) {
 	}
 }
 
-func TestToolsRouteProxiesToolStats(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"total": 0}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/tools?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "tool_stats" {
-		t.Errorf("expected one tool_stats call, got %v", fc.calls)
-	}
-}
+// TestToolsRouteProxiesToolStats was removed in the Day 28+ dead-route prune —
+// /api/tools has no app caller (audit §2; distinct from /api/tools_catalog
+// which IS wired). CmdToolStats is still registered and exercised by
+// kernel/controlplane/*_test.go.
 
 func TestConfigRouteProxiesConfig(t *testing.T) {
 	// The config inspector surfaces the daemon's resolved config (paths, model,
@@ -1133,21 +1095,10 @@ func TestRedactTestRouteForwardsBody(t *testing.T) {
 	}
 }
 
-// TestJournalVerifyRouteProxies (M763): the integrity check is a parameterless GET
-// that proxies the journal_verify command.
-func TestJournalVerifyRouteProxies(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"ok": true}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/journal/verify?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "journal_verify" {
-		t.Fatalf("issued %v want [journal_verify]", fc.calls)
-	}
-}
+// TestJournalVerifyRouteProxies was removed in the Day 28+ dead-route prune —
+// /api/journal/verify has no app caller (audit §2; M759's integrity check is
+// still reachable via the CLI through CmdJournalVerify). The control plane
+// command remains registered; only the webui proxy is removed.
 
 // The edict_show read route proxies the parameterless show command (GET).
 func TestEdictShowRoute(t *testing.T) {
@@ -1941,20 +1892,9 @@ func TestRunStreamRejectsGet(t *testing.T) {
 	}
 }
 
-func TestFlowStatsProxiesPlanStats(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"total": 0}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet, "/api/plan_stats?token=secret", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "plan_stats" {
-		t.Errorf("expected one plan_stats call, got %v", fc.calls)
-	}
-}
+// TestFlowStatsProxiesPlanStats was removed in the Day 28+ dead-route prune —
+// /api/plan_stats has no app caller (audit §2). CmdPlanStats is still
+// registered and exercised by kernel/controlplane/plan_history_test.go.
 
 // TestWorkflowHook (M809): the tokenless /hooks/<name> path — POST with a
 // JSON body forwards {ref, secret, payload{kind,body,query}} to the

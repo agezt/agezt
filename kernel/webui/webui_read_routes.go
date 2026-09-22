@@ -13,16 +13,12 @@ import (
 var apiRoutes = map[string]string{
 	"/api/status":                  controlplane.CmdStatus,
 	"/api/config":                  controlplane.CmdConfig,
-	"/api/stats":                   controlplane.CmdRunsStats,
 	"/api/budget":                  controlplane.CmdBudget,
 	// Mission Control "Spend today" tile (Day 28+1). Slim shape {total:int} the
 	// useSpendToday hook consumes — pairs with /api/budget which carries the
 	// full breakdown.
 	"/api/spend/today":             controlplane.CmdSpendToday,
-	"/api/cache":                   controlplane.CmdCacheStats,
-	"/api/providers":               controlplane.CmdProviderStats,
 	"/api/catalog":                 controlplane.CmdCatalogList,
-	"/api/tools":                   controlplane.CmdToolStats,
 	"/api/execution_profiles":      controlplane.CmdExecutionProfiles,
 	"/api/execution_profile_check": controlplane.CmdExecutionProfileCheck,
 	"/api/tools_catalog":           controlplane.CmdToolList,
@@ -63,7 +59,6 @@ var apiRoutes = map[string]string{
 	"/api/autonomy":        controlplane.CmdAutonomyFeed,
 	"/api/reflect":         controlplane.CmdReflectShow,
 	"/api/approvals":       controlplane.CmdApprovals,
-	"/api/plan_stats":      controlplane.CmdPlanStats,
 	"/api/sandbox":         controlplane.CmdSandboxList,
 	"/api/config/schema":   controlplane.CmdConfigSchema,
 	"/api/config/values":   controlplane.CmdConfigValues,
@@ -83,13 +78,6 @@ var apiRoutes = map[string]string{
 	// Pulse asks — actionable observations awaiting an operator verdict under
 	// initiative=ask (M1001). Read-only; the resolve action is a write route below.
 	"/api/pulse/asks": controlplane.CmdPulseAsks,
-	// Journal integrity (M759): verify the tamper-evident hash chain. Returns
-	// { ok: true } when intact, or errors describing the break. Read-only.
-	"/api/journal/verify": controlplane.CmdJournalVerify,
-	// Per-subsystem home-dir disk breakdown (M927): what under ~/.agezt is
-	// taking the space, plus the filesystem free/total. Read-only — the
-	// collectors (artifact collect, memory prune) reclaim via their own routes.
-	"/api/storage": controlplane.CmdStorageStats,
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
