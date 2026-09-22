@@ -4,8 +4,8 @@
 // daemon's planner) or Analyst (which reads the journal), Reflect surfaces
 // the agent's own self-talk: memory writes/supersedes, decisions, and
 // recurring themes — i.e. the kinds of entries where the daemon was
-// reasoning about itself. We pull /api/memory/audit and /api/journal_search
-// in parallel, then group by subject and highlight the entries that look
+// reasoning about itself. We pull /api/memory/audit and /api/journal in
+// parallel, then group by subject and highlight the entries that look
 // like self-corrections or lessons learned.
 import { useEffect, useMemo, useState } from "react";
 import { Brain, ChevronRight, Lightbulb, RefreshCw, Repeat } from "lucide-react";
