@@ -327,26 +327,13 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 	}
 }
 
-func TestExecutionProfileRouteForwardsIDOnly(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"profile": map[string]any{"id": "warden"}}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet,
-		"/api/execution_profile?token=secret&id=warden&evil=rm", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdExecutionProfileShow {
-		t.Fatalf("expected execution_profile_show call, got %v", fc.calls)
-	}
-	if fc.lastArgs["id"] != "warden" {
-		t.Fatalf("id not forwarded: %v", fc.lastArgs)
-	}
-	if _, leaked := fc.lastArgs["evil"]; leaked {
-		t.Fatalf("non-allowlisted arg leaked: %v", fc.lastArgs)
-	}
-}
+// TestExecutionProfileRouteForwardsIDOnly was removed in the Day 28+
+// orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
+// /api/execution_profile (singular) went un-wired. The
+// CmdExecutionProfileShow command remains registered for CLI/operator
+// use, and /api/execution_profiles (plural) IS wired.
+
+
 
 func TestExecutionProfileCheckRouteProxies(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"count": 1, "checks": []any{}}}
@@ -657,31 +644,12 @@ func TestProviderLogRouteForwardsLimit(t *testing.T) {
 // The Search view (M618): /api/journal_search forwards the full grep filter set
 // (free-text pattern + kind/subject/actor/correlation/limit) and drops anything
 // else.
-func TestJournalSearchForwardsFullFilterSet(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodGet,
-		"/api/journal_search?token=secret&pattern=denied&kind=policy.decision&actor=agent-1&subject=governor&correlation_id=run-9&limit=50&evil=rm", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "journal_grep" {
-		t.Fatalf("expected one journal_grep call, got %v", fc.calls)
-	}
-	for k, want := range map[string]any{
-		"pattern": "denied", "kind": "policy.decision", "actor": "agent-1",
-		"subject": "governor", "correlation_id": "run-9", "limit": float64(50),
-	} {
-		if fc.lastArgs[k] != want {
-			t.Errorf("%s not forwarded: got %v want %v", k, fc.lastArgs[k], want)
-		}
-	}
-	if _, leaked := fc.lastArgs["evil"]; leaked {
-		t.Error("non-allowlisted arg leaked through journal_search")
-	}
-}
+// TestJournalSearchForwardsFullFilterSet was removed in the Day 28+
+// orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
+// /api/journal_search went un-wired. The CmdJournalGrep command remains
+// registered for CLI/operator use.
+
+
 
 func TestJournalRouteForwardsKind(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
@@ -961,26 +929,12 @@ func TestCancelRunForwardsCorrelation(t *testing.T) {
 
 // The Budget view's runtime ceiling control (M607): POST /api/budget_set
 // forwards the allowlisted ceiling_mc and nothing else.
-func TestBudgetSetForwardsCeiling(t *testing.T) {
-	fc := &fakeCaller{result: map[string]any{"ceiling_mc": 2_000_000_000}}
-	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodPost,
-		"/api/budget_set?token=secret&ceiling_mc=2000000000&evil=x", nil)
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d want 200", rec.Code)
-	}
-	if len(fc.calls) != 1 || fc.calls[0] != "budget_set" {
-		t.Fatalf("expected one CmdBudgetSet call, got %v", fc.calls)
-	}
-	if fc.lastArgs["ceiling_mc"] != "2000000000" {
-		t.Errorf("ceiling_mc not forwarded: %v", fc.lastArgs)
-	}
-	if _, leaked := fc.lastArgs["evil"]; leaked {
-		t.Error("non-allowlisted arg leaked into the budget_set call")
-	}
-}
+// TestBudgetSetForwardsCeiling was removed in the Day 28+
+// orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
+// /api/budget_set went un-wired. The CmdBudgetSet command remains
+// registered for CLI/operator use.
+
+
 
 // Policy control center (M610): the edict mutation routes forward only their
 // allowlisted args and map to the right command, so an operator can grant/deny
@@ -1038,7 +992,6 @@ func TestSessionControlRoutesWired(t *testing.T) {
 		{"/api/pulse/dial", "pulse_dial", http.MethodPost, "dial=chatty&evil=x", map[string]string{"dial": "chatty"}},
 		// Read-with-args routes (GET).
 		{"/api/edict/test", "edict_test", http.MethodGet, "capability=shell&input=rm&evil=x", map[string]string{"capability": "shell", "input": "rm"}},
-		{"/api/why", "why", http.MethodGet, "event_id=e1&evil=x", map[string]string{"event_id": "e1"}},
 		{"/api/standing/why", "standing_why", http.MethodGet, "id=so-1&evil=x", map[string]string{"id": "so-1"}},
 		{"/api/schedule/test", "schedule_test", http.MethodGet, "id=sc-1&count=5&evil=x", map[string]string{"id": "sc-1", "count": "5"}},
 	} {

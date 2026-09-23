@@ -27,9 +27,6 @@ var writeRoutes = map[string]writeRoute{
 	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
 	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
-	// Resolve a pending ask (M1001): approve (re-emit onto pulse.initiative.act) or
-	// reject one of the actionable observations the heartbeat raised under ask-mode.
-	"/api/pulse/asks/resolve": {controlplane.CmdPulseAskResolve, []string{"issue_key", "approve"}},
 	// Trigger one on-demand heartbeat (M756): the operator's "think now". No args.
 	"/api/pulse/beat": {controlplane.CmdPulseBeat, nil},
 	// Change the heartbeat interval live (M757): seconds → clamped cadence. Runtime-only.
@@ -52,7 +49,8 @@ var writeRoutes = map[string]writeRoute{
 	// Send an outbound message via a configured channel (M747): channel + to + text.
 	"/api/send":          {controlplane.CmdSend, []string{"channel", "to", "text"}},
 	"/api/cancel_run":    {controlplane.CmdCancelRun, []string{"correlation"}},
-	"/api/budget_set":    {controlplane.CmdBudgetSet, []string{"ceiling_mc"}},
+	// /api/budget_set went un-wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2);
+	// reachable via CmdBudgetSet when an operator needs to adjust the ceiling.
 	"/api/run/pause":     {controlplane.CmdRunPause, []string{"correlation"}},
 	"/api/run/resume":    {controlplane.CmdRunResume, []string{"correlation"}},
 	"/api/run/step":      {controlplane.CmdRunStep, []string{"correlation"}},
