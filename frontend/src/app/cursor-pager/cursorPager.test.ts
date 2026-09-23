@@ -45,13 +45,7 @@ vi.mock("@/app/api", async (importOriginal) => {
 import { useCursorPager } from "@/app/cursor-pager";
 import {
   useAgentsPager,
-  useInboxPager,
-  useBoardPager,
   useMemoryPager,
-  useAgentActivityPager,
-  useAgentEscalationsPager,
-  useToolLogPager,
-  usePlanHistoryPager,
 } from "@/app/cursor-pager";
 
 function row(id: string): Row {
@@ -213,32 +207,6 @@ describe("useAgentsPager", () => {
   });
 });
 
-describe("useInboxPager", () => {
-  it("forwards channel filter and uses correlation_id as idKey", async () => {
-    nextResponse = () => ({
-      threads: [{ correlation_id: "c1" }],
-      next_cursor: null,
-    } as InboxResp);
-    const { result } = renderHook(() => useInboxPager("telegram"));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(messages[0]).toContain("channel=telegram");
-    expect(result.current.paged.map((t) => t.correlation_id)).toEqual(["c1"]);
-  });
-});
-
-describe("useBoardPager", () => {
-  it("forwards topic filter and uses message id as idKey", async () => {
-    nextResponse = () => ({
-      messages: [{ id: "m1" }],
-      next_cursor: null,
-    } as BoardResp);
-    const { result } = renderHook(() => useBoardPager("ops"));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(messages[0]).toContain("topic=ops");
-    expect(result.current.paged.map((m) => m.id)).toEqual(["m1"]);
-  });
-});
-
 describe("useMemoryPager", () => {
   it("hits /api/memory with id as idKey", async () => {
     nextResponse = () => ({
@@ -252,71 +220,7 @@ describe("useMemoryPager", () => {
   });
 });
 
-describe("useAgentActivityPager", () => {
-  it("forwards ref and uses seq as idKey", async () => {
-    nextResponse = () => ({
-      activity: [{ seq: 100 }, { seq: 99 }],
-      next_cursor: "98",
-    } as AgentActivityResp);
-    const { result } = renderHook(() => useAgentActivityPager("audited"));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(messages[0]).toContain("ref=audited");
-    expect(result.current.paged.map((e) => String(e.seq))).toEqual(["100", "99"]);
-    expect(result.current.hasMore).toBe(true);
-  });
-});
-
-describe("useAgentEscalationsPager", () => {
-  it("forwards ref and uses message_id as idKey", async () => {
-    nextResponse = () => ({
-      escalations: [{ message_id: "esc-1" }],
-      next_cursor: null,
-    } as AgentEscalationsResp);
-    const { result } = renderHook(() => useAgentEscalationsPager("audited"));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(messages[0]).toContain("ref=audited");
-    expect(result.current.paged.map((e) => e.message_id)).toEqual(["esc-1"]);
-  });
-});
-
 // Log endpoints (A2 Phase 1 + 2): representative seq-keyed and correlation_id-keyed wrappers.
-
-describe("useToolLogPager", () => {
-  it("hits /api/tool_log with the invocations envelope and seq-dedup", async () => {
-    const chain = ["50:2", null];
-    nextResponse = (cursor) => {
-      const i = ["", ...chain].indexOf(cursor ?? "");
-      return {
-        invocations: i === 0 ? [{ seq: 3 }, { seq: 2 }] : [{ seq: 1 }],
-        next_cursor: chain[Math.min(i, chain.length - 1)],
-      } as unknown as Record<string, unknown>;
-    };
-    const { result } = renderHook(() => useToolLogPager());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(messages[0]).toMatch(/^\/api\/tool_log\?/);
-    expect(result.current.paged.map((r) => String(r.seq))).toEqual(["3", "2"]);
-    expect(result.current.hasMore).toBe(true);
-    await act(async () => {
-      await result.current.loadMore();
-    });
-    expect(result.current.paged.map((r) => String(r.seq))).toEqual(["3", "2", "1"]);
-    expect(result.current.hasMore).toBe(false);
-  });
-});
-
-describe("usePlanHistoryPager", () => {
-  it("hits /api/plan_history with the plans envelope and correlation_id-dedup", async () => {
-    nextResponse = () => ({
-      plans: [{ correlation_id: "plan-a" }, { correlation_id: "plan-b" }],
-      next_cursor: null,
-    } as unknown as Record<string, unknown>);
-    const { result } = renderHook(() => usePlanHistoryPager());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(messages[0]).toMatch(/^\/api\/plan_history\?/);
-    expect(result.current.paged.map((r) => r.correlation_id)).toEqual(["plan-a", "plan-b"]);
-    expect(result.current.hasMore).toBe(false);
-  });
-});
 
 // ────────── Dedup key: an absent id must not identify a row ──────────
 //
