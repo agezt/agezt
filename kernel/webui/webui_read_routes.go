@@ -32,11 +32,10 @@ var apiRoutes = map[string]string{
 	"/api/standing":                controlplane.CmdStandingList,
 	"/api/toolforge":               controlplane.CmdToolforgeList,
 	"/api/mcp":                     controlplane.CmdMCPList,
-	// CLI Toolbox (M956): host tool inventory + upgradable set. Read-only host
-	// probes (LookPath + bounded --version; package-manager upgrade-list). The
-	// install action streams, so it has its own proxy (toolInstallProxy) below.
-	"/api/toolbox":         controlplane.CmdToolboxDetect,
-	"/api/toolbox/updates": controlplane.CmdToolboxOutdated,
+	// CLI Toolbox (M956): the install action streams, so it has its own proxy
+	// (toolInstallProxy) below. The detect/updates pair is unused by the Web UI
+	// (verified in TOPOLOGY-AUDIT-DAY28-VERIFY.md §2) and reachable via the CLI
+	// through CmdToolboxDetect / CmdToolboxOutdated when an operator needs them.
 	"/api/acp/agents":      controlplane.CmdACPAgents,
 	"/api/workflows":       controlplane.CmdWorkflowList,
 	// Built-in workflow template gallery (M807). Read-only.
@@ -57,7 +56,6 @@ var apiRoutes = map[string]string{
 	// Conductor (M997): the default role→model assignment the panel will use. Read-only.
 	"/api/conductor/roles": controlplane.CmdConductorRoles,
 	"/api/autonomy":        controlplane.CmdAutonomyFeed,
-	"/api/reflect":         controlplane.CmdReflectShow,
 	"/api/approvals":       controlplane.CmdApprovals,
 	"/api/sandbox":         controlplane.CmdSandboxList,
 	"/api/config/schema":   controlplane.CmdConfigSchema,
@@ -160,7 +158,6 @@ var readArgsRoutes = map[string]writeRoute{
 	// Rated agent Config Center (distinct from daemon /api/config settings):
 	// key/value entries agents can read under rating + allow/deny policy.
 	"/api/configcenter/list": {controlplane.CmdConfigCenterList, []string{"rating"}},
-	"/api/configcenter/get":  {controlplane.CmdConfigCenterGet, []string{"key"}},
 	// Reaper scan (M903): dead-agent + stale-artifact candidates. Read-only detection. (#53)
 	"/api/reaper/scan": {controlplane.CmdReaperScan, []string{"idle_days", "stale_days"}},
 	"/api/workboard/lanes": {controlplane.CmdWorkboardLanes, []string{
@@ -168,10 +165,11 @@ var readArgsRoutes = map[string]writeRoute{
 	}},
 	"/api/workboard/watch": {controlplane.CmdWorkboardWatch, []string{"id", "run_id", "limit"}},
 	"/api/okr/show":        {controlplane.CmdOKRShow, []string{"id"}},
-	// Skill bundle resources (M847): list a skill's reference files + scripts, and
-	// read one resource's content. Both read-only; the daemon path-confines reads.
+	// Skill bundle resources (M847): list a skill's reference files + scripts.
+	// Read-only; the daemon path-confines reads. The single-file GET was never
+	// wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdSkillReadFile
+	// when an operator needs it.
 	"/api/skill/files": {controlplane.CmdSkillFiles, []string{"id"}},
-	"/api/skill/file":  {controlplane.CmdSkillReadFile, []string{"id", "path"}},
 	// Skill hygiene (M858): active skills that look idle (never/long-unused). Read-only.
 	"/api/skills/hygiene": {controlplane.CmdSkillHygiene, []string{"idle_days"}},
 	// Marketplace (capability packs): browse the catalogue + one pack's contents.

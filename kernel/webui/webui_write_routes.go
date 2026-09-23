@@ -19,10 +19,11 @@ var writeRoutes = map[string]writeRoute{
 	// in; dry_run (default true) previews, dry_run=false deletes. Goes through the
 	// jsonProxy? No — the args are simple scalars, so it's a query-arg write route.
 	"/api/artifact/collect": {controlplane.CmdArtifactCollect, []string{"older_than_days", "dry_run"}},
-	// Personal Data Lake mutations (M836): delete a record / drop a user collection.
-	// (Insert/update/create carry structured bodies — they are jsonRoutes.)
+	// Personal Data Lake mutations (M836): delete a record. (Insert/update/create
+	// carry structured bodies — they are jsonRoutes.) The drop-collection write
+	// was never wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via
+	// CmdDataDropCollection when an operator needs to drop a collection.
 	"/api/data/delete": {controlplane.CmdDataDelete, []string{"collection", "id"}},
-	"/api/data/drop":   {controlplane.CmdDataDropCollection, []string{"name"}},
 	// Pulse pause/resume (M743): the proactive-heartbeat master switch. No args.
 	"/api/pulse/pause":  {controlplane.CmdPulsePause, nil},
 	"/api/pulse/resume": {controlplane.CmdPulseResume, nil},
@@ -73,11 +74,12 @@ var writeRoutes = map[string]writeRoute{
 	"/api/memory/promote": {controlplane.CmdMemoryPromote, []string{"id"}},
 	// Delete a stored artifact by index id (M822); the blob is GC'd when unreferenced.
 	"/api/artifact/delete": {controlplane.CmdArtifactDelete, []string{"id"}},
-	// One brain-distillation pass (M804): merge related records, supersede
-	// the originals. No args; mirrors /api/reflect/run.
-	"/api/memory/consolidate": {controlplane.CmdMemoryConsolidate, nil},
+	// One brain-distillation pass was the read/write pair previously exposed at
+	// /api/memory/consolidate and /api/reflect/run (TOPOLOGY-AUDIT-DAY28-VERIFY.md
+	// §2: no app caller). The controlplane commands remain registered for CLI use;
+	// the Web UI proxies are removed.
 	// Operator-profile rebuild (M1000): synthesize the operator profile from
-	// accumulated memory. No args; mirrors /api/memory/consolidate.
+	// accumulated memory. No args; mirrors the (removed) /api/memory/consolidate.
 	"/api/profile/rebuild": {controlplane.CmdProfileRebuild, nil},
 	// Memory prune (M857): hard-remove soft-deleted records older than N days.
 	// dry_run reports the prunable count first; the UI confirms before pruning.
@@ -100,7 +102,8 @@ var writeRoutes = map[string]writeRoute{
 	"/api/skill/archive":    {controlplane.CmdSkillArchive, []string{"id", "reason"}},
 	"/api/skill/revert":     {controlplane.CmdSkillRevert, []string{"id"}},
 	"/api/skill/share":      {controlplane.CmdSkillShare, []string{"id"}},
-	"/api/skill/reassign":   {controlplane.CmdSkillReassign, []string{"id", "agent"}},
+	// /api/skill/reassign was never wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2);
+	// reachable via CmdSkillReassign when an operator needs to reassign a skill.
 	"/api/schedule/remove":  {controlplane.CmdScheduleRemove, []string{"id"}},
 	"/api/schedule/run":     {controlplane.CmdScheduleRun, []string{"id"}},
 	"/api/schedule/enable":  {controlplane.CmdScheduleEnable, []string{"id", "enabled"}},
@@ -210,11 +213,11 @@ var jsonRoutes = map[string]writeRoute{
 	// Chat history compaction (M923): fold older turns into one briefing. The
 	// turns array is far too large for a query string — JSON body only.
 	"/api/chat/summarize": {controlplane.CmdChatSummarize, []string{"turns", "model"}},
-	// Personal Data Lake writes (M836): insert/update carry the record object;
-	// create carries the full collection schema — JSON bodies, not query args.
+	// Personal Data Lake writes (M836): insert/update carry the record object —
+	// JSON bodies, not query args. The create-collection write was never wired
+	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdDataCreateCollection.
 	"/api/data/insert":     {controlplane.CmdDataInsert, []string{"collection", "record"}},
 	"/api/data/update":     {controlplane.CmdDataUpdate, []string{"collection", "id", "record"}},
-	"/api/data/collection": {controlplane.CmdDataCreateCollection, []string{"collection"}},
 	// Council of Elders ask (M839): convene the panel on a question. Long-running
 	// (several model calls) but bounded by the jsonProxy timeout. POST body.
 	"/api/council/ask": {controlplane.CmdCouncilAsk, []string{"question", "rounds", "corr"}},
