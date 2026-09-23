@@ -18,8 +18,11 @@ import (
 // `-out` — would have deleted the real route table and rewritten every SDK's
 // coverage to 0/0.
 //
-// Asserting a non-empty extraction against the REAL restapi.go turns that
-// silent regression into a red test. The named-route check makes it a real
+// The same shape-break re-occured when registrations moved out of
+// `kernel/restapi/restapi.go` into `restapi_routes.go` — extractRoutes now
+// globs the whole package, and this test reads the same glob. Asserting a
+// non-empty extraction against the REAL daemon package turns that silent
+// regression into a red test. The named-route check makes it a real
 // assertion rather than a pulse: a pattern that matched some unrelated literal
 // would still be caught.
 func TestExtractRoutes_FindsLiveRoutes(t *testing.T) {
@@ -28,12 +31,12 @@ func TestExtractRoutes_FindsLiveRoutes(t *testing.T) {
 		t.Skip("runtime.Caller unavailable")
 	}
 	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..")
-	routes, err := extractRoutes(filepath.Join(repoRoot, "kernel", "restapi", "restapi.go"))
+	routes, err := extractRoutes(filepath.Join(repoRoot, "kernel", "restapi", "restapi*.go"))
 	if err != nil {
 		t.Fatalf("extractRoutes: %v", err)
 	}
 	if len(routes) == 0 {
-		t.Fatal("extractRoutes found no /api/v1 routes in kernel/restapi/restapi.go — the route registration shape changed and the pattern no longer matches it; fix routeRegistration rather than regenerating the report, which would erase a correct table")
+		t.Fatal("extractRoutes found no /api/v1 routes in kernel/restapi/restapi*.go — the route registration shape changed and the pattern no longer matches it; fix routeRegistration rather than regenerating the report, which would erase a correct table")
 	}
 
 	// Anchor on routes that must exist for the daemon to be a daemon. If the
