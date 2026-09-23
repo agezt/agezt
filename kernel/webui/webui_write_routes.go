@@ -118,13 +118,6 @@ var writeRoutes = map[string]writeRoute{
 	"/api/agents/revive": {controlplane.CmdAgentRevive, []string{"ref"}},
 	// Agent wake: manual trigger for a roster agent. POST-only.
 	"/api/agents/wake": {controlplane.CmdAgentWake, []string{"ref", "intent", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
-	// Script-tool forge lifecycle (M794): test runs the code in the sandbox and
-	// records the verdict; promote/quarantine move a TESTED tool in/out of
-	// production; remove deletes it. ref = id or name.
-	"/api/toolforge/test":       {controlplane.CmdToolforgeTest, []string{"ref", "input"}},
-	"/api/toolforge/promote":    {controlplane.CmdToolforgePromote, []string{"ref"}},
-	"/api/toolforge/quarantine": {controlplane.CmdToolforgeQuarantine, []string{"ref", "reason"}},
-	"/api/toolforge/remove":     {controlplane.CmdToolforgeRemove, []string{"ref"}},
 	// MCP self-install lifecycle (M796): attach spawns the registered server
 	// NOW (its tools go live for the next run); detach is the kill switch;
 	// enable flips auto-attach at daemon start. ref = name or id.
@@ -136,7 +129,8 @@ var writeRoutes = map[string]writeRoute{
 	// (Save and run carry structured bodies — they are jsonRoutes.)
 	"/api/workflows/enable": {controlplane.CmdWorkflowSetEnabled, []string{"ref", "enabled"}},
 	"/api/workflows/remove": {controlplane.CmdWorkflowRemove, []string{"ref"}},
-	"/api/reflect/run":      {controlplane.CmdReflectRun, nil},
+	// /api/reflect/run was never wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2);
+	// reachable via CmdReflectRun when an operator needs it.
 	// Provider keyring switch/remove (M700): activate or remove a key, reloading
 	// the provider in place. (Add is a jsonRoute — the value is a secret body.)
 	"/api/provider/keys/activate": {controlplane.CmdProviderKeyActivate, []string{"provider", "env", "label"}},
@@ -225,9 +219,8 @@ var jsonRoutes = map[string]writeRoute{
 	// is an array of {seat, model}. Applies live and persists to config store.
 	"/api/council/set": {controlplane.CmdCouncilSet, []string{"members"}},
 	// Conductor ask (M997): run the Thinker/Worker/Verifier loop on a task.
-	// Long-running (several model calls + possibly a sandbox run) but bounded by
-	// the jsonProxy timeout. POST body.
-	"/api/conductor/ask": {controlplane.CmdConductorAsk, []string{"task", "thinker", "worker", "verifier", "max_rounds", "plan", "corr"}},
+	// The conductor nav cluster was REMOVED in Day 28 (TOPOLOGY-AUDIT-DAY28-VERIFY.md
+	// §2); reachable via CmdConductorAsk when an operator needs it.
 	// Deep-research harness ask (M1001): decompose, gather web sources,
 	// synthesize a cited answer, adversarially verify each claim. Long-running
 	// (several searches/fetches + model calls) but bounded by the jsonProxy
@@ -252,33 +245,10 @@ var jsonRoutes = map[string]writeRoute{
 	// agents use with the board tool.
 	"/api/board/send": {controlplane.CmdBoardSend, []string{"from", "to", "topic", "reply_to", "text", "help"}},
 	"/api/board/ack":  {controlplane.CmdBoardAck, []string{"id", "by"}},
-	// Workboard operator actions: the dedicated task-detail UI uses body-shaped
-	// calls so long comments/reasons/intents never ride in query strings.
-	"/api/workboard/create":   {controlplane.CmdWorkboardCreate, []string{"title", "description", "assignee", "priority", "criteria", "seat"}},
-	"/api/workboard/comment":  {controlplane.CmdWorkboardComment, []string{"id", "author", "body"}},
-	"/api/workboard/block":    {controlplane.CmdWorkboardBlock, []string{"id", "actor", "reason"}},
-	"/api/workboard/fail":     {controlplane.CmdWorkboardFail, []string{"id", "actor", "reason"}},
-	"/api/workboard/unblock":  {controlplane.CmdWorkboardUnblock, []string{"id", "actor"}},
-	"/api/workboard/complete": {controlplane.CmdWorkboardComplete, []string{"id", "actor"}},
-	"/api/workboard/prove":    {controlplane.CmdWorkboardProve, []string{"id", "actor", "answer"}},
-	"/api/workboard/seat":     {controlplane.CmdWorkboardSeat, []string{"id", "seat"}},
-	"/api/workboard/policy":   {controlplane.CmdWorkboardPolicy, []string{"id", "actor", "max_attempts", "escalate_to", "clear"}},
-	// OKR spine (Phase 2): operator + agent actions on objectives.
-	"/api/okr/create":    {controlplane.CmdOKRCreate, []string{"title", "description", "owner", "tenant"}},
-	"/api/okr/keyresult": {controlplane.CmdOKRKeyResult, []string{"id", "title", "target"}},
-	"/api/okr/link":      {controlplane.CmdOKRLink, []string{"id", "key_result", "task"}},
-	"/api/okr/unlink":    {controlplane.CmdOKRUnlink, []string{"id", "key_result", "task"}},
-	"/api/okr/archive":   {controlplane.CmdOKRArchive, []string{"id"}},
-	// Taste overlay (Phase 3): curate exemplars from the console.
-	"/api/taste/create":       {controlplane.CmdTasteCreate, []string{"title", "body", "scope", "tags"}},
-	"/api/taste/delete":       {controlplane.CmdTasteDelete, []string{"id"}},
-	"/api/seats/create":       {controlplane.CmdSeatCreate, []string{"id", "name", "description", "execution_profile", "model_chain", "tools", "restrict_tools"}},
-	"/api/seats/delete":       {controlplane.CmdSeatDelete, []string{"id"}},
-	"/api/workboard/dispatch": {controlplane.CmdWorkboardDispatch, []string{"id", "agent", "intent", "reason"}},
-	// Script-tool forge draft/edit (M794): the tool is a structured object
-	// (code body, schema text) — a JSON body, not query args.
-	"/api/toolforge/draft": {controlplane.CmdToolforgeDraft, []string{"tool"}},
-	"/api/toolforge/edit":  {controlplane.CmdToolforgeEdit, []string{"ref", "tool"}},
+	// OKR / Workboard / Taste / Seats / Toolforge cluster was REMOVED in Day 28
+	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); the underlying commands remain
+	// registered for CLI use and are exercised by kernel/controlplane/
+	// toolforge_test.go.
 	// Register an MCP server (M796): the server is a structured object
 	// (command + args list) — a JSON body, not query args.
 	"/api/mcp/add": {controlplane.CmdMCPAdd, []string{"server"}},

@@ -1418,54 +1418,14 @@ func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
 	}
 }
 
-func TestWorkboardJSONRoutesForwardAllowedBodies(t *testing.T) {
-	for _, tc := range []struct {
-		path string
-		cmd  string
-		body string
-		want map[string]any
-	}{
-		{
-			path: "/api/workboard/comment",
-			cmd:  controlplane.CmdWorkboardComment,
-			body: `{"id":"wb1","author":"operator","body":"looks good","evil":"x"}`,
-			want: map[string]any{"id": "wb1", "author": "operator", "body": "looks good"},
-		},
-		{
-			path: "/api/workboard/policy",
-			cmd:  controlplane.CmdWorkboardPolicy,
-			body: `{"id":"wb1","actor":"operator","max_attempts":3,"escalate_to":"lead","clear":false,"evil":"x"}`,
-			want: map[string]any{"id": "wb1", "actor": "operator", "max_attempts": float64(3), "escalate_to": "lead", "clear": false},
-		},
-		{
-			path: "/api/workboard/dispatch",
-			cmd:  controlplane.CmdWorkboardDispatch,
-			body: `{"id":"wb1","agent":"builder","intent":"ship","reason":"operator dispatch","evil":"x"}`,
-			want: map[string]any{"id": "wb1", "agent": "builder", "intent": "ship", "reason": "operator dispatch"},
-		},
-	} {
-		fc := &fakeCaller{result: map[string]any{"ok": true}}
-		s, _ := newServer(t, fc, "secret")
-		req := httptest.NewRequest(http.MethodPost, tc.path+"?token=secret", strings.NewReader(tc.body))
-		rec := httptest.NewRecorder()
-		s.Handler().ServeHTTP(rec, req)
+// TestWorkboardJSONRoutesForwardAllowedBodies was removed in the Day 28+
+// removed-view-cluster prune — the workboard nav cluster was REMOVED
+// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2) so /api/workboard/{comment,policy,dispatch}
+// no longer exist. The underlying CmdWorkboardComment/Policy/Dispatch
+// commands remain registered and are exercised directly by
+// kernel/controlplane/*_test.go.
 
-		if rec.Code != http.StatusOK {
-			t.Fatalf("%s status = %d want 200 body=%s", tc.path, rec.Code, rec.Body.String())
-		}
-		if len(fc.calls) != 1 || fc.calls[0] != tc.cmd {
-			t.Fatalf("%s expected one %s call, got %v", tc.path, tc.cmd, fc.calls)
-		}
-		for k, want := range tc.want {
-			if fc.lastArgs[k] != want {
-				t.Fatalf("%s arg %s = %v want %v (args=%v)", tc.path, k, fc.lastArgs[k], want, fc.lastArgs)
-			}
-		}
-		if _, leaked := fc.lastArgs["evil"]; leaked {
-			t.Fatalf("%s leaked unexpected body key: %v", tc.path, fc.lastArgs)
-		}
-	}
-}
+
 
 func TestAgentRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 	for _, tc := range []struct {

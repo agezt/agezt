@@ -30,7 +30,6 @@ var apiRoutes = map[string]string{
 	"/api/world":                   controlplane.CmdWorldList,
 	"/api/skills":                  controlplane.CmdSkillList,
 	"/api/standing":                controlplane.CmdStandingList,
-	"/api/toolforge":               controlplane.CmdToolforgeList,
 	"/api/mcp":                     controlplane.CmdMCPList,
 	// CLI Toolbox (M956): the install action streams, so it has its own proxy
 	// (toolInstallProxy) below. The detect/updates pair is unused by the Web UI
@@ -42,19 +41,10 @@ var apiRoutes = map[string]string{
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
 	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
 	"/api/board/help": controlplane.CmdBoardHelp,
-	"/api/workboard":  controlplane.CmdWorkboardList,
-	// OKR spine (Phase 2): list objectives with live rollup (no args). Read-only.
-	"/api/okr": controlplane.CmdOKRList,
-	// Taste overlay (Phase 3): list curated exemplars (no args). Read-only.
-	"/api/taste": controlplane.CmdTasteList,
-	// Execution seats (Phase 4): the built-in seat catalog (no args). Read-only.
-	"/api/seats": controlplane.CmdSeatList,
 	// Personal Data Lake (M836): list collections (no args). Read-only.
 	"/api/data/collections": controlplane.CmdDataCollections,
 	// Council of Elders (M839): the default membership the panel convenes with. Read-only.
 	"/api/council/members": controlplane.CmdCouncilMembers,
-	// Conductor (M997): the default role→model assignment the panel will use. Read-only.
-	"/api/conductor/roles": controlplane.CmdConductorRoles,
 	"/api/autonomy":        controlplane.CmdAutonomyFeed,
 	"/api/approvals":       controlplane.CmdApprovals,
 	"/api/sandbox":         controlplane.CmdSandboxList,
@@ -160,11 +150,6 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/configcenter/list": {controlplane.CmdConfigCenterList, []string{"rating"}},
 	// Reaper scan (M903): dead-agent + stale-artifact candidates. Read-only detection. (#53)
 	"/api/reaper/scan": {controlplane.CmdReaperScan, []string{"idle_days", "stale_days"}},
-	"/api/workboard/lanes": {controlplane.CmdWorkboardLanes, []string{
-		"status", "tenant", "limit", "include_archived",
-	}},
-	"/api/workboard/watch": {controlplane.CmdWorkboardWatch, []string{"id", "run_id", "limit"}},
-	"/api/okr/show":        {controlplane.CmdOKRShow, []string{"id"}},
 	// Skill bundle resources (M847): list a skill's reference files + scripts.
 	// Read-only; the daemon path-confines reads. The single-file GET was never
 	// wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdSkillReadFile
@@ -210,9 +195,6 @@ var readArgsRoutes = map[string]writeRoute{
 	// A standing order's life story (M746): every standing.* journal event for it —
 	// created, paused/resumed, each firing, removed. Read-only provenance.
 	"/api/standing/why": {controlplane.CmdStandingWhy, []string{"id"}},
-	// One script tool's full record incl. the code body (M795) — the list route
-	// deliberately strips code; the Forge view's editor fetches it here. Read-only.
-	"/api/toolforge/show": {controlplane.CmdToolforgeShow, []string{"ref"}},
 	// One workflow's full graph (M798) — the list stays light; the canvas
 	// editor fetches nodes+edges here. Read-only.
 	"/api/workflows/show": {controlplane.CmdWorkflowShow, []string{"ref"}},
