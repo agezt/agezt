@@ -825,25 +825,23 @@ func TestAPIReadOnly(t *testing.T) {
 	// Every GET /api route must map to a read-only command — assert the proxy
 	// never issues anything outside the known read set.
 	readOnly := map[string]bool{
-		"status": true, "config": true, "runs_list": true, "runs_stats": true, "budget": true, "cache_stats": true, "provider_stats": true, "tool_stats": true, "edict_stats": true, "schedule_list": true, "schedule_system_tasks": true, "memory_list": true, "memory_audit": true, "world_list": true,
-		"skill_list": true, "standing_list": true, "agent_list": true, "toolforge_list": true, "mcp_list": true, "workflow_list": true, "workflow_templates": true, "inbox": true, "reflect_show": true, "approvals": true, "execution_profiles": true, "execution_profile_check": true,
-		"plan_stats": true, "edict_show": true, "tool_list": true, "board_read": true, "autonomy_feed": true,
-		"catalog_list": true, "sandbox_list": true,
-		"config_schema": true, "config_values": true, "routing_get": true, "chains_get": true, "persona_get": true, "prompts_get": true, "version": true,
-		"channel_list": true, "node_registry": true, "acp_agents": true,
-		"pulse_status": true, "pulse_asks": true, "journal_verify": true, "storage_stats": true,
-		"data_collections": true,
-		"council_members":  true,
-		"conductor_roles":  true,
-		"board_help":       true,
-		"workboard_list":   true,
-		"okr_list":         true,
-		"taste_list":       true,
-		"seat_list":        true,
-		"toolbox_detect":   true,
-		"toolbox_outdated": true,
-		// Mission Control "Spend today" tile (Day 28+1) — read-only slim counterpart of budget.
-		"spend_today": true,
+		"acp_agents": true, "agent_activity": true, "agent_escalations": true, "agent_impact": true,
+		"agent_list": true, "agent_permissions": true, "agent_repair_status": true, "approvals": true,
+		"approvals_log": true, "artifact_list": true, "attention": true, "autonomy_feed": true, "board_help": true,
+		"board_read": true, "budget": true, "catalog_list": true, "chains_get": true, "channel_list": true,
+		"chat_suggestions": true, "config": true, "config_schema": true, "config_values": true,
+		"council_members": true, "data_collections": true, "data_records": true, "edict_log": true,
+		"edict_show": true, "edict_stats": true, "edict_test": true, "execution_profile_check": true,
+		"execution_profiles": true, "inbox": true, "journal_grep": true, "market_list": true, "market_show": true,
+		"market_sources": true, "mcp_list": true, "memory_audit": true, "memory_list": true, "memory_log": true,
+		"netguard_log": true, "node_registry": true, "persona_get": true, "plan_history": true,
+		"prompts_get": true, "provider_key_list": true, "provider_log": true, "pulse_status": true,
+		"ratelimit_log": true, "reaper_scan": true, "routing_get": true, "runs_list": true, "sandbox_file": true,
+		"sandbox_list": true, "schedule_fires": true, "schedule_list": true, "schedule_system_tasks": true,
+		"schedule_test": true, "skill_files": true, "skill_hygiene": true, "skill_list": true, "spend_today": true,
+		"standing_list": true, "standing_why": true, "status": true, "tool_list": true, "tool_log": true,
+		"version": true, "warden_log": true, "webhook_log": true, "workflow_list": true, "workflow_runs": true,
+		"workflow_show": true, "workflow_templates": true, "world_list": true, "world_log": true,
 	}
 	for path := range apiRoutes {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
