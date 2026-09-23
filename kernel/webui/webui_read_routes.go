@@ -63,9 +63,9 @@ var apiRoutes = map[string]string{
 	"/api/prompts": controlplane.CmdPromptsGet,
 	// Pulse — the proactive heartbeat status (running/paused/beats/cadence) (M743).
 	"/api/pulse": controlplane.CmdPulseStatus,
-	// Pulse asks — actionable observations awaiting an operator verdict under
-	// initiative=ask (M1001). Read-only; the resolve action is a write route below.
-	"/api/pulse/asks": controlplane.CmdPulseAsks,
+	// /api/pulse/asks and /api/pulse/asks/resolve went un-wired
+	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdPulseAsks /
+	// CmdPulseAskResolve when an operator needs them.
 }
 
 // writeRoute is a mutating control-plane command exposed over POST. args lists
@@ -105,17 +105,11 @@ var readArgsRoutes = map[string]writeRoute{
 	"/api/board":  {controlplane.CmdBoardRead, []string{"limit", "cursor", "topic"}},
 	"/api/memory": {controlplane.CmdMemoryList, []string{"limit", "cursor"}},
 	// Export an integrity-attested journal bundle for archival/compliance (M772):
-	// every event with its hash + the chain head, re-verifiable offline. Read-only.
-	"/api/journal/export": {controlplane.CmdJournalExport, []string{"since_ms"}},
-	// Historical journal search (M618): the full CmdJournalGrep filter set —
-	// free-text pattern plus kind/subject/actor/correlation — over all history,
-	// powering the Search view. Read-only, like every readArgsRoute.
-	"/api/journal_search": {controlplane.CmdJournalGrep, []string{"pattern", "kind", "subject", "actor", "correlation_id", "limit"}},
+	// Historical journal search (M618) and journal/export both went un-wired
+	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdJournalGrep /
+	// CmdJournalExport when an operator needs them.
 	"/api/provider_log":   {controlplane.CmdProviderLog, []string{"limit", "cursor", "fallbacks"}},
 	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "cursor", "tool", "errors"}},
-	"/api/execution_profile": {controlplane.CmdExecutionProfileShow, []string{
-		"id",
-	}},
 	// Read one sandbox project file's content (M686), path-confined server-side.
 	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
 	// Artifact index listing (M822): browsable metadata for stored artifacts
@@ -205,11 +199,9 @@ var readArgsRoutes = map[string]writeRoute{
 	// <input>, would the edict engine allow / ask / deny it, and via which rule?".
 	// Read-only — eng.Decide mutates nothing.
 	"/api/edict/test": {controlplane.CmdEdictTest, []string{"capability", "input"}},
-	// Trace an event's causation (M755): the chain of journal events linked by
-	// causation_id from the root cause down to this one — crossing correlation
-	// boundaries (e.g. a heartbeat tick → the initiative it spawned → the run). Plus
-	// the correlation group and a sub-agent's parent backlink. Read-only provenance.
-	"/api/why": {controlplane.CmdWhy, []string{"event_id"}},
+	// Trace an event's causation (M755): /api/why was never wired
+	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdWhy when an operator
+	// needs to inspect causation provenance.
 }
 
 // writeRoutes is the operator-action allowlist: the big red button (halt),
