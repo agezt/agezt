@@ -142,48 +142,6 @@ export function useAgentsPager(limit: number = 100) {
   );
 }
 
-// ───────────────────────── /api/inbox ─────────────────────────
-
-export interface InboxThreadRow extends Record<string, unknown> {
-  correlation_id: string;
-}
-
-/**
- * useInboxPager drives the Inbox view's thread list. Optional channel
- * filter is forwarded on every request (loadMore preserves it).
- */
-export function useInboxPager(channel?: string, limit: number = 50) {
-  const params = channel ? { channel } : undefined;
-  return useCursorPager<InboxThreadRow>(
-    "/api/inbox",
-    "threads",
-    "correlation_id",
-    limit,
-    params,
-  );
-}
-
-// ───────────────────────── /api/board ─────────────────────────
-
-export interface BoardMessageRow extends Record<string, unknown> {
-  id: string;
-}
-
-/**
- * useBoardPager drives the Board view's message list. Optional topic
- * filter is forwarded on every request.
- */
-export function useBoardPager(topic?: string, limit: number = 50) {
-  const params = topic ? { topic } : undefined;
-  return useCursorPager<BoardMessageRow>(
-    "/api/board",
-    "messages",
-    "id",
-    limit,
-    params,
-  );
-}
-
 // ───────────────────────── /api/memory ─────────────────────────
 
 export interface MemoryRecordRow extends Record<string, unknown> {
@@ -202,89 +160,14 @@ export function useMemoryPager(limit: number = 100) {
   );
 }
 
-// ───────────────────────── /api/agents/activity ─────────────────────────
-
-export interface AgentActivityRow extends Record<string, unknown> {
-  seq?: number | string;
-}
-
-/**
- * useAgentActivityPager drives the per-agent activity timeline (the
- * Audit panel's recent-events feed). Returns events sorted DESC by
- * journal seq; the cursor is a `<seq>` boundary.
- */
-export function useAgentActivityPager(ref: string, limit: number = 50) {
-  // The seq field on the response can be either a number or a string
-  // depending on the wire format (number pre-json-unmarshal, string
-  // after); idKey "seq" works for both because we coerce to string in
-  // the dedup Set. ref rides on as a query param so loadMore preserves it.
-  return useCursorPager<AgentActivityRow>(
-    "/api/agents/activity",
-    "activity",
-    "seq",
-    limit,
-    { ref },
-  );
-}
-
-// ───────────────────────── /api/agents/escalations ─────────────────────────
-
-export interface AgentEscalationRow extends Record<string, unknown> {
-  message_id: string;
-}
-
-/**
- * useAgentEscalationsPager drives the per-agent open escalations list.
- */
-export function useAgentEscalationsPager(ref: string, limit: number = 50) {
-  return useCursorPager<AgentEscalationRow>(
-    "/api/agents/escalations",
-    "escalations",
-    "message_id",
-    limit,
-    { ref },
-  );
-}
-
 // ─────────────────────── log endpoints (A2 Phase 1 + 2) ───────────────────────
 //
-// The 12 journal-backed log endpoints all page on the shared ms:seq cursor and
+// The 5 journal-backed log endpoints all page on the shared ms:seq cursor and
 // expose a `seq` field on every row as the dedup id (plan/schedule use their
 // natural correlation_id). itemsKey matches each handler's response envelope.
 
 export interface LogRow extends Record<string, unknown> {
   seq: number;
-}
-
-/** useToolLogPager — /api/tool_log (tool-invocation audit). */
-export function useToolLogPager(limit: number = 50) {
-  return useCursorPager<LogRow>("/api/tool_log", "invocations", "seq", limit);
-}
-
-/** useProviderLogPager — /api/provider_log (routing + fallbacks). */
-export function useProviderLogPager(limit: number = 50) {
-  return useCursorPager<LogRow>("/api/provider_log", "events", "seq", limit);
-}
-
-/**
- * usePolicyLogPager — /api/policy_log (edict gating decisions).
- * @public Pre-wired for the Policy view; view integration lands in a follow-up.
- */
-export function usePolicyLogPager(limit: number = 50) {
-  return useCursorPager<LogRow>("/api/policy_log", "decisions", "seq", limit);
-}
-
-/**
- * useApprovalsLogPager — /api/approvals_log (resolved HITL approvals).
- * @public Pre-wired for the Approvals history panel; view integration lands in a follow-up.
- */
-export function useApprovalsLogPager(limit: number = 50) {
-  return useCursorPager<LogRow>("/api/approvals_log", "approvals", "seq", limit);
-}
-
-/** useRateLimitLogPager — /api/ratelimit_log (throttle events). */
-export function useRateLimitLogPager(limit: number = 50) {
-  return useCursorPager<LogRow>("/api/ratelimit_log", "throttles", "seq", limit);
 }
 
 /** useWebhookLogPager — /api/webhook_log (delivery attempts). */
@@ -310,15 +193,6 @@ export function useWorldLogPager(limit: number = 50) {
 /** useMemoryLogPager — /api/memory_log (memory write/forget ops). */
 export function useMemoryLogPager(limit: number = 50) {
   return useCursorPager<LogRow>("/api/memory_log", "ops", "seq", limit);
-}
-
-export interface PlanHistoryRow extends Record<string, unknown> {
-  correlation_id: string;
-}
-
-/** usePlanHistoryPager — /api/plan_history (past plan runs; id = correlation_id). */
-export function usePlanHistoryPager(limit: number = 50) {
-  return useCursorPager<PlanHistoryRow>("/api/plan_history", "plans", "correlation_id", limit);
 }
 
 /** ScheduleFiresRow — row shape for /api/schedule/fires. */
