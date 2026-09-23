@@ -33,7 +33,12 @@ func main() {
 	checkPath := flag.String("check", "", "compare generated report to this path")
 	flag.Parse()
 
-	routes, err := extractRoutes(filepath.FromSlash("kernel/restapi/restapi.go"))
+	// Routes were split out of restapi.go into restapi_routes.go (and possibly
+	// future sibling files in the same package). Scan the whole package, not the
+	// single original file, so the report stays in sync when registrations move
+	// again. extractRoutes errors when the glob matches nothing so that a typo
+	// here fails loudly instead of silently producing an empty SDK table.
+	routes, err := extractRoutes(filepath.FromSlash("kernel/restapi/restapi*.go"))
 	if err != nil {
 		fatal(err)
 	}
@@ -78,12 +83,34 @@ func main() {
 // fails loudly if the shape itself ever changes.
 var routeRegistration = regexp.MustCompile(`\.Handle(?:Func)?\("(/api/v1/[^"]*)"`)
 
-func extractRoutes(path string) ([]route, error) {
-	b, err := os.ReadFile(path)
+// extractRoutes scans every Go file matched by the glob for `/api/v1` route
+// registrations. Globbing instead of pointing at restapi.go lets the daemon
+// split its route table across multiple files (restapi_routes.go and friends)
+// without silently degrading the SDK report — which is exactly the failure
+// mode this whole tool exists to guard against. A glob that matches no files
+// is treated as a hard error so a typo in main.go cannot produce a vacuous
+// empty route list.
+func extractRoutes(glob string) ([]route, error) {
+	paths, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, err
 	}
-	matches := routeRegistration.FindAllStringSubmatch(string(b), -1)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("extractRoutes: no files matched %q", glob)
+	}
+	sort.Strings(paths)
+	var buf bytes.Buffer
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(b)
+		if len(b) == 0 || b[len(b)-1] != '\n' {
+			buf.WriteByte('\n')
+		}
+	}
+	matches := routeRegistration.FindAllStringSubmatch(buf.String(), -1)
 	seen := map[string]bool{}
 	var out []route
 	for _, m := range matches {
