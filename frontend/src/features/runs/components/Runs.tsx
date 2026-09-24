@@ -25,7 +25,6 @@ import { humanizeIntent } from "@/lib/intent";
 import { RunDetailLoader } from "@/components/RunDetail";
 import { useRunFocus, clearRunFocus } from "@/features/runs/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
-import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { useCursorPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
@@ -178,14 +177,6 @@ export function runCounts(runs: Run[]): RunCounts {
 // first page covers what the operator typically wants to scan, small enough that
 // reloading on every event-driven refresh doesn't pull a 10 MB JSON body.
 export const RUN_PAGE_SIZE = 50;
-
-interface RunsPage {
-  runs: Run[];
-  /** Opaque "<ms>:<seq>" boundary of the last row we just emitted, or null
-   * when the server returned a short page (terminal — no more rows). The
-   * pager's `loadMore` passes this back as `cursor` on the next request. */
-  next_cursor: string | null;
-}
 
 /**
  * useRunsPager is the load-more state machine used by the Runs view. The

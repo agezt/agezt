@@ -23,7 +23,6 @@ import {
   GitFork,
   Wrench,
   AlertTriangle,
-  Clock3,
   Zap,
 } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
@@ -37,8 +36,6 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge, statusVariant } from "@/components/ui/badge";
 import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Page } from "@/components/ui/page";
-import { TabNav } from "@/components/ui/tab-nav";
-import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { useScheduleFiresPager } from "@/app/cursor-pager";
 import { SectionPanel } from "@/components/ui/section-panel";
@@ -68,7 +65,6 @@ import {
   scheduleTargetCounts,
   scheduleTargetHealthPassport,
   scheduleTargetLabel,
-  scheduleTargetMixLabel,
   sourceTone,
   systemTaskDisplayName,
   systemTaskExecutionLabel,
@@ -864,14 +860,6 @@ export function schedulePayloadContract(target: ScheduleTarget, payloadText: str
     return `cron passes ${shape} JSON ${kind} payload`;
   } catch {
     return `invalid ${kind} payload JSON`;
-  }
-}
-
-function safeParsePayloadShape(payloadText: string): unknown {
-  try {
-    return JSON.parse(payloadText);
-  } catch {
-    return undefined;
   }
 }
 

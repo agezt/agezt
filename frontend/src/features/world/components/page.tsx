@@ -168,9 +168,6 @@ export function World() {
   // empty operations log under it — two panels agreeing that nothing has
   // happened. The log returns as soon as there is an operation to show, even
   // if every entity was since deleted.
-  const worldEmpty =
-    !!data && (data.entities || []).length === 0 && (data.relations ?? data.relation_count ?? (data.edges || []).length) === 0;
-
   return (
     <Page
       icon={Globe}

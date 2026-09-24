@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Radio, Network } from "lucide-react";
+import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Network } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
 import { openAgent } from "@/features/agents/lib/agentnav";
 import { openIncident } from "@/features/incidents/lib/incidentnav";
@@ -12,8 +12,6 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 import { Page } from "@/components/ui/page";
-import { TabNav } from "@/components/ui/tab-nav";
-import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -584,7 +582,6 @@ export function Roster() {
   const list = useMemo(() => sortAgentRoster(applyAgentLivePatches(profiles || [], livePatches)), [profiles, livePatches]);
   const shownList = useMemo(() => filterAgentRoster(list, rosterFilter, mailboxCounts, schedulePressure), [list, mailboxCounts, rosterFilter, schedulePressure]);
   const visibleList = useMemo(() => shownList.slice(0, cardWin), [shownList, cardWin]);
-  const enabled = list.filter((p) => p.enabled && !p.retired).length;
   const paused = list.filter((p) => !p.enabled && !p.retired).length;
   const graveyard = list.filter((p) => p.retired).length;
   const direct = list.filter((p) => !p.retired && agentIdentityKind(p) === "custom").length;

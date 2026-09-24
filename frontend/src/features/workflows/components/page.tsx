@@ -63,13 +63,13 @@ import { Page } from "@/components/ui/page";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ErrorText } from "@/components/JsonView";
 import { useEvents } from "@/app/events";
-import { toneBar, toneBorder, toneForStatus, toneText, type Tone } from "@/lib/tone";
+import { toneBar, toneBorder, toneForStatus, toneText } from "@/lib/tone";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
 
 // ---- types (extracted to ./types) ----
 import type {
-  WfNode, WfSettings, WfEdge, Wf,
+  WfSettings, Wf,
   WorkflowChainKind,
   WfTemplate, WfRunNodeEvent, WfRun,
 } from "./types";

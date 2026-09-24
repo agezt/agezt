@@ -11,7 +11,6 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { MonacoView } from "./MonacoView";
 
 let lastOnMount: ((editor: unknown) => void) | undefined;
-let lastProps: Record<string, unknown> | undefined;
 let disposeCalls = 0;
 let disposedEditor: { dispose: () => void } | null = null;
 
@@ -24,7 +23,6 @@ type fakeEditorArgs = {
 };
 
 const fakeEditor = vi.fn((props: fakeEditorArgs) => {
-  lastProps = props;
   lastOnMount = props.onMount;
   // The real @monaco-editor/react calls onMount after the editor DOM is
   // rendered (post-commit). Don't fire it synchronously here — doing so
@@ -68,7 +66,6 @@ vi.mock("@monaco-editor/react", () => ({
 beforeEach(() => {
   fakeEditor.mockClear();
   lastOnMount = undefined;
-  lastProps = undefined;
   disposeCalls = 0;
   disposedEditor = null;
 });

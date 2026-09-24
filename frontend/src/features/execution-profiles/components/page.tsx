@@ -10,18 +10,14 @@ import {
   Boxes,
   CheckCircle2,
   Globe,
-  HardDrive,
-  Lock,
   RefreshCw,
   Route,
   Save,
   Server,
   Shield,
   Terminal,
-  Timer,
   Wrench,
   XOctagon,
-  type LucideIcon,
 } from "lucide-react";
 import { getJSON, postJSON } from "@/app/api";
 import { cn } from "@/app/utils";

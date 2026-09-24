@@ -32,12 +32,8 @@ import { useChat } from "@/lib/chatStore";
 import { type Msg } from "@/lib/conversations";
 import { ContextChip, CompactionNote } from "./context";
 import {
-  ConversationPersona,
-  ExecutionProfilePicker,
   FallbackNote,
-  PromptLauncher,
   SteerNote,
-  SummaryDivider,
   TurnMeta,
 } from "./pickers";
 export { ContextChip, ContextModal, CompactionNote, barTone } from "./context";

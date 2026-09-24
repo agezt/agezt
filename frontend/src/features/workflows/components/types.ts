@@ -9,7 +9,6 @@
 // mapped out (see scripts/dev/split-workflows-god-file.py for the
 // aggressive 8-file attempt that was rolled back).
 
-import type { Node as RFNode } from "@xyflow/react";
 import type { Tone } from "@/lib/tone";
 
 export interface WfNode {

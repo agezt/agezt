@@ -162,24 +162,8 @@ interface AgentsResp {
   profiles: { slug: string }[];
   next_cursor: string | null;
 }
-interface InboxResp {
-  threads: { correlation_id: string }[];
-  next_cursor: string | null;
-}
-interface BoardResp {
-  messages: { id: string }[];
-  next_cursor: string | null;
-}
 interface MemoryResp {
   records: { id: string }[];
-  next_cursor: string | null;
-}
-interface AgentActivityResp {
-  activity: { seq: number }[];
-  next_cursor: string | null;
-}
-interface AgentEscalationsResp {
-  escalations: { message_id: string }[];
   next_cursor: string | null;
 }
 
