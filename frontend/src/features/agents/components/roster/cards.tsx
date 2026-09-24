@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bot, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Bot, ShieldCheck } from "lucide-react";
 import { cn } from "@/app/utils";
 import { agentIdentityKind, type AgentProfile } from "./shared";
 

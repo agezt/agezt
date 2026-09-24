@@ -15,7 +15,6 @@ import { getJSON } from "@/app/api";
 import { useChat } from "@/lib/chatStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/app/utils";
-import { useUI } from "@/components/ui/feedback";
 import { goToView } from "@/lib/nav";
 
 // AgentRow is one entry in the "who's online" list. The daemon exposes a roster
@@ -109,21 +108,12 @@ export default function Jarvis() {
   const runs = useRecentRuns();
   const voice = useVoiceStatus();
   const chat = useChat();
-  const ui = useUI();
 
   const onlineCount = agents.filter((a) => a.ready).length;
   const runningCount = runs.filter((r) => r.status === "running").length;
   const sttReady = !!voice?.stt?.configured;
   const ttsReady = !!voice?.tts?.configured;
   const voiceReady = sttReady && ttsReady;
-
-  async function quickAsk(intent: string) {
-    try {
-      chat.send(intent);
-    } catch (e) {
-      ui.toast((e as Error).message, "error");
-    }
-  }
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_18rem]">

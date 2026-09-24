@@ -51,7 +51,6 @@ import { buildDelegationTree, type RunNode } from "@/lib/delegation";
 import {
   buildFleet,
   filterFleetEntities,
-  fleetCensus,
   statusKind,
   type StatusKind,
   type FleetEntityFilter,
@@ -341,7 +340,6 @@ export function Agents() {
     () => buildFleet(liveProfiles, orders, schedules, workflows, runs || [], pulse),
     [liveProfiles, orders, schedules, workflows, runs, pulse],
   );
-  const census = useMemo(() => fleetCensus(fleet), [fleet]);
   const shownFleet = useMemo(() => {
     return filterFleetEntities(fleet, fleetFilter, query);
   }, [fleet, fleetFilter, query]);

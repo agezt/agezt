@@ -25,7 +25,7 @@ import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 
 
 // ---- types (extracted to ./types) ----
-import type { ChannelField, ChannelAccount, ChannelRow, MediaCaps, ChannelProbe } from "./types";
+import type { ChannelAccount, ChannelRow, MediaCaps, ChannelProbe } from "./types";
 // One account field of a channel (mirrors kernel/settings.Field + set-state).
 
 

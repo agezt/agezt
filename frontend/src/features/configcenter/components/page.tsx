@@ -47,7 +47,7 @@ import { SectionPanel } from "@/components/ui/section-panel";
 
 
 // ---- types (extracted to ./types) ----
-import type { Field, ValueEntry, FieldType, ApplyMode } from "./types";
+import type { Field, ValueEntry, ApplyMode } from "./types";
 // The Config Center is the editable companion to the read-only Config view:
 // schema-driven forms (one section per channel/area) backed by the daemon's
 // config store + vault. The schema is dynamic — built-in sections plus any a

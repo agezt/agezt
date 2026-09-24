@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Layers, RefreshCw, DownloadCloud, KeyRound, ChevronRight, Search, Zap, Brain, Plus, X, type LucideIcon } from "lucide-react";
 import { getJSON, postJSON } from "@/app/api";
-import { cn, fmtDateTime, fmtAgo} from "@/app/utils";
+import { cn, fmtAgo } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty";
@@ -16,7 +16,6 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
-import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
 import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyInfo } from "@/features/api-keys";
 
 // Models is the LLM model catalog — the providers and models the daemon knows

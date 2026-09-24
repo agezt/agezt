@@ -268,10 +268,6 @@ function TreeRow({
   // would expose a confusing "no children" disclosure to screen readers.
   const childDirs = open && subtree.data?.nodes ? subtree.data.nodes.filter((n) => n.type === "dir") : [];
   const rowRef = useRef<HTMLDivElement | null>(null);
-  // Move keyboard focus onto this row's DOM node. Used by the parent key
-  // handlers (parent calls focusRow() on the appropriate child) and by the
-  // arrow handlers below to walk the tree.
-  const focusRow = () => rowRef.current?.focus();
 
   // Find all visible treeitems in DOM order, starting from this row's
   // ancestor tree. Walking the row's own DOM is tricky because each row
@@ -477,7 +473,6 @@ function Breadcrumb({ crumbs, onJump }: { crumbs: string[]; onJump: (i: number) 
 function FileDetail({ path, onJump: _onJump }: { path: string; onJump: (p: string) => void }) {
   void _onJump;
   const [content, setContent] = useState<string | null>(null);
-  const [mime, setMime] = useState<string>("");
   const [size, setSize] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -495,7 +490,6 @@ function FileDetail({ path, onJump: _onJump }: { path: string; onJump: (p: strin
     setErr(null);
     setContent(null);
     setSize(null);
-    setMime("");
     setLoading(false);
 
     if (!isPathSafe(path)) {
@@ -532,7 +526,6 @@ function FileDetail({ path, onJump: _onJump }: { path: string; onJump: (p: strin
           return null;
         }
         setSize(lenHeader);
-        setMime(r.headers.get("content-type") || "");
         return r.text();
       })
       .then((t) => {

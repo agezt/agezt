@@ -5,7 +5,6 @@ import {
   Clapperboard,
   Waypoints,
   Scale,
-  Telescope,
   Users,
   Eye,
   Radar,
@@ -14,17 +13,13 @@ import {
   LayoutDashboard,
   BarChart3,
   ListTree,
-  Wallet,
   Radio,
   BookOpen,
   Archive,
   Settings,
   Database,
   Cpu,
-  Wrench,
-  PackageOpen,
   Store,
-  Boxes,
   Shield,
   CalendarClock,
   Network,
@@ -33,9 +28,7 @@ import {
   Blocks,
   Anchor,
   Brain,
-  MessagesSquare,
   CheckSquare,
-  Target,
   FlaskConical,
   GitFork,
   Hammer,
@@ -49,7 +42,6 @@ import {
   Wand2,
   Shapes,
   Terminal,
-  Lightbulb,
   type LucideIcon,
 } from "lucide-react";
 import { agentSlugFromHash } from "@/features/agents/lib/agentnav";
@@ -149,23 +141,7 @@ export const IncidentPage = lazyNamed(() => import("@/features/incidents/compone
 const Activity = Runs;
 const Mission = MissionControl;
 const Replay = Runs;
-const Workboard = REMOVED_VIEW;
-const OKR = REMOVED_VIEW;
-const Seats = REMOVED_VIEW;
-const Insights = REMOVED_VIEW;
-const Budget = REMOVED_VIEW;
-const FlowStudio = REMOVED_VIEW;
-const Providers = REMOVED_VIEW;
-const Tools = REMOVED_VIEW;
-const Catalog = REMOVED_VIEW;
-const Routing = REMOVED_VIEW;
-const Toolbox = REMOVED_VIEW;
-const Conductor = REMOVED_VIEW;
-const Persona = REMOVED_VIEW;
 const Prompts = Skills;
-const Board = REMOVED_VIEW;
-const Toolforge = REMOVED_VIEW;
-const Cache = REMOVED_VIEW;
 
 // Activity / Replay alias the same Runs component (different filters); Prompts
 // alias is similar enough (Skills holds templates + the prompt library). These

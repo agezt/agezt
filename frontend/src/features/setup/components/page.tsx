@@ -20,7 +20,6 @@ import {
   KeyRound,
   BrainCircuit,
   LockKeyhole,
-  LogIn,
   MessageCircle,
   Send,
   ShieldCheck,
@@ -94,7 +93,8 @@ const DEFAULT_WEB_PASSWORD = "agezt";
 // Only used when the daemon can't tell us what the backend serves (offline, or
 // discovery failed). The live default comes from the sign-in response, since
 // OpenAI retires Codex model ids on its own cadence.
-const CHATGPT_FALLBACK_MODEL = "gpt-5.6-sol";
+// (CHATGPT_FALLBACK_MODEL was removed as dead code; the sign-in card always
+// carries the live default.)
 
 function setupStepIndex(step: Step): number {
   return step === "done" ? SETUP_STEPS.length : Math.max(0, SETUP_STEPS.findIndex((s) => s.id === step));

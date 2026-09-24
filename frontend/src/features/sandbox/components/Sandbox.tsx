@@ -7,13 +7,13 @@ import { useUI } from "@/components/ui/feedback";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText } from "@/components/JsonView";
-import { MetricWidget, MetricGrid } from "@/components/ui/metric-widget";
+import { MetricGrid } from "@/components/ui/metric-widget";
 import { Badge } from "@/components/ui/badge";
 import { Page } from "@/components/ui/page";
 import { useWardenLogPager, useNetguardLogPager } from "@/app/cursor-pager";
 import { LogHistoryPanel } from "@/components/LogHistoryPanel";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { Segmented, ToggleChip } from "@/components/ui/segmented";
+import { ToggleChip } from "@/components/ui/segmented";
 import { bytes as fmtBytes } from "@/app/format";
 import { SectionPanel } from "@/components/ui/section-panel";
 
