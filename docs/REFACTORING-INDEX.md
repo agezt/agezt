@@ -5,6 +5,46 @@ against real files — sizes, method/importer counts, route registrations — no
 implemented incrementally behind existing behavior gates. Start with the autonomous-system plan,
 then use the detailed scans for each bounded extraction.
 
+## Read this before any split or extraction
+
+**A refactor that moves code must not also be allowed to degrade the gates.** Run these before
+committing, every time — a scripted edit is not held to them automatically:
+
+```sh
+make check          # gen, fmt, vet, test, deps-check, sdk-parity, deadcode-check,
+                    # structure-md-check, frontend-deadcode, frontend-test
+```
+
+or, if you only touched part of the tree, the relevant subset:
+
+```sh
+gofmt -l cmd internal kernel plugins sdk tools contract examples   # formatting
+go build ./... && go vet ./... && go test ./...                    # behaviour
+go run ./tools/structure-md -out .project/STRUCTURE.generated      # package docs
+cd frontend && npm run typecheck && npm test && npm run deadcode   # UI
+```
+
+### Why this is written down
+
+It is not ceremony. Between 2026-08-12 and 2026-09-24 the verification layer went from
+**fully green** to silently broken, and the refactoring itself was the culprit:
+
+| What | How many | Caught by |
+|---|---|---|
+| `.go` files violating `gofmt` (stray blank lines left by split header blocks) | **636** | nothing — the gate already existed; the commits landed anyway |
+| packages whose doc comment was overwritten by `Code extracted from … during the Day-N god-file split` | **59** | `structure-md` — which had **no CI step at all** |
+| packages declaring more than one package comment (invalid Go; `go doc` concatenated them) | **98** | nothing |
+| Go files with mixed CRLF/LF, which made `gofmt -l` meaningless on a Windows checkout | 673 | nothing |
+
+`docs/VERIFICATION-GATES-REPAIR-PLAN.md` records the green baseline as of 2026-08-12
+(`gofmt -l` → 0 files, `knip` → `{"issues":[]}`, 187 frontend test files). Every number
+above is a regression against that baseline.
+
+**The specific trap.** When a file is split, each new file gets a header. If that header lands
+*above* the `package` clause it silently becomes the package's documentation, replacing
+whatever was there — the compiler does not care. Keep the package's own description in `doc.go`,
+and put per-file provenance notes **below** the package clause.
+
 ## Documents
 
 | Doc | Finding(s) | Scope | Risk |

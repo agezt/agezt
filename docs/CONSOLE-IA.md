@@ -5,9 +5,10 @@
 > `frontend/src/nav.test.ts` and `frontend/src/consoledoc.test.ts`.
 >
 > Written 2026-09-04 after a sweep of
-> `frontend/src` (67 nav views, 82 components, 140 lib modules) and the
+> `frontend/src` (the nav as it stood before the Day-23/28 cleanup) and the
 > control-plane surface behind it (298 `/api/*` routes, ~53k LOC in
-> `kernel/controlplane`).
+> `kernel/controlplane`). The pre-cleanup shape is preserved in §1 for
+> comparison; **§3.1 is the authoritative current-state map.**
 >
 > It answers "what is where, and why couldn't I find it?" — sections 1 and 2
 > describe the console as it was, section 3 the shape it now has.
@@ -141,51 +142,82 @@ Three principles:
    *how it is addressed* — and a view that is genuinely merged away keeps its
    hash through `VIEW_ALIASES`.
 
-### 3.1 The nav as shipped (35 destinations, 64 views, 0 lost addresses)
+### 3.1 The nav as shipped (28 destinations, 39 views, 0 lost addresses)
+
+Measured from `NAV_GROUPS` in `frontend/src/nav.tsx`. This table is the
+canonical current-state map; `frontend/src/nav-docs.test.ts` fails the build
+if it stops matching the code, so do not hand-edit the counts above.
 
 | Section | Destination | Tabs (existing view ids) |
 |---|---|---|
 | **Talk** | Jarvis | `jarvis` |
 | | Chat | `chat` |
 | | Voice | `voice` |
-| | Messages | `inbox` · `board` |
-| **Watch** | Overview | `overview` · `mission` · `feed` |
-| | Runs | `runs` · `activity` · `insights` · `replay` |
-| | Health | `health` · `cache` · `tools` (usage) · `providers` (routing log) — `system` merged in |
-| | Alerts | `alerts` |
-| | Budget | `budget` |
-| **Automate** | Wizards | `wizards` |
-| | Workflows | `workflows` · `flow` |
-| | Work | `workboard` · `okr` |
+| **Observe** | Monitor | `mission` · `feed` |
+| | Runs | `runs` · `activity` · `replay` |
+| **Automate** | Workflows | `workflows` |
 | | Triggers | `schedules` · `standing` |
 | | Autonomy | `autonomy` |
 | **Govern** | Approvals | `approvals` |
 | | Policy | `policy` |
-| | Oversight | `overseer` · `council` · `conductor` |
-| | Seats | `seats` |
-| **Agents** | Fleet | `agents` · `roster` |
+| | Oversight | `overseer` · `council` |
+| **Agents** | Agents | `agents` |
+| | Roster | `roster` |
 | | Skills | `skills` |
-| | Capabilities | `catalog` · `toolbox` · `toolforge` · `market` · `execution-profiles` |
+| | Capabilities | `market` · `execution-profiles` |
 | | Sandbox | `sandbox` |
-| **Knowledge** | Memory | `memory` · `taste` |
+| **Knowledge** | Memory | `memory` |
 | | World | `world` |
-| | Thinking | `research` · `analyst` · `reflect` |
-| | Search | `search` |
-| | Data & Files | `data` · `artifacts` (gallery + file manager) · `storage` — `files` merged in |
+| | Data & Files | `data` · `artifacts` |
+| | Thinking Partners | `research` · `analyst` · `reflect` |
 | **Connect** | Providers & Models | `models` |
-| | Routing | `routing` · `chains` |
+| | Routing | `chains` |
 | | Channels | `channels` |
 | | Integrations | `mcp` · `acp` · `connections` |
 | **Admin** | Setup | `setup` |
-| | Config Center | `configcenter` — `config` merged in as a fold |
-| | Identity | `persona` · `prompts` |
-| | Backup | `backup` |
-
-`providers` (the routing telemetry log) moved to Watch → Health, resolving
-§2.3: the Connect section holds only provider *management*.
+| | Config Center | `configcenter` |
+| | Identity | `prompts` |
+| | Backups | `backup` |
 
 No section exceeds six rows — pinned by `nav.test.ts`. The sidebar is
 glanceable.
+
+#### Retired during the Day-23/28 IA cleanup
+
+**Decision: the retirement stands (recorded 2026-09-30).** The cleanup removed
+twenty-five destinations, their `kernel/webui` route registrations, and their
+frontend implementations. The audit that followed found the removal itself
+sound — the frontend E2E suite mounts all 39 surviving views against a real
+daemon with no console errors — but found the *documentation* still describing
+the pre-cleanup console, and a dead-code surface left behind. Both were
+settled: the counts in §3.1 and in `README.md` now match `nav.tsx`, and the
+orphaned barrels, re-export chains and superseded modules were removed.
+
+The alternative was rejected on evidence, not taste. Restoring would have meant
+authoring ~12 UI surfaces whose implementations had been deleted — inventing
+product, not recovering it. The capabilities never went away: the kernel
+handlers are untouched and the CLI still drives all of them
+(`agt workboard`, `agt okr`, `agt taste`, `agt seats`, `agt toolforge`).
+
+**This is reversible.** Nothing was removed from the kernel. Reinstating a
+surface is a matter of adding the nav row and its route registrations back;
+`git log` carries the original implementations.
+
+Twenty-five destinations were folded away. Their ids stay in
+`REMOVED_VIEW_IDS` so old bookmarks and the ⌘K palette still resolve to a
+tombstone rather than a dead hash:
+
+`board` · `messages` · `inbox` · `health` · `alerts` · `overview` ·
+`insights` · `cache` · `tools` · `providers` · `budget` · `flow` ·
+`workboard` · `okr` · `wizards` · `seats` · `conductor` · `search` ·
+`taste` · `storage` · `persona` · `routing` · `catalog` · `toolbox` ·
+`toolforge`
+
+**This is a console-surface retirement, not a capability removal.** The
+kernel handlers are untouched and the features remain reachable from the CLI
+(`agt workboard`, `agt okr`, `agt taste`, `agt seats`, `agt toolforge`) and
+from the SDK. What was removed is the console route registration in
+`kernel/webui/webui_{read,write}_routes.go` alongside the nav row.
 
 ### 3.2 Renames that removed collisions
 
@@ -233,8 +265,8 @@ names are fixed (§3.2), and `docs/CONSOLE.md`'s map is rewritten and pinned to
 
 **Phase B — the row/tab IA (§3.1).** `NAV_GROUPS` → `NavRow` → `NavItem`. Rows
 are the sidebar; a row with more than one view renders `ViewTabs`, whose tabs
-navigate to each view's own `#hash`. 67 sidebar entries became 35 destinations
-without changing a single address.
+navigate to each view's own `#hash`. The pre-cleanup sidebar collapsed into
+folded destinations without changing a single address.
 
 **Phase C — retire the duplicates.** Three merges, each deleting a page rather
 than re-parenting it:
