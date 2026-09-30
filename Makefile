@@ -82,6 +82,32 @@ vet:
 	go vet ./...
 	@echo "Vet passed!"
 
+# gofmt is a gate, not a style suggestion — it is the only check that catches a
+# scripted edit producing a file that compiles differently from what was meant.
+# During the 2026-09 surface audit two separate script bugs (a dropped "//"
+# prefix, then a wrap() arity error that emitted the literal "undefined") were
+# caught by nothing except `gofmt -l`; go vet does not check formatting and
+# structure-md only reads package comments.
+#
+# Scoped to the real Go roots on purpose: `gofmt -l .` also walks .temp_files/
+# and any scratch directory someone has left .go files in, and a formatting
+# gate that trips on a throwaway probe is a gate people learn to ignore.
+#
+# This only became installable once the tree was LF-consistent — gofmt
+# normalises to LF, and 673 files were being reported dirty on line endings
+# alone, which would have made the gate red before anyone touched anything.
+# See the `*.go text eol=lf` rule in .gitattributes.
+GOFMT_ROOTS = kernel cmd internal plugins sdk tools contract examples
+
+fmt:
+	@echo "Checking gofmt..."
+	@out=$$(gofmt -l $(GOFMT_ROOTS) 2>/dev/null); \
+	if [ -n "$$out" ]; then \
+		echo "gofmt needed on:"; echo "$$out"; \
+		echo "fix with: gofmt -w $(GOFMT_ROOTS)"; exit 1; \
+	fi
+	@echo "gofmt clean!"
+
 gen:
 	@echo "Generating contract types..."
 	go run ./tools/jsonschemagen -in .project/agezt-contract.jsonc -out contract/gen/types.gen.go -pkg gen
@@ -128,7 +154,7 @@ frontend-deadcode:
 e2e:
 	bash scripts/e2e-smoke.sh
 
-check: gen vet test deps-check sdk-parity deadcode-check structure-md-check frontend-deadcode frontend-test
+check: gen fmt vet test deps-check sdk-parity deadcode-check structure-md-check frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT (version=$(VERSION), commit=$(COMMIT))..."

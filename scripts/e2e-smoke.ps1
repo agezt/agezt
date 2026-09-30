@@ -123,11 +123,21 @@ try {
   }
   Ok "doctor + journal chain verified"
 
-  $logs = Read-E2ELogs
-  $oai = [regex]::Match($logs, "openai api.*Bearer ([a-f0-9]{64})").Groups[1].Value
-  $rest = [regex]::Match($logs, "rest api.*Bearer ([a-f0-9]{64})").Groups[1].Value
-  if (-not $oai) { Fail "could not find OpenAI API token in daemon logs:`n$logs" }
-  if (-not $rest) { Fail "could not find REST API token in daemon logs:`n$logs" }
+  # Read the API tokens from the daemon's token files, NOT from the startup
+  # banner. The banner prints an abbreviated prefix ("a1b2…c3d4") rather than
+  # the full 64-char hex token, so grepping the log can never match — the
+  # banner was changed to stop printing full bearer tokens in logs, which is
+  # correct. The shell harness was corrected for this in a25e4383 (#488);
+  # this PowerShell twin was missed and has been failing on "could not find
+  # OpenAI API token in daemon logs" ever since. Keep the two in step.
+  $oai = ([System.IO.File]::ReadAllText((Join-Path $ageztHome "openai.token")) -replace "\s", "")
+  $rest = ([System.IO.File]::ReadAllText((Join-Path $ageztHome "rest.token")) -replace "\s", "")
+  if (-not $oai -or $oai -notmatch "^[a-f0-9]{64}$") {
+    Fail "could not read a 64-char OpenAI token from $(Join-Path $ageztHome 'openai.token')"
+  }
+  if (-not $rest -or $rest -notmatch "^[a-f0-9]{64}$") {
+    Fail "could not read a 64-char REST token from $(Join-Path $ageztHome 'rest.token')"
+  }
 
   $chat = "http://127.0.0.1:$OpenAIPort/v1/chat/completions"
   $runs = "http://127.0.0.1:$RestPort/api/v1/runs"

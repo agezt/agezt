@@ -455,6 +455,20 @@ jobs:
         run: bash scripts/ci-go-retry.sh go run ./tools/sdkparity -check docs/SDK-PARITY.md
       - name: Verify no unexpected Go dead code
         run: bash scripts/ci-go-retry.sh go run ./tools/deadcodecheck
+      - name: Verify generated structure docs are up to date
+        # This is the one project gate that had no CI step, and its absence is
+        # not hypothetical: three stale files under .project/STRUCTURE.generated/
+        # sat on main for weeks while the tool that would have named them
+        # existed only in the Makefile, which nothing runs automatically.
+        #
+        # It is also the gate that catches the god-file-split tooling. Those
+        # splits overwrite a package's doc comment with a mechanical
+        # "Code extracted from … during the Day-N god-file split" block, which
+        # silently replaced the real documentation in 59 packages. The Go
+        # compiler is happy; nothing else noticed. Same failure class as the
+        # 636 files that violated the gofmt gate above — a tool writes source
+        # and is not held to the gates a human contributor must pass.
+        run: bash scripts/ci-go-retry.sh go run ./tools/structure-md -check -out .project/STRUCTURE.generated
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are

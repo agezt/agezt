@@ -13,7 +13,7 @@
     "deadcode": "knip --reporter json",
     "nav:shape": "node scripts/audit-nav-shape.cjs",
     "nav:coverage": "node scripts/audit-help-coverage.cjs",
-    "nav:audit": "node scripts/dump-nav.cjs | tail -4",
+    "nav:audit": "node scripts/dump-nav.cjs",
     "test": "vitest run",
     "test:coverage:voice": "vitest run --coverage --config vitest.voice-coverage.config.ts",
     "test:e2e": "playwright test"
