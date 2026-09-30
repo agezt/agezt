@@ -5,7 +5,7 @@ import type { AgentEvent } from "@/app/events";
 // the event firehose so the operator can answer "is anything running right now,
 // and what is it doing?". Sub-agent runs carry a parentCorr linking them to the
 // lead run that delegated them (the "background agents").
-export interface ActiveRun {
+interface ActiveRun {
   corr: string;
   intent: string;
   status: "running" | "completed" | "failed";

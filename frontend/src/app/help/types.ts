@@ -1,14 +1,17 @@
 // app/help/types.ts — shared types for the in-app manual.
 // Day 5b split (see scripts/dev/split-help-topics.py).
 
-export interface HelpItem {
+// HelpItem and HelpSection are used by HelpTopic below, not imported from here,
+// so they stay package-private. Exporting them made them look like public API
+// that nothing consumed.
+interface HelpItem {
   /** Short bold lead-in — a control, concept, or column on the page. */
   term: string;
   /** What it does / how to use it. */
   desc: string;
 }
 
-export interface HelpSection {
+interface HelpSection {
   heading: string;
   paragraphs?: string[];
   items?: HelpItem[];

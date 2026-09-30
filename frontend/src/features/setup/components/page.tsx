@@ -43,19 +43,13 @@ import {
   type SetupCatalog,
   type SetupProvider,
 } from "../lib/setup";
+// Only SetupCatalog and SetupProvider are re-exported onward. The other eleven
+// names used to be listed here so consumers could reach them through this
+// module, but every real consumer imports them straight from ../lib/setup — the
+// App shell takes anyCredentialed from there — so the re-export block was a
+// dead hop in the middle of a chain that terminated in nobody.
 export {
-  anyCredentialed,
-  defaultSetupFallbacks,
-  mergeSetupTaskRouting,
-  providerKeyEnv,
-  rankProviders,
-  setupFallbackCandidates,
-  setupModelChain,
-  setupTaskSelection,
-  uniqueSetupChainName,
   type SetupCatalog,
-  type SetupFallbackCandidate,
-  type SetupModel,
   type SetupProvider,
 } from "../lib/setup";
 

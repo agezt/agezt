@@ -34,20 +34,13 @@ import {
   PromptLauncher,
   SummaryDivider,
 } from "./message";
-export { ConversationItem } from "./conversation";
-export {
-  AssistantBubble,
-  CompactionNote,
-  ContextChip,
-  ContextModal,
-  ConversationPersona,
-  ExecutionProfilePicker,
-  FallbackNote,
-  PromptLauncher,
-  SummaryDivider,
-  UserBubble,
-  barTone,
-} from "./message";
+
+// The named sub-components are NOT re-exported from here. They used to be, but
+// the only consumer of this module — features/chat/components/Chat.tsx, the
+// shim nav.tsx lazily imports — pulls them straight from ./message and
+// ./conversation. So the block sat in the middle of a re-export chain that
+// terminated in nobody, which is why knip reported all twelve as unused.
+// Import from ./message or ./conversation directly.
 
 // Chat is the humane front door to the agent: a conversational thread where you
 // type an intent and watch the governed loop answer live — streaming text, the

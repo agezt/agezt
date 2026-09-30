@@ -84,7 +84,7 @@ import type {
 // Each node type carries a border accent (class), an icon, and a color (a CSS
 // value usable in inline style) so the canvas reads as a colourful flowchart —
 // coloured header band + icon per type — rather than a grid of grey boxes.
-export const NODE_META: Record<string, { label: string; accent: string; icon: LucideIcon; color: string }> = {
+const NODE_META: Record<string, { label: string; accent: string; icon: LucideIcon; color: string }> = {
   trigger: { label: "Trigger", accent: "border-good", icon: Zap, color: "var(--good)" },
   tool: { label: "Tool", accent: "border-accent", icon: Wrench, color: "var(--accent)" },
   llm: { label: "LLM", accent: "border-[#a78bfa]", icon: Sparkles, color: "#a78bfa" },

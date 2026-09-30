@@ -3,8 +3,11 @@
 // real host package managers there); this module shapes the wire data for the
 // view and is unit-tested. Mirrors the lib/fleet.ts / lib/agentdetail.ts
 // discipline: pure logic here, rendering in views/Toolbox.tsx.
-import { authHeaders } from "@/app/api";
-import { parseSSEChunk, type ChatFrame } from "@/lib/chat";
+//
+// streamInstall / InstallProgress / Inventory were removed with the Toolbox view
+// (retired in the Day-23/28 IA cleanup). The pure helpers below survive because
+// toolbox.test.ts still exercises them; the daemon endpoint they fronted,
+// POST /api/toolbox/install, is still live in kernel/webui.
 
 // ToolStatus mirrors kernel/toolbox.ToolStatus (the /api/toolbox wire shape).
 export interface ToolStatus {
@@ -17,14 +20,6 @@ export interface ToolStatus {
   installable: boolean;
   manager?: string;
   command?: string;
-}
-
-export interface Inventory {
-  os: string;
-  managers: string[];
-  tools: ToolStatus[];
-  installed_count: number;
-  missing_count: number;
 }
 
 export type ToolCategory =
@@ -96,50 +91,3 @@ export function categoriesPresent(tools: ToolStatus[]): ToolCategory[] {
   return (Object.keys(CATEGORY_LABELS) as ToolCategory[]).filter((c) => present.has(c));
 }
 
-// InstallProgress is one tool's streamed outcome (kernel/toolbox.InstallResult).
-export interface InstallProgress {
-  tool: string;
-  ok: boolean;
-  skipped?: boolean;
-  manager?: string;
-  command?: string;
-  version?: string;
-  output_tail?: string;
-  error?: string;
-}
-
-// streamInstall POSTs the names to /api/toolbox/install and yields each SSE
-// frame (open → per-tool progress → done/error), reusing the chat SSE parser.
-export async function streamInstall(
-  names: string[],
-  onFrame: (f: ChatFrame) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const res = await fetch("/api/toolbox/install", {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ names }),
-    signal,
-  });
-  if (!res.ok || !res.body) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const j = await res.json();
-      if (j?.error) msg = String(j.error);
-    } catch {
-      /* no JSON body */
-    }
-    throw new Error(msg);
-  }
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const { frames, rest } = parseSSEChunk(buf);
-    buf = rest;
-    for (const f of frames) onFrame(f);
-  }
-}
