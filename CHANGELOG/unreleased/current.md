@@ -4,6 +4,36 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: the frontend's dependency pins had drifted past their own
+  purpose — one pinned a version that no longer exists, the other pinned one
+  inside a vulnerable range.** `frontend/package.json` carried
+  `overrides` for `dompurify` and `undici`, added in 2026-06 to move Web UI
+  auth tokens out of fetch URLs. Neither pin could be honoured by the time it
+  mattered.
+
+  `undici` was pinned to **8.19.4**, a version that is not in the registry —
+  `registry.npmjs.org/undici/8.19.4` returns *version not found*, and the newest
+  published 8.x is **8.11.2**. It sorts above 8.11.2 by semver but was published
+  earlier, which is what an unpublished-then-superseded version looks like.
+  `npm ci` therefore failed outright with ETARGET, and since every frontend CI
+  job installs before it builds, `frontend-test` and `frontend-dist-in-sync`
+  could not start.
+
+  `dompurify` was pinned to **3.4.14**, which `npm audit` places inside
+  3.4.13–3.4.15 — vulnerable to an `IN_PLACE` `afterSanitize` hook leaving a
+  detached subtree event handle, reached here through monaco-editor.
+
+  Both are now pinned where they were meant to be. The highest patched 8.x floor
+  across the undici advisories is **8.10.2** (CVE-2026-84890, CVE-2026-84933,
+  CVE-2026-84961) and the current 8.x is **8.11.2**, above every one of them;
+  dompurify's patched release is **3.4.16**. `npm ci` and `npm install` both
+  succeed, and `npm audit` reports **0 vulnerabilities** where it previously
+  reported two.
+
+  Which advisory each pin was originally added for is not recorded anywhere in
+  the repository. The replacements satisfy every advisory these packages
+  currently carry, which is the strongest claim available without that record.
+
 - **Security: the update service trusted the wrong thing.** `verifySignature` chose its trust anchor
   from `s.cfg.Source`. With the shipping default — `SourceGitHub`, no embedded signing key — it
   accepted *any* manifest, on the reasoning that GitHub's TLS pipeline was the anchor and the
@@ -87,6 +117,30 @@ This file holds the active `[Unreleased]` working set.
   out in the clear. False-positive-guarded against ordinary text.
 
 ### Added
+
+- **Added: a gate that fails when the console's documented surface stops matching
+  the shipped one.** `README.md` claimed 64 views across 36 rows and
+  `docs/CONSOLE-IA.md` claimed 67, for a `nav.tsx` that ships 39 views across
+  28 — and the two documents disagreed with each other. `nav-docs.test.ts` now
+  measures the surface from `NAV_GROUPS` and fails when a doc attaches a number
+  to *views*, *rows*/destinations/sidebar entries, or *sections* that the nav
+  does not ship. It asserts a non-empty surface first so it cannot pass
+  vacuously — the failure mode `tools/sdkparity` had for seventeen days.
+
+- **Added: `tools/docclaimscheck`, a gate for this audit's own record.** Four
+  passes through this work found its numbers stale, each time because a document
+  was written while the work was in progress and never re-measured. The tool
+  compares the claims in the three `.project/` documents against the branch and
+  exits non-zero on a mismatch. Two numbers are deliberately never quoted — the
+  commit count and the `--shortstat` totals — because any number written into a
+  document goes stale the moment the next commit lands, including the commit that
+  would fix it.
+
+- **Added: `gofmt` to `make check`, and `tools/structure-md -check` to CI.**
+  `structure-md` was the only project gate with no CI job at all, which is how
+  three stale generated documents sat on `main`. The `fmt` target is the local
+  mirror of CI's existing gofmt gate, scoped to the Go roots so a scratch
+  directory cannot trip it.
 
 - **`docs/COMPARISON.md`** — positions AGEZT against generic agent frameworks without unverifiable
   competitor claims: durable identity, governance as runtime enforcement, typed schedules,
@@ -596,6 +650,59 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Fixed: the shell tool enforced its output budget on the wrong string.** The budget
+  was applied to the concatenated stdout+stderr, and the status line was
+  prepended *afterwards*, so a command that both overflowed and timed out shipped
+  `MaxOutputBytes + len("timed out after 30s")` bytes to the model — 65,556
+  against a cap of 65,536. The comment above the truncation block stated the
+  intent ("enforce the model-facing budget"); the model reads `Result.Output`,
+  not the concatenation. A budget the model can exceed is not a budget.
+
+  The test meant to catch this could not decide anything: it drives a real
+  `cmd.exe` through the real Warden, and its verdict turned on whether the
+  command reached `DefaultTimeout` before overflowing — machine speed, not
+  logic, and Windows-only, so CI never saw it. It is replaced by
+  `render_budget_test.go`, a table over all eight shapes that is deterministic
+  and runs everywhere.
+
+- **Fixed: the Conductor store grew without bound and recopied itself on every
+  event.** Wired once from `App.tsx` and folding every `conductor.*` event off
+  the whole firehose, entries were keyed by correlation id with nothing ever
+  removing one, and each fold rebuilt the entire map — O(events × runs) in a
+  store with no reader at all since the view was retired. Now capped at the 20
+  most recent runs, which is right whether or not the view returns. Ordering
+  needed a monotonic insert counter, because `updatedMs` has millisecond
+  resolution and a batch of runs folds inside one millisecond, which made
+  "newest first" a claim rather than a guarantee.
+
+- **Fixed: 98 packages declared more than one package comment.** Invalid Go:
+  `go/doc` concatenates them, so the summary a developer or an IDE saw first
+  was `Code extracted from alerter.go during the Day-133 god-file split`, with
+  the real documentation below it. The blocks were moved below the package
+  clause verbatim, and the genuine second descriptions were merged into their
+  `doc.go` rather than dropped.
+
+- **Fixed: 59 package comments had been silently replaced by that same split
+  tooling, leaving no copy anywhere in the tree.** Regenerating
+  `STRUCTURE.generated` over the damaged source would have destroyed the last
+  good text. They were recovered from `52234e77`, the last commit before the
+  splits; regeneration is now byte-identical to the docs already committed.
+
+- **Fixed: the Windows e2e harness had been broken since 2026-07-06.** The shell
+  twin was corrected to read API tokens from the daemon's token files, because
+  the banner stopped printing full bearers; the PowerShell twin never got the
+  same fix, so its regex could never match. It had been failing on "could not
+  find OpenAI API token in daemon logs" ever since, invisible to CI.
+
+- **Fixed: knip reported every live view's own export as unused.** `nav.tsx`
+  loads views through `lazyNamed(loader, key)`, which reaches the named export by
+  computed member access. knip saw the `import()` promise but not the member
+  lookup. Acting on that report would have broken the console; the 38
+  dynamically-imported modules are now declared as entry points.
+
+- **Fixed: `nav:audit` piped through a POSIX `tail`,** making the script
+  unrunnable on Windows.
 
 - **Fixed: three `make check` gates were red, and one of them told you to delete a correct document.**
   A full-tree scan found the running system healthy — build, tests, static analysis, vulnerability
@@ -1611,49 +1718,3 @@ This file holds the active `[Unreleased]` working set.
   The prose convention the package documented — package-prefixed messages, `Err*` sentinels,
   always `%w` — was the part worth keeping, so it moved to `docs/ARCHITECTURE.md` § Error
   Convention, where it applies to all of the code instead of a sixth of it.
-
-- **Fixed: the shell tool enforced its output budget on the wrong string.** `renderResult`
-  applied `MaxOutputBytes` to the concatenated stdout+stderr and prepended the status
-  line afterwards, so a command that both overflowed the budget *and* timed out shipped
-  `MaxOutputBytes + len("timed out after 30s\n")` bytes to the model. The comment above
-  the truncation block stated the intent — "Enforce the model-facing budget on the COMBINED
-  output" — but the model reads `Result.Output`, not `combined`. A budget the model can
-  exceed is not a budget.
-
-  It hid as a flake. `TestInvoke_RealWarden_CombinedBudgetHeld` drives a real `cmd.exe`
-  through the real Warden, and its verdict turned on whether the command reached
-  `DefaultTimeout` before overflowing — machine speed, not logic. Killed in time, no
-  prefix is added and the test passes; allowed to overflow, it fails. The failure was
-  20 bytes over: `65556` against a cap of `65536`.
-
-  The final line — prefix, body, exit-code suffix — is now built first and the budget
-  applied to *that*, and the tail truncation stops short of eating the status prefix so a
-  truncated timeout still reads as a timeout. `plugins/tools/shell/render_budget_test.go`
-  replaces the timing-dependent test with a table over all eight shapes — clean overflow,
-  both streams over, warden-reported truncation, timeout+overflow, nonzero+overflow,
-  timeout+nonzero+both, and the two small-output cases — asserting the budget on the final
-  string, the marker, `IsError`, and that the prefix survives truncation. It is
-  deterministic and runs on every platform, where the old one was Windows-only and CI
-  never saw it.
-- **Fixed: the Conductor store grew without bound and recopied itself on every event.**
-  `conductorStore` is wired once from `App.tsx` and folds every `conductor.*` event off the
-  whole firehose. Entries are keyed by correlation id and nothing ever removed one, so a tab
-  left open across enough Conductor runs grew `state.runs` without limit — and because each
-  fold rebuilt the object as `{ ...state.runs, [corr]: next }`, every event also copied the
-  entire map, making the churn O(events x runs). Neither is a consequence of the Conductor
-  view having been retired: the map was unbounded while the view existed too, and the read
-  side never raised retention.
-
-  Now capped at the 20 most recent runs, which is right whether or not the view returns —
-  the panel is not somewhere an operator scrolls back through last month's deliberations,
-  and the runs are reconstructible from the journal. The dead `listeners` set went with it;
-  with zero subscribers it was a notification path that pretended to be live.
-
-  Ordering needed a second pass. The first version of the regression test failed with the
-  second-newest run first: `updatedMs` is `Date.now()` at millisecond resolution, and a
-  batch of runs folds inside one millisecond, so an `updatedMs`-only sort falls back to
-  insertion order and "newest first" was a claim rather than a guarantee. A monotonic insert
-  counter now breaks the tie in both the eviction sort and
-  `conductorRunsSnapshot()`. That snapshot is the store's read primitive, added so the cap
-  is observable without reaching into internals — a store whose contents cannot be inspected
-  cannot be debugged, and it is what a restored view would render from.
