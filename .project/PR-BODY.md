@@ -73,14 +73,23 @@ that.
 
 ## Reviewing this
 
-`.project/REVIEW-MAP.md` splits the 17 commits into their review order and
+`.project/REVIEW-MAP.md` splits the commits into their review order and
 carries the exact commands to reproduce every claim above — nothing here needs
 taking on trust. `.project/AUDIT-2026-09-BACKEND-SURFACE.md` has the full
 findings and the measurements behind them.
 
-History is bisect-safe: 12 of the 13 pre-warden commits are fully green, and
-the one that is not green at that commit is green from the next one on — it is
-`TestInvoke_RealWarden_CombinedBudgetHeld`, the test `fix(shell)` replaces.
+**On bisect-safety**, precisely: the first 13 commits were each checked out and
+built and tested individually. Twelve are fully green, and the one that is not
+is green from the next commit on — it is
+`TestInvoke_RealWarden_CombinedBudgetHeld`, the test `fix(shell)` replaces, so
+a `git bisect` landing there finds the bug it is meant to find. The six commits
+added after that sweep were not each re-walked, but they are single-file
+changes: three touch only `.project/*.md`, one only `kernel/warden/warden_test.go`
+(a test bound), one only `.gitleaks.toml` (a comment, with the scan re-run
+green afterwards), and one only two `kernel/governor` doc comments. The tip
+was re-verified end to end after all of them: `go test ./...` 192 packages /
+0 failures, `gofmt`, `go vet`, `structure-md -check`, `deadcodecheck`,
+`sdk-parity`, `changelog-lint` all green.
 
 ## Notes for the reviewer
 
