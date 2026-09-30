@@ -9,12 +9,20 @@
 
 ## 0. Verdict
 
-The **kernel is sound**. The **WebUI surface was dismantled while the
-documentation was left describing the pre-dismantling product**, and the
-cleanup left a large orphaned implementation behind.
+**The kernel was sound; the verification layer was not.** Every gate the
+project already had was either red, unwired, or measuring the wrong string,
+and the WebUI's "dismantled but still documented" surface was a documentation
+drift that no gate could see. Two of nine `make check` gates were red on `main`,
+and neither the build, nor the tests, nor typecheck noticed.
 
-Two of nine `make check` gates are **red on main**, and neither is caught
-by the build, the tests, or typecheck.
+Both of the two **real product bugs** found were also sitting behind gates
+that existed and were green: the shell tool enforced its output budget on the
+wrong string, and the Conductor store grew without bound. Neither failed a
+test — the tests that should have caught them decided their verdict on
+machine speed.
+
+Everything found is now fixed and committed on `audit/2026-09-surface`
+(16 commits, pushed). `main` is untouched at `0b6c8519`.
 
 ---
 
@@ -795,80 +803,6 @@ Nothing compared the shipped surface to the advertised one — until Finding D.
 | 5 | Demote the split blocks | ✅ 98 → 7 packages |
 | 8 | `plugins/channels/discord` package comment | ✅ already recovered in step 4 — 25 lines, full SPEC-04 §1 security rationale |
 | 9 | **`gofmt` gate** | ✅ `.gitattributes` `*.go text eol=lf`, 673 CRLF working-tree files aligned, 213 pre-existing double-blank-line fixes, `fmt` target live in `check` and negative-tested |
-
-**Still open, in the order I would take them:**
-
-1. **Write the package doc, if the sibling text says something `doc.go` does
-   not.** `kernel/event`, `kernel/governor` and `kernel/runtime/types` each have
-   a valid second description sitting in the source as a file note (1,075 /
-   936 / 834 chars). `runtime/types` is the easy one — its two texts are
-   complementary, so concatenate them into `doc.go`.
-2. **Prune the 53 unused exports/types** by hand, not by script — see the
-   re-export hazard noted in Finding C.
-3. ~~**Categorise `CHANGELOG/unreleased/current.md`**~~ **DONE.**
-   The file was a stack of 14 appended blocks — six sections titled `Fixed`,
-   four titled `Added` — with a 510-line `### Unclassified` pile of 41 entries.
-   **Its first entry is a critical one:** the self-update service accepted an
-   attacker-supplied manifest and hash, giving arbitrary code execution over
-   `<baseDir>/bin/agezt`, and it was unfindable.
-
-   Now five sections, **all 156 entries preserved** (counted before and after):
-
-   | Section | Entries |
-   |---|---|
-   | Security | 8 |
-   | Added | 47 |
-   | Changed | 9 |
-   | Fixed | 91 |
-   | Removed | 1 |
-
-   Routing was done in two passes with different confidence, and the difference
-   matters:
-
-   - **20 entries** routed by the classification already in their own lead-in
-     (`Security:`, `Fixed:`, `Fix:`, `Removed:`, `Refactor …`). No judgement.
-   - **21 entries** had no declared category. These were classified **by reading
-     the full entry**, with an explicit, auditable prefix→section map rather
-     than a regex, so a human can check and disagree with any of them. 15 were
-     described defects now corrected (`Fixed`), 3 were new surfaces (`Added`:
-     the 66-view mount e2e spec, the "information at rest" panels, the
-     connect-a-channel wizard), 3 were UI/UX reshaping (`Changed`: the trust
-     layer, humane run titles, the declutter sweep).
-
-   `changelog-lint` passes. One mistake was made and caught by the script's own
-   entry-count guard: the first splice inserted duplicate section headings
-   instead of appending to the existing ones. Reverted from a backup and
-   redone.
-4. ~~**Rename `features/chat/legacy/`**~~ **DONE.** Renamed to `impl/`. The
-   directory holds the only copy of the Chat implementation, so `legacy` was an
-   invitation to delete the feature — and this audit's own dead-code report
-   called it "an unused duplicate of the live Chat", which is the reverse of
-   the truth. The shim's header now explains the arrangement. 161/1449
-   frontend tests still pass, typecheck and knip clean.
-5. **Keep the gate discipline note fresh.** `docs/REFACTORING-INDEX.md` now
-   opens with the gate list, the 2026-08-12 green baseline, and the four
-   regression counts, because no god-file-split script exists in the repo —
-   the splits were ad hoc, so the rule is documentation, not automation.
-
-Done this session, for the record: `structure-md -check` added to CI, `fmt`
-added to `make check`, the console-surface docs corrected behind a new drift
-gate, knip's `lazyNamed` blind spot fixed, 51 dead frontend files removed, the
-`nav:audit` `tail` pipe fixed for Windows, 59 package comments recovered from
-git, 636 gofmt violations cleared, and the duplicate-package-comment condition
-driven 98 → 0.
-
-`go test -race` needs no action: `race-breadth` and `race-depth` already run
-it in CI.
-
-### Working-tree shape after this audit
-
-`git diff --name-only` = **938 files with real content changes**:
-881 `.go` (668 comment moves + 213 gofmt blank-line fixes), 3 `.md`,
-54 other (51 deleted frontend files, plus `.gitattributes`, `Makefile`,
-`frontend/knip.json`). Plus 79 new `doc.go` and 2 new files untracked.
-
-The 673 EOL-normalised files carry **no** content difference — their blobs
-were already LF.
 
 ## 12. Checked and explicitly *not* a problem
 
