@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package shell: renderResult (combined stdout/stderr, truncation, exit-code
-// propagation) + ShellHint + resolveShell (shell binary resolution by GOOS).
-// Extracted from shell.go during the Day-211 god-file split. Public API
-// unchanged.
 package shell
 
+// Provenance: Package shell: renderResult (combined stdout/stderr, truncation,
+//             exit-code propagation) + ShellHint + resolveShell (shell binary
+//             resolution by GOOS). Extracted from shell.go during the Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/warden"
 )
+
 func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
 	// Combine streams the way the previous implementation did
 	// (CombinedOutput). Stderr appended after stdout keeps the order
@@ -26,7 +27,32 @@ func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
 		}
 		combined = append(combined, res.Stderr...)
 	}
-	if res.Truncated || len(combined) > MaxOutputBytes {
+
+	// Build the FINAL, model-facing line FIRST — status prefix and exit-code
+	// suffix included — and only then apply the budget to it.
+	//
+	// This ordering matters and used to be wrong. The budget was enforced on
+	// `combined`, and the status line was prepended afterwards, so a command
+	// that both overflowed the budget AND timed out shipped
+	// len(MaxOutputBytes) + len("timed out after 30s\n") bytes to the model.
+	// The documented invariant is on Result.Output, and a budget the model can
+	// exceed is not a budget. It also made
+	// TestInvoke_RealWarden_CombinedBudgetHeld machine-speed dependent: kill the
+	// command before 30s and no prefix is added and the test passes; let it run
+	// long enough to overflow and it fails — same code, two verdicts.
+	prefix, suffix, isError := "", "", false
+	if res.TimedOut {
+		prefix, isError = fmt.Sprintf("timed out after %s\n", timeout), true
+	} else if res.ExitCode != 0 {
+		suffix, isError = fmt.Sprintf("\n[exit code %d]", res.ExitCode), true
+	}
+
+	final := make([]byte, 0, len(prefix)+len(combined)+len(suffix))
+	final = append(final, prefix...)
+	final = append(final, combined...)
+	final = append(final, suffix...)
+
+	if res.Truncated || len(final) > MaxOutputBytes {
 		// Enforce the model-facing budget on the COMBINED output. Warden wires
 		// one capBuffer per stream, so stdout and stderr are EACH allowed
 		// MaxOutputBytes and the concatenation can reach twice the budget —
@@ -39,25 +65,22 @@ func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
 		if keep < 0 {
 			keep = 0
 		}
-		if len(combined) > keep {
-			combined = combined[len(combined)-keep:]
+		if len(final) > keep {
+			// Keep the tail, but never eat the status prefix: a truncated
+			// result that lost "timed out after 30s" would read as a command
+			// that simply produced a lot of output.
+			if len(prefix) < keep {
+				tail := final[len(final)-keep:]
+				tail = tail[len(prefix):] // drop the prefix from the tail copy
+				final = append(append([]byte{}, prefix...), tail...)
+			} else {
+				final = final[len(final)-keep:]
+			}
 		}
-		combined = append([]byte(marker), combined...)
+		final = append([]byte(marker), final...)
 	}
 
-	if res.TimedOut {
-		return agent.Result{
-			Output:  fmt.Sprintf("timed out after %s\n%s", timeout, combined),
-			IsError: true,
-		}
-	}
-	if res.ExitCode != 0 {
-		return agent.Result{
-			Output:  fmt.Sprintf("%s\n[exit code %d]", combined, res.ExitCode),
-			IsError: true,
-		}
-	}
-	return agent.Result{Output: string(combined)}
+	return agent.Result{Output: string(final), IsError: isError}
 }
 func (t *Tool) ShellHint() (string, string) { return t.resolveShell() }
 func (t *Tool) resolveShell() (string, string) {
