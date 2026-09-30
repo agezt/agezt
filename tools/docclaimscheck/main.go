@@ -161,14 +161,6 @@ func git(args ...string) ([]byte, error) {
 	return exec.Command("git", args...).Output()
 }
 
-func gitOut(args ...string) string {
-	out, err := git(args...)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
 // gitField runs `git <args>` and extracts a number: the first capture group of
 // `pattern`, or a line count when `count` is set.
 func gitField(args, pattern string, count ...bool) string {
@@ -207,23 +199,6 @@ func countAddedMatching(rangeSpec, pattern string) string {
 	for _, l := range strings.Split(string(out), "\n") {
 		l = strings.TrimSpace(l)
 		if l != "" && re.MatchString(l) {
-			n++
-		}
-	}
-	return strconv.Itoa(n)
-}
-
-func countTree(ref, pathRe, nameRe string) string {
-	out, err := git("ls-tree", "-r", "--name-only", ref)
-	if err != nil {
-		return ""
-	}
-	path := regexp.MustCompile(pathRe)
-	name := regexp.MustCompile(nameRe)
-	n := 0
-	for _, l := range strings.Split(string(out), "\n") {
-		l = strings.TrimSpace(l)
-		if l != "" && path.MatchString(l) && name.MatchString(l) {
 			n++
 		}
 	}
