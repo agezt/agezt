@@ -148,10 +148,15 @@ var claimPatterns = map[string][]string{
 	"files changed": {
 		`(?m)^(\d+) files changed\r?$`,
 	},
-	"files modified":    {`(\d+) modified`},
-	"files added":       {`(\d+) added`},
-	"files deleted":     {`(\d+) deleted`},
-	"files renamed":     {`(\d+) renamed`},
+	// The four per-status counts are only meaningful in the review map's summary
+	// line, which reads "N modified · N added · N deleted · N renamed". Anchoring
+	// on the separators keeps a sentence like "79 chunks renamed, 80 modified" —
+	// which counts kernel/webui/dist, not the branch — from being read as a
+	// branch-wide claim.
+	"files modified":    {`(\d+) modified · `},
+	"files added":       {`· (\d+) added · `},
+	"files deleted":     {`· (\d+) deleted · `},
+	"files renamed":     {`· (\d+) renamed`},
 	"doc.go files":      {`(?m)^## \d+\. Restore (\d+) package comments\r?$`},
 	"changelog entries": {`\*\*(\d+) entries\*\*`},
 	"CI jobs":           {`defines \*\*(\d+) jobs\*\*`},

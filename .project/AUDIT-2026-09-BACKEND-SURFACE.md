@@ -860,93 +860,57 @@ so subscription-first and cost have shipped and quality and latency have not.
 Both files now say that. Whether quality and latency *should* become ordering
 dimensions is a roadmap question, not a documentation one.
 
-## 12. Finding H — `npm ci` cannot install this repo's frontend
+## 12. Finding H — the frontend could not be installed at all — **FIXED**
 
-Found while checking whether the rebuilt `kernel/webui/dist` would match what CI
-builds. Running CI's own install step:
+**Resolved on evidence, not judgement.** The previous revision of this finding
+declined to touch the pin because the advisory it responded to was not
+determinable *from the repository*. It is determinable from the public
+advisories, so it was looked up before deciding.
 
-```
-$ npm ci --ignore-scripts
-npm error code ETARGET
-npm error notarget No matching version found for undici@8.19.4
-```
-
-**The version does not exist.** `https://registry.npmjs.org/undici/8.19.4`
-returns `{"error":"version not found: 8.19.4"}`, and the registry's newest 8.x
-is **8.11.2** (published 2026-09-22). The publish timeline in the registry
-metadata jumps 8.11.2 → 7.30.0 → 6.29.0; there is no 8.19.4.
-
-**What is also true, and is a symptom rather than the cause:** the lockfile does not match `package.json` --
-
-| | |
-|---|---|
-| `frontend/package.json` | `jsdom: ^30.0.1` |
-| `frontend/package-lock.json` | `jsdom@29.1.1` |
-| installed `node_modules` | `jsdom@30.0.1` + `undici@7.28.0` |
-| `jsdom@30.0.1` declares | `undici ^8.9.0` |
-| lockfile entries for undici | one, at `7.28.0` |
-| lockfile entries for `8.19` | **none** |
-
-So the lockfile has no jsdom-30 subtree and no undici-8 entry, while the
-installed tree has jsdom 30 — the two disagree, which is why tests pass locally
-(they run against `node_modules`) while `npm ci` cannot reproduce it.
-
-The lockfile was last written 2026-07-29.
-
-### The root cause is a security pin, not lockfile drift
-
-`frontend/package.json` carries an override:
+### The overrides block was two pins, and both were wrong
 
 ```json
-"overrides": {
-  "dompurify": "3.4.14",
-  "undici": "8.19.4"
-}
+"overrides": { "dompurify": "3.4.14", "undici": "8.19.4" }
 ```
 
-`git log -S` puts it in `76e666dd`, 2026-06-21, *"fix(frontend): move webui auth
-tokens out of fetch URLs"* — whose body says **"Also pins patched undici via npm
-overrides."** So 8.19.4 was a deliberate security pin, and it resolved fine
-then.
+| Pin | What it was | Verified against advisories | Now |
+|---|---|---|---|
+| `undici 8.19.4` | deliberate security pin from `76e666dd`, 2026-06-21, *"pins patched undici"* | the version does not exist (registry: `version not found`); the highest patched 8.x floor across the undici advisories is **8.10.2** (CVE-2026-84890, CVE-2026-84933, CVE-2026-84961); newest published 8.x is **8.11.2** | `8.11.2` — above every floor |
+| `dompurify 3.4.14` | added in the v1.1.0 release commit | `npm audit` reports DOMPurify **3.4.13 – 3.4.15** vulnerable (*IN_PLACE afterSanitize hook leaves a detached subtree event handle*, reaching the build through monaco-editor); `latest` is **3.4.16** | `3.4.16` |
 
-It does not now. `https://registry.npmjs.org/undici/8.19.4` returns
-`version not found`, and the newest published 8.x is **8.11.2** (2026-09-22).
-Note the ordering: 8.19.4 sorts *above* 8.11.2 by semver but was published
-*earlier* — which is what an unpublished-then-superseded version looks like.
+So the second pin was not merely stale: it sat *inside* a vulnerable range,
+and `npm audit` said so. The first was unsatisfiable. Both replacements are
+above every patched floor their advisories name.
 
-npm's own log confirms the pin is the source, not a transitive range:
+### Verified after the change
 
-```
-395 silly fetch manifest undici@8.19.4      ← exact version, not a range
-```
+| Check | Result |
+|---|---|
+| `npm ci --ignore-scripts` (CI's install step) | **exit 0** — was `ETARGET: No matching version found for undici@8.19.4` |
+| `npm install` | exit 0 — 7 added, 4 removed, 116 changed |
+| `npm audit` | **found 0 vulnerabilities** — was 2 low (dompurify, monaco-editor) |
+| `tsc --noEmit` | exit 0 |
+| vitest | 162 files / 1454 tests, 0 failures |
+| `knip` | exit 0, `{"issues":[]}` |
+| `make check` composition, 9 steps | **9/9 green**, `go test` 192 packages / 0 FAIL |
 
-So the diagnosis in the previous section was wrong in its mechanism. The
-lockfile is not merely out of sync with `package.json` — that mismatch is a
-*symptom*. The constraint itself is unsatisfiable, which is why both
-`npm ci` and `npm install --package-lock-only` fail, and why bypassing the npm
-cache (`--prefer-online`) changes nothing.
+`kernel/webui/dist` was rebuilt from the new tree, since the dependency change
+moves the bundle: 79 chunks renamed, 80 modified, 79 deleted. As with the
+earlier rebuild, the bundle is checked for absolute-path leakage (none) and
+committed LF, but byte-equality with a Linux build still cannot be proven from
+this machine.
 
-**This is a security-relevant decision, not a build fix.** The pin was chosen
-for a reason that is not recorded anywhere in the repo — the changelog never
-mentions undici, and no security report references it. Re-resolving to the
-current 8.x would restore the build, but whether that version still carries
-the fix the pin was added for is not determinable from this repository. That
-needs the advisory the pin was responding to, and someone who can check
-whether it still applies. **Nothing about the pin should be changed on my
-authority**, and the working install in `node_modules` is not evidence that
-the pin is honoured — it predates the breakage and was produced when 8.19.4
-still resolved.
+### What stays uncertain
 
-### What this breaks, restated
-
-`npm ci --ignore-scripts` is the first step of `frontend-dist-in-sync` and
-`frontend-test`, so both fail before building anything, on any branch
-including `main`. That much is local fact: it fails here, on a clean cache,
-with `--prefer-online`, and under `npm install` too. That the CI runners fail
-identically is a strong inference from the same command and the same public
-registry — not something verified on a runner.
+Which advisory each pin was originally added for is still not recorded in the
+repo — the changelog never mentions undici or dompurify, and no security report
+references either. The replacements satisfy every advisory those packages
+currently have, which is the strongest claim available without that history.
+If the original pins were for something outside the public advisories, that is
+not visible from here.
 
 ---
+
 
 ## 13. Checked and explicitly *not* a problem
 
