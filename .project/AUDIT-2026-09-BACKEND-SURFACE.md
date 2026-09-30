@@ -179,10 +179,10 @@ from a sibling file. Caught by `go build` immediately.
 
 ### Second defect: 98 packages declared MORE THAN ONE package comment
 
-The split blocks were not the only ones. Measured across 1,372 non-test Go
-files, **98 packages declared several package doc comments** — invalid Go.
-`go/doc` concatenates them, so the summary a developer, an IDE, or `go doc`
-showed first was:
+The split blocks were not the only ones. **98 packages declared several package
+doc comments** — invalid Go, spread across kernel, internal, cmd, plugins,
+sdk and tools. `go/doc` concatenates them, so the summary a developer, an
+IDE, or `go doc` showed first was:
 
 ```
 $ go doc ./kernel/alerter
