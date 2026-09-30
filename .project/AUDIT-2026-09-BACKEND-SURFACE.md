@@ -792,17 +792,73 @@ Nothing compared the shipped surface to the advertised one — until Finding D.
 
 ## 11. Where this leaves things
 
-**Done and verified this session:**
+**The audit is closed.** Everything below is landed on
+`audit/2026-09-surface` — 18 commits, pushed, `main` untouched at `0b6c8519`
+both locally and on `origin`.
 
 | # | Item | Result |
 |---|---|---|
-| 1 | **Decide the console-surface question** | **Taken as "shrink the docs".** Restoring would have meant authoring ~12 UI surfaces from scratch (their implementations were deleted), i.e. inventing product. The docs were corrected instead, and they now state plainly that the capabilities remain on the CLI. **Reversible — this was the one decision made without asking.** |
+| 1 | **Decide the console-surface question** | **The retirement stands.** Restoring would have meant authoring ~12 UI surfaces whose implementations were deleted — inventing product, not recovering it. `docs/CONSOLE-IA.md` records the dated decision with its reasoning and how to reverse it, and the capabilities' continued CLI availability is stated. No kernel handler was touched. **The one decision made without asking.** |
 | 2 | Surface counts never hand-written | ✅ `nav-docs.test.ts`, green |
-| 3 | Delete the orphaned frontend surface | ✅ 51 dead files removed. `chat/legacy/` deliberately **kept** — see the correction in Finding C |
-| 4 | Restore the prose package comments | ✅ 59 recovered from git; regeneration is byte-identical |
-| 5 | Demote the split blocks | ✅ 98 → 7 packages |
-| 8 | `plugins/channels/discord` package comment | ✅ already recovered in step 4 — 25 lines, full SPEC-04 §1 security rationale |
-| 9 | **`gofmt` gate** | ✅ `.gitattributes` `*.go text eol=lf`, 673 CRLF working-tree files aligned, 213 pre-existing double-blank-line fixes, `fmt` target live in `check` and negative-tested |
+| 3 | Delete the orphaned frontend surface | ✅ 51 dead files, 53 dead exports/types. `chat/legacy/` deliberately **kept** when linters called it a duplicate — it is the only copy of the Chat implementation — then renamed to `impl/` |
+| 4 | Restore the prose package comments | ✅ 59 recovered from `52234e77`; regeneration is byte-identical |
+| 5 | Demote the split / file-scope blocks | ✅ 98 → 0 packages declaring more than one package comment |
+| 6 | Wire the gate that had no CI step | ✅ `structure-md -check` added to the `deps-check` job |
+| 7 | `gofmt` gate | ✅ 636 violations cleared; `.gitattributes` pins Go line endings; `fmt` target live in `check`, negative-tested |
+| 8 | knip's `lazyNamed` blind spot | ✅ the 38 lazy-loaded views declared as entries — acting on the report would have broken the console |
+| 9 | `e2e-smoke.ps1` | ✅ broken since 2026-07-06 (the shell twin got the token-file fix, the PowerShell twin never did); now matches `.sh` |
+| 10 | `nav:audit` portability | ✅ the POSIX `tail` pipe removed |
+| 11 | The three packages holding two package docs | ✅ `kernel/event` and `kernel/runtime/types` merged; `kernel/governor`'s contradiction **resolved against the code** |
+| 12 | `.gitleaks.toml` rationale | ✅ stale "16 hits" replaced with measured numbers, scan re-verified green afterwards |
+
+| Metric | At `0b6c8519` | Now |
+|---|---|---|
+| `structure-md-check` | ❌ exit 1 | ✅ exit 0 |
+| `frontend-deadcode` | ❌ exit 1 | ✅ `{"issues":[]}` |
+| Packages with >1 package comment | 98 | **0** |
+| `.go` files failing `gofmt` | 636 | **0** |
+| Packages with no doc comment | 59 lost | **0** |
+| `staticcheck` findings | 3 | **0** |
+| Tests whose verdict depends on machine speed | 3 | **0 fixed** |
+
+`go test -race` needed no work: `race-breadth` and `race-depth` already run
+it in CI.
+
+### Which CI jobs were actually run here
+
+`ci.yml` defines **17 jobs**. Twelve were executed or verified equivalently on
+this machine; five cannot run here at all:
+
+| Ran or verified here (12) | Not runnable on this machine (5) |
+|---|---|
+| `test` — 192 packages, 0 failures | `race-breadth` — needs cgo; runs in CI on Linux |
+| `e2e` — 10 checks, 0 panics | `race-depth` — needs cgo + `ubuntu-latest` |
+| `webui-e2e` — 6 Playwright specs | `rust-sdk` — `cargo` is not installed here |
+| `frontend-test` — 162 files / 1454 tests, `tsc`, knip | `frontend-dist-in-sync` — needs a Linux rebuild to byte-compare `dist` |
+| `python-sdk` 40/40 · `typescript-sdk` 23/23 | `frontend-dist-rebuild` — push-only; it rebuilds and pushes `dist` |
+| `multi-arch` — 6/6 targets | |
+| `deps-check` — depscheck, sdkparity, deadcodecheck, structure-md | |
+| `lint` — gofmt, vet, staticcheck, govulncheck, repo hygiene | |
+| `secrets` — gitleaks over 2,071 commits, no leaks | |
+| `changelog` — changelog-lint | |
+| `codegen-in-sync` — regenerating produces no diff | |
+
+The five that were not run are the ones needing a Linux toolchain, a network
+rebuild, or a push. They were **not** verified, and this report should not be
+read as saying otherwise.
+
+`ci.yml` itself was parsed: 17 jobs, 0 malformed steps, and the
+`structure-md -check` step this audit added sits correctly in `deps-check`.
+
+### The one judgement call left to the reader
+
+`kernel/governor`'s `doc.go` described the provider chain as
+"subscription-first → quality → cost → latency" in the present tense while
+`governor.go` said that policy only lands with the model-catalog sync. The
+code settles it: `routeChain` + `authModePriority` is purely a cost ranking,
+so subscription-first and cost have shipped and quality and latency have not.
+Both files now say that. Whether quality and latency *should* become ordering
+dimensions is a roadmap question, not a documentation one.
 
 ## 12. Checked and explicitly *not* a problem
 
