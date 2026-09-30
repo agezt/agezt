@@ -75,6 +75,30 @@ So a failure is diagnosable rather than mysterious:
   `.github/workflows/ci.yml` — the `mailbox` tests landed after that job was
   written. The CI comment is stale, not the suite.
 
+## The twelve commits
+
+They are in review order, and the two product bugs are deliberately at the
+front where a reviewer will see them:
+
+`1bf10afa` — **fix(shell)**: the output-budget bug, now its own 2-file commit
+`5b913061` — **fix(frontend)**: the unbounded Conductor store, likewise
+`f868e431` — **test(warden)**: the third timing-dependent test, found by re-running the full suite after committing
+
+The full list, newest first:
+
+- `f868e431` — test(warden): give the timeout bound room for a loaded machine
+- `70859382` — docs: the surface audit record -- seven findings and their measurements
+- `5351b317` — refactor(frontend): remove 53 dead exports and rename chat/legacy to chat/impl
+- `96dc3138` — chore(frontend): delete 51 unreferenced files
+- `9c430bc1` — docs(changelog): 14 appended blocks into 5 sections, 156 entries preserved
+- `feed2ace` — docs(console): state the surface that actually ships, and pin it
+- `a48cf1ba` — ci: wire the one gate that had no CI step, and fix the Windows e2e harness
+- `4bcf3c66` — style(kernel): gofmt -- blank-line fixes and LF normalisation
+- `74ca24f5` — refactor: move 98 packages' second comment below the package clause
+- `5b913061` — fix(frontend): bound the Conductor store the firehose feeds
+- `1bf10afa` — fix(shell): enforce the output budget on what the model actually reads
+- `86b6b3e7` — docs(kernel): restore 80 package comments destroyed by the god-file splits
+
 ## 1. Restore 80 package comments
 
 **80 files, 37 lines.** The Day-50…Day-211 god-file splits overwrote each package's doc comment with a mechanical “Code extracted from …” header. 59 were recovered verbatim from `52234e77`, the last commit before the splits; 3 more (approval, toolbox, toolforge) after a comment move left them with none; 17 from the same commit; and `kernel/runtime/types` rewritten by hand to merge two complementary texts. Regenerating STRUCTURE.generated over the damaged source would have destroyed the last surviving copy — this order is the point.

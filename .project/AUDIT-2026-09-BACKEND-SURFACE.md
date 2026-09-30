@@ -647,6 +647,39 @@ flake, unrelated to the audit.
 
 ---
 
+### A third timing-dependent test, in the very package this audit touched
+
+Committing the work re-ran the full suite on the committed tree, and
+`kernel/warden`'s `TestRun_TimeoutKillsAndFlagsTimedOut` failed **twice in a
+row**:
+
+```
+warden_test.go:171: Run took 2.1760963s; expected <2s (timeout + WaitDelay)
+```
+
+The command is 200ms timeout + 500ms `WaitDelay`, so a 2s bound looked like
+~9x headroom. It is a wall-clock measurement of a real process being killed,
+and with 191 packages running in parallel the box is loaded enough to take
+2.18s. In isolation it passes every time (0.53–0.60s, 3/3).
+
+Two full runs before the change, both failing; two after, both clean — so this
+was reproducible under load, not a coincidence of the re-commit, and CI runs
+the full suite.
+
+The bound is now 6s. The property worth keeping is "killed, and not after an
+unbounded wait"; a broken kill path never returns and trips the package
+timeout instead, so the wall-clock check is a backstop rather than the primary
+guard. At 6s it still catches a kill that lands many multiples late, while
+stopping the measurement from testing the scheduler.
+
+That makes three tests in this repository whose verdict depends on machine
+speed — `TestInvoke_RealWarden_CombinedBudgetHeld` (replaced with a
+timing-independent table test), this one, and the python SDK's intermittent
+`ConnectionAbortedError`. Same failure shape, and the same lesson: a test whose
+verdict depends on the scheduler is not testing the thing it names.
+
+---
+
 ## 10. Corrections — two things this report had wrong, found by reading CI
 
 Reading `.github/workflows/ci.yml` in full changed two claims above.
