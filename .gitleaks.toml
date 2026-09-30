@@ -1,12 +1,30 @@
 # Agezt gitleaks configuration.
 #
 # Purpose: keep `gitleaks detect` at zero so it is an *enforceable* secret gate.
-# Without a baseline, the scan reports 16 hits that are all deliberate test
-# fixtures (fake, secret-shaped strings), which would bury a future REAL leak in
-# known noise. This config extends the default ruleset and allowlists only the
-# test files whose job is to contain such fixtures — never production code.
+# The scan has to stay at zero, or a real leak hides in the noise. This config
+# extends the default ruleset and allowlists only the test files whose job is
+# to embed secret-shaped strings — never production code — and .gitleaks-baseline
+# absorbs the one remaining hit, which is history rather than a file on disk.
 #
-# Run:  gitleaks detect --no-banner --redact -s .
+# Two numbers, measured 2026-09-30 over the full 2,071-commit history
+# (393 MB, 45.7s):
+#
+#   allowlist + baseline, as CI runs it   -> no leaks found, exit 0
+#   baseline only, allowlist disabled     -> 1 finding, exit 1
+#
+# That single finding is a false positive: a `private-key` match on the line
+# "10. **PEM edge cases:** `-----BEGIN PGP PRIVATE KEY BLOCK-----` does not
+# match …" inside security-report/infra-results.md — prose *about* key formats
+# in a document about secret detection, not a key. The file was deleted from
+# HEAD in the v1.1.0 release commit (e872a832), but gitleaks scans history,
+# so the finding is still live and the baseline entry is load-bearing. It
+# cannot be cleared without rewriting history.
+#
+# This comment previously claimed the unfiltered scan reports 16 hits, all test
+# fixtures. That was true when written and is now stale: the allowlist below
+# covers the fixtures, and what remains is the one finding above.
+#
+# Run:  gitleaks detect --no-banner --redact -s . -b .gitleaks-baseline
 # Expect: "no leaks found".
 
 title = "Agezt"
