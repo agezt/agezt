@@ -876,7 +876,7 @@ returns `{"error":"version not found: 8.19.4"}`, and the registry's newest 8.x
 is **8.11.2** (published 2026-09-22). The publish timeline in the registry
 metadata jumps 8.11.2 → 7.30.0 → 6.29.0; there is no 8.19.4.
 
-**The lockfile does not match `package.json`:**
+**What is also true, and is a symptom rather than the cause:** the lockfile does not match `package.json` --
 
 | | |
 |---|---|
@@ -893,28 +893,58 @@ installed tree has jsdom 30 — the two disagree, which is why tests pass locall
 
 The lockfile was last written 2026-07-29.
 
-### What this breaks
+### The root cause is a security pin, not lockfile drift
 
-Every CI job that installs the frontend runs `npm ci --ignore-scripts`:
-`frontend-dist-in-sync` and `frontend-test`. Both fail before they build
-anything, on any branch, including `main`.
+`frontend/package.json` carries an override:
 
-### What fixes it, and why it is not done here
+```json
+"overrides": {
+  "dompurify": "3.4.14",
+  "undici": "8.19.4"
+}
+```
 
-`npm install` to regenerate the lockfile, which should resolve
-`jsdom@30.0.1 → undici ^8.9.0 → 8.11.2` — a version that exists. Two caveats
-that make it a call for the owner rather than a mechanical fix:
+`git log -S` puts it in `76e666dd`, 2026-06-21, *"fix(frontend): move webui auth
+tokens out of fetch URLs"* — whose body says **"Also pins patched undici via npm
+overrides."** So 8.19.4 was a deliberate security pin, and it resolved fine
+then.
 
-1. It re-resolves the whole frontend tree, so transitive versions can move
-   across many packages, not just jsdom/undici.
-2. It would change the bundle, so the dist rebuilt in the previous commit would
-   have to be rebuilt **again** from the new tree, and the byte-equality with a
-   Linux build still could not be verified from here.
+It does not now. `https://registry.npmjs.org/undici/8.19.4` returns
+`version not found`, and the newest published 8.x is **8.11.2** (2026-09-22).
+Note the ordering: 8.19.4 sorts *above* 8.11.2 by semver but was published
+*earlier* — which is what an unpublished-then-superseded version looks like.
 
-Also worth knowing: `undici@8.19.4` being requested at all suggests a lockfile
-generation somewhere recorded a version that was never published — possibly
-unpublished after a security hold. That is a question about how this lockfile
-came to be, not something to paper over by re-resolving.
+npm's own log confirms the pin is the source, not a transitive range:
+
+```
+395 silly fetch manifest undici@8.19.4      ← exact version, not a range
+```
+
+So the diagnosis in the previous section was wrong in its mechanism. The
+lockfile is not merely out of sync with `package.json` — that mismatch is a
+*symptom*. The constraint itself is unsatisfiable, which is why both
+`npm ci` and `npm install --package-lock-only` fail, and why bypassing the npm
+cache (`--prefer-online`) changes nothing.
+
+**This is a security-relevant decision, not a build fix.** The pin was chosen
+for a reason that is not recorded anywhere in the repo — the changelog never
+mentions undici, and no security report references it. Re-resolving to the
+current 8.x would restore the build, but whether that version still carries
+the fix the pin was added for is not determinable from this repository. That
+needs the advisory the pin was responding to, and someone who can check
+whether it still applies. **Nothing about the pin should be changed on my
+authority**, and the working install in `node_modules` is not evidence that
+the pin is honoured — it predates the breakage and was produced when 8.19.4
+still resolved.
+
+### What this breaks, restated
+
+`npm ci --ignore-scripts` is the first step of `frontend-dist-in-sync` and
+`frontend-test`, so both fail before building anything, on any branch
+including `main`. That much is local fact: it fails here, on a clean cache,
+with `--prefer-online`, and under `npm install` too. That the CI runners fail
+identically is a strong inference from the same command and the same public
+registry — not something verified on a runner.
 
 ---
 
