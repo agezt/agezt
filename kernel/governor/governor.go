@@ -3,26 +3,22 @@
 package governor
 
 // This file holds the routing and budget engine. The package's
-// documentation — what the Governor is and the three pieces it is built from —
-// lives in doc.go.
+// documentation — what the Governor is, and the chain order it tries
+// providers in — lives in doc.go.
 //
-// The routing algorithm as it stands today, kept here because it is the
-// operational detail rather than the overview:
+// RESOLVED, and kept here because it was a real documentation bug worth not
+// losing: this file's old comment and doc.go disagreed about the chain.
+// doc.go described the order as "subscription-first -> quality -> cost ->
+// latency" in the present tense; this one said the full subscription->cost->
+// latency policy (DECISIONS C2) only lands with the model-catalog sync. Both
+// were describing something that does not exist.
 //
-//	M1.b minimum. 1. If RouteOptions.PreferredProvider is set and registered,
-//	try it. 2. Otherwise pick the primary (first registered non-fallback
-//	provider). 3. On a fall-back-able error (anything except
-//	context.Canceled / DeadlineExceeded / ErrBudgetExceeded), walk the chain:
-//	other non-fallback providers in registration order, then any fallback
-//	(IsFallback=true) providers last. TaskRoutes and TaskRouteRequires
-//	(see routes.go) reshape that order per task type.
-//
-// OPEN: doc.go describes the chain as "subscription-first → quality → cost →
-// latency", while the note above says the full subscription→cost→latency
-// policy (DECISIONS C2) only lands with the model-catalog sync. One of the
-// two is out of date. Resolving it needs a decision about what the chain
-// actually does today, so the text is left as-is rather than merged into
-// doc.go and silently asserting one of them.
+// The code settles it. routeChain sorts the primary candidates with
+// authModePriority, which is purely a cost ranking — AuthSubscription (0),
+// then AuthLocal (1), then AuthAPIKey (2), with fallback providers appended
+// last. So the subscription-first and cost halves of DECISIONS C2 have
+// shipped; quality and latency are not ordering dimensions yet. doc.go now
+// says exactly that.
 
 import (
 	"errors"
