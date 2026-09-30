@@ -167,7 +167,7 @@ e2e:
 # and this tool is why that note is there.
 doc-claims:
 	@echo "Checking the audit documents' numbers against the branch..."
-	go run ./tools/docclaimscheck -base main
+	go run ./tools/docclaimscheck -base origin/main
 
 check: gen fmt vet test deps-check sdk-parity deadcode-check structure-md-check doc-claims frontend-deadcode frontend-test
 

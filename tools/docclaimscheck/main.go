@@ -43,7 +43,7 @@ type doc struct {
 }
 
 var (
-	flagBase  = flag.String("base", "origin/main", "ref the documents claim to describe")
+	flagBase  = flag.String("base", "origin/main", "ref the documents claim to describe — the merge base, not the tip. Comparing against a branch HEAD that already contains the changes measures nothing, and reports every count as zero.")
 	flagProj  = flag.String("dir", ".project", "directory holding the deliverable documents")
 	flagQuiet = flag.Bool("quiet", false, "only report failures")
 )
