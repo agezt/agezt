@@ -90,7 +90,12 @@ So a failure is diagnosable rather than mysterious:
   `.github/workflows/ci.yml` — the `mailbox` tests landed after that job was
   written. The CI comment is stale, not the suite.
 
-## The 21 commits
+## The commits
+
+> The commit count is deliberately not stated here. Any number written into
+> this file goes stale the moment the next commit lands -- including the commit
+> that would fix it. `git log --oneline main..HEAD` is the authority, and
+> `tools/docclaimscheck` verifies the numbers that *can* hold still.
 
 Review order, oldest first — the sequence the slices below describe. The two
 product bugs are deliberately near the front, in two-file commits, so they are
@@ -132,9 +137,9 @@ Newest first:
 > is listed verbatim in the commit list above. Read the commit list for the
 > order to review in; read these sections for what each group of changes is for.
 
-## 1. Restore 80 package comments
+## 1. Restore 79 package comments
 
-**80 files, 37 lines.** The Day-50…Day-211 god-file splits overwrote each package's doc comment with a mechanical “Code extracted from …” header. 59 were recovered verbatim from `52234e77`, the last commit before the splits; 3 more (approval, toolbox, toolforge) after a comment move left them with none; 17 from the same commit; and `kernel/runtime/types` rewritten by hand to merge two complementary texts. Regenerating STRUCTURE.generated over the damaged source would have destroyed the last surviving copy — this order is the point.
+**79 files, 37 lines.** The Day-50…Day-211 god-file splits overwrote each package's doc comment with a mechanical “Code extracted from …” header. 59 were recovered verbatim from `52234e77`, the last commit before the splits; 3 more (approval, toolbox, toolforge) after a comment move left them with none; 17 from the same commit; and `kernel/runtime/types` rewritten by hand to merge two complementary texts. Regenerating STRUCTURE.generated over the damaged source would have destroyed the last surviving copy — this order is the point.
 
 - `plugins/channels/` — 14 files
 - `plugins/tools/` — 13 files

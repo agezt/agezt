@@ -6,7 +6,7 @@
 # Requires: Go 1.26.4+ (see go.mod), Make, git (for version stamping)
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
+.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check doc-claims frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -154,7 +154,22 @@ frontend-deadcode:
 e2e:
 	bash scripts/e2e-smoke.sh
 
-check: gen fmt vet test deps-check sdk-parity deadcode-check structure-md-check frontend-deadcode frontend-test
+# The audit documents under .project/ state hard numbers — files changed, doc.go
+# count, changelog entries, CI job count. Four separate passes in the 2026-09
+# surface audit found those numbers stale, each because the document was written
+# while the work was still in progress and never re-measured. This is the thing
+# that fails when the next one drifts.
+#
+# It compares claims in the documents against the branch they describe. It does
+# not judge whether a claim is meaningful, only whether a number the document
+# states is still the number. Numbers that cannot hold still — the commit count,
+# the insertion/deletion totals — are deliberately not quoted in the documents,
+# and this tool is why that note is there.
+doc-claims:
+	@echo "Checking the audit documents' numbers against the branch..."
+	go run ./tools/docclaimscheck -base main
+
+check: gen fmt vet test deps-check sdk-parity deadcode-check structure-md-check doc-claims frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT (version=$(VERSION), commit=$(COMMIT))..."
