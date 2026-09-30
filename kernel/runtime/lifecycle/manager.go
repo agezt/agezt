@@ -15,7 +15,7 @@ import (
 // KernelAPI interface so this sub-package does not import
 // kernel/runtime — the dependency arrow is one-way:
 //
-//   kernel/runtime  →  kernel/runtime/lifecycle
+//	kernel/runtime  →  kernel/runtime/lifecycle
 //
 // Construction: Manager is a stateless value around the host
 // kernel; one Manager per *Kernel, initialised in Open() and
