@@ -1,13 +1,16 @@
 # Review map — 2026-09-27/30 surface audit
 
 **This is what the branch delivers, not a proposal.** `audit/2026-09-surface`
-carries **20 commits** taking `0b6c8519` to here. Measured with
-`git diff --shortstat 0b6c8519..HEAD`:
+takes `0b6c8519` to here. Measured with `git diff --name-status 0b6c8519..HEAD`:
 
 ```
-1064 files changed, 8120 insertions(+), 6925 deletions(-)
+1064 files changed
 915 modified · 85 added · 52 deleted · 12 renamed
 ```
+
+> The per-file line counts (`--shortstat`) are deliberately not quoted: they
+> change every time a sentence about them is added, including this one. The
+> file counts are stable, and they are what a review actually navigates by.
 
 `main` is untouched, locally and on `origin`.
 
@@ -87,10 +90,10 @@ So a failure is diagnosable rather than mysterious:
   `.github/workflows/ci.yml` — the `mailbox` tests landed after that job was
   written. The CI comment is stale, not the suite.
 
-## The 20 commits
+## The 21 commits
 
-Review order, oldest first — this is the sequence the slices below describe. The
-two product bugs are deliberately at the front, in two-file commits, so they are
+Review order, oldest first — the sequence the slices below describe. The two
+product bugs are deliberately near the front, in two-file commits, so they are
 not buried under an 878-file diff:
 
 `1bf10afa` **fix(shell)** — the output budget, enforced on the wrong string
@@ -100,6 +103,7 @@ not buried under an 878-file diff:
 
 Newest first:
 
+- `7cd51b1d` — docs: the review map's counts were pre-commit estimates, not measurements
 - `c1d6df3c` — docs: the PR body's bisect claim was measured on 13 commits, not all of them
 - `91059240` — docs: correct the CI job accounting, and restore the closing section
 - `ec79821c` — docs: a ready-to-paste PR description for this branch
@@ -120,13 +124,12 @@ Newest first:
 - `5b913061` — fix(frontend): bound the Conductor store the firehose feeds
 - `1bf10afa` — fix(shell): enforce the output budget on what the model actually reads
 - `86b6b3e7` — docs(kernel): restore 80 package comments destroyed by the god-file splits
-
 ## Slices
 
 > The nine below describe the **content** changes, grouped by what they fix.
 > The **commit** order interleaves them with the two single-file product-bug
 > fixes (`1bf10afa` shell, `5b913061` conductor) and the follow-up commits, and
-> is listed verbatim in "The 20 commits" above. Read the commit list for the
+> is listed verbatim in the commit list above. Read the commit list for the
 > order to review in; read these sections for what each group of changes is for.
 
 ## 1. Restore 80 package comments
@@ -297,7 +300,7 @@ Newest first:
 
 ## 6. Changelog: 14 appended blocks → 5 sections
 
-**1 files, 1.354 lines.** Six sections were titled `Fixed` and four `Added`, with a 510-line Unclassified pile of 41 entries whose first was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over <baseDir>/bin/agezt), unfindable. All 156 entries preserved, counted before and after. 20 were routed by the classification already in their own lead-in; 21 were classified by reading the full entry.
+**1 file, 1.354 lines.** Six sections were titled `Fixed` and four `Added`, with a 510-line Unclassified pile of 41 entries whose first was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over <baseDir>/bin/agezt), unfindable. **158 entries**, none dropped: 156 were carried over from the original 14 blocks and two more were added recording the two product-bug fixes this audit landed. 20 were routed by the classification already in their own lead-in; 21 were classified by reading the full entry.
 
 - `CHANGELOG/unreleased/current.md`
 
