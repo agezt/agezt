@@ -1,21 +1,33 @@
 # Review map — 2026-09-27/30 surface audit
 
-The working tree holds **1068 files with real content changes** (974 modified
-or deleted, 94 new) and **13.9k changed lines**. That is too much to review as
-one change, so it is grouped below into 8 slices that each stand on their own
-and can be committed — and reverted — separately.
+**This is what the branch delivers, not a proposal.** `audit/2026-09-surface`
+carries **20 commits** taking `0b6c8519` to here. Measured with
+`git diff --shortstat 0b6c8519..HEAD`:
 
-> `git status` reports **1562**, not 1068. The extra ~490 are files whose line
-> endings were normalised in slice 3: git absorbs the change, so
-> `git diff --name-only` does not list them, but a stale stat cache still marks
-> them modified until the index is refreshed. **1068 is the number of files
-> whose contents actually differ from HEAD** — that is what this map counts and
-> what a review should look at.
+```
+1064 files changed, 8120 insertions(+), 6925 deletions(-)
+915 modified · 85 added · 52 deleted · 12 renamed
+```
 
-Every slice is verified by the same evidence: the nine gates in `make check`
-all pass, `tsc --noEmit` is clean, and the Go suite is 192 packages / 0 FAIL
-with the frontend at 162 files / 1454 tests. The full findings and the
-self-inflicted mistakes are in `.project/AUDIT-2026-09-BACKEND-SURFACE.md`.
+`main` is untouched, locally and on `origin`.
+
+The commits are grouped below into the review order they were made in, each
+standing on its own and individually revertible. The two product bugs are at
+the front, in two-file commits, so they are not buried.
+
+> **A note on the counts, because they were confusingly two numbers at one
+> point.** While the work was still uncommitted, `git status` reported **1562**
+> while `git diff --name-only` reported **1068**. Both were true: the extra
+> ~490 were files whose line endings had been normalised, which git absorbs on
+> comparison, so they never appeared in the diff but stayed in the status
+> listing behind a stale stat cache. What counts is the **1064** the branch
+> actually changes against `0b6c8519` — that is what this map describes and
+> what a review should look at. The working tree is now clean.
+
+Every slice rests on the same evidence: the ten gates in `make check` all
+pass, `tsc --noEmit` is clean, `go test ./...` is 192 packages / 0 failures
+and the frontend 162 files / 1454 tests. The full findings, and the mistakes
+made along the way, are in `.project/AUDIT-2026-09-BACKEND-SURFACE.md`.
 
 ## Reproduce every claim yourself
 
@@ -75,17 +87,27 @@ So a failure is diagnosable rather than mysterious:
   `.github/workflows/ci.yml` — the `mailbox` tests landed after that job was
   written. The CI comment is stale, not the suite.
 
-## The twelve commits
+## The 20 commits
 
-They are in review order, and the two product bugs are deliberately at the
-front where a reviewer will see them:
+Review order, oldest first — this is the sequence the slices below describe. The
+two product bugs are deliberately at the front, in two-file commits, so they are
+not buried under an 878-file diff:
 
-`1bf10afa` — **fix(shell)**: the output-budget bug, now its own 2-file commit
-`5b913061` — **fix(frontend)**: the unbounded Conductor store, likewise
-`f868e431` — **test(warden)**: the third timing-dependent test, found by re-running the full suite after committing
+`1bf10afa` **fix(shell)** — the output budget, enforced on the wrong string
+`5b913061` **fix(frontend)** — the Conductor store, unbounded
+`f868e431` **test(warden)** — the third timing-dependent test
+`3d9af9be` **fix(docs)** — `kernel/governor`'s chain order, documented two ways
 
-The full list, newest first:
+Newest first:
 
+- `c1d6df3c` — docs: the PR body's bisect claim was measured on 13 commits, not all of them
+- `91059240` — docs: correct the CI job accounting, and restore the closing section
+- `ec79821c` — docs: a ready-to-paste PR description for this branch
+- `3fb0e825` — docs: bring the audit record up to the closed state
+- `bfa2b325` — docs(gitleaks): the config's rationale cited a stale hit count
+- `3d9af9be` — fix(docs): kernel/governor's chain order was documented two ways, and one was wrong
+- `69bb2887` — docs(kernel): finish the last two packages holding two package docs
+- `42bd5a4a` — docs: record the third timing-dependent test and the commit map
 - `f868e431` — test(warden): give the timeout bound room for a loaded machine
 - `70859382` — docs: the surface audit record -- seven findings and their measurements
 - `5351b317` — refactor(frontend): remove 53 dead exports and rename chat/legacy to chat/impl
@@ -98,6 +120,14 @@ The full list, newest first:
 - `5b913061` — fix(frontend): bound the Conductor store the firehose feeds
 - `1bf10afa` — fix(shell): enforce the output budget on what the model actually reads
 - `86b6b3e7` — docs(kernel): restore 80 package comments destroyed by the god-file splits
+
+## Slices
+
+> The nine below describe the **content** changes, grouped by what they fix.
+> The **commit** order interleaves them with the two single-file product-bug
+> fixes (`1bf10afa` shell, `5b913061` conductor) and the follow-up commits, and
+> is listed verbatim in "The 20 commits" above. Read the commit list for the
+> order to review in; read these sections for what each group of changes is for.
 
 ## 1. Restore 80 package comments
 
