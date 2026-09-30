@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Workflow execution helpers: invokeWorkflowTool + workflowItems + withItem + parseMaybeJSONValue + evalCondition + parseMaybeJSON + truncateForErr.
-// Code extracted from workflowrun.go during the Day-47 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Workflow execution helpers: invokeWorkflowTool + workflowItems +
+//             withItem + parseMaybeJSONValue + evalCondition + parseMaybeJSON +
+//             truncateForErr. Code extracted from workflowrun.go during the Day-47
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/workflow"
 )
-
 
 func (k *Kernel) invokeWorkflowTool(ctx context.Context, toolName, callID string, args json.RawMessage) (any, string, error) {
 	tools := k.mergeMCPTools(k.mergeScriptTools(k.tools))

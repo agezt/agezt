@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Settings validation: Validate.
-// Code extracted from schema.go during the Day-62 god-file split. Public API unchanged.
 package settings
 
+// Provenance: Settings validation: Validate. Code extracted from schema.go during
+//             the Day-62 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-
 
 // Validate checks a value against its field's type. Empty is always allowed
 // (clearing a field). Returns nil for unknown fields the caller already rejected.

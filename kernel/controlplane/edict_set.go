@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// Edict runtime setters: handleEdictSetLevel + handleEdictSetMode.
-// Extracted from edict.go during the Day-204 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Edict runtime setters:
+//             handleEdictSetLevel + handleEdictSetMode. Extracted from edict.go
+//             during the Day-204 god-file split. Public API unchanged.
 
 import (
 	"net"

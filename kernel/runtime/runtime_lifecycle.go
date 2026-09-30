@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// *Kernel methods: halt/resume/cancel/drain lifecycle, runs map, publish helpers, run-state setup/cleanup, Maybe* helpers, VerifyCompletion, SubjectForRun, NewCorrelation.
-// Code extracted from runtime.go during the Day-41 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: *Kernel methods: halt/resume/cancel/drain lifecycle, runs map, publish
+//             helpers, run-state setup/cleanup, Maybe* helpers, VerifyCompletion,
+//             SubjectForRun, NewCorrelation. Code extracted from runtime.go during
+//             the Day-41 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -19,7 +21,6 @@ import (
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 )
-
 
 func (k *Kernel) Halted() bool { return k.halted }
 
@@ -135,6 +136,7 @@ func (k *Kernel) VerifyCompletion(ctx context.Context, corr, task, answer string
 //   - the k.runs[corr] = cancel registration
 //   - the runWG.Add(1) drain accounting
 //   - the steersMu-locked k.steers[corr] = newRunControl() registration
+//
 // The lock-ordering invariant `runsMu → steersMu` is documented
 // on the Kernel struct and re-checked whenever this method
 // changes; the live-steering slot acquisition sits AFTER

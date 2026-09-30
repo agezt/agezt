@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// dingtalk_helpers.go: post + emitInbound + seenBefore + validSign + safeReplyURL
-// + parseInbound split off from dingtalk.go during the Day 211 god-file refactor (#142).
-// Public API unchanged.
 package dingtalk
+
+// Provenance: dingtalk_helpers.go: post + emitInbound + seenBefore + validSign +
+//             safeReplyURL + parseInbound split off from dingtalk.go during the Day
+//             211 god-file refactor (#142). Public API unchanged.
 
 import (
 	"bytes"

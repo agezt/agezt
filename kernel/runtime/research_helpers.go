@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Research: parsers (SubQuestions / SearchHits / Verdict) +
-// extractors (JSONArray / CitedSources / Claims) +
-// classifiers (Confidence / classifyResearchVerdict /
-// firstIndexOf) + the regex variables each helper uses.
-// The LLM-input prompt builders (4 buildXxx funcs) live
-// in research_prompts.go. Code extracted from research.go
-// during the Day-67 god-file split. Public API unchanged.
 package runtime
+
+// Provenance: Research: parsers (SubQuestions / SearchHits / Verdict) + extractors
+//             (JSONArray / CitedSources / Claims) + classifiers (Confidence /
+//             classifyResearchVerdict / firstIndexOf) + the regex variables each
+//             helper uses. The LLM-input prompt builders (4 buildXxx funcs) live in
+//             research_prompts.go. Code extracted from research.go during the Day-67
+//             god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

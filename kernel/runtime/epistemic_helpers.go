@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// epistemic_helpers.go: 12 supporting helpers (escalation policy, schema hashing,
-// input-shape heuristics, history matching, decay math) split off from epistemic.go
-// during the Day 211 god-file refactor (#130). Public API unchanged.
 package runtime
+
+// Provenance: epistemic_helpers.go: 12 supporting helpers (escalation policy, schema
+//             hashing, input-shape heuristics, history matching, decay math) split
+//             off from epistemic.go during the Day 211 god-file refactor (#130).
+//             Public API unchanged.
 
 import (
 	"crypto/sha256"
@@ -18,7 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func shouldEscalateEpistemic(class string, confidence float64, failures int, weightedFailures float64, signals []string) bool {
 	if class == string(agent.EffectReadOnly) {

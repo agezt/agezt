@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package memory: context.Context helpers for the memory tool's correlation
-// + scope threading (WithCorrelation + CorrelationFrom + WithScope +
-// ScopeFrom). Extracted from manager_tool.go during the Day-211 god-file
-// split. Public API unchanged.
 package memory
 
+// Provenance: Package memory: context.Context helpers for the memory tool's
+//             correlation + scope threading (WithCorrelation + CorrelationFrom +
+//             WithScope + ScopeFrom). Extracted from manager_tool.go during the
+//             Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -69,4 +69,3 @@ const toolInputSchema = `{
   },
   "required": ["action"]
 }`
-

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt market sources` (list) + `agt market validate` — the
-// read/inspect ops. Source management (AddSource + RemoveSource + Sync) moved
-// to market_sources.go; publish flow (Publish + Keygen) moved to
-// market_publish.go. Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt market sources` (list) + `agt market validate` —
+//             the read/inspect ops. Source management (AddSource + RemoveSource +
+//             Sync) moved to market_sources.go; publish flow (Publish + Keygen)
+//             moved to market_publish.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -19,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/market"
 )
+
 func cmdMarketSources(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	for _, a := range args {

@@ -141,4 +141,3 @@ func (s *Server) handleMailboxTopics(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"topics": st.Topics()})
 }
-

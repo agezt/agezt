@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Control-plane command handlers: handleVersion + handleHalt +
-// handleCancelRun + handleResume + handleWhy + handleWhoami +
-// handleVerify + handleApprovals.
-// Extracted from server_handlers.go during the Day-206 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Control-plane command handlers:
+//             handleVersion + handleHalt + handleCancelRun + handleResume +
+//             handleWhy + handleWhoami + handleVerify + handleApprovals. Extracted
+//             from server_handlers.go during the Day-206 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"
@@ -218,4 +217,3 @@ func (s *Server) handleApprovals(conn net.Conn, req Request) {
 		Result: map[string]any{"pending": out, "count": len(out)},
 	})
 }
-

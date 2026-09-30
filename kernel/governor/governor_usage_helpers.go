@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// governor_usage_helpers.go: admitRate + SpentByTask/AgentMicrocents +
-// rolloverIfNeededLocked + publish + shouldFallback + providerNames split off
-// from governor_usage.go during the Day 211 god-file refactor (#143). Public API unchanged.
 package governor
+
+// Provenance: governor_usage_helpers.go: admitRate + SpentByTask/AgentMicrocents +
+//             rolloverIfNeededLocked + publish + shouldFallback + providerNames
+//             split off from governor_usage.go during the Day 211 god-file refactor
+//             (#143). Public API unchanged.
 
 import (
 	"context"

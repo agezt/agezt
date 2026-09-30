@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Overseer tool: Definition (the agent.Tool contract) + input struct (the
-// payload shape). The Invoke dispatcher lives in tool.go; helpers (parseProfile,
-// agentView, okJSON, ...) live in tool_helpers.go. Day-211 god-file split.
-// Public API unchanged.
 package overseertool
 
+// Provenance: Overseer tool: Definition (the agent.Tool contract) + input struct
+//             (the payload shape). The Invoke dispatcher lives in tool.go; helpers
+//             (parseProfile, agentView, okJSON, ...) live in tool_helpers.go.
+//             Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
 )
+
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{

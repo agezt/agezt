@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Doctor event detail renderer: autonomyDoctorDetail.
-// Code extracted from autonomy.go during the Day-50 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Doctor event detail renderer: autonomyDoctorDetail. Code extracted
+//             from autonomy.go during the Day-50 god-file split. Public API
+//             unchanged.
 
 import (
 	"fmt"
 	"strings"
 )
-
 
 func autonomyDoctorDetail(subject string, p map[string]any) string {
 	str := func(k string) string {

@@ -8,10 +8,10 @@ package controlplane
 
 import (
 	"fmt"
+	"github.com/agezt/agezt/plugins/tools/overseertool"
 	"net"
 	"os"
 	"strings"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
 func (s *Server) handleAgentRepair(conn net.Conn, req Request) {
@@ -104,4 +104,3 @@ func (s *Server) handleAgentRepair(conn net.Conn, req Request) {
 		"correlation_id": corr,
 	}})
 }
-

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Netguard publisher + voice/stt shims + policy/warden/capability selectors.
-// Extracted from main_pulse.go during Day 211 god-file refactor (#57).
-// Public API unchanged.
 package main
+
+// Provenance: Netguard publisher + voice/stt shims + policy/warden/capability
+//             selectors. Extracted from main_pulse.go during Day 211 god-file
+//             refactor (#57). Public API unchanged.
 
 import (
 	"context"
@@ -35,7 +36,9 @@ func netguardPublish(b *bus.Bus) func(tool string) func(ip, reason string) {
 		}
 	}
 }
+
 type voiceTranscriberShim struct{ v kernelruntime.Voice }
+
 func (s voiceTranscriberShim) Transcribe(ctx context.Context, filename string, audio []byte) (string, error) {
 	return s.v.Transcribe(ctx, audio, filename)
 }
@@ -126,4 +129,5 @@ func selectAutoApproveCapabilities() (map[string]bool, string) {
 		return caps, desc
 	}
 }
+
 var _ = event.GenesisHash

@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/webhook"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdWebhookTest(args []string, stdout, stderr io.Writer) int {
@@ -162,4 +162,3 @@ func cmdWebhookTest(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-

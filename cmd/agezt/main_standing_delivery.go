@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Delegation banner + scheduled-delivery helpers extracted from main_standing.go
-// during Day 211 god-file refactor (#51). Public API unchanged.
 package main
+
+// Provenance: Delegation banner + scheduled-delivery helpers extracted from
+//             main_standing.go during Day 211 god-file refactor (#51). Public API
+//             unchanged.
 
 import (
 	"context"
@@ -36,6 +38,7 @@ func delegationBanner(k *kernelruntime.Kernel) string {
 	}
 	return fmt.Sprintf("depth≤%d, fan-out %s, total %s, spend %s", l.MaxDepth, fanout, total, spend)
 }
+
 // buildCadence starts the scheduled-intents resident when AGEZT_SCHEDULE is set.
 // Each firing journals a schedule.fired event (carrying the run's correlation so
 // `agt why` links the schedule to the run) and then runs the intent through the

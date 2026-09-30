@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane plan submission + decide handler.
-// Code extracted from server_handlers.go during the Day-80 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane plan submission + decide handler. Code extracted from
+//             server_handlers.go during the Day-80 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"

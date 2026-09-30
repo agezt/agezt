@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// session_store.go owns the in-memory sessionStore
-// (minted-id → expiry map, sliding TTL, failed-attempt
-// lockout counters). Mutex-guarded; dies with the daemon.
-// The Server-side configuration knobs (SetPasswordFn,
-// SetPasswordStrict, PasswordStrict, consolePassword,
-// sessionValid, handleLogin/Logout/etc.) live in
-// session.go.
 package webui
+
+// session_store.go owns the in-memory sessionStore (minted-id → expiry
+// map, sliding TTL, failed-attempt lockout counters). Mutex-guarded;
+// dies with the daemon. The Server-side configuration knobs
+// (SetPasswordFn, SetPasswordStrict, PasswordStrict, consolePassword,
+// sessionValid, handleLogin/Logout/etc.) live in session.go.
 
 import (
 	"crypto/rand"

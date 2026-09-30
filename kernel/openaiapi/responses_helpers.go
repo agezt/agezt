@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// /v1/responses intent extraction, response object builders, usage helpers,
-// and the jsonString RawMessage helper. Split from responses.go during
-// Day 211 god-file refactor (#31). Public API unchanged.
 package openaiapi
+
+// Provenance: SPDX-License-Identifier: MIT /v1/responses intent extraction, response
+//             object builders, usage helpers, and the jsonString RawMessage helper.
+//             Split from responses.go during Day 211 god-file refactor (#31). Public
+//             API unchanged.
 
 import (
 	"encoding/json"

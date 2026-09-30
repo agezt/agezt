@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
@@ -128,4 +128,3 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 
 	return 0
 }
-

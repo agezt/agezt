@@ -201,4 +201,3 @@ func workshopImportArgs(f workshopProposalFlags) map[string]any {
 	}
 	return out
 }
-

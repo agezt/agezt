@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt okr helpers: okrFlagValue + okrIDArg (the arg parsers) +
-// callOKR (the dispatcher caller) + renderOKRMutation + renderOKRLine +
-// renderOKRObjective (the renderers).
-// Extracted from okr.go during the Day-209 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt okr helpers: okrFlagValue +
+//             okrIDArg (the arg parsers) + callOKR (the dispatcher caller) +
+//             renderOKRMutation + renderOKRLine + renderOKRObjective (the
+//             renderers). Extracted from okr.go during the Day-209 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -14,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
 )
 
 // --- helpers ---

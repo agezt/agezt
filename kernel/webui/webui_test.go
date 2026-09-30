@@ -333,8 +333,6 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 // CmdExecutionProfileShow command remains registered for CLI/operator
 // use, and /api/execution_profiles (plural) IS wired.
 
-
-
 func TestExecutionProfileCheckRouteProxies(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"count": 1, "checks": []any{}}}
 	s, _ := newServer(t, fc, "secret")
@@ -649,8 +647,6 @@ func TestProviderLogRouteForwardsLimit(t *testing.T) {
 // /api/journal_search went un-wired. The CmdJournalGrep command remains
 // registered for CLI/operator use.
 
-
-
 func TestJournalRouteForwardsKind(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"events": []any{}}}
 	s, _ := newServer(t, fc, "secret")
@@ -931,8 +927,6 @@ func TestCancelRunForwardsCorrelation(t *testing.T) {
 // orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
 // /api/budget_set went un-wired. The CmdBudgetSet command remains
 // registered for CLI/operator use.
-
-
 
 // Policy control center (M610): the edict mutation routes forward only their
 // allowlisted args and map to the right command, so an operator can grant/deny
@@ -1375,8 +1369,6 @@ func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
 // no longer exist. The underlying CmdWorkboardComment/Policy/Dispatch
 // commands remain registered and are exercised directly by
 // kernel/controlplane/*_test.go.
-
-
 
 func TestAgentRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 	for _, tc := range []struct {

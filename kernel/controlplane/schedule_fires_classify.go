@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Schedule-fired classifiers: scheduleFiredSystemTaskInfo +
-// scheduleFiredExecutor + scheduleFiredCategory +
-// scheduleFiredEffectClass + scheduleFiredUsesLLM +
-// scheduleFiredAction. Carved out of schedule_fires.go during the
-// Day 198 god-file split so the main file can stay focused on the
-// handleScheduleFires dispatcher and the payload file can stay
-// focused on the scheduleFiredPayload type + extraction.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Schedule-fired classifiers: scheduleFiredSystemTaskInfo +
+//             scheduleFiredExecutor + scheduleFiredCategory +
+//             scheduleFiredEffectClass + scheduleFiredUsesLLM + scheduleFiredAction.
+//             Carved out of schedule_fires.go during the Day 198 god-file split so
+//             the main file can stay focused on the handleScheduleFires dispatcher
+//             and the payload file can stay focused on the scheduleFiredPayload type
+//             + extraction. Public API unchanged.
 
 import (
 	"strings"
@@ -106,4 +105,3 @@ func scheduleFiredAction(p scheduleFiredPayload) string {
 // each with its run outcome (collectRuns), and reports counts, success rate, and
 // total spend over scheduled runs. Optional args.id scopes to one schedule;
 // args.since_ms windows by firing time.
-

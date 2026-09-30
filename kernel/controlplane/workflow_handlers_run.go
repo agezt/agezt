@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/workflow"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/workflow"
 )
 
 func (s *Server) handleWorkflowTemplates(conn net.Conn, req Request) {

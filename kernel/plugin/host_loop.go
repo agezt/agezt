@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Plugin host: readLoop + deliver + dispatchCallback + handleCallback + rejectCallback + writeResponse + markDead + IsAlive (live-streaming loop).
-// Code extracted from host_loop.go during the Day-144 god-file split.
-// Public API unchanged.
 package plugin
 
+// Provenance: Plugin host: readLoop + deliver + dispatchCallback + handleCallback +
+//             rejectCallback + writeResponse + markDead + IsAlive (live-streaming
+//             loop). Code extracted from host_loop.go during the Day-144 god-file
+//             split. Public API unchanged.
 
 import (
 	"bufio"
@@ -13,7 +14,6 @@ import (
 
 	"encoding/json"
 )
-
 
 func readFrame(r *bufio.Reader, max int) ([]byte, error) {
 	var buf []byte

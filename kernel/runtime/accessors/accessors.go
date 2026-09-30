@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Accessor pass-throughs: the 30+ one-liner getters + the model/system
-// accessors + the catalog + scheduler accessors + RunPlan. Every method
-// here is a pure forward to the underlying KernelAPI — no business logic.
-// The mutators (SetMarket + the standing/profile mutators) live in
-// accessors_mutate.go.
-// Extracted from accessors.go during the Day-207 god-file split.
-// Public API unchanged.
 package accessors
+
+// Provenance: Accessor pass-throughs: the 30+ one-liner getters + the model/system
+//             accessors + the catalog + scheduler accessors + RunPlan. Every method
+//             here is a pure forward to the underlying KernelAPI — no business
+//             logic. The mutators (SetMarket + the standing/profile mutators) live
+//             in accessors_mutate.go. Extracted from accessors.go during the Day-207
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -27,12 +27,12 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/reflect"
+	"github.com/agezt/agezt/kernel/runtime/types"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"github.com/agezt/agezt/kernel/runtime/types"
 )
 
 // Accessor is the read-side kernel companion to lifecycle.Manager.
@@ -51,27 +51,27 @@ func New(k KernelAPI) *Accessor { return &Accessor{k: k} }
 
 // ---- Day 13: store getters ----
 
-func (a *Accessor) Journal() *journal.Journal { return a.k.Journal() }
-func (a *Accessor) Bus() *bus.Bus             { return a.k.Bus() }
-func (a *Accessor) State() *state.FileStore   { return a.k.State() }
-func (a *Accessor) Edict() *edict.Engine       { return a.k.Edict() }
-func (a *Accessor) Warden() warden.Engine     { return a.k.Warden() }
-func (a *Accessor) Approvals() *approval.Registry { return a.k.Approvals() }
+func (a *Accessor) Journal() *journal.Journal      { return a.k.Journal() }
+func (a *Accessor) Bus() *bus.Bus                  { return a.k.Bus() }
+func (a *Accessor) State() *state.FileStore        { return a.k.State() }
+func (a *Accessor) Edict() *edict.Engine           { return a.k.Edict() }
+func (a *Accessor) Warden() warden.Engine          { return a.k.Warden() }
+func (a *Accessor) Approvals() *approval.Registry  { return a.k.Approvals() }
 func (a *Accessor) Scheduler() *scheduler.Executor { return a.k.Scheduler() }
-func (a *Accessor) Provider() agent.Provider  { return a.k.Provider() }
-func (a *Accessor) Memory() *memory.Manager   { return a.k.Memory() }
+func (a *Accessor) Provider() agent.Provider       { return a.k.Provider() }
+func (a *Accessor) Memory() *memory.Manager        { return a.k.Memory() }
 func (a *Accessor) AgentGateway() *agentgw.Gateway { return a.k.AgentGateway() }
-func (a *Accessor) Schedules() *cadence.Store { return a.k.Schedules() }
+func (a *Accessor) Schedules() *cadence.Store      { return a.k.Schedules() }
 
 // ---- Day 14: live reads ----
 
-func (a *Accessor) Tools() map[string]agent.Tool { return a.k.Tools() }
-func (a *Accessor) World() *worldmodel.Graph   { return a.k.World() }
-func (a *Accessor) Forge() *skill.Forge         { return a.k.Forge() }
-func (a *Accessor) StartTime() time.Time        { return a.k.StartTime() }
+func (a *Accessor) Tools() map[string]agent.Tool       { return a.k.Tools() }
+func (a *Accessor) World() *worldmodel.Graph           { return a.k.World() }
+func (a *Accessor) Forge() *skill.Forge                { return a.k.Forge() }
+func (a *Accessor) StartTime() time.Time               { return a.k.StartTime() }
 func (a *Accessor) ConfigCenter() *configcenter.Center { return a.k.ConfigCenter() }
-func (a *Accessor) MaxDuration() time.Duration  { return a.k.MaxDuration() }
-func (a *Accessor) Reflect() *reflect.Engine    { return a.k.Reflect() }
+func (a *Accessor) MaxDuration() time.Duration         { return a.k.MaxDuration() }
+func (a *Accessor) Reflect() *reflect.Engine           { return a.k.Reflect() }
 
 // ---- Day 16: store + configMu-free reads / writes ----
 

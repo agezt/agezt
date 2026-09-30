@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence store sync: SyncEnv + Count + save.
-// Code extracted from cadence_store.go during the Day-58 god-file split. Public API unchanged.
 package cadence
 
+// Provenance: Cadence store sync: SyncEnv + Count + save. Code extracted from
+//             cadence_store.go during the Day-58 god-file split. Public API
+//             unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/jsonstore"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 )
-
 
 func (s *Store) SyncEnv(jobs []Job, now time.Time) error {
 	s.mu.Lock()

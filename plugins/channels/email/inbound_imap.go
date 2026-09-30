@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Email channel: IMAP transport (dialIMAP + pollIMAP).
-// Code extracted from inbound.go during the Day-125 god-file split.
-// Public API unchanged.
 package email
+
+// Provenance: Email channel: IMAP transport (dialIMAP + pollIMAP). Code extracted
+//             from inbound.go during the Day-125 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"

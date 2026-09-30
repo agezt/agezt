@@ -50,7 +50,6 @@ import (
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
-
 // credentialHTTPTimeout bounds each AWS credential-fetch HTTP call (SSO / STS /
 // web-identity). Without it these paths used http.DefaultClient (no timeout) with
 // a background context (no deadline), so a stalled or black-holed endpoint could

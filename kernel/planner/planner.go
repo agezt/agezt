@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Planner: Config + Generate + GenerateFromIntent + marshalIntentFrame + Plan + Node + extractJSONBlock.
-// Code extracted from planner.go during the Day-143 god-file split.
-// Public API unchanged.
 package planner
 
+// Provenance: Planner: Config + Generate + GenerateFromIntent + marshalIntentFrame +
+//             Plan + Node + extractJSONBlock. Code extracted from planner.go during
+//             the Day-143 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
-
 
 // TaskType is the per-task-type routing hint (M1.cc) the planner
 // stamps onto every CompletionRequest. Operators wire this through

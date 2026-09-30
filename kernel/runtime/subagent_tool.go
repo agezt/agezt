@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Sub-agent tool surface: Definition() and Invoke() for both subAgentTool and subAgentAwaitTool.
-// Code extracted from subagent.go during the Day-40 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Sub-agent tool surface: Definition() and Invoke() for both
+//             subAgentTool and subAgentAwaitTool. Code extracted from subagent.go
+//             during the Day-40 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -14,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
 

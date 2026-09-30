@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt config schema subcommand: Schema + SchemaRegister + SchemaUnregister.
-// Code extracted from config.go during the Day-105 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt config schema subcommand: Schema + SchemaRegister +
+//             SchemaUnregister. Code extracted from config.go during the Day-105
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

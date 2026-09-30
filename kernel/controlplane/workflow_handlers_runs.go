@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Workflow runs list handler: handleWorkflowRuns. Carved out of
-// workflow_handlers_run.go during the Day 190 god-file split so the
-// main file can stay focused on the small lifecycle handlers
-// (Templates/Draft/Refine/Run).
-// Public API unchanged.
 package controlplane
 
+// Provenance: Workflow runs list handler: handleWorkflowRuns. Carved out of
+//             workflow_handlers_run.go during the Day 190 god-file split so the main
+//             file can stay focused on the small lifecycle handlers
+//             (Templates/Draft/Refine/Run). Public API unchanged.
 
 import (
 	"encoding/json"
@@ -214,4 +213,3 @@ func (s *Server) handleWorkflowRuns(conn net.Conn, req Request) {
 		Result: map[string]any{"workflow": w.Name, "runs": out, "count": len(out)},
 	})
 }
-

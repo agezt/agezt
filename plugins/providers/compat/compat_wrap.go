@@ -76,4 +76,3 @@ func wrapNamed(name string, p agent.Provider) agent.Provider {
 	}
 	return &namedProvider{name: name, inner: p}
 }
-

@@ -108,5 +108,3 @@ func workshopProposals(raw any) []map[string]any {
 func workshopCanReject(status string) bool {
 	return status == "draft" || status == "shadow"
 }
-
-

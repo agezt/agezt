@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// Accessor mutators: SetMarket + the standing-order mutators
-// (AddStanding + SetStandingEnabled + UpdateStanding + RemoveStanding)
-// + the profile mutators (AddProfile + SetProfileEnabled +
-// SetProfileRetired + AgentImpact + UpdateProfile + RemoveProfile).
-// Extracted from accessors.go during the Day-207 god-file split.
-// Public API unchanged.
 package accessors
+
+// Provenance: SPDX-License-Identifier: MIT Accessor mutators: SetMarket + the
+//             standing-order mutators (AddStanding + SetStandingEnabled +
+//             UpdateStanding + RemoveStanding) + the profile mutators (AddProfile +
+//             SetProfileEnabled + SetProfileRetired + AgentImpact + UpdateProfile +
+//             RemoveProfile). Extracted from accessors.go during the Day-207
+//             god-file split. Public API unchanged.
 
 import (
 	"errors"

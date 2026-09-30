@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Orphan-run reconciliation (orphanRun + runScan types + newRunScan +
-// observe + orphans + reconcileOrphanRuns). Extracted from main_overlay.go
-// during Day 211 god-file refactor (#56). Public API unchanged.
 package main
+
+// Provenance: Orphan-run reconciliation (orphanRun + runScan types + newRunScan +
+//             observe + orphans + reconcileOrphanRuns). Extracted from
+//             main_overlay.go during Day 211 god-file refactor (#56). Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -24,6 +26,7 @@ type runScan struct {
 	failed    map[string]bool
 	abandoned map[string]bool
 }
+
 func newRunScan() *runScan {
 	return &runScan{
 		received:  map[string]*orphanRun{},

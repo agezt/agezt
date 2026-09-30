@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Control-plane board handlers: handleBoardRead + handleBoardHelp +
-// handleBoardSend + handleBoardInbox + handleBoardAck + handleBoardGet +
-// handleBoardReplies + registerBoardCommands.
-// Extracted from board.go during the Day-202 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Control-plane board handlers:
+//             handleBoardRead + handleBoardHelp + handleBoardSend + handleBoardInbox
+//             + handleBoardAck + handleBoardGet + handleBoardReplies +
+//             registerBoardCommands. Extracted from board.go during the Day-202
+//             god-file split. Public API unchanged.
 
 import (
 	"net"

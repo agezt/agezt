@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// SMS-style channel factories (buildSMS, buildSignal). Extracted from
-// factories_chat.go during Day 211 god-file refactor (#61).
-// Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT SMS-style channel factories (buildSMS,
+//             buildSignal). Extracted from factories_chat.go during Day 211 god-file
+//             refactor (#61). Public API unchanged.
 
 import (
 	"fmt"

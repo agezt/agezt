@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Lake record operations: Insert + Get + Update + Delete + Query + Count + matchEquals + matchSearch + lessRecords + toFloat + jsonEqual + writeRecord + writeJSON.
-// Code extracted from datalake.go during the Day-68 god-file split. Public API unchanged.
 package datalake
 
+// Provenance: Lake record operations: Insert + Get + Update + Delete + Query + Count
+//             + matchEquals + matchSearch + lessRecords + toFloat + jsonEqual +
+//             writeRecord + writeJSON. Code extracted from datalake.go during the
+//             Day-68 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -16,7 +18,6 @@ import (
 	"sort"
 	"strings"
 )
-
 
 // canonicalizeDateFields). id/timestamps/provenance are stamped here.
 func (l *Lake) Insert(coll string, fields map[string]any, actor string) (Record, error) {

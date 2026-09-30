@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane world-model registrar (registerWorldCommands)
-// + entity-view helper (entityView).
-// Extracted from world.go during Day 211 god-file refactor (#79).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane world-model registrar
+//             (registerWorldCommands) + entity-view helper (entityView). Extracted
+//             from world.go during Day 211 god-file refactor (#79). Public API
+//             unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/worldmodel"

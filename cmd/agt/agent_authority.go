@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `agent authority` + `agent impact` subcommands
-// (cmdAgentAuthority, cmdAgentImpact).
-// Extracted from agent_authority.go during Day 211 god-file refactor (#85).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `agent authority` + `agent
+//             impact` subcommands (cmdAgentAuthority, cmdAgentImpact). Extracted
+//             from agent_authority.go during Day 211 god-file refactor (#85). Public
+//             API unchanged.
 
 import (
 	"context"

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Journal core: Options + Journal struct + Close + Head +
-// Append + Range + the lastCompleteOffset helper used by
-// Open. The Open path (the cold-start scan of existing
-// segments + the 0644→0600 tightening) lives in
-// journal_open.go. Code extracted from journal.go during
-// the Day-60 god-file split. Public API unchanged.
 package journal
+
+// Provenance: Journal core: Options + Journal struct + Close + Head + Append + Range
+//             + the lastCompleteOffset helper used by Open. The Open path (the
+//             cold-start scan of existing segments + the 0644→0600 tightening) lives
+//             in journal_open.go. Code extracted from journal.go during the Day-60
+//             god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -17,7 +17,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // DefaultSegmentBytes is the default rotation threshold (DECISIONS D1).
 const DefaultSegmentBytes int64 = 64 * 1024 * 1024
@@ -68,7 +67,6 @@ const (
 	journalDirPerm     = 0o700
 	journalSegmentPerm = 0o600
 )
-
 
 // Close flushes and closes the current segment.
 func (j *Journal) Close() error {

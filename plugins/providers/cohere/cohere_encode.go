@@ -101,4 +101,3 @@ func canonicalToCohere(m agent.Message, fwd map[string]string) (*cohereMessage, 
 		return nil, fmt.Errorf("cohere: unknown role %q", m.Role)
 	}
 }
-

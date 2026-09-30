@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Collaboration-channel factories (buildNextcloudTalk, buildHomeAssistant,
-// buildTeams, buildLine). Extracted from factories_chat.go during Day 211
-// god-file refactor (#61). Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT Collaboration-channel factories
+//             (buildNextcloudTalk, buildHomeAssistant, buildTeams, buildLine).
+//             Extracted from factories_chat.go during Day 211 god-file refactor
+//             (#61). Public API unchanged.
 
 import (
 	"fmt"

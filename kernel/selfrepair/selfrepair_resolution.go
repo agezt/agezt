@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/board"
+	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 func parseAutoRepairResolution(finalText string) *autoRepairResolution {
@@ -209,4 +209,3 @@ func equalStringSlices(a, b []string) bool {
 	}
 	return true
 }
-

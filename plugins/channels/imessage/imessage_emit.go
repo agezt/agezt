@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// iMessage channel: emitInbound + scrubURLError (the bus publisher +
-// the URL-query redactor used by the send helpers).
-// Extracted from imessage.go during the Day-202 god-file split.
-// Public API unchanged.
 package imessage
+
+// Provenance: SPDX-License-Identifier: MIT iMessage channel: emitInbound +
+//             scrubURLError (the bus publisher + the URL-query redactor used by the
+//             send helpers). Extracted from imessage.go during the Day-202 god-file
+//             split. Public API unchanged.
 
 import (
 	"errors"
@@ -44,4 +43,3 @@ func scrubURLError(err error) error {
 	}
 	return err
 }
-

@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `mcp` top-level dispatch (cmdMCP).
-// Extracted from mcp.go during Day 211 god-file refactor (#77).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `mcp` top-level dispatch
+//             (cmdMCP). Extracted from mcp.go during Day 211 god-file refactor
+//             (#77). Public API unchanged.
 
 import (
 	"fmt"

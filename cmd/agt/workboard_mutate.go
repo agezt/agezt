@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `workboard create` subcommand (cmdWorkboardCreate).
-// Extracted from workboard_mutate.go during Day 211 god-file refactor (#96).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `workboard create` subcommand
+//             (cmdWorkboardCreate). Extracted from workboard_mutate.go during Day
+//             211 god-file refactor (#96). Public API unchanged.
 
 import (
 	"fmt"

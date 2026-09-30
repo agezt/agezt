@@ -99,4 +99,3 @@ func applyTaskRoute(chain []*ProviderInfo, routes TaskRoutes, taskType string) [
 	}
 	return out
 }
-

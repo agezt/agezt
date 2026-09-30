@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Execution profile local: wardenProfile + worktreeCodingProfile + browserSessionProfile + dockerProfile.
-// Code extracted from profile.go during the Day-71 god-file split. Public API unchanged.
 package executionprofile
 
+// Provenance: Execution profile local: wardenProfile + worktreeCodingProfile +
+//             browserSessionProfile + dockerProfile. Code extracted from profile.go
+//             during the Day-71 god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/warden"
 )
-
 
 func localProfile(tools map[string]bool) Profile {
 	return Profile{

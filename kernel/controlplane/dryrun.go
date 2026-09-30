@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane dry-run plan builder (buildRunPlan) + consts
-// (smallContextThreshold, microcentsPerUSD) + runPlanInput type.
 package controlplane
+
+// SPDX-License-Identifier: MIT kernel/controlplane dry-run plan builder
+// (buildRunPlan) + consts (smallContextThreshold, microcentsPerUSD) +
+// runPlanInput type.
 
 import (
 	"fmt"

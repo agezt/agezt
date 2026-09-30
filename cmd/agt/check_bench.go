@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider check bench machinery (the actual probe loop +
-// latency stats + benchResult flattening). The render/output
-// machinery (emit* + render* + checkRow) lives in
+package main
+
+// SPDX-License-Identifier: MIT cmd/agt provider check bench machinery
+// (the actual probe loop + latency stats + benchResult flattening). The
+// render/output machinery (emit* + render* + checkRow) lives in
 // check_render.go. Carved out of check.go during Day-211 god-file
 // refactor (#39). Public API unchanged.
-package main
 
 import (
 	"fmt"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/catalog"
 )
-
 
 type benchResult struct {
 	entry      *catalog.Provider

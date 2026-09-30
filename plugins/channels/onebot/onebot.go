@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// OneBot channel: Config + Channel + New + Name + Start + Handler + receive + Send + emit + splitTarget.
-// Code extracted from onebot.go during the Day-137 god-file split.
-// Public API unchanged.
 package onebot
 
+// Provenance: OneBot channel: Config + Channel + New + Name + Start + Handler +
+//             receive + Send + emit + splitTarget. Code extracted from onebot.go
+//             during the Day-137 god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -24,7 +24,6 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 	"net/http"
 )
-
 
 const (
 	maxBody       = 1 << 20

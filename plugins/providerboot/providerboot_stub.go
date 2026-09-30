@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package providerboot: unconfiguredProvider stub + UnconfiguredName const.
-// This is the Provider the runtime falls back to when the catalog has zero
-// eligible entries — every completion attempt fails fast with an actionable
-// message telling the operator to add a provider + key + model. Extracted
-// from providerboot.go during the Day-211 god-file split. Public API unchanged.
 package providerboot
 
+// Provenance: Package providerboot: unconfiguredProvider stub + UnconfiguredName
+//             const. This is the Provider the runtime falls back to when the catalog
+//             has zero eligible entries — every completion attempt fails fast with
+//             an actionable message telling the operator to add a provider + key +
+//             model. Extracted from providerboot.go during the Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -15,6 +16,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 // UnconfiguredName is the Name() of the sentinel primary registered when no
 // LLM provider is configured. The reload path keys off it to swap in a real
 // provider once the operator configures one, and the daemon's first-run nudge

@@ -12,7 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-
 func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
 	ref, err := requiredArgString(req.Args, "ref")
 	if err != nil {
@@ -218,4 +217,3 @@ func (s *Server) handleAgentRepairStatus(conn net.Conn, req Request) {
 	result["next_action"] = agentRepairNextActionView(p, rows, inflightRows, time.Now().UnixMilli())
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
-

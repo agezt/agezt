@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// aws shared file-loading path: loadAWSSharedFiles + awsConfigFilePath +
-// readINISection + the IMDS endpoint + IMDS timeout constants
-// (defaultIMDSBase + IMDSTimeout).
-// Extracted from aws_shared.go during the Day-204 god-file split.
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT aws shared file-loading path:
+//             loadAWSSharedFiles + awsConfigFilePath + readINISection + the IMDS
+//             endpoint + IMDS timeout constants (defaultIMDSBase + IMDSTimeout).
+//             Extracted from aws_shared.go during the Day-204 god-file split. Public
+//             API unchanged.
 
 import (
 	"bufio"

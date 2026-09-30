@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel struct: the composition root that holds every subsystem (journal, bus, state, agent loop, providers, tools).
-// Code extracted from runtime.go during the Day-41 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel struct: the composition root that holds every subsystem
+//             (journal, bus, state, agent loop, providers, tools). Code extracted
+//             from runtime.go during the Day-41 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -44,7 +46,6 @@ import (
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
 )
-
 
 type Kernel struct {
 	cfg Config

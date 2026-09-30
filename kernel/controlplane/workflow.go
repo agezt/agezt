@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Workflow helpers: types, workflowView, applyWorkflowRunEvent, summariseWorkflowArcs, workflowLastRuns.
-// Code extracted from workflow.go during the Day-38 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Workflow helpers: types, workflowView, applyWorkflowRunEvent,
+//             summariseWorkflowArcs, workflowLastRuns. Code extracted from
+//             workflow.go during the Day-38 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -13,8 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 )
-
-
 
 // workflowRunTimeout bounds one synchronous run over the wire — generous
 // (delay nodes alone may sleep minutes), but never unbounded.

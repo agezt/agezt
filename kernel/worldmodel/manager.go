@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// World model manager core: NewGraph + Upsert + EditEntity + Relate.
-// Code extracted from manager.go during the Day-65 god-file split. Public API unchanged.
 package worldmodel
 
+// Provenance: World model manager core: NewGraph + Upsert + EditEntity + Relate.
+//             Code extracted from manager.go during the Day-65 god-file split.
+//             Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/bus"
@@ -12,8 +13,6 @@ import (
 	"sync"
 	"time"
 )
-
-
 
 // Graph wraps a Store with the kernel bus so every node/edge mutation is
 // journaled (durable-before-publish) under the originating run's

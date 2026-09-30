@@ -11,7 +11,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-
 const epistemicHistoryLimit = 4096
 
 type epistemicDecision struct {

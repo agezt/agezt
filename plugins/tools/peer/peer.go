@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Peer tool: types + lifecycle (NewWithTenants) + Definition + the
-// peerNamesOf / peersFor / clock / cachedModels accessors.
-// Extracted from peer.go during the Day-202 god-file split.
-// Public API unchanged.
 package peer
+
+// Provenance: SPDX-License-Identifier: MIT Peer tool: types + lifecycle
+//             (NewWithTenants) + Definition + the peerNamesOf / peersFor / clock /
+//             cachedModels accessors. Extracted from peer.go during the Day-202
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

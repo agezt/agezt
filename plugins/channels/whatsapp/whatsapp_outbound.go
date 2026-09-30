@@ -28,6 +28,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
 func (c *Channel) verify(sig string, body []byte) bool {
 	if c.appSecret == "" || sig == "" {
 		return false

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Email channel: inbound lifecycle (startInbound + prime + poll + dispatch + emit + seenBefore) + mail parsing (parseMail + extractText + decodeBody).
-// Code extracted from inbound.go during the Day-125 god-file split.
-// Public API unchanged.
 package email
 
+// Provenance: Email channel: inbound lifecycle (startInbound + prime + poll +
+//             dispatch + emit + seenBefore) + mail parsing (parseMail + extractText
+//             + decodeBody). Code extracted from inbound.go during the Day-125
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 const (
 	inboxPollDefault = 60 * time.Second
@@ -152,4 +152,3 @@ func (c *Channel) seenBefore(id string) bool {
 }
 
 // --- IMAP -----------------------------------------------------------------
-

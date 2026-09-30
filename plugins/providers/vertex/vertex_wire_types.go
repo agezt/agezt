@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// vertex_wire_types.go holds the JSON wire types mirroring the
-// Vertex AI REST shape. The Provider implementation lives in
-// vertex_wire.go. Carved out during the Day-110 god-file split.
-// Public API unchanged.
 package vertex
+
+// Provenance: vertex_wire_types.go holds the JSON wire types mirroring the Vertex AI
+//             REST shape. The Provider implementation lives in vertex_wire.go.
+//             Carved out during the Day-110 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

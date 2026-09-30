@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Control-plane board surface: the boardRead* consts + the boardReader /
-// boardWriter / boardLimitArg / boardMsgView helpers.
-// Extracted from board.go during the Day-202 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Control-plane board surface: the
+//             boardRead* consts + the boardReader / boardWriter / boardLimitArg /
+//             boardMsgView helpers. Extracted from board.go during the Day-202
+//             god-file split. Public API unchanged.
 
 import (
 	"path/filepath"

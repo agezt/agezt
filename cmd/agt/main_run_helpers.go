@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `run` mode helpers (imageMediaType, loadImageDataURL, parseUSDToMicrocents,
-// toStringSlice, cmdSimple).
-// Extracted from main_run_modes.go during Day 211 god-file refactor (#95).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `run` mode helpers
+//             (imageMediaType, loadImageDataURL, parseUSDToMicrocents,
+//             toStringSlice, cmdSimple). Extracted from main_run_modes.go during Day
+//             211 god-file refactor (#95). Public API unchanged.
 
 import (
 	"context"

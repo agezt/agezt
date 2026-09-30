@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// websearch_helpers.go owns the parser-side plumbing: the regex
-// variables used against the DuckDuckGo LITE markup, parseResults
-// (link + snippet extraction), cleanURL / cleanText (HTML &
-// whitespace normalisation), and the soft / err result formatters
-// that turn parsed hits into agent.Result. The Tool struct +
-// Invoke live in websearch.go.
 package websearch
+
+// websearch_helpers.go owns the parser-side plumbing: the regex
+// variables used against the DuckDuckGo LITE markup, parseResults (link
+// + snippet extraction), cleanURL / cleanText (HTML & whitespace
+// normalisation), and the soft / err result formatters that turn parsed
+// hits into agent.Result. The Tool struct + Invoke live in websearch.go.
 
 import (
 	"encoding/json"

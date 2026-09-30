@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane channel-list handler (handleChannelList).
-// Extracted from channels.go during Day 211 god-file refactor (#82).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane channel-list handler
+//             (handleChannelList). Extracted from channels.go during Day 211
+//             god-file refactor (#82). Public API unchanged.
 
 import (
 	"net"

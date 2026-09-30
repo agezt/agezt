@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `status` top-level command (cmdStatus).
-// Extracted from status.go during Day 211 god-file refactor (#81).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `status` top-level command
+//             (cmdStatus). Extracted from status.go during Day 211 god-file refactor
+//             (#81). Public API unchanged.
 
 import (
 	"context"

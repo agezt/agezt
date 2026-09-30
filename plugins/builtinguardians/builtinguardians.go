@@ -338,4 +338,3 @@ func seedTrigger(h Host, g guardian) (string, error) {
 	}
 	return "none", nil
 }
-

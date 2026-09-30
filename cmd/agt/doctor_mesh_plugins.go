@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor plugin + mesh summary checks (checkPlugins, checkMesh).
-// Extracted from doctor_mesh.go during Day 211 god-file refactor (#65).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor plugin + mesh summary
+//             checks (checkPlugins, checkMesh). Extracted from doctor_mesh.go during
+//             Day 211 god-file refactor (#65). Public API unchanged.
 
 import (
 	"fmt"

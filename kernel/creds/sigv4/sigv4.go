@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/creds/sigv4 SignRequest + buildCanonicalRequest + Creds type.
-// Extracted from sigv4.go during Day 211 god-file refactor (#91).
-// Public API unchanged.
 package sigv4
+
+// Provenance: SPDX-License-Identifier: MIT kernel/creds/sigv4 SignRequest +
+//             buildCanonicalRequest + Creds type. Extracted from sigv4.go during Day
+//             211 god-file refactor (#91). Public API unchanged.
 
 import (
 	"encoding/hex"

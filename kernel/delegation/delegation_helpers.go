@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/delegation utility helpers (SpawnLink, BudgetCostMicrocents, KeyedModelChain,
-// AppendUniqueStrings, AppendUniqueString, ValidateSpawnTask, FormatDuration).
-// Extracted from delegation.go during Day 211 god-file refactor (#90).
-// Public API unchanged.
 package delegation
+
+// Provenance: SPDX-License-Identifier: MIT kernel/delegation utility helpers
+//             (SpawnLink, BudgetCostMicrocents, KeyedModelChain,
+//             AppendUniqueStrings, AppendUniqueString, ValidateSpawnTask,
+//             FormatDuration). Extracted from delegation.go during Day 211 god-file
+//             refactor (#90). Public API unchanged.
 
 import (
 	"encoding/json"

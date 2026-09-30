@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt standing command: dispatcher + Edit/Why/List + render/init helpers.
-// Code extracted from standing.go during the Day-106 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt standing command: dispatcher + Edit/Why/List + render/init
+//             helpers. Code extracted from standing.go during the Day-106 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
-
 
 // cmdStanding dispatches `agt standing <subcommand>` — the management surface for
 // durable event/cron wake rules. Standing orders are triggers, not agent
@@ -312,4 +311,3 @@ func initiativeMode(o map[string]any) string {
 	m, _ := ini["mode"].(string)
 	return m
 }
-

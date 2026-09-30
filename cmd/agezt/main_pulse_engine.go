@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Pulse engine construction + observer admin + health stat (bootStep +
-// pulseObserverAdmin + AddDiskObserver + AddProbeObserver + buildPulse +
-// healthStatFromJournal). Extracted from main_pulse.go during Day 211
-// god-file refactor (#57). Public API unchanged.
 package main
+
+// Provenance: Pulse engine construction + observer admin + health stat (bootStep +
+//             pulseObserverAdmin + AddDiskObserver + AddProbeObserver + buildPulse +
+//             healthStatFromJournal). Extracted from main_pulse.go during Day 211
+//             god-file refactor (#57). Public API unchanged.
 
 import (
 	"context"
@@ -34,6 +35,7 @@ type pulseObserverAdmin struct {
 	ward warden.Engine
 	st   *state.FileStore
 }
+
 func (a pulseObserverAdmin) AddDiskObserver(path string, minPct float64) (string, bool) {
 	return a.eng.AddObserver(pulse.NewDiskObserver(path, minPct, pulse.DiskUsage)), true
 }

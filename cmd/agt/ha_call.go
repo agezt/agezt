@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `ha call` verb + shared HTTP request helper + CLI constants.
-// Extracted from ha.go during Day 211 god-file refactor (#75).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `ha call` verb + shared HTTP
+//             request helper + CLI constants. Extracted from ha.go during Day 211
+//             god-file refactor (#75). Public API unchanged.
 
 import (
 	"bytes"

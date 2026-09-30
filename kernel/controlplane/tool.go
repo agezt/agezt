@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Tool inventory: catalogProbe + handleToolList + toolRollbackMode.
-// Code extracted from tool.go during the Day-59 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Tool inventory: catalogProbe + handleToolList + toolRollbackMode. Code
+//             extracted from tool.go during the Day-59 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -12,8 +13,6 @@ import (
 	"net"
 	"sort"
 )
-
-
 
 // catalogProbe holds a representative input per input-branching tool so the
 // catalog can report the tool's PRIMARY governed capability — the higher-risk

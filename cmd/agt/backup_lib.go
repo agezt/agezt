@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: backup read/build helpers (inspectBackup + createBackup +
-// writeTarFile). inspectBackup parses a tar.gz backup; createBackup writes
-// a fresh tar.gz of the data tree; writeTarFile is the tar-entry writer.
-// Extracted from backup.go during the Day-211 god-file split. Public API
-// unchanged.
 package main
 
+// Provenance: Package main: backup read/build helpers (inspectBackup + createBackup
+//             + writeTarFile). inspectBackup parses a tar.gz backup; createBackup
+//             writes a fresh tar.gz of the data tree; writeTarFile is the tar-entry
+//             writer. Extracted from backup.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"archive/tar"

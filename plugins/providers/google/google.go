@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Google Gemini provider: Provider type + Complete + encode/decode roundtrip + canonicalToGemini.
-// Code extracted from google.go during the Day-104 god-file split.
-// Public API unchanged.
 package google
 
+// Provenance: Google Gemini provider: Provider type + Complete + encode/decode
+//             roundtrip + canonicalToGemini. Code extracted from google.go during
+//             the Day-104 god-file split. Public API unchanged.
 
 import (
 	"errors"

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// backup_restore_helpers.go: path-validator + point-in-time restore helpers
-// split off from backup_restore.go during the Day 211 god-file refactor (#127).
-// Public API unchanged.
 package main
+
+// Provenance: backup_restore_helpers.go: path-validator + point-in-time restore
+//             helpers split off from backup_restore.go during the Day 211 god-file
+//             refactor (#127). Public API unchanged.
 
 import (
 	"errors"
@@ -18,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
-
 
 // isAllowedBackupPath reports whether a tar entry name is within a known include
 // subtree and free of traversal segments.

@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `ha` top-level dispatch (cmdHA) + states/services verbs
-// (haStates, haServices) + usage helper (haUsage).
-// Extracted from ha.go during Day 211 god-file refactor (#75).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `ha` top-level dispatch (cmdHA) +
+//             states/services verbs (haStates, haServices) + usage helper (haUsage).
+//             Extracted from ha.go during Day 211 god-file refactor (#75). Public
+//             API unchanged.
 
 import (
 	"encoding/json"

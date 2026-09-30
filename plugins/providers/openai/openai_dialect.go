@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// OpenAI provider: oa* wire types (oaRequest, oaMessage, oaTool, oaResponse, ...)
-// and small helpers (oaTextOrNil, oaContentText, isImageURL, jsonObjectFormat,
-// applyParams, reasoningText) shared by encodeRequest/decodeResponse in
-// openai_wire.go. Extracted from openai.go during the Day-211 god-file split.
-// Public API unchanged.
 package openai
 
+// Provenance: OpenAI provider: oa* wire types (oaRequest, oaMessage, oaTool,
+//             oaResponse, ...) and small helpers (oaTextOrNil, oaContentText,
+//             isImageURL, jsonObjectFormat, applyParams, reasoningText) shared by
+//             encodeRequest/decodeResponse in openai_wire.go. Extracted from
+//             openai.go during the Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
+
 // ----- dialect translation (canonical ↔ OpenAI Chat Completions) -----
 
 type oaRequest struct {
@@ -199,4 +200,3 @@ type oaChoice struct {
 // original↔wire mapping, toolname.Wire applies it on encode, and
 // toolname.RestoreCalls reverses it on the response so a tool_call still routes to
 // the real tool.
-

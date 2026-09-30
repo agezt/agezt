@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Edict/policy commands + state + artifact surface.
-// Code extracted from protocol_commands.go during the Day-43 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Edict/policy commands + state + artifact surface. Code extracted from
+//             protocol_commands.go during the Day-43 god-file split. Public API
+//             unchanged.
 
 const (
 	CmdEdictShow = "edict_show"

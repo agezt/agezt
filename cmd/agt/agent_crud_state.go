@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent enable/disable helper (cmdAgentSetEnabled).
-// Extracted from agent_crud.go during Day 211 god-file refactor (#64).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent enable/disable helper
+//             (cmdAgentSetEnabled). Extracted from agent_crud.go during Day 211
+//             god-file refactor (#64). Public API unchanged.
 
 import (
 	"context"
@@ -11,9 +10,9 @@ import (
 	"io"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdAgentSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) int {

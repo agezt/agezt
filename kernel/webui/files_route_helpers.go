@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// files_route_helpers.go holds the tiny format helpers used
-// by the /api/v1/files route handlers: typeOf (sort-aware
-// dir-entry label) and readJSONBody (cap-bounded JSON
-// decoder that surfaces a clean error to the caller). The
-// handlers themselves live in files_route_handlers.go.
-// Carved out during the Day-89 god-file split. Public API
-// unchanged.
 package webui
+
+// Provenance: files_route_helpers.go holds the tiny format helpers used by the
+//             /api/v1/files route handlers: typeOf (sort-aware dir-entry label) and
+//             readJSONBody (cap-bounded JSON decoder that surfaces a clean error to
+//             the caller). The handlers themselves live in files_route_handlers.go.
+//             Carved out during the Day-89 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

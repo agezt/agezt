@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Domain commands: world/skill/standing/agent + toolforge/toolbox/market + workflow/sandbox/channel + reflect + inbox/send/autonomy + board.
-// Code extracted from protocol_commands.go during the Day-43 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Domain commands: world/skill/standing/agent + toolforge/toolbox/market
+//             + workflow/sandbox/channel + reflect + inbox/send/autonomy + board.
+//             Code extracted from protocol_commands.go during the Day-43 god-file
+//             split. Public API unchanged.
 
 const (
 	//

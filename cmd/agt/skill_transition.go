@@ -90,4 +90,3 @@ func cmdSkillTransition(args []string, cmd, label string, stdout, stderr io.Writ
 	}
 	return 0
 }
-

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Agent teardown orchestration hooks: retireAgentSubagents + the standing
-// hooks + the schedule hooks. These are the high-level "what should this
-// agent stop doing" mutators.
-// The state-store cleanup (memory + skills + config + workspace) lives in
-// roster_teardown_state.go.
-// Extracted from roster_teardown.go during the Day-204 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: Agent teardown orchestration hooks: retireAgentSubagents + the
+//             standing hooks + the schedule hooks. These are the high-level "what
+//             should this agent stop doing" mutators. The state-store cleanup
+//             (memory + skills + config + workspace) lives in
+//             roster_teardown_state.go. Extracted from roster_teardown.go during the
+//             Day-204 god-file split. Public API unchanged.
 
 import (
 	"sort"
@@ -132,4 +132,3 @@ func (s *Server) countAgentPausedSchedules(slug string) int {
 	}
 	return n
 }
-

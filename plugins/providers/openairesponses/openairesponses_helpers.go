@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// openairesponses_helpers.go: contentText + toInput + toTools split off from
-// openairesponses.go during the Day 211 god-file refactor (#144). Public API unchanged.
 package openairesponses
+
+// Provenance: openairesponses_helpers.go: contentText + toInput + toTools split off
+//             from openairesponses.go during the Day 211 god-file refactor (#144).
+//             Public API unchanged.
 
 import (
 	"encoding/json"

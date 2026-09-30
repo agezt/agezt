@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider-keys top-level dispatch (Run) + list subcommand (listCmd).
-// Extracted from keys.go during Day 211 god-file refactor (#73).
-// Public API unchanged.
 package keys
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt provider-keys top-level dispatch
+//             (Run) + list subcommand (listCmd). Extracted from keys.go during Day
+//             211 god-file refactor (#73). Public API unchanged.
 
 import (
 	"context"

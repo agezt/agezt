@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime composition: types + Open (the composition root).
-// Code extracted from compose.go during the Day-79 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Runtime composition: types + Open (the composition root). Code
+//             extracted from compose.go during the Day-79 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -30,6 +31,9 @@ import (
 	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/runtime/accessors"
+	"github.com/agezt/agezt/kernel/runtime/lifecycle"
+	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/seat"
 	"github.com/agezt/agezt/kernel/skill"
@@ -42,17 +46,12 @@ import (
 	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"github.com/agezt/agezt/kernel/runtime/accessors"
-	"github.com/agezt/agezt/kernel/runtime/lifecycle"
-	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
 	"time"
 )
-
-
 
 // This file is the kernel's composition root: Open + Close + closeAll +
 // DefaultShutdownDrainTimeout. Pulled out of the runtime.go god file as

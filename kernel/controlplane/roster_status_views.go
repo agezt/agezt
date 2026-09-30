@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Per-agent status view: agentStatusViews renders fillAgentStatusAccumsFromJournal results.
-// Code extracted from roster_status.go during the Day-39 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Per-agent status view: agentStatusViews renders
+//             fillAgentStatusAccumsFromJournal results. Code extracted from
+//             roster_status.go during the Day-39 god-file split. Public API
+//             unchanged.
 
 import (
 	"time"
@@ -11,7 +13,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 )
-
 
 func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
 	const reaperWindow = 30 * 24 * time.Hour

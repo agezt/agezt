@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Conductor steps: conductorRoleModels + conductorComplete + conductorStep + conductorVerify + conductorCritique + conductorPlan + conductorPublish.
-// Code extracted from conductor.go during the Day-76 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Conductor steps: conductorRoleModels + conductorComplete +
+//             conductorStep + conductorVerify + conductorCritique + conductorPlan +
+//             conductorPublish. Code extracted from conductor.go during the Day-76
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -12,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"strings"
 )
-
 
 func (k *Kernel) conductorRoleModels(cfg ConductorConfig) (thinker, worker, verifier string, err error) {
 	thinker = strings.TrimSpace(cfg.Thinker)

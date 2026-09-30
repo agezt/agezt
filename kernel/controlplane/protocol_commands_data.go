@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Data + research + config + runs + memory + schedule + tenant + disk/storage commands.
-// Code extracted from protocol_commands.go during the Day-43 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Data + research + config + runs + memory + schedule + tenant +
+//             disk/storage commands. Code extracted from protocol_commands.go during
+//             the Day-43 god-file split. Public API unchanged.
 
 const (
 	// Council of Elders (M839) — the Web UI consults the multi-model panel (M837).

@@ -11,26 +11,26 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/market"
-	"github.com/agezt/agezt/kernel/datalake"
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/runtime/types"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"github.com/agezt/agezt/kernel/runtime/types"
-	"github.com/agezt/agezt/kernel/catalog"
 )
 
 // fakeKernel is the minimum KernelAPI implementation the Accessor
@@ -75,25 +75,25 @@ type fakeKernel struct {
 	PluginsFn    func() []types.PluginInfo
 
 	// Day 19 hooks.
-	CatalogFn         func() *catalog.Catalog
-	CatalogStoreFn    func() *catalog.Store
-	ReloadFn          func() (*catalog.Catalog, bool, error)
-	ReloadCatalogFn   func() (*catalog.Catalog, error)
-	LoopRunnerFn      func() scheduler.LoopRunner
-	RunPlanFn         func(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error)
+	CatalogFn       func() *catalog.Catalog
+	CatalogStoreFn  func() *catalog.Store
+	ReloadFn        func() (*catalog.Catalog, bool, error)
+	ReloadCatalogFn func() (*catalog.Catalog, error)
+	LoopRunnerFn    func() scheduler.LoopRunner
+	RunPlanFn       func(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error)
 }
 
 func (k *fakeKernel) Journal() *journal.Journal          { return k.journal }
 func (k *fakeKernel) Bus() *bus.Bus                      { return k.bus }
 func (k *fakeKernel) State() *state.FileStore            { return k.state }
-func (k *fakeKernel) Edict() *edict.Engine                { return k.edict }
+func (k *fakeKernel) Edict() *edict.Engine               { return k.edict }
 func (k *fakeKernel) Warden() warden.Engine              { return k.warden }
 func (k *fakeKernel) Approvals() *approval.Registry      { return k.approvals }
 func (k *fakeKernel) Scheduler() *scheduler.Executor     { return k.scheduler }
 func (k *fakeKernel) Provider() agent.Provider           { return k.provider }
 func (k *fakeKernel) Tools() map[string]agent.Tool       { return k.tools }
 func (k *fakeKernel) Memory() *memory.Manager            { return k.memory }
-func (k *fakeKernel) AgentGateway() *agentgw.Gateway      { return k.gateway }
+func (k *fakeKernel) AgentGateway() *agentgw.Gateway     { return k.gateway }
 func (k *fakeKernel) Schedules() *cadence.Store          { return k.schedules }
 func (k *fakeKernel) World() *worldmodel.Graph           { return k.world }
 func (k *fakeKernel) Forge() *skill.Forge                { return k.forge }
@@ -202,16 +202,16 @@ func (k *fakeKernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID st
 	}
 	return nil, nil
 }
-func (k *fakeKernel) Standing() *standing.Store         { return nil }
-func (k *fakeKernel) Roster() *roster.Store              { return nil }
+func (k *fakeKernel) Standing() *standing.Store { return nil }
+func (k *fakeKernel) Roster() *roster.Store     { return nil }
 func (k *fakeKernel) PublishBusEvent(spec event.Spec) (*event.Event, error) {
 	return nil, nil
 }
-func (k *fakeKernel) Market() *market.Manager             { return k.market }
-func (k *fakeKernel) SetMarket(m *market.Manager)        { k.market = m }
-func (k *fakeKernel) BaseDir() string                    { return k.baseDir }
-func (k *fakeKernel) ArtifactIndex() *artifact.Index     { return k.artifactIndex }
-func (k *fakeKernel) DataLake() *datalake.Lake           { return k.dataLake }
+func (k *fakeKernel) Market() *market.Manager        { return k.market }
+func (k *fakeKernel) SetMarket(m *market.Manager)    { k.market = m }
+func (k *fakeKernel) BaseDir() string                { return k.baseDir }
+func (k *fakeKernel) ArtifactIndex() *artifact.Index { return k.artifactIndex }
+func (k *fakeKernel) DataLake() *datalake.Lake       { return k.dataLake }
 
 // newFakeKernel returns a fake with all-nil getters — good for the
 // "Accessor forwards correctly" smoke test.

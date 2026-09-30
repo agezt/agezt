@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-
 const (
 	rollbackCatalogVersion       = 1
 	rollbackCheckpointKindSkill  = "skill.status"

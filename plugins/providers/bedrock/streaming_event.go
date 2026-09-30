@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Bedrock streaming: AWS event-stream protocol parser + inner-event dispatcher.
-// Code extracted from streaming.go during the Day-108 god-file split.
-// Public API unchanged.
 package bedrock
 
+// Provenance: Bedrock streaming: AWS event-stream protocol parser + inner-event
+//             dispatcher. Code extracted from streaming.go during the Day-108
+//             god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -21,7 +21,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
-
 
 // CompleteStream implements agent.StreamingProvider for Bedrock's
 // `invoke-with-response-stream` endpoint.
@@ -263,4 +262,3 @@ func headerValue(hdrs []eventStreamHeader, name string) string {
 // Duplicated rather than shared so Bedrock can evolve without
 // dragging the direct-Anthropic adapter along (same rationale as the
 // non-streaming body encode/decode).
-

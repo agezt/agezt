@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// OpenAI provider: wire types + tiny wire-shape helpers.
-// Code extracted from openai.go during the Day-96 god-file split.
-// Public API unchanged.
 package openai
 
+// Provenance: OpenAI provider: wire types + tiny wire-shape helpers. Code extracted
+//             from openai.go during the Day-96 god-file split. Public API unchanged.
 
 import (
 	"errors"

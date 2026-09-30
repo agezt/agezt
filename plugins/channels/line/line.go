@@ -24,7 +24,6 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
-
 const (
 	// DefaultPath is the inbound webhook route LINE should POST to.
 	DefaultPath    = "/line"

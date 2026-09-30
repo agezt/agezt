@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Outdated reporter: the per-manager "what can upgrade" query runner that
-// cross-references the catalog and returns the set of catalog tool names
-// that appear upgradable. Best-effort and bounded.
-// Extracted from toolbox.go during the Day-203 god-file split.
-// Public API unchanged.
 package toolbox
+
+// Provenance: SPDX-License-Identifier: MIT Outdated reporter: the per-manager "what
+//             can upgrade" query runner that cross-references the catalog and
+//             returns the set of catalog tool names that appear upgradable.
+//             Best-effort and bounded. Extracted from toolbox.go during the Day-203
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

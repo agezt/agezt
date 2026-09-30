@@ -8,11 +8,11 @@ package webui
 // constructors.
 
 import (
-	"net/http"
-	"time"
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/httpserver"
+	"net/http"
+	"time"
 )
 
 func (s *Server) routeRegistry() *httpserver.Router {

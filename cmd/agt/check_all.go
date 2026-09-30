@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider check all sub-command: iterates credentialed providers,
-// runs each through runProbe (or runBench), renders a summary table.
-// Split from check.go during Day 211 god-file refactor (#39/#50).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt provider check all sub-command:
+//             iterates credentialed providers, runs each through runProbe (or
+//             runBench), renders a summary table. Split from check.go during Day 211
+//             god-file refactor (#39/#50). Public API unchanged.
 
 import (
 	"context"
@@ -110,6 +109,7 @@ func runCheckAll(cat *catalog.Catalog, lookup func(string) string, flags checkFl
 	}
 	return 0
 }
+
 // probeResult is the structured outcome of one runProbe call. Used by
 // both the single-provider and --all paths so their reported numbers
 // can't drift.
@@ -123,6 +123,7 @@ type probeResult struct {
 	costMicrocents int64
 	err            error
 }
+
 // runProbe resolves the model, builds the provider, and issues one
 // "say pong" Complete call. Returns the structured result rather than
 // printing — the caller decides between single-provider detail and

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Agent activity misc text: agentRetryPolicySummary + pausedTriggerSummary + removalCleanupSummary.
-// Code extracted from roster_activity_text.go during the Day-77 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Agent activity misc text: agentRetryPolicySummary +
+//             pausedTriggerSummary + removalCleanupSummary. Code extracted from
+//             roster_activity_text.go during the Day-77 god-file split. Public API
+//             unchanged.
 
 import (
 	"strconv"
 	"strings"
 )
-
 
 func agentRetryPolicySummary(pl map[string]any) string {
 	var bits []string

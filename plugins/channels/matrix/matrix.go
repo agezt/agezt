@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// Matrix channel: types + lifecycle + receive path (const block + Config +
-// Channel + New + Name + whoamiResp + syncResp + roomEvent + Start +
-// dispatchable + logBackoff + resolveWhoami + prime + sync + handleInbound).
-// The send path (Send + send + fetchMXC) lives in matrix_send.go.
-// Extracted from matrix.go during the Day-208 god-file split.
-// Public API unchanged.
 package matrix
+
+// Provenance: SPDX-License-Identifier: MIT Matrix channel: types + lifecycle +
+//             receive path (const block + Config + Channel + New + Name + whoamiResp
+//             + syncResp + roomEvent + Start + dispatchable + logBackoff +
+//             resolveWhoami + prime + sync + handleInbound). The send path (Send +
+//             send + fetchMXC) lives in matrix_send.go. Extracted from matrix.go
+//             during the Day-208 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -276,4 +275,3 @@ func (c *Channel) handleInbound(ctx context.Context, roomID string, ev roomEvent
 	}
 	_ = c.send(ctx, channel.Outbound{ChannelID: roomID, Text: reply, Attachments: rep.Attachments, Priority: channel.PriorityNotify}, corr)
 }
-

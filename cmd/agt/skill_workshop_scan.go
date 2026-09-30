@@ -20,6 +20,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 )
+
 var workshopURLPattern = regexp.MustCompile(`https?://[^\s)'"]+`)
 
 func workshopScanSkill(sk map[string]any) workshopScanReport {

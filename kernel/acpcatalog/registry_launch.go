@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Registry launch: ResolveLaunch + launchForRegistryAgent.
-// Code extracted from registry.go during the Day-70 god-file split. Public API unchanged.
 package acpcatalog
 
+// Provenance: Registry launch: ResolveLaunch + launchForRegistryAgent. Code
+//             extracted from registry.go during the Day-70 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -12,7 +13,6 @@ import (
 	"os/exec"
 	"strings"
 )
-
 
 func countInventory(inv *Inventory) {
 	inv.RegisteredCount, inv.CompatibleCount, inv.RunnableCount, inv.InstalledCount = 0, 0, 0, 0

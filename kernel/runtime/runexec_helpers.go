@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Runtime runexec retry + elision helpers: retryReason / agentRetryable /
-// retryDelay + ErrNoVisionModel + the elidedSummary* constants +
-// makeElidedSummarizer. Split from runexec_helpers.go during Day 211
-// god-file refactor (#34). Public API unchanged.
 package runtime
+
+// Provenance: SPDX-License-Identifier: MIT Runtime runexec retry + elision helpers:
+//             retryReason / agentRetryable / retryDelay + ErrNoVisionModel + the
+//             elidedSummary* constants + makeElidedSummarizer. Split from
+//             runexec_helpers.go during Day 211 god-file refactor (#34). Public API
+//             unchanged.
 
 import (
 	"context"

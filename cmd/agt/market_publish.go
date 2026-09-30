@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt market publish` + `agt market keygen` — the publish-flow
-// ops (publish a workflow as a marketplace entry / generate the operator's
-// marketplace signing keypair). Extracted from market_ops.go during the
-// Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt market publish` + `agt market keygen` — the
+//             publish-flow ops (publish a workflow as a marketplace entry / generate
+//             the operator's marketplace signing keypair). Extracted from
+//             market_ops.go during the Day-211 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/market"
 )
+
 func cmdMarketPublish(args []string, stdout, stderr io.Writer) int {
 	var dir, out, keyFile, name string
 	for i := 0; i < len(args); i++ {

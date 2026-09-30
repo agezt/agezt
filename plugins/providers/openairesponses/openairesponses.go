@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// OpenAI Responses provider: Provider type + Complete + send + client + request-build helpers + wire types.
-// Code extracted from openairesponses.go during the Day-124 god-file split.
-// Public API unchanged.
 package openairesponses
+
+// Provenance: OpenAI Responses provider: Provider type + Complete + send + client +
+//             request-build helpers + wire types. Code extracted from
+//             openairesponses.go during the Day-124 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -23,8 +25,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
-
-
 
 //go:embed instructions.md
 var codexInstructions string

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt toolforge command: mutation verbs (Draft + Edit + Test + Promote + Quarantine + Remove).
-// Code extracted from toolforge.go during the Day-126 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt toolforge command: mutation verbs (Draft + Edit + Test + Promote +
+//             Quarantine + Remove). Code extracted from toolforge.go during the
+//             Day-126 god-file split. Public API unchanged.
 
 import (
 	"context"

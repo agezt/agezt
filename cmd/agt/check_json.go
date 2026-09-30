@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider check JSON output + small helpers (autoPickFromCatalog +
-// computeCostMicrocents + formatMicrocentsUSD + truncate). Split from
-// check.go during Day 211 god-file refactor (#39). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt provider check JSON output +
+//             small helpers (autoPickFromCatalog + computeCostMicrocents +
+//             formatMicrocentsUSD + truncate). Split from check.go during Day 211
+//             god-file refactor (#39). Public API unchanged.
 
 import (
 	"encoding/json"

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Package bedrock: vendor-detection predicates (isAnthropicModel +
-// isMistralModel + isCohereModel + isMetaLlamaModel). Bedrock serves many
-// vendors behind one endpoint; these decide which wire shape the adapter
-// speaks (M1.m — Anthropic now, others land in M1.m.x). Extracted from
-// bedrock.go during the Day-211 god-file split. Public API unchanged.
 package bedrock
 
+// Provenance: Package bedrock: vendor-detection predicates (isAnthropicModel +
+//             isMistralModel + isCohereModel + isMetaLlamaModel). Bedrock serves
+//             many vendors behind one endpoint; these decide which wire shape the
+//             adapter speaks (M1.m — Anthropic now, others land in M1.m.x).
+//             Extracted from bedrock.go during the Day-211 god-file split. Public
+//             API unchanged.
 
 import (
 	"strings"
 )
+
 func isAnthropicModel(id string) bool {
 	if strings.HasPrefix(id, "anthropic.") {
 		return true

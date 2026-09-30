@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// creds I/O operations: Load + Save + atomicWriteVault + Rotate
-// (the persistence glue + passphrase rotation).
-// Extracted from creds.go during the Day-203 god-file split.
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT creds I/O operations: Load + Save +
+//             atomicWriteVault + Rotate (the persistence glue + passphrase
+//             rotation). Extracted from creds.go during the Day-203 god-file split.
+//             Public API unchanged.
 
 import (
 	"encoding/json"

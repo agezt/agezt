@@ -36,4 +36,3 @@ func registerWorkboardCommands() {
 		commandSpec{Cmd: CmdWorkboardWatch, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardWatch(dc.Conn, dc.Req) }},
 	)
 }
-

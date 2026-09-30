@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
 )
+
 func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 	// This child may itself delegate; release its own fan-out tally and steering
 	// control when it returns so the maps don't accumulate across a long-lived

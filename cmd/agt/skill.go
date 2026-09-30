@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// agt skill command: dispatcher + List/Show/History/Transition/Reassign/Hygiene subcommands.
-// Code extracted from skill.go during the Day-97 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: agt skill command: dispatcher +
+//             List/Show/History/Transition/Reassign/Hygiene subcommands. Code
+//             extracted from skill.go during the Day-97 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -16,8 +18,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
-
-
 
 // cmdSkill dispatches `agt skill <subcommand>`. Forge is the journaled
 // skill-lifecycle: the agent proposes drafts, the operator governs them through
@@ -230,4 +230,3 @@ func cmdSkillHistory(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-

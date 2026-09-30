@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// check_render.go owns the human-readable output surface for
-// `agt check` + `agt bench`: the checkRow type, the single-
-// probe emit*Human functions, and the alignment-aware table
-// renderers (renderCheckAllTable, renderBenchAllTable,
-// renderTable). The probe-loop state + bench stats live in
-// check_bench.go. Carved out of check.go during Day-211
-// god-file refactor (#39). Public API unchanged.
 package main
+
+// check_render.go owns the human-readable output surface for `agt check`
+// + `agt bench`: the checkRow type, the single- probe emit*Human
+// functions, and the alignment-aware table renderers
+// (renderCheckAllTable, renderBenchAllTable, renderTable). The
+// probe-loop state + bench stats live in check_bench.go. Carved out of
+// check.go during Day-211 god-file refactor (#39). Public API unchanged.
 
 import (
 	"fmt"

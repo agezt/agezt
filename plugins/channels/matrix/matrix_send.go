@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Matrix channel: media attachment uploader (sendMedia).
-// Code extracted from matrix.go during the Day-111 god-file split.
-// Public API unchanged.
 package matrix
 
+// Provenance: Matrix channel: media attachment uploader (sendMedia). Code extracted
+//             from matrix.go during the Day-111 god-file split. Public API
+//             unchanged.
 
 import (
 	"bytes"
@@ -159,7 +159,6 @@ func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
 		},
 	})
 }
-
 
 // sendMedia uploads an attachment to the media repo, then posts an m.audio /
 // m.image / m.file room event referencing the returned mxc:// URI.

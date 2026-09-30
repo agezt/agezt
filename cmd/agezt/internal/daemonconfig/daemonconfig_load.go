@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Daemon config Load function (reads every key from the daemon TOML/env into Config).
-// Code extracted from daemonconfig.go during the Day-94 god-file split.
-// Public API unchanged.
 package daemonconfig
 
+// Provenance: Daemon config Load function (reads every key from the daemon TOML/env
+//             into Config). Code extracted from daemonconfig.go during the Day-94
+//             god-file split. Public API unchanged.
 
 import (
 	"fmt"

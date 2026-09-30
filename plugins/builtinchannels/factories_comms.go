@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// builtinchannels: Email + Discord + Matrix + WhatsApp channel factories.
-// Extracted from factories.go during Day 211 god-file refactor (#68).
-// Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT builtinchannels: Email + Discord + Matrix
+//             + WhatsApp channel factories. Extracted from factories.go during Day
+//             211 god-file refactor (#68). Public API unchanged.
 
 import (
 	"fmt"

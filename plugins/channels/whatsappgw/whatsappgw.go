@@ -30,7 +30,6 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
-
 const (
 	// BackendWAHA / BackendEvolution select the gateway's REST dialect.
 	BackendWAHA      = "waha"

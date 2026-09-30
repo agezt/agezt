@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Run context basic: cloneStringMap + With/From for trust/images/json/model/system/runTimeout/maxCost.
-// Code extracted from runctx.go during the Day-69 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Run context basic: cloneStringMap + With/From for
+//             trust/images/json/model/system/runTimeout/maxCost. Code extracted from
+//             runctx.go during the Day-69 god-file split. Public API unchanged.
 
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/edict"
 	"time"
 )
-
 
 func cloneStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {

@@ -11,11 +11,11 @@ package selfrepair
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"strings"
+	"time"
 )
 
 func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
@@ -254,4 +254,3 @@ func autoRepairRootChainID(cand autoRepairCandidate) string {
 	}
 	return autoRepairIncidentIDValue(cand)
 }
-

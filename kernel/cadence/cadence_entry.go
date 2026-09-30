@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence Entry: SystemTasks + IsSystemTask + Entry type + Validate + Interval + Cadence.
-// Forecast/advance moved to cadence_forecast.go; applyZone/nextWindowSlot/dayAllowed/
-// nextDaily moved to cadence_helpers.go; dayAbbr/maskWeekdays/maskWeekends/FormatDays
-// doc moved to cadence_entry_days.go. Day-211 god-file split. Public API unchanged.
 package cadence
 
+// Provenance: Cadence Entry: SystemTasks + IsSystemTask + Entry type + Validate +
+//             Interval + Cadence. Forecast/advance moved to cadence_forecast.go;
+//             applyZone/nextWindowSlot/dayAllowed/ nextDaily moved to
+//             cadence_helpers.go; dayAbbr/maskWeekdays/maskWeekends/FormatDays doc
+//             moved to cadence_entry_days.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"fmt"
@@ -14,6 +16,7 @@ import (
 
 	"encoding/json"
 )
+
 func SystemTasks() []string {
 	out := make([]string, 0, len(systemTaskInfos))
 	for _, task := range systemTaskInfos {

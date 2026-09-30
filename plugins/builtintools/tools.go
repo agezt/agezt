@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 
-// Package builtintools registers the first-party tool specs into the
-// kernel/toolreg registry (Phase 2.2) — the tool mirror of builtinchannels.
-// Each spec's Build carries the construction logic that used to live inline in
-// cmd/agezt/boot_tools.go, with env reads going through BuildDeps.Get so tests
-// can drive registration with a map-backed environment.
-//
-// This first slice holds the five netguard-capable network tools: http,
-// browser.read, browser.action (+ its ten verb tools via Built.Extra),
-// web_search, and fetch. All five are Netguard:true, so Set.Configure wires
-// the daemon's netguard.blocked audit publisher into each instance generically
-// — including fetch, whose OnBlock field existed since M831 but was never
-// wired by the old hand-listed wireNetguardAudit (LD-2 residue, fixed here).
 package builtintools
+
+// Package builtintools registers the first-party tool specs into the
+// kernel/toolreg registry (Phase 2.2) — the tool mirror of
+// builtinchannels. Each spec's Build carries the construction logic that
+// used to live inline in cmd/agezt/boot_tools.go, with env reads going
+// through BuildDeps.Get so tests can drive registration with a
+// map-backed environment. This first slice holds the five
+// netguard-capable network tools: http, browser.read, browser.action (+
+// its ten verb tools via Built.Extra), web_search, and fetch. All five
+// are Netguard:true, so Set.Configure wires the daemon's
+// netguard.blocked audit publisher into each instance generically —
+// including fetch, whose OnBlock field existed since M831 but was never
+// wired by the old hand-listed wireNetguardAudit (LD-2 residue, fixed
+// here).
 
 import (
 	"strings"
@@ -22,7 +24,6 @@ import (
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 )
-
 
 // RegisterAll registers the built-in tool specs. Idempotent — toolreg.Register
 // replaces by name, so calling it again (daemon boot + tests) is harmless.

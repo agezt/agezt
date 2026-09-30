@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt config` dispatcher + sortedKeys helper + cmdConfigSet
-// (the write op). Snapshot display (renderRoutingTable + cmdConfigShow +
-// configValues) moved to config_show.go; read-only queries (cmdConfigLs +
-// cmdConfigGet) moved to config_query.go. Day-211 god-file split. Public API
-// unchanged.
 package main
 
+// Provenance: Package main: `agt config` dispatcher + sortedKeys helper +
+//             cmdConfigSet (the write op). Snapshot display (renderRoutingTable +
+//             cmdConfigShow + configValues) moved to config_show.go; read-only
+//             queries (cmdConfigLs + cmdConfigGet) moved to config_query.go. Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdConfig(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintf(stderr, "%s config: subcommand required (show, ls, get, set, schema)\n", brand.CLI)

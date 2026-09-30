@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Governor: completeChained (caller-supplied runOne + fallback-chain iteration) + modelChainFor.
-// Code extracted from governor_complete.go during the Day-129 god-file split.
-// Public API unchanged.
 package governor
 
+// Provenance: Governor: completeChained (caller-supplied runOne + fallback-chain
+//             iteration) + modelChainFor. Code extracted from governor_complete.go
+//             during the Day-129 god-file split. Public API unchanged.
 
 import (
 	"fmt"

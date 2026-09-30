@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider check entry + flags + single check + caps check.
-// Split from check.go during Day 211 god-file refactor (#39).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt provider check entry + flags +
+//             single check + caps check. Split from check.go during Day 211 god-file
+//             refactor (#39). Public API unchanged.
 
 import (
 	"fmt"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 )
-
 
 type checkFlags struct {
 	all        bool

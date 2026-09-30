@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Late-bound specs (Phase 2.2 PR 5): the tools whose wiring needs things built
-// AFTER the kernel — the live channels (notify / send_media) and the shared
-// board store (board). Each spec's Late hook runs in Set.ConfigureLate at the
-// exact point cmd/agezt/main.go used to call the hand-wired .Bind()s, closing
-// over the concrete instance its OWN Build produced.
-//
-// notify / send_media keep their historical gate: they register only when the
-// operator configured at least one notify-capable channel with a non-empty
-// allowlist (BuildDeps.NotifyTargets carries the daemon's derivation of that;
-// empty/nil ⇒ the specs build nothing, exactly like the old
-// `if len(notifyTargets) > 0` block). The board tool is always registered and
-// simply stays unbound when the store failed to open (LateDeps.Board nil).
 package builtintools
+
+// Late-bound specs (Phase 2.2 PR 5): the tools whose wiring needs things
+// built AFTER the kernel — the live channels (notify / send_media) and
+// the shared board store (board). Each spec's Late hook runs in
+// Set.ConfigureLate at the exact point cmd/agezt/main.go used to call
+// the hand-wired .Bind()s, closing over the concrete instance its OWN
+// Build produced. notify / send_media keep their historical gate: they
+// register only when the operator configured at least one notify-capable
+// channel with a non-empty allowlist (BuildDeps.NotifyTargets carries
+// the daemon's derivation of that; empty/nil ⇒ the specs build nothing,
+// exactly like the old `if len(notifyTargets) > 0` block). The board
+// tool is always registered and simply stays unbound when the store
+// failed to open (LateDeps.Board nil).
 
 import (
 	"fmt"

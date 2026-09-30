@@ -1,16 +1,15 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard control-plane handlers — read-only + lifecycle.
-// handleWorkboardLanes + handleWorkboardShow (the read-only handlers)
-// + handleWorkboardClaim + handleWorkboardHeartbeat +
-// handleWorkboardComment + handleWorkboardBlock + handleWorkboardFail +
-// handleWorkboardUnblock + handleWorkboardComplete + handleWorkboardProve +
-// handleWorkboardSeat + handleWorkboardArchive (the lifecycle handlers).
-// The link/policy/depend handlers live in workboard_handlers_link.go;
-// the dispatch/watch handlers live in workboard_handlers_dispatch.go.
-// Extracted from workboard_handlers.go during the Day-211 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Workboard control-plane handlers —
+//             read-only + lifecycle. handleWorkboardLanes + handleWorkboardShow (the
+//             read-only handlers) + handleWorkboardClaim + handleWorkboardHeartbeat
+//             + handleWorkboardComment + handleWorkboardBlock + handleWorkboardFail
+//             + handleWorkboardUnblock + handleWorkboardComplete +
+//             handleWorkboardProve + handleWorkboardSeat + handleWorkboardArchive
+//             (the lifecycle handlers). The link/policy/depend handlers live in
+//             workboard_handlers_link.go; the dispatch/watch handlers live in
+//             workboard_handlers_dispatch.go. Extracted from workboard_handlers.go
+//             during the Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -215,4 +214,3 @@ func (s *Server) handleWorkboardArchive(conn net.Conn, req Request) {
 	task, err := s.k.ArchiveWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"))
 	workboardWriteResp(s, conn, req, task, err)
 }
-

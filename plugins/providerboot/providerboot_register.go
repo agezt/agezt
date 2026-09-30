@@ -142,4 +142,3 @@ func SelectPrimary(d Deps) (agent.Provider, string, string, governor.AuthMode, e
 		"unconfigured (no " + brand.EnvPrefix + "PROVIDER set — add a provider + key in Setup → Providers; LLM runs fail until then)",
 		"", governor.AuthLocal, nil
 }
-

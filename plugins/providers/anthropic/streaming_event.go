@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Anthropic streaming: dispatchSSEFrame (per-frame inner-event dispatcher) + assembleResponse.
-// Code extracted from streaming.go during the Day-135 god-file split.
-// Public API unchanged.
 package anthropic
 
+// Provenance: Anthropic streaming: dispatchSSEFrame (per-frame inner-event
+//             dispatcher) + assembleResponse. Code extracted from streaming.go
+//             during the Day-135 god-file split. Public API unchanged.
 
 import (
 	"fmt"

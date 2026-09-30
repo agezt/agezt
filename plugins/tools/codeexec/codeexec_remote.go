@@ -274,4 +274,3 @@ func wrapModalArtifactExport(runCmd, artifactDir string) string {
 		"printf '\\n" + modalArtifactEnd + "\\n'; " +
 		"fi; exit $status"
 }
-

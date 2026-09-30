@@ -11,7 +11,6 @@ import (
 	"github.com/agezt/agezt/kernel/intervention"
 )
 
-
 // runControl is the per-run steering surface. It implements agent.Steerer
 // (Wait + Drain) for the loop and exposes Pause/Resume/Step/Inject for the
 // operator. The zero value is not usable — construct with newRunControl.

@@ -1,21 +1,19 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt workboard command: the entry dispatcher + the read-only
-// sub-commands (List + Lanes + Show).
-// The mutation sub-commands live in workboard_mutate.go; the
-// parse / render / dispatch helpers live in workboard_render.go.
-// Extracted from workboard.go during the Day-209 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt workboard command: the entry
+//             dispatcher + the read-only sub-commands (List + Lanes + Show). The
+//             mutation sub-commands live in workboard_mutate.go; the parse / render
+//             / dispatch helpers live in workboard_render.go. Extracted from
+//             workboard.go during the Day-209 god-file split. Public API unchanged.
 
 import (
 	"fmt"
 	"io"
 	"strconv"
 
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdWorkboard(args []string, stdout, stderr io.Writer) int {

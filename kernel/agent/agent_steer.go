@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Agent steering: Steerer interface + Directive + DefaultContextProtectLast + DefaultContextProtectFirst + ContextCharsPerToken + DefaultCompressFraction.
-// Code extracted from agent.go during the Day-78 god-file split. Public API unchanged.
 package agent
+
+// Provenance: Agent steering: Steerer interface + Directive +
+//             DefaultContextProtectLast + DefaultContextProtectFirst +
+//             ContextCharsPerToken + DefaultCompressFraction. Code extracted from
+//             agent.go during the Day-78 god-file split. Public API unchanged.
 
 import (
 	"context"
 )
-
 
 // guidance, pause, single-step, resume — without cancelling it. The kernel
 // supplies the live implementation (kernel/runtime); tests can supply a fake.
@@ -50,4 +52,3 @@ const ContextCharsPerToken = 4
 // auto-budgeting starts compacting (SPEC-16 §3 compress_at_fraction). Half the
 // window leaves ample room for the model's own output + a safety margin.
 const DefaultCompressFraction = 0.5
-

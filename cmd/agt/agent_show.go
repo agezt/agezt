@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent show sub-command + approval summary. Split from agent.go
-// during Day 211 god-file refactor (#41). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent show sub-command + approval
+//             summary. Split from agent.go during Day 211 god-file refactor (#41).
+//             Public API unchanged.
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 func cmdAgentShow(args []string, stdout, stderr io.Writer) int {

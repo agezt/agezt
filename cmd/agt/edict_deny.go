@@ -208,4 +208,3 @@ func cmdEdictDenyRemove(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "removed %s  (%d hard-deny rules now)\n", name, int(count))
 	return 0
 }
-

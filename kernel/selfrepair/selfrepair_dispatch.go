@@ -12,14 +12,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/tools/overseertool"
+	"os"
+	"strings"
 )
 
 func autoRepairClip(s string, max int) string {
@@ -220,4 +220,3 @@ func publishAutoRepair(b *bus.Bus, corr string, payload map[string]any) {
 		Payload:       payload,
 	})
 }
-

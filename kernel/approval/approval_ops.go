@@ -114,4 +114,3 @@ func actorOr(a, fallback string) string {
 	}
 	return a
 }
-

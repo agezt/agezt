@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Artifact-indexer wiring + board slug + injectConfig + workspaceRoot helpers.
-// Extracted from main_pulse.go during Day 211 god-file refactor (#57).
-// Public API unchanged.
 package main
+
+// Provenance: Artifact-indexer wiring + board slug + injectConfig + workspaceRoot
+//             helpers. Extracted from main_pulse.go during Day 211 god-file refactor
+//             (#57). Public API unchanged.
 
 import (
 	"context"

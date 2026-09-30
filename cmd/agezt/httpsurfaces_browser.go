@@ -1,13 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agezt WebUI browser / runtime helpers: envDisabled (the generic
-// disabled-check used by shouldOpenWebUI) +
-// shouldOpenWebUI (the auto-open check) +
-// openBrowser (the cross-platform launcher) +
-// webAllowedHosts (the bind-address->host list).
-// Extracted from httpsurfaces.go during the Day-208 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agezt WebUI browser / runtime
+//             helpers: envDisabled (the generic disabled-check used by
+//             shouldOpenWebUI) + shouldOpenWebUI (the auto-open check) + openBrowser
+//             (the cross-platform launcher) + webAllowedHosts (the
+//             bind-address->host list). Extracted from httpsurfaces.go during the
+//             Day-208 god-file split. Public API unchanged.
 
 import (
 	"net"

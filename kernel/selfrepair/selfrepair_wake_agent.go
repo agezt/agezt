@@ -57,4 +57,3 @@ func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand auto
 		Runbook:     roster.AutonomyRunbook(p),
 	}, err
 }
-

@@ -91,4 +91,3 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		Usage:      usage,
 	}, nil
 }
-

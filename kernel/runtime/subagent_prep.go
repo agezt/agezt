@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Sub-agent execution engine: prepareSubAgent (context window assembly), validateDelegationManager, executeSubAgent (run loop).
-// Code extracted from subagent.go during the Day-40 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Sub-agent execution engine: prepareSubAgent (context window assembly),
+//             validateDelegationManager, executeSubAgent (run loop). Code extracted
+//             from subagent.go during the Day-40 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -16,7 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, agentRef string, async bool) (*subAgentPrep, error) {
 	task = strings.TrimSpace(task)

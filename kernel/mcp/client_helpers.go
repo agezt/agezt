@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Package mcp: env helpers for the MCP client (appendEnv merges a key/value
-// map into a string slice; scrubbedEnv returns the daemon environment with
-// secret-shaped vars dropped; isSecretName matches env-var names that look
-// like credentials). Extracted from client.go during the Day-211 god-file
-// split. Public API unchanged.
 package mcp
 
+// Provenance: Package mcp: env helpers for the MCP client (appendEnv merges a
+//             key/value map into a string slice; scrubbedEnv returns the daemon
+//             environment with secret-shaped vars dropped; isSecretName matches
+//             env-var names that look like credentials). Extracted from client.go
+//             during the Day-211 god-file split. Public API unchanged.
 
 import (
 	"os"
 	"strings"
 )
+
 func appendEnv(base []string, extra map[string]string) []string {
 	if len(extra) == 0 {
 		return base

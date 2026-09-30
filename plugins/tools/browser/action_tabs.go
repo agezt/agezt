@@ -1,12 +1,13 @@
-// SPDX-License-Identifier: MIT
-//
-// browser.action tab/session state: actionTabState + actionSnapshotRef types
-// + resolveTabURL + ResolveTabRef + readTabState + finalizeTabOutput +
-// saveTabState + extractSnapshotRefs + tabStatePath + validBrowserSessionID +
-// CloseSession + CloseTab + ListTabs + URL/host validators (validateCDPURL,
-// validateURL, validateHostEgress). Split from action.go during Day 211
-// god-file refactor (#38). Public API unchanged.
 package browser
+
+// Provenance: SPDX-License-Identifier: MIT browser.action tab/session state:
+//             actionTabState + actionSnapshotRef types + resolveTabURL +
+//             ResolveTabRef + readTabState + finalizeTabOutput + saveTabState +
+//             extractSnapshotRefs + tabStatePath + validBrowserSessionID +
+//             CloseSession + CloseTab + ListTabs + URL/host validators
+//             (validateCDPURL, validateURL, validateHostEgress). Split from
+//             action.go during Day 211 god-file refactor (#38). Public API
+//             unchanged.
 
 import (
 	"context"

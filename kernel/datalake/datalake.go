@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Lake core: types + Open + loadCollection + validName.
-// Code extracted from datalake.go during the Day-68 god-file split. Public API unchanged.
 package datalake
 
+// Provenance: Lake core: types + Open + loadCollection + validName. Code extracted
+//             from datalake.go during the Day-68 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -14,8 +15,6 @@ import (
 	"strings"
 	"sync"
 )
-
-
 
 // ErrNotFound is returned when a collection or record id does not exist.
 var ErrNotFound = errors.New("datalake: not found")

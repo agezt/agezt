@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// /v1/chat/completions entry-point handler. Split from openaiapi_stream.go
-// during Day 211 god-file refactor (#32).
-// Public API unchanged.
 package openaiapi
+
+// Provenance: SPDX-License-Identifier: MIT /v1/chat/completions entry-point handler.
+//             Split from openaiapi_stream.go during Day 211 god-file refactor (#32).
+//             Public API unchanged.
 
 import (
 	"net/http"

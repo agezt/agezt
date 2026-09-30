@@ -196,4 +196,3 @@ func Describe(sinks []Sink) string {
 	}
 	return fmt.Sprintf("%d sink(s): %s", len(sinks), strings.Join(parts, ", "))
 }
-

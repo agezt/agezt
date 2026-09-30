@@ -1,17 +1,15 @@
-// SPDX-License-Identifier: MIT
-//
-// Runtime runexec public delegate wrappers: FoldRunTools + Why + Causes +
-// ParentOf + Verify (one-line passthroughs to the runexec sub-package's
-// Runner). Split from runexec_helpers.go during Day 211 god-file
-// refactor (#34). Public API unchanged.
 package runtime
+
+// Provenance: SPDX-License-Identifier: MIT Runtime runexec public delegate wrappers:
+//             FoldRunTools + Why + Causes + ParentOf + Verify (one-line passthroughs
+//             to the runexec sub-package's Runner). Split from runexec_helpers.go
+//             during Day 211 god-file refactor (#34). Public API unchanged.
 
 import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // FoldRunTools counts tool.result events for corr and collects the
 // tool names invoked (in order), for the distillation transcript.

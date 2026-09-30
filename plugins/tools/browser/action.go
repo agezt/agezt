@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// browser.action tool: ActionTool struct + actionArtifactIndexer +
-// actionRunSpec + actionRunOutput types + NewAction + setter methods +
-// Definition (the JSON schema the model sees). The Default*/Max*/actionProfile*
-// constants live here because every other file in the package references them.
-// Split from action.go during Day 211 god-file refactor (#38).
-// Public API unchanged.
 package browser
+
+// Provenance: SPDX-License-Identifier: MIT browser.action tool: ActionTool struct +
+//             actionArtifactIndexer + actionRunSpec + actionRunOutput types +
+//             NewAction + setter methods + Definition (the JSON schema the model
+//             sees). The Default*/Max*/actionProfile* constants live here because
+//             every other file in the package references them. Split from action.go
+//             during Day 211 god-file refactor (#38). Public API unchanged.
 
 import (
 	"context"
@@ -34,7 +33,6 @@ const (
 	actionProfileUserAttached = "user-attached"
 	actionProfileRemoteCDP    = "remote-cdp"
 )
-
 
 // ActionTool is the governed, first-party browser action wrapper. It runs a
 // Playwright driver: each call opens a browser, performs the requested action

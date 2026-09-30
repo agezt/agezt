@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Scheduler run: Executor.Run (the big 250-line runner) + assertAcyclic.
-// Code extracted from scheduler.go during the Day-64 god-file split. Public API unchanged.
 package scheduler
 
+// Provenance: Scheduler run: Executor.Run (the big 250-line runner) + assertAcyclic.
+//             Code extracted from scheduler.go during the Day-64 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -12,7 +13,6 @@ import (
 	"sort"
 	"sync"
 )
-
 
 func (e *Executor) Run(ctx context.Context, plan Plan, correlationID string) (*PlanResult, error) {
 	if len(plan.Nodes) == 0 {

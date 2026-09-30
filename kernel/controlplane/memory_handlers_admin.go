@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Memory bulk + audit + cleanup handlers (BulkForget/FindRelated/Audit/Clean).
-// Code extracted from memory_handlers.go during the Day-81 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Memory bulk + audit + cleanup handlers
+//             (BulkForget/FindRelated/Audit/Clean). Code extracted from
+//             memory_handlers.go during the Day-81 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"

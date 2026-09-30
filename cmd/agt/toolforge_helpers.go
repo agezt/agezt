@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `toolforge` shared helpers (toolforgeFlags type + parseToolforgeFlags).
-// Extracted from toolforge.go during Day 211 god-file refactor (#97).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `toolforge` shared helpers
+//             (toolforgeFlags type + parseToolforgeFlags). Extracted from
+//             toolforge.go during Day 211 god-file refactor (#97). Public API
+//             unchanged.
 
 import (
 	"fmt"

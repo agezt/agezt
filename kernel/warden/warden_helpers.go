@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Warden helpers: actorOrDefault + downgradeReason.
-// Code extracted from warden.go during the Day-72 god-file split. Public API unchanged.
 package warden
 
-
-
-
-
+// Provenance: Warden helpers: actorOrDefault + downgradeReason. Code extracted from
+//             warden.go during the Day-72 god-file split. Public API unchanged.
 
 func actorOrDefault(a string) string {
 	if a == "" {

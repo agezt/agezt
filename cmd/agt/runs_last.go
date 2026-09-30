@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt runs last sub-command handler + small helpers (cmdRunsLast,
-// failedByReasonStr, arcPreview, synthesizePlanSummary, fmtDuration).
-// Extracted from runs_last.go during Day 211 god-file refactor (#36, #63).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt runs last sub-command handler +
+//             small helpers (cmdRunsLast, failedByReasonStr, arcPreview,
+//             synthesizePlanSummary, fmtDuration). Extracted from runs_last.go
+//             during Day 211 god-file refactor (#36, #63). Public API unchanged.
 
 import (
 	"context"
@@ -15,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/format"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 func cmdRunsLast(args []string, stdout, stderr io.Writer) int {
@@ -99,6 +98,7 @@ func failedByReasonStr(raw any) string {
 	}
 	return strings.Join(parts, ", ")
 }
+
 // arcPreviewRunes bounds a tool input/output excerpt on a task-arc line (M68) —
 // long enough to read a short command or error, short enough to keep one event
 // per line. Mirrors the server-side toolOutputPreviewRunes for `agt tool log`.

@@ -83,4 +83,3 @@ func wahaChatID(target string) string {
 	}
 	return target + "@c.us"
 }
-

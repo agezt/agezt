@@ -107,7 +107,12 @@ func TestRenderGroup(t *testing.T) {
 func TestRun_GeneratesAndIsIdempotent(t *testing.T) {
 	root := t.TempDir()
 	// Lay out a tiny repo: one kernel package with doc.go.
-	must := func(err error) { t.Helper(); if err != nil { t.Fatal(err) } }
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	must(os.MkdirAll(filepath.Join(root, "kernel", "alpha"), 0o755))
 	must(os.WriteFile(
 		filepath.Join(root, "kernel", "alpha", "doc.go"),

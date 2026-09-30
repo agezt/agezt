@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 
-// REST API core: types (Caller/Engine/Server/Config) + New + SetTenantResolver/Authorizer/Readiness/Metrics/UpdateService + bind.
-// Code extracted from restapi.go during the Day-66 god-file split. Public API unchanged.
 package restapi
 
+// Provenance: REST API core: types (Caller/Engine/Server/Config) + New +
+//             SetTenantResolver/Authorizer/Readiness/Metrics/UpdateService + bind.
+//             Code extracted from restapi.go during the Day-66 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/event"
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/update"
 	"net/http"
 	"strings"
 )
-
-
 
 // maxRequestBodyBytes caps an HTTP request body (M198). The API surfaces are
 // network-exposed and token-authed, but a token holder (or a compromised/buggy

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package providerboot owns provider bootstrap for the daemon: primary
-// selection, alternate registration, the governor's construction, and the
-// hot-reload path. The unconfiguredProvider stub moved to
-// providerboot_stub.go; the cross-provider down-route eligibleSet moved to
-// providerboot_set.go; governor env parsing moved to
-// providerboot_config.go. Day-211 god-file split. Public API unchanged.
 package providerboot
+
+// Provenance: Package providerboot owns provider bootstrap for the daemon: primary
+//             selection, alternate registration, the governor's construction, and
+//             the hot-reload path. The unconfiguredProvider stub moved to
+//             providerboot_stub.go; the cross-provider down-route eligibleSet moved
+//             to providerboot_set.go; governor env parsing moved to
+//             providerboot_config.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"io"
@@ -132,7 +133,6 @@ func Middleware(get func(string) string) []agent.Middleware {
 	}
 	return mws
 }
-
 
 // registerAlternates is the ONE shared registration path for every non-primary
 // provider: every OTHER credentialed + supported catalog provider is registered

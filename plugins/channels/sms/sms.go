@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// SMS channel: Config + Channel + New + Name + Handler + Start + handleInbound + verify + signedURL + Send + sendOne + emit + writeTwiML + xmlEscape.
-// Code extracted from sms.go during the Day-134 god-file split.
-// Public API unchanged.
 package sms
+
+// Provenance: SMS channel: Config + Channel + New + Name + Handler + Start +
+//             handleInbound + verify + signedURL + Send + sendOne + emit +
+//             writeTwiML + xmlEscape. Code extracted from sms.go during the Day-134
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

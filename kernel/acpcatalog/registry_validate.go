@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Registry validation + discovery: validateRegistry + packageEnv + validateRegistryEnv + Discover + DiscoverWith + registryStatus + mergeLocalDetection + countInventory.
-// Code extracted from registry.go during the Day-70 god-file split. Public API unchanged.
 package acpcatalog
 
+// Provenance: Registry validation + discovery: validateRegistry + packageEnv +
+//             validateRegistryEnv + Discover + DiscoverWith + registryStatus +
+//             mergeLocalDetection + countInventory. Code extracted from registry.go
+//             during the Day-70 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -12,7 +14,6 @@ import (
 	"strings"
 	"time"
 )
-
 
 func validateRegistry(reg Registry) error {
 	if !strings.HasPrefix(reg.Version, "1.") {

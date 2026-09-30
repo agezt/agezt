@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt catalog sub-commands (cmdCatalog, cmdCatalogList).
-// Extracted from main_approvals_plan.go during Day 211 god-file refactor (#67).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt catalog sub-commands (cmdCatalog,
+//             cmdCatalogList). Extracted from main_approvals_plan.go during Day 211
+//             god-file refactor (#67). Public API unchanged.
 
 import (
 	"context"
@@ -12,9 +11,9 @@ import (
 	"io"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdCatalog(args []string, stdout, stderr io.Writer) int {

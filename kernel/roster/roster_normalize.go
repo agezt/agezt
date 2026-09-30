@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-// Package roster: profile normalizers (normalizeProfile +
-// normalizeProfilePolicies — the top-level normalize dispatcher).
-// The small normalize helpers (enforceNoiseToolDeny +
-// applySystemGuardianDefaults + noiseSeverityRank + compactStrings +
-// compactUniqueStrings) moved to roster_normalize_helpers.go; the per-field
-// validators moved to roster_normalize_validate.go. Day-211 god-file split.
-// Public API unchanged.
 package roster
 
+// Provenance: Package roster: profile normalizers (normalizeProfile +
+//             normalizeProfilePolicies — the top-level normalize dispatcher). The
+//             small normalize helpers (enforceNoiseToolDeny +
+//             applySystemGuardianDefaults + noiseSeverityRank + compactStrings +
+//             compactUniqueStrings) moved to roster_normalize_helpers.go; the
+//             per-field validators moved to roster_normalize_validate.go. Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
 func normalizeProfile(p *Profile, nowMS int64) {
 	p.Slug = strings.TrimSpace(p.Slug)
 	p.Name = strings.TrimSpace(p.Name)

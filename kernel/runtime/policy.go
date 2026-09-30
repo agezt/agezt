@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime tool-call policy hook (capability + verdict).
-// Code extracted from policy.go during the Day-82 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime tool-call policy hook (capability + verdict). Code extracted
+//             from policy.go during the Day-82 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -16,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
-
 
 // policyHook adapts the kernel's Edict engine to the agent.Policy
 // signature the tool-loop expects. It is called once per ToolCall,

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package whoami is documented in doc.go; this file holds the
-// command implementation, lifted verbatim from cmd/agt/whoami.go
-// at the Day 5 refactor.
 package whoami
+
+// Package whoami is documented in doc.go; this file holds the command
+// implementation, lifted verbatim from cmd/agt/whoami.go at the Day 5
+// refactor.
 
 import (
 	"context"

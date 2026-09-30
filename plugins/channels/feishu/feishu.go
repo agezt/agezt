@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Feishu channel: types + lifecycle + receive + send + emit + helpers.
-// Code extracted from feishu.go during the Day-119 god-file split.
-// Public API unchanged.
 package feishu
+
+// Provenance: Feishu channel: types + lifecycle + receive + send + emit + helpers.
+//             Code extracted from feishu.go during the Day-119 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -19,8 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
-
 
 const (
 	// DefaultPath is the inbound event route Feishu should POST to.

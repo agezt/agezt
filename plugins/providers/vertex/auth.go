@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// plugins/providers/vertex auth: ServiceAccountKey + TokenSource + TokenMinter
-// types + LoadServiceAccountFile + ParseServiceAccountJSON + parsePrivateKey
-// + NewTokenSource.
-// Extracted from auth.go during Day 211 god-file refactor (#89).
-// Public API unchanged.
 package vertex
+
+// Provenance: SPDX-License-Identifier: MIT plugins/providers/vertex auth:
+//             ServiceAccountKey + TokenSource + TokenMinter types +
+//             LoadServiceAccountFile + ParseServiceAccountJSON + parsePrivateKey +
+//             NewTokenSource. Extracted from auth.go during Day 211 god-file
+//             refactor (#89). Public API unchanged.
 
 import (
 	"context"

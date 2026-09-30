@@ -1,31 +1,22 @@
-// SPDX-License-Identifier: MIT
-//
-// Package bus is the in-process event bus. Core types, constructor, the
-// redactor/subscription machinery, Subscribe, and Close. Split from bus.go
-// during Day 211 god-file refactor (#33).
-//
-// Publishing semantics: every Publish persists the event to the journal
-// (which fsyncs) BEFORE notifying any subscriber. This is the
-// "durable-before-publish" invariant from TASKS P0-BUS-03 / DECISIONS B0c —
-// no subscriber ever sees an event that is not in the chain.
-//
-// Subscription patterns are dot-separated tokens with two wildcards:
-//
-//	"*"   matches exactly one token.
-//	">"   matches one or more remaining tokens; MUST be the last token.
-//
-// Examples:
-//
-//	"agent.spawned"  matches "agent.spawned" only.
-//	"agent.*"        matches "agent.spawned", not "agent.01H.tool".
-//	"agent.>"        matches "agent.spawned" AND "agent.01H.tool".
-//	">"              matches everything.
-//
-// Subscriber channels are bounded; when a subscriber falls behind, the bus
-// drops events for that subscriber and increments its Dropped counter
-// rather than blocking publishers. Subscribers must monitor Dropped and
-// either widen their buffer or process faster.
 package bus
+
+// Provenance: SPDX-License-Identifier: MIT Package bus is the in-process event bus.
+//             Core types, constructor, the redactor/subscription machinery,
+//             Subscribe, and Close. Split from bus.go during Day 211 god-file
+//             refactor (#33). Publishing semantics: every Publish persists the event
+//             to the journal (which fsyncs) BEFORE notifying any subscriber. This is
+//             the "durable-before-publish" invariant from TASKS P0-BUS-03 /
+//             DECISIONS B0c — no subscriber ever sees an event that is not in the
+//             chain. Subscription patterns are dot-separated tokens with two
+//             wildcards: "*" matches exactly one token. ">" matches one or more
+//             remaining tokens; MUST be the last token. Examples: "agent.spawned"
+//             matches "agent.spawned" only. "agent.*" matches "agent.spawned", not
+//             "agent.01H.tool". "agent.>" matches "agent.spawned" AND
+//             "agent.01H.tool". ">" matches everything. Subscriber channels are
+//             bounded; when a subscriber falls behind, the bus drops events for that
+//             subscriber and increments its Dropped counter rather than blocking
+//             publishers. Subscribers must monitor Dropped and either widen their
+//             buffer or process faster.
 
 import (
 	"bytes"

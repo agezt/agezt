@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt skill export` CLI dispatcher (cmdSkillExport) +
-// exportAllSkills (the actual export routine — walks the catalog, builds
-// bundles, writes files to disk). Extracted from skill_export.go during the
-// Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt skill export` CLI dispatcher (cmdSkillExport) +
+//             exportAllSkills (the actual export routine — walks the catalog, builds
+//             bundles, writes files to disk). Extracted from skill_export.go during
+//             the Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func exportAllSkills(dir, agentFilter string, stdout, stderr io.Writer) int {
 	c := dialpkg.New(stderr)
 	if c == nil {

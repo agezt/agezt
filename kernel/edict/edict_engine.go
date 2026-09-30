@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package edict: Engine getters (Levels + HardDenyRules + AskPolicy +
-// SetAskPolicy), New constructor, and Engine mutators (SetLevel + AddHardDeny
-// + RemoveHardDeny). Default levels/rules/parsing moved to edict_defaults.go;
-// Decide + DecideWithCeiling moved to edict_decide.go. Day-211 god-file split.
-// Public API unchanged.
 package edict
 
+// Provenance: Package edict: Engine getters (Levels + HardDenyRules + AskPolicy +
+//             SetAskPolicy), New constructor, and Engine mutators (SetLevel +
+//             AddHardDeny + RemoveHardDeny). Default levels/rules/parsing moved to
+//             edict_defaults.go; Decide + DecideWithCeiling moved to
+//             edict_decide.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 )
+
 func (e *Engine) Levels() map[Capability]TrustLevel {
 	e.mu.RLock()
 	defer e.mu.RUnlock()

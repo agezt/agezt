@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// vault.go owns the `agt vault` dispatcher (cmdVault) and
-// its inline help / runtime-KDF diagnostics printers
-// (printVaultHelp, printVaultKDF). Every vault mutation
-// subcommand (status / encrypt / decrypt / rotate /
-// migrate) lives in vault_subcommands.go.
 package main
+
+// vault.go owns the `agt vault` dispatcher (cmdVault) and its inline
+// help / runtime-KDF diagnostics printers (printVaultHelp,
+// printVaultKDF). Every vault mutation subcommand (status / encrypt /
+// decrypt / rotate / migrate) lives in vault_subcommands.go.
 
 import (
 	"fmt"
@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/creds"
 )
-
 
 // cmdVault dispatches `agt vault <subcommand>`. M1.w added three;
 // M1.ee adds rotate:
@@ -57,7 +56,6 @@ func cmdVault(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 }
-
 
 func printVaultHelp(w io.Writer) {
 	fmt.Fprintf(w, "usage: %s vault <subcommand>\n", brand.CLI)

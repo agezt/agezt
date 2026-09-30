@@ -1,16 +1,15 @@
-// SPDX-License-Identifier: MIT
-//
-// /v1/chat/completions request types: chatRequest + chatRespFormat +
-// wantsJSON + streamOptions + chatMessage + text/images/inputImages methods
-// + imagesFromMessages extractor. Split from openaiapi_server.go during
-// Day 211 god-file refactor (#35). Public API unchanged.
 package openaiapi
+
+// Provenance: SPDX-License-Identifier: MIT /v1/chat/completions request types:
+//             chatRequest + chatRespFormat + wantsJSON + streamOptions + chatMessage
+//             + text/images/inputImages methods + imagesFromMessages extractor.
+//             Split from openaiapi_server.go during Day 211 god-file refactor (#35).
+//             Public API unchanged.
 
 import (
 	"encoding/json"
 	"strings"
 )
-
 
 type chatRequest struct {
 	Model          string          `json:"model"`

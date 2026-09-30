@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor entry: cmdDoctor dispatcher + types (doctorOptions,
-// checkStatus, doctorCheck) + helpers (ok, warn, fail, doctorExitCode,
-// label) + runDoctorChecks orchestrator + renderDoctorText +
-// renderDoctorJSON. Split from doctor.go during Day 211 god-file
-// refactor (#40). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor entry: cmdDoctor
+//             dispatcher + types (doctorOptions, checkStatus, doctorCheck) + helpers
+//             (ok, warn, fail, doctorExitCode, label) + runDoctorChecks orchestrator
+//             + renderDoctorText + renderDoctorJSON. Split from doctor.go during Day
+//             211 god-file refactor (#40). Public API unchanged.
 
 import (
 	"context"

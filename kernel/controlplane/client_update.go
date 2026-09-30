@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane Client: self-update surface (UpdateCheck + UpdateApply + related types).
-// Code extracted from client.go during the Day-115 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane Client: self-update surface (UpdateCheck + UpdateApply +
+//             related types). Code extracted from client.go during the Day-115
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 
 // UpdateCheckResult is the result of an update check.
 type UpdateCheckResult struct {
-
 	Current  string
 	UpToDate bool
 	Update   *UpdateInfo

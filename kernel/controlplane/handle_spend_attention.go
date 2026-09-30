@@ -55,20 +55,21 @@ func (s *Server) handleSpendToday(conn net.Conn, req Request) {
 //
 // Args (both optional):
 //   - window: time window for time-sensitive kinds (pulse_ask). Default 24h.
-//             Approvals ignore the window. Accepts "5m", "1h", "24h", or any
-//             string time.ParseDuration understands; falls back to 24h on bad
-//             input rather than 400ing — the panel is a status read, not an
-//             action.
+//     Approvals ignore the window. Accepts "5m", "1h", "24h", or any
+//     string time.ParseDuration understands; falls back to 24h on bad
+//     input rather than 400ing — the panel is a status read, not an
+//     action.
 //   - limit:  max items returned. Default 8, hard cap 50.
 //
 // Result:
-//   { "items": [
-//       { "id": "<approval-or-issue-key>",
-//         "kind": "approval" | "pulse_ask",
-//         "summary": "<one-line>",
-//         "ts": <unix ms>,         // for approvals, the CreatedAt; for asks, the raise ts.
-//         "href": "/approvals" | "/jarvis#ask-<issue_key>" } ],
-//     "count": <int> }
+//
+//	{ "items": [
+//	    { "id": "<approval-or-issue-key>",
+//	      "kind": "approval" | "pulse_ask",
+//	      "summary": "<one-line>",
+//	      "ts": <unix ms>,         // for approvals, the CreatedAt; for asks, the raise ts.
+//	      "href": "/approvals" | "/jarvis#ask-<issue_key>" } ],
+//	  "count": <int> }
 //
 // Items are sorted newest-first, then truncated to limit. The Web UI hook
 // (useAttention) renders the list directly — no extra shape coercion.

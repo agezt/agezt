@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime runexec: Run/RunAssured/RunWithRetry + run-state setup/cleanup + FoldRunTools + CompleteAgentLifecycle.
-// Code extracted from runexec.go during the Day-122 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime runexec: Run/RunAssured/RunWithRetry + run-state setup/cleanup
+//             + FoldRunTools + CompleteAgentLifecycle. Code extracted from
+//             runexec.go during the Day-122 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 // This file is the kernel's run engine: the entry points an external
 // caller drives (Run / RunAssured / RunWithRetry / RunWith), the
@@ -45,9 +44,10 @@ func (k *Kernel) Run(ctx context.Context, intent string) (string, string, error)
 	return ans, corr, err
 }
 
-// assureVerifyMaxTokens bounds the verifier completion — it only emits a tiny
-// JSON verdict, so a small cap keeps the completion check cheap.
-const assureVerifyMaxTokens = 400
+// assureVerifyMaxTokens used to bound the verifier completion — it only emits
+// a tiny JSON verdict, so a small cap kept the completion check cheap. It is
+// gone: the cap was never applied at the call site, and an unused const is a
+// promise the code does not keep.
 
 // RunAssured is the "do-it-for-sure" loop (M651): it runs the intent, asks a
 // verifier whether the task was actually accomplished, and retries with the gap
@@ -102,10 +102,13 @@ func (k *Kernel) RetryReason(err error) string { return retryReason(err) }
 // AgentRetryable reports whether the given reason matches the
 // policy's RetryOn allowlist. Empty RetryOn = default ("error"
 // and "timeout" only — never auto-retry a halted/cancelled run).
-func (k *Kernel) AgentRetryable(reason string, retryOn []string) bool { return agentRetryable(reason, retryOn) }
+func (k *Kernel) AgentRetryable(reason string, retryOn []string) bool {
+	return agentRetryable(reason, retryOn)
+}
 
 // RetryDelay computes the wait between attempts. Exponential
 // backoff doubles each attempt; MaxDelaySec caps the result.
 // Zero base delay = no wait (try immediately).
-func (k *Kernel) RetryDelay(pol roster.RetryPolicy, attempt int) time.Duration { return retryDelay(pol, attempt) }
-
+func (k *Kernel) RetryDelay(pol roster.RetryPolicy, attempt int) time.Duration {
+	return retryDelay(pol, attempt)
+}

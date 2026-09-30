@@ -172,4 +172,3 @@ func (c *Channel) send(ctx context.Context, out channel.Outbound, corr string) e
 // sendAttachment uploads one media attachment via the matching Bot API method
 // (sendVoice for OGG/Opus, sendAudio for other audio, sendPhoto for images,
 // sendDocument otherwise) as multipart/form-data.
-

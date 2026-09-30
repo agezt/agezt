@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Agent loop config: LoopConfig.
-// Code extracted from agent.go during the Day-78 god-file split. Public API unchanged.
 package agent
 
+// Provenance: Agent loop config: LoopConfig. Code extracted from agent.go during the
+//             Day-78 god-file split. Public API unchanged.
 
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/bus"
 	"time"
 )
-
 
 // LoopConfig configures one tool-loop run.
 type LoopConfig struct {

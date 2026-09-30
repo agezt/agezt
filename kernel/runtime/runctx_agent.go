@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Run context agent: WithAgentProfile + effectiveAgentNoisePolicy + agentNoisePolicyFromCtx + appendUniqueString + WithAgentIdent + agentIdentFromCtx + agentSlugFromCtx + agentDailyMcFromCtx.
-// Code extracted from runctx.go during the Day-69 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Run context agent: WithAgentProfile + effectiveAgentNoisePolicy +
+//             agentNoisePolicyFromCtx + appendUniqueString + WithAgentIdent +
+//             agentIdentFromCtx + agentSlugFromCtx + agentDailyMcFromCtx. Code
+//             extracted from runctx.go during the Day-69 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -13,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"strings"
 )
-
 
 // application (its model resolves before the vision gate).
 func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {

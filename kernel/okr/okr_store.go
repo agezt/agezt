@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// OKR persistent Store: OpenStore + every public Store
-// method (Create / Get / List / AddKeyResult / LinkTask /
-// UnlinkTask / SetStatus / Archive / ObjectivesForTask).
-// The private Store methods (mutate / find / saveLocked)
-// and the findKR / cloneObjective helpers live in
-// okr_store_internals.go. Code extracted from okr.go during
-// the Day-140 god-file split. Public API unchanged.
 package okr
+
+// Provenance: OKR persistent Store: OpenStore + every public Store method (Create /
+//             Get / List / AddKeyResult / LinkTask / UnlinkTask / SetStatus /
+//             Archive / ObjectivesForTask). The private Store methods (mutate / find
+//             / saveLocked) and the findKR / cloneObjective helpers live in
+//             okr_store_internals.go. Code extracted from okr.go during the Day-140
+//             god-file split. Public API unchanged.
 
 import (
 	"errors"
@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{now: time.Now}

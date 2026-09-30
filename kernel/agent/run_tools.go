@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Agent run-tools: toolJob + runState types + newRunState + executeToolJobs + invokeToolJob + finalizeToolJobs + policyDecisionPayload.
-// Code extracted from run_tools.go during the Day-127 god-file split.
-// Public API unchanged.
 package agent
 
+// Provenance: Agent run-tools: toolJob + runState types + newRunState +
+//             executeToolJobs + invokeToolJob + finalizeToolJobs +
+//             policyDecisionPayload. Code extracted from run_tools.go during the
+//             Day-127 god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // The loop's tool turn, extracted from Run (refactor Phase 3.2).
 //

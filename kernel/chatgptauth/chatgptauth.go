@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package chatgptauth: ChatGPT OAuth manager — Tokens + Manager types +
-// NewManager + clock + ensureLoaded + persist + HasTokens + Token +
-// ForceRefresh + needsRefreshLocked + refreshLocked + StoreTokens + Account
-// + Logout. The OAuth flow + PKCE helpers + Codex CLI importer moved to
-// chatgptauth_helpers.go. Day-211 god-file split. Public API unchanged.
 package chatgptauth
 
+// Provenance: Package chatgptauth: ChatGPT OAuth manager — Tokens + Manager types +
+//             NewManager + clock + ensureLoaded + persist + HasTokens + Token +
+//             ForceRefresh + needsRefreshLocked + refreshLocked + StoreTokens +
+//             Account + Logout. The OAuth flow + PKCE helpers + Codex CLI importer
+//             moved to chatgptauth_helpers.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -21,7 +22,6 @@ import (
 	"net/http"
 	"net/url"
 )
-
 
 // OAuth + backend constants (the Codex CLI public client).
 const (

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Google Gemini provider: wire types + applyParams.
-// Code extracted from google.go during the Day-104 god-file split.
-// Public API unchanged.
 package google
+
+// Provenance: Google Gemini provider: wire types + applyParams. Code extracted from
+//             google.go during the Day-104 god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -265,4 +265,3 @@ type geminiUsageMetadata struct {
 	// Usage.OutputTokens on decode.
 	ThoughtsTokenCount int `json:"thoughtsTokenCount"`
 }
-

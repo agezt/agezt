@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+
 package selfrepair
 
 import (
@@ -78,6 +79,7 @@ type autoRepairCandidate struct {
 	RoutingRollbackFromChain []string
 	RoutingRollbackToChain   []string
 }
+
 func newAutoRepairCoordinator(cooldown time.Duration) *autoRepairCoordinator {
 	if cooldown <= 0 {
 		cooldown = defaultAutoRepairCooldown
@@ -129,12 +131,13 @@ func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, 
 		}
 	}
 }
+
 // handleTick scans the reaper window and dispatches one repair per claimed
 // candidate. It is a separate frame purely so the panic firewall (WF-001) is
 // scoped to ONE tick: run() is launched with a bare `go` from WireAutoRepair, so
 // a panic in ReaperScan or claim used to take the daemon down with it. Recovering
 // per tick rather than around the whole loop also keeps auto-repair ARMED after a
-// bad event — disarming the fleet's healer on one malformed pulse would be a
+// bad event â€” disarming the fleet's healer on one malformed pulse would be a
 // silent, permanent degradation.
 func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string)) {
 	// claim() marks candidates in-flight and dispatch() is what releases them, so

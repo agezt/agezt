@@ -1,17 +1,15 @@
-// SPDX-License-Identifier: MIT
-//
-// Prompt environment + shell section: the shellHinter interface +
-// injectEnvironment + capabilityBriefing + forgeBias + defaultShellHint +
-// shellGuidance.
-// Extracted from prompt.go during the Day-203 god-file split.
-// Public API unchanged.
 package runtime
+
+// Provenance: SPDX-License-Identifier: MIT Prompt environment + shell section: the
+//             shellHinter interface + injectEnvironment + capabilityBriefing +
+//             forgeBias + defaultShellHint + shellGuidance. Extracted from prompt.go
+//             during the Day-203 god-file split. Public API unchanged.
 
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 	stdruntime "runtime"
+	"slices"
 	"strings"
 	"time"
 

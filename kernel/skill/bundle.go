@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/skill BundleStore type + OpenBundles constructor.
-// Extracted from bundle.go during Day 211 god-file refactor (#92).
-// Public API unchanged.
 package skill
+
+// Provenance: SPDX-License-Identifier: MIT kernel/skill BundleStore type +
+//             OpenBundles constructor. Extracted from bundle.go during Day 211
+//             god-file refactor (#92). Public API unchanged.
 
 import (
 	"fmt"

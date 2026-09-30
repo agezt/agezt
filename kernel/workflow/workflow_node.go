@@ -151,4 +151,3 @@ type Store struct {
 	now   func() time.Time
 	items []*Workflow
 }
-

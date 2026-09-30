@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Roster: profile Validate + per-policy sub-validators (Lifecycle/TaskList/Retry/Health/SelfRepair/Noise).
-// Code extracted from roster_validate.go during the Day-118 god-file split.
-// Public API unchanged.
 package roster
 
-
+// Provenance: Roster: profile Validate + per-policy sub-validators
+//             (Lifecycle/TaskList/Retry/Health/SelfRepair/Noise). Code extracted
+//             from roster_validate.go during the Day-118 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"
@@ -15,8 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"path/filepath"
 )
-
-
 
 func Validate(p Profile) error {
 	if !slugRe.MatchString(p.Slug) {
@@ -134,4 +132,3 @@ func Validate(p Profile) error {
 	}
 	return nil
 }
-

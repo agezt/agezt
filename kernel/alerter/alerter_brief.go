@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Alerter: brief builder + dedupe keys + small payload helpers.
-// Code extracted from alerter.go during the Day-133 god-file split.
-// Public API unchanged.
 package alerter
 
+// Provenance: Alerter: brief builder + dedupe keys + small payload helpers. Code
+//             extracted from alerter.go during the Day-133 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"

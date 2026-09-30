@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Config helpers: stringSliceMapToAny.
-// Code extracted from config.go during the Day-74 god-file split. Public API unchanged.
 package controlplane
 
-
-
-
-
+// Provenance: Config helpers: stringSliceMapToAny. Code extracted from config.go
+//             during the Day-74 god-file split. Public API unchanged.
 
 func stringSliceMapToAny(in map[string][]string) map[string]any {
 	out := make(map[string]any, len(in))

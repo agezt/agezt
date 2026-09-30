@@ -74,7 +74,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
-
 // ErrFamilyUnsupported is returned by Build when the catalog entry's
 // family isn't yet wired (OpenAI, Google, etc. — see package docs).
 var ErrFamilyUnsupported = errors.New("compat: provider family not yet supported")
@@ -359,4 +358,3 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provid
 			ErrFamilyUnsupported, p.ID, p.Family(), "openai-compatible")
 	}
 }
-

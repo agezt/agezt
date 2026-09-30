@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane tool-log + tool-stats handlers (handleToolLog, handleToolStats).
-// Extracted from tool_log.go during Day 211 god-file refactor (#78).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tool-log + tool-stats
+//             handlers (handleToolLog, handleToolStats). Extracted from tool_log.go
+//             during Day 211 god-file refactor (#78). Public API unchanged.
 
 import (
 	"net"

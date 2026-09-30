@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Package memory: small tool helpers — toolActor (extract the caller's
-// agent slug from context) + toolTags (the per-call tag set) + scopeOf
-// (read the scope tag) + filterScope (scope filter on Records) +
-// renderHits (markdown table renderer for scored hits) + plural (n-things
-// pluraliser) + distillResult (the LLM-distilled record payload). Extracted
-// from manager_tool.go during the Day-211 god-file split. Public API
-// unchanged.
 package memory
 
+// Provenance: Package memory: small tool helpers — toolActor (extract the caller's
+//             agent slug from context) + toolTags (the per-call tag set) + scopeOf
+//             (read the scope tag) + filterScope (scope filter on Records) +
+//             renderHits (markdown table renderer for scored hits) + plural
+//             (n-things pluraliser) + distillResult (the LLM-distilled record
+//             payload). Extracted from manager_tool.go during the Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

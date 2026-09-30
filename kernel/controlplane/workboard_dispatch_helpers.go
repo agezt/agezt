@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard dispatch helpers (buildWorkboardDispatchIntent, publishWorkboardDispatch,
-// latestWorkboardRunID, workboardWatchEvents).
-// Extracted from workboard_dispatch.go during Day 211 god-file refactor (#70).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Workboard dispatch helpers
+//             (buildWorkboardDispatchIntent, publishWorkboardDispatch,
+//             latestWorkboardRunID, workboardWatchEvents). Extracted from
+//             workboard_dispatch.go during Day 211 god-file refactor (#70). Public
+//             API unchanged.
 
 import (
 	"encoding/json"

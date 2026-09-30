@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Mutating HTTP routes: writeRoutes (POST commands) + jsonRoutes (POSTs that proxy with body args) + planRoute.
-// Code extracted from webui.go during the Day-51 god-file split. Public API unchanged.
 package webui
 
+// Provenance: Mutating HTTP routes: writeRoutes (POST commands) + jsonRoutes (POSTs
+//             that proxy with body args) + planRoute. Code extracted from webui.go
+//             during the Day-51 god-file split. Public API unchanged.
 
 import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
 )
-
 
 var writeRoutes = map[string]writeRoute{
 	"/api/halt":   {controlplane.CmdHalt, []string{"reason"}},
@@ -47,8 +47,8 @@ var writeRoutes = map[string]writeRoute{
 	// without a daemon restart. No args.
 	"/api/provider/reload": {controlplane.CmdProviderReload, nil},
 	// Send an outbound message via a configured channel (M747): channel + to + text.
-	"/api/send":          {controlplane.CmdSend, []string{"channel", "to", "text"}},
-	"/api/cancel_run":    {controlplane.CmdCancelRun, []string{"correlation"}},
+	"/api/send":       {controlplane.CmdSend, []string{"channel", "to", "text"}},
+	"/api/cancel_run": {controlplane.CmdCancelRun, []string{"correlation"}},
 	// /api/budget_set went un-wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2);
 	// reachable via CmdBudgetSet when an operator needs to adjust the ceiling.
 	"/api/run/pause":     {controlplane.CmdRunPause, []string{"correlation"}},
@@ -102,11 +102,11 @@ var writeRoutes = map[string]writeRoute{
 	"/api/skill/share":      {controlplane.CmdSkillShare, []string{"id"}},
 	// /api/skill/reassign was never wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2);
 	// reachable via CmdSkillReassign when an operator needs to reassign a skill.
-	"/api/schedule/remove":  {controlplane.CmdScheduleRemove, []string{"id"}},
-	"/api/schedule/run":     {controlplane.CmdScheduleRun, []string{"id"}},
-	"/api/schedule/enable":  {controlplane.CmdScheduleEnable, []string{"id", "enabled"}},
-	"/api/standing/enable":  {controlplane.CmdStandingSetEnabled, []string{"id", "enabled"}},
-	"/api/standing/remove":  {controlplane.CmdStandingRemove, []string{"id"}},
+	"/api/schedule/remove": {controlplane.CmdScheduleRemove, []string{"id"}},
+	"/api/schedule/run":    {controlplane.CmdScheduleRun, []string{"id"}},
+	"/api/schedule/enable": {controlplane.CmdScheduleEnable, []string{"id", "enabled"}},
+	"/api/standing/enable": {controlplane.CmdStandingSetEnabled, []string{"id", "enabled"}},
+	"/api/standing/remove": {controlplane.CmdStandingRemove, []string{"id"}},
 	// Fire a standing order now (M765), ignoring its triggers — test or run on demand.
 	"/api/standing/fire": {controlplane.CmdStandingFire, []string{"id"}},
 	// Agent roster lifecycle (M783): pause/resume/remove a named agent (ref = id or slug).
@@ -208,8 +208,8 @@ var jsonRoutes = map[string]writeRoute{
 	// Personal Data Lake writes (M836): insert/update carry the record object —
 	// JSON bodies, not query args. The create-collection write was never wired
 	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdDataCreateCollection.
-	"/api/data/insert":     {controlplane.CmdDataInsert, []string{"collection", "record"}},
-	"/api/data/update":     {controlplane.CmdDataUpdate, []string{"collection", "id", "record"}},
+	"/api/data/insert": {controlplane.CmdDataInsert, []string{"collection", "record"}},
+	"/api/data/update": {controlplane.CmdDataUpdate, []string{"collection", "id", "record"}},
 	// Council of Elders ask (M839): convene the panel on a question. Long-running
 	// (several model calls) but bounded by the jsonProxy timeout. POST body.
 	"/api/council/ask": {controlplane.CmdCouncilAsk, []string{"question", "rounds", "corr"}},

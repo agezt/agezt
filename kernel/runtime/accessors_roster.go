@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel accessors: roster CRUD (Roster/AddProfile/SetProfileEnabled/SetProfileRetired/AgentImpact/UpdateProfile/RemoveProfile).
-// Code extracted from accessors.go during the Day-56 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel accessors: roster CRUD
+//             (Roster/AddProfile/SetProfileEnabled/SetProfileRetired/AgentImpact/UpdateProfile/RemoveProfile).
+//             Code extracted from accessors.go during the Day-56 god-file split.
+//             Public API unchanged.
 
 import (
 	"errors"
@@ -13,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 func (k *Kernel) Roster() *roster.Store { return k.roster }
 

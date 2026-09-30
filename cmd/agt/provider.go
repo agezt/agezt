@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `provider` top-level dispatcher + subcommand dispatchers
-// (cmdProvider, cmdProviderReload, cmdProviderCreds).
-// Extracted from provider.go during Day 211 god-file refactor (#74).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `provider` top-level dispatcher +
+//             subcommand dispatchers (cmdProvider, cmdProviderReload,
+//             cmdProviderCreds). Extracted from provider.go during Day 211 god-file
+//             refactor (#74). Public API unchanged.
 
 import (
 	"context"

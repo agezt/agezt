@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Research: ResearchOptions + withDefaults.
-// Code extracted from research.go during the Day-67 god-file split. Public API unchanged.
 package runtime
 
-
-
-
-
+// Provenance: Research: ResearchOptions + withDefaults. Code extracted from
+//             research.go during the Day-67 god-file split. Public API unchanged.
 
 // ResearchSource is one gathered, hashed web source. ID is the citation token
 // ("S1", "S2", ...) the synthesis must reference; Hash marks the fetched text so

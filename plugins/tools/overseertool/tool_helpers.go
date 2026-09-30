@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Overseer tool: profile parse/validate helpers + view/ok/err helpers.
-// Code extracted from tool.go during the Day-123 god-file split.
-// Public API unchanged.
 package overseertool
 
+// Provenance: Overseer tool: profile parse/validate helpers + view/ok/err helpers.
+//             Code extracted from tool.go during the Day-123 god-file split. Public
+//             API unchanged.
 
 import (
 	"fmt"

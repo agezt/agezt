@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package chatwebhook: Config + Channel + New + Name + Start + Handler +
-// inbound struct + handleInbound + verify + dispatch + Send + sendOne +
-// emitInbound + seenBefore. The platform-specific inbound payload parsers
-// (parseInbound + parseMattermost + parseGoogleChat) moved to
-// chatwebhook_parsers.go. Day-211 god-file split. Public API unchanged.
 package chatwebhook
 
+// Provenance: Package chatwebhook: Config + Channel + New + Name + Start + Handler +
+//             inbound struct + handleInbound + verify + dispatch + Send + sendOne +
+//             emitInbound + seenBefore. The platform-specific inbound payload
+//             parsers (parseInbound + parseMattermost + parseGoogleChat) moved to
+//             chatwebhook_parsers.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -26,6 +26,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
 const (
 	// KindGoogleChat / KindMattermost select the inbound/outbound dialect.
 	KindGoogleChat = "googlechat"

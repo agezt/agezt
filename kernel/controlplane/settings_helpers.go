@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane settings helpers (configFieldNeedsKernelReload, setLiveEnv).
-// Extracted from settings.go during Day 211 god-file refactor (#84).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane settings helpers
+//             (configFieldNeedsKernelReload, setLiveEnv). Extracted from settings.go
+//             during Day 211 god-file refactor (#84). Public API unchanged.
 
 import (
 	"os"

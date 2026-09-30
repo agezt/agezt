@@ -9,7 +9,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 )
 
-
 // cmdMemory dispatches `agt memory <subcommand>`. Memory-lite is the
 // content-addressed, journaled knowledge store the agent reads as injected
 // context; this is the operator's read/write path into it.
@@ -69,4 +68,3 @@ func cmdMemory(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 }
-

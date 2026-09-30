@@ -1,12 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt workboard helpers: the parseWorkboard* arg parsers +
-// workboardFlagValue (the flag walker) + callWorkboard (the dispatcher
-// caller) + the renderWorkboard* renderers + workboardWatchTerminal
-// (the watch-completion check).
-// Extracted from workboard.go during the Day-209 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt workboard helpers: the
+//             parseWorkboard* arg parsers + workboardFlagValue (the flag walker) +
+//             callWorkboard (the dispatcher caller) + the renderWorkboard* renderers
+//             + workboardWatchTerminal (the watch-completion check). Extracted from
+//             workboard.go during the Day-209 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/internal/strutil"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/internal/strutil"
 )
 
 func parseWorkboardIDJSON(args []string, name string, stderr io.Writer) (string, bool, bool) {

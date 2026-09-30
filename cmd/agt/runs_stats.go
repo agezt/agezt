@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt runs stats handler (cmdRunsStats).
-// Extracted from runs.go during Day 211 god-file refactor (#59).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt runs stats handler
+//             (cmdRunsStats). Extracted from runs.go during Day 211 god-file
+//             refactor (#59). Public API unchanged.
 
 import (
 	"context"
@@ -14,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdRunsStats(args []string, stdout, stderr io.Writer) int {

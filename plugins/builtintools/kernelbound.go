@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel-bound zero-arg specs (Phase 2.2 PR 4): the tools that used to be
-// constructed as captured locals in cmd/agezt/main.go (scheduleTool,
-// runsTool, …) and .Bind()-ed to the live kernel hundreds of lines later. All
-// of them are always-on, take no construction arguments, and their entire
-// late wiring needed nothing but the open kernel (+ baseDir for overseer) —
-// exactly the Configure phase. Each hook closes over the concrete instance its
-// own Build produced. The notify / send_media / board tools are NOT here: they
-// need live channels / the shared board store and stay in main.go until the
-// LateDeps PR.
 package builtintools
+
+// Kernel-bound zero-arg specs (Phase 2.2 PR 4): the tools that used to
+// be constructed as captured locals in cmd/agezt/main.go (scheduleTool,
+// runsTool, …) and .Bind()-ed to the live kernel hundreds of lines
+// later. All of them are always-on, take no construction arguments, and
+// their entire late wiring needed nothing but the open kernel (+ baseDir
+// for overseer) — exactly the Configure phase. Each hook closes over the
+// concrete instance its own Build produced. The notify / send_media /
+// board tools are NOT here: they need live channels / the shared board
+// store and stay in main.go until the LateDeps PR.
 
 import (
 	"github.com/agezt/agezt/kernel/agent"

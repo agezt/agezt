@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane tenant HTTP handlers (handleTenantCreate, handleTenantToken,
-// handleTenantList, handleTenantRelease, handleTenantRemove, handleTenantStats).
-// Extracted from tenant.go during Day 211 god-file refactor (#98).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tenant HTTP handlers
+//             (handleTenantCreate, handleTenantToken, handleTenantList,
+//             handleTenantRelease, handleTenantRemove, handleTenantStats). Extracted
+//             from tenant.go during Day 211 god-file refactor (#98). Public API
+//             unchanged.
 
 import (
 	"net"

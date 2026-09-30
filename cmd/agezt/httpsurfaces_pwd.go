@@ -1,13 +1,12 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agezt WebUI password helpers: consolePasswordFile + consolePasswordBytes
-// consts + ensureConsolePassword (the minter) +
-// webPasswordDefaultDisabled (the env-check) +
-// effectiveWebPassword (the resolution) +
-// bannerColor + bannerColorEnabled (the rendering helpers).
-// Extracted from httpsurfaces.go during the Day-208 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agezt WebUI password helpers:
+//             consolePasswordFile + consolePasswordBytes consts +
+//             ensureConsolePassword (the minter) + webPasswordDefaultDisabled (the
+//             env-check) + effectiveWebPassword (the resolution) + bannerColor +
+//             bannerColorEnabled (the rendering helpers). Extracted from
+//             httpsurfaces.go during the Day-208 god-file split. Public API
+//             unchanged.
 
 import (
 	"crypto/rand"

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Sub-agent entry points on *Kernel: runSubAgent, runSubAgentAsync, awaitSubAgent.
-// Code extracted from subagent.go during the Day-40 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Sub-agent entry points on *Kernel: runSubAgent, runSubAgentAsync,
+//             awaitSubAgent. Code extracted from subagent.go during the Day-40
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -13,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRef string) (string, error) {
 	p, err := k.prepareSubAgent(ctx, task, model, taskType, agentRef, false)

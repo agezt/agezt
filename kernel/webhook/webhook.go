@@ -28,7 +28,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-
 // DefaultMaxAttempts bounds delivery retries per event.
 const DefaultMaxAttempts = 3
 
@@ -114,4 +113,3 @@ func (d *Dispatcher) Start(ctx context.Context) {
 		go d.run(ctx, s, sub)
 	}
 }
-

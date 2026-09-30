@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime workboard: getter + state-transition wrappers + publishWorkboard.
-// Code extracted from workboard.go during the Day-121 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime workboard: getter + state-transition wrappers +
+//             publishWorkboard. Code extracted from workboard.go during the Day-121
+//             god-file split. Public API unchanged.
 
 import (
 	"time"
@@ -12,7 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workboard"
 )
-
 
 // Workboard returns the durable typed multi-agent work queue.
 func (k *Kernel) Workboard() *workboard.Store { return k.workboard }

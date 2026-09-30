@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt tool log command: cmdToolLog (the per-tool invocation log
-// viewer).
-// The cmdToolStats aggregate lives in tool_stats.go.
-// Extracted from tool_log.go during the Day-210 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt tool log command: cmdToolLog (the
+//             per-tool invocation log viewer). The cmdToolStats aggregate lives in
+//             tool_stats.go. Extracted from tool_log.go during the Day-210 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -15,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 

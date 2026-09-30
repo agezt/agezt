@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Self-repair per-pressure-kind fingerprint + reason helpers (M846).
-// One pair per pressure row type: Degraded + Retry + Routing +
-// RoutingUnstable + RoutingForcedFailed + RoutingForcedExhausted.
-// Extracted from selfrepair_fingerprints.go during the Day-202 god-file split.
-// Public API unchanged.
 package selfrepair
+
+// Provenance: Self-repair per-pressure-kind fingerprint + reason helpers (M846). One
+//             pair per pressure row type: Degraded + Retry + Routing +
+//             RoutingUnstable + RoutingForcedFailed + RoutingForcedExhausted.
+//             Extracted from selfrepair_fingerprints.go during the Day-202 god-file
+//             split. Public API unchanged.
 
 import (
 	"fmt"

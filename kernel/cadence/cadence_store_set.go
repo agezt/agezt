@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence store setters: SetIntent/Model/Agent/IntentTarget/WorkflowTarget/SystemTaskTarget/ToolTarget + Reschedule.
-// Code extracted from cadence_store.go during the Day-58 god-file split. Public API unchanged.
 package cadence
 
+// Provenance: Cadence store setters:
+//             SetIntent/Model/Agent/IntentTarget/WorkflowTarget/SystemTaskTarget/ToolTarget
+//             + Reschedule. Code extracted from cadence_store.go during the Day-58
+//             god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -11,7 +13,6 @@ import (
 	"strings"
 	"time"
 )
-
 
 // validateWindow checks the shared constraints for windowed schedules.
 func validateWindow(interval time.Duration, startMin, endMin, days int) error {

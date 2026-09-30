@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt tool command: dispatcher + List + toolRollbackLabel + Stats.
-// Code extracted from tool.go during the Day-120 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt tool command: dispatcher + List + toolRollbackLabel + Stats. Code
+//             extracted from tool.go during the Day-120 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
-
 
 // cmdTool dispatches `agt tool <subcommand>`. Currently the only
 // subcommand is `list`; left as a dispatcher (vs flattening into

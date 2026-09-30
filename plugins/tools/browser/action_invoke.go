@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// browser.action Invoke implementation: actionInput + browserStep +
-// browserViewport request types + Invoke + textLimit + validateActions +
-// validateActionOptions + prepareProfile + sessionDir. Split from action.go
-// during Day 211 god-file refactor (#38). Public API unchanged.
 package browser
+
+// Provenance: SPDX-License-Identifier: MIT browser.action Invoke implementation:
+//             actionInput + browserStep + browserViewport request types + Invoke +
+//             textLimit + validateActions + validateActionOptions + prepareProfile +
+//             sessionDir. Split from action.go during Day 211 god-file refactor
+//             (#38). Public API unchanged.
 
 import (
 	"context"

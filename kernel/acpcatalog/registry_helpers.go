@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Registry helpers: platformID + commandMatchesLaunch + renderCommand + displayArg + firstNonEmpty.
-// Code extracted from registry.go during the Day-70 god-file split. Public API unchanged.
 package acpcatalog
 
+// Provenance: Registry helpers: platformID + commandMatchesLaunch + renderCommand +
+//             displayArg + firstNonEmpty. Code extracted from registry.go during the
+//             Day-70 god-file split. Public API unchanged.
 
 import (
 	"runtime"
 	"strings"
 )
-
-
 
 func platformID() string {
 	arch := runtime.GOARCH

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// acp_helpers.go: newBoundedScanner + scanMessage + flattenPrompt split off from
-// acp.go during the Day 211 god-file refactor (#146). Public API unchanged.
 package acp
+
+// Provenance: acp_helpers.go: newBoundedScanner + scanMessage + flattenPrompt split
+//             off from acp.go during the Day 211 god-file refactor (#146). Public
+//             API unchanged.
 
 import (
 	"bufio"

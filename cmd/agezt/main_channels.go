@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agezt channel small helpers (visionGate, gateVisionWith,
-// voiceReplyEnabled, audioExt, extForMime, splitNonEmpty).
-// Extracted from main_channels.go during Day 211 god-file refactor (#43, #66).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agezt channel small helpers
+//             (visionGate, gateVisionWith, voiceReplyEnabled, audioExt, extForMime,
+//             splitNonEmpty). Extracted from main_channels.go during Day 211
+//             god-file refactor (#43, #66). Public API unchanged.
 
 import (
 	"fmt"

@@ -139,7 +139,6 @@ type agentLastActivity struct {
 	Summary       string
 }
 
-
 // agentStatusAccums holds the per-agent state that the journal-derivable
 // helpers accumulate. Roster-agentList page is the single consumer; collecting
 // every accumulator in a SINGLE journal.Range pass turns what used to be

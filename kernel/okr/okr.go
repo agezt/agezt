@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// OKR: data types (Status + KeyResult + Objective + Progress types) + Objective.Progress method + CreateSpec + Filter + diskState.
-// Code extracted from okr.go during the Day-140 god-file split.
-// Public API unchanged.
 package okr
 
+// Provenance: OKR: data types (Status + KeyResult + Objective + Progress types) +
+//             Objective.Progress method + CreateSpec + Filter + diskState. Code
+//             extracted from okr.go during the Day-140 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"
 	"sync"
 	"time"
 )
-
 
 const (
 	storeVersion   = 1

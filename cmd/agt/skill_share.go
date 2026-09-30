@@ -93,4 +93,3 @@ func cmdSkillReassign(args []string, share bool, stdout, stderr io.Writer) int {
 
 // renderSkillLine formats a skill map into a single line:
 // "<id12> [status] name — description".
-

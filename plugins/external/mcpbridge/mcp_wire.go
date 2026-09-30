@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// MCP wire types (jsonrpcReq/Resp/Error + mcpInitParams/mcpTool/mcpResource/... etc.).
-// Code extracted from mcp.go during the Day-101 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: MCP wire types (jsonrpcReq/Resp/Error +
+//             mcpInitParams/mcpTool/mcpResource/... etc.). Code extracted from
+//             mcp.go during the Day-101 god-file split. Public API unchanged.
 
 import (
 	"sync"
@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"sync/atomic"
 )
-
 
 // mcpClient is a minimal MCP client over a child process's stdio.
 //

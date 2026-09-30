@@ -3,11 +3,12 @@
 // Package resume persists a durable "ticket" per in-flight root run so the
 // daemon can pick the work back up after a restart (M1002).
 
-// This file holds the declarations: Kind/Status consts +
-// DefaultSnapshotMaxBytes const + Ticket + Store types + Open
-// constructor. Split from resume.go during Day 211 god-file
-// refactor (#48). Public API unchanged.
 package resume
+
+// Provenance: This file holds the declarations: Kind/Status consts +
+//             DefaultSnapshotMaxBytes const + Ticket + Store types + Open
+//             constructor. Split from resume.go during Day 211 god-file refactor
+//             (#48). Public API unchanged.
 
 import (
 	"fmt"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
-
 
 // Kind classifies how the run was dispatched, so the resumer re-enters through
 // the matching governed entry point.

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Planner: ValidateJSON + parseAndValidate + validateDAG + validateIntentBoundary + hasGateDependency + snippet.
-// Code extracted from planner.go during the Day-143 god-file split.
-// Public API unchanged.
 package planner
 
+// Provenance: Planner: ValidateJSON + parseAndValidate + validateDAG +
+//             validateIntentBoundary + hasGateDependency + snippet. Code extracted
+//             from planner.go during the Day-143 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"

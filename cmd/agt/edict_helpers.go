@@ -57,4 +57,3 @@ func joinCaps(caps []string) string {
 	}
 	return out
 }
-

@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt compare helpers (validCompareTarget + resolveCompareRoot +
-// isAgeztRepoRoot + compareCapabilityTargets + compareEvidencePresent +
-// compareEvidenceCounts).
-// Extracted from compare.go during Day 211 god-file refactor (#72).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt compare helpers
+//             (validCompareTarget + resolveCompareRoot + isAgeztRepoRoot +
+//             compareCapabilityTargets + compareEvidencePresent +
+//             compareEvidenceCounts). Extracted from compare.go during Day 211
+//             god-file refactor (#72). Public API unchanged.
 
 import (
 	"fmt"

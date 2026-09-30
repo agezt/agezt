@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Forge lifecycle: create + auto-shadow + writeBundle + lineageFor.
-// The status-transition methods (Promote / Reassign / Quarantine / Archive /
-// RestoreStatus / Revert) live in forge_transitions.go.
-// Extracted from forge_lifecycle.go during the Day-203 god-file split.
-// Public API unchanged.
 package skill
+
+// Provenance: Forge lifecycle: create + auto-shadow + writeBundle + lineageFor. The
+//             status-transition methods (Promote / Reassign / Quarantine / Archive /
+//             RestoreStatus / Revert) live in forge_transitions.go. Extracted from
+//             forge_lifecycle.go during the Day-203 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"
@@ -131,4 +132,3 @@ func (f *Forge) lineageFor(name string) []string {
 	}
 	return out
 }
-

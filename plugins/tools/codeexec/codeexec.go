@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package codeexec: Tool struct + constants (DefaultTimeout + MaxTimeout +
-// MaxOutputBytes + best-effort resource caps) + artifactIndexer interface +
-// NewWithWarden + Bind + SetIndex + Languages + Definition + input struct
-// (the contract surface). Invoke (the execution router) moved to
-// codeexec_invoke.go. Day-211 god-file split. Public API unchanged.
 package codeexec
 
+// Provenance: Package codeexec: Tool struct + constants (DefaultTimeout + MaxTimeout
+//             + MaxOutputBytes + best-effort resource caps) + artifactIndexer
+//             interface + NewWithWarden + Bind + SetIndex + Languages + Definition +
+//             input struct (the contract surface). Invoke (the execution router)
+//             moved to codeexec_invoke.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -20,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/warden"
 )
+
 const (
 	// DefaultTimeout caps one run when the model omits timeout_ms.
 	DefaultTimeout = 120 * time.Second

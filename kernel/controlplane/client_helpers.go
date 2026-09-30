@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Control-plane Client helpers: dial + setReadDeadlineFromCtx +
-// mapNetTimeoutToCtxError + isNetTimeout + writeRequest + readOneResponse +
-// toString + toBool.
-// Extracted from client.go during the Day-202 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Control-plane Client helpers: dial +
+//             setReadDeadlineFromCtx + mapNetTimeoutToCtxError + isNetTimeout +
+//             writeRequest + readOneResponse + toString + toBool. Extracted from
+//             client.go during the Day-202 god-file split. Public API unchanged.
 
 import (
 	"bufio"

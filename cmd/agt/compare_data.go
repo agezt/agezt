@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt compare data: compareCapabilities() returns the structured list of every capability compared against OpenClaw/Hermes.
-// Code extracted from compare.go during the Day-117 god-file split.
-// Public API unchanged.
 package main
 
-
+// Provenance: agt compare data: compareCapabilities() returns the structured list of
+//             every capability compared against OpenClaw/Hermes. Code extracted from
+//             compare.go during the Day-117 god-file split. Public API unchanged.
 
 func compareCapabilities() []compareCapability {
 	both := []string{compareTargetOpenClaw, compareTargetHermes}

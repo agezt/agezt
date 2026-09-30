@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane schedule-stats handler.
-// Code extracted from schedule_fires.go during the Day-86 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane schedule-stats handler. Code extracted from
+//             schedule_fires.go during the Day-86 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"

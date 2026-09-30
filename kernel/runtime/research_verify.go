@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Research: verifyResearchClaims.
-// Code extracted from research.go during the Day-67 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Research: verifyResearchClaims. Code extracted from research.go during
+//             the Day-67 god-file split. Public API unchanged.
 
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/agent"
 	"sync"
 )
-
 
 // parallel (like councilRound), returning claims with their verdicts filled.
 func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, sources []ResearchSource, claims []ResearchClaim) []ResearchClaim {

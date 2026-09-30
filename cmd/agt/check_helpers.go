@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// check_helpers.go: single-check + caps-check helpers split off from check.go
-// during the Day 211 god-file refactor (#125). Public API unchanged.
 package main
+
+// Provenance: check_helpers.go: single-check + caps-check helpers split off from
+//             check.go during the Day 211 god-file refactor (#125). Public API
+//             unchanged.
 
 import (
 	"encoding/json"

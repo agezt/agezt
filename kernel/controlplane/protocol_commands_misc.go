@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Workboard + OKR + taste + seat + update commands.
-// Code extracted from protocol_commands.go during the Day-43 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Workboard + OKR + taste + seat + update commands. Code extracted from
+//             protocol_commands.go during the Day-43 god-file split. Public API
+//             unchanged.
 
 const (
 	CmdWorkboardList      = "workboard_list"

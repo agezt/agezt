@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Feishu channel: wire-shape parsers (urlVerification + parseEvent).
-// Code extracted from feishu.go during the Day-119 god-file split.
-// Public API unchanged.
 package feishu
 
+// Provenance: Feishu channel: wire-shape parsers (urlVerification + parseEvent).
+//             Code extracted from feishu.go during the Day-119 god-file split.
+//             Public API unchanged.
 
 import (
 	"strings"

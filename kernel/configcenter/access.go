@@ -11,7 +11,6 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 )
 
-
 // AccessPolicy evaluates access requests against ratings and policies.
 type AccessPolicy struct {
 	config     *Config

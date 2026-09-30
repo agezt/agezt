@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// sts_helpers.go: STS endpoint, response parser, default session name, cache
-// type + getter split off from sts.go during the Day 211 god-file refactor (#132).
-// Public API unchanged.
 package creds
+
+// Provenance: sts_helpers.go: STS endpoint, response parser, default session name,
+//             cache type + getter split off from sts.go during the Day 211 god-file
+//             refactor (#132). Public API unchanged.
 
 import (
 	"context"
@@ -19,7 +20,6 @@ import (
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
-
 
 // stsAssumeRoleEndpoint returns the regional STS endpoint URL.
 // Empty region defaults to us-east-1 (the AWS legacy default;

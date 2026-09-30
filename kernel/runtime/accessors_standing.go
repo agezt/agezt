@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel accessors: data (DataLake, ConfigCenter) + standing CRUD (AddStanding/SetStandingEnabled/UpdateStanding/RemoveStanding).
-// Code extracted from accessors.go during the Day-56 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel accessors: data (DataLake, ConfigCenter) + standing CRUD
+//             (AddStanding/SetStandingEnabled/UpdateStanding/RemoveStanding). Code
+//             extracted from accessors.go during the Day-56 god-file split. Public
+//             API unchanged.
 
 import (
 	"errors"
@@ -13,8 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/standing"
 )
-
-
 
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
 // the loop offloads oversized tool outputs. Used by retrieval surfaces.

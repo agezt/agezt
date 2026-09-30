@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI security helpers: toStr + stringList + historyTurns.
-// Code extracted from webui_security.go during the Day-75 god-file split. Public API unchanged.
 package webui
 
+// Provenance: WebUI security helpers: toStr + stringList + historyTurns. Code
+//             extracted from webui_security.go during the Day-75 god-file split.
+//             Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/convo"
 	"strings"
 )
-
 
 func toStr(v any) string {
 	s, _ := v.(string)

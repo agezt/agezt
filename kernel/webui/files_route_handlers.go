@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI files route: HTTP handlers (Server.handleFileTree /
-// Raw / Mkdir / Rename / Delete). The tiny format helpers
-// (typeOf, readJSONBody) live in files_route_helpers.go.
-// Code extracted from files_route.go during the Day-89
-// god-file split. Public API unchanged.
 package webui
+
+// Provenance: WebUI files route: HTTP handlers (Server.handleFileTree / Raw / Mkdir
+//             / Rename / Delete). The tiny format helpers (typeOf, readJSONBody)
+//             live in files_route_helpers.go. Code extracted from files_route.go
+//             during the Day-89 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -16,7 +16,6 @@ import (
 	"sort"
 	"strings"
 )
-
 
 func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
 	rootAbs, targetAbs, rel, err := s.resolveFileRoot(r.URL.Query().Get("path"))

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane run-stats handler + duration helpers (handleRunsStats + durStats + percentileNearestRank).
-// Code extracted from runs_handlers.go during the Day-85 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane run-stats handler + duration helpers (handleRunsStats +
+//             durStats + percentileNearestRank). Code extracted from
+//             runs_handlers.go during the Day-85 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"

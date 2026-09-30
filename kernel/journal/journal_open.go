@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// journal_open.go owns the cold-start path: the Open
-// constructor that scans existing segments to recover the
-// head sequence + hash and tightens the on-disk mode in place
-// from 0755/0644 to 0700/0600 (EXPOSE-001, 2026-08-12). The
-// runtime surface (Close / Head / Append / Range) + the
-// Journal type live in journal.go.
 package journal
+
+// journal_open.go owns the cold-start path: the Open constructor that
+// scans existing segments to recover the head sequence + hash and
+// tightens the on-disk mode in place from 0755/0644 to 0700/0600
+// (EXPOSE-001, 2026-08-12). The runtime surface (Close / Head / Append /
+// Range) + the Journal type live in journal.go.
 
 import (
 	"bytes"
@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 // Open opens or creates a journal at dir. If dir contains existing segments,
 // it scans them to recover the head sequence and hash. A chain break in any

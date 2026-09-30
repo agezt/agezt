@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt plugin-registry surface: the const block + the pluginIndex +
-// indexPlugin + indexBinary types + cmdPluginRegistry (the entry dispatcher).
-// The index read/install path lives in plugin_registry_index.go; the
-// helpers live in plugin_registry_helpers.go.
-// Extracted from plugin_registry.go during the Day-210 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt plugin-registry surface: the
+//             const block + the pluginIndex + indexPlugin + indexBinary types +
+//             cmdPluginRegistry (the entry dispatcher). The index read/install path
+//             lives in plugin_registry_index.go; the helpers live in
+//             plugin_registry_helpers.go. Extracted from plugin_registry.go during
+//             the Day-210 god-file split. Public API unchanged.
 
 import (
 	"fmt"

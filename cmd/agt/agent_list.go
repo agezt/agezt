@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent list sub-command handler (cmdAgentList).
-// Extracted from agent.go during Day 211 god-file refactor (#60).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent list sub-command handler
+//             (cmdAgentList). Extracted from agent.go during Day 211 god-file
+//             refactor (#60). Public API unchanged.
 
 import (
 	"context"
@@ -11,10 +10,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 func cmdAgentList(args []string, stdout, stderr io.Writer) int {

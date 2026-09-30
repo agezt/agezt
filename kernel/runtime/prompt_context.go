@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// Prompt context-injection helpers: injectMemory + injectUserProfile +
-// injectTaste + injectWorld + injectSkills. Each takes the current system
-// prompt and a list of scored hits / exemplars, and returns the augmented
-// system prompt.
-// Extracted from prompt.go during the Day-203 god-file split.
-// Public API unchanged.
 package runtime
+
+// Provenance: SPDX-License-Identifier: MIT Prompt context-injection helpers:
+//             injectMemory + injectUserProfile + injectTaste + injectWorld +
+//             injectSkills. Each takes the current system prompt and a list of
+//             scored hits / exemplars, and returns the augmented system prompt.
+//             Extracted from prompt.go during the Day-203 god-file split. Public API
+//             unchanged.
 
 import (
 	"fmt"
@@ -116,4 +115,3 @@ func injectSkills(system string, hits []skill.Scored) string {
 	}
 	return b.String()
 }
-

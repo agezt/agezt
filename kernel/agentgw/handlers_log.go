@@ -153,4 +153,3 @@ func (g *Gateway) handleAgentQuery(w http.ResponseWriter, r *http.Request) {
 		"createdMs": profile.CreatedMS,
 	})
 }
-

@@ -1,13 +1,12 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agezt WebUI surface: webUISurface struct + buildWebUI (the
-// constructor that wires up the static-file server + the API gateway
-// + the SPA handler + the allowed-hosts callback).
-// The password helpers live in httpsurfaces_pwd.go; the browser / runtime
-// helpers live in httpsurfaces_browser.go.
-// Extracted from httpsurfaces.go during the Day-208 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agezt WebUI surface: webUISurface
+//             struct + buildWebUI (the constructor that wires up the static-file
+//             server + the API gateway + the SPA handler + the allowed-hosts
+//             callback). The password helpers live in httpsurfaces_pwd.go; the
+//             browser / runtime helpers live in httpsurfaces_browser.go. Extracted
+//             from httpsurfaces.go during the Day-208 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"

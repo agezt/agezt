@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `plugin new` scaffold file renderers (renderPluginMain, renderPluginGoMod,
-// renderPluginReadme).
-// Extracted from plugin_new.go during Day 211 god-file refactor (#101).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `plugin new` scaffold file
+//             renderers (renderPluginMain, renderPluginGoMod, renderPluginReadme).
+//             Extracted from plugin_new.go during Day 211 god-file refactor (#101).
+//             Public API unchanged.
 
 import (
 	"fmt"

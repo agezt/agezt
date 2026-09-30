@@ -2,7 +2,6 @@
 
 package overseertool
 
-
 import (
 	"encoding/json"
 	"errors"

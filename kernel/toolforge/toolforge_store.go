@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// toolforge Store API: the Store struct + Open + save (persistence glue)
-// plus the lifecycle transitions (Add + Update + RecordTest + Promote +
-// Quarantine + Remove) and the readers (Get + List + Active + Count).
-// Extracted from toolforge.go during the Day-203 god-file split.
-// Public API unchanged.
 package toolforge
+
+// Provenance: SPDX-License-Identifier: MIT toolforge Store API: the Store struct +
+//             Open + save (persistence glue) plus the lifecycle transitions (Add +
+//             Update + RecordTest + Promote + Quarantine + Remove) and the readers
+//             (Get + List + Active + Count). Extracted from toolforge.go during the
+//             Day-203 god-file split. Public API unchanged.
 
 import (
 	"fmt"

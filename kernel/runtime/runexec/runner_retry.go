@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Runner retry + introspection + verification: RunWithRetry + Why + Causes + ParentOf + Verify + VerifyCompletion + PublishHeuristicBypass + DescribeImages.
-// Code extracted from runner.go during the Day-63 god-file split. Public API unchanged.
 package runexec
 
+// Provenance: Runner retry + introspection + verification: RunWithRetry + Why +
+//             Causes + ParentOf + Verify + VerifyCompletion + PublishHeuristicBypass
+//             + DescribeImages. Code extracted from runner.go during the Day-63
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -17,7 +19,6 @@ import (
 	"strings"
 	"time"
 )
-
 
 func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error) {
 	max := pol.MaxAttempts

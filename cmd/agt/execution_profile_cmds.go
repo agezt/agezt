@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `exec-profile list` + `show` + `check` subcommands
-// (cmdExecProfileList, cmdExecProfileShow, cmdExecProfileCheck).
-// Extracted from execution_profile.go during Day 211 god-file refactor (#94).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `exec-profile list` + `show` +
+//             `check` subcommands (cmdExecProfileList, cmdExecProfileShow,
+//             cmdExecProfileCheck). Extracted from execution_profile.go during Day
+//             211 god-file refactor (#94). Public API unchanged.
 
 import (
 	"fmt"

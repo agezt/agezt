@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/creds webIdentityCache.get (the per-process OIDC token reuse cache).
-// Extracted from web_identity.go during Day 211 god-file refactor (#93).
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT kernel/creds webIdentityCache.get (the
+//             per-process OIDC token reuse cache). Extracted from web_identity.go
+//             during Day 211 god-file refactor (#93). Public API unchanged.
 
 import (
 	"context"

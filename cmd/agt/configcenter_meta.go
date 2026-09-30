@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
 	var key, rating string
 	setMode := false

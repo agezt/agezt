@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/creds web-identity STS response XML decoder (parseWebIdentityResponse).
-// Extracted from web_identity.go during Day 211 god-file refactor (#93).
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT kernel/creds web-identity STS response
+//             XML decoder (parseWebIdentityResponse). Extracted from web_identity.go
+//             during Day 211 god-file refactor (#93). Public API unchanged.
 
 import (
 	"encoding/xml"

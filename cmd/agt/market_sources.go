@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt market sources add|remove|sync` — the source management
-// ops (add a catalog source / remove one / sync all configured sources).
-// Extracted from market_ops.go during the Day-211 god-file split. Public API
-// unchanged.
 package main
 
+// Provenance: Package main: `agt market sources add|remove|sync` — the source
+//             management ops (add a catalog source / remove one / sync all
+//             configured sources). Extracted from market_ops.go during the Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdMarketAddSource(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	var rawURL, name, pubkey string

@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Catalog operations: NewEmpty, ProviderList, FindModel, StrictToolArgsNative, ToolCapableAlternative, ToolCapableAlternativeAmong, bestToolCapableModel, pickBestToolCapable, VisionCapableAmong, BestModelsAcross, pickBestModel, pickBestVision.
-// Code extracted from types.go during the Day-57 god-file split. Public API unchanged.
 package catalog
 
+// Provenance: Catalog operations: NewEmpty, ProviderList, FindModel,
+//             StrictToolArgsNative, ToolCapableAlternative,
+//             ToolCapableAlternativeAmong, bestToolCapableModel,
+//             pickBestToolCapable, VisionCapableAmong, BestModelsAcross,
+//             pickBestModel, pickBestVision. Code extracted from types.go during the
+//             Day-57 god-file split. Public API unchanged.
 
 import (
 	"sort"
 	"strings"
 )
-
 
 func NewEmpty() *Catalog {
 	return &Catalog{Providers: map[string]*Provider{}}

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runner core: New + Run + RunWith (the main entry points).
-// Code extracted from runner.go during the Day-63 god-file split. Public API unchanged.
 package runexec
 
+// Provenance: Runner core: New + Run + RunWith (the main entry points). Code
+//             extracted from runner.go during the Day-63 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -16,8 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/worldmodel"
 	"time"
 )
-
-
 
 // Runner owns the kernel's run engine. The Runner speaks to
 // the host through the KernelAPI interface, the same pattern
@@ -178,10 +177,10 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	lc.Images = r.k.ImagesFromCtx(runCtx)                // M93: image attachments
 	lc.JSONMode = r.k.JSONModeFromCtx(runCtx)            // M314: structured-output request
 	lc.MaxRunCostMicrocents = r.k.MaxCostFromCtx(runCtx) // M166: per-run cost cap
-	lc.Steer = steer                                // M608: live operator steering
-	lc.Checkpoint = resumeCheckpoint                 // M1002: persist snapshot each iteration
-	lc.PriorMessages = resumePriorMessages           // M1002: seed a resumed run's conversation
-	lc.StartIter = resumeStartIter                   // M1002: continue iter numbering on resume
+	lc.Steer = steer                                     // M608: live operator steering
+	lc.Checkpoint = resumeCheckpoint                     // M1002: persist snapshot each iteration
+	lc.PriorMessages = resumePriorMessages               // M1002: seed a resumed run's conversation
+	lc.StartIter = resumeStartIter                       // M1002: continue iter numbering on resume
 	answer, err := agent.Run(runCtx, lc, intent)
 
 	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but

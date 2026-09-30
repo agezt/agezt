@@ -244,4 +244,3 @@ func (t *Tool) doStat(in fileInput) (agent.Result, error) {
 	}, "", "  ")
 	return fileObservation(in.Path, string(body)), nil
 }
-

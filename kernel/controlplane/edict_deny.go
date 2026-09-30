@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Edict hard-deny rule handlers: denyRuleRows + handleEdictDenyList +
-// handleEdictDenyAdd + handleEdictDenyRemove.
-// Extracted from edict.go during the Day-204 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Edict hard-deny rule handlers:
+//             denyRuleRows + handleEdictDenyList + handleEdictDenyAdd +
+//             handleEdictDenyRemove. Extracted from edict.go during the Day-204
+//             god-file split. Public API unchanged.
 
 import (
 	"net"

@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard tool: list + create (the list/create handlers) +
-// taskOrError + taskDecisionOrError (the result wrappers) +
-// retryPolicyFromInput (the retry policy mapper) + taskView (the wire
-// serializer) + okJSON + errResult (the result constructors).
-// Extracted from workboard.go during the Day-206 god-file split.
-// Public API unchanged.
 package workboardtool
+
+// Provenance: SPDX-License-Identifier: MIT Workboard tool: list + create (the
+//             list/create handlers) + taskOrError + taskDecisionOrError (the result
+//             wrappers) + retryPolicyFromInput (the retry policy mapper) + taskView
+//             (the wire serializer) + okJSON + errResult (the result constructors).
+//             Extracted from workboard.go during the Day-206 god-file split. Public
+//             API unchanged.
 
 import (
 	"encoding/json"

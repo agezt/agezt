@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt plugin-registry helpers: selectBinary + platformList +
-// safeRegistryFilename + readRegistryFile + httpGetBounded.
-// Extracted from plugin_registry.go during the Day-210 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt plugin-registry helpers:
+//             selectBinary + platformList + safeRegistryFilename + readRegistryFile
+//             + httpGetBounded. Extracted from plugin_registry.go during the Day-210
+//             god-file split. Public API unchanged.
 
 import (
 	"fmt"

@@ -210,4 +210,3 @@ func sortedKeys(m map[string]agent.Tool) []string {
 	sort.Strings(out)
 	return out
 }
-

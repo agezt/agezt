@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
+
 func defaultGuardianNoisePolicy() *roster.NoisePolicy {
 	return &roster.NoisePolicy{
 		SilentOnSuccess:      true,
@@ -52,7 +53,6 @@ func trustRank(level string) int {
 		return 4
 	}
 }
-
 
 func appendUnique(xs []string, want string) []string {
 	for _, x := range xs {

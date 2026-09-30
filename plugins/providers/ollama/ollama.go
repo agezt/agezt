@@ -27,7 +27,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
-
 const (
 	// DefaultEndpoint is a local Ollama server.
 	DefaultEndpoint = "http://localhost:11434/api/chat"
@@ -247,4 +246,3 @@ func buildOptions(maxTokens int, params agent.Params) map[string]any {
 	}
 	return opts
 }
-

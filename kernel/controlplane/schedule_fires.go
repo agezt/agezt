@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane schedule-fires handler + payload helpers.
-// Code extracted from schedule_fires.go during the Day-86 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: Control-plane schedule-fires handler + payload helpers. Code extracted
+//             from schedule_fires.go during the Day-86 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"
@@ -14,8 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/runtime"
 )
-
-
 
 // scheduleLastFiring is the most-recent firing of a schedule and its outcome
 // (M56), used to annotate `agt schedule list` rows with how each schedule last
@@ -261,4 +260,3 @@ func (s *Server) handleScheduleFires(conn net.Conn, req Request) {
 		Result: map[string]any{"fires": out, "count": len(out), "next_cursor": nextCursor},
 	})
 }
-

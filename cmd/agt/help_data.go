@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt help data: helpGroups() returns the structured list of every CLI command + its usage text.
-// Code extracted from help.go during the Day-109 god-file split.
-// Public API unchanged.
 package main
 
-
-
+// Provenance: agt help data: helpGroups() returns the structured list of every CLI
+//             command + its usage text. Code extracted from help.go during the
+//             Day-109 god-file split. Public API unchanged.
 
 // commandHelp is one command's help: the overview line and the detail block.
 type commandHelp struct {

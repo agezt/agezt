@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Server handleRun dispatcher: the Run command's main path that resolves kernel/agent/profile/overrides and streams events back to the client.
-// Code extracted from server_handle_run.go during the Day-52 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Server handleRun dispatcher: the Run command's main path that resolves
+//             kernel/agent/profile/overrides and streams events back to the client.
+//             Code extracted from server_handle_run.go during the Day-52 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -22,8 +24,6 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 )
-
-
 
 func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	intentAny := req.Args["intent"]

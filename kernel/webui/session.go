@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI session/auth: Server methods + HTTP handlers
-// (handleSSEToken / handleAuthMeta / handleLogin /
-// handleLogout) + the consolePassword/passwordStrict
-// helpers. The in-memory sessionStore (struct + CRUD
-// methods) lives in session_store.go. Console-password
-// doc comment stays here because it documents the
-// options SetPasswordStrict / PasswordStrict expose, which
-// live in this file.
 package webui
+
+// WebUI session/auth: Server methods + HTTP handlers (handleSSEToken /
+// handleAuthMeta / handleLogin / handleLogout) + the
+// consolePassword/passwordStrict helpers. The in-memory sessionStore
+// (struct + CRUD methods) lives in session_store.go. Console-password
+// doc comment stays here because it documents the options
+// SetPasswordStrict / PasswordStrict expose, which live in this file.
 
 import (
 	"crypto/subtle"

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Package chatwebhook: platform-specific inbound payload parsers (parseInbound
-// dispatcher + parseMattermost + parseGoogleChat). Extracted from
-// chatwebhook.go during the Day-211 god-file split. Public API unchanged.
 package chatwebhook
 
+// Provenance: Package chatwebhook: platform-specific inbound payload parsers
+//             (parseInbound dispatcher + parseMattermost + parseGoogleChat).
+//             Extracted from chatwebhook.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"encoding/json"
 	"net/url"
 	"strings"
 )
+
 func parseInbound(kind string, body []byte) (inbound, bool) {
 	if kind == KindMattermost {
 		return parseMattermost(body)

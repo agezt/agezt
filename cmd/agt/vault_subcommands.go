@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// vault_subcommands.go owns the five `agt vault` mutation
-// subcommands: cmdVaultMigrate (PBKDF2 upgrade), cmdVaultStatus
-// (encrypted vs plaintext + KDF metadata), cmdVaultEncrypt
-// (plaintext → encrypted), cmdVaultRotate (re-encrypt under a
-// new passphrase), and cmdVaultDecrypt (encrypted → plaintext).
-// The dispatcher + inline help / KDF diagnostics in
-// vault.go. All call kernel/creds directly — operator-local,
-// no daemon round-trip needed.
 package main
+
+// vault_subcommands.go owns the five `agt vault` mutation subcommands:
+// cmdVaultMigrate (PBKDF2 upgrade), cmdVaultStatus (encrypted vs
+// plaintext + KDF metadata), cmdVaultEncrypt (plaintext → encrypted),
+// cmdVaultRotate (re-encrypt under a new passphrase), and
+// cmdVaultDecrypt (encrypted → plaintext). The dispatcher + inline help
+// / KDF diagnostics in vault.go. All call kernel/creds directly —
+// operator-local, no daemon round-trip needed.
 
 import (
 	"fmt"
@@ -20,7 +20,6 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/creds"
 )
-
 
 // cmdVaultMigrate upgrades an encrypted vault to the current key-derivation
 // policy (PBKDF2 at the current iteration count). It inspects the envelope
@@ -67,7 +66,6 @@ func cmdVaultMigrate(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "run `%s provider reload` to reload the daemon with the upgraded file\n", brand.CLI)
 	return 0
 }
-
 
 func cmdVaultStatus(stdout, stderr io.Writer) int {
 	base, err := paths.BaseDir()

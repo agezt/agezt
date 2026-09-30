@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Pulse engine core: constants + Config + New + Start + Beat + setters (SetCadence/Dial/Initiative/QuietHours) + queueAsk.
-// Code extracted from engine.go during the Day-54 god-file split. Public API unchanged.
 package pulse
 
+// Provenance: Pulse engine core: constants + Config + New + Start + Beat + setters
+//             (SetCadence/Dial/Initiative/QuietHours) + queueAsk. Code extracted
+//             from engine.go during the Day-54 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,8 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
-
-
 
 // Default tuning.
 const (

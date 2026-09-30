@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Pulse engine status: Status + StatusMap + IsPaused + Pause + Resume.
-// Code extracted from engine.go during the Day-54 god-file split. Public API unchanged.
 package pulse
 
+// Provenance: Pulse engine status: Status + StatusMap + IsPaused + Pause + Resume.
+//             Code extracted from engine.go during the Day-54 god-file split. Public
+//             API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func (e *Engine) Status() Status {
 	e.mu.Lock()

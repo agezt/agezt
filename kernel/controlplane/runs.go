@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Past-runs enumeration: runEntry type, runEntryStatus, and collectRuns (journal walker).
-// Code extracted from runs.go during the Day-37 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Past-runs enumeration: runEntry type, runEntryStatus, and collectRuns
+//             (journal walker). Code extracted from runs.go during the Day-37
+//             god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
-
 
 const (
 	defaultRunsLimit = 20

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// configcenter: public CRUD/search API (Get, Set, Delete, List,
-// ListAccessible, ListAccessibleForAgent, Search, SearchForAgent).
-// Split from center_ops.go during Day 211 god-file refactor (#45).
-// Public API unchanged.
 package configcenter
+
+// Provenance: configcenter: public CRUD/search API (Get, Set, Delete, List,
+//             ListAccessible, ListAccessibleForAgent, Search, SearchForAgent). Split
+//             from center_ops.go during Day 211 god-file refactor (#45). Public API
+//             unchanged.
 
 import (
 	"context"

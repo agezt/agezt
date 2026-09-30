@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// configcenter: on-disk persistence helpers (entryFile + persistEntry +
-// loadStoreFromDisk). Split from center_ops.go during Day 211 god-file
-// refactor (#45). Public API unchanged.
 package configcenter
+
+// Provenance: configcenter: on-disk persistence helpers (entryFile + persistEntry +
+//             loadStoreFromDisk). Split from center_ops.go during Day 211 god-file
+//             refactor (#45). Public API unchanged.
 
 import (
 	"crypto/sha256"

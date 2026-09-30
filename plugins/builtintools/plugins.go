@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// External-plugin host spec (Phase 2.2 PR 6): the AGEZT_PLUGINS spawn loop
-// that used to close cmd/agezt's buildTools, migrated as ONE spec whose Built
-// carries every plugin's tools (Extra), the plugin manifest (Infos) and the
-// M900 declared capabilities (Caps). The spec is registered LAST and marked
-// YieldOnConflict, so a plugin tool whose prefixed name collides with an
-// in-process tool is dropped by toolreg.BuildAll with a warning — in-process
-// wins, never a boot error (the historical semantic, made explicit).
 package builtintools
+
+// External-plugin host spec (Phase 2.2 PR 6): the AGEZT_PLUGINS spawn
+// loop that used to close cmd/agezt's buildTools, migrated as ONE spec
+// whose Built carries every plugin's tools (Extra), the plugin manifest
+// (Infos) and the M900 declared capabilities (Caps). The spec is
+// registered LAST and marked YieldOnConflict, so a plugin tool whose
+// prefixed name collides with an in-process tool is dropped by
+// toolreg.BuildAll with a warning — in-process wins, never a boot error
+// (the historical semantic, made explicit).
 
 import (
 	"context"

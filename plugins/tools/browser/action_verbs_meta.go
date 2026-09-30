@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 
-// Package browser: per-verb agent.Tool metadata (actionVerbDescription +
-// actionVerbEffect + actionVerbSchema + defaultBool). Each verb has a
-// description, an effect annotation, and a JSON schema — these are what
-// Definition assembles into the agent.ToolDef. Extracted from
-// action_verbs.go during the Day-211 god-file split. Public API unchanged.
 package browser
 
+// Provenance: Package browser: per-verb agent.Tool metadata (actionVerbDescription +
+//             actionVerbEffect + actionVerbSchema + defaultBool). Each verb has a
+//             description, an effect annotation, and a JSON schema — these are what
+//             Definition assembles into the agent.ToolDef. Extracted from
+//             action_verbs.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 func defaultBool(v *bool, fallback bool) *bool {
 	if v != nil {
 		return v

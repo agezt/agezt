@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `provider creds` operations (openCredsStore, cmdCredsList,
-// cmdCredsSet, cmdCredsRm).
-// Extracted from provider.go during Day 211 god-file refactor (#74).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `provider creds` operations
+//             (openCredsStore, cmdCredsList, cmdCredsSet, cmdCredsRm). Extracted
+//             from provider.go during Day 211 god-file refactor (#74). Public API
+//             unchanged.
 
 import (
 	"bufio"

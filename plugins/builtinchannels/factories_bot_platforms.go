@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Platform-bot factories (buildDingTalk, buildFeishu, buildWeCom, buildMastodon).
-// Extracted from factories_bot.go during Day 211 god-file refactor (#62).
-// Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT Platform-bot factories (buildDingTalk,
+//             buildFeishu, buildWeCom, buildMastodon). Extracted from
+//             factories_bot.go during Day 211 god-file refactor (#62). Public API
+//             unchanged.
 
 import (
 	"fmt"

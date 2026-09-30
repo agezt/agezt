@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard dispatch Server methods (runWorkboardDispatch, applyWardenExecutionProfile).
-// Extracted from workboard_dispatch.go during Day 211 god-file refactor (#70).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Workboard dispatch Server methods
+//             (runWorkboardDispatch, applyWardenExecutionProfile). Extracted from
+//             workboard_dispatch.go during Day 211 god-file refactor (#70). Public
+//             API unchanged.
 
 import (
 	"context"
@@ -109,6 +109,7 @@ func (s *Server) runWorkboardDispatch(corr string, p roster.Profile, task workbo
 	}
 	publishWorkboardDispatch(s.k, corr, task, "completed", p.Slug, reason, truncate(answer, 300), "")
 }
+
 // applyWardenExecutionProfile resolves a warden-family execution profile id
 // (local|warden|container) and layers its sandbox override onto ctx, returning
 // the effective label. It mirrors the warden branch of the run handler

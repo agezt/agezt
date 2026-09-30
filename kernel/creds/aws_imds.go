@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// AWS IMDS (EC2 metadata) + default chain: AWSIMDSLookup + imdsCache.lookup + fetchIMDSCreds + imdsGet + readBody + AWSDefaultChain.
-// Code extracted from aws.go during the Day-53 god-file split. Public API unchanged.
 package creds
 
+// Provenance: AWS IMDS (EC2 metadata) + default chain: AWSIMDSLookup +
+//             imdsCache.lookup + fetchIMDSCreds + imdsGet + readBody +
+//             AWSDefaultChain. Code extracted from aws.go during the Day-53 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -18,7 +20,6 @@ import (
 	"sync"
 	"time"
 )
-
 
 func AWSIMDSLookup(client *http.Client) func(string) string {
 	if client == nil {

@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane world-model shared helper (worldAliasesAttrs).
-// Extracted from world.go during Day 211 god-file refactor (#79).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane world-model shared
+//             helper (worldAliasesAttrs). Extracted from world.go during Day 211
+//             god-file refactor (#79). Public API unchanged.
 
 func worldAliasesAttrs(args map[string]any) ([]string, map[string]string, error) {
 	aliases, _, err := argStringList(args, "aliases")

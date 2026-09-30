@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// REST API routes: Handler + handleLive/Ready/Metrics/Health/Models/RunsRoot/streamRun/RunByID.
-// Code extracted from restapi.go during the Day-66 god-file split. Public API unchanged.
 package restapi
+
+// Provenance: REST API routes: Handler +
+//             handleLive/Ready/Metrics/Health/Models/RunsRoot/streamRun/RunByID.
+//             Code extracted from restapi.go during the Day-66 god-file split.
+//             Public API unchanged.
 
 import (
 	"net/http"
@@ -12,8 +15,6 @@ import (
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/httpserver"
 )
-
-
 
 func (s *Server) Handler() http.Handler {
 	authenticator := httpserver.Authenticator{
@@ -184,4 +185,3 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- POST /api/v1/runs ---
-

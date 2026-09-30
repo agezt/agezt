@@ -144,4 +144,3 @@ func fileObservation(path, output string) agent.Result {
 		ObservationSource: "workspace:" + filepath.ToSlash(path),
 	}
 }
-

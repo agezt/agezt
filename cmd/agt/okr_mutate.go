@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt okr mutation sub-commands: cmdOKRCreate + cmdOKRKeyResult +
-// cmdOKRLink + cmdOKRArchive.
-// Extracted from okr.go during the Day-209 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt okr mutation sub-commands:
+//             cmdOKRCreate + cmdOKRKeyResult + cmdOKRLink + cmdOKRArchive. Extracted
+//             from okr.go during the Day-209 god-file split. Public API unchanged.
 
 import (
 	"fmt"

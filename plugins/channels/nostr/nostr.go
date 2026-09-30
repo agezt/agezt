@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Nostr channel: types + lifecycle + receive + send + emit + helpers.
-// Code extracted from nostr.go during the Day-107 god-file split.
-// Public API unchanged.
 package nostr
+
+// Provenance: Nostr channel: types + lifecycle + receive + send + emit + helpers.
+//             Code extracted from nostr.go during the Day-107 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -20,8 +21,6 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/coder/websocket"
 )
-
-
 
 const (
 	maxChars     = 8000    // generous per-note cap
@@ -267,4 +266,3 @@ func (c *Channel) dispatch(ctx context.Context, ev nostrEvent) {
 	tags := [][]string{{"e", ev.ID, "", "reply"}, {"p", ev.Pubkey}}
 	_ = c.publishKind1(rep.Text, tags, corr)
 }
-

@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// ChatGPT provider-boot: types + cache + resolvers (the package surface).
-// The seeding path lives in chatgpt_seed.go; the provider construction
-// (TokenFunc + factory + primary + alternate) lives in chatgpt_build.go.
-// Extracted from chatgpt.go during the Day-207 god-file split.
-// Public API unchanged.
 package providerboot
+
+// Provenance: SPDX-License-Identifier: MIT ChatGPT provider-boot: types + cache +
+//             resolvers (the package surface). The seeding path lives in
+//             chatgpt_seed.go; the provider construction (TokenFunc + factory +
+//             primary + alternate) lives in chatgpt_build.go. Extracted from
+//             chatgpt.go during the Day-207 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -226,4 +225,3 @@ func chatgptCatalogEntry(set chatgptModelSet) *catalog.Provider {
 		Models: models,
 	}
 }
-

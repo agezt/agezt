@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Research: Research() (main entry point).
-// Code extracted from research.go during the Day-67 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Research: Research() (main entry point). Code extracted from
+//             research.go during the Day-67 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"strings"
 )
-
 
 // error only when there is no provider or the synthesis model call fails.
 func (k *Kernel) Research(ctx context.Context, corr, question string, opts ResearchOptions) (ResearchReport, error) {

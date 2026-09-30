@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// plugins/providers/vertex token lifecycle (TokenSource.Token, TokenSource.exchange).
-// Extracted from auth.go during Day 211 god-file refactor (#89).
-// Public API unchanged.
 package vertex
+
+// Provenance: SPDX-License-Identifier: MIT plugins/providers/vertex token lifecycle
+//             (TokenSource.Token, TokenSource.exchange). Extracted from auth.go
+//             during Day 211 god-file refactor (#89). Public API unchanged.
 
 import (
 	"context"

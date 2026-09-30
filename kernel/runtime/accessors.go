@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel accessors: schedule + market + artifacts + voice getters/setters.
-// Code extracted from accessors.go during the Day-56 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel accessors: schedule + market + artifacts + voice
+//             getters/setters. Code extracted from accessors.go during the Day-56
+//             god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/cadence"
@@ -11,8 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/worldmodel"
 )
-
-
 
 // Journal exposes the underlying journal for read-only inspection (used by
 // the control plane's `why` and `journal verify`).

@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `workboard` lifecycle subcommands (claim, heartbeat, comment, block, fail).
-// Extracted from workboard_mutate.go during Day 211 god-file refactor (#96).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `workboard` lifecycle subcommands
+//             (claim, heartbeat, comment, block, fail). Extracted from
+//             workboard_mutate.go during Day 211 god-file refactor (#96). Public API
+//             unchanged.
 
 import (
 	"fmt"

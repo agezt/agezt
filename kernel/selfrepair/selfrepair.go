@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-// Package selfrepair wires the deterministic doctor/auto-repair coordinator
-// (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse
-// observer, claims broken/degraded/routing-unstable agents, drives the
-// overseertool repair source, and escalates through the mailbox + wake chain
-// when a repair fails. The daemon arms it once at boot via WireAutoRepair.
-//
-// Import posture: selfrepair imports kernel/runtime and (like
-// kernel/controlplane) the overseertool plugin as its repair source; nothing in
-// kernel/runtime may ever import selfrepair.
 package selfrepair
+
+// Package documentation lives in doc.go.
 
 import (
 	"context"
@@ -31,6 +24,7 @@ const (
 	defaultRoutingRollbackProbation = 2 * time.Hour
 	autoRepairReaperWindow          = 30 * 24 * time.Hour
 )
+
 type autoRepairSource interface {
 	RepairAgent(ref, reason string) (overseertool.RepairResult, error)
 }
@@ -42,6 +36,7 @@ type autoRepairRoutingRollbacker interface {
 type autoRepairRoutingChainApplier interface {
 	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error)
 }
+
 // Mailbox is the message-board surface auto-repair escalations post through.
 // *board.Store satisfies it; a nil-tolerant caller may pass nil to disable
 // mailbox escalation.
@@ -50,6 +45,7 @@ type Mailbox interface {
 	Get(id string) (board.Message, bool)
 	Send(m board.Message, nowMS int64) (board.Message, error)
 }
+
 // WireAutoRepair subscribes the auto-repair coordinator to the reaper pulse
 // subject and launches it on ctx. It returns the boot-banner status string
 // ("armed (…)" or a "disabled (…)" reason) exactly as the daemon prints it.

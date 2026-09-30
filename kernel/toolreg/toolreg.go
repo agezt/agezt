@@ -34,7 +34,6 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 )
 
-
 // BuildDeps carries everything a tool may need at pre-kernel construction
 // time. Env is read through Get (injectable for tests); AllowAll is the master
 // permissive switch (AGEZT_ALLOW_ALL=1) the daemon resolves once.

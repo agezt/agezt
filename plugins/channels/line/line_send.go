@@ -67,4 +67,3 @@ func (c *Channel) send(ctx context.Context, url string, payload map[string]any) 
 	}
 	return nil
 }
-

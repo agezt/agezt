@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// agt world command: dial/call helper (worldCall).
-// Code extracted from world.go during the Day-132 god-file split.
-// Public API unchanged.
 package main
 
-
+// Provenance: agt world command: dial/call helper (worldCall). Code extracted from
+//             world.go during the Day-132 god-file split. Public API unchanged.
 
 import (
 	"context"

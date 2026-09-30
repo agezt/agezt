@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Run context types: WakeContext + other context types.
-// Code extracted from runctx.go during the Day-69 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Run context types: WakeContext + other context types. Code extracted
+//             from runctx.go during the Day-69 god-file split. Public API unchanged.
 
 import (
 	"time"
 )
-
-
 
 // per-run context keys used by RunWith → policyHook to carry the
 // actor/correlation IDs into approval.Submit so audit events stay

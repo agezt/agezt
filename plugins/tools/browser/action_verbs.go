@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package browser: ActionVerbTool + ActionVerb* consts + NewActionVerbTools
-// + Definition + Invoke + actionVerbInput struct (the contract surface for
-// the small first-class browser.* verbs). The per-verb → action.Input
-// conversion moved to action_verbs_convert.go; the per-verb agent.Tool
-// metadata (description / effect / schema) moved to action_verbs_meta.go.
-// Day-211 god-file split. Public API unchanged.
 package browser
 
+// Provenance: Package browser: ActionVerbTool + ActionVerb* consts +
+//             NewActionVerbTools + Definition + Invoke + actionVerbInput struct (the
+//             contract surface for the small first-class browser.* verbs). The
+//             per-verb → action.Input conversion moved to action_verbs_convert.go;
+//             the per-verb agent.Tool metadata (description / effect / schema) moved
+//             to action_verbs_meta.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 const (
 	ActionVerbOpen       = "browser.open"
 	ActionVerbSnapshot   = "browser.snapshot"
@@ -38,6 +39,7 @@ type ActionVerbTool struct {
 	Name string
 	Base *ActionTool
 }
+
 // NewActionVerbTools returns the visible browser.* family backed by base.
 func NewActionVerbTools(base *ActionTool) []agent.Tool {
 	if base == nil {

@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent sub-command flag parser (parseAgentFlags).
-// Extracted from agent.go during Day 211 god-file refactor (#60).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent sub-command flag parser
+//             (parseAgentFlags). Extracted from agent.go during Day 211 god-file
+//             refactor (#60). Public API unchanged.
 
 import (
 	"fmt"
@@ -36,6 +35,7 @@ type agentFlags struct {
 	silentOnSuccess, disableMemoryWrites                                      bool
 	set                                                                       map[string]bool
 }
+
 func parseAgentFlags(args []string, stderr io.Writer, cmd string) (agentFlags, []string, bool) {
 	f := agentFlags{set: map[string]bool{}}
 	var rest []string

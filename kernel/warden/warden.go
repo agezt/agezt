@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Warden types: Profile + IsKnown + constants.
-// Code extracted from warden.go during the Day-72 god-file split. Public API unchanged.
 package warden
 
+// Provenance: Warden types: Profile + IsKnown + constants. Code extracted from
+//             warden.go during the Day-72 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 )
-
-
 
 // Profile is one of the four named isolation modes from SPEC-06 §2.
 type Profile string

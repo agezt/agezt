@@ -112,4 +112,3 @@ func daytonaClientEnv() []string {
 // render builds the model-facing Result: a one-line header (language / project /
 // effective isolation profile / dir) followed by combined output, with the same
 // truncation / timeout / non-zero-exit semantics as the shell tool.
-

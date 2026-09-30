@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// config_helpers.go: configScope + register/unregister + errf helpers split off
-// from config.go during the Day 211 god-file refactor (#134). Public API unchanged.
 package config
+
+// Provenance: config_helpers.go: configScope + register/unregister + errf helpers
+//             split off from config.go during the Day 211 god-file refactor (#134).
+//             Public API unchanged.
 
 import (
 	"encoding/json"

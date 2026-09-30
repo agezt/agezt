@@ -54,7 +54,6 @@ import (
 	"time"
 )
 
-
 const (
 	// envServerCmd is the env var the operator sets to declare which
 	// MCP server to run. Space-separated like a shell command line;
@@ -221,4 +220,3 @@ func serve(mcp *mcpClient) {
 // the agezt tool registry doesn't churn when the resource catalog
 // changes between server runs.
 const readResourceToolName = "read_resource"
-

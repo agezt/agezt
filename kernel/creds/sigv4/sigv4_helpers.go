@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/creds/sigv4 canonicalisation + URI encoding helpers (CanonicalQuery,
-// canonicalHeaders, collapseSpaces, AWSURIEncode).
-// Extracted from sigv4.go during Day 211 god-file refactor (#91).
-// Public API unchanged.
 package sigv4
+
+// Provenance: SPDX-License-Identifier: MIT kernel/creds/sigv4 canonicalisation + URI
+//             encoding helpers (CanonicalQuery, canonicalHeaders, collapseSpaces,
+//             AWSURIEncode). Extracted from sigv4.go during Day 211 god-file
+//             refactor (#91). Public API unchanged.
 
 import (
 	"fmt"

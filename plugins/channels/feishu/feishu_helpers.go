@@ -50,4 +50,3 @@ func (c *Channel) seenBefore(id string) bool {
 
 // urlVerification detects the one-time challenge POST and returns (challenge,
 // token, true).
-

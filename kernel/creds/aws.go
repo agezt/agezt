@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// AWS chain constants + credential_process env scrub: EnvCredentialProcessAllowed, EnvCredentialProcessEnv, credentialProcessAWSSelectors, credentialProcessEnv.
-// Code extracted from aws.go during the Day-53 god-file split. Public API unchanged.
 package creds
 
+// Provenance: AWS chain constants + credential_process env scrub:
+//             EnvCredentialProcessAllowed, EnvCredentialProcessEnv,
+//             credentialProcessAWSSelectors, credentialProcessEnv. Code extracted
+//             from aws.go during the Day-53 god-file split. Public API unchanged.
 
 import (
 	"os"
@@ -12,8 +14,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/envscrub"
 )
-
-
 
 // EnvCredentialProcessAllowed is the env var operators must set
 // to 1 before the AWS chain will exec a `credential_process =`

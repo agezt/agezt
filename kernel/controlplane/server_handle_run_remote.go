@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Remote execution profile helpers + registerCoreCommands: publishRemoteExecutionProfileRunEvent + remoteExecutionProfileAnswerPreview + remoteExecutionProfilePeerMetadata + addRemoteExecutionProfilePeerMetadata + registerCoreCommands.
-// Code extracted from server_handle_run.go during the Day-52 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Remote execution profile helpers + registerCoreCommands:
+//             publishRemoteExecutionProfileRunEvent +
+//             remoteExecutionProfileAnswerPreview +
+//             remoteExecutionProfilePeerMetadata +
+//             addRemoteExecutionProfilePeerMetadata + registerCoreCommands. Code
+//             extracted from server_handle_run.go during the Day-52 god-file split.
+//             Public API unchanged.
 
 import (
 	"strings"
@@ -11,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
-
 
 func publishRemoteExecutionProfileRunEvent(k *runtime.Kernel, corr string, kind event.Kind, suffix string, payload any) error {
 	actor := "agent-" + corr
@@ -87,4 +91,3 @@ func registerCoreCommands() {
 		commandSpec{Cmd: CmdCancelRun, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleCancelRun(dc.Conn, dc.Req) }},
 	)
 }
-

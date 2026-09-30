@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package creds: at-rest encryption for the credential vault
-// (encryptedEnvelope struct + isEncryptedVault + encryptVault + decryptVault).
-// The KDF helpers (cachedDeriveKey + deriveKeyPBKDF2 + deriveKeyLegacyHMAC)
-// moved to encrypt_kdf.go. Day-211 god-file split. Public API unchanged.
 package creds
 
+// Provenance: Package creds: at-rest encryption for the credential vault
+//             (encryptedEnvelope struct + isEncryptedVault + encryptVault +
+//             decryptVault). The KDF helpers (cachedDeriveKey + deriveKeyPBKDF2 +
+//             deriveKeyLegacyHMAC) moved to encrypt_kdf.go. Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"crypto/aes"
@@ -17,6 +18,7 @@ import (
 	"fmt"
 	"io"
 )
+
 const (
 	// SchemaEncrypted is the value of the `schema` field on encrypted
 	// vault envelopes. Bumping requires a migration path; bumping

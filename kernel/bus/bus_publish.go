@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Bus publish methods: Publish (durable-before-notify, the canonical entry
-// point) and PublishStreaming (ephemeral fan-out for high-rate signals like
-// LLM token chunks). Split from bus.go during Day 211 god-file refactor (#33).
-// Public API unchanged.
 package bus
+
+// Provenance: SPDX-License-Identifier: MIT Bus publish methods: Publish
+//             (durable-before-notify, the canonical entry point) and
+//             PublishStreaming (ephemeral fan-out for high-rate signals like LLM
+//             token chunks). Split from bus.go during Day 211 god-file refactor
+//             (#33). Public API unchanged.
 
 import (
 	"strings"

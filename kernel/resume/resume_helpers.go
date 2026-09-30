@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package resume: small I/O helpers (Dir + safeName + path + writeAtomic).
-// Split from resume.go during Day 211 god-file refactor (#48).
-// Public API unchanged.
 package resume
+
+// Provenance: Package resume: small I/O helpers (Dir + safeName + path +
+//             writeAtomic). Split from resume.go during Day 211 god-file refactor
+//             (#48). Public API unchanged.
 
 import (
 	"path/filepath"

@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdWorldForget(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	var id string

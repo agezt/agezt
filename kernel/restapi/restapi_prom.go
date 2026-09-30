@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// REST API helpers: promName + promHelp + methodNotAllowed + writeJSON + writeErr + tokenText.
-// Code extracted from restapi.go during the Day-66 god-file split. Public API unchanged.
 package restapi
 
+// Provenance: REST API helpers: promName + promHelp + methodNotAllowed + writeJSON +
+//             writeErr + tokenText. Code extracted from restapi.go during the Day-66
+//             god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -11,7 +12,6 @@ import (
 	"net/http"
 	"strings"
 )
-
 
 func promName(s string) string {
 	if s == "" {

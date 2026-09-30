@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent renderers + helpers (impact summary printing,
-// format shims str/intNumber). Split from agent.go during Day 211
-// god-file refactor (#41, #53). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent renderers + helpers (impact
+//             summary printing, format shims str/intNumber). Split from agent.go
+//             during Day 211 god-file refactor (#41, #53). Public API unchanged.
 
 import (
 	"fmt"
@@ -70,5 +69,5 @@ func stringsAny(v any) []any {
 		return nil
 	}
 }
-func str(v any) string       { return format.Str(v) }
-func intNumber(v any) int    { return format.Number(v) }
+func str(v any) string    { return format.Str(v) }
+func intNumber(v any) int { return format.Number(v) }

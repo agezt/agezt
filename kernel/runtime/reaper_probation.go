@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Reaper: forced probation + unstable agents (the "what's on probation" cluster).
-// Code extracted from reaper_routing.go during the Day-90 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Reaper: forced probation + unstable agents (the "what's on probation"
+//             cluster). Code extracted from reaper_routing.go during the Day-90
+//             god-file split. Public API unchanged.
 
 import (
 	"os"
@@ -277,4 +277,3 @@ func routingUnstableWindow() time.Duration {
 	}
 	return d
 }
-

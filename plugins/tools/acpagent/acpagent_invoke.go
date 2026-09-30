@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// acpagent Tool heavy lifting: Invoke (the JSON-RPC driver) + spawnAgent
-// (the subprocess spawner) + DefaultTimeout + MaxOutputBytes consts.
-// Extracted from acpagent.go during Day 211 god-file refactor (#69).
-// Public API unchanged.
 package acpagent
+
+// Provenance: SPDX-License-Identifier: MIT acpagent Tool heavy lifting: Invoke (the
+//             JSON-RPC driver) + spawnAgent (the subprocess spawner) +
+//             DefaultTimeout + MaxOutputBytes consts. Extracted from acpagent.go
+//             during Day 211 god-file refactor (#69). Public API unchanged.
 
 import (
 	"context"

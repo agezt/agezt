@@ -8,11 +8,11 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/event"
 	"sort"
 	"strconv"
 	"strings"
-	"github.com/agezt/agezt/kernel/board"
-	"github.com/agezt/agezt/kernel/event"
 )
 
 func (s *Server) agentEscalationRows(st *board.Store, slug string, limit int, cursorTS int64, cursorID string) ([]agentEscalationRow, string) {
@@ -210,4 +210,3 @@ func wakeRunbookActivitySuffix(pl map[string]any) string {
 	}
 	return "contract " + strings.Join(clean, "/")
 }
-

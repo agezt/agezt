@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// OneBot channel: event parsing + CQ-message media helpers (validSignature + parseEvent + fetchMedia + extractCQMedia + cqUnescape).
-// Code extracted from onebot.go during the Day-137 god-file split.
-// Public API unchanged.
 package onebot
 
+// Provenance: OneBot channel: event parsing + CQ-message media helpers
+//             (validSignature + parseEvent + fetchMedia + extractCQMedia +
+//             cqUnescape). Code extracted from onebot.go during the Day-137 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

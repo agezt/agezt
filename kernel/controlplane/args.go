@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane request-arg typed primitives (argString, argTruthy, argBool,
-// requiredArgString, argFloat64, argInt64).
-// Extracted from args.go during Day 211 god-file refactor (#99).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg typed
+//             primitives (argString, argTruthy, argBool, requiredArgString,
+//             argFloat64, argInt64). Extracted from args.go during Day 211 god-file
+//             refactor (#99). Public API unchanged.
 
 import (
 	"fmt"

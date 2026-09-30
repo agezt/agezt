@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Package edict: policy decision functions (Decide + DecideWithCeiling).
-// Extracted from edict_engine.go during the Day-211 god-file split.
-// Public API unchanged.
 package edict
 
+// Provenance: Package edict: policy decision functions (Decide + DecideWithCeiling).
+//             Extracted from edict_engine.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"fmt"
 )
+
 func (e *Engine) Decide(cap Capability, input string) Outcome {
 	// No ceiling: LevelAllow (the max) clamps nothing, so behaviour is unchanged.
 	return e.DecideWithCeiling(cap, input, LevelAllow)

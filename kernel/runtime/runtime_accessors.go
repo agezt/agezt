@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// *Kernel simple getter accessors: Journal, Bus, State, Edict, Warden, Approvals, Scheduler, Provider, Memory, AgentGateway, Schedules, Tools.
-// Code extracted from runtime.go during the Day-41 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: *Kernel simple getter accessors: Journal, Bus, State, Edict, Warden,
+//             Approvals, Scheduler, Provider, Memory, AgentGateway, Schedules,
+//             Tools. Code extracted from runtime.go during the Day-41 god-file
+//             split. Public API unchanged.
 
 import (
 	"errors"
@@ -20,8 +22,6 @@ import (
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
-
-
 
 // Journal exposes the underlying journal for read-only inspection.
 func (k *Kernel) Journal() *journal.Journal { return k.journal }

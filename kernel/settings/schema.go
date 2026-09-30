@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Settings schema: FieldType/Apply/Field/Section types + SourceBuiltin constant + Schema().
-// Code extracted from schema.go during the Day-62 god-file split. Public API unchanged.
 package settings
 
-
-
-
-
+// Provenance: Settings schema: FieldType/Apply/Field/Section types + SourceBuiltin
+//             constant + Schema(). Code extracted from schema.go during the Day-62
+//             god-file split. Public API unchanged.
 
 // FieldType drives how the UI renders a field and how the server validates it.
 type FieldType string

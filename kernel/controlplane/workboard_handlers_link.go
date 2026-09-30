@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard control-plane handlers — link/policy/depend.
-// handleWorkboardLink + handleWorkboardPolicy + handleWorkboardDepend +
-// handleWorkboardReclaim + handleWorkboardSweep.
-// Extracted from workboard_handlers.go during the Day-211 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Workboard control-plane handlers —
+//             link/policy/depend. handleWorkboardLink + handleWorkboardPolicy +
+//             handleWorkboardDepend + handleWorkboardReclaim + handleWorkboardSweep.
+//             Extracted from workboard_handlers.go during the Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"net"
@@ -75,4 +74,3 @@ func (s *Server) handleWorkboardSweep(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tasks": out, "reclaimed_count": len(out), "stale_after_ms": staleAfterMS}})
 }
-

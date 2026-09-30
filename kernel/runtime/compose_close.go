@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime teardown: Close + closeAll.
-// Code extracted from compose.go during the Day-79 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Runtime teardown: Close + closeAll. Code extracted from compose.go
+//             during the Day-79 god-file split. Public API unchanged.
 
 import (
 	"errors"
@@ -11,7 +11,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // cancelled via Halt, then given a bounded drain window (M883) so a run
 // mid-journal-write finishes cleanly instead of racing store teardown.

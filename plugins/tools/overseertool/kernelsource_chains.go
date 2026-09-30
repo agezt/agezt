@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/settings"
 )
+
 type taskModelChainsSource interface {
 	TaskModelChainsView() map[string][]string
 	SetTaskModelChains(map[string][]string)

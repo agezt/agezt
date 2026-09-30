@@ -195,4 +195,3 @@ func (k *Kernel) publishIntervention(res intervention.Result, req intervention.R
 		Payload:       payload,
 	})
 }
-

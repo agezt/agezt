@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI security handlers: allowHook + handleWorkflowHook + runStreamProxy + toolInstallProxy + marketStreamProxy.
-// Code extracted from webui_security.go during the Day-75 god-file split. Public API unchanged.
 package webui
 
+// Provenance: WebUI security handlers: allowHook + handleWorkflowHook +
+//             runStreamProxy + toolInstallProxy + marketStreamProxy. Code extracted
+//             from webui_security.go during the Day-75 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -17,8 +19,6 @@ import (
 	"strings"
 	"time"
 )
-
-
 
 func (s *Server) allowHook(key string) bool {
 	now := time.Now().UnixMilli()

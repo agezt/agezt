@@ -118,4 +118,3 @@ func (s *Server) handleAgentGraveyard(conn net.Conn, req Request) {
 		"older_than_days": int(olderThanDays),
 	}})
 }
-

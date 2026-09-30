@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// builtinchannels: formatBrief + splitNonEmpty helpers + Telegram + Slack
-// channel factories. Extracted from factories.go during Day 211
-// god-file refactor (#44, #68). Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT builtinchannels: formatBrief +
+//             splitNonEmpty helpers + Telegram + Slack channel factories. Extracted
+//             from factories.go during Day 211 god-file refactor (#44, #68). Public
+//             API unchanged.
 
 import (
 	"fmt"

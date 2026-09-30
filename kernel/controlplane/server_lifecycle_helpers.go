@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane Server lifecycle helpers (tokenIsPrimary, maxRequestBytes,
-// errRequestTooLarge, readBoundedLine).
-// Extracted from server_lifecycle.go during Day 211 god-file refactor (#88).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane Server lifecycle
+//             helpers (tokenIsPrimary, maxRequestBytes, errRequestTooLarge,
+//             readBoundedLine). Extracted from server_lifecycle.go during Day 211
+//             god-file refactor (#88). Public API unchanged.
 
 import (
 	"bufio"

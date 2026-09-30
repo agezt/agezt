@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Config-center observability + helpers: handleConfigCenterAudit +
-// handleConfigCenterHealth + entryToMap + configCenterStringList +
-// configCenterSplitList + configCenterCleanList. Carved out of
-// configcenter_handler.go during the Day 186 god-file split so the
-// main file can stay focused on CRUD (Set/Get/List/Delete) and the
-// access file can stay focused on governance (Rating/Access/AccessLog).
-// Public API unchanged.
 package controlplane
 
+// Provenance: Config-center observability + helpers: handleConfigCenterAudit +
+//             handleConfigCenterHealth + entryToMap + configCenterStringList +
+//             configCenterSplitList + configCenterCleanList. Carved out of
+//             configcenter_handler.go during the Day 186 god-file split so the main
+//             file can stay focused on CRUD (Set/Get/List/Delete) and the access
+//             file can stay focused on governance (Rating/Access/AccessLog). Public
+//             API unchanged.
 
 import (
 	"net"
@@ -188,4 +188,3 @@ func configCenterCleanList(in []string) []string {
 }
 
 // registerConfigCenterCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
-

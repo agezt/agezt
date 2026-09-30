@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Autonomy feed helpers: strPayloadMap, strPayload, strSlicePayload, intPayload, clipDetail.
-// Code extracted from autonomy.go during the Day-50 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Autonomy feed helpers: strPayloadMap, strPayload, strSlicePayload,
+//             intPayload, clipDetail. Code extracted from autonomy.go during the
+//             Day-50 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
 	"strings"
 )
-
 
 func strPayloadMap(payload []byte, k string) string {
 	if len(payload) == 0 {

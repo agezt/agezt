@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// tool_helpers.go: actor-identity + view-format + result helpers split off
-// from tool.go during the Day 211 god-file refactor (#128). Public API unchanged.
 package boardtool
+
+// Provenance: tool_helpers.go: actor-identity + view-format + result helpers split
+//             off from tool.go during the Day 211 god-file refactor (#128). Public
+//             API unchanged.
 
 import (
 	"context"
@@ -13,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
 )
-
 
 func applyActorIdentity(ctx context.Context, in *input) agent.Result {
 	actor := strings.TrimSpace(agent.AgentFromContext(ctx))

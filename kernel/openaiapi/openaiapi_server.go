@@ -1,17 +1,16 @@
-// SPDX-License-Identifier: MIT
-//
-// Server surface: New + SetTenantResolver/Authorizer + SetTranscriber +
-// bind + Handler + audioMaxBytes. Split from openaiapi_server.go during
-// Day 211 god-file refactor (#35).
-// Public API unchanged.
 package openaiapi
+
+// Provenance: SPDX-License-Identifier: MIT Server surface: New +
+//             SetTenantResolver/Authorizer + SetTranscriber + bind + Handler +
+//             audioMaxBytes. Split from openaiapi_server.go during Day 211 god-file
+//             refactor (#35). Public API unchanged.
 
 import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/bus"
 	kernelauth "github.com/agezt/agezt/kernel/auth"
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/httpserver"
 )
 

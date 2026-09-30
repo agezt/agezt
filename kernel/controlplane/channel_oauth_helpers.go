@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// channel_oauth_helpers.go: pruneOAuthLocked + newOAuthState + providerErr +
-// normalizeInstanceURL + isHTTPSURL split off from channel_oauth.go during the
-// Day 211 god-file refactor (#145). Public API unchanged.
 package controlplane
+
+// Provenance: channel_oauth_helpers.go: pruneOAuthLocked + newOAuthState +
+//             providerErr + normalizeInstanceURL + isHTTPSURL split off from
+//             channel_oauth.go during the Day 211 god-file refactor (#145). Public
+//             API unchanged.
 
 import (
 	"crypto/rand"

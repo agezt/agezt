@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// governor_complete_helpers.go: preflightAndRoute + runChain + openChain +
-// ProviderHealth + callWithRetry + isTransient split off from governor_complete.go
-// during the Day 211 god-file refactor (#141). Public API unchanged.
 package governor
+
+// Provenance: governor_complete_helpers.go: preflightAndRoute + runChain + openChain
+//             + ProviderHealth + callWithRetry + isTransient split off from
+//             governor_complete.go during the Day 211 god-file refactor (#141).
+//             Public API unchanged.
 
 import (
 	"context"

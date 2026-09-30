@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Read-only detection path: ToolStatus + Inventory + versionTimeout +
-// probeVersion + firstLine + clip + Detect.
-// Extracted from toolbox.go during the Day-203 god-file split.
-// Public API unchanged.
 package toolbox
+
+// Provenance: SPDX-License-Identifier: MIT Read-only detection path: ToolStatus +
+//             Inventory + versionTimeout + probeVersion + firstLine + clip + Detect.
+//             Extracted from toolbox.go during the Day-203 god-file split. Public
+//             API unchanged.
 
 import (
 	"bufio"

@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt plugin-registry index path: loadPluginIndex (the index fetcher) +
-// listPluginRegistry (the list sub-command) + installPluginFromRegistry
-// (the install sub-command).
-// Extracted from plugin_registry.go during the Day-210 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt plugin-registry index path:
+//             loadPluginIndex (the index fetcher) + listPluginRegistry (the list
+//             sub-command) + installPluginFromRegistry (the install sub-command).
+//             Extracted from plugin_registry.go during the Day-210 god-file split.
+//             Public API unchanged.
 
 import (
 	"encoding/json"

@@ -263,4 +263,3 @@ func Describe(entries []Entry) string {
 	}
 	return fmt.Sprintf("%d schedule(s): %s", len(entries), strings.Join(parts, ", "))
 }
-

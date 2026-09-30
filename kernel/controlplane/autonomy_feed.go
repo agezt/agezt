@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Autonomy feed handler: handleAutonomyFeed + autonomyDetail.
-// Code extracted from autonomy.go during the Day-50 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Autonomy feed handler: handleAutonomyFeed + autonomyDetail. Code
+//             extracted from autonomy.go during the Day-50 god-file split. Public
+//             API unchanged.
 
 import (
 	"encoding/json"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func (s *Server) handleAutonomyFeed(conn net.Conn, req Request) {
 	limit := autonomyDefaultLimit

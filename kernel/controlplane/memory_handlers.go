@@ -1,14 +1,13 @@
-// SPDX-License-Identifier: MIT
-//
-// Memory control-plane handlers: memoryRememberSpecFromArgs (the spec helper)
-// + handleMemoryAdd + handleMemorySupersede (the write path) +
-// handleMemoryGet + handleMemoryList + handleMemorySearch +
-// handleMemoryPromote (the read + lifecycle).
-// The hygiene mutators (handleMemoryForget + handleMemoryPrune +
-// handleMemoryTidy + defaultPruneDays) live in memory_handlers_tidy.go.
-// Extracted from memory_handlers.go during the Day-205 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Memory control-plane handlers:
+//             memoryRememberSpecFromArgs (the spec helper) + handleMemoryAdd +
+//             handleMemorySupersede (the write path) + handleMemoryGet +
+//             handleMemoryList + handleMemorySearch + handleMemoryPromote (the read
+//             + lifecycle). The hygiene mutators (handleMemoryForget +
+//             handleMemoryPrune + handleMemoryTidy + defaultPruneDays) live in
+//             memory_handlers_tidy.go. Extracted from memory_handlers.go during the
+//             Day-205 god-file split. Public API unchanged.
 
 import (
 	"errors"

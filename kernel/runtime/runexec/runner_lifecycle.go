@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Runner lifecycle + maybe-helpers: CompleteAgentLifecycle + RunAssured + MaybeDistill + MaybeForge + MaybeShadowEval.
-// Code extracted from runner.go during the Day-63 god-file split. Public API unchanged.
 package runexec
 
+// Provenance: Runner lifecycle + maybe-helpers: CompleteAgentLifecycle + RunAssured
+//             + MaybeDistill + MaybeForge + MaybeShadowEval. Code extracted from
+//             runner.go during the Day-63 god-file split. Public API unchanged.
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/assure"
@@ -16,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"strings"
 )
-
 
 func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 	slug := r.k.AgentSlugFromCtx(ctx)
@@ -178,13 +177,12 @@ func (r *Runner) MaybeShadowEval(ctx context.Context, corr, intent, answer strin
 	}
 }
 
-// errStubOnly is the sentinel returned by stub entry points
-// until a future slice fills the body. It is a distinctive
-// error so callers fail loudly instead of silently getting a
-// zero-value answer. Currently unused (Day 23 filled all
-// planned entry points) but kept as a guard against silent
-// regressions on future KernelAPI additions.
-var errStubOnly = errors.New("runexec: Runner entry point not yet implemented")
+// errStubOnly was removed. It was declared as a sentinel for stub entry points
+// and its comment claimed it was "kept as a guard against silent regressions on
+// future KernelAPI additions" — but an unreferenced var guards nothing: it is
+// never returned, so no caller can fail loudly on it, and interface compliance
+// is already enforced at compile time by the KernelAPI assertion below. All it
+// did was trip staticcheck, which this repo runs zero-tolerance.
 
 // keep package-level references live so the imports in this
 // file stay used after the body moves settle. Removing them

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Config handler: handleConfig.
-// Code extracted from config.go during the Day-74 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Config handler: handleConfig. Code extracted from config.go during the
+//             Day-74 god-file split. Public API unchanged.
 
 import (
 	"net"
 	"os"
 	"path/filepath"
 )
-
-
 
 func (s *Server) handleConfig(conn net.Conn, req Request) {
 	base := s.k.BaseDir()

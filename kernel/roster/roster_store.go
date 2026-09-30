@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Store: type Store, Open, Add, SetEnabled, SetRetired, Update, Remove, Get, find, List, Count, save, SetNowForTest.
-// Code extracted from roster.go during the Day-45 god-file split. Public API unchanged.
 package roster
 
+// Provenance: Store: type Store, Open, Add, SetEnabled, SetRetired, Update, Remove,
+//             Get, find, List, Count, save, SetNowForTest. Code extracted from
+//             roster.go during the Day-45 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 type Store struct {
 	path     string

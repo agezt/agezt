@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider check --stream sub-command: probes a provider via its
-// streaming path (agent.StreamingProvider), rendering incoming text chunks
-// inline. Extracted from check_all.go during Day 211 god-file refactor (#50).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt provider check --stream
+//             sub-command: probes a provider via its streaming path
+//             (agent.StreamingProvider), rendering incoming text chunks inline.
+//             Extracted from check_all.go during Day 211 god-file refactor (#50).
+//             Public API unchanged.
 
 import (
 	"context"
@@ -30,6 +30,7 @@ func streamingUnsupportedMessage(family string) string {
 	return fmt.Sprintf("%s: provider family %q does not implement streaming in this build — re-run `%s provider check` without --stream",
 		brand.CLI, family, brand.CLI)
 }
+
 // runStreamProbe issues the probe via the provider's streaming path
 // (agent.StreamingProvider) and renders incoming text chunks inline.
 // Errors out cleanly if the resolved provider doesn't implement

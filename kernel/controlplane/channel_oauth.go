@@ -33,7 +33,6 @@ import (
 	"github.com/agezt/agezt/kernel/settings"
 )
 
-
 // oauthProvider describes a channel's OAuth2 authorization-code endpoints. When
 // instanceBased, the authorize/token URLs are derived from an operator-supplied
 // instance URL (e.g. a Mastodon server) rather than fixed.

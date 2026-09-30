@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Alerter: Level type + ParseLevel + Alert type + Classify + Config + Notifier + Start (lifecycle + classification).
-// Code extracted from alerter.go during the Day-133 god-file split.
-// Public API unchanged.
 package alerter
 
+// Provenance: Alerter: Level type + ParseLevel + Alert type + Classify + Config +
+//             Notifier + Start (lifecycle + classification). Code extracted from
+//             alerter.go during the Day-133 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -15,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/pulse"
 )
-
 
 // Level ranks alert severity. Mirrors the console's classifier
 // (frontend/src/lib/alerts.ts): info signals exist but never notify.

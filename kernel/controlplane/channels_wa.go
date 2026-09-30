@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane channels: WhatsApp gateway status/QR proxy handlers + helpers.
-// Code extracted from channels.go during the Day-113 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane channels: WhatsApp gateway status/QR proxy handlers +
+//             helpers. Code extracted from channels.go during the Day-113 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

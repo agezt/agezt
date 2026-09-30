@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// /v1 OpenAI-compatible endpoint helpers: intent extraction (intentFromMessages),
-// rough usage estimator (estimateUsage), JSON/error envelope writers, and the
-// event-payload text extractors for streamed tokens and reasoning deltas.
-// Split from openaiapi_stream.go during Day 211 god-file refactor (#32).
-// Public API unchanged.
 package openaiapi
+
+// Provenance: SPDX-License-Identifier: MIT /v1 OpenAI-compatible endpoint helpers:
+//             intent extraction (intentFromMessages), rough usage estimator
+//             (estimateUsage), JSON/error envelope writers, and the event-payload
+//             text extractors for streamed tokens and reasoning deltas. Split from
+//             openaiapi_stream.go during Day 211 god-file refactor (#32). Public API
+//             unchanged.
 
 import (
 	"encoding/json"

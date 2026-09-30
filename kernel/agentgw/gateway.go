@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Agent gateway: types + lifecycle.
-// Code extracted from gateway.go during the Day-84 god-file split.
-// Public API unchanged.
 package agentgw
 
+// Provenance: Agent gateway: types + lifecycle. Code extracted from gateway.go
+//             during the Day-84 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -23,7 +22,6 @@ import (
 	"log/slog"
 	"net/http"
 )
-
 
 // Gateway handles incoming requests from agent subprocess code.
 type Gateway struct {

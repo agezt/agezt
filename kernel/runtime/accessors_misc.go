@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel accessors: misc (ShadowEval/VisionModel/StandingList/SkillStore/AgentSlug/AgentRetryPolicy/BaseDir/ConfigCenter/Model/SetModel) + council + catalog + reload + loop/plan.
-// Code extracted from accessors.go during the Day-56 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel accessors: misc
+//             (ShadowEval/VisionModel/StandingList/SkillStore/AgentSlug/AgentRetryPolicy/BaseDir/ConfigCenter/Model/SetModel)
+//             + council + catalog + reload + loop/plan. Code extracted from
+//             accessors.go during the Day-56 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -20,8 +22,6 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
-
 
 // VisionModel returns the injected vision-capable model resolver
 // (or nil if not configured). Used by DescribeImages (M821) to
@@ -51,7 +51,9 @@ func (k *Kernel) AgentSlugFromCtx(ctx context.Context) string { return agentSlug
 // attached to a run context by WithAgentProfile (or zero + false
 // when unset). Wraps the package-level agentRetryPolicyFromCtx
 // for the same reason as AgentSlugFromCtx (Day 23).
-func (k *Kernel) AgentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool) { return agentRetryPolicyFromCtx(ctx) }
+func (k *Kernel) AgentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool) {
+	return agentRetryPolicyFromCtx(ctx)
+}
 
 // BaseDir returns the kernel's base directory — the root under
 // which journal/, state/, runtime/, catalog/, and vault data

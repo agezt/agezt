@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI files route: types + path resolution + safety layer.
-// Code extracted from files_route.go during the Day-89 god-file split.
-// Public API unchanged.
 package webui
 
+// Provenance: WebUI files route: types + path resolution + safety layer. Code
+//             extracted from files_route.go during the Day-89 god-file split. Public
+//             API unchanged.
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 
 	"path/filepath"
 )
-
 
 // File Manager routes (M1017). The frontend's Files workspace talks to a
 // live tree + raw bytes under a configurable root, defaulting to

@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `market` read-only subcommands (cmdMarketList, cmdMarketShow).
-// Extracted from market.go during Day 211 god-file refactor (#76).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `market` read-only subcommands
+//             (cmdMarketList, cmdMarketShow). Extracted from market.go during Day
+//             211 god-file refactor (#76). Public API unchanged.
 
 import (
 	"context"

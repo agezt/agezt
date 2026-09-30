@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane skill view helpers (isSkillKind + skillView + registerSkillCommands).
-// Code extracted from skill.go during the Day-88 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane skill view helpers (isSkillKind + skillView +
+//             registerSkillCommands). Code extracted from skill.go during the Day-88
+//             god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"

@@ -11,8 +11,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 	"github.com/agezt/agezt/kernel/event"
+	"time"
 )
 
 func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string, runErr error) {

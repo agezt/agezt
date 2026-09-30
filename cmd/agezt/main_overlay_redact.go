@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Model-advisory + credential redaction helpers (modelAdvisory, credSecrets,
-// extraRedactLiterals). Extracted from main_overlay.go during Day 211
-// god-file refactor (#56). Public API unchanged.
 package main
+
+// Provenance: Model-advisory + credential redaction helpers (modelAdvisory,
+//             credSecrets, extraRedactLiterals). Extracted from main_overlay.go
+//             during Day 211 god-file refactor (#56). Public API unchanged.
 
 import (
 	"os"

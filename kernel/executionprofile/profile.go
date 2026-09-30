@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// Execution profile core: Build + Inventory.Find + WardenProfileForRun + RoutableRunProfileIDs + RoutableRunProfileIDsFor + localProfile.
-// Code extracted from profile.go during the Day-71 god-file split. Public API unchanged.
 package executionprofile
 
+// Provenance: Execution profile core: Build + Inventory.Find + WardenProfileForRun +
+//             RoutableRunProfileIDs + RoutableRunProfileIDsFor + localProfile. Code
+//             extracted from profile.go during the Day-71 god-file split. Public API
+//             unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/warden"
 	"runtime"
 	"strings"
 )
-
-
 
 type Status string
 

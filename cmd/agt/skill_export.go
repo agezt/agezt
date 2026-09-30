@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt skill export` — skillBundle + skillBundleBody types +
-// buildSkillBundle + verifySkillBundle + safeSkillFilename (the bundle
-// surface). The exportAllSkills + cmdSkillExport moved to skill_export_cli.go.
-// Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt skill export` — skillBundle + skillBundleBody types
+//             + buildSkillBundle + verifySkillBundle + safeSkillFilename (the bundle
+//             surface). The exportAllSkills + cmdSkillExport moved to
+//             skill_export_cli.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/skill"
 )
+
 // skillBundle is the portable, shareable representation of a single skill — the
 // foundation for moving a skill between Agezt instances (M268). It carries only
 // the skill's CONTENT fields, never instance-local state (status, metrics,

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Agent activity summary: agentActivitySummary (the giant 425-line text renderer).
-// Code extracted from roster_activity_text.go during the Day-77 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Agent activity summary: agentActivitySummary (the giant 425-line text
+//             renderer). Code extracted from roster_activity_text.go during the
+//             Day-77 god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
 	"strconv"
 	"strings"
 )
-
 
 func agentActivitySummary(e *event.Event, pl map[string]any, slug string, runCorr map[string]bool) (string, bool) {
 	if e.Subject == "doctor.auto_repair" && e.Kind == event.KindInfo && plString(pl, "agent") == slug {
