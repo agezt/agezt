@@ -2,21 +2,27 @@
 
 package governor
 
-// Package governor is the per-task routing + budget layer (TASKS
-// P1-CONDUIT-01..04; DECISIONS C1-C6). The Governor implements
-// agent.Provider so the rest of the kernel does not need to know it
-// exists; it sits between the agent tool-loop and the concrete Provider
-// plugins, choosing which one runs each call, walking a fallback chain
-// on error, tracking spend in USD-microcents (DECISIONS C1), and
-// enforcing per-day and per-task ceilings. Routing (M1.b minimum): 1. If
-// RouteOptions.PreferredProvider is set and registered, try it. 2.
-// Otherwise pick the primary (first registered non-fallback provider).
-// 3. On a fall-back-able error (anything except context.Canceled /
-// DeadlineExceeded / ErrBudgetExceeded), walk the chain: other
-// non-fallback providers in registration order, then any fallback
-// (IsFallback=true) providers last. Full subscription→cost→latency
-// policy (DECISIONS C2) lands when the model catalog sync (TASKS
-// P1-CONDUIT-04) ships.
+// This file holds the routing and budget engine. The package's
+// documentation — what the Governor is and the three pieces it is built from —
+// lives in doc.go.
+//
+// The routing algorithm as it stands today, kept here because it is the
+// operational detail rather than the overview:
+//
+//	M1.b minimum. 1. If RouteOptions.PreferredProvider is set and registered,
+//	try it. 2. Otherwise pick the primary (first registered non-fallback
+//	provider). 3. On a fall-back-able error (anything except
+//	context.Canceled / DeadlineExceeded / ErrBudgetExceeded), walk the chain:
+//	other non-fallback providers in registration order, then any fallback
+//	(IsFallback=true) providers last. TaskRoutes and TaskRouteRequires
+//	(see routes.go) reshape that order per task type.
+//
+// OPEN: doc.go describes the chain as "subscription-first → quality → cost →
+// latency", while the note above says the full subscription→cost→latency
+// policy (DECISIONS C2) only lands with the model-catalog sync. One of the
+// two is out of date. Resolving it needs a decision about what the chain
+// actually does today, so the text is left as-is rather than merged into
+// doc.go and silently asserting one of them.
 
 import (
 	"errors"

@@ -2,22 +2,11 @@
 
 package event
 
-// Package event defines the canonical Agezt Event type, deterministic
-// encoding for hashing, and the BLAKE3 hash-chain primitive. "Everything
-// is an event" (BUILD-GUIDE §0): every meaningful kernel action is
-// journaled here. Events are immutable; corrections are inverse events
-// appended later (DECISIONS B0c — log is the audit/replay/revert truth).
-// Hash chain (DECISIONS B3): hash = BLAKE3-256( prev_hash_bytes ||
-// canonical_json_bytes ) where canonical_json_bytes is the deterministic
-// JSON encoding of the event with its Hash field empty (omitempty drops
-// it). The first event in a journal uses GenesisHash for prev_hash. Note
-// on DECISIONS B3 wording: B3 was written against the now-superseded
-// protobuf wire format ("protobuf serialized with deterministic field
-// ordering"). Per the foundational revision DECISIONS B0, the wire
-// format is JSON; the deterministic-bytes requirement carries over. Go's
-// encoding/json sorts map keys and respects struct field declaration
-// order, giving us a deterministic encoding for free as long as struct
-// field order is treated as part of the contract.
+// This file holds the Event type and its deterministic encoding and hash
+// chain. The package's documentation — its role in the kernel and the
+// BLAKE3/JSON contract it upholds — lives in doc.go. The two were previously
+// split across this file's own package comment and doc.go, so `go doc` showed
+// two different descriptions of the same package stacked on top of each other.
 
 import (
 	"encoding/hex"
