@@ -152,6 +152,24 @@ This file holds the active `[Unreleased]` working set.
   entry above this one explicitly forbids writing. The commit counts are removed
   rather than corrected, since correcting them only moves the expiry date.
 
+  **And it was wired into CI, which it had never been.** `doc-claims` existed
+  only as a `make check` target, and nothing runs that automatically — the same
+  gap this audit found and closed for `structure-md -check`, still open for the
+  tool this audit added afterwards. So the gate had never once run in CI, and
+  the numbers it exists to protect had already drifted twice. It now runs in the
+  `deps-check` job beside `structure-md`, because both answer the same question
+  and both need history; that job's checkout gained `fetch-depth: 0` for it.
+
+  Wiring it up exposed a defect that would have made it worthless in exactly
+  that job. `gitField` returns `""` when a git command fails, and an
+  unmeasurable fact is *skipped* rather than reported as a mismatch — right for
+  a genuinely absent input, and a silent no-op for a ref that does not exist.
+  Measured: with an unresolvable `-base`, eight of the ten facts were skipped
+  and the tool still printed `OK` and exited 0. A shallow checkout has no
+  `origin/main`, so that is one `fetch-depth` regression away from being a green
+  CI gate that checks nothing. `resolveBase` now refuses to run, exits 2, and
+  says which checkout setting is missing. Pinned by a test.
+
 - **Added: `gofmt` to `make check`, and `tools/structure-md -check` to CI.**
   `structure-md` was the only project gate with no CI job at all, which is how
   three stale generated documents sat on `main`. The `fmt` target is the local

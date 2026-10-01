@@ -70,6 +70,22 @@ func main() {
 		docs = append(docs, doc{path: *flagProj + "/" + n})
 	}
 
+	// Resolve the comparison ref BEFORE measuring anything. A fact that cannot
+	// be measured is skipped rather than reported as a mismatch, which is
+	// right for a genuinely absent input and catastrophic for a missing ref:
+	// every branch-relative number would be skipped and this tool would still
+	// print OK and exit 0. In CI that is a green gate that checks nothing, and
+	// it is reachable — a shallow checkout has no origin/main, and this tool has
+	// already shipped once as a comparison that measured an empty set.
+	if err := resolveBase(base); err != nil {
+		fmt.Fprintf(os.Stderr, "docclaimscheck: %v\n\n"+
+			"Every branch-relative number would be skipped, and this tool would still\n"+
+			"print OK and exit 0 — a green gate that checked nothing. Refusing to run.\n"+
+			"If you are in CI, the checkout needs fetch-depth: 0 so that the merge\n"+
+			"base is in the clone.\n", err)
+		osExit(2)
+	}
+
 	facts := collectFacts(base)
 
 	fails := 0
@@ -90,6 +106,21 @@ func main() {
 		osExit(1)
 	}
 	fmt.Println("OK: the deliverables' numbers match the branch.")
+}
+
+// resolveBase verifies the comparison ref names a commit. gitField returns ""
+// when a git command fails, and main treats an empty measurement as "skip this
+// fact" — correct for a genuinely absent input, and a silent no-op for a ref
+// that does not exist. Eight of the ten facts are branch-relative, so an
+// unresolvable base would skip all of them and still report success.
+func resolveBase(base string) error {
+	if base == "" {
+		return fmt.Errorf("no comparison ref given (-base is empty)")
+	}
+	if _, err := git("rev-parse", "--verify", "--quiet", base+"^{commit}"); err != nil {
+		return fmt.Errorf("comparison ref %q does not resolve to a commit in this clone", base)
+	}
+	return nil
 }
 
 // collectFacts measures every quantity the documents are allowed to quote. A

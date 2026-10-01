@@ -100,6 +100,24 @@ func TestClaimPatternsAndFactsCorrespond(t *testing.T) {
 	}
 }
 
+// An unresolvable comparison ref must be refused, not skipped. gitField returns
+// "" on a git failure and main skips unmeasurable facts, so without this check
+// a ref that does not exist silently drops every branch-relative number and the
+// tool still reports OK with exit 0 — a green gate that checked nothing. It is
+// reachable in CI: a shallow checkout has no origin/main, which is why the
+// deps-check job that runs this now sets fetch-depth: 0.
+func TestResolveBaseRefusesAnUnresolvableRef(t *testing.T) {
+	if err := resolveBase("origin/definitely-not-a-real-ref"); err == nil {
+		t.Fatal("resolveBase accepted a ref that does not exist; the gate would report OK while measuring nothing")
+	}
+	if err := resolveBase(""); err == nil {
+		t.Fatal("resolveBase accepted an empty ref")
+	}
+	if err := resolveBase("HEAD"); err != nil {
+		t.Fatalf("resolveBase rejected a ref that does resolve (HEAD): %v", err)
+	}
+}
+
 func mustWrite(t *testing.T, path, body string) {
 	t.Helper()
 	if i := strings.LastIndex(path, "/"); i >= 0 {

@@ -464,6 +464,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # docclaimscheck below measures the branch against origin/main, so the
+          # merge base has to be in the clone. A shallow checkout has no
+          # origin/main and the gate would report every count as zero — which is
+          # the "compares against a tip that already contains the changes"
+          # failure this tool already had to be fixed for once.
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-go-safe
       - name: Verify every module is in tools/depscheck/allowlist.txt
@@ -486,6 +492,20 @@ jobs:
         # 636 files that violated the gofmt gate above — a tool writes source
         # and is not held to the gates a human contributor must pass.
         run: bash scripts/ci-go-retry.sh go run ./tools/structure-md -check -out .project/STRUCTURE.generated
+      - name: Verify the audit documents' numbers against the branch
+        # The second gate of this exact class, and it was still open when this
+        # line was written. docclaimscheck exists to catch the audit's own
+        # documents quoting numbers that went stale, and it was wired into
+        # `make check` and nothing else — a Makefile target nothing runs
+        # automatically. So the tool had never once run in CI, and the numbers
+        # it was written to protect had already drifted twice (a vitest count
+        # three commits behind, and two live commit counts that are stale the
+        # moment the next commit lands).
+        #
+        # It lives beside structure-md rather than in its own job because both
+        # answer the same question — is the committed record still true? — and
+        # both need the full history this checkout now has.
+        run: bash scripts/ci-go-retry.sh go run ./tools/docclaimscheck -base origin/main
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
