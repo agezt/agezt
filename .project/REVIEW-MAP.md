@@ -1,16 +1,27 @@
 # Review map — 2026-09-27/30 surface audit
 
 **This is what the branch delivers, not a proposal.** `audit/2026-09-surface`
-takes `0b6c8519` to here. Measured with `git diff --name-status 0b6c8519..HEAD`:
+takes `0b6c8519` to here.
 
-```
-1212 files changed
-943 modified · 126 added · 85 deleted · 58 renamed
-```
-
-> The per-file line counts (`--shortstat`) are deliberately not quoted: they
-> change every time a sentence about them is added, including this one. The
-> file counts are stable, and they are what a review actually navigates by.
+> **No branch-wide file totals are quoted here, and that is a correction.**
+> Earlier revisions stated "N files changed · N modified · N added" and called
+> them stable. They are not, and saying so was the mistake: every commit that
+> touches a file changes them, so the `docclaimscheck` gate fired on this
+> document five times during the work, each time correctly — a document written
+> while the work is in progress drifts. Correcting the number only moved the
+> expiry date to the next commit, which is exactly the same problem the commit
+> count had and why that one was removed rather than restated.
+>
+> Reproduce them yourself instead; they are one command:
+> `git diff --shortstat 0b6c8519..HEAD` and
+> `git diff --name-status 0b6c8519..HEAD`.
+>
+> What a review actually navigates by is the **per-slice counts below** — "38
+> files, 2,890 lines" — and those are stable, because each slice is a fixed set
+> of commits that is already landed. The same goes for the branch's shape:
+> 17 job definitions in `ci.yml`, 36 live views across 8 nav sections and 27
+> rows, 8 sections × 17 jobs of CI, all of which are properties of the code
+> rather than of how many commits it took to get there.
 
 `main` is untouched, locally and on `origin`.
 
