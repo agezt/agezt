@@ -12,6 +12,41 @@ not.** Every gate the project already had was either red, unwired, or measuring
 the wrong string — and the two real product bugs it found were both hiding
 behind gates that were green.
 
+## The WebUI, audited for itself — two false all-clears
+
+This audit set out to check everything *outside* the web, on the reasoning that
+the WebUI looked like a mess. The web was then measured for itself, and that
+instinct turned out to be wrong: across all 38 live views, empty states are
+38/38, error states 37/38, loading 33/38, and 0 unresolved imports. The empty
+states are not hand-rolled — they are one shared `<EmptyState>` in a 17-module
+design system the views already use.
+
+What was real was narrow, and it was the nav promising something it did not
+deliver:
+
+- **Three tabs that were one page.** `Observe › Runs` carried Runs, Activity and
+  Replay, and all three rendered the `Runs` component. `App` instantiates the
+  active view as `const View = current.render` with **no props**, so a component
+  cannot tell which entry it was reached through and every one of those clicks
+  produced a byte-identical screen.
+- **Two rail entries, one page.** `Admin › Identity` rendered `Skills`, which
+  the `Skills` row beside it also rendered.
+
+`nav.test.ts` caught neither, structurally: every test in it compares a row's
+*label* to its render's title, and nothing asked whether two entries open the
+same page. There is now a test that does, by reference identity. All three ids
+are retired into `VIEW_ALIASES`, which is the rule Day 28 already applied to
+Health, Alerts and Wizards.
+
+Then the three live views that had **no test at all** were covered — 26 cases
+between them — and two of the three had the same defect: **an unreachable
+daemon rendered as good news.** `Approvals` said *"No agent is waiting on your
+eyes. The policy engine is auto-deciding"*; `Mission Control` said *"Nothing
+requires your eyes. The system is running cleanly."* The second is the page an
+operator opens to ask whether anything is wrong, so a silent fetch failure
+reading as an all-clear is the worst failure it can have. Both now distinguish
+"empty" from "unreadable". Views with a test: 35/38 → **38/38**.
+
 ## The finding that outranks all the others
 
 **20 of this workflow's 22 checks could not run, and had not for months.**
