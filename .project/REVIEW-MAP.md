@@ -4,8 +4,8 @@
 takes `0b6c8519` to here. Measured with `git diff --name-status 0b6c8519..HEAD`:
 
 ```
-1182 files changed
-926 modified · 113 added · 77 deleted · 66 renamed
+1184 files changed
+928 modified · 113 added · 77 deleted · 66 renamed
 ```
 
 > The per-file line counts (`--shortstat`) are deliberately not quoted: they

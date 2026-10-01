@@ -793,7 +793,7 @@ Nothing compared the shipped surface to the advertised one — until Finding D.
 ## 11. Where this leaves things
 
 **The audit is closed.** Everything below is landed on
-`audit/2026-09-surface` — 18 commits, pushed, `main` untouched at `0b6c8519`
+`audit/2026-09-surface` — 34 commits, pushed, `main` untouched at `0b6c8519`
 both locally and on `origin`.
 
 | # | Item | Result |
@@ -826,29 +826,31 @@ it in CI.
 
 ### Which CI jobs were actually run here
 
-`ci.yml` defines **17 jobs**. Twelve were executed or verified equivalently on
-this machine; five cannot run here at all:
+**This subsection is obsolete and is kept only to show how the answer changed.**
+When this report was first written, twelve of the seventeen jobs had been run
+or verified by hand on this machine and five could not run here at all. The
+report said plainly that those five were *not* verified.
 
-| Ran or verified here (12) | Not runnable on this machine (5) |
+They have now all run, in CI, on GitHub-hosted runners — see Finding I for why
+that needed a change rather than patience. The five are no longer
+"unverified":
+
+| Was unverifiable here | Now measured in CI |
 |---|---|
-| `test` — 192 packages, 0 failures | `race-breadth` — needs cgo; runs in CI on Linux |
-| `e2e` — 10 checks, 0 panics | `race-depth` — needs cgo + `ubuntu-latest` |
-| `webui-e2e` — 6 Playwright specs | `rust-sdk` — `cargo` is not installed here |
-| `frontend-test` — 162 files / 1454 tests, `tsc`, knip | `frontend-dist-in-sync` — needs a Linux rebuild to byte-compare `dist` |
-| `python-sdk` 40/40 · `typescript-sdk` 23/23 | `frontend-dist-rebuild` — push-only; it rebuilds and pushes `dist` |
-| `multi-arch` — 6/6 targets | |
-| `deps-check` — depscheck, sdkparity, deadcodecheck, structure-md | |
-| `lint` — gofmt, vet, staticcheck, govulncheck, repo hygiene | |
-| `secrets` — gitleaks over 2,071 commits, no leaks | |
-| `changelog` — changelog-lint | |
-| `codegen-in-sync` — regenerating produces no diff | |
+| `race-breadth`, `race-depth` | both green (linux, cgo) |
+| `frontend-dist-in-sync` | green — the committed `dist` is byte-identical to a Linux rebuild |
+| `frontend-dist-rebuild` | green (no-op on a pull request, as designed) |
+| `rust-sdk` | green |
+| `typescript-sdk` | green — but only after Finding I's lockfile fix; `npm ci` could not have succeeded before it |
 
-The five that were not run are the ones needing a Linux toolchain, a network
-rebuild, or a push. They were **not** verified, and this report should not be
-read as saying otherwise.
+The jobs this report had verified by hand — `deps-check`, `lint`, `secrets`,
+`changelog`, `codegen-in-sync`, `multi-arch`, `test`, `e2e`, `webui-e2e` and
+`python-sdk` — now all run in CI as well, so nothing above rests on a local
+substitution any more.
 
-`ci.yml` itself was parsed: 17 jobs, 0 malformed steps, and the
-`structure-md -check` step this audit added sits correctly in `deps-check`.
+`ci.yml` itself was parsed: 17 job definitions, 0 malformed steps, all 17 on
+`ubuntu-latest`, every fork-guard intact, and the `structure-md -check` step
+this audit added sits correctly in `deps-check`.
 
 ### The one judgement call left to the reader
 
@@ -920,3 +922,179 @@ not visible from here.
   gitignored so `git diff` can't compare it) — a doc nit, not a defect.
 - `chat/legacy/` looks like dead code and is not. Checked before deleting.
 - No route orphans, no type errors, no test failures, no unexpected dead Go code.
+
+---
+
+## 14. Finding I — 20 of 22 CI gates could never run, and had not for months — **FIXED**
+
+**This is the finding that outranks the rest of this report, and it was found
+while trying to merge it.** Every other finding here is a defect in code or
+prose. This one is that the apparatus meant to catch defects was not attached
+to anything.
+
+### The measurement
+
+```
+$ gh api repos/agezt/agezt/actions/runners
+{"total_count":0,"runners":[]}
+```
+
+No self-hosted runner is registered for this repository. Meanwhile fifteen job
+definitions in `ci.yml` carried:
+
+```yaml
+runs-on: [self-hosted, Linux, X64]
+```
+
+`multi-arch` is a six-leg matrix, so those fifteen `runs-on` lines account for
+**20 of the file's 22 checks**. The runners they name are documented in
+`ops/wsl-runners/README.md` as living on a different host (`WHITE`) — three
+WSL-Ubuntu runners, `wsl-runner-1..3`. None of them is reporting.
+
+### What it looked like from the outside
+
+On PR #594, run `36774797606`:
+
+- `updatedAt` never advanced past `createdAt`.
+- The only two checks that reached a conclusion were the two already on
+  `ubuntu-latest` (`race-depth`, `changelog gates`).
+- The other twenty sat in `queued` for over an hour and would have sat there
+  indefinitely. `check_suite.status` was `queued`, not `in_progress`.
+
+The failure mode is the reason this went unnoticed for so long. **A queued job
+is neither pass nor fail.** Nothing goes red, no notification fires, and a
+dashboard showing "no failing checks" is indistinguishable from a dashboard
+showing a healthy pipeline. The two jobs that *did* run were green — and
+`ci.yml`'s own header had already noted, on 2026-09-06, that
+`race-depth` succeeded in 6 of the 12 most recent runs *while every self-hosted
+job in those same runs was cancelled because the pool had zero runners
+registered*. The author had diagnosed it and written the rule down:
+
+> Cheap new gates therefore belong on `ubuntu-latest`: a job that never gets a
+> runner enforces nothing.
+
+The rule was applied to new gates only. The fifteen jobs that already existed
+were left pointing at a pool that had stopped existing, and the header's own
+framing — *"Most jobs run on self-hosted WSL-Ubuntu runners, which cost
+nothing"* — kept reading as a statement about how CI worked.
+
+### The cost, concretely
+
+`main` is protected and requires the `CI` check. With twenty checks unable to
+conclude, **no PR could be merged at all** — including the one that was fixing
+all of this. And twenty gates enforced nothing, among them
+`frontend-dist-in-sync`, the single check that can answer whether the committed
+`kernel/webui/dist` matches a rebuild (see §11: it does).
+
+### The fix
+
+All seventeen jobs now run on `ubuntu-latest`. The repository is public, so
+hosted Linux minutes are free — the self-hosted design's only advantage was
+cost, and it had cost the entire gate. The header was rewritten to record the
+measurement, the rule, and a warning that re-pinning any job to
+`[self-hosted, Linux, X64]` re-opens the hole. `ops/wsl-runners/README.md` is
+marked DORMANT, with the explicit caveat that its setup table records the last
+known configuration on `WHITE`, not a verified live state.
+
+Nothing else had to change. `setup-go-safe` already branched on the runner
+environment, and the two hosted jobs were the evidence it worked.
+
+### Six defects the working pool had been hiding
+
+Bringing the jobs up surfaced real breakage that no one had seen, because the
+jobs meant to report it had no runner. Four were fixed in the same commit
+rather than discovered by a red run; the prior art was branch
+`ci-hosted-runners` (local, never merged, based on `1de3a1f5`), which made the
+same migration and fixed the same failures in `d721c0bf`.
+
+1. **`setup-go-safe` tested the wrong variable to detect a hosted runner.** It
+   guarded on `[ -z "${RUNNER_NAME:-}" ]` under a comment asserting that
+   `RUNNER_NAME` "is only set on self-hosted runners". GitHub's variables
+   reference gives `RUNNER_NAME` the example `Hosted Agent` and lists no
+   self-hosted-only restriction, so the guard **never fired**: every hosted job
+   staged ~600MB of `GOROOT` onto tmpfs under a path containing a space
+   (`goroot-Hosted Agent 2`). Confirmed from CI's own logs, where the runner
+   names are `GitHub Actions 1000017247`. The correct discriminator is
+   `RUNNER_ENVIRONMENT`, documented as exactly the `github-hosted` |
+   `self-hosted` split.
+
+2. **`scripts/ci-go-retry.sh` deleted the staged `GOCACHE`/`GOTMPDIR` and
+   re-staged only `GOROOT`**, so every retry died with `creating work dir: no
+   such file or directory` before the command ran, masking the real error
+   behind five useless attempts. Both directories are now recreated per attempt.
+
+3. **`sdk/typescript/package-lock.json` was out of sync with `package.json`** —
+   `typescript 6.0.3` locked against `^7.0.2` required — so `npm ci` could not
+   succeed in `typescript-sdk`. Regenerated; `npm ci` now exits 0.
+
+4. **`kernel/creds` `credential_process` fixtures wrote unquoted helper paths.**
+   GitHub's `TMPDIR` contains spaces (`/dev/shm/gotmp-GitHub Actions 1234`), so
+   the tokeniser split the path into several argv tokens and every helper exec
+   failed. Paths are now quoted, and `TestAWS_CredentialProcess_QuotedSpacedPath`
+   pins a helper inside a directory literally named
+   `GitHub Actions 1000016278`.
+
+5. **Two symlink-TOCTOU proof tests in `plugins/tools/file` asserted the wrong
+   channel for a refusal.** The tool signals a containment refusal as
+   `agent.Result{IsError: true}`, not as a Go `error`, so a correctly-refused
+   read fell through to `t.Fatalf("BUG: read returned unexpected output")`. The
+   companion search test's substring assertion self-tripped, because the hits
+   envelope embeds the search *pattern* — which in that test is the secret
+   itself. That file is `//go:build !windows`, so it can only run on the Linux
+   runners, which is precisely why a dead pool hid it.
+
+### Two coverage ratchets, both red on `main`, neither a regression
+
+The first run after the migration finished **20/22**. Both reds were pre-existing
+rot on `main`, not anything this branch introduced — `git diff origin/main..HEAD`
+is empty for `kernel/tunnel`, and the voice config's staleness predates the
+audit.
+
+- **`test (linux)` — `kernel/tunnel` at 99.0% statement coverage.** The
+  100% ratchet on ten named packages runs only on the Linux runner, and the
+  package had exactly one uncovered block: `proc_unix.go:28.72,30.3`, the
+  `_ = cmd.Process.Kill()` arm of `killProcessTree`, which runs only when the
+  process-group signal fails. No test made it fail.
+  `TestKillProcessTree_FallsBackWhenGroupMissing` does — deterministically, by
+  starting the child *without* `setProcessGroup`, so no process group carries
+  its pid and `syscall.Kill` returns ESRCH on every run. That deliberately
+  avoids the two ways this test would otherwise be a flaky way to `SIGKILL` a
+  stranger's process group: pid reuse, and racing a child that has already been
+  reaped. Re-measured in a `golang:1.26` container: **100.0%**, no function below
+  100%, stable over `-count=5`.
+
+- **`frontend-test` — the voice/Jarvis ratchet had never run.**
+  `vitest.voice-coverage.config.ts` still listed `src/lib/voice*.ts` and
+  `src/views/{Jarvis,Voice,VoiceSetup}.tsx`, but those surfaces had moved into
+  feature slices and taken their tests with them: all nine configured test files
+  and all eight configured sources were gone, and vitest exited 1 with
+  *"No test files found"*. It failed `frontend-test` only by accident, on the
+  wrong evidence, after the 1,454-test main suite had already passed and knip
+  had already reported clean. Repaired, it immediately reported what it had been
+  hiding: statements 99.67%, branches 94.83%, lines 99.81% against a 100%
+  threshold. Ten tests later all four metrics are 100% and the step exits 0.
+  The threshold was **not** relaxed — see the changelog for the states those
+  tests cover.
+
+### What this changes about the rest of this report
+
+Three claims in earlier sections were true when written and are now known to be
+optimistic:
+
+- §10 asserted that "the gates this audit fixed are the gates CI already ran".
+  True of the *definitions*; the runner pool meant some of them had not run in
+  months.
+- §11 originally listed five jobs as unverifiable here and said so plainly. That
+  honesty was the right call, and the answer has since improved rather than
+  degraded — all five are now measured in CI.
+- Every "verified locally" in this report was verification *substituting* for a
+  gate that was not running. That is a weaker guarantee than it looks like, and
+  it is the reason this finding is filed at the top rather than the bottom.
+
+### Still not proven
+
+- The WSL runners' actual state on `WHITE` is unknown from here. Re-pinning a
+  job to them without re-registering reproduces this finding exactly.
+- The two ratchet fixes were measured locally — in a Linux container for the Go
+  one, in the same vitest config for the frontend one — and then confirmed by CI.
+  `plugins/tools/file`'s tests remain verifiable only on the Linux runners.
