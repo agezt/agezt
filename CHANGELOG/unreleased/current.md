@@ -4,6 +4,29 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: the HTTP router's fail-fast guard could not fire for the case it
+  existed to catch.** `httpserver.RouteOpts` carries a required `Tier`, and
+  `Handle` panics when the tier is not `Valid()` — a guard whose entire job is to
+  stop a route being registered with no declared authority. It could not do that
+  job, because `TierPublic` was the **zero value** of `Tier` and `Valid()`
+  accepted it. A `RouteOpts{...}` literal that omitted `Tier:` therefore got
+  `TierPublic` — the *most permissive* tier — passed validation, and registered
+  with no authentication and no diagnostic of any kind. Not even the panic the
+  author expected. The dangerous value was a valid one, so no check on validity
+  could ever find it.
+
+  **No route relied on this.** Measured across the tree: 24 named opts variables
+  reach `Handle`; 13 are copies of a variable that declares its tier and inherit
+  it, and the 11 that are literals all state `Tier:` explicitly. Zero rely on the
+  zero value. So this was a latent hole with no live exploit — found by measuring
+  the boundary, not by chasing an incident.
+
+  `Tier` now has an explicit `TierUnset` at 0, so forgetting the field fails
+  `Valid()` and the existing panic catches it. The shift is free: `Tier` is
+  compared symbolically throughout and is never persisted, parsed or sent over
+  the wire — verified by search before changing it. `kernel/auth/tier_test.go`
+  pins the property, so the guard cannot silently stop guarding again.
+
 - **Security: the frontend's dependency pins had drifted past their own
   purpose — one pinned a version that no longer exists, the other pinned one
   inside a vulnerable range.** `frontend/package.json` carried

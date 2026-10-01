@@ -1215,3 +1215,77 @@ each wrong number was caught by opening a real file:
 A heuristic scan compares files against each other, which keeps a *divergence*
 meaningful even when a single verdict is not proof. None of these numbers was
 reported until a real file confirmed it.
+
+---
+
+## 16. Finding K — the HTTP router's auth guard could not fire — **FIXED**
+
+The audit's original Verdict said the kernel was sound. That was measured this
+time, on the three defect classes most likely to show up in Go: swallowed
+failures, request-reachable panics, and leaked goroutines. **All three came back
+clean** — four candidate hits were read and discarded (a `ctx == nil` guard, two
+`bufio.Scanner` loops bounded by a child process, and a deliberate documented
+fail-fast in `ulid`).
+
+Then the authorization boundary was measured, and that produced a finding.
+
+### The guard
+
+`httpserver.RouteOpts` carries a required `Tier`, and `Handle` panics when the
+tier is not valid:
+
+```go
+if !opts.Tier.Valid() {
+    panic("httpserver: invalid route tier")
+}
+```
+
+That guard cannot work. `Tier` is `uint8` and `TierPublic` was `iota`, i.e. the
+**zero value**, and `Valid()` accepted it:
+
+```go
+type Tier uint8
+const (
+    TierPublic Tier = iota   // 0 — the zero value
+    TierUser
+    TierAdmin
+)
+func (t Tier) Valid() bool { return t >= TierPublic && t <= TierAdmin }
+```
+
+A `RouteOpts{...}` literal that forgot `Tier:` therefore received `TierPublic`,
+the *most permissive* tier, passed validation, and was registered with **no
+authentication** — silently, with no panic and no log line. The value a
+developer gets by forgetting the field was the one value that skipped the check
+meant to catch forgetting the field.
+
+### Measured, not assumed
+
+The first two scans of this were wrong and worth recording: one counted `.Get(`
+and matched map lookups, the next counted `RouteOpts{}` literals and found 11 —
+because every `router.Handle` call passes a *named, pre-built* variable, not an
+inline literal. The decisive measurement:
+
+| | |
+|---|---|
+| named opts variables reaching `Handle` | 24 |
+| of those, copies of a variable that declares its tier | 13 |
+| literals declaring `Tier:` explicitly | 11 |
+| **routes relying on the zero value** | **0** |
+
+So: a real hole in a security guard, with **no live exploit**. That distinction
+is the whole finding — reporting it as an open vulnerability would have been as
+wrong as not reporting it.
+
+### Fixed
+
+`Tier` now begins with an explicit `TierUnset` at 0, so the zero value is not a
+usable authority, forgetting the field fails `Valid()`, and the existing panic
+catches it. The renumbering is free: `Tier` is compared symbolically
+(`required == TierPublic`, `required == TierAdmin`) and is never persisted,
+parsed or sent over the wire — verified by search across `kernel`, `cmd` and the
+SDKs before the change, not assumed.
+
+`kernel/auth/tier_test.go` pins it: the zero Tier must not validate, every
+declared tier must, and ordering must hold. Without that test the guard can
+quietly stop guarding again, which is precisely what happened the first time.
