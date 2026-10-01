@@ -12,6 +12,54 @@ not.** Every gate the project already had was either red, unwired, or measuring
 the wrong string — and the two real product bugs it found were both hiding
 behind gates that were green.
 
+## The finding that outranks all the others
+
+**20 of this workflow's 22 checks could not run, and had not for months.**
+
+```console
+$ gh api repos/agezt/agezt/actions/runners
+{"total_count":0,"runners":[]}
+```
+
+No self-hosted runner is registered for this repo, while fifteen job
+definitions still carried `runs-on: [self-hosted, Linux, X64]`. `multi-arch` is
+a six-leg matrix, so those lines accounted for 20 of 22 checks. The runners they
+name live on another host (`ops/wsl-runners/README.md`: `WHITE`) and are not
+reporting.
+
+This was found while trying to *merge* this branch. On the run before the fix,
+`updatedAt` never moved past `createdAt`; the only two checks that concluded
+were the two already on `ubuntu-latest`, and the other twenty sat in `queued`
+indefinitely. **A queued job is neither pass nor fail** — nothing turns red and
+no notification fires, so a dashboard reading "no failing checks" is
+indistinguishable from a healthy pipeline. `main` requires the `CI` check, so
+this also meant no PR could merge at all, including this one.
+
+All 17 jobs now run on `ubuntu-latest`. The repo is public, so hosted minutes
+are free: the self-hosted design's only advantage was cost, and it had cost the
+entire gate. The rule was already written in `ci.yml`'s own header on 2026-09-06
+— *"a job that never gets a runner enforces nothing"* — and had only ever been
+applied to new gates.
+
+Turning the jobs back on surfaced **six more defects that the dead pool had been
+hiding**, and two coverage ratchets that were red on `main` and not introduced
+here: `kernel/tunnel` at 99.0% on Linux (one uncovered statement, the fallback
+arm of `killProcessTree`), and the voice/Jarvis ratchet, which had been
+pointing at source files that moved to feature slices and no longer existed —
+so it had never run, and once repaired reported 99.67% statements / 94.83%
+branches against a 100% threshold. Ten new tests, four ratchets at 100%.
+
+Five of the six hidden defects, since a reviewer will want them: `setup-go-safe`
+detected a hosted runner by testing `RUNNER_NAME` for emptiness, which GitHub's
+own documentation contradicts, so its WSL2 workaround had been staging ~600MB
+into `/dev/shm` on every hosted job; `ci-go-retry.sh` deleted the staged
+`GOCACHE`/`GOTMPDIR` and re-staged only `GOROOT`, so every retry died before the
+command ran; `sdk/typescript/package-lock.json` disagreed with `package.json`,
+so `npm ci` could not succeed; `kernel/creds` fixtures wrote unquoted
+`credential_process` paths, which split on GitHub's space-containing `TMPDIR`;
+and two `plugins/tools/file` TOCTOU tests asserted the wrong channel for a
+refusal. Full detail in Finding I of the audit report.
+
 ## The two real product bugs
 
 **`fix(shell)` — the output budget was enforced on the wrong string.**
@@ -60,6 +108,7 @@ that.
 
 | | at `0b6c8519` | now |
 |---|---|---|
+| **CI checks that can reach a conclusion** | **2 of 22** | **22 of 22** |
 | `structure-md-check` | ❌ exit 1 | ✅ |
 | `frontend-deadcode` | ❌ exit 1 | ✅ `{"issues":[]}` |
 | packages with >1 package comment | 98 | **0** |
@@ -67,9 +116,14 @@ that.
 | `staticcheck` findings | 3 | **0** |
 | tests whose verdict depends on machine speed | 3 | **0 fixed** |
 
-`go test ./...` 192 packages / 0 failures · vitest 162 files / 1454 tests ·
+`go test ./...` 192 packages / 0 failures · vitest 162 files / 1464 tests ·
 `tsc` clean · cross-build 6/6 · e2e smoke 10 checks · webui e2e 6 tests ·
 `govulncheck` no vulnerabilities · `gitleaks` 2,071 commits, no leaks.
+
+And, for the first time, the twenty checks that could not run have run:
+`race-breadth` and `race-depth` green on linux/cgo, `rust-sdk` green,
+`frontend-dist-in-sync` green — which is the one that answers whether the
+committed `kernel/webui/dist` matches a rebuild, and it does, byte for byte.
 
 ## Reviewing this
 
@@ -78,18 +132,24 @@ carries the exact commands to reproduce every claim above — nothing here needs
 taking on trust. `.project/AUDIT-2026-09-BACKEND-SURFACE.md` has the full
 findings and the measurements behind them.
 
-**On bisect-safety**, precisely: the first 13 commits were each checked out and
+**On bisect-safety**, precisely and without overstating it: the first 13 commits were each checked out and
 built and tested individually. Twelve are fully green, and the one that is not
 is green from the next commit on — it is
 `TestInvoke_RealWarden_CombinedBudgetHeld`, the test `fix(shell)` replaces, so
-a `git bisect` landing there finds the bug it is meant to find. The six commits
-added after that sweep were not each re-walked, but they are single-file
-changes: three touch only `.project/*.md`, one only `kernel/warden/warden_test.go`
-(a test bound), one only `.gitleaks.toml` (a comment, with the scan re-run
-green afterwards), and one only two `kernel/governor` doc comments. The tip
-was re-verified end to end after all of them: `go test ./...` 192 packages /
-0 failures, `gofmt`, `go vet`, `structure-md -check`, `deadcodecheck`,
-`sdk-parity`, `changelog-lint` all green.
+a `git bisect` landing there finds the bug it is meant to find. The commits
+added after that sweep were **not** each re-walked; that is a real gap in the
+guarantee, not a formality. The later ones are single-file and
+independently-verifiable — six touch only `.project/*.md`, one only
+`kernel/warden/warden_test.go` (a test bound), one only `.gitleaks.toml` (a
+comment, with the scan re-run green afterwards), one only two `kernel/governor`
+doc comments — but the three CI commits that repointed 17 jobs and rewired a
+composite action are exactly the kind a bisect should stop on. What has been
+re-verified is the tip: `go test ./...` 192 packages / 0 failures, `gofmt`,
+`go vet`, `GOOS=linux go vet` on the packages carrying Linux-only tests,
+`structure-md -check`, `deadcodecheck`, `sdk-parity`, `changelog-lint`,
+`npm ci` in `sdk/typescript`, the voice ratchet at 100% on all four metrics,
+`kernel/tunnel` re-measured at 100% inside a `golang:1.26` container, and a full
+22-check CI run on the branch tip.
 
 ## Notes for the reviewer
 
