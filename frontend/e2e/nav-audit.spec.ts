@@ -154,15 +154,25 @@ test.describe("nav audit — every visible view renders real content", () => {
       // The alias is rewritten in the hash by viewFromHash, so assert on the
       // hash rather than on page text: it says exactly which surface the app
       // decided this id means.
-      await page.waitForFunction(
-        (target) => location.hash.replace(/^#\/?/, "") === target,
-        a.resolvesTo,
-        { timeout: 5000 },
-      ).catch(() => {
+      //
+      // `.catch()` must not carry the await — a throw inside a non-async
+      // callback is a SyntaxError at parse time, which is how this spec failed
+      // its first run with "Unexpected reserved word 'await'". Resolve the flag
+      // first, then read the hash in the failure branch.
+      const resolved = await page
+        .waitForFunction(
+          (target) => location.hash.replace(/^#\/?/, "") === target,
+          a.resolvesTo,
+          { timeout: 5000 },
+        )
+        .then(() => true)
+        .catch(() => false);
+      if (!resolved) {
+        const actual = await page.evaluate(() => location.hash);
         throw new Error(
-          `#/${a.id} did not resolve to its alias target "#/${a.resolvesTo}"; hash is "${await page.evaluate(() => location.hash)}"`,
+          `#/${a.id} did not resolve to its alias target "#/${a.resolvesTo}"; hash is "${actual}"`,
         );
-      });
+      }
     }
   });
 });

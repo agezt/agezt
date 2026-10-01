@@ -18,5 +18,10 @@
     "noFallthroughCasesInSwitch": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "vite.config.ts"]
+  // e2e/ is included deliberately. The Playwright specs are the only TypeScript
+// in this repo that neither vitest nor tsc was compiling, so a syntax error in
+// one shipped green through every local gate and only failed when CI ran it —
+// which is exactly how a stray `await` inside a non-async callback reached the
+// nav-audit spec's first run.
+"include": ["src", "e2e", "vite.config.ts"]
 }
