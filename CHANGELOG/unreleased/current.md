@@ -136,6 +136,22 @@ This file holds the active `[Unreleased]` working set.
   document goes stale the moment the next commit lands, including the commit that
   would fix it.
 
+  Extended to check the frontend's test-file count, measured from the tree rather
+  than by running vitest: the file count is what a reviewer navigates by, and
+  running the suite inside this gate would add half a minute to `make check` to
+  learn nothing the filesystem does not already say. It agrees with vitest's own
+  report (162). The probe is scoped to the current-state lines on purpose — the
+  audit report also quotes two *earlier* counts, "159 files" in the
+  where-it-started gate table and "161 files / 1449 tests" mid-report, and those
+  describe a past state correctly. A looser probe would flag both as drift, which
+  is how a gate teaches people to ignore it. Negative-tested: a deliberately wrong
+  claim fails with the file and line, and the real claim passes.
+
+  Applying it immediately found two more stale numbers in the audit's own record
+  — a test count three commits out of date, and two live commit counts that the
+  entry above this one explicitly forbids writing. The commit counts are removed
+  rather than corrected, since correcting them only moves the expiry date.
+
 - **Added: `gofmt` to `make check`, and `tools/structure-md -check` to CI.**
   `structure-md` was the only project gate with no CI job at all, which is how
   three stale generated documents sat on `main`. The `fmt` target is the local

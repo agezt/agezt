@@ -22,7 +22,9 @@ test — the tests that should have caught them decided their verdict on
 machine speed.
 
 Everything found is now fixed and committed on `audit/2026-09-surface`
-(16 commits, pushed). `main` is untouched at `0b6c8519`.
+(pushed; the commit count is deliberately not written here — a live number in
+a document about its own branch is stale the moment the next commit lands, and
+`REVIEW-MAP.md` carries the ordered list). `main` is untouched at `0b6c8519`.
 
 ---
 
@@ -793,7 +795,7 @@ Nothing compared the shipped surface to the advertised one — until Finding D.
 ## 11. Where this leaves things
 
 **The audit is closed.** Everything below is landed on
-`audit/2026-09-surface` — 34 commits, pushed, `main` untouched at `0b6c8519`
+`audit/2026-09-surface` — pushed, `main` untouched at `0b6c8519`
 both locally and on `origin`.
 
 | # | Item | Result |
@@ -892,7 +894,7 @@ above every patched floor their advisories name.
 | `npm install` | exit 0 — 7 added, 4 removed, 116 changed |
 | `npm audit` | **found 0 vulnerabilities** — was 2 low (dompurify, monaco-editor) |
 | `tsc --noEmit` | exit 0 |
-| vitest | 162 files / 1454 tests, 0 failures |
+| vitest | 162 files / 1464 tests, 0 failures |
 | `knip` | exit 0, `{"issues":[]}` |
 | `make check` composition, 9 steps | **9/9 green**, `go test` 192 packages / 0 FAIL |
 

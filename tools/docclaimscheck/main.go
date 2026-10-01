@@ -29,8 +29,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -68,17 +70,7 @@ func main() {
 		docs = append(docs, doc{path: *flagProj + "/" + n})
 	}
 
-	facts := []fact{
-		{"commits on the branch", gitField(`rev-list --count `+base+`..HEAD`, `(\d+)`)},
-		{"files changed", gitField(`diff --shortstat `+base+`..HEAD`, `(\d+) files? changed`)},
-		{"files modified", gitField(`diff --name-only --diff-filter=M `+base+`..HEAD`, `(?s).*`, true)},
-		{"files added", gitField(`diff --name-only --diff-filter=A `+base+`..HEAD`, `(?s).*`, true)},
-		{"files deleted", gitField(`diff --name-only --diff-filter=D `+base+`..HEAD`, `(?s).*`, true)},
-		{"files renamed", gitField(`diff -M --name-only --diff-filter=R `+base+`..HEAD`, `(?s).*`, true)},
-		{"doc.go files", countAddedMatching(base+"..HEAD", `doc\.go$`)},
-		{"changelog entries", countEntries("CHANGELOG/unreleased/current.md")},
-		{"CI jobs", countYAMLJobs(".github/workflows/ci.yml")},
-	}
+	facts := collectFacts(base)
 
 	fails := 0
 	for _, f := range facts {
@@ -99,6 +91,38 @@ func main() {
 	}
 	fmt.Println("OK: the deliverables' numbers match the branch.")
 }
+
+// collectFacts measures every quantity the documents are allowed to quote. A
+// fact whose measurement comes back empty is skipped rather than treated as
+// zero, so a fact that cannot be measured never masquerades as a mismatch.
+//
+// The label is the contract with claimPatterns: each label here is what
+// TestClaimPatternsAndFactsCorrespond checks has a probe, because a measurement
+// nothing checks against is the exact failure this tool exists to end.
+func collectFacts(base string) []fact {
+	return []fact{
+		{"commits on the branch", gitField(`rev-list --count `+base+`..HEAD`, `(\d+)`)},
+		{"files changed", gitField(`diff --shortstat `+base+`..HEAD`, `(\d+) files? changed`)},
+		{"files modified", gitField(`diff --name-only --diff-filter=M `+base+`..HEAD`, `(?s).*`, true)},
+		{"files added", gitField(`diff --name-only --diff-filter=A `+base+`..HEAD`, `(?s).*`, true)},
+		{"files deleted", gitField(`diff --name-only --diff-filter=D `+base+`..HEAD`, `(?s).*`, true)},
+		{"files renamed", gitField(`diff -M --name-only --diff-filter=R `+base+`..HEAD`, `(?s).*`, true)},
+		{"doc.go files", countAddedMatching(base+"..HEAD", `doc\.go$`)},
+		{"changelog entries", countEntries("CHANGELOG/unreleased/current.md")},
+		{"CI jobs", countYAMLJobs(".github/workflows/ci.yml")},
+		{"frontend test files", countTestFiles("frontend", "src")},
+	}
+}
+
+// measuredLabels is the set of fact labels, for tests that assert each one is
+// actually checked against a document claim.
+var measuredLabels = func() map[string]bool {
+	m := make(map[string]bool)
+	for _, f := range collectFacts("origin/main") {
+		m[f.label] = true
+	}
+	return m
+}()
 
 // checkClaims looks for each fact's value in the documents and reports any
 // number adjacent to a phrase that should have matched it.
@@ -160,10 +184,51 @@ var claimPatterns = map[string][]string{
 	"doc.go files":      {`(?m)^## \d+\. Restore (\d+) package comments\r?$`},
 	"changelog entries": {`\*\*(\d+) entries\*\*`},
 	"CI jobs":           {`defines \*\*(\d+) jobs\*\*`},
+	// Scoped to the current-state lines only. The audit report also quotes two
+	// EARLIER vitest counts — "159 files" in the where-it-started gate table and
+	// "161 files / 1449 tests" mid-report — and those are correct descriptions of
+	// a past state, not claims about the tip. A looser probe would flag both as
+	// drift, which is how a gate teaches people to ignore it.
+	"frontend test files": {
+		`(?m)^\| vitest \| (\d+) files`,
+		`· vitest (\d+) files`,
+	},
 }
 
 func git(args ...string) ([]byte, error) {
 	return exec.Command("git", args...).Output()
+}
+
+// countTestFiles counts the frontend's *.test.ts / *.test.tsx files, skipping
+// node_modules and any VCS or build directory. The claim it backs is "vitest ran
+// 162 files", and it is measured from the tree rather than by running vitest:
+// the file count is what a reviewer navigates by, and running the suite inside
+// this gate would add half a minute to `make check` to learn nothing the
+// filesystem does not already say. Verified to agree with vitest's own report.
+func countTestFiles(frontendDir, sub string) string {
+	root := filepath.Join(frontendDir, sub)
+	n := 0
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case "node_modules", ".git", "dist", "coverage":
+				return fs.SkipDir
+			}
+			return nil
+		}
+		name := d.Name()
+		if strings.HasSuffix(name, ".test.ts") || strings.HasSuffix(name, ".test.tsx") {
+			n++
+		}
+		return nil
+	})
+	if n == 0 {
+		return ""
+	}
+	return strconv.Itoa(n)
 }
 
 // gitField runs `git <args>` and extracts a number: the first capture group of
