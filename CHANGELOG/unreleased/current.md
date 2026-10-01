@@ -800,14 +800,45 @@ This file holds the active `[Unreleased]` working set.
   All seventeen paths are remapped. The gate now runs: 9 files, 81 tests, and a real coverage
   report — which is how the second half of this becomes visible.
 
-- **Known and NOT fixed: the voice/Jarvis ratchet is now enforced and is not met.** With the
-  paths repaired it reports statements 99.67% (622/624), branches 94.83% (441/465), functions
-  100%, lines 99.81% (531/532) against a 100% threshold on all four. The gaps are in
-  `src/features/jarvis/components/Jarvis.tsx` (line 95; branches 58.18%) and
-  `src/features/voice/components/VoiceSetup.tsx` (line 470). Closing it means writing those
-  tests, which is a decision rather than a mechanical fix, so it is recorded here rather than
-  silently relaxed or silently absorbed into the runner commit. `frontend-test` stays red
-  until one of those two things happens.
+- **Fixed: the voice/Jarvis ratchet was enforcing nothing, and once it ran, it was not
+  met.** With the paths repaired it reported statements 99.67% (622/624), branches 94.83%
+  (441/465), functions 100%, lines 99.81% against a 100% threshold on all four. The gaps were
+  real and are now closed — 100% on all four metrics, measured.
+
+  They were the states every existing test mocked away, and each is a behaviour an operator can
+  actually hit:
+
+  - **The voice status endpoint rejecting.** `useVoiceStatus` catches the failure and sets
+    `null`, and the card then says *"Voice status endpoint unreachable"* rather than
+    *"reachable — provider not configured"*. Conflating those two tells an operator their
+    provider is configured when the daemon is simply not answering. The two statements of
+    `if (!stop) setStatus(null)` had never run.
+  - **A null voice status**, which `r || {}` normalises rather than crashing on.
+  - **The half-configured cases.** The card only renders when at least one of STT/TTS is
+    unready, so the "ready" arm of each capability's label is reachable only in the mirrored
+    case — STT ready with TTS unconfigured, and the reverse. Both are asserted, including that
+    a provider name is shown for the *unconfigured* capability, since that name is the env var
+    the operator has to fill in.
+  - **An `/api/agents` payload with no `agents` key**, which is an answered request with
+    nothing in it, not a failure.
+  - **All four run statuses** (running / completed / failed / anything else) and a run carrying
+    no intent. The dot colour is asserted on the class, not the label, because each status is
+    a different branch of one nested ternary.
+  - **An unready agent**, both with a reported status and without one — the latter is what
+    renders the literal `offline`.
+  - **A request that resolves after unmount.** All three polling hooks guard their
+    `setState` with `if (!stop)`. React no longer warns about a state update after unmount, so
+    nothing else would notice a regression: the guard would simply stop being the thing that
+    runs. The test mounts, unmounts, *then* lets the daemon answer, over two cycles — one where
+    the requests resolve and one where the voice request fails — because each hook fires once
+    per mount and the success and catch guards are separate branches. This is also the only way
+    to reach the false arm of those guards, which is why the branch ratchet needed it.
+  - **A key save that fails.** `KeyField.commit` clears the draft only when the save
+    succeeded, and every other save in the suite resolves. Wiping the field on failure would
+    destroy the operator's work on the one interaction that broke, so both directions are now
+    asserted: the draft survives a rejected save and is cleared after a successful one.
+
+  9 files, 81 tests → 9 files, 91 tests. `npm run test:coverage:voice` exits 0.
 
 - **Fixed: the shell tool enforced its output budget on the wrong string.** The budget
   was applied to the concatenated stdout+stderr, and the status line was

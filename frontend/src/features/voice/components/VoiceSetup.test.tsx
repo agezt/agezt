@@ -225,4 +225,29 @@ describe("VoiceSetup branch behavior", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_TTS_KEY", value: "secret" }));
   });
+
+  // The mirror of the case above. Every other key-save in this file resolves, so
+  // the draft-clearing branch was the only one measured — which is exactly the
+  // half that must not clear. A failed save has to leave the operator's key in
+  // the field; wiping it would destroy work on the one interaction that failed.
+  it("keeps the pasted key in the field when the save fails", async () => {
+    route(config());
+    postJSON.mockRejectedValue(new Error("config set failed"));
+    render(<VoiceSetup />);
+    const key = (await screen.findByPlaceholderText("paste your key")) as HTMLInputElement;
+    fireEvent.change(key, { target: { value: "my-secret" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("config set failed", "error"));
+    expect(key.value).toBe("my-secret");
+  });
+
+  it("clears the pasted key once the save succeeds", async () => {
+    route(config());
+    render(<VoiceSetup />);
+    const key = (await screen.findByPlaceholderText("paste your key")) as HTMLInputElement;
+    fireEvent.change(key, { target: { value: "my-secret" } });
+    expect(key.value).toBe("my-secret");
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]);
+    await waitFor(() => expect(key.value).toBe(""));
+  });
 });
