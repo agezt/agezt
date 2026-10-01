@@ -917,6 +917,17 @@ This file holds the active `[Unreleased]` working set.
 
   9 files, 81 tests → 9 files, 91 tests. `npm run test:coverage:voice` exits 0.
 
+- **Fixed: the Playwright specs were compiled by nothing.** `frontend/tsconfig.json`
+  included only `src`, vitest does not run them, and no local run has a daemon to run them
+  against — so a `SyntaxError` in `e2e/nav-audit.spec.ts` passed every local gate and failed
+  only when CI parsed the file. `e2e/` is now in the include, verified by injecting a type error
+  into a spec and watching `tsc` fail. The error itself was an `await` inside a non-async
+  `.catch()` callback in the new alias-routing case.
+
+- **Fixed: the retired nav entries changed the bundle, and `kernel/webui/dist` is committed.**
+  Rebuilt (103 files, 0 absolute-path leaks, 0 CRLF pairs), which `frontend-dist-in-sync` had
+  already flagged on every asset.
+
 - **Fixed: the shell tool enforced its output budget on the wrong string.** The budget
   was applied to the concatenated stdout+stderr, and the status line was
   prepended *afterwards*, so a command that both overflowed and timed out shipped
