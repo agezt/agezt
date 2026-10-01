@@ -12,19 +12,30 @@
 **The kernel was sound; the verification layer was not.** Every gate the
 project already had was either red, unwired, or measuring the wrong string,
 and the WebUI's "dismantled but still documented" surface was a documentation
-drift that no gate could see. Two of nine `make check` gates were red on `main`,
-and neither the build, nor the tests, nor typecheck noticed.
+drift that no gate could see. Nothing in the build, the tests or the typecheck
+noticed any of it.
 
-Both of the two **real product bugs** found were also sitting behind gates
-that existed and were green: the shell tool enforced its output budget on the
-wrong string, and the Conductor store grew without bound. Neither failed a
-test — the tests that should have caught them decided their verdict on
-machine speed.
+That was the finding as the audit began. It turned out to be the *third* most
+important one, and the honest reading of the whole exercise is:
 
-Everything found is now fixed and committed on `audit/2026-09-surface`
+| | |
+|---|---|
+| **The finding that outranks the rest** | **20 of ci.yml's 22 checks could not run.** No runner was registered for this repo; the pool they named lives on another host and was not reporting. A queued job is neither pass nor fail, so nothing turned red and a dashboard reading "no failing checks" was indistinguishable from a healthy pipeline — and because `main` requires the `CI` check, **no PR could merge at all**, including the one fixing everything else. (Finding I) |
+| **The one the instinct got wrong** | The WebUI. Measured across all 38 live views: empty states 38/38, error 37/38, loading 33/38, 0 unresolved imports, and a shared 17-module design system the views already use. "Looks like a mess" was mostly not there. What was there was narrow and worse: a three-tab row where all three tabs rendered one component, two rail entries opening one page, and two screens that reported a healthy system when the daemon was unreachable. (Finding J) |
+| **The two real product bugs** | The shell tool enforced its output budget on the wrong string; the Conductor store grew without bound. Both sat behind gates that existed and were green. The shell test meant to catch it decided its verdict on machine speed, so it passed or failed with the load. |
+
+Turning the CI pool back on also exposed **six more defects the dead pool had
+been hiding**, and two coverage ratchets that were red on `main` and not
+introduced here (`kernel/tunnel` at 99.0% on Linux; the voice/Jarvis ratchet,
+which had been pointing at source files that no longer existed and so had never
+run at all).
+
+Everything found is fixed and committed on `audit/2026-09-surface`
 (pushed; the commit count is deliberately not written here — a live number in
 a document about its own branch is stale the moment the next commit lands, and
 `REVIEW-MAP.md` carries the ordered list). `main` is untouched at `0b6c8519`.
+
+The full CI history for the branch is three consecutive 22-of-22 green runs.
 
 ---
 
@@ -816,6 +827,10 @@ both locally and on `origin`.
 | 10 | `nav:audit` portability | ✅ the POSIX `tail` pipe removed |
 | 11 | The three packages holding two package docs | ✅ `kernel/event` and `kernel/runtime/types` merged; `kernel/governor`'s contradiction **resolved against the code** |
 | 12 | `.gitleaks.toml` rationale | ✅ stale "16 hits" replaced with measured numbers, scan re-verified green afterwards |
+| 13 | **The CI runner pool** (Finding I) | ✅ 20 of 22 checks could not run; all 17 jobs moved to `ubuntu-latest`, `fetch-depth: 0` where the merge base is needed, and the runner pool documented DORMANT |
+| 14 | **What the dead pool was hiding** (Finding I) | ✅ six defects fixed, incl. `setup-go-safe` testing the wrong env var, `ci-go-retry.sh` deleting the cache it then retried against, and a lockfile that made `npm ci` impossible |
+| 15 | **Two coverage ratchets red on `main`** (Finding I) | ✅ `kernel/tunnel` 99.0% → 100% on Linux (one uncovered statement, now a test); voice/Jarvis ratchet repointed and taken to 100% on all four metrics |
+| 16 | **The WebUI itself** (Finding J) | ✅ three nav entries retired for opening a page already one click away; `setActive` now resolves `VIEW_ALIASES`; two false all-clears fixed; views with a test 35/38 → 38/38 |
 
 | Metric | At `0b6c8519` | Now |
 |---|---|---|
