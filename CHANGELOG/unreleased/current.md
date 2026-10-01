@@ -539,6 +539,17 @@ This file holds the active `[Unreleased]` working set.
   `ops/wsl-runners/README.md` is marked DORMANT, with the caveat that its setup table records
   the last known configuration on `WHITE`, not a verified live state.
 
+  First result, run 36822334165: **20 of 22 checks green, 2 red**, and both reds are pre-existing
+  rot on `main` rather than anything this branch introduced — the coverage ratchets described
+  under Fixed. `go test ./...` passes on Linux (192 packages), all six cross-build legs, the
+  three SDK jobs, `e2e smoke`, `webui-e2e`, `race-breadth`, `race-depth`, `lint`, `deps-check`
+  and `secrets` all conclude. `frontend-dist-in-sync` passes, which closes the one question the
+  audit could not answer from Windows: the committed `kernel/webui/dist` is byte-identical to a
+  Linux rebuild from the same sources and lockfile. Its log shows a real build rather than a
+  vacuous one — `added 220 packages`, `vite v8.3.1`, `2332 modules transformed`, assets written
+  under `kernel/webui/dist/`, then no drift — which was worth checking, because the whole step
+  finished in 6 seconds.
+
   Two things were deliberately left in place, and each is a real change in justification
   rather than an oversight:
 
@@ -754,6 +765,49 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Fixed: `kernel/tunnel` was one statement short of its 100% coverage ratchet on Linux, so
+  `test (linux)` was red on `main` and nothing had reported it.** The ratchet requires 100%
+  statement coverage on ten named packages and runs only on the Linux runner. Measured there
+  (golang:1.26 container, the same metric the gate parses): `99.0%`, with exactly one
+  uncovered block — `proc_unix.go:28.72,30.3`, the `_ = cmd.Process.Kill()` arm inside
+  `killProcessTree`. That arm only runs when the process-group signal fails, and no test
+  made it fail.
+
+  `TestKillProcessTree_FallsBackWhenGroupMissing` now does, deterministically rather than
+  racily. `killProcessTree` signals `-cmd.Process.Pid`, which names a real process group only
+  when the child was made a group leader by `setProcessGroup`; this child is started *without*
+  it, so it stays in the test binary's group, no group with that pgid exists, and
+  `syscall.Kill` returns ESRCH on every run. No dependence on pid reuse, and none on a child
+  that has already been reaped — the two ways this test would otherwise have been a flaky
+  way to signal a stranger's process group. The test asserts its own premise via `getpgid`
+  first, so it cannot pass vacuously if a future change makes children group leaders.
+  Re-measured on Linux: **100.0%**, no function below 100%, stable over `-count=5`.
+
+  This is pre-existing rot on `main`, not a regression from this branch: the audit's diff
+  against `origin/main` is empty for this package. It was invisible because the job had no
+  runner to run on.
+
+- **Fixed: the voice/Jarvis coverage ratchet had been pointing at files that no longer
+  existed, so `npm run test:coverage:voice` enforced nothing.** `vitest.voice-coverage.config.ts`
+  still listed `src/lib/voice*.ts` and `src/views/{Jarvis,Voice,VoiceSetup}.tsx`, but the voice
+  and Jarvis surfaces moved into feature slices (`src/features/voice/...`,
+  `src/features/jarvis/...`) and took their tests with them. All nine configured test files and
+  all eight configured sources were gone, and vitest exited 1 with *"No test files found"* —
+  which failed `frontend-test` only by accident, on the wrong evidence, after the 1,454-test
+  main suite had already passed and knip had already reported clean.
+
+  All seventeen paths are remapped. The gate now runs: 9 files, 81 tests, and a real coverage
+  report — which is how the second half of this becomes visible.
+
+- **Known and NOT fixed: the voice/Jarvis ratchet is now enforced and is not met.** With the
+  paths repaired it reports statements 99.67% (622/624), branches 94.83% (441/465), functions
+  100%, lines 99.81% (531/532) against a 100% threshold on all four. The gaps are in
+  `src/features/jarvis/components/Jarvis.tsx` (line 95; branches 58.18%) and
+  `src/features/voice/components/VoiceSetup.tsx` (line 470). Closing it means writing those
+  tests, which is a decision rather than a mechanical fix, so it is recorded here rather than
+  silently relaxed or silently absorbed into the runner commit. `frontend-test` stays red
+  until one of those two things happens.
 
 - **Fixed: the shell tool enforced its output budget on the wrong string.** The budget
   was applied to the concatenated stdout+stderr, and the status line was

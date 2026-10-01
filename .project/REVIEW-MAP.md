@@ -4,8 +4,8 @@
 takes `0b6c8519` to here. Measured with `git diff --name-status 0b6c8519..HEAD`:
 
 ```
-1173 files changed
-918 modified · 112 added · 77 deleted · 66 renamed
+1180 files changed
+925 modified · 112 added · 77 deleted · 66 renamed
 ```
 
 > The per-file line counts (`--shortstat`) are deliberately not quoted: they
@@ -305,7 +305,7 @@ Newest first:
 
 ## 6. Changelog: 14 appended blocks → 5 sections
 
-**1 file, 1.824 lines.** Six sections were titled `Fixed` and four `Added`, with a 510-line Unclassified pile of 41 entries whose first was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over <baseDir>/bin/agezt), unfindable. **173 entries**, none dropped: 156 were carried over from the original 14 blocks and 17 were added since — the two product-bug fixes this audit landed, the remainder of the audit's own work, and the CI runner migration with the five defects it exposed. 20 were routed by the classification already in their own lead-in; 21 were classified by reading the full entry.
+**1 file, 1.878 lines.** Six sections were titled `Fixed` and four `Added`, with a 510-line Unclassified pile of 41 entries whose first was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over <baseDir>/bin/agezt), unfindable. **176 entries**, none dropped: 156 were carried over from the original 14 blocks and 20 were added since — the two product-bug fixes this audit landed, the remainder of the audit's own work, and the CI runner migration with the defects it exposed. 20 were routed by the classification already in their own lead-in; 21 were classified by reading the full entry.
 
 - `CHANGELOG/unreleased/current.md`
 
