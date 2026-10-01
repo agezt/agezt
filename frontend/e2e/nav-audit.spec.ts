@@ -77,13 +77,14 @@ const VIEWS: { section: string; row: string; id: string }[] = [
 
 // Retired ids that VIEW_ALIASES routes somewhere real. These are the ones a
 // bookmark, a help chip or ⌘K history can still arrive on, so they get the same
-// "must render real content" treatment as a live view — with the extra
-// assertion that they landed on the surface the alias names, not merely on
-// something that happens to have text in it.
-const ALIASED: { id: string; resolvesTo: string }[] = [
-  { id: "activity", resolvesTo: "runs" },
-  { id: "replay", resolvesTo: "runs" },
-  { id: "prompts", resolvesTo: "skills" },
+// "must render real content" treatment as a live view — plus an assertion that
+// they opened the surface the alias names, not merely something with text on
+// it. `title` is that surface's <Page title=...>, which is how the page
+// identifies itself to a reader and to a test.
+const ALIASED: { id: string; resolvesTo: string; title: string }[] = [
+  { id: "activity", resolvesTo: "runs", title: "Runs" },
+  { id: "replay", resolvesTo: "runs", title: "Runs" },
+  { id: "prompts", resolvesTo: "skills", title: "Skills" },
 ];
 
 test.describe("nav audit — every visible view renders real content", () => {
@@ -151,26 +152,26 @@ test.describe("nav audit — every visible view renders real content", () => {
       await page.evaluate((id) => {
         location.hash = `#/${id}`;
       }, a.id);
-      // The alias is rewritten in the hash by viewFromHash, so assert on the
-      // hash rather than on page text: it says exactly which surface the app
-      // decided this id means.
+      // Assert on the RENDERED PAGE, not on the hash. The first version of this
+      // case waited for `location.hash` to become the alias target and failed
+      // with `hash is "#/activity"` -- correctly, because `viewFromHash` never
+      // rewrites the URL. It resolves the id and returns it; the hash keeps the
+      // address the operator asked for. That is the existing contract for every
+      // alias in VIEW_ALIASES, and it is the right one: rewriting would make the
+      // URL stop being a stable address for the bookmark.
       //
-      // `.catch()` must not carry the await — a throw inside a non-async
-      // callback is a SyntaxError at parse time, which is how this spec failed
-      // its first run with "Unexpected reserved word 'await'". Resolve the flag
-      // first, then read the hash in the failure branch.
-      const resolved = await page
-        .waitForFunction(
-          (target) => location.hash.replace(/^#\/?/, "") === target,
-          a.resolvesTo,
-          { timeout: 5000 },
-        )
-        .then(() => true)
-        .catch(() => false);
-      if (!resolved) {
-        const actual = await page.evaluate(() => location.hash);
+      // So the observable is which page is standing there, identified by its
+      // <Page title=...> heading. This is also the assertion that matters: if an
+      // alias pointed at the wrong surface, this is what would catch it — a
+      // "some content appeared" check would not.
+      const heading = page.locator("main").getByRole("heading", { name: a.title, level: 2 }).first();
+      try {
+        await heading.waitFor({ state: "visible", timeout: 8000 });
+      } catch {
+        const shown = (await page.locator("main").first().textContent())?.trim().slice(0, 120) ?? "";
         throw new Error(
-          `#/${a.id} did not resolve to its alias target "#/${a.resolvesTo}"; hash is "${actual}"`,
+          `#/${a.id} should have opened the "${a.title}" page (its alias target ` +
+            `"#/${a.resolvesTo}"), but main showed: "${shown}"`,
         );
       }
     }
