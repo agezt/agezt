@@ -800,6 +800,49 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Fixed: three nav entries that opened a page the operator could already reach one click
+  away.** `Observe › Runs` carried three tabs — Runs, Activity, Replay — and all three rendered
+  the `Runs` component; `Admin › Identity` rendered the `Skills` component, which the `Skills`
+  row beside it also rendered. The mechanism is one line: `App` instantiates the active view as
+  `const View = current.render` with **no props**, so a component cannot tell which entry it was
+  reached through and every one of those clicks produced a byte-identical screen. A tab strip
+  promises facets; these were three names on one page.
+
+  Runs is now one destination and Identity is gone. `activity`, `replay` and `prompts` are
+  retired into `VIEW_ALIASES` pointing at `runs`, `runs` and `skills`, so bookmarks, help chips
+  and ⌘K history still land on a real surface — the same rule Day 28 applied to Health, Alerts,
+  Wizards and Storage. Surface is 8 sections / 27 rows / 36 views, from 39.
+
+  `nav.test.ts` now guards the class with reference identity: no component may be rendered by
+  two nav entries. Negative-proven. Every existing test in that file compares a row's *label*
+  to its render's title, which is why all three passed — "Activity" shared a root word with its
+  render and "Identity" was listed in `ROOT_WORDS`.
+
+  The help drawer went with them. `help.test.ts` failed on three topics that had no destination
+  any more — but their prose was not stale, it was *mis-keyed*: the "Activity" topic described
+  the live run monitor, which is what Runs renders, and the "Replay" topic described the run
+  detail, which is also Runs. Both were folded into the `runs` topic as sections rather than
+  deleted, and the tip that sent you to Replay for a post-mortem now points at the run detail.
+  The Prompts topic was re-keyed to `skills`, the view it was always describing.
+
+- **Fixed: `App.setActive` did not resolve `VIEW_ALIASES`, so an in-app hop to a retired view id
+  rendered the first nav entry — Chat — until the hash round-trip corrected it a tick later.**
+  `viewFromHash` resolved aliases; the in-app path did not. That is the failure the
+  `VIEW_ALIASES` comment explicitly warns about, and it was already live: the Vitals bar's
+  spend tile was wired to `onNavigate("budget")`, a view retired with "no live equivalent" and
+  absent from `VIEW_ALIASES`, so the button promised "Go to today" and delivered Mission
+  Control via the hash fallback.
+
+  `setActive` now resolves aliases. The spend tile, having nowhere honest to go, became a
+  readout: `Vital`'s `onClick` is optional and it renders a `<span>` rather than a `<button>`
+  when absent. A control that looks clickable and is not is worse than one that never claimed
+  to be. The other tiles, which do have destinations, stay clickable and are asserted to be.
+
+- **Fixed: `AppNav.test.tsx` asserted the Runs tab strip had three tabs.** Those three tests
+  were not wrong by accident; they were pinning the defect. Rewritten against Monitor, which
+  genuinely has two facets, so the strip's behaviour stays covered instead of being deleted
+  along with the row that broke it.
+
 - **Fixed: `kernel/tunnel` was one statement short of its 100% coverage ratchet on Linux, so
   `test (linux)` was red on `main` and nothing had reported it.** The ratchet requires 100%
   statement coverage on ten named packages and runs only on the Linux runner. Measured there

@@ -20,7 +20,14 @@ const URL = process.env.AGEZT_WEBUI_URL;
 // Lake, Storage→Data Lake, Taste→Memory verbatim, Wizards→Schedules,
 // Inbox→World graph, Overview→Standing orders, Messages→World graph). Those
 // rows are gone from NAV entirely and the legacy ids stay in
-// REMOVED_VIEW_IDS. This list therefore covers the surviving 39 views only.
+// REMOVED_VIEW_IDS. This list therefore covers the surviving views only.
+//
+// 2026-10-01: three more ids were retired by the same rule — `activity` and
+// `replay` (Runs' own tabs, which rendered the Runs component) and `prompts`
+// (the Identity row, which rendered Skills). They are in VIEW_ALIASES rather
+// than REMOVED_VIEW_IDS, so a deep link to them renders the real Runs/Skills
+// page. Dropping them from this list does NOT drop them from coverage: see the
+// alias-routing case below.
 const VIEWS: { section: string; row: string; id: string }[] = [
   // Talk
   { section: "Talk", row: "Jarvis", id: "jarvis" },
@@ -30,8 +37,6 @@ const VIEWS: { section: string; row: string; id: string }[] = [
   { section: "Observe", row: "Monitor", id: "mission" },
   { section: "Observe", row: "Monitor", id: "feed" },
   { section: "Observe", row: "Runs", id: "runs" },
-  { section: "Observe", row: "Runs", id: "activity" },
-  { section: "Observe", row: "Runs", id: "replay" },
   // Automate
   { section: "Automate", row: "Workflows", id: "workflows" },
   { section: "Automate", row: "Triggers", id: "schedules" },
@@ -67,8 +72,18 @@ const VIEWS: { section: string; row: string; id: string }[] = [
   // Admin
   { section: "Admin", row: "Setup", id: "setup" },
   { section: "Admin", row: "Config Center", id: "configcenter" },
-  { section: "Admin", row: "Identity", id: "prompts" },
   { section: "Admin", row: "Backups", id: "backup" },
+];
+
+// Retired ids that VIEW_ALIASES routes somewhere real. These are the ones a
+// bookmark, a help chip or ⌘K history can still arrive on, so they get the same
+// "must render real content" treatment as a live view — with the extra
+// assertion that they landed on the surface the alias names, not merely on
+// something that happens to have text in it.
+const ALIASED: { id: string; resolvesTo: string }[] = [
+  { id: "activity", resolvesTo: "runs" },
+  { id: "replay", resolvesTo: "runs" },
+  { id: "prompts", resolvesTo: "skills" },
 ];
 
 test.describe("nav audit — every visible view renders real content", () => {
@@ -122,5 +137,32 @@ test.describe("nav audit — every visible view renders real content", () => {
 
     expect(visited.length).toBe(VIEWS.length);
     expect(errors, `console errors:\n${errors.join("\n")}`).toEqual([]);
+  });
+
+  // A retired id that resolves to a real page must land on THAT page. Asserting
+  // only "some content appeared" would pass even if the alias silently pointed
+  // somewhere else, which is exactly the bug class this exists for.
+  test("a retired view id resolves to the surface its alias names", async ({ page }) => {
+    expect(URL, "AGEZT_WEBUI_URL must be set by the harness").toBeTruthy();
+    await page.addInitScript(() => localStorage.setItem("agezt.setup.skipped", "1"));
+    await page.goto(URL!, { waitUntil: "domcontentloaded" });
+
+    for (const a of ALIASED) {
+      await page.evaluate((id) => {
+        location.hash = `#/${id}`;
+      }, a.id);
+      // The alias is rewritten in the hash by viewFromHash, so assert on the
+      // hash rather than on page text: it says exactly which surface the app
+      // decided this id means.
+      await page.waitForFunction(
+        (target) => location.hash.replace(/^#\/?/, "") === target,
+        a.resolvesTo,
+        { timeout: 5000 },
+      ).catch(() => {
+        throw new Error(
+          `#/${a.id} did not resolve to its alias target "#/${a.resolvesTo}"; hash is "${await page.evaluate(() => location.hash)}"`,
+        );
+      });
+    }
   });
 });

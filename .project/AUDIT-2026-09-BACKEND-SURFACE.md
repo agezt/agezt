@@ -453,16 +453,20 @@ exact failure `sdkparity` had.
 ### The authoritative surface (measured, not parsed from prose)
 
 ```
-8 sections · 28 rows · 39 views
+8 sections · 27 rows · 36 views
 Talk       Jarvis · Chat · Voice
-Observe    Monitor(mission, feed) · Runs(runs, activity, replay)
+Observe    Monitor(mission, feed) · Runs
 Automate   Workflows · Triggers(schedules, standing) · Autonomy
 Govern     Approvals · Policy · Oversight(overseer, council)
 Agents     Agents · Roster · Skills · Capabilities(market, execution-profiles) · Sandbox
 Knowledge  Memory · World · Data & Files(data, artifacts) · Thinking Partners(research, analyst, reflect)
 Connect    Providers & Models · Routing · Channels · Integrations(mcp, acp, connections)
-Admin      Setup · Config Center · Identity · Backups
+Admin      Setup · Config Center · Backups
 ```
+
+*(Retimed 2026-10-01: Runs lost its Activity and Replay facets and the Identity
+row went away — see Finding J. Both rendered a component another entry already
+rendered.)*
 
 ---
 
@@ -894,7 +898,7 @@ above every patched floor their advisories name.
 | `npm install` | exit 0 — 7 added, 4 removed, 116 changed |
 | `npm audit` | **found 0 vulnerabilities** — was 2 low (dompurify, monaco-editor) |
 | `tsc --noEmit` | exit 0 |
-| vitest | 162 files / 1464 tests, 0 failures |
+| vitest | 163 files / 1469 tests, 0 failures |
 | `knip` | exit 0, `{"issues":[]}` |
 | `make check` composition, 9 steps | **9/9 green**, `go test` 192 packages / 0 FAIL |
 
@@ -1100,3 +1104,99 @@ optimistic:
 - The two ratchet fixes were measured locally — in a Linux container for the Go
   one, in the same vitest config for the frontend one — and then confirmed by CI.
   `plugins/tools/file`'s tests remain verifiable only on the Linux runners.
+
+---
+
+## 15. Finding J — the WebUI, audited for itself — **FIXED**
+
+The audit above set out to check everything *outside* the web, because the WebUI
+looked like a mess and the instinct was that the problem was there. The web was
+then audited for itself, because that instinct was never actually tested.
+
+**The instinct was wrong, and that is the finding.** Measured across all 38 live
+views:
+
+| | |
+|---|---|
+| views that handle an empty state | **38 / 38 (100%)** |
+| views that handle an error state | 37 / 38 |
+| views that handle a loading state | 33 / 38 |
+| views with a test | 35 / 38 (92%) |
+| unresolved imports | 0 |
+| live ids still listed as retired | 0 |
+
+Empty states are not hand-rolled per view. They are one shared component —
+`<EmptyState icon title hint>` in `src/components/ui/`, a 17-module design system
+the views already share. The "mess" was not a missing-states problem.
+
+### What was actually broken, and it was small
+
+Two things, both about the nav promising something it did not deliver:
+
+**1. Three tabs that were one page.** `Observe › Runs` carried three tabs —
+Runs, Activity, Replay — and all three rendered the `Runs` component. The
+mechanism is one line in `App.tsx`:
+
+```js
+const current = NAV.find((n) => n.id === active) || NAV[0];
+const View = current.render;      // instantiated with no props
+```
+
+The active view id never reaches the component, so a component cannot tell which
+entry it was reached through. Activity and Replay were byte-identical to Runs.
+A tab strip promises facets; these were three names on one screen.
+
+**2. Two rail entries, one page.** `Admin › Identity` rendered the `Skills`
+component — as did the `Agents › Skills` row beside it.
+
+`nav.test.ts` caught neither, and the reason is structural rather than an
+oversight: every test in it compares a row's **label** against the title its
+render would show. "Activity" shared a root word with its render, "Identity"
+was listed in `ROOT_WORDS`. The file has no test that asks whether two entries
+open the same page.
+
+**3. And a third, found on the way: a link to a view that does not exist.** The
+Vitals bar's spend tile rendered `<button title="Go to today">` wired to
+`onNavigate("budget")` — `budget` was retired with "no live equivalent" and is
+not in `VIEW_ALIASES`, so the click fell through `viewFromHash`'s
+`|| "mission"` and delivered Mission Control. `setActive` did not resolve
+aliases either, so any in-app hop to a retired id first rendered `NAV[0]` (Chat)
+until the hash round-trip corrected it — the exact failure the `VIEW_ALIASES`
+comment warns about, already live.
+
+### What changed
+
+- The Runs row is one destination. `activity` and `replay` are retired and
+  aliased to `runs`. The Identity row is retired; `prompts` is aliased to
+  `skills`. The ids stay addressable, so bookmarks, help chips and ⌘K history
+  land on a real surface.
+- `setActive` resolves `VIEW_ALIASES`.
+- The spend tile is a readout, not a button. A control that promises a
+  destination it does not have is worse than one that never claimed to be.
+- `nav.test.ts` gains a reference-identity guard: **no component may be rendered
+  by two nav entries.** Negative-proven — pointing one row's `render` at
+  another's component fails it with the two keys named.
+- `nav-audit.spec.ts` gains a case asserting a retired id resolves to the
+  surface its alias names, rather than merely to something with text on it.
+- `AppNav.test.tsx`'s three Runs-specific tab tests were rewritten against
+  Monitor. They had been asserting the defect.
+
+Surface: 8 sections / 27 rows / 36 views, from 39. `nav-docs.test.ts` failed on
+every document that quoted the old numbers until `README.md` and
+`docs/CONSOLE-IA.md` were corrected — the gate working as intended.
+
+### How the measurement went wrong first
+
+Four separate scans produced four different answers before one was right, and
+each wrong number was caught by opening a real file:
+
+| Claimed | Actual | Why the scan lied |
+|---|---|---|
+| 19 views handle no states | 1 | Scanned `Market.tsx`, a re-export barrel whose code is in `page.tsx` — an empty shim |
+| 21 views untested | 3 | Looked for `page.test.tsx`; tests are named after the nav destination, `Workflows.test.tsx` |
+| Shared primitives barely used | consistent | Measured `Panel`/`DataView` — not `EmptyState`, the primitive states actually use |
+| — | — | An alias chain measured per-line missed a multi-line `export { … } from` |
+
+A heuristic scan compares files against each other, which keeps a *divergence*
+meaningful even when a single verdict is not proof. None of these numbers was
+reported until a real file confirmed it.

@@ -25,8 +25,6 @@ const VIEWS = [
   { id: "mission", section: "Observe" },
   { id: "feed", section: "Observe" },
   { id: "runs", section: "Observe" },
-  { id: "activity", section: "Observe" },
-  { id: "replay", section: "Observe" },
   // Automate
   { id: "workflows", section: "Automate" },
   { id: "schedules", section: "Automate" },
@@ -62,7 +60,6 @@ const VIEWS = [
   // Admin
   { id: "setup", section: "Admin" },
   { id: "configcenter", section: "Admin" },
-  { id: "prompts", section: "Admin" },
   { id: "backup", section: "Admin" },
 ];
 

@@ -116,7 +116,7 @@ that.
 | `staticcheck` findings | 3 | **0** |
 | tests whose verdict depends on machine speed | 3 | **0 fixed** |
 
-`go test ./...` 192 packages / 0 failures · vitest 162 files / 1464 tests ·
+`go test ./...` 192 packages / 0 failures · vitest 163 files / 1469 tests ·
 `tsc` clean · cross-build 6/6 · e2e smoke 10 checks · webui e2e 6 tests ·
 `govulncheck` no vulnerabilities · `gitleaks` 2,071 commits, no leaks.
 

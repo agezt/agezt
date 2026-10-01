@@ -51,43 +51,6 @@ export const Monitor: Record<string, HelpTopic> = {
     ],
   },
 
-  activity: {
-    title: "Activity",
-    intro:
-      "The live fleet monitor: every in-flight run, its sub-agents, iterations, and spend — updating in real time as the event stream arrives.",
-    sections: [
-      {
-        heading: "Watching runs",
-        items: [
-          {
-            term: "Run hierarchy",
-            desc: "Runs are grouped parent-first with delegated sub-agents indented beneath, so a deep delegation tree stays readable.",
-          },
-          {
-            term: "Expand for detail",
-            desc: "Click a row to open the full run detail — tool calls, policy verdicts, and the final answer.",
-          },
-          {
-            term: "Cancel",
-            desc: "Each running row has a cancel button to stop just that run without halting the whole daemon.",
-          },
-          {
-            term: "Counters",
-            desc: "Running / completed / failed counts tick live; elapsed time updates every second while anything is in flight.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "The page seeds from the run list on load, then folds the live event stream on top — so it's accurate even for runs that started before you opened it.",
-    ],
-    related: [
-      { id: "runs", label: "Runs" },
-      { id: "agents", label: "Agents" },
-      { id: "overseer", label: "Overseer" },
-    ],
-  },
-
   autonomy: {
     title: "Autonomy",
     intro:
@@ -182,7 +145,7 @@ export const Monitor: Record<string, HelpTopic> = {
   runs: {
     title: "Runs",
     intro:
-      "Every run the daemon has executed — in-flight and finished — with search and expandable full detail.",
+      "Every run the daemon has executed — in-flight and finished — with search and expandable full detail. What used to be three tabs (Runs, Activity, Replay) is one page: all three rendered this component, so the tabs changed nothing.",
     sections: [
       {
         heading: "Finding a run",
@@ -198,6 +161,33 @@ export const Monitor: Record<string, HelpTopic> = {
         ],
       },
       {
+        heading: "Watching runs live",
+        items: [
+          {
+            term: "Run hierarchy",
+            desc: "Runs are grouped parent-first with delegated sub-agents indented beneath, so a deep delegation tree stays readable.",
+          },
+          {
+            term: "Expand for detail",
+            desc: "Click a row to open the full run detail — tool calls, policy verdicts, and the final answer.",
+          },
+          {
+            term: "Cancel",
+            desc: "Each running row has a cancel button to stop just that run without halting the whole daemon.",
+          },
+          {
+            term: "Counters",
+            desc: "Running / completed / failed counts tick live; elapsed time updates every second while anything is in flight.",
+          },
+        ],
+      },
+      {
+        heading: "Post-mortem",
+        paragraphs: [
+          "The run detail is the flight recorder: it lays out every step in order with its payload, so you can audit precisely what the agent saw and did. Selecting a run that is still in flight folds live events in as they happen.",
+        ],
+      },
+      {
         heading: "Deep links",
         paragraphs: [
           "Other pages (Alerts, Dashboard, the ⌘K palette's \"Open run …\" commands) deep-link here and auto-expand the run in question.",
@@ -205,11 +195,13 @@ export const Monitor: Record<string, HelpTopic> = {
       },
     ],
     tips: [
-      "For a cinematic step-through of a single run, open it in Replay instead.",
+      "The page seeds from the run list on load, then folds the live event stream on top — so it's accurate even for runs that started before you opened it.",
+      "When a run went sideways, the answer is usually in the step where the inputs stopped matching your expectations.",
     ],
     related: [
-      { id: "replay", label: "Replay" },
-      { id: "activity", label: "Activity" },
+      { id: "agents", label: "Agents" },
+      { id: "overseer", label: "Overseer" },
+      { id: "autonomy", label: "Autonomy" },
     ],
   },
 

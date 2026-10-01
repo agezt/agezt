@@ -36,23 +36,36 @@ describe("ViewTabs", () => {
     expect(container.querySelector('[role="tablist"]')).toBeNull();
   });
 
+  // These three used to assert the Runs row had three tabs — Activity and
+  // Replay alongside Runs — which is exactly what made them wrong: all three
+  // rendered the same component, so the strip promised facets that did not
+  // exist. They are written against Monitor instead, which genuinely has two,
+  // so the strip's behaviour stays covered rather than being deleted along with
+  // the row that broke it. Monitor was not chosen to be the fixture; it is
+  // simply a row whose views are different components.
   it("renders one tab per facet of a folded destination", () => {
-    // Runs is a multi-facet destination post-Day 25 (Runs + Activity + Replay).
-    render(<ViewTabs active="runs" onSelect={() => {}} />);
+    render(<ViewTabs active="mission" onSelect={() => {}} />);
     const tabs = screen.getAllByRole("tab").map((el) => el.textContent);
-    expect(tabs).toEqual(["Runs", "Activity", "Replay"]);
+    expect(tabs).toEqual(["Mission Control", "Live Stream"]);
   });
 
   it("marks the active facet, not the first one", () => {
-    render(<ViewTabs active="replay" onSelect={() => {}} />);
-    expect(screen.getByRole("tab", { selected: true }).textContent).toBe("Replay");
+    render(<ViewTabs active="feed" onSelect={() => {}} />);
+    expect(screen.getByRole("tab", { selected: true }).textContent).toBe("Live Stream");
   });
 
   it("navigates by the facet's own view id, so deep links keep working", () => {
     const onSelect = vi.fn();
-    render(<ViewTabs active="runs" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Replay" }));
-    expect(onSelect).toHaveBeenCalledWith("replay");
+    render(<ViewTabs active="mission" onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Live Stream" }));
+    expect(onSelect).toHaveBeenCalledWith("feed");
+  });
+
+  it("renders no tab strip for Runs now that it is a single destination", () => {
+    // The same rule, asserted at the strip: a destination with one view has
+    // nothing to choose between.
+    const { container } = render(<ViewTabs active="runs" onSelect={() => {}} />);
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
   });
 });
 

@@ -201,7 +201,7 @@ commands run from `frontend/` (`npm test`, `npm run build` — npm, not pnpm).
 ## The console
 
 With `AGEZT_WEB_ADDR` set, the startup banner prints a tokenized URL. The
-console is **39 views, folded into 28 rows across 8 sections**, organized by
+console is **36 views, folded into 27 rows across 8 sections**, organized by
 operator job rather than by backend package — a section is a job, a row is a
 noun, and a tab is a facet of that noun (see
 [docs/CONSOLE-IA.md](docs/CONSOLE-IA.md)):

@@ -142,7 +142,7 @@ Three principles:
    *how it is addressed* — and a view that is genuinely merged away keeps its
    hash through `VIEW_ALIASES`.
 
-### 3.1 The nav as shipped (28 destinations, 39 views, 0 lost addresses)
+### 3.1 The nav as shipped (27 destinations, 36 views, 0 lost addresses)
 
 Measured from `NAV_GROUPS` in `frontend/src/nav.tsx`. This table is the
 canonical current-state map; `frontend/src/nav-docs.test.ts` fails the build
@@ -154,7 +154,7 @@ if it stops matching the code, so do not hand-edit the counts above.
 | | Chat | `chat` |
 | | Voice | `voice` |
 | **Observe** | Monitor | `mission` · `feed` |
-| | Runs | `runs` · `activity` · `replay` |
+| | Runs | `runs` |
 | **Automate** | Workflows | `workflows` |
 | | Triggers | `schedules` · `standing` |
 | | Autonomy | `autonomy` |
@@ -176,11 +176,44 @@ if it stops matching the code, so do not hand-edit the counts above.
 | | Integrations | `mcp` · `acp` · `connections` |
 | **Admin** | Setup | `setup` |
 | | Config Center | `configcenter` |
-| | Identity | `prompts` |
 | | Backups | `backup` |
 
 No section exceeds six rows — pinned by `nav.test.ts`. The sidebar is
 glanceable.
+
+#### Retired 2026-10-01: three entries that opened a page already one click away
+
+A second pass over the nav — this one looking at behaviour rather than at labels —
+found three entries whose `render` resolved to a component another entry already
+rendered. Nothing was deleted and no kernel surface moved; the operator simply
+had one more thing to click that changed nothing.
+
+| Retired id | Was | Now resolves to | Why |
+|---|---|---|---|
+| `activity` | Observe › Runs › Activity tab | `runs` | Rendered the `Runs` component — as did the Runs tab beside it |
+| `replay` | Observe › Runs › Replay tab | `runs` | Same component, same screen |
+| `prompts` | Admin › Identity (whole row) | `skills` | Rendered the `Skills` component — as did the Skills row beside it |
+
+The Runs row's three tabs were the sharper case, because a tab strip *promises*
+facets. `App` renders the active view as `const View = current.render` with no
+props, so a component cannot tell which tab it is being shown as; Activity and
+Replay were byte-identical to Runs. A row of one is not a lesser feature than a
+row of three — it is a row that tells the truth about where it goes.
+
+This is the same rule Day 28 applied to Health, Alerts, Wizards and Storage: an
+entry whose label and whose render resolve to a surface already one click away is
+retired, and its id stays addressable through `VIEW_ALIASES` so bookmarks, help
+chips and ⌘K history still land somewhere real.
+
+One related defect surfaced while doing it. `viewFromHash` resolved
+`VIEW_ALIASES`, but `App`'s `setActive` did not, so an in-app navigation into any
+retired id stored an id the nav could not resolve and rendered the first entry —
+Chat — until the hash round-trip corrected it a tick later. That is precisely the
+"looks exactly like the app losing the page" failure the `VIEW_ALIASES` comment
+warns about, and it was already live: the Vitals bar's spend tile linked to
+`budget`, retired with no live equivalent. `setActive` now resolves aliases, and
+that tile — which had nothing honest to link to — is a readout rather than a
+button that promises "Go to today" and delivers Mission Control.
 
 #### Retired during the Day-23/28 IA cleanup
 
