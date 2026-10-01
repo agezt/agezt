@@ -898,7 +898,7 @@ above every patched floor their advisories name.
 | `npm install` | exit 0 — 7 added, 4 removed, 116 changed |
 | `npm audit` | **found 0 vulnerabilities** — was 2 low (dompurify, monaco-editor) |
 | `tsc --noEmit` | exit 0 |
-| vitest | 163 files / 1469 tests, 0 failures |
+| vitest | 166 files / 1495 tests, 0 failures |
 | `knip` | exit 0, `{"issues":[]}` |
 | `make check` composition, 9 steps | **9/9 green**, `go test` 192 packages / 0 FAIL |
 
@@ -1121,7 +1121,7 @@ views:
 | views that handle an empty state | **38 / 38 (100%)** |
 | views that handle an error state | 37 / 38 |
 | views that handle a loading state | 33 / 38 |
-| views with a test | 35 / 38 (92%) |
+| views with a test | 38 / 38 (100%) |
 | unresolved imports | 0 |
 | live ids still listed as retired | 0 |
 

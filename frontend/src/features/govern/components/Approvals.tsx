@@ -94,7 +94,17 @@ export default function Approvals() {
           <Badge variant={pending.length > 0 ? "warn" : "default"}>{pending.length}</Badge>
         </h3>
         {pending.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">No agent is waiting on your eyes. The policy engine is auto-deciding.</p>
+          // An unread queue is not an empty queue. When the fetch failed, `pending`
+          // is still [] — and saying "no agent is waiting on your eyes, the policy
+          // engine is auto-deciding" then is the most reassuring sentence on the
+          // screen and the least true one. This is the queue where a click grants
+          // or denies a real action, so a silent fetch failure must not read as an
+          // all-clear.
+          error ? (
+            <p className="mt-2 text-sm text-muted">The queue could not be read. The count above is not a real zero.</p>
+          ) : (
+            <p className="mt-2 text-sm text-muted">No agent is waiting on your eyes. The policy engine is auto-deciding.</p>
+          )
         ) : (
           <ul className="mt-3 space-y-2">
             {pending.map((a) => (

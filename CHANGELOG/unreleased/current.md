@@ -843,6 +843,29 @@ This file holds the active `[Unreleased]` working set.
   genuinely has two facets, so the strip's behaviour stays covered instead of being deleted
   along with the row that broke it.
 
+- **Fixed: the Approvals queue reported "the policy engine is auto-deciding" when it had failed to
+  load.** `reload()` catches, sets `error`, and leaves `pending` at `[]` — so an unreachable
+  daemon rendered the error banner *and* the most reassuring sentence on the screen. This is
+  the queue where a click grants or denies a real action, so a silent fetch failure reading as
+  an all-clear is the worst failure it can have. The empty state is now error-aware: it says
+  the queue could not be read, and that the count is not a real zero.
+
+- **Fixed: Mission Control reported a healthy system when the daemon was unreachable.** Same
+  shape, worse scope: every hook in the view — pulse, spend, attention — caught and ignored, so
+  four metrics stayed at their stub values and the page said "Nothing requires your eyes. The
+  system is running cleanly." It is the one screen an operator opens to ask whether anything
+  is wrong, so an unread pulse now raises a banner saying the numbers are the last values read,
+  and the attention queue distinguishes "empty" from "unreadable".
+
+- **Fixed: the three live views that had no test at all.** The audit measured 35 of 38 views
+  covered; `Approvals`, `MissionControl` and `Chains` were the three that were not. All three
+  have tests now — 26 cases between them — and **two of the three had the false-reassurance
+  defect above**, found by writing the failure case first. `Chains` turned out to be already
+  correct; its error path existed and was simply unasserted. Views with a test: 35/38 → 38/38.
+
+  The failure case is the one worth keeping in each. "The thing did not load" is a state no test
+  had been asserting, and on two of these three screens it was being rendered as good news.
+
 - **Fixed: `kernel/tunnel` was one statement short of its 100% coverage ratchet on Linux, so
   `test (linux)` was red on `main` and nothing had reported it.** The ratchet requires 100%
   statement coverage on ten named packages and runs only on the Linux runner. Measured there
