@@ -515,6 +515,110 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Changed: fifteen of the seventeen CI jobs were pinned to a runner pool that does not
+  exist.** `gh api repos/agezt/agezt/actions/runners` returns `{"total_count":0}` — no
+  self-hosted runner is registered for this repo. Fifteen job definitions nonetheless carried
+  `runs-on: [self-hosted, Linux, X64]`; `multi-arch` is a six-leg matrix, so those lines
+  accounted for 20 of the file's 22 checks. The WSL runners they name live on a different host
+  (`ops/wsl-runners/README.md`: host `WHITE`).
+
+  Measured on 2026-10-01 on PR #594: the run's `updatedAt` never moved past its `createdAt`.
+  The only two checks that reached a conclusion were the two already on `ubuntu-latest`
+  (`race-depth`, `changelog gates`); the other twenty stayed `queued` for over an hour and
+  would have stayed there indefinitely. The failure mode is not a red X — a queued job is
+  neither pass nor fail, so nothing reports. Because `main` requires the `CI` check, no PR
+  could be merged, and twenty gates enforced nothing at all. Among them was
+  `frontend-dist-in-sync`, the one check that can settle whether the committed
+  `kernel/webui/dist` matches a Linux rebuild.
+
+  All seventeen jobs now run on `ubuntu-latest`. The repo is public, so hosted Linux minutes
+  are free: the self-hosted design's only advantage was cost, and it cost the entire gate. The
+  reasoning is the one the owner already wrote into the file's own header on 2026-09-06 — a
+  job that never gets a runner enforces nothing — only now applied to the whole file.
+
+  `ops/wsl-runners/README.md` is marked DORMANT, with the caveat that its setup table records
+  the last known configuration on `WHITE`, not a verified live state.
+
+  Two things were deliberately left in place, and each is a real change in justification
+  rather than an oversight:
+
+  - The `staticcheck` and `govulncheck` retry loops existed for WSL2 toolchain corruption
+    ("fork/exec compile: invalid argument") that `ubuntu-latest` does not have. They also
+    absorb transient download and OOM failures — both steps `go install` their tool — so they
+    stay. Their step names and log lines no longer blame a compiler that is not there.
+  - `--ignore-scripts` on every `npm ci` (CICD-001) was justified by running install scripts
+    on a *persistent* self-hosted box. The runner is now ephemeral, which weakens that
+    rationale considerably, but the flag is free and is the only thing between a
+    freshly-bumped transitive package's install script and the Web UI build. Kept.
+
+- **Fixed: `setup-go-safe` tested the wrong environment variable to detect a hosted runner,
+  so its WSL2 workaround had been staging into `/dev/shm` on every hosted job.** The staging
+  steps guard on `if [ -z "${RUNNER_NAME:-}" ]`, under a comment asserting that `RUNNER_NAME`
+  "is only set on self-hosted runners". That is not what GitHub documents: the variables
+  reference gives `RUNNER_NAME` the example `Hosted Agent`, and lists no self-hosted-only
+  restriction. The correct discriminator is `RUNNER_ENVIRONMENT`, documented as exactly the
+  `github-hosted` | `self-hosted` split. The guard therefore never fired, and every hosted
+  job copied a ~600MB `GOROOT` plus `GOCACHE` and `GOTMPDIR` onto tmpfs under a path
+  containing a space (`goroot-Hosted Agent 2`).
+
+  It passed, which is why nothing reported it: `race-depth` and `changelog gates` have been
+  running hosted all along and both conclude green. The staging is now skipped on
+  `github-hosted` for real, and the re-stage step is gated the same way so a failed integrity
+  probe on a hosted runner cannot fall into the tmpfs path it just declined to enter. The WSL
+  branch is retained, not deleted — `ops/wsl-runners/README.md` still documents the runners
+  and re-pinning a job to `[self-hosted, Linux, X64]` is a one-line change.
+
+- **Fixed: `scripts/ci-go-retry.sh` deleted the staged `GOCACHE`/`GOTMPDIR` and only re-staged
+  `GOROOT`, so every retry died before the command ran.** The `rm -rf /dev/shm/gocache-*
+  /dev/shm/gotmp-*` before each attempt was paired with a re-stage of `GOROOT` alone. Since
+  `GOTMPDIR` then pointed at a directory that no longer existed, the retry failed with
+  `creating work dir: ... no such file or directory` — masking the real error behind five
+  useless attempts. Both directories are now recreated before each retry. This was measured
+  on the hosted runners on 2026-09-07, while the `setup-go-safe` guard above was still not
+  firing and hosted jobs really were staging to `/dev/shm`; with that guard fixed the cleanup
+  is a no-op here, but the two bugs are the same bug seen from two ends and both are closed.
+
+- **Fixed: `sdk/typescript/package-lock.json` was out of sync with `package.json`, so
+  `npm ci` could not succeed in the `typescript-sdk` job.** `package.json` requires
+  `typescript ^7.0.2` and `@types/node ^26.4.1`; the lockfile pinned `typescript 6.0.3` and
+  `@types/node 26.0.1`, and its own root entry recorded the stale ranges. Regenerated with
+  `npm install --ignore-scripts`; it now resolves `typescript 7.0.2` and `@types/node 26.6.3`,
+  and `npm ci` exits 0 locally.
+
+- **Fixed: the `credential_process` test fixtures wrote unquoted helper paths, and every
+  helper exec failed on a hosted runner.** `kernel/creds` builds each fixture as
+  `credential_process = <path>`, and GitHub Actions' `TMPDIR` contains spaces
+  (`/dev/shm/gotmp-GitHub Actions 1234`), so the tokeniser split the path into several argv
+  tokens and the lookup returned empty — three `race-breadth` failures. The fixtures now
+  double-quote the path, which is what the AWS config format requires and what the existing
+  tokeniser support already handled. A new regression test,
+  `TestAWS_CredentialProcess_QuotedSpacedPath`, moves the helper into a directory literally
+  named `GitHub Actions 1000016278` and pins the end-to-end behaviour, so a fixture or a
+  tokeniser change that drops quote support fails loudly instead of only failing on a hosted
+  runner.
+
+- **Fixed: two symlink-TOCTOU proof tests in `plugins/tools/file` asserted the wrong channel
+  for a refusal.** The guards are correct; the tests were not. `TestReadSymlinkTOCTOU_Rejected`
+  accepted only a Go `error`, but the tool reports a containment refusal as
+  `agent.Result{IsError: true}` with the message on `Output` — so a correctly-refused read
+  fell through to `t.Fatalf("BUG: read returned unexpected output")`.
+  `TestSearchSymlinkTOCTOU_Rejected` had the mirror problem: its substring assertion
+  self-tripped, because the hits envelope embeds the search *pattern*, which in this test is
+  the secret itself. Both now accept a refusal on either channel, and the search test asserts
+  `count == 0` rather than searching the envelope for a string the envelope legitimately
+  contains. The read test additionally asserts that a refusal message never carries the
+  outside file's contents. This file is `//go:build !windows`, so these two run only on the
+  Linux CI runners — which is why they went unnoticed while the pool was dead.
+
+  The last three entries are not speculation about what hosted runners would find. Branch
+  `ci-hosted-runners` (local, never merged, based on `1de3a1f5` from 2026-09-07) performed
+  this same migration and then fixed the resulting failures in `d721c0bf`; the fixes above are
+  applied against today's tree, where the `frontend` dependency problem had already been
+  solved differently — by repinning `undici` and `dompurify` to versions that exist and are
+  patched, rather than by deleting the `overrides` block. What remains unverified locally: the
+  `plugins/tools/file` tests are Linux-only, and the `kernel/creds` spaced-path behaviour was
+  reproduced on Windows but not on a hosted Linux runner.
+
 - **Refactor (Phase 4.1): `Schedules.tsx` 2,124 → 1,556 lines.** The view's data model and its
   derivations — the wire shapes the schedule endpoints return, and the pure functions that turn
   them into counts, labels, attention reasons, health passports and filters — moved to

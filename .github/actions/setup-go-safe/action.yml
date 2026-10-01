@@ -1,5 +1,21 @@
 # SPDX-License-Identifier: MIT
-# Composite action: set up Go on the self-hosted WSL runners *safely*.
+# Composite action: set up Go, with a WSL2-safe path.
+#
+# As of 2026-10-01 every ci.yml job runs on GitHub-hosted ubuntu-latest, so the
+# /dev/shm staging below is DORMANT: it now tests RUNNER_ENVIRONMENT, and exits
+# 0 without touching /dev/shm when that is "github-hosted". The WSL path is
+# retained rather than deleted because ops/wsl-runners/README.md still documents
+# the three WSL runners and re-pinning a job to [self-hosted, Linux, X64] is a
+# one-line change. Do not delete the WSL path without deleting that
+# infrastructure too.
+#
+# Until 2026-10-01 these steps tested `RUNNER_NAME` for emptiness, which never
+# fired: GitHub documents RUNNER_NAME as set on hosted runners too ("For
+# example, Hosted Agent"). Every hosted job therefore staged a ~600MB GOROOT
+# plus GOCACHE and GOTMPDIR into /dev/shm, under a path containing a space
+# ("goroot-Hosted Agent 2"), and scripts/ci-go-retry.sh — which clears
+# /dev/shm/gocache-* between attempts — deleted the directories out from under
+# the still-running job.
 #
 # Root cause: setup-go@v5 installs GOROOT under
 #   ~/actions-runner-*/_work/_tool/go/1.26.4
@@ -27,7 +43,7 @@
 # We stay on `go-version: stable` (latest, currently 1.26.4) and NEVER pin
 # back to an older minor just to dodge a bad cache entry.
 name: setup-go-safe
-description: Install latest Go on self-hosted runners, staging GOROOT to tmpfs to escape WSL2 disk corruption.
+description: Install latest Go, staging GOROOT to tmpfs to escape WSL2 disk corruption (staging skipped when RUNNER_ENVIRONMENT is github-hosted).
 
 runs:
   using: composite
@@ -56,11 +72,15 @@ runs:
       shell: bash
       run: |
         set -e
-        # Skip tmpfs staging on GitHub-hosted runners (RUNNER_NAME is only
-        # set on self-hosted runners; ubuntu-latest doesn't have the WSL2
-        # ext4 read corruption that motivates the tmpfs copy).
-        if [ -z "${RUNNER_NAME:-}" ]; then
-          echo "Skipping tmpfs staging (no RUNNER_NAME — GitHub-hosted runner)"
+        # Skip tmpfs staging on GitHub-hosted runners. The discriminator is
+        # RUNNER_ENVIRONMENT, NOT RUNNER_NAME: GitHub's own variables reference
+        # documents RUNNER_NAME as set on hosted runners too ("For example,
+        # Hosted Agent"), so testing it for emptiness never fires and every
+        # hosted job has been staging a ~600MB GOROOT to /dev/shm — under a
+        # path containing a space ("goroot-Hosted Agent 2"). RUNNER_ENVIRONMENT
+        # is documented as exactly the "github-hosted" | "self-hosted" split.
+        if [ "${RUNNER_ENVIRONMENT:-}" = "github-hosted" ]; then
+          echo "Skipping tmpfs staging (RUNNER_ENVIRONMENT=github-hosted; no WSL2 ext4 issue here)"
           exit 0
         fi
         SRC="$(go env GOROOT)"
@@ -102,7 +122,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        if [ -z "${RUNNER_NAME:-}" ]; then
+        if [ "${RUNNER_ENVIRONMENT:-}" = "github-hosted" ]; then
           echo "::warning::Go toolchain verification failed on GitHub-hosted runner; no tmpfs staging to retry."
           exit 0
         fi
@@ -120,7 +140,7 @@ runs:
         cache: false
 
     - name: Re-stage GOROOT to tmpfs
-      if: steps.verify.outcome == 'failure'
+      if: steps.verify.outcome == 'failure' && env.RUNNER_ENVIRONMENT != 'github-hosted'
       shell: bash
       run: |
         set -e
@@ -155,9 +175,11 @@ runs:
       shell: bash
       # The flaky tmpfs `compile` "invalid argument" corruption only surfaces
       # under a full parallel build (the single-package verify probe never
-      # trips it). On these 32-core WSL boxes `go build ./...` would fork ~32
+      # trips it). On the 32-core WSL boxes `go build ./...` would fork ~32
       # concurrent execs of the tmpfs compile binary; capping -p/GOMAXPROCS to
-      # 4 cuts the concurrency that triggers it (and matches our test-CPU cap).
+      # 4 cuts the concurrency that triggers it. Kept unconditionally: it is
+      # also what a 4-core ubuntu-latest runner would do anyway, so the cap is
+      # a no-op there rather than a penalty.
       run: |
         echo "GOFLAGS=-p=4" >> "$GITHUB_ENV"
         echo "GOMAXPROCS=4" >> "$GITHUB_ENV"
@@ -178,9 +200,9 @@ runs:
       # on a shared /dev/shm (same reasoning as the GOROOT staging above).
       run: |
         set -e
-        # Skip on GitHub-hosted runners (no RUNNER_NAME, no WSL2 ext4 issue).
-        if [ -z "${RUNNER_NAME:-}" ]; then
-          echo "Skipping tmpfs GOCACHE/GOTMPDIR staging (GitHub-hosted runner)"
+        # Skip on GitHub-hosted runners (no WSL2 ext4 issue).
+        if [ "${RUNNER_ENVIRONMENT:-}" = "github-hosted" ]; then
+          echo "Skipping tmpfs GOCACHE/GOTMPDIR staging (RUNNER_ENVIRONMENT=github-hosted)"
           exit 0
         fi
         CACHE="/dev/shm/gocache-${RUNNER_NAME}"

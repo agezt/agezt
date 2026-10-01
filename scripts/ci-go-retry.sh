@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Retry a Go command that intermittently fails because of the self-hosted WSL
-# runners' flaky tmpfs `compile` binary. Even after staging GOROOT to a
-# per-runner tmpfs path, a full parallel `go build`/`go test` occasionally
-# trips "fork/exec .../compile: invalid argument" /
+# Retry a Go command that intermittently fails. The original reason was the
+# self-hosted WSL runners' flaky tmpfs `compile` binary; since 2026-10-01 all
+# jobs run on GitHub-hosted runners, which do not stage to tmpfs at all, so the
+# tmpfs cleanup below is normally a no-op and this is a plain retry wrapper for
+# transient failures. It stays because every Go step in ci.yml calls it. Even
+# when staging did apply, a full parallel `go build`/`go test` occasionally
+# tripped "fork/exec .../compile: invalid argument" /
 # "src/log/internal/: invalid argument" mid-build. The single-package probe in
 # setup-go-safe passes, so the corruption only surfaces under the many
 # concurrent compiler execs of a real build — and it is transient, so a
@@ -30,7 +33,7 @@ while :; do
     echo "::error::command failed after $max attempts (rc=$rc): $*" >&2
     exit "$rc"
   fi
-  echo "attempt $n/$max failed (rc=$rc; flaky WSL Go compiler on self-hosted runners); retrying..." >&2
+  echo "attempt $n/$max failed (rc=$rc); retrying..." >&2
   # Clear tmpfs Go cache + temp dirs so the corruption doesn't poison the retry.
   rm -rf /dev/shm/gocache-* /dev/shm/gotmp-* 2>/dev/null || true
   # Re-stage GOROOT from the original ext4 source to get a fresh tmpfs copy.
@@ -41,5 +44,13 @@ while :; do
     cp -a "$GOROOT_SRC" "$GOROOT"
     echo "re-staged GOROOT from $GOROOT_SRC to $GOROOT" >&2
   fi
+  # The rm -rf above also deleted the staged GOCACHE/GOTMPDIR that the setup
+  # step created; recreate them or every retry dies with "creating work dir: ...
+  # no such file or directory" before the command even runs. Observed on the
+  # GitHub-hosted runners, 2026-09-07, while every job was still staging to
+  # /dev/shm (setup-go-safe's hosted check tested the wrong variable and never
+  # fired; it now tests RUNNER_ENVIRONMENT and does not stage here at all).
+  [ -n "${GOCACHE:-}" ] && mkdir -p "$GOCACHE"
+  [ -n "${GOTMPDIR:-}" ] && mkdir -p "$GOTMPDIR"
   sleep 3
 done
