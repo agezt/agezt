@@ -4,6 +4,25 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: the branch protection required a status check that has never existed.**
+  `main` is governed by ruleset `22206739`, which lists a required status check with the
+  context `CI`. `ci.yml` sets `name: CI` at the top, but a *workflow* name is not a *check
+  context* — Actions creates one check-run per **job**, and every job in this file is named
+  after what it does (`test (linux)`, `frontend-test`, `deps-check (...)`). Measured on the
+  branch head: zero check-runs named `CI`, and `gh pr checks --required` answers *"no
+  required checks reported"* on a branch with twenty-two green checks. The status-check half
+  of "main is protected" enforced nothing.
+
+  This is the same shape as the runner-pool finding: a protection that looked configured
+  and applied to nothing. A comment in `ci.yml` even reasons about what it would mean to
+  "turn the required `CI` check red on every PR" — a premise the file did not satisfy.
+
+  Fixed in the workflow rather than in the ruleset: `ci.yml` gains a single job named
+  exactly `CI` that `needs` all seventeen, runs `if: always()` so it reports even when a
+  dependency failed, and exits non-zero naming every job that did not pass. `skipped`
+  counts as pass, since several jobs are legitimately conditional. **One aggregator, not
+  twenty-two required contexts** — naming every job in the ruleset would rebuild the same
+  hole, because renaming one job would silently unprotect it again with nothing failing.
 - **Security: the HTTP router's fail-fast guard could not fire for the case it
   existed to catch.** `httpserver.RouteOpts` carries a required `Tier`, and
   `Handle` panics when the tier is not `Valid()` — a guard whose entire job is to

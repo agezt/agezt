@@ -667,3 +667,66 @@ jobs:
         # flag which throws away the canonical working set.
         continue-on-error: true
         run: go run ./tools/changelog-split --verify
+
+  # ── The "CI" check this branch protection actually requires ────────────────
+  #
+  # ruleset 22206739 lists a required status check whose context is literally
+  # `CI`. Nothing in this workflow ever reported that context: the workflow is
+  # named CI, but Actions creates one check-run per JOB, and every job here is
+  # named after what it does — `test (linux)`, `frontend-test`, and so on. A
+  # workflow name is not a check context.
+  #
+  # So the required check has been reporting nothing, ever. `gh pr checks
+  # --required` answers "no required checks reported" on a branch where twenty-two
+  # checks are green, and the protection enforces nothing: the status-check half
+  # of "main is protected" was decorative, the same shape as Finding I, where
+  # twenty checks could not run at all. A comment in the changelog job reasoned
+  # about what would happen to "the required CI check" — a premise this file did
+  # not satisfy.
+  #
+  # This job is the fix, and it is deliberately a single job rather than
+  # twenty-two required contexts. Naming every job in the ruleset would recreate
+  # the hole: rename one job and the protection silently stops covering it again.
+  # One context that means "all of it" cannot drift that way.
+  CI:
+    name: CI
+    if: always()
+    needs:
+      - test
+      - race-breadth
+      - race-depth
+      - e2e
+      - codegen-in-sync
+      - frontend-dist-in-sync
+      - frontend-dist-rebuild
+      - frontend-test
+      - webui-e2e
+      - python-sdk
+      - typescript-sdk
+      - rust-sdk
+      - multi-arch
+      - deps-check
+      - lint
+      - secrets
+      - changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report which job did not pass
+        # `skipped` counts as pass: several jobs are conditional (the same-repo
+        # fork guard, and frontend-dist-rebuild's steps which are push-only), and
+        # a legitimately skipped job is not a failure. Anything else — failure,
+        # cancelled — is.
+        run: |
+          failed=""
+          for job in $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name != "CI") | "\(.conclusion) \(.name)"'); do
+            case "$job" in
+              success*|skipped*|"") ;;
+              *) failed="$failed\n  - $job" ;;
+            esac
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::These jobs did not pass:$failed"
+            exit 1
+          fi
+          echo "All 17 jobs succeeded or were legitimately skipped."

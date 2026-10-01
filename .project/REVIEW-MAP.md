@@ -316,7 +316,7 @@ Newest first:
 
 ## 6. Changelog: 14 appended blocks → 5 sections
 
-**1 file, 1.997 lines.** Six sections were titled `Fixed` and four `Added`, with a 510-line Unclassified pile of 41 entries whose first was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over <baseDir>/bin/agezt), unfindable. **185 entries**, none dropped: 156 were carried over from the original 14 blocks and 29 were added since — the two product-bug fixes this audit landed, the remainder of the audit's own work, the CI runner migration with the defects it exposed, and the WebUI audit that retired three nav entries opening a page already one click away. 20 were routed by the classification already in their own lead-in; 21 were classified by reading the full entry.
+**1 file, 1.997 lines.** Six sections were titled `Fixed` and four `Added`, with a 510-line Unclassified pile of 41 entries whose first was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over <baseDir>/bin/agezt), unfindable. **186 entries**, none dropped: 156 were carried over from the original 14 blocks and 30 were added since — the two product-bug fixes this audit landed, the remainder of the audit's own work, the CI runner migration with the defects it exposed, and the WebUI audit that retired three nav entries opening a page already one click away. 20 were routed by the classification already in their own lead-in; 21 were classified by reading the full entry.
 
 - `CHANGELOG/unreleased/current.md`
 

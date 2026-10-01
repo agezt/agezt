@@ -139,11 +139,35 @@ that.
 | **The changelog** | 14 appended blocks and a 510-line `Unclassified` pile whose first entry was a critical self-update finding (attacker-supplied manifest and hash → arbitrary code execution over `<baseDir>/bin/agezt`), unfindable. |
 | **`kernel/governor`** | `doc.go` and `governor.go` documented the provider chain two different ways. The code settles it: `authModePriority` is purely a cost ranking, so subscription-first and cost have shipped and quality and latency have not. Both files now say that. |
 
+## Merging this, and the protection that was not
+
+`main` is governed by ruleset `22206739`, which requires **one approving review**.
+So `gh pr merge` answers *"the base branch policy prohibits the merge"`,
+repository auto-merge is switched off, and `current_user_can_bypass` is `never`.
+Merging this is one human click, not a flag. The `CI` status check it also
+requires is satisfied.
+
+But that same ruleset names a required status check **that has never existed**.
+It requires the context `CI`. The workflow is *named* `CI`, but Actions creates
+one check-run per **job**, and every job here is named after what it does —
+`test (linux)`, `frontend-test`, and so on. A workflow name is not a check
+context, so nothing has ever reported `CI`, and `gh pr checks --required` answers
+*"no required checks reported"* on a branch with twenty-two green checks. The
+status-check half of "main is protected" was decorative — the same shape as
+Finding I, where twenty checks could not run at all. A comment in `ci.yml` even
+reasons about what would happen to "the required CI check", a premise the file
+did not satisfy.
+
+The fix is in the workflow rather than the ruleset: a single `CI` job that needs
+all seventeen and fails if any did not pass. One context meaning "all of it"
+cannot drift the way twenty-two separately-named required contexts would — rename
+one job and the protection silently stops covering it again.
+
 ## Metrics
 
 | | at `0b6c8519` | now |
 |---|---|---|
-| **CI checks that can reach a conclusion** | **2 of 22** | **22 of 22** |
+| **CI checks that can reach a conclusion** | **2 of 22** | **23 of 23** |
 | `structure-md-check` | ❌ exit 1 | ✅ |
 | `frontend-deadcode` | ❌ exit 1 | ✅ `{"issues":[]}` |
 | packages with >1 package comment | 98 | **0** |

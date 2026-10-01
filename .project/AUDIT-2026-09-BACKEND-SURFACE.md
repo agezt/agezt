@@ -1289,3 +1289,70 @@ SDKs before the change, not assumed.
 `kernel/auth/tier_test.go` pins it: the zero Tier must not validate, every
 declared tier must, and ordering must hold. Without that test the guard can
 quietly stop guarding again, which is precisely what happened the first time.
+---
+
+## 17. Finding L — the branch protection named a check that never existed — **FIXED**
+
+Found while trying to close out the merge, which is not a place that usually
+yields anything.
+
+### What the ruleset asks for
+
+`main` is governed by ruleset `22206739`:
+
+```json
+"pull_request":          { "required_approving_review_count": 1 }
+"required_status_checks": { "required_status_checks": [{"context": "CI"}] }
+```
+
+One approving review, and a status check whose context is literally `CI`.
+
+### What the workflow actually reports
+
+`ci.yml` sets `name: CI` at the top. **A workflow name is not a check context.**
+Actions creates one check-run per *job*, and every job in this file is named after
+what it does:
+
+```
+test (linux)          frontend-test        deps-check (allowlist, SDK parity, deadcode)
+race-breadth (linux)  webui-e2e            lint (repo hygiene, gofmt, staticcheck, govulncheck)
+…
+```
+
+Measured, not assumed: of the check-runs on the branch head, **0 are named
+`CI`**, and `gh pr checks --required` answers *"no required checks reported"*.
+
+So the required check has never once been reported. It is not "passing" and not
+"failing" — it does not exist, and GitHub does not wait for a context that the
+workflow cannot produce. The status-check half of *main is protected* has been
+decorative.
+
+That is the same shape as Finding I, and it is worth naming as a pattern: **twice
+now, the protection in this repository looked configured and enforced nothing.**
+There, twenty checks could not run; here, the one check the ruleset watches for
+does not exist. A comment in `ci.yml` even reasons about what it would mean to
+"turn the required `CI` check red on every PR" — a premise the file did not
+satisfy, and a reminder of how easily a plausible comment outruns the code.
+
+### What it costs
+
+Nothing visible, right up until it matters. Every green run reported during this
+audit — including the five consecutive 22-of-22 runs — passed a gate that was
+not actually being applied. A red job would have been reported, but a *missing*
+job, a renamed job, or a job that stopped running for any other reason would not
+have blocked anything.
+
+### Fixed in the workflow, not the ruleset
+
+`ci.yml` gains one job named exactly `CI`: it `needs` all seventeen, runs
+`if: always()` so it reports even when a dependency failed, and exits non-zero
+listing every job that did not pass. `skipped` counts as pass, because several
+jobs are legitimately conditional — the same-repo fork guard, and
+`frontend-dist-rebuild`'s push-only steps.
+
+**Why a single aggregator and not twenty-two required contexts.** Naming every
+job in the ruleset would rebuild the same hole: rename one job and the protection
+silently stops covering it again, with nothing failing. One context that means
+"all of it" cannot drift that way. Verified: the job depends on all seventeen and
+on nothing else, depends on no one twice, and carries no fork guard that could
+skip it and leave the required check unreported.
