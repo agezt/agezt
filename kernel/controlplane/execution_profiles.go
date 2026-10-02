@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 )
 
@@ -107,7 +107,7 @@ func (s *Server) handleExecutionProfileCheck(conn net.Conn, req Request) {
 	})
 }
 
-func toolNames(tools map[string]agent.Tool) []string {
+func toolNames(tools map[string]toolapi.Tool) []string {
 	names := make([]string, 0, len(tools))
 	for name := range tools {
 		names = append(names, name)

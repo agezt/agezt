@@ -13,16 +13,16 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
+func decodeResponse(body []byte) (*llm.CompletionResponse, error) {
 	var or ollamaResponse
 	if err := json.Unmarshal(body, &or); err != nil {
 		return nil, fmt.Errorf("ollama: parse response: %w", err)
 	}
 
-	var toolCalls []agent.ToolCall
+	var toolCalls []llm.ToolCall
 	for i, tc := range or.Message.ToolCalls {
 		id := tc.ID
 		if id == "" {
@@ -32,7 +32,7 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 		if len(args) == 0 {
 			args = json.RawMessage(`{}`)
 		}
-		toolCalls = append(toolCalls, agent.ToolCall{
+		toolCalls = append(toolCalls, llm.ToolCall{
 			ID:    id,
 			Name:  tc.Function.Name,
 			Input: args,
@@ -42,24 +42,24 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 	// Ollama's stop reason is less standardised than Anthropic's. Use
 	// tool_calls presence as a strong signal first; fall back to
 	// done_reason mapping.
-	var stop agent.StopReason
+	var stop llm.StopReason
 	switch {
 	case len(toolCalls) > 0:
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case or.DoneReason == "length":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	default:
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   or.Message.Content,
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:  or.PromptEvalCount,
 			OutputTokens: or.EvalCount,
 			Model:        or.Model,

@@ -12,7 +12,8 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func (p *Plugin) IsAlive() bool { return !p.dead.Load() }
@@ -178,10 +179,10 @@ func (p *Plugin) respawn(ctx context.Context) error {
 	return nil
 }
 
-// ----- remoteTool: bridges plugin tools into agent.Tool -----
+// ----- remoteTool: bridges plugin tools into toolapi.Tool -----
 
 type remoteTool struct {
 	plugin     *Plugin
-	def        agent.ToolDef
+	def        toolapi.ToolDef
 	remoteName string // name as the plugin knows it (no prefix)
 }

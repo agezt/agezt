@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var cr cohereResponse
 	if err := json.Unmarshal(body, &cr); err != nil {
 		return nil, fmt.Errorf("cohere: parse response: %w", err)
@@ -45,7 +45,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		}
 	}
 
-	var toolCalls []agent.ToolCall
+	var toolCalls []llm.ToolCall
 	for i, tc := range cr.Message.ToolCalls {
 		id := tc.ID
 		if id == "" {
@@ -55,35 +55,35 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		if args == "" {
 			args = "{}"
 		}
-		toolCalls = append(toolCalls, agent.ToolCall{
+		toolCalls = append(toolCalls, llm.ToolCall{
 			ID:    id,
 			Name:  tc.Function.Name,
 			Input: json.RawMessage(args),
 		})
 	}
 
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	switch strings.ToUpper(cr.FinishReason) {
 	case "COMPLETE", "STOP_SEQUENCE", "":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "MAX_TOKENS":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	case "TOOL_CALL":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	}
-	if len(toolCalls) > 0 && stop == agent.StopEndTurn {
-		stop = agent.StopToolUse
+	if len(toolCalls) > 0 && stop == llm.StopEndTurn {
+		stop = llm.StopToolUse
 	}
 
-	usage := agent.Usage{Model: model}
+	usage := llm.Usage{Model: model}
 	if cr.Usage != nil && cr.Usage.Tokens != nil {
 		usage.InputTokens = cr.Usage.Tokens.InputTokens
 		usage.OutputTokens = cr.Usage.Tokens.OutputTokens
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   text,
 			ToolCalls: toolCalls,
 		},

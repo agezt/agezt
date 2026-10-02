@@ -10,9 +10,10 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/event"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 func (k *Kernel) conductorRoleModels(cfg ConductorConfig) (thinker, worker, verifier string, err error) {
@@ -47,10 +48,10 @@ func (k *Kernel) conductorRoleModels(cfg ConductorConfig) (thinker, worker, veri
 // conductorComplete runs one role completion, routing a bare model id directly or
 // a "@chain" reference through the Governor's chain expansion (via ModelChain).
 func (k *Kernel) conductorComplete(ctx context.Context, corr, model, system, prompt string, maxTokens int) (string, error) {
-	req := agent.CompletionRequest{
+	req := llm.CompletionRequest{
 		MaxTokens: maxTokens,
 		System:    system,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 	}
 	if strings.HasPrefix(model, "@") {
 		req.ModelChain = []string{model}

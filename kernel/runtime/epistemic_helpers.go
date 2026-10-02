@@ -17,12 +17,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 func shouldEscalateEpistemic(class string, confidence float64, failures int, weightedFailures float64, signals []string) bool {
-	if class == string(agent.EffectReadOnly) {
+	if class == string(toolapi.EffectReadOnly) {
 		return weightedFailures >= 2
 	}
 	if failures > 0 && weightedFailures >= 0.75 {
@@ -39,13 +39,13 @@ func shouldEscalateEpistemic(class string, confidence float64, failures int, wei
 
 func confidenceFloor(class string) float64 {
 	switch class {
-	case string(agent.EffectIrreversible):
+	case string(toolapi.EffectIrreversible):
 		return 0.8
-	case string(agent.EffectCompensable):
+	case string(toolapi.EffectCompensable):
 		return 0.65
-	case string(agent.EffectReversible):
+	case string(toolapi.EffectReversible):
 		return 0.5
-	case string(agent.EffectReadOnly):
+	case string(toolapi.EffectReadOnly):
 		return 0.25
 	default:
 		return 0.7
@@ -238,13 +238,13 @@ func conditionMatches(meta historicalPolicyMeta, toolName, cap, schemaHash, shap
 
 func failureHalfLife(class string) time.Duration {
 	switch class {
-	case string(agent.EffectReadOnly):
+	case string(toolapi.EffectReadOnly):
 		return 6 * time.Hour
-	case string(agent.EffectReversible):
+	case string(toolapi.EffectReversible):
 		return 24 * time.Hour
-	case string(agent.EffectCompensable):
+	case string(toolapi.EffectCompensable):
 		return 72 * time.Hour
-	case string(agent.EffectIrreversible):
+	case string(toolapi.EffectIrreversible):
 		return 7 * 24 * time.Hour
 	default:
 		return 72 * time.Hour

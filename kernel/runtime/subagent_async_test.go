@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -24,14 +24,14 @@ import (
 type asyncScriptProvider struct {
 	mu          sync.Mutex
 	leadIdx     int
-	lead        []func(req agent.CompletionRequest) agent.CompletionResponse
+	lead        []func(req llm.CompletionRequest) llm.CompletionResponse
 	childBlocks bool   // child call parks on ctx (for orphan-cancel tests)
 	childText   string // child's final answer otherwise
 }
 
 func (p *asyncScriptProvider) Name() string { return "async-script" }
 
-func (p *asyncScriptProvider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *asyncScriptProvider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if strings.Contains(req.System, "focused sub-agent") {
 		if p.childBlocks {
 			<-ctx.Done()
@@ -57,16 +57,16 @@ func (p *asyncScriptProvider) Complete(ctx context.Context, req agent.Completion
 var spawnIDRe = regexp.MustCompile(`spawned sub-agent (\S+) `)
 
 // lastToolMessage returns the content of the most recent tool-role message.
-func lastToolMessage(req agent.CompletionRequest) string {
+func lastToolMessage(req llm.CompletionRequest) string {
 	for i := len(req.Messages) - 1; i >= 0; i-- {
-		if req.Messages[i].Role == agent.RoleTool {
+		if req.Messages[i].Role == llm.RoleTool {
 			return req.Messages[i].Content
 		}
 	}
 	return ""
 }
 
-func openAsyncKernel(t *testing.T, prov agent.Provider) *runtime.Kernel {
+func openAsyncKernel(t *testing.T, prov llm.Provider) *runtime.Kernel {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
@@ -88,18 +88,18 @@ func openAsyncKernel(t *testing.T, prov agent.Provider) *runtime.Kernel {
 func TestSubAgent_AsyncSpawnAndAwait(t *testing.T) {
 	prov := &asyncScriptProvider{
 		childText: "child says hi",
-		lead: []func(agent.CompletionRequest) agent.CompletionResponse{
-			func(agent.CompletionRequest) agent.CompletionResponse {
+		lead: []func(llm.CompletionRequest) llm.CompletionResponse{
+			func(llm.CompletionRequest) llm.CompletionResponse {
 				return testToolUse("a1", "delegate", map[string]any{"task": "t1", "async": true})
 			},
-			func(req agent.CompletionRequest) agent.CompletionResponse {
+			func(req llm.CompletionRequest) llm.CompletionResponse {
 				m := spawnIDRe.FindStringSubmatch(lastToolMessage(req))
 				if m == nil {
 					return mock.FinalText("BUG: no spawn id in tool result")
 				}
 				return testToolUse("a2", "delegate_await", map[string]any{"spawn_id": m[1]})
 			},
-			func(req agent.CompletionRequest) agent.CompletionResponse {
+			func(req llm.CompletionRequest) llm.CompletionResponse {
 				return mock.FinalText("lead got: " + lastToolMessage(req))
 			},
 		},
@@ -150,11 +150,11 @@ func TestSubAgent_AsyncSpawnAndAwait(t *testing.T) {
 func TestSubAgent_AsyncOrphanCancelledAtRunEnd(t *testing.T) {
 	prov := &asyncScriptProvider{
 		childBlocks: true,
-		lead: []func(agent.CompletionRequest) agent.CompletionResponse{
-			func(agent.CompletionRequest) agent.CompletionResponse {
+		lead: []func(llm.CompletionRequest) llm.CompletionResponse{
+			func(llm.CompletionRequest) llm.CompletionResponse {
 				return testToolUse("a1", "delegate", map[string]any{"task": "t1", "async": true})
 			},
-			func(agent.CompletionRequest) agent.CompletionResponse {
+			func(llm.CompletionRequest) llm.CompletionResponse {
 				return mock.FinalText("lead done without awaiting")
 			},
 		},

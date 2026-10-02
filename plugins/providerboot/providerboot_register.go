@@ -15,6 +15,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -91,7 +92,7 @@ func registerAlternates(reg *governor.Registry, d Deps, primaryName string, mw [
 //	                                  model from per-task routing or a fallback
 //	                                  chain; with neither, the governor returns
 //	                                  ErrNoModelConfigured.
-func SelectPrimary(d Deps) (agent.Provider, string, string, governor.AuthMode, error) {
+func SelectPrimary(d Deps) (llm.Provider, string, string, governor.AuthMode, error) {
 	cat := d.Catalog
 	// AGEZT_PROVIDER and AGEZT_MODEL are *config*, not credentials —
 	// always read from the config env directly (operators may want a one-off

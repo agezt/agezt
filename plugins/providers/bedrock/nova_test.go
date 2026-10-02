@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -52,11 +52,11 @@ func TestComplete_NovaOnBedrock(t *testing.T) {
 
 	p := bedrock.New("token", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:     "amazon.nova-pro-v1:0",
 		System:    "be brief",
 		MaxTokens: 256,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -64,7 +64,7 @@ func TestComplete_NovaOnBedrock(t *testing.T) {
 	if resp.Message.Content != "hello from nova" {
 		t.Errorf("content = %q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 7 {
@@ -101,14 +101,14 @@ func TestComplete_NovaOnBedrock_MaxTokensStop(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "amazon.nova-lite-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("stop = %q want max_tokens", resp.StopReason)
 	}
 }
@@ -125,9 +125,9 @@ func TestComplete_RegionalNovaAccepted(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "us.amazon.nova-premier-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Errorf("Complete: %v (regional Nova profile should be accepted)", err)
@@ -139,9 +139,9 @@ func TestComplete_RegionalNovaAccepted(t *testing.T) {
 func TestComplete_TitanStaysUnwired(t *testing.T) {
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = "http://127.0.0.1:0" // never reached; dispatch fails first
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "amazon.titan-text-express-v1",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if !errors.Is(err, bedrock.ErrVendorUnsupported) {
 		t.Errorf("titan should stay unsupported, got err=%v", err)
@@ -157,9 +157,9 @@ func TestComplete_NovaEmptyOutputErrors(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "amazon.nova-micro-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected error on empty output, got nil")

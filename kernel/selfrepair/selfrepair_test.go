@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -1050,7 +1050,7 @@ func TestApplyAutoRepairResolution_DelegationFailureIsJournaled(t *testing.T) {
 	}
 }
 
-func newAutoRepairKernel(t *testing.T, prov agent.Provider) *kernelruntime.Kernel {
+func newAutoRepairKernel(t *testing.T, prov llm.Provider) *kernelruntime.Kernel {
 	t.Helper()
 	k, err := kernelruntime.Open(kernelruntime.Config{BaseDir: t.TempDir(), Provider: prov})
 	if err != nil {
@@ -1083,7 +1083,7 @@ func newRoutingProvider(chains map[string][]string) *routingProvider {
 
 func (p *routingProvider) Name() string { return "routing-test" }
 
-func (p *routingProvider) Complete(context.Context, agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *routingProvider) Complete(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return nil, errors.New("not implemented")
 }
 

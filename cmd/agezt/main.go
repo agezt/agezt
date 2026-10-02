@@ -485,7 +485,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	cfg := kernelruntime.Config{
 		BaseDir:          baseDir,
-		Provider:         gov, // Governor implements agent.Provider
+		Provider:         gov, // Governor implements llm.Provider
 		Tools:            tools,
 		Plugins:          pluginManifest,
 		ToolCapabilities: pluginToolCaps, // M900: manifest-declared policy axes
@@ -1555,7 +1555,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// code_exec wiring — the bus bind (M683, code.executed events) and the
 			// Conductor's Verifier backend (M997) — moved to its registry spec's
 			// Configure hook. Only the banner remains; the type assertion here is
-			// display-only (Languages() isn't on agent.Tool).
+			// display-only (Languages() isn't on toolapi.Tool).
 			name: "code_exec tool",
 			run: func() (string, error) {
 				if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {

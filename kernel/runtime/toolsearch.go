@@ -9,28 +9,28 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
 const toolSearchName = "tool_search"
 
 type toolSearchTool struct {
-	defs []agent.ToolDef
+	defs []toolapi.ToolDef
 }
 
-func withToolSearch(tools map[string]agent.Tool) map[string]agent.Tool {
+func withToolSearch(tools map[string]toolapi.Tool) map[string]toolapi.Tool {
 	if len(tools) == 0 {
 		return tools
 	}
-	out := make(map[string]agent.Tool, len(tools)+1)
+	out := make(map[string]toolapi.Tool, len(tools)+1)
 	for name, t := range tools {
 		out[name] = t
 	}
 	if _, exists := out[toolSearchName]; exists {
 		return out
 	}
-	defs := make([]agent.ToolDef, 0, len(tools))
+	defs := make([]toolapi.ToolDef, 0, len(tools))
 	for name, t := range tools {
 		if name == toolSearchName {
 			continue
@@ -42,8 +42,8 @@ func withToolSearch(tools map[string]agent.Tool) map[string]agent.Tool {
 	return out
 }
 
-func (t toolSearchTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t toolSearchTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:        toolSearchName,
 		Description: "Search the deferred tool catalog by capability before asking for a specific tool schema. Use when the visible tools do not include the capability you need.",
 		InputSchema: json.RawMessage(`{
@@ -57,9 +57,9 @@ func (t toolSearchTool) Definition() agent.ToolDef {
 		// inspecting its own environment, which is what CapIntrospect governs.
 		// Undeclared it resolved to the unknown capability "tool_search", which
 		// Edict default-denies, so discovery was dead whenever it was enabled.
-		Capability: agent.ToolCapability{Name: string(edict.CapIntrospect)},
-		Effect: agent.ToolEffect{
-			Class:             agent.EffectReadOnly,
+		Capability: toolapi.ToolCapability{Name: string(edict.CapIntrospect)},
+		Effect: toolapi.ToolEffect{
+			Class:             toolapi.EffectReadOnly,
 			PredictedEffects:  []string{"Read the in-run catalog of available tool names and descriptions."},
 			AffectedResources: []string{"tool schema context"},
 			Confidence:        0.95,
@@ -67,7 +67,7 @@ func (t toolSearchTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t toolSearchTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t toolSearchTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Query string `json:"query"`
 		Limit int    `json:"limit"`
@@ -109,12 +109,12 @@ func (t toolSearchTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Re
 		"tools": rows,
 	}, "", "  ")
 	if err != nil {
-		return agent.Result{Output: "tool_search: marshal: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "tool_search: marshal: " + err.Error(), IsError: true}, nil
 	}
-	return agent.Result{Output: string(body)}, nil
+	return toolapi.Result{Output: string(body)}, nil
 }
 
-func toolSearchScore(query map[string]bool, def agent.ToolDef) int {
+func toolSearchScore(query map[string]bool, def toolapi.ToolDef) int {
 	if len(query) == 0 {
 		return 0
 	}

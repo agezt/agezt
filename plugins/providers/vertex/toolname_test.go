@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestEncodeConformsToolNames(t *testing.T) {
-	tools := []agent.ToolDef{{Name: "browser.read", Description: "d", InputSchema: json.RawMessage(`{"type":"object"}`)}}
-	body, err := encodeRequest("", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, tools, 100, false, 0, agent.Params{}, nil)
+	tools := []toolapi.ToolDef{{Name: "browser.read", Description: "d", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+	body, err := encodeRequest("", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, tools, 100, false, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

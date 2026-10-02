@@ -12,7 +12,8 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 type sseEvent struct {
@@ -49,14 +50,14 @@ type respObj struct {
 }
 
 // parseSSE walks the event stream, assembling text + tool calls + usage.
-func parseSSE(raw []byte) (*agent.CompletionResponse, error) {
+func parseSSE(raw []byte) (*llm.CompletionResponse, error) {
 	sc := bufio.NewScanner(strings.NewReader(string(raw)))
 	sc.Buffer(make([]byte, 0, 1024*1024), 16<<20)
 
 	var textParts []string
 	var deltaBuf strings.Builder
-	var toolCalls []agent.ToolCall
-	var usage agent.Usage
+	var toolCalls []llm.ToolCall
+	var usage llm.Usage
 	var completed bool
 	var failure string
 
@@ -73,7 +74,7 @@ func parseSSE(raw []byte) (*agent.CompletionResponse, error) {
 			if strings.TrimSpace(args) == "" {
 				args = "{}"
 			}
-			toolCalls = append(toolCalls, agent.ToolCall{ID: it.CallID, Name: it.Name, Input: json.RawMessage(args)})
+			toolCalls = append(toolCalls, llm.ToolCall{ID: it.CallID, Name: it.Name, Input: json.RawMessage(args)})
 		}
 	}
 
@@ -101,7 +102,7 @@ func parseSSE(raw []byte) (*agent.CompletionResponse, error) {
 		case "response.completed":
 			var r respObj
 			if json.Unmarshal(ev.Response, &r) == nil {
-				usage = agent.Usage{
+				usage = llm.Usage{
 					InputTokens:       r.Usage.InputTokens,
 					OutputTokens:      r.Usage.OutputTokens,
 					CachedInputTokens: r.Usage.CachedInputTokens,
@@ -130,12 +131,12 @@ func parseSSE(raw []byte) (*agent.CompletionResponse, error) {
 	if text == "" {
 		text = deltaBuf.String()
 	}
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	if len(toolCalls) > 0 {
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: text, ToolCalls: toolCalls},
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: text, ToolCalls: toolCalls},
 		StopReason: stop,
 		Usage:      usage,
 	}, nil

@@ -10,11 +10,12 @@ package runtime
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/agent"
+	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
-	"strings"
 )
 
 // application (its model resolves before the vision gate).
@@ -74,7 +75,7 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	ctx = memory.WithScope(ctx, scope)
 	// The agent's working directory (M792): file/shell tools operate inside
 	// this workspace subdirectory. Escape-proofed by the setter.
-	ctx = agent.WithWorkdir(ctx, p.Workdir)
+	ctx = toolapi.WithWorkdir(ctx, p.Workdir)
 	// And its identity + daily ceiling for the Governor's ledger (M793).
 	return WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 }
@@ -129,9 +130,9 @@ func WithAgentIdent(ctx context.Context, slug string, dailyMc int64) context.Con
 		return ctx
 	}
 	// Also stamp the agent slug under the kernel/agent key so provenance-aware
-	// tools (memory, M851) can read who is acting via agent.AgentFromContext —
+	// tools (memory, M851) can read who is acting via toolapi.AgentFromContext —
 	// the runtime key here is private and additionally carries the daily ceiling.
-	ctx = agent.WithAgent(ctx, slug)
+	ctx = toolapi.WithAgent(ctx, slug)
 	return context.WithValue(ctx, ctxKeyAgentIdent, agentIdent{slug: slug, dailyMc: dailyMc})
 }
 

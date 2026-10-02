@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
@@ -41,7 +41,7 @@ const (
 // parseable results page.)
 const engineURL = "https://lite.duckduckgo.com/lite/"
 
-// Tool is the web_search implementation of agent.Tool.
+// Tool is the web_search implementation of toolapi.Tool.
 type Tool struct {
 	// HTTP overrides the default client. When nil, the tool builds a
 	// netguard-protected client (default-deny to internal/metadata addresses)
@@ -92,11 +92,11 @@ func (t *Tool) client() *stdhttp.Client {
 	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "web_search",
-		Capability: agent.ToolCapability{Name: string(edict.CapWebSearch)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapWebSearch)},
 		Description: "Search the web for a keyword query and return the top results " +
 			"as a list of {title, url, snippet}. Use this to DISCOVER pages when you " +
 			"don't already have a URL; then fetch the most relevant one with the " +
@@ -109,8 +109,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit": {"type":"integer", "description":"Max results to return (default 6, max 15)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Send the query to the configured public search endpoint and return parsed result metadata.",
 			},
@@ -133,11 +133,11 @@ type Result struct {
 	Snippet string `json:"snippet"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in searchInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("web_search: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("web_search: parse input: %w", err)
 	}
 	q := strings.TrimSpace(in.Query)
 	if q == "" {

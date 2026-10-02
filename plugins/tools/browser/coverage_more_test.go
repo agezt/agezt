@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestBrowserReadDefinitionAndHelpers(t *testing.T) {
@@ -18,8 +18,8 @@ func TestBrowserReadDefinitionAndHelpers(t *testing.T) {
 	if !strings.Contains(def.Description, "visible text") {
 		t.Fatalf("description should mention visible text, got %q", def.Description)
 	}
-	if def.Effect.Class != agent.EffectReversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectReversible)
+	if def.Effect.Class != toolapi.EffectReversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectReversible)
 	}
 	if len(def.InputSchema) == 0 {
 		t.Fatal("InputSchema should not be empty")
@@ -55,8 +55,8 @@ func TestBrowserActionDefinitionAndNewAction(t *testing.T) {
 	if def.Name != "browser.action" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectIrreversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectIrreversible)
+	if def.Effect.Class != toolapi.EffectIrreversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectIrreversible)
 	}
 	if !strings.Contains(def.Description, "browser") {
 		t.Fatalf("description should mention browser, got %q", def.Description)

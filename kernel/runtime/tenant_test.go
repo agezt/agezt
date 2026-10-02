@@ -8,7 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenantctx"
 )
@@ -18,20 +19,20 @@ import (
 type toolThenFinalProvider struct{ calls int }
 
 func (p *toolThenFinalProvider) Name() string { return "ttf" }
-func (p *toolThenFinalProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *toolThenFinalProvider) Complete(_ context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.calls++
 	if p.calls == 1 {
-		return &agent.CompletionResponse{
-			Message: agent.Message{
-				Role:      agent.RoleAssistant,
-				ToolCalls: []agent.ToolCall{{ID: "1", Name: "file", Input: json.RawMessage(`{"op":"read"}`)}},
+		return &llm.CompletionResponse{
+			Message: llm.Message{
+				Role:      llm.RoleAssistant,
+				ToolCalls: []llm.ToolCall{{ID: "1", Name: "file", Input: json.RawMessage(`{"op":"read"}`)}},
 			},
-			StopReason: agent.StopToolUse,
+			StopReason: llm.StopToolUse,
 		}, nil
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: "done"},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: "done"},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 
@@ -42,15 +43,15 @@ type recordingTool struct {
 	invoked int
 }
 
-func (r *recordingTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "file", Description: "records the run tenant", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (r *recordingTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "file", Description: "records the run tenant", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (r *recordingTool) Invoke(ctx context.Context, _ json.RawMessage) (agent.Result, error) {
+func (r *recordingTool) Invoke(ctx context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	r.mu.Lock()
 	r.seen = tenantctx.Tenant(ctx)
 	r.invoked++
 	r.mu.Unlock()
-	return agent.Result{Output: "ok"}, nil
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 // TestKernel_StampsTenantOnRunContext proves the kernel injects its Config.TenantID into
@@ -67,7 +68,7 @@ func TestKernel_StampsTenantOnRunContext(t *testing.T) {
 			Provider: &toolThenFinalProvider{},
 			System:   "base prompt",
 			TenantID: tc.id,
-			Tools:    map[string]agent.Tool{"file": rec},
+			Tools:    map[string]toolapi.Tool{"file": rec},
 		})
 		if err != nil {
 			t.Fatalf("TenantID=%q: Open: %v", tc.id, err)

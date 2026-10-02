@@ -9,9 +9,10 @@ package runtime
 import (
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
@@ -50,10 +51,10 @@ type Config struct {
 	TenantID string
 
 	// Provider is the LLM provider the agent loop will drive.
-	Provider agent.Provider
+	Provider llm.Provider
 
 	// Tools are the in-process tools advertised to the model.
-	Tools map[string]agent.Tool
+	Tools map[string]toolapi.Tool
 
 	// ScriptRunner executes forged script tools (M794) in the code-exec
 	// sandbox. When set, every run is additionally offered the toolforge

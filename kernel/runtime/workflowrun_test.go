@@ -9,7 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
@@ -27,23 +28,23 @@ type echoTool struct {
 	isErr  bool
 }
 
-func (t *echoTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "echo", Description: "echoes", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *echoTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "echo", Description: "echoes", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *echoTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *echoTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	t.mu.Lock()
 	t.inputs = append(t.inputs, string(raw))
 	t.mu.Unlock()
-	return agent.Result{Output: t.out, IsError: t.isErr}, nil
+	return toolapi.Result{Output: t.out, IsError: t.isErr}, nil
 }
 
-func openWorkflowKernel(t *testing.T, prov agent.Provider, tool *echoTool) *runtime.Kernel {
+func openWorkflowKernel(t *testing.T, prov llm.Provider, tool *echoTool) *runtime.Kernel {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"echo": tool},
+		Tools:    map[string]toolapi.Tool{"echo": tool},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -61,8 +62,8 @@ func saveFlow(t *testing.T, k *runtime.Kernel, w workflow.Workflow) {
 
 func TestRunWorkflow_LLMNodeUsesContextModelWhenUnset(t *testing.T) {
 	prov := mock.New(mock.FinalText("done"))
-	var llmReq agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { llmReq = r }
+	var llmReq llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { llmReq = r }
 	k := openWorkflowKernel(t, prov, &echoTool{})
 	saveFlow(t, k, workflow.Workflow{
 		Name: "scheduled-model-flow",
@@ -84,8 +85,8 @@ func TestRunWorkflow_LLMNodeUsesContextModelWhenUnset(t *testing.T) {
 
 func TestRunWorkflow_LLMNodeExplicitModelWinsOverContextModel(t *testing.T) {
 	prov := mock.New(mock.FinalText("done"))
-	var llmReq agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { llmReq = r }
+	var llmReq llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { llmReq = r }
 	k := openWorkflowKernel(t, prov, &echoTool{})
 	saveFlow(t, k, workflow.Workflow{
 		Name: "node-model-flow",
@@ -141,8 +142,8 @@ func TestRunWorkflow_JournalsRunnerProvenance(t *testing.T) {
 // its prompt — with the journal carrying the whole started→node…→completed arc.
 func TestRunWorkflow_LinearDataFlow(t *testing.T) {
 	prov := mock.New(mock.FinalText("looks sunny"))
-	var llmReq agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { llmReq = r }
+	var llmReq llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { llmReq = r }
 	tool := &echoTool{out: `{"temp": 28, "sky": "clear"}`}
 	k := openWorkflowKernel(t, prov, tool)
 	k.Edict().SetLevel("echo", edict.LevelAllow) // the policy-gate test covers the deny path

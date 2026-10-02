@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -86,7 +86,7 @@ func (p *Provider) resolveEndpoint() string {
 	return base + "/v2/chat"
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "cohere" }
 
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
@@ -107,8 +107,8 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("cohere: status %d: %s", e.Status, e.Body)
 }
 
-// Complete implements agent.Provider.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+// Complete implements llm.Provider.
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -158,7 +158,7 @@ type cohereRequest struct {
 	Stream    bool            `json:"stream"`
 	MaxTokens int             `json:"max_tokens,omitempty"`
 	// Per-request sampling knobs (M997), promoted to the top level of the v2/chat
-	// request. An unset agent.Params leaves every field nil/empty (omitempty), so
+	// request. An unset llm.Params leaves every field nil/empty (omitempty), so
 	// the request stays byte-for-byte unchanged.
 	cohereParams
 }
@@ -180,7 +180,7 @@ type cohereParams struct {
 
 // applyParams copies the universal sampling knobs from p. Only set fields are
 // carried over, so an empty Params leaves the embedded cohereParams zero-valued.
-func (c *cohereParams) applyParams(p agent.Params) {
+func (c *cohereParams) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}

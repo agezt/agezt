@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // sampleTextStream is a representative text-only SSE response from
@@ -67,8 +67,8 @@ data: {"type":"message_stop"}
 `
 
 func TestParseStream_TextOnly(t *testing.T) {
-	var chunks []agent.Chunk
-	resp, err := parseStream(strings.NewReader(sampleTextStream), func(c agent.Chunk) error {
+	var chunks []llm.Chunk
+	resp, err := parseStream(strings.NewReader(sampleTextStream), func(c llm.Chunk) error {
 		chunks = append(chunks, c)
 		return nil
 	})
@@ -78,7 +78,7 @@ func TestParseStream_TextOnly(t *testing.T) {
 	if resp.Message.Content != "pong!" {
 		t.Errorf("final content = %q, want %q", resp.Message.Content, "pong!")
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop_reason = %q, want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 3 {
@@ -103,11 +103,11 @@ func TestParseStream_TextOnly(t *testing.T) {
 
 func TestParseStream_ToolUse(t *testing.T) {
 	var (
-		gotStart    *agent.ToolCall
+		gotStart    *llm.ToolCall
 		gotStopID   string
 		jsonFragmts []string
 	)
-	resp, err := parseStream(strings.NewReader(sampleToolUseStream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleToolUseStream), func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			gotStart = c.ToolUseStart
 		}
@@ -146,7 +146,7 @@ func TestParseStream_ToolUse(t *testing.T) {
 	if string(tc.Input) != `{"command":"ls -la"}` {
 		t.Errorf("tool call Input = %s, want {\"command\":\"ls -la\"}", tc.Input)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q, want tool_use", resp.StopReason)
 	}
 	if resp.Usage.OutputTokens != 17 {
@@ -159,7 +159,7 @@ func TestParseStream_ErrorFrame(t *testing.T) {
 data: {"type":"error","error":{"type":"overloaded_error","message":"Anthropic is overloaded"}}
 
 `
-	_, err := parseStream(strings.NewReader(errStream), func(c agent.Chunk) error { return nil })
+	_, err := parseStream(strings.NewReader(errStream), func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected error from error-frame, got nil")
 	}
@@ -173,7 +173,7 @@ func TestParseStream_OnChunkAborts(t *testing.T) {
 	// stop reading from slow providers.
 	const wantErr = "user cancelled"
 	calls := 0
-	_, err := parseStream(strings.NewReader(sampleTextStream), func(c agent.Chunk) error {
+	_, err := parseStream(strings.NewReader(sampleTextStream), func(c llm.Chunk) error {
 		calls++
 		if c.TextDelta != "" {
 			return &cancelErr{wantErr}
@@ -213,11 +213,11 @@ func TestCompleteStream_EndToEnd(t *testing.T) {
 
 	p := &Provider{APIKey: "test-key", Endpoint: srv.URL, HTTP: srv.Client()}
 	var collected strings.Builder
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "claude-3-5-haiku-20241022",
 		System:   "Be terse.",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say 'pong' in one word."}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say 'pong' in one word."}},
+	}, func(c llm.Chunk) error {
 		collected.WriteString(c.TextDelta)
 		return nil
 	})
@@ -242,10 +242,10 @@ func TestCompleteStream_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	p := &Provider{APIKey: "wrong-key", Endpoint: srv.URL, HTTP: srv.Client()}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected APIError for 401")
 	}
@@ -263,18 +263,18 @@ func TestCompleteStream_HTTPError(t *testing.T) {
 
 func TestCompleteStream_NilOnChunkRejected(t *testing.T) {
 	p := &Provider{APIKey: "k"}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Errorf("expected nil-callback rejection, got %v", err)
 	}
 }
 
-// Type assertion check — agent.StreamingProvider is the contract we
+// Type assertion check — llm.StreamingProvider is the contract we
 // promise. Compile-time guard via _ assignment is more reliable than
 // a runtime test.
-var _ agent.StreamingProvider = (*Provider)(nil)
+var _ llm.StreamingProvider = (*Provider)(nil)
 
 // TestParseStream_CacheUsage covers the M290 cache-token mapping on the streaming
 // path: message_start carries cache_read/creation; the assembled Usage must sum
@@ -290,7 +290,7 @@ event: message_stop
 data: {"type":"message_stop"}
 
 `
-	resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}

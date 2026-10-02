@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -16,10 +16,10 @@ import (
 // a different request misses, and an expired entry re-fetches. Disabled
 // (default) caches nothing.
 func TestResponseCache_HitSkipsProvider(t *testing.T) {
-	mkReq := func(text string) agent.CompletionRequest {
-		return agent.CompletionRequest{
+	mkReq := func(text string) llm.CompletionRequest {
+		return llm.CompletionRequest{
 			Model:    "m",
-			Messages: []agent.Message{{Role: agent.RoleUser, Content: text}},
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: text}},
 		}
 	}
 

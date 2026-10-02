@@ -10,8 +10,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
@@ -24,13 +25,13 @@ type scheduledProbeTool struct {
 	calls atomic.Int32
 }
 
-func (t *scheduledProbeTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "probe", Description: "probe", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *scheduledProbeTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "probe", Description: "probe", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *scheduledProbeTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (t *scheduledProbeTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	t.calls.Add(1)
-	return agent.Result{Output: "ok"}, nil
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 func TestScheduleFiredEventPayloadCarriesTypedTargetIdentity(t *testing.T) {
@@ -99,8 +100,8 @@ func TestScheduleFiredEventPayloadCarriesTypedTargetIdentity(t *testing.T) {
 
 func TestScheduledRunContextModelOverrideWinsOverAgentProfile(t *testing.T) {
 	prov := mock.New(mock.FinalText("done"))
-	var llmReq agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { llmReq = r }
+	var llmReq llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { llmReq = r }
 	k, err := kernelruntime.Open(kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
@@ -309,7 +310,7 @@ func TestRunScheduledTrackedTargetHonorsAgentToolPolicy(t *testing.T) {
 	k, err := kernelruntime.Open(kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-		Tools:    map[string]agent.Tool{"probe": probe},
+		Tools:    map[string]toolapi.Tool{"probe": probe},
 		Edict:    edict.New(edict.Options{UnknownAllow: true}),
 	})
 	if err != nil {

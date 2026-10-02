@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc agent.ToolCall) (string, bool) {
+func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc llm.ToolCall) (string, bool) {
 	policy, ok := agentNoisePolicyFromCtx(ctx)
 	if !ok {
 		return "", false
@@ -63,7 +65,7 @@ func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc agent.ToolCall) 
 	return "", false
 }
 
-func (k *Kernel) completeAgentNoiseNotify(ctx context.Context, tc agent.ToolCall, res agent.Result) {
+func (k *Kernel) completeAgentNoiseNotify(ctx context.Context, tc llm.ToolCall, res toolapi.Result) {
 	policy, ok := agentNoisePolicyFromCtx(ctx)
 	if !ok || policy.minNotifyIntervalSec <= 0 || tc.Name != "notify" {
 		return
@@ -135,7 +137,7 @@ type approvalBundle struct {
 	Confidence        float64
 }
 
-func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, input json.RawMessage, def agent.ToolDef) approvalBundle {
+func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef) approvalBundle {
 	effect := def.Effect
 	if effect.Class == "" && len(effect.PredictedEffects) == 0 && len(effect.AffectedResources) == 0 {
 		if tool, ok := k.tools[toolName]; ok {
@@ -172,9 +174,9 @@ func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, i
 	}
 }
 
-func normalizeEffectClass(class agent.EffectClass) string {
+func normalizeEffectClass(class toolapi.EffectClass) string {
 	switch class {
-	case agent.EffectReadOnly, agent.EffectReversible, agent.EffectCompensable, agent.EffectIrreversible:
+	case toolapi.EffectReadOnly, toolapi.EffectReversible, toolapi.EffectCompensable, toolapi.EffectIrreversible:
 		return string(class)
 	default:
 		return ""
@@ -186,19 +188,19 @@ func defaultEffectClass(cap edict.Capability) string {
 	case edict.CapFileRead, edict.CapFileList, edict.CapHTTPGet, edict.CapBrowserRead,
 		edict.CapHomeAssistantRead, edict.CapWebSearch, edict.CapRunsRead,
 		edict.CapIntrospect, edict.CapConfigRead, edict.CapProviderCall:
-		return string(agent.EffectReadOnly)
+		return string(toolapi.EffectReadOnly)
 	case edict.CapFileWrite, edict.CapMemory, edict.CapWorld, edict.CapSchedule,
 		edict.CapStanding, edict.CapBoard, edict.CapSkill, edict.CapOversee,
 		edict.CapToolForge, edict.CapConfigWrite, edict.CapWorkflow:
-		return string(agent.EffectReversible)
+		return string(toolapi.EffectReversible)
 	case edict.CapNotify, edict.CapHTTPPost, edict.CapRemoteRun:
-		return string(agent.EffectCompensable)
+		return string(toolapi.EffectCompensable)
 	case edict.CapShell, edict.CapFileDelete, edict.CapCoding, edict.CapACPAgent,
 		edict.CapHomeAssistantCall, edict.CapCodeExec, edict.CapMCPInstall, edict.CapMCP,
 		edict.CapMarket:
-		return string(agent.EffectIrreversible)
+		return string(toolapi.EffectIrreversible)
 	default:
-		return string(agent.EffectIrreversible)
+		return string(toolapi.EffectIrreversible)
 	}
 }
 
@@ -220,13 +222,13 @@ func affectedResourcesFromInput(toolName string, cap edict.Capability, input jso
 
 func defaultRollbackNotes(class string) string {
 	switch class {
-	case string(agent.EffectReadOnly):
+	case string(toolapi.EffectReadOnly):
 		return "No rollback required for read-only action."
-	case string(agent.EffectReversible):
+	case string(toolapi.EffectReversible):
 		return "Use the corresponding revert/delete/restore operation or journaled state to undo if needed."
-	case string(agent.EffectCompensable):
+	case string(toolapi.EffectCompensable):
 		return "No guaranteed rollback; compensate with a follow-up action if the outcome is wrong."
-	case string(agent.EffectIrreversible):
+	case string(toolapi.EffectIrreversible):
 		return "No reliable rollback path declared; approve only if the effect is acceptable."
 	default:
 		return "No rollback information declared."
@@ -235,13 +237,13 @@ func defaultRollbackNotes(class string) string {
 
 func defaultEffectConfidence(class string) float64 {
 	switch class {
-	case string(agent.EffectReadOnly):
+	case string(toolapi.EffectReadOnly):
 		return 0.95
-	case string(agent.EffectReversible):
+	case string(toolapi.EffectReversible):
 		return 0.75
-	case string(agent.EffectCompensable):
+	case string(toolapi.EffectCompensable):
 		return 0.6
-	case string(agent.EffectIrreversible):
+	case string(toolapi.EffectIrreversible):
 		return 0.5
 	default:
 		return 0.4

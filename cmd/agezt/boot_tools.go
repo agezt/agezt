@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
@@ -32,7 +32,7 @@ import (
 // AGEZT_ALLOW_ALL is the master permissive switch (M611): it implies the full
 // open posture for the network tools too — any host, including loopback and
 // the private network.
-func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) (map[string]agent.Tool, *toolreg.Set, []kernelruntime.PluginInfo, map[string]string, string, error) {
+func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) (map[string]toolapi.Tool, *toolreg.Set, []kernelruntime.PluginInfo, map[string]string, string, error) {
 	// Idempotent (Register replaces by name), so tests calling buildTools
 	// repeatedly and the daemon calling it at boot are both fine.
 	builtintools.RegisterAll()

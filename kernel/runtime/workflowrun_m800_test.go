@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolforge"
@@ -167,7 +167,7 @@ func TestRunWorkflow_HTTPNodeBridgesTool(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"http": tool}, // stands in for the real guarded tool
+		Tools:    map[string]toolapi.Tool{"http": tool}, // stands in for the real guarded tool
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

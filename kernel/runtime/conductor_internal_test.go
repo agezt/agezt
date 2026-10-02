@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -15,7 +16,7 @@ import (
 // records every request for routing assertions, and serves a scripted sequence
 // of verifier verdicts for the critique path.
 type fakeConductorProvider struct {
-	reqs      []agent.CompletionRequest
+	reqs      []llm.CompletionRequest
 	workerOut string
 	planOut   string
 	verdicts  []string // sequential critique verdicts; default "PASS" once exhausted
@@ -23,7 +24,7 @@ type fakeConductorProvider struct {
 }
 
 func (p *fakeConductorProvider) Name() string { return "conductor-fake" }
-func (p *fakeConductorProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *fakeConductorProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.reqs = append(p.reqs, req)
 	sys := strings.ToLower(req.System)
 	var text string
@@ -44,9 +45,9 @@ func (p *fakeConductorProvider) Complete(_ context.Context, req agent.Completion
 	default:
 		text = "?"
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: text},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: text},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 
@@ -71,12 +72,12 @@ func (f *fakeExec) RunScript(_ context.Context, language, code, _ string) (strin
 	return "ran:" + language, !clean, nil // isError = !clean
 }
 
-func openConductorKernel(t *testing.T, members []CouncilMember, prov agent.Provider, exec CodeExecutor) *Kernel {
+func openConductorKernel(t *testing.T, members []CouncilMember, prov llm.Provider, exec CodeExecutor) *Kernel {
 	t.Helper()
 	k, err := Open(Config{
 		BaseDir:        t.TempDir(),
 		Provider:       prov,
-		Tools:          map[string]agent.Tool{},
+		Tools:          map[string]toolapi.Tool{},
 		CouncilMembers: func() []CouncilMember { return members },
 	})
 	if err != nil {

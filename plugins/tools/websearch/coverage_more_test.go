@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestWebsearchCoverageDefinitionAndHelpers2(t *testing.T) {
@@ -34,8 +34,8 @@ func TestWebsearchCoverageDefinitionAndHelpers2(t *testing.T) {
 	if def.Name != "web_search" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectReversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectReversible)
+	if def.Effect.Class != toolapi.EffectReversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectReversible)
 	}
 	if def.Effect.Confidence <= 0 {
 		t.Fatalf("Confidence should be > 0, got %v", def.Effect.Confidence)

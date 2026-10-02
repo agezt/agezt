@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -83,7 +84,7 @@ type ProfileReport struct {
 // like the other distillers: a provider transport error propagates; an unusable
 // answer is a no-op pass. Returns a no-op report when there's nothing to learn
 // from yet.
-func (m *Manager) DistillProfile(ctx context.Context, corr string, provider agent.Provider, model string) (ProfileReport, error) {
+func (m *Manager) DistillProfile(ctx context.Context, corr string, provider llm.Provider, model string) (ProfileReport, error) {
 	if provider == nil {
 		return ProfileReport{}, errors.New("memory: profile distill requires a provider")
 	}
@@ -130,10 +131,10 @@ func (m *Manager) DistillProfile(ctx context.Context, corr string, provider agen
 	}
 
 	var parsed profileResult
-	if _, err := agent.GenerateObject(ctx, provider, agent.CompletionRequest{
+	if _, err := agent.GenerateObject(ctx, provider, llm.CompletionRequest{
 		Model:    model,
 		System:   profileSystem,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: user}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: user}},
 		TaskType: "distill", // same budgeting/routing class as the other distillers
 	}, nil, &parsed); err != nil {
 		if errors.Is(err, agent.ErrNoObjectGenerated) {

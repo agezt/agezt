@@ -8,9 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
-
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
@@ -115,7 +114,7 @@ func TestToolList_SortsByName(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"zeta":  shell.NewWithWarden(warden.New(nil)),
 			"alpha": shell.NewWithWarden(warden.New(nil)),
 		},
@@ -166,7 +165,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"alpha": testTool{name: "alpha"},
 			"beta":  testTool{name: "beta"},
 			"gamma": testTool{name: "gamma"},
@@ -378,10 +377,10 @@ func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
 
 type testTool struct{ name string }
 
-func (t testTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: t.name, Description: "test tool", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t testTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: t.name, Description: "test tool", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t testTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: "ok"}, nil
+func (t testTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: "ok"}, nil
 }

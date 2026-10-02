@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/planner"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -232,7 +232,7 @@ func TestGenerate_HonorsSystemOverride(t *testing.T) {
 	custom := "you must always emit a one-node plan named ZZZ-CUSTOM"
 	prov := mock.New(mock.FinalText(fencedJSON(`{"nodes":[{"id":"a","kind":"loop","intent":"x"}]}`)))
 	var seenSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { seenSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { seenSystem = req.System }
 	_, _, err := planner.Generate(context.Background(),
 		planner.Config{Provider: prov, SystemOverride: custom},
 		"x")
@@ -325,14 +325,14 @@ type captureProvider struct {
 }
 
 func (c *captureProvider) Name() string { return "capture" }
-func (c *captureProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (c *captureProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	c.gotJSONMode = req.JSONMode
 	if len(req.Messages) > 0 {
 		c.gotUserContent = req.Messages[0].Content
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: c.resp},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: c.resp},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 

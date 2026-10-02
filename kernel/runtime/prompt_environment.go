@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // shellHinter is the optional interface a shell-like tool implements to tell the
@@ -27,7 +27,7 @@ type shellHinter interface{ ShellHint() (string, string) }
 // the date, and the run's available tools. This is the single highest-leverage
 // fix for blind trial-and-error tool use on non-Unix hosts. `now` is passed in
 // for deterministic tests.
-func injectEnvironment(system, workspaceRoot string, tools map[string]agent.Tool, now time.Time) string {
+func injectEnvironment(system, workspaceRoot string, tools map[string]toolapi.Tool, now time.Time) string {
 	var b strings.Builder
 	b.WriteString("## Runtime environment\n")
 	b.WriteString("You run on a real host — act for THIS environment, do not assume Unix.\n")
@@ -83,7 +83,7 @@ func injectEnvironment(system, workspaceRoot string, tools map[string]agent.Tool
 // code execution if code_exec was opted out), and stays honest about the few real
 // rails: explicit operator denials, budgets, and the SSRF/secret guards. Returns
 // "" when none of the relevant tools are available.
-func capabilityBriefing(tools map[string]agent.Tool) string {
+func capabilityBriefing(tools map[string]toolapi.Tool) string {
 	_, hasShell := tools["shell"]
 	_, hasCode := tools["code_exec"]
 	_, hasFile := tools["file"]
@@ -122,7 +122,7 @@ func capabilityBriefing(tools map[string]agent.Tool) string {
 // returns "" when none of code_exec / tool_forge / skill is available (nothing
 // to bias toward). Complements capabilityBriefing (which says what you CAN do)
 // with how to work well.
-func forgeBias(tools map[string]agent.Tool) string {
+func forgeBias(tools map[string]toolapi.Tool) string {
 	_, hasCode := tools["code_exec"]
 	_, hasForge := tools["tool_forge"]
 	_, hasSkill := tools["skill"]

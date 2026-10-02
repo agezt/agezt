@@ -16,10 +16,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func (t *Tool) doWrite(ctx context.Context, in fileInput, appendMode bool) (agent.Result, error) {
+func (t *Tool) doWrite(ctx context.Context, in fileInput, appendMode bool) (toolapi.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -61,7 +61,7 @@ func (t *Tool) doWrite(ctx context.Context, in fileInput, appendMode bool) (agen
 	if appendMode {
 		verb = "appended"
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output: fmt.Sprintf("%s %d bytes to %s", verb, len(in.Content), in.Path),
 	}, nil
 }
@@ -71,7 +71,7 @@ func (t *Tool) doWrite(ctx context.Context, in fileInput, appendMode bool) (agen
 // ambiguous edit fails loudly instead of changing the wrong place; set all=true
 // to replace every occurrence. This lets an agent edit a file surgically rather
 // than read-and-rewrite the whole thing, cutting context cost and clobber risk.
-func (t *Tool) doReplace(ctx context.Context, in fileInput) (agent.Result, error) {
+func (t *Tool) doReplace(ctx context.Context, in fileInput) (toolapi.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -135,7 +135,7 @@ func (t *Tool) doReplace(ctx context.Context, in fileInput) (agent.Result, error
 		return errResult("write: " + err.Error()), nil
 	}
 	delta := len(updated) - len(content)
-	return agent.Result{
+	return toolapi.Result{
 		Output: fmt.Sprintf("replaced %d occurrence(s) in %s (%+d bytes)", count, in.Path, delta),
 	}, nil
 }

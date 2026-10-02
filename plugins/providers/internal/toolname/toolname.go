@@ -25,7 +25,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // maxLen is the smallest tool-name length cap across supported providers.
@@ -61,7 +62,7 @@ func Sanitize(name string) string {
 // Maps returns fwd (original→wire, for every tool) and rev (wire→original, only
 // for names that changed; nil when none did). Collisions get a deterministic
 // numeric suffix so the mapping stays injective.
-func Maps(tools []agent.ToolDef) (fwd, rev map[string]string) {
+func Maps(tools []toolapi.ToolDef) (fwd, rev map[string]string) {
 	fwd = make(map[string]string, len(tools))
 	used := make(map[string]bool, len(tools))
 	for _, t := range tools {
@@ -89,7 +90,7 @@ func Maps(tools []agent.ToolDef) (fwd, rev map[string]string) {
 }
 
 // Reverse returns just the wire→original map for tools (nil when nothing changed).
-func Reverse(tools []agent.ToolDef) map[string]string {
+func Reverse(tools []toolapi.ToolDef) map[string]string {
 	_, rev := Maps(tools)
 	return rev
 }
@@ -108,7 +109,7 @@ func Wire(fwd map[string]string, name string) string {
 
 // RestoreCalls rewrites a response's tool-call names from their wire form back to
 // the originals, in place. A no-op when rev is empty.
-func RestoreCalls(resp *agent.CompletionResponse, rev map[string]string) {
+func RestoreCalls(resp *llm.CompletionResponse, rev map[string]string) {
 	if resp == nil || len(rev) == 0 {
 		return
 	}

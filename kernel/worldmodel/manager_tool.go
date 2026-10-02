@@ -11,9 +11,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/edict"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 func WithCorrelation(ctx context.Context, corr string) context.Context {
@@ -63,18 +64,18 @@ type worldTool struct{ g *Graph }
 
 // Tool returns the agent-facing world-model tool. Register it under the name
 // "world" in the agent loop's tool map.
-func (g *Graph) Tool() agent.Tool { return worldTool{g: g} }
+func (g *Graph) Tool() toolapi.Tool { return worldTool{g: g} }
 
-func (t worldTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t worldTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "world",
-		Capability: agent.ToolCapability{Name: string(edict.CapWorld)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapWorld)},
 		Description: "Read and grow the world model — the graph of the operator's projects, repos, " +
 			"people and topics and how they relate. action=add records an entity (kind, name, aliases); " +
 			"action=relate links two entities (from, verb, to); action=resolve looks up what a phrase " +
 			"refers to (query); action=neighbors lists what an entity connects to (query=name).",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"read world-model entities and relationships for resolve/neighbors",
 				"upsert entities or relationships for add/relate",
@@ -87,29 +88,29 @@ func (t worldTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t worldTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t worldTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in toolInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid world input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid world input: " + err.Error(), IsError: true}, nil
 	}
 	corr := CorrelationFrom(ctx)
 	switch strings.ToLower(strings.TrimSpace(in.Action)) {
 	case "add":
 		e, created, err := t.g.Upsert(corr, UpsertSpec{Kind: in.Kind, Name: in.Name, Aliases: in.Aliases, Attrs: in.Attrs})
 		if err != nil {
-			return agent.Result{Output: "add failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "add failed: " + err.Error(), IsError: true}, nil
 		}
 		verb := "reinforced"
 		if created {
 			verb = "added"
 		}
-		return agent.Result{Output: fmt.Sprintf("%s entity %s (%s: %s)", verb, e.ID[:12], e.Kind, e.Name)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("%s entity %s (%s: %s)", verb, e.ID[:12], e.Kind, e.Name)}, nil
 	case "relate":
 		r, err := t.g.Relate(corr, in.From, in.Verb, in.To)
 		if err != nil {
-			return agent.Result{Output: "relate failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "relate failed: " + err.Error(), IsError: true}, nil
 		}
-		return agent.Result{Output: fmt.Sprintf("related %s %s %s", in.From, r.Verb, in.To)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("related %s %s %s", in.From, r.Verb, in.To)}, nil
 	case "resolve":
 		limit := in.Limit
 		if limit <= 0 {
@@ -117,21 +118,21 @@ func (t worldTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Res
 		}
 		hits, err := t.g.Resolve(corr, in.Query, limit)
 		if err != nil {
-			return agent.Result{Output: "resolve failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "resolve failed: " + err.Error(), IsError: true}, nil
 		}
-		return agent.Result{Output: renderResolve(in.Query, hits)}, nil
+		return toolapi.Result{Output: renderResolve(in.Query, hits)}, nil
 	case "neighbors":
 		hits, err := t.g.ResolveQuiet(in.Query, 1)
 		if err != nil || len(hits) == 0 {
-			return agent.Result{Output: "no entity matches " + in.Query, IsError: true}, nil
+			return toolapi.Result{Output: "no entity matches " + in.Query, IsError: true}, nil
 		}
 		ns, err := t.g.Neighbors(hits[0].Entity.ID)
 		if err != nil {
-			return agent.Result{Output: "neighbors failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "neighbors failed: " + err.Error(), IsError: true}, nil
 		}
-		return agent.Result{Output: renderNeighbors(hits[0].Entity, ns)}, nil
+		return toolapi.Result{Output: renderNeighbors(hits[0].Entity, ns)}, nil
 	default:
-		return agent.Result{Output: "unknown action " + in.Action + " (add|relate|resolve|neighbors)", IsError: true}, nil
+		return toolapi.Result{Output: "unknown action " + in.Action + " (add|relate|resolve|neighbors)", IsError: true}, nil
 	}
 }
 

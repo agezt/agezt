@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/workflow"
 )
 
@@ -27,7 +29,7 @@ func (k *Kernel) invokeWorkflowTool(ctx context.Context, toolName, callID string
 	if err := agent.ValidateToolInput(tool.Definition(), args); err != nil {
 		return nil, "", fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
 	}
-	verdict := k.policyHook(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args})
+	verdict := k.policyHook(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args})
 	if !verdict.Allow {
 		reason := verdict.Reason
 		if reason == "" {
@@ -37,14 +39,14 @@ func (k *Kernel) invokeWorkflowTool(ctx context.Context, toolName, callID string
 	}
 	out, err := tool.Invoke(ctx, args)
 	if err != nil {
-		k.completeAgentNoiseNotify(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, agent.Result{Output: err.Error(), IsError: true})
+		k.completeAgentNoiseNotify(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, toolapi.Result{Output: err.Error(), IsError: true})
 		return nil, "", err
 	}
 	if out.IsError {
-		k.completeAgentNoiseNotify(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, out)
+		k.completeAgentNoiseNotify(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, out)
 		return nil, "", fmt.Errorf("tool %s failed: %s", toolName, truncateForErr(out.Output))
 	}
-	k.completeAgentNoiseNotify(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, out)
+	k.completeAgentNoiseNotify(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, out)
 	return parseMaybeJSON(out.Output), "", nil
 }
 

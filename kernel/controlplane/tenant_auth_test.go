@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -28,7 +28,7 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 		return runtime.Open(runtime.Config{
 			BaseDir:  tdir,
 			Provider: mock.New(mock.FinalText("tenant-ok")),
-			Tools:    map[string]agent.Tool{},
+			Tools:    map[string]toolapi.Tool{},
 		})
 	})
 	if err != nil {

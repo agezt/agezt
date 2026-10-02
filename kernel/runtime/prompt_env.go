@@ -6,12 +6,13 @@ package runtime
 //             prompt.go during the Day-73 god-file split. Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/agent"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // Config.EnvironmentInject is set.
-func (k *Kernel) injectHostEnvironment(system string, tools map[string]agent.Tool) string {
+func (k *Kernel) injectHostEnvironment(system string, tools map[string]toolapi.Tool) string {
 	if k.cfg.EnvironmentInject {
 		system = injectEnvironment(system, k.cfg.WorkspaceRoot, tools, time.Now())
 	}

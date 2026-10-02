@@ -16,18 +16,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provider, model, intent, transcript string) ([]string, error) {
+func (m *Manager) Distill(ctx context.Context, corr string, provider llm.Provider, model, intent, transcript string) ([]string, error) {
 	if provider == nil {
 		return nil, errors.New("memory: distill requires a provider")
 	}
 	user := fmt.Sprintf("Task intent:\n%s\n\nWhat happened:\n%s", intent, transcript)
-	resp, err := provider.Complete(ctx, agent.CompletionRequest{
+	resp, err := provider.Complete(ctx, llm.CompletionRequest{
 		Model:    model,
 		System:   distillSystem,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: user}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: user}},
 		TaskType: "distill",
 	})
 	if err != nil {

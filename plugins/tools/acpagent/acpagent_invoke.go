@@ -17,7 +17,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/acpcatalog"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/envscrub"
 )
 
@@ -28,17 +28,17 @@ const DefaultTimeout = 5 * time.Minute
 // context budget.
 const MaxOutputBytes = 60 * 1024
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Task  string `json:"task"`
 		Agent string `json:"agent"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	task := strings.TrimSpace(in.Task)
 	if task == "" {
-		return agent.Result{Output: "task is required", IsError: true}, nil
+		return toolapi.Result{Output: "task is required", IsError: true}, nil
 	}
 	// Resolve which ACP agent to drive: an explicit `agent` slug (must be
 	// installed) wins; otherwise the configured default command (t.Cmd).
@@ -51,7 +51,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		} else if strings.TrimSpace(in.Agent) != "" {
 			hint = "agent \"" + strings.TrimSpace(in.Agent) + "\" is not installed; " + hint
 		}
-		return agent.Result{Output: "no ACP agent to delegate to (" + hint + ")", IsError: true}, nil
+		return toolapi.Result{Output: "no ACP agent to delegate to (" + hint + ")", IsError: true}, nil
 	}
 
 	to := t.Timeout
@@ -63,7 +63,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 
 	tr, err := t.dial(ctx, cmd, t.Cwd)
 	if err != nil {
-		return agent.Result{Output: "spawn ACP agent failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "spawn ACP agent failed: " + err.Error(), IsError: true}, nil
 	}
 	defer func() { _ = tr.close() }()
 
@@ -81,7 +81,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 
 	client := acp.NewClient(tr.out, tr.in)
 	if err := client.Initialize(ctx); err != nil {
-		return agent.Result{Output: "ACP initialize failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "ACP initialize failed: " + err.Error(), IsError: true}, nil
 	}
 	cwd := t.Cwd
 	if cwd == "" {
@@ -89,7 +89,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 	sid, err := client.NewSession(ctx, cwd)
 	if err != nil {
-		return agent.Result{Output: "ACP session/new failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "ACP session/new failed: " + err.Error(), IsError: true}, nil
 	}
 
 	var answer strings.Builder
@@ -104,9 +104,9 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		answer.WriteString(chunk)
 	})
 	if err != nil {
-		return agent.Result{Output: "ACP session/prompt failed: " + err.Error() + render(answer.String(), ""), IsError: true}, nil
+		return toolapi.Result{Output: "ACP session/prompt failed: " + err.Error() + render(answer.String(), ""), IsError: true}, nil
 	}
-	return agent.Result{Output: render(answer.String(), stop)}, nil
+	return toolapi.Result{Output: render(answer.String(), stop)}, nil
 }
 func spawnAgent(ctx context.Context, cmdStr, cwd string) (*transport, error) {
 	shell, arg := platformShell()

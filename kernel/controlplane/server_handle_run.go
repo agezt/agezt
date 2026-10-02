@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/memory"
@@ -103,7 +103,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		ctx = memory.WithScope(ctx, scope)
 		// And its working directory (M792): file/shell tools operate inside
 		// the profile's workspace subdirectory.
-		ctx = agent.WithWorkdir(ctx, p.Workdir)
+		ctx = toolapi.WithWorkdir(ctx, p.Workdir)
 		// And its identity + daily ceiling for the Governor's ledger (M793).
 		ctx = runtime.WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 		// Its own model fallback chain too (M787): primary (the resolved

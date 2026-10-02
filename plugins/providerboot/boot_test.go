@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -207,9 +207,9 @@ func TestBoot_UnconfiguredWhenNoProvider(t *testing.T) {
 
 	// A run with a model still fails — there is no provider behind it, and no mock
 	// fallback to silently answer.
-	_, rerr := res.Governor.Complete(context.Background(), agent.CompletionRequest{
+	_, rerr := res.Governor.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anything",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if rerr == nil {
 		t.Fatal("unconfigured daemon answered a run; want a hard error")
@@ -235,9 +235,9 @@ func TestBoot_DemoEchoRequiresExplicitEnv(t *testing.T) {
 		t.Errorf("banner desc = %q, want it to mention demo echo", res.Desc)
 	}
 
-	resp, err := res.Governor.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := res.Governor.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "mock",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello e2e"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello e2e"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -425,9 +425,9 @@ func TestReload_SentinelPromotedToPrimary(t *testing.T) {
 		t.Fatalf("routing chain = %v, want the new primary at position 0", provs)
 	}
 	// The M816 symptom was runs STILL failing with "no provider configured".
-	resp, err := res.Governor.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := res.Governor.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "mock",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "post-reload"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "post-reload"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete after reload: %v", err)

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -32,7 +32,7 @@ func countKind(t *testing.T, k *runtime.Kernel, kind event.Kind) int {
 func TestMemoryInjectedIntoSystemPrompt(t *testing.T) {
 	prov := mock.New(mock.FinalText("answered"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:      t.TempDir(),
@@ -70,7 +70,7 @@ func TestMemoryInjectedIntoSystemPrompt(t *testing.T) {
 func TestMemoryInjectionOffByDefault(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
@@ -95,7 +95,7 @@ func TestMemoryToolRegisteredWhenEnabled(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   mock.New(mock.FinalText("ok")),
-		Tools:      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryTool: true,
 	})
 	if err != nil {
@@ -115,7 +115,7 @@ func TestMemoryToolAbsentByDefault(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestAutoDistillAfterMultiToolRun(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
-		Tools:                 map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:                 map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryDistill:         true,
 		MemoryDistillMinTools: 1,
 	})

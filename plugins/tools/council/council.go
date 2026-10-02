@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -26,7 +26,7 @@ type Runner interface {
 	Council(ctx context.Context, corr, question string, members []runtime.CouncilMember, rounds int) (runtime.CouncilResult, error)
 }
 
-// Tool is the `council` implementation of agent.Tool.
+// Tool is the `council` implementation of toolapi.Tool.
 type Tool struct {
 	runner Runner
 }
@@ -37,11 +37,11 @@ func New() *Tool { return &Tool{} }
 // SetRunner injects the council orchestrator (the kernel), done by the daemon.
 func (t *Tool) SetRunner(r Runner) { t.runner = r }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "council",
-		Capability: agent.ToolCapability{Name: string(edict.CapDelegate)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Convene the Council of Elders — a panel of several advisors, each on a DIFFERENT " +
 			"model, that debate your question and return a CONSENSUS (plus any dissent). Use it for hard, " +
 			"high-stakes, or contested decisions where one model's answer isn't enough. Returns " +
@@ -55,8 +55,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "rounds":   {"type":"integer", "description":"Deliberation rounds after the opening positions (default 1)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Run several model calls to deliberate on a question and return consensus, dissent, and opinions.",
 			},
@@ -72,11 +72,11 @@ type input struct {
 	Rounds   int    `json:"rounds,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("council: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("council: parse input: %w", err)
 	}
 	if t.runner == nil {
 		return errResult("council unavailable"), nil
@@ -84,7 +84,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if strings.TrimSpace(in.Question) == "" {
 		return errResult("question required"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 	res, err := t.runner.Council(ctx, corr, in.Question, nil, in.Rounds)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -106,9 +106,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		"as_of":     res.AsOf,
 		"brief":     res.Brief,
 	}, "", "  ")
-	return agent.Result{Output: string(out)}, nil
+	return toolapi.Result{Output: string(out)}, nil
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "council: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "council: " + msg, IsError: true}
 }

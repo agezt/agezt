@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -47,7 +47,7 @@ func (stubReranker) HasRerank() bool { return true }
 // openFullToolKernel opens a kernel with every in-process-tool knob on, so the
 // guards below see the whole runtime tool surface rather than whatever this
 // test's defaults happen to be.
-func openFullToolKernel(t *testing.T) map[string]agent.Tool {
+func openFullToolKernel(t *testing.T) map[string]toolapi.Tool {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:        t.TempDir(),

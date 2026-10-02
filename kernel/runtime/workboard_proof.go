@@ -13,9 +13,10 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/assure"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/proof"
 	"github.com/agezt/agezt/kernel/workboard"
@@ -86,10 +87,10 @@ func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, 
 		"{\"complete\": true|false, \"gap\": \"<what is still missing overall; empty string if everything is satisfied>\", \"criteria\": [{\"text\": \"<the criterion, verbatim>\", \"met\": true|false, \"note\": \"<short reason>\"}]}\n" +
 		"Set \"complete\" to true only if EVERY criterion is met.\n\n" +
 		"TASK:\n" + task + "\n\nACCEPTANCE CRITERIA:\n" + cb.String() + "\nANSWER:\n" + answer
-	resp, err := k.completeAux(ctx, corr, "verify", agent.CompletionRequest{
+	resp, err := k.completeAux(ctx, corr, "verify", llm.CompletionRequest{
 		Model:     k.Model(),
 		MaxTokens: assureCriteriaMaxTokens,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 	})
 	if err != nil {
 		return assure.Verdict{}, nil, err

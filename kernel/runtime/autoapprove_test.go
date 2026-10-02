@@ -9,35 +9,36 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 type autoApproveProbeTool struct{ invoked *int32 }
 
-func autoApproveToolUse(callID, toolName string, input any) agent.CompletionResponse {
+func autoApproveToolUse(callID, toolName string, input any) llm.CompletionResponse {
 	raw, err := json.Marshal(input)
 	if err != nil {
 		panic("autoApproveToolUse: marshal input: " + err.Error())
 	}
-	return agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
-			ToolCalls: []agent.ToolCall{{ID: callID, Name: toolName, Input: raw}},
+	return llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
+			ToolCalls: []llm.ToolCall{{ID: callID, Name: toolName, Input: raw}},
 		},
-		StopReason: agent.StopToolUse,
+		StopReason: llm.StopToolUse,
 	}
 }
 
-func (t autoApproveProbeTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t autoApproveProbeTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:        "approvalprobe",
 		Description: "approval probe",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
-		Effect: agent.ToolEffect{
-			Class:             agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class:             toolapi.EffectCompensable,
 			PredictedEffects:  []string{"probe action"},
 			AffectedResources: []string{"resource:probe"},
 			RollbackNotes:     "test only",
@@ -46,9 +47,9 @@ func (t autoApproveProbeTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t autoApproveProbeTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (t autoApproveProbeTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	atomic.AddInt32(t.invoked, 1)
-	return agent.Result{Output: "ok"}, nil
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 func TestAutoApproveCapabilitiesContext(t *testing.T) {
@@ -90,7 +91,7 @@ func TestRunWith_ConfigAutoApproveCapabilitiesSatisfiesPromptMode(t *testing.T) 
 			autoApproveToolUse("probe-1", "approvalprobe", map[string]any{}),
 			mock.FinalText("done"),
 		),
-		Tools: map[string]agent.Tool{"approvalprobe": autoApproveProbeTool{invoked: &invoked}},
+		Tools: map[string]toolapi.Tool{"approvalprobe": autoApproveProbeTool{invoked: &invoked}},
 		Edict: edict.New(edict.Options{
 			Levels:    map[edict.Capability]edict.TrustLevel{"approvalprobe": edict.LevelAsk},
 			AskPolicy: edict.AskPrompt,

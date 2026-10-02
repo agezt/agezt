@@ -16,7 +16,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 type staticMinter string
@@ -51,13 +52,13 @@ func TestVertexCoverageIdentityErrorsAndLoadServiceAccount(t *testing.T) {
 }
 
 func TestVertexCoverageCompleteValidationAndAPIError(t *testing.T) {
-	if _, err := New(staticMinter("tok"), "", "loc").Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err == nil || !strings.Contains(err.Error(), "Project required") {
+	if _, err := New(staticMinter("tok"), "", "loc").Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err == nil || !strings.Contains(err.Error(), "Project required") {
 		t.Fatalf("missing project error = %v", err)
 	}
-	if _, err := New(staticMinter("tok"), "p", "").Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err == nil || !strings.Contains(err.Error(), "Location required") {
+	if _, err := New(staticMinter("tok"), "p", "").Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err == nil || !strings.Contains(err.Error(), "Location required") {
 		t.Fatalf("missing location error = %v", err)
 	}
-	if _, err := New(staticMinter("tok"), "p", "loc").Complete(context.Background(), agent.CompletionRequest{}); err != ErrNoModel {
+	if _, err := New(staticMinter("tok"), "p", "loc").Complete(context.Background(), llm.CompletionRequest{}); err != ErrNoModel {
 		t.Fatalf("missing model error = %v", err)
 	}
 
@@ -69,7 +70,7 @@ func TestVertexCoverageCompleteValidationAndAPIError(t *testing.T) {
 	p := New(staticMinter("tok"), "p", "loc")
 	p.Endpoint = srv.URL
 	p.HTTP = srv.Client()
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "gemini", Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}}})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "gemini", Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
 	apiErr, ok := err.(*APIError)
 	if !ok || apiErr.Status != http.StatusTooManyRequests || !strings.Contains(apiErr.Body, "quota") {
 		t.Fatalf("API error = %#v", err)
@@ -77,24 +78,24 @@ func TestVertexCoverageCompleteValidationAndAPIError(t *testing.T) {
 }
 
 func TestVertexCoverageNativeTranslationAndDecodeEdges(t *testing.T) {
-	if c, err := canonicalToVertex(agent.Message{Role: agent.RoleSystem, Content: "ignored"}, nil); err != nil || c != nil {
+	if c, err := canonicalToVertex(llm.Message{Role: llm.RoleSystem, Content: "ignored"}, nil); err != nil || c != nil {
 		t.Fatalf("system canonical = %#v err %v", c, err)
 	}
-	assistant, err := canonicalToVertex(agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
+	assistant, err := canonicalToVertex(llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
 	if err != nil {
 		t.Fatalf("assistant canonical: %v", err)
 	}
 	if assistant.Role != "model" || len(assistant.Parts) != 1 || assistant.Parts[0].FunctionCall.Name != "wire_tool" || string(assistant.Parts[0].FunctionCall.Args) != "{}" {
 		t.Fatalf("assistant canonical = %+v", assistant)
 	}
-	if _, err := canonicalToVertex(agent.Message{Role: agent.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
+	if _, err := canonicalToVertex(llm.Message{Role: llm.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Fatalf("tool without id = %v", err)
 	}
-	if _, err := canonicalToVertex(agent.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
+	if _, err := canonicalToVertex(llm.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("unknown role = %v", err)
 	}
 
-	body, err := encodeRequest("system", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 7, true, -1, agent.Params{}, json.RawMessage(`{"labels":{"test":"yes"}}`))
+	body, err := encodeRequest("system", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 7, true, -1, llm.Params{}, json.RawMessage(`{"labels":{"test":"yes"}}`))
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -115,7 +116,7 @@ func TestVertexCoverageNativeTranslationAndDecodeEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeResponse: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse || resp.Message.Content != "answer" || resp.ReasoningContent != "reason" || resp.Usage.OutputTokens != 7 || len(resp.Message.ToolCalls) != 1 {
+	if resp.StopReason != llm.StopToolUse || resp.Message.Content != "answer" || resp.ReasoningContent != "reason" || resp.Usage.OutputTokens != 7 || len(resp.Message.ToolCalls) != 1 {
 		t.Fatalf("decoded response = %+v", resp)
 	}
 }

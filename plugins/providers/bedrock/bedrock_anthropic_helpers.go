@@ -12,12 +12,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func anthBedrockUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
-	return agent.Usage{
+func anthBedrockUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) llm.Usage {
+	return llm.Usage{
 		InputTokens:           inputTokens + cacheRead + cacheCreation,
 		CachedInputTokens:     cacheRead,
 		CacheWriteInputTokens: cacheCreation,
@@ -42,11 +42,11 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 	return mt, payload, true
 }
 
-func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, error) {
+func canonicalToAnth(m llm.Message, fwd map[string]string) (*anthMessage, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return nil, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		// Vision (M244): a user message may carry image attachments as RFC 2397
 		// data: URLs. Emit each as a type=image block before the text block. A
 		// non-data-URL entry (e.g. a legacy bare filename) is skipped.
@@ -61,7 +61,7 @@ func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, erro
 		}
 		blocks = append(blocks, anthBlock{Type: "text", Text: m.Content})
 		return &anthMessage{Role: "user", Content: blocks}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		var blocks []anthBlock
 		if strings.TrimSpace(m.Content) != "" {
 			blocks = append(blocks, anthBlock{Type: "text", Text: m.Content})
@@ -82,7 +82,7 @@ func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, erro
 			blocks = []anthBlock{{Type: "text", Text: ""}}
 		}
 		return &anthMessage{Role: "assistant", Content: blocks}, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("bedrock: role=tool requires tool_call_id")
 		}

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // A user message carrying an image data: URL is encoded as an Anthropic
@@ -15,13 +15,13 @@ import (
 func TestEncodeRequest_ImageBlock(t *testing.T) {
 	raw := []byte{0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4}
 	b64 := base64.StdEncoding.EncodeToString(raw)
-	msgs := []agent.Message{{
-		Role:    agent.RoleUser,
+	msgs := []llm.Message{{
+		Role:    llm.RoleUser,
 		Content: "describe this",
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
 
-	body, err := encodeRequest("claude-x", "", msgs, nil, 100, 0, agent.Params{}, nil)
+	body, err := encodeRequest("claude-x", "", msgs, nil, 100, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -57,12 +57,12 @@ func TestEncodeRequest_ImageBlock(t *testing.T) {
 // image data: URL reaches the model there too (M241).
 func TestEncodeStreamRequest_ImageBlock(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString([]byte{0xff, 0xd8, 0xff})
-	msgs := []agent.Message{{
-		Role:    agent.RoleUser,
+	msgs := []llm.Message{{
+		Role:    llm.RoleUser,
 		Content: "what is this",
 		Images:  []string{"data:image/jpeg;base64," + b64},
 	}}
-	body, err := encodeStreamRequest("claude-x", "", msgs, nil, 100, 0, agent.Params{}, nil)
+	body, err := encodeStreamRequest("claude-x", "", msgs, nil, 100, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeStreamRequest: %v", err)
 	}
@@ -88,12 +88,12 @@ func TestEncodeStreamRequest_ImageBlock(t *testing.T) {
 // A legacy bare filename (not a data URL) has no deliverable payload, so it is
 // skipped — the message still encodes with its text block, no image block.
 func TestEncodeRequest_SkipsNonDataURLImage(t *testing.T) {
-	msgs := []agent.Message{{
-		Role:    agent.RoleUser,
+	msgs := []llm.Message{{
+		Role:    llm.RoleUser,
 		Content: "hi",
 		Images:  []string{"photo.png"},
 	}}
-	body, err := encodeRequest("claude-x", "", msgs, nil, 100, 0, agent.Params{}, nil)
+	body, err := encodeRequest("claude-x", "", msgs, nil, 100, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}

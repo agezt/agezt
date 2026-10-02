@@ -18,8 +18,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -89,7 +89,7 @@ type alwaysFailProvider struct{ name string }
 
 func (p *alwaysFailProvider) Name() string { return p.name }
 
-func (p *alwaysFailProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *alwaysFailProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -15,7 +15,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/openai"
 )
@@ -32,9 +32,9 @@ func TestComplete_RejectsOversizedResponseBody(t *testing.T) {
 
 	p := openai.New("sk-test")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gpt-4o-mini",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
 	})
 	if err == nil {
 		t.Fatal("expected an error for an oversized response body")

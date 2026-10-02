@@ -10,7 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -34,10 +35,10 @@ func TestComplete_AnthropicOnBedrockTextResponse(t *testing.T) {
 
 	p := bedrock.New("br-token", "us-east-1")
 	p.Endpoint = srv.URL + "/model/anthropic.claude-opus-4-7/invoke"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anthropic.claude-opus-4-7",
 		System:   "be terse",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -45,7 +46,7 @@ func TestComplete_AnthropicOnBedrockTextResponse(t *testing.T) {
 	if resp.Message.Content != "hi from bedrock" {
 		t.Errorf("content=%q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop=%q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 4 || resp.Usage.OutputTokens != 3 {
@@ -90,14 +91,14 @@ func TestComplete_ToolUseRoundtrip(t *testing.T) {
 
 	p := bedrock.New("k", "us-east-1")
 	p.Endpoint = srv.URL + "/model/anthropic.claude-opus-4-7/invoke"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "anthropic.claude-opus-4-7",
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "list"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "list"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{
 				ID: "tu_1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`),
 			}}},
-			{Role: agent.RoleTool, ToolCallID: "tu_1", Content: "a.txt"},
+			{Role: llm.RoleTool, ToolCallID: "tu_1", Content: "a.txt"},
 		},
 	})
 	if err != nil {
@@ -134,14 +135,14 @@ func TestComplete_ToolUseStop(t *testing.T) {
 
 	p := bedrock.New("k", "us-east-1")
 	p.Endpoint = srv.URL + "/x"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anthropic.claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop=%q want tool_use", resp.StopReason)
 	}
 	if len(resp.Message.ToolCalls) != 1 {
@@ -158,7 +159,7 @@ func TestComplete_UnsupportedVendorRefused(t *testing.T) {
 	// callers can distinguish "this model needs a different body
 	// shape" from generic API errors.
 	p := bedrock.New("k", "us-east-1")
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "amazon.titan-text-express-v1",
 	})
 	if !errors.Is(err, bedrock.ErrVendorUnsupported) {
@@ -178,9 +179,9 @@ func TestComplete_RegionalAnthropicProfileAccepted(t *testing.T) {
 
 	p := bedrock.New("k", "us-east-1")
 	p.Endpoint = srv.URL + "/x"
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}); err != nil {
 		t.Fatalf("regional profile should be accepted: %v", err)
 	}
@@ -188,7 +189,7 @@ func TestComplete_RegionalAnthropicProfileAccepted(t *testing.T) {
 
 func TestComplete_NoBearerToken(t *testing.T) {
 	p := bedrock.New("", "us-east-1")
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "anthropic.claude-opus-4-7",
 	})
 	if !errors.Is(err, bedrock.ErrNoBearerToken) {
@@ -252,9 +253,9 @@ func TestComplete_APIError(t *testing.T) {
 
 	p := bedrock.New("k", "us-east-1")
 	p.Endpoint = srv.URL + "/x"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anthropic.claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	apiErr, ok := err.(*bedrock.APIError)
 	if !ok {
@@ -284,9 +285,9 @@ func TestComplete_BedrockCacheUsage(t *testing.T) {
 
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL + "/model/anthropic.claude-opus-4-7/invoke"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anthropic.claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -319,10 +320,10 @@ func TestEncode_PromptCacheMarksLastTool(t *testing.T) {
 
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL + "/model/anthropic.claude-opus-4-7/invoke"
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anthropic.claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
-		Tools: []agent.ToolDef{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
+		Tools: []toolapi.ToolDef{
 			{Name: "first", InputSchema: json.RawMessage(`{"type":"object"}`)},
 			{Name: "last", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		},

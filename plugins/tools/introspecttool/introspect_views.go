@@ -5,13 +5,13 @@ package introspecttool
 // introspect_views.go owns the per-record render helpers used by
 // Tool.Invoke to flatten cadence.Entry / standing.Order rows for JSON
 // output, plus the okJSON / errResult formatters. The Tool type + its
-// agent.Tool surface live in introspect.go.
+// toolapi.Tool surface live in introspect.go.
 
 import (
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -72,14 +72,14 @@ func standingView(o standing.Order) map[string]any {
 	return v
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "introspect: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "introspect: " + msg, IsError: true}
 }

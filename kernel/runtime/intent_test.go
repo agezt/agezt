@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -28,7 +28,7 @@ func TestRunWith_IntentRegretGateRoutesAmbiguousHighRegretActionToApproval(t *te
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:                t.TempDir(),
 		Provider:               prov,
-		Tools:                  map[string]agent.Tool{"approvalprobe": probeTool{invoked: &invoked}},
+		Tools:                  map[string]toolapi.Tool{"approvalprobe": probeTool{invoked: &invoked}},
 		Edict:                  edict.New(edict.Options{UnknownAllow: true}),
 		Approvals:              reg,
 		IntentRegretGating:     true,

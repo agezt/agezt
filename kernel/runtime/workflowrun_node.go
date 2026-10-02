@@ -16,6 +16,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/workflow"
 )
 
@@ -52,10 +54,10 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		}
 		// completeAux stamps CorrelationID (previously dropped here, leaving
 		// llm-node spend unattributable) alongside the workflow routing class.
-		resp, err := k.completeAux(ctx, corr, "workflow", agent.CompletionRequest{
+		resp, err := k.completeAux(ctx, corr, "workflow", llm.CompletionRequest{
 			Model:    model,
 			System:   workflow.Interpolate(c.System, data),
-			Messages: []agent.Message{{Role: agent.RoleUser, Content: workflow.Interpolate(c.Prompt, data)}},
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: workflow.Interpolate(c.Prompt, data)}},
 		})
 		if err != nil {
 			return nil, "", err
@@ -132,7 +134,7 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		}
 		// The same code.exec policy gate a direct code_exec call passes.
 		probe, _ := json.Marshal(map[string]any{"language": c.Language, "code": c.Code})
-		verdict := k.policyHook(ctx, agent.ToolCall{ID: "wf-" + n.ID, Name: "code_exec", Input: probe})
+		verdict := k.policyHook(ctx, llm.ToolCall{ID: "wf-" + n.ID, Name: "code_exec", Input: probe})
 		if !verdict.Allow {
 			reason := verdict.Reason
 			if reason == "" {
@@ -290,7 +292,7 @@ func (k *Kernel) execPipelineNode(ctx context.Context, nodeID string, c workflow
 			if err != nil {
 				return nil, "", fmt.Errorf("pipeline step %s output cannot be encoded as JSON: %w", step.ID, err)
 			}
-			def := agent.ToolDef{Name: "pipeline." + nodeID + "." + step.ID + ".output", InputSchema: step.OutputSchema}
+			def := toolapi.ToolDef{Name: "pipeline." + nodeID + "." + step.ID + ".output", InputSchema: step.OutputSchema}
 			if err := agent.ValidateToolInput(def, raw); err != nil {
 				return nil, "", fmt.Errorf("pipeline step %s output rejected by schema: %w", step.ID, err)
 			}

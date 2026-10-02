@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func f64(v float64) *float64 { return &v }
@@ -16,8 +16,8 @@ func f64(v float64) *float64 { return &v }
 // body free of any sampling field — the default-preserving contract. With no
 // maxTokens / JSON mode / thinking budget either, generationConfig is omitted.
 func TestEncodeRequest_ParamsUnset(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, err := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, err := encodeRequest("", msgs, nil, 0, false, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +31,8 @@ func TestEncodeRequest_ParamsUnset(t *testing.T) {
 // TestEncodeRequest_ParamsSet (M997): set knobs appear INSIDE generationConfig
 // for the Gemini-on-Vertex dialect (nested, not top-level); nil knobs absent.
 func TestEncodeRequest_ParamsSet(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	p := agent.Params{
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	p := llm.Params{
 		Temperature: f64(0.2),
 		Stop:        []string{"STOP"},
 	}
@@ -72,9 +72,9 @@ func TestEncodeRequest_ParamsSet(t *testing.T) {
 // TestEncodeRequest_ProviderOptionsMerge (M997): a ProviderOptions["vertex"]
 // object is overlaid onto the Gemini wire body.
 func TestEncodeRequest_ProviderOptionsMerge(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	extra := json.RawMessage(`{"labels":{"team":"agezt"}}`)
-	body, err := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, extra)
+	body, err := encodeRequest("", msgs, nil, 0, false, 0, llm.Params{}, extra)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,10 +93,10 @@ func TestEncodeRequest_ProviderOptionsMerge(t *testing.T) {
 // places sampling knobs at the TOP level (stop_sequences / temperature), unlike
 // the nested Gemini path, and ProviderOptions merge works there too.
 func TestEncodeAnthropicOnVertex_Params(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 
 	// Unset Params ⇒ no sampling fields.
-	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 1024, 0, false, agent.Params{}, nil)
+	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 1024, 0, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestEncodeAnthropicOnVertex_Params(t *testing.T) {
 	}
 
 	// Set Temperature + Stop ⇒ top-level fields.
-	p := agent.Params{Temperature: f64(0.2), Stop: []string{"STOP"}}
+	p := llm.Params{Temperature: f64(0.2), Stop: []string{"STOP"}}
 	extra := json.RawMessage(`{"metadata":{"user_id":"u1"}}`)
 	body, err = encodeAnthropicOnVertexRequest("", msgs, nil, 1024, 0, false, p, extra)
 	if err != nil {

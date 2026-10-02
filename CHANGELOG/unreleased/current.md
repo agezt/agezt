@@ -662,6 +662,19 @@ This file holds the active `[Unreleased]` working set.
   already imports nothing but the stdlib and the BLAKE3 hash that defines an event's
   identity, so moving it would rewrite 61 importers and remove no edge.
 
+- **Changed: packages that only describe tools or talk to models no longer import the agent
+  loop.** Every file that used `kernel/agent` purely for contract types now imports
+  `kernel/contract/llm` / `kernel/contract/toolapi` (414 files, a mechanical selector
+  rewrite checked by the compiler). The tool-invocation context — `WithCorrelation`,
+  `CorrelationFromContext`, `WithAgent`, `AgentFromContext`, `WithWorkdir`,
+  `WorkdirFromContext` and `DefaultContextRescueMarker` — moved to `toolapi` with no
+  wrapper left behind: a tool and the loop must share one context key, so it is part of
+  the tool contract. The workdir escape refusal now has its own test there. archcheck's
+  allowlist falls from 196 to 145 edges: `governor`, `worldmodel`, `skill`, `market`,
+  `controlplane`, 13 provider packages and 32 tool packages lost their `→ kernel/agent`
+  edge. Three remain, all model-gateway helpers (`GenerateObject`, provider middleware)
+  that move with the planned `platform/modelgw`.
+
 - **Changed: fifteen of the seventeen CI jobs were pinned to a runner pool that does not
   exist.** `gh api repos/agezt/agezt/actions/runners` returns `{"total_count":0}` — no
   self-hosted runner is registered for this repo. Fifteen job definitions nonetheless carried

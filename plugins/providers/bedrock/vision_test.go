@@ -7,19 +7,19 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // A user message carrying an image data: URL is encoded as an Anthropic-on-
 // Bedrock type=image content block before the text block (M244).
 func TestEncodeAnthropicOnBedrock_ImageBlock(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString([]byte{0x89, 0x50, 0x4e, 0x47})
-	msgs := []agent.Message{{
-		Role:    agent.RoleUser,
+	msgs := []llm.Message{{
+		Role:    llm.RoleUser,
 		Content: "describe this",
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
-	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, agent.Params{}, nil)
+	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -49,8 +49,8 @@ func TestEncodeAnthropicOnBedrock_ImageBlock(t *testing.T) {
 
 // A non-data-URL attachment is skipped, leaving a text-only user block.
 func TestEncodeAnthropicOnBedrock_SkipsNonDataURLImage(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
-	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
+	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}

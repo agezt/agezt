@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // completeAux is the one funnel for the kernel's AUXILIARY one-shot
@@ -18,7 +18,7 @@ import (
 // begun to drop them (workflow nodes and drafts made completions with no
 // correlation, so their spend was unattributable in `agt why`). A site's own
 // non-empty values win; corr/taskType only fill gaps.
-func (k *Kernel) completeAux(ctx context.Context, corr, taskType string, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (k *Kernel) completeAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if k.cfg.Provider == nil {
 		return nil, errors.New("runtime: no provider configured")
 	}
@@ -34,6 +34,6 @@ func (k *Kernel) completeAux(ctx context.Context, corr, taskType string, req age
 // CompleteAux is the public wrapper for the aux-completion funnel.
 // The runexec sub-package uses it through KernelAPI (Day 33) for
 // the verifyCompletion and DescribeImages body moves.
-func (k *Kernel) CompleteAux(ctx context.Context, corr, taskType string, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (k *Kernel) CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return k.completeAux(ctx, corr, taskType, req)
 }

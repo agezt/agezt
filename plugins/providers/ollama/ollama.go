@@ -9,7 +9,7 @@
 //
 // Tool-calling translation (SPEC-15): Ollama uses an OpenAI-flavoured
 // tool-calls shape but does not return per-call IDs; this provider
-// synthesises stable IDs so canonical agent.ToolCall.ID is always
+// synthesises stable IDs so canonical llm.ToolCall.ID is always
 // non-empty.
 package ollama
 
@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
@@ -74,7 +74,7 @@ func (p *Provider) resolveEndpoint() string {
 	return DefaultEndpoint
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "ollama" }
 
 // APIError is returned for non-2xx upstream responses.
@@ -95,8 +95,8 @@ var ErrNoEndpoint = errors.New("ollama: endpoint not set")
 // the model must come from the request (AGEZT_MODEL / routing / a fallback chain).
 var ErrNoModel = errors.New("ollama: no model specified (set CompletionRequest.Model, AGEZT_MODEL, or a routing/fallback chain)")
 
-// Complete implements agent.Provider.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+// Complete implements llm.Provider.
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	endpoint := p.resolveEndpoint()
 	if endpoint == "" {
 		return nil, ErrNoEndpoint
@@ -211,7 +211,7 @@ type ollamaResponse struct {
 // Ollama has no frequency/presence penalty and no reasoning/thinking budget, so
 // Params.FrequencyPenalty, Params.PresencePenalty and Params.ReasoningEffort are
 // intentionally ignored here (no invented mapping).
-func buildOptions(maxTokens int, params agent.Params) map[string]any {
+func buildOptions(maxTokens int, params llm.Params) map[string]any {
 	var opts map[string]any
 	set := func(k string, v any) {
 		if opts == nil {

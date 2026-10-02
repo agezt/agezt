@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/envscrub"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/redact"
@@ -125,7 +125,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 		declaredCaps := p.ToolCapabilities(prefix + ".") // M900: manifest-declared policy axes
 		for name, tool := range pluginTools {
 			if built.Extra == nil {
-				built.Extra = map[string]agent.Tool{}
+				built.Extra = map[string]toolapi.Tool{}
 			}
 			built.Extra[name] = tool
 			if cap, ok := declaredCaps[name]; ok {

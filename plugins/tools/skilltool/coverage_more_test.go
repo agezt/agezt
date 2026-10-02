@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/skill"
 )
 
@@ -263,7 +263,7 @@ func TestSkilltoolCoverageResolveAndShow(t *testing.T) {
 	if !strings.Contains(res.Output, `"name": "first"`) || !strings.Contains(res.Output, `"body"`) {
 		t.Fatalf("show output = %s", res.Output)
 	}
-	if !strings.Contains(res.Output, agent.DefaultContextRescueMarker) {
+	if !strings.Contains(res.Output, toolapi.DefaultContextRescueMarker) {
 		t.Fatalf("show missing rescue marker: %s", res.Output)
 	}
 }

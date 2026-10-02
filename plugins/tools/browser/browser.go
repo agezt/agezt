@@ -16,7 +16,7 @@ import (
 	stdhttp "net/http"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
@@ -33,7 +33,7 @@ const DefaultMaxChars = 64 * 1024
 // MaxChars accounts for HTML overhead (~10× tags+styles vs text).
 const MaxFetchBytes = 4 * 1024 * 1024
 
-// Tool is the browser tool implementation of agent.Tool.
+// Tool is the browser tool implementation of toolapi.Tool.
 type Tool struct {
 	// AllowedHosts mirrors the http tool's semantics: case-insensitive
 	// bare hostnames, "*.example.com" one-level wildcards. Empty +
@@ -138,11 +138,11 @@ func (t *Tool) EnableCookies() error {
 	return nil
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "browser.read",
-		Capability: agent.ToolCapability{Name: string(edict.CapBrowserRead)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapBrowserRead)},
 		Description: "Fetch a web page and return its visible text content " +
 			"(scripts, styles, and most markup stripped; HTML entities " +
 			"decoded). Use this for reading articles, documentation, blog " +
@@ -157,8 +157,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "max_chars": {"type":"integer", "description":"Optional truncation cap on returned text. Default 65536."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Fetch one allow-listed web page with HTTP GET and return visible text to the model.",
 				"May send configured cookies to the target host when the browser cookie jar is enabled.",
@@ -178,4 +178,4 @@ type browserInput struct {
 // ErrHostDenied mirrors plugins/tools/http's sentinel.
 var ErrHostDenied = errors.New("browser: host not in allowlist")
 
-// Invoke implements agent.Tool.
+// Invoke implements toolapi.Tool.

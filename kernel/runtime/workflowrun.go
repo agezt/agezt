@@ -12,7 +12,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 )
@@ -121,7 +121,7 @@ func (k *Kernel) RunWorkflow(ctx context.Context, corr, ref string, payload any)
 	if err := workflow.Validate(w); err != nil { // defense: stores can predate rules
 		return RunWorkflowResult{}, err
 	}
-	ctx = agent.WithCorrelation(ctx, corr)
+	ctx = toolapi.WithCorrelation(ctx, corr)
 	runMeta := workflowRunProvenance(ctx)
 
 	_, _ = k.bus.Publish(event.Spec{
@@ -153,7 +153,7 @@ func workflowRunProvenance(ctx context.Context) map[string]any {
 	if source == "" {
 		source = "manual"
 	}
-	agentSlug := strings.TrimSpace(agent.AgentFromContext(ctx))
+	agentSlug := strings.TrimSpace(toolapi.AgentFromContext(ctx))
 	runner := source
 	if agentSlug != "" {
 		runner = "agent"

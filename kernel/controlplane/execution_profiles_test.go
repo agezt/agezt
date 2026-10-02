@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -18,7 +18,7 @@ import (
 func TestExecutionProfilesInventoryAndShow(t *testing.T) {
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"shell":      shell.NewWithWarden(warden.New(nil)),
 			"code_exec":  testTool{name: "code_exec"},
 			"coding":     testTool{name: "coding"},
@@ -118,7 +118,7 @@ func TestExecutionProfilesReportsConfiguredSSH(t *testing.T) {
 	t.Setenv("AGEZT_EXEC_SSH_TARGET", "deploy@example.com")
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})
@@ -150,7 +150,7 @@ func TestExecutionProfilesReportsConfiguredK8s(t *testing.T) {
 	t.Setenv("AGEZT_EXEC_K8S_POD", "runner-0")
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})
@@ -183,7 +183,7 @@ func TestExecutionProfilesReportsConfiguredModalAndDaytona(t *testing.T) {
 	t.Setenv("AGEZT_EXEC_DAYTONA_SANDBOX", "sandbox-1")
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})

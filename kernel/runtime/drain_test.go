@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -24,15 +24,15 @@ type stubbornTool struct {
 	finished atomic.Bool
 }
 
-func (s *stubbornTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "stubborn", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (s *stubbornTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "stubborn", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (s *stubbornTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (s *stubbornTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	close(s.started)
 	time.Sleep(s.sleep) // deliberately ignores ctx
 	s.finished.Store(true)
-	return agent.Result{Output: "done"}, nil
+	return toolapi.Result{Output: "done"}, nil
 }
 
 // TestClose_DrainsInFlightRun (M883): Close waits for an in-flight run to
@@ -47,7 +47,7 @@ func TestClose_DrainsInFlightRun(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"stubborn": tool},
+		Tools:    map[string]toolapi.Tool{"stubborn": tool},
 		// The test tool maps to an unknown capability; without UnknownAllow the
 		// policy gate would deny it and the tool would never run.
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
@@ -84,7 +84,7 @@ func TestClose_DrainTimeoutBounds(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:              t.TempDir(),
 		Provider:             prov,
-		Tools:                map[string]agent.Tool{"stubborn": tool},
+		Tools:                map[string]toolapi.Tool{"stubborn": tool},
 		ShutdownDrainTimeout: 100 * time.Millisecond,
 		Edict:                edict.New(edict.Options{UnknownAllow: true}),
 	})

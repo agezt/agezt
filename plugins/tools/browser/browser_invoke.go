@@ -18,32 +18,32 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in browserInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("browser: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser: parse input: %w", err)
 	}
 	if strings.TrimSpace(in.URL) == "" {
-		return agent.Result{}, errors.New("browser: url required")
+		return toolapi.Result{}, errors.New("browser: url required")
 	}
 
 	u, err := url.Parse(in.URL)
 	if err != nil {
-		return agent.Result{}, fmt.Errorf("browser: parse url: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser: parse url: %w", err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return agent.Result{}, fmt.Errorf("browser: scheme %q not allowed (only http/https)", u.Scheme)
+		return toolapi.Result{}, fmt.Errorf("browser: scheme %q not allowed (only http/https)", u.Scheme)
 	}
 	if !t.AllowAll && !hostAllowed(u.Host, t.AllowedHosts) {
-		return agent.Result{}, fmt.Errorf("%w: %s", ErrHostDenied, u.Host)
+		return toolapi.Result{}, fmt.Errorf("%w: %s", ErrHostDenied, u.Host)
 	}
 
 	req, err := stdhttp.NewRequestWithContext(ctx, "GET", in.URL, nil)
 	if err != nil {
-		return agent.Result{}, fmt.Errorf("browser: build request: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser: build request: %w", err)
 	}
 	req.Header.Set("User-Agent", t.UserAgent)
 	// Accept text/html primarily; some sites send JSON when they
@@ -63,7 +63,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return agent.Result{}, fmt.Errorf("browser: fetch: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser: fetch: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -71,7 +71,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	// then truncate cleanly.
 	rawBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxFetchBytes+1))
 	if err != nil {
-		return agent.Result{}, fmt.Errorf("browser: read body: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser: read body: %w", err)
 	}
 	truncatedRaw := false
 	if len(rawBody) > MaxFetchBytes {
@@ -83,7 +83,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		// Non-2xx: surface the status as a tool error rather than
 		// returning the error body as content; the agent should
 		// react to the failure, not quote the error page.
-		return agent.Result{}, fmt.Errorf("browser: HTTP %d from %s", resp.StatusCode, in.URL)
+		return toolapi.Result{}, fmt.Errorf("browser: HTTP %d from %s", resp.StatusCode, in.URL)
 	}
 
 	text := HTMLToText(string(rawBody))
@@ -130,11 +130,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 	enc, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
-		return agent.Result{}, fmt.Errorf("browser: marshal result: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser: marshal result: %w", err)
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output:            string(enc),
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: in.URL,
 	}, nil
 }

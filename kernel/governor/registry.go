@@ -9,7 +9,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // AuthMode summarises how a provider authenticates (DECISIONS C2: routing
@@ -27,7 +27,7 @@ type ProviderInfo struct {
 	// Name is the registry key; must match Provider.Name() for sanity.
 	Name string
 	// Provider is the actual implementation.
-	Provider agent.Provider
+	Provider llm.Provider
 	// AuthMode classifies the provider; routing prefers Subscription /
 	// Local over API-key when both can serve a request.
 	AuthMode AuthMode

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
-
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -27,13 +27,13 @@ import (
 // tests pin to LevelAsk so it requires approval under AskPrompt.
 type probeTool struct{ invoked *int32 }
 
-func (probeTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (probeTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:        "approvalprobe",
 		Description: "test probe (no side effects)",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
-		Effect: agent.ToolEffect{
-			Class:             agent.EffectIrreversible,
+		Effect: toolapi.ToolEffect{
+			Class:             toolapi.EffectIrreversible,
 			PredictedEffects:  []string{"perform approval probe action"},
 			AffectedResources: []string{"resource:approvalprobe"},
 			RollbackNotes:     "probe action has no rollback",
@@ -42,15 +42,15 @@ func (probeTool) Definition() agent.ToolDef {
 	}
 }
 
-func (p probeTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
+func (p probeTool) Invoke(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	atomic.AddInt32(p.invoked, 1)
-	return agent.Result{Output: "probe ran"}, nil
+	return toolapi.Result{Output: "probe ran"}, nil
 }
 
 // newApprovalKernel builds a kernel whose probe tool requires live approval:
 // the edict engine pins the "approvalprobe" capability to LevelAsk with
 // AskPolicy=AskPrompt, so a call routes through the approval.Registry.
-func newApprovalKernel(t *testing.T, prov agent.Provider, invoked *int32, timeout time.Duration) (*runtime.Kernel, *approval.Registry) {
+func newApprovalKernel(t *testing.T, prov llm.Provider, invoked *int32, timeout time.Duration) (*runtime.Kernel, *approval.Registry) {
 	t.Helper()
 	eng := edict.New(edict.Options{
 		Levels:    map[edict.Capability]edict.TrustLevel{"approvalprobe": edict.LevelAsk},
@@ -60,7 +60,7 @@ func newApprovalKernel(t *testing.T, prov agent.Provider, invoked *int32, timeou
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   t.TempDir(),
 		Provider:  prov,
-		Tools:     map[string]agent.Tool{"approvalprobe": probeTool{invoked: invoked}},
+		Tools:     map[string]toolapi.Tool{"approvalprobe": probeTool{invoked: invoked}},
 		Edict:     eng,
 		Approvals: reg,
 	})
@@ -114,7 +114,7 @@ func TestRunWith_ApprovalGrantedRunsTool(t *testing.T) {
 	if req.ToolName != "approvalprobe" || req.Capability != "approvalprobe" {
 		t.Errorf("pending request = {tool:%q cap:%q}, want approvalprobe/approvalprobe", req.ToolName, req.Capability)
 	}
-	if req.EffectClass != string(agent.EffectIrreversible) {
+	if req.EffectClass != string(toolapi.EffectIrreversible) {
 		t.Errorf("effect class=%q want irreversible", req.EffectClass)
 	}
 	if len(req.PredictedEffects) != 1 || req.PredictedEffects[0] != "perform approval probe action" {
@@ -155,7 +155,7 @@ func TestRunWith_ApprovalBundleUsesFirstPartyToolEffect(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   t.TempDir(),
 		Provider:  mock.New(testToolUse("c1", "shell", map[string]any{"command": "echo no"}), mock.FinalText("done")),
-		Tools:     map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:     map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Edict:     eng,
 		Approvals: reg,
 	})
@@ -174,7 +174,7 @@ func TestRunWith_ApprovalBundleUsesFirstPartyToolEffect(t *testing.T) {
 	if req.ToolName != "shell" || req.Capability != string(edict.CapShell) {
 		t.Fatalf("pending request = {tool:%q cap:%q}, want shell/%s", req.ToolName, req.Capability, edict.CapShell)
 	}
-	if req.EffectClass != string(agent.EffectIrreversible) {
+	if req.EffectClass != string(toolapi.EffectIrreversible) {
 		t.Fatalf("effect class=%q want irreversible", req.EffectClass)
 	}
 	if got := strings.Join(req.PredictedEffects, "\n"); !strings.Contains(got, "execute an operating-system command") {

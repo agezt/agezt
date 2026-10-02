@@ -8,11 +8,12 @@ package runtime
 //             split. Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/memory"
@@ -43,8 +44,8 @@ func (k *Kernel) Approvals() *approval.Registry { return k.approvals }
 // Scheduler exposes the DAG executor.
 func (k *Kernel) Scheduler() *scheduler.Executor { return k.scheduler }
 
-// Provider exposes the live agent.Provider.
-func (k *Kernel) Provider() agent.Provider { return k.cfg.Provider }
+// Provider exposes the live llm.Provider.
+func (k *Kernel) Provider() llm.Provider { return k.cfg.Provider }
 
 // Memory returns the memory-lite manager.
 func (k *Kernel) Memory() *memory.Manager { return k.memory }
@@ -56,7 +57,7 @@ func (k *Kernel) AgentGateway() *agentgw.Gateway { return k.agentGW }
 func (k *Kernel) Schedules() *cadence.Store { return k.schedules }
 
 // Tools returns the live in-process tool map.
-func (k *Kernel) Tools() map[string]agent.Tool { return k.tools }
+func (k *Kernel) Tools() map[string]toolapi.Tool { return k.tools }
 
 // ErrHalted is returned by Run when the kernel is in halt state. It is
 // runexec's sentinel re-exported (one value, one identity).

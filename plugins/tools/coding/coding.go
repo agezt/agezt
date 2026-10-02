@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/envscrub"
 )
@@ -39,7 +39,7 @@ const DefaultTimeout = 5 * time.Minute
 // context budget.
 const MaxDiffBytes = 60 * 1024
 
-// Tool implements agent.Tool. It is constructed only when an agent command is
+// Tool implements toolapi.Tool. It is constructed only when an agent command is
 // configured; see New.
 type Tool struct {
 	// Cmd is the shell command that runs the external coding agent. It runs
@@ -63,10 +63,10 @@ func New(cmd, repo string) *Tool {
 	return &Tool{Cmd: cmd, Repo: repo, run: execCommand}
 }
 
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "coding",
-		Capability: agent.ToolCapability{Name: string(edict.CapCoding)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapCoding)},
 		Description: "Delegate a focused coding task to an external coding agent running in an " +
 			"ISOLATED git worktree, and return the resulting diff for review. It never commits to " +
 			"or merges the working branch — you get the proposed patch back; applying it is a " +
@@ -82,8 +82,8 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Spawn an operator-configured external coding agent in an isolated git worktree.",
 				"Allow that agent to read repository contents, run commands, and produce a proposed diff.",
@@ -95,19 +95,19 @@ func (t *Tool) Definition() agent.ToolDef {
 	}
 }
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Task string `json:"task"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	task := strings.TrimSpace(in.Task)
 	if task == "" {
-		return agent.Result{Output: "task is required", IsError: true}, nil
+		return toolapi.Result{Output: "task is required", IsError: true}, nil
 	}
 	if strings.TrimSpace(t.Cmd) == "" {
-		return agent.Result{Output: "coding agent not configured (set AGEZT_CODING_CMD)", IsError: true}, nil
+		return toolapi.Result{Output: "coding agent not configured (set AGEZT_CODING_CMD)", IsError: true}, nil
 	}
 
 	to := t.Timeout
@@ -120,18 +120,18 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	// Must be a git repository — that's how we isolate (worktree) and capture
 	// (diff) the change without touching the working branch.
 	if _, err := t.run(ctx, t.Repo, nil, "git", "rev-parse", "--git-dir"); err != nil {
-		return agent.Result{Output: "coding requires a git repository at the workspace (" + t.Repo + "): " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "coding requires a git repository at the workspace (" + t.Repo + "): " + err.Error(), IsError: true}, nil
 	}
 
 	// Isolated worktree off the current HEAD (detached, so the working branch
 	// is untouched).
 	wt, err := os.MkdirTemp("", "agezt-coding-")
 	if err != nil {
-		return agent.Result{Output: "create worktree dir: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "create worktree dir: " + err.Error(), IsError: true}, nil
 	}
 	defer os.RemoveAll(wt)
 	if out, err := t.run(ctx, t.Repo, nil, "git", "worktree", "add", "--detach", wt, "HEAD"); err != nil {
-		return agent.Result{Output: "git worktree add failed: " + err.Error() + "\n" + out, IsError: true}, nil
+		return toolapi.Result{Output: "git worktree add failed: " + err.Error() + "\n" + out, IsError: true}, nil
 	}
 	// Always detach the worktree from git's metadata, even on error.
 	defer func() {
@@ -156,14 +156,14 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	gitCtx, cancelGit := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelGit()
 	if out, err := t.run(gitCtx, wt, nil, "git", "add", "-A"); err != nil {
-		return agent.Result{Output: "git add failed: " + err.Error() + "\n" + out, IsError: true}, nil
+		return toolapi.Result{Output: "git add failed: " + err.Error() + "\n" + out, IsError: true}, nil
 	}
 	diff, derr := t.run(gitCtx, wt, nil, "git", "diff", "--cached", "HEAD")
 	if derr != nil {
-		return agent.Result{Output: "git diff failed: " + derr.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "git diff failed: " + derr.Error(), IsError: true}, nil
 	}
 
-	return agent.Result{Output: renderResult(diff, agentOut, agentErr)}, nil
+	return toolapi.Result{Output: renderResult(diff, agentOut, agentErr)}, nil
 }
 
 // renderResult formats the tool output: a short header, the agent's own output

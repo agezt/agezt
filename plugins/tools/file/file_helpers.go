@@ -12,12 +12,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // ----- ops -----
 
-func (t *Tool) doRead(in fileInput) (agent.Result, error) {
+func (t *Tool) doRead(in fileInput) (toolapi.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -71,7 +71,7 @@ const maxReadRangeLines = 5000
 // doReadRange returns lines [start_line, end_line] of a file (M117), bounded by
 // maxReadRangeLines and MaxReadBytes. The output is the raw line content (usable
 // directly for a follow-up `replace`) under a "[lines X-Y]" header.
-func (t *Tool) doReadRange(in fileInput, p string) (agent.Result, error) {
+func (t *Tool) doReadRange(in fileInput, p string) (toolapi.Result, error) {
 	start := in.StartLine
 	if start < 1 {
 		start = 1

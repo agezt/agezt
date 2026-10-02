@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -24,7 +24,7 @@ import (
 // response (given token usage) journals a budget.consumed event — the substrate
 // the M48 sub-agent spend cap reads. The governor shares the kernel's bus
 // (SetBus, the daemon's pattern) so spend events land in the kernel's journal.
-func openSpendKernel(t *testing.T, prov agent.Provider, spendCapMC int64) *runtime.Kernel {
+func openSpendKernel(t *testing.T, prov llm.Provider, spendCapMC int64) *runtime.Kernel {
 	t.Helper()
 	reg := governor.NewRegistry()
 	if err := reg.Register(&governor.ProviderInfo{
@@ -39,7 +39,7 @@ func openSpendKernel(t *testing.T, prov agent.Provider, spendCapMC int64) *runti
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   g,
-		Tools:                      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:                      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Model:                      "claude-sonnet-4-6", // priced, so usage → non-zero spend
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           1,
@@ -56,8 +56,8 @@ func openSpendKernel(t *testing.T, prov agent.Provider, spendCapMC int64) *runti
 // withUsage stamps synthetic token usage on a response so the governor prices a
 // non-zero cost. 2000/1000 tokens on claude-sonnet-4-6 = 2_100_000 microcents
 // ($0.0021) per call.
-func withUsage(r agent.CompletionResponse) agent.CompletionResponse {
-	return testWithUsage(r, agent.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
+func withUsage(r llm.CompletionResponse) llm.CompletionResponse {
+	return testWithUsage(r, llm.Usage{InputTokens: 2000, OutputTokens: 1000, Model: "claude-sonnet-4-6"})
 }
 
 func TestSubAgent_SpendGuard(t *testing.T) {
@@ -149,12 +149,12 @@ func (c *collector) ofKind(k event.Kind) []*event.Event {
 	return out
 }
 
-func openSubAgentKernel(t *testing.T, prov agent.Provider, depth int) *runtime.Kernel {
+func openSubAgentKernel(t *testing.T, prov llm.Provider, depth int) *runtime.Kernel {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: depth,
 	})
@@ -285,7 +285,7 @@ func TestSubAgent_FanoutGuard(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:           t.TempDir(),
 		Provider:          prov,
-		Tools:             map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:             map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:      true,
 		SubAgentMaxDepth:  1,
 		SubAgentMaxFanout: 2,
@@ -357,7 +357,7 @@ func TestSubAgent_TotalGuard_BoundsWholeTreeAcrossDepths(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 3, // deep nesting allowed; the TOTAL cap is what bounds the tree
 		SubAgentMaxTotal: 2,
@@ -417,7 +417,7 @@ func TestSubAgent_TotalUnboundedByDefault(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 3, // no total cap
 	})
@@ -444,13 +444,13 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	// CompletionRequest.Model — the basis for per-request model selection.
 	prov := mock.New(mock.FinalText("ok"))
 	var sawModel string
-	prov.OnRequest = func(req agent.CompletionRequest) { sawModel = req.Model }
+	prov.OnRequest = func(req llm.CompletionRequest) { sawModel = req.Model }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "default-model",
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -468,10 +468,10 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	// Without an override, the configured default is used.
 	sawModel = ""
 	prov2 := mock.New(mock.FinalText("ok"))
-	prov2.OnRequest = func(req agent.CompletionRequest) { sawModel = req.Model }
+	prov2.OnRequest = func(req llm.CompletionRequest) { sawModel = req.Model }
 	k2, _ := runtime.Open(runtime.Config{
 		BaseDir: t.TempDir(), Provider: prov2, Model: "default-model",
-		Tools: map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools: map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	t.Cleanup(func() { k2.Close() })
 	if _, err := k2.RunWith(context.Background(), k2.NewCorrelation(), "hi"); err != nil {
@@ -493,7 +493,7 @@ func TestSubAgent_ModelOverride(t *testing.T) {
 	)
 	var mu sync.Mutex
 	var models []string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		models = append(models, req.Model)
 		mu.Unlock()
@@ -502,7 +502,7 @@ func TestSubAgent_ModelOverride(t *testing.T) {
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "lead-default",
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 	})
@@ -573,7 +573,7 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 	)
 	var mu sync.Mutex
 	var models []string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		models = append(models, req.Model)
 		mu.Unlock()
@@ -582,7 +582,7 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "lead-default",
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 	})
@@ -638,7 +638,7 @@ func TestSubAgent_ModelFollowsLiveDefault(t *testing.T) {
 	)
 	var mu sync.Mutex
 	var models []string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		models = append(models, req.Model)
 		mu.Unlock()
@@ -647,7 +647,7 @@ func TestSubAgent_ModelFollowsLiveDefault(t *testing.T) {
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "boot-model",
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 	})
@@ -699,7 +699,7 @@ func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
 	)
 	var mu sync.Mutex
 	var systems []string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		systems = append(systems, req.System)
 		mu.Unlock()
@@ -709,7 +709,7 @@ func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
 		Provider:         prov,
 		Model:            "m",
 		System:           "boot persona",
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 	})
@@ -750,7 +750,7 @@ func TestSubAgent_DisabledByDefault(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -764,7 +764,7 @@ func TestSubAgent_DisabledByDefault(t *testing.T) {
 // openSpendKernelDepth is openSpendKernel with a caller-chosen max depth, so a
 // sub-agent can itself delegate (depth >= 2) — needed to exercise the TRANSITIVE
 // spend accounting (a grandchild's spend counting toward an ancestor's cap).
-func openSpendKernelDepth(t *testing.T, prov agent.Provider, spendCapMC int64, depth int) *runtime.Kernel {
+func openSpendKernelDepth(t *testing.T, prov llm.Provider, spendCapMC int64, depth int) *runtime.Kernel {
 	t.Helper()
 	reg := governor.NewRegistry()
 	if err := reg.Register(&governor.ProviderInfo{
@@ -779,7 +779,7 @@ func openSpendKernelDepth(t *testing.T, prov agent.Provider, spendCapMC int64, d
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   g,
-		Tools:                      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:                      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		Model:                      "claude-sonnet-4-6",
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           depth,

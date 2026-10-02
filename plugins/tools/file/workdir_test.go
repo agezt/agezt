@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // TestWorkdir_RebasesRelativePaths: a run carrying a per-agent workdir (M792)
@@ -22,9 +22,9 @@ func TestWorkdir_RebasesRelativePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	ctx := agent.WithWorkdir(context.Background(), "research")
+	ctx := toolapi.WithWorkdir(context.Background(), "research")
 
-	invoke := func(ctx context.Context, in map[string]any) agent.Result {
+	invoke := func(ctx context.Context, in map[string]any) toolapi.Result {
 		t.Helper()
 		raw, _ := json.Marshal(in)
 		res, err := tool.Invoke(ctx, raw)
@@ -69,11 +69,11 @@ func TestWorkdir_RebasesRelativePaths(t *testing.T) {
 // any `..` shape leave the context unset.
 func TestWithWorkdir_RefusesEscapes(t *testing.T) {
 	for _, w := range []string{"/abs", "..", "../up", "a/../../b", "a/.."} {
-		if got := agent.WorkdirFromContext(agent.WithWorkdir(context.Background(), w)); got != "" {
+		if got := toolapi.WorkdirFromContext(toolapi.WithWorkdir(context.Background(), w)); got != "" {
 			t.Errorf("escaping workdir %q accepted as %q", w, got)
 		}
 	}
-	if got := agent.WorkdirFromContext(agent.WithWorkdir(context.Background(), "team/research")); got != "team/research" {
+	if got := toolapi.WorkdirFromContext(toolapi.WithWorkdir(context.Background(), "team/research")); got != "team/research" {
 		t.Errorf("clean workdir mangled: %q", got)
 	}
 }

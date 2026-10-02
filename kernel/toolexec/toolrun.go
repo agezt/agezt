@@ -12,17 +12,19 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 // ToolLookup is the interface for resolving tool names to their implementations.
 type ToolLookup interface {
-	LookupTool(name string) (agent.Tool, bool)
+	LookupTool(name string) (toolapi.Tool, bool)
 }
 
 // PolicyChecker is the interface for gating tool invocations.
 type PolicyChecker interface {
-	CheckPolicy(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict
+	CheckPolicy(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict
 }
 
 // EventPublisher is the interface for emitting tool and policy events.
@@ -32,7 +34,7 @@ type EventPublisher interface {
 
 // NoiseNotifier is the interface for agent-noise completion callbacks.
 type NoiseNotifier interface {
-	NotifyNoise(ctx context.Context, tc agent.ToolCall, res agent.Result)
+	NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.Result)
 }
 
 // Run executes one registered in-process tool under the same schema and
@@ -49,15 +51,15 @@ func Run(
 	policy PolicyChecker,
 	events EventPublisher,
 	noise NoiseNotifier,
-) (agent.Result, error) {
+) (toolapi.Result, error) {
 	tool, ok := tools.LookupTool(toolName)
 	if !ok {
-		return agent.Result{}, fmt.Errorf("unknown tool %q", toolName)
+		return toolapi.Result{}, fmt.Errorf("unknown tool %q", toolName)
 	}
 	if err := agent.ValidateToolInput(tool.Definition(), args); err != nil {
-		return agent.Result{}, fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
+		return toolapi.Result{}, fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
 	}
-	verdict := policy.CheckPolicy(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args})
+	verdict := policy.CheckPolicy(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args})
 	// Journal the gating decision for the direct (operator/CLI) tool path too, so it
 	// is audited exactly like a loop tool call (kernel/agent publishes the same
 	// policy.decision for in-loop calls). Without this, a refused direct tool run
@@ -83,7 +85,7 @@ func Run(
 		if reason == "" {
 			reason = "denied by policy"
 		}
-		return agent.Result{}, fmt.Errorf("tool %s refused: %s", toolName, reason)
+		return toolapi.Result{}, fmt.Errorf("tool %s refused: %s", toolName, reason)
 	}
 	if err := events.PublishEvent(event.Spec{
 		Subject:       "tool",
@@ -96,9 +98,9 @@ func Run(
 			"input":   args,
 		},
 	}); err != nil {
-		return agent.Result{}, err
+		return toolapi.Result{}, err
 	}
-	res, err := tool.Invoke(agent.WithCorrelation(ctx, corr), args)
+	res, err := tool.Invoke(toolapi.WithCorrelation(ctx, corr), args)
 	if err != nil {
 		_ = events.PublishEvent(event.Spec{
 			Subject:       "tool",
@@ -107,8 +109,8 @@ func Run(
 			CorrelationID: corr,
 			Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": err.Error(), "error": true},
 		})
-		noise.NotifyNoise(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, agent.Result{Output: err.Error(), IsError: true})
-		return agent.Result{}, err
+		noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, toolapi.Result{Output: err.Error(), IsError: true})
+		return toolapi.Result{}, err
 	}
 	if err := events.PublishEvent(event.Spec{
 		Subject:       "tool",
@@ -117,8 +119,8 @@ func Run(
 		CorrelationID: corr,
 		Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": res.Output, "error": res.IsError},
 	}); err != nil {
-		return agent.Result{}, err
+		return toolapi.Result{}, err
 	}
-	noise.NotifyNoise(ctx, agent.ToolCall{ID: callID, Name: toolName, Input: args}, res)
+	noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, res)
 	return res, nil
 }

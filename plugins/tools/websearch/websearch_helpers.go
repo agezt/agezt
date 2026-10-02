@@ -6,7 +6,7 @@ package websearch
 // variables used against the DuckDuckGo LITE markup, parseResults (link
 // + snippet extraction), cleanURL / cleanText (HTML & whitespace
 // normalisation), and the soft / err result formatters that turn parsed
-// hits into agent.Result. The Tool struct + Invoke live in websearch.go.
+// hits into toolapi.Result. The Tool struct + Invoke live in websearch.go.
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // reLink matches the DuckDuckGo LITE result anchors; reSnippet matches the
@@ -87,7 +87,7 @@ func cleanText(s string) string {
 // softResult renders the {query, count, results, note?} payload the model
 // receives. note carries a graceful "why empty" explanation when present; it
 // never sets IsError, so a no-result search reads as a fact, not a failure.
-func softResult(query string, results []Result, note string) agent.Result {
+func softResult(query string, results []Result, note string) toolapi.Result {
 	if results == nil {
 		results = []Result{}
 	}
@@ -103,13 +103,13 @@ func softResult(query string, results []Result, note string) agent.Result {
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output:            string(enc),
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: "web_search:" + query,
 	}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "web_search: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "web_search: " + msg, IsError: true}
 }

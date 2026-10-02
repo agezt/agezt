@@ -14,15 +14,16 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 const defaultHelpLimit = 20
 
-func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("overseer: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("overseer: parse input: %w", err)
 	}
 	s := t.current()
 	if s == nil {

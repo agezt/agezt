@@ -15,11 +15,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTokens int, jsonMode bool, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	out := ollamaRequest{
 		Model:  model,
 		Stream: false,
@@ -73,11 +74,11 @@ func ollamaImageData(s string) (string, bool) {
 	return payload, true
 }
 
-func canonicalToOllama(m agent.Message) (ollamaMessage, error) {
+func canonicalToOllama(m llm.Message) (ollamaMessage, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return ollamaMessage{Role: "system", Content: m.Content}, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		om := ollamaMessage{Role: "user", Content: m.Content}
 		// Vision (M309): a user message may carry image attachments as RFC 2397
 		// data: URLs (what the CLI sends, M241). Ollama's chat API takes raw
@@ -92,7 +93,7 @@ func canonicalToOllama(m agent.Message) (ollamaMessage, error) {
 			}
 		}
 		return om, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		om := ollamaMessage{Role: "assistant", Content: m.Content}
 		for _, tc := range m.ToolCalls {
 			args := tc.Input
@@ -108,7 +109,7 @@ func canonicalToOllama(m agent.Message) (ollamaMessage, error) {
 			})
 		}
 		return om, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return ollamaMessage{}, errors.New("ollama: role=tool requires tool_call_id")
 		}

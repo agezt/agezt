@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
@@ -3164,12 +3164,12 @@ func TestAgentResolve_ForceChainRejectsExhaustedChain(t *testing.T) {
 }
 
 type rosterRoutingProvider struct {
-	agent.Provider
+	llm.Provider
 	mu     sync.Mutex
 	chains map[string][]string
 }
 
-func newRosterRoutingProvider(base agent.Provider, chains map[string][]string) *rosterRoutingProvider {
+func newRosterRoutingProvider(base llm.Provider, chains map[string][]string) *rosterRoutingProvider {
 	cp := make(map[string][]string, len(chains))
 	for k, v := range chains {
 		cp[k] = append([]string(nil), v...)

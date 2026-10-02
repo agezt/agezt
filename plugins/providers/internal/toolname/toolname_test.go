@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // strict is the intersection pattern: chars [a-zA-Z0-9_-], leading letter/_, ≤64.
@@ -43,7 +44,7 @@ func TestSanitize(t *testing.T) {
 }
 
 func TestMapsRoundTrip(t *testing.T) {
-	tools := []agent.ToolDef{{Name: "browser.read"}, {Name: "shell"}}
+	tools := []toolapi.ToolDef{{Name: "browser.read"}, {Name: "shell"}}
 	fwd, rev := Maps(tools)
 	if fwd["browser.read"] != "browser_read" || fwd["shell"] != "shell" {
 		t.Fatalf("fwd = %v", fwd)
@@ -59,7 +60,7 @@ func TestMapsRoundTrip(t *testing.T) {
 		t.Fatalf("Wire fallback wrong")
 	}
 
-	resp := &agent.CompletionResponse{Message: agent.Message{ToolCalls: []agent.ToolCall{
+	resp := &llm.CompletionResponse{Message: llm.Message{ToolCalls: []llm.ToolCall{
 		{Name: "browser_read"}, {Name: "shell"},
 	}}}
 	RestoreCalls(resp, Reverse(tools))
@@ -69,7 +70,7 @@ func TestMapsRoundTrip(t *testing.T) {
 }
 
 func TestMapsCollisionInjective(t *testing.T) {
-	fwd, _ := Maps([]agent.ToolDef{{Name: "browser.read"}, {Name: "browser_read"}, {Name: "browser:read"}})
+	fwd, _ := Maps([]toolapi.ToolDef{{Name: "browser.read"}, {Name: "browser_read"}, {Name: "browser:read"}})
 	seen := map[string]bool{}
 	for _, w := range fwd {
 		if seen[w] {

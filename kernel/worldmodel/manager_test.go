@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
@@ -386,4 +386,4 @@ func mustJSON(t *testing.T, v any) []byte {
 	return b
 }
 
-var _ = agent.Tool(worldTool{})
+var _ = toolapi.Tool(worldTool{})

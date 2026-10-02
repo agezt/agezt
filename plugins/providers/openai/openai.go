@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -88,7 +88,7 @@ func (p *Provider) resolveEndpoint() string {
 	return DefaultEndpoint
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "openai" }
 
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
@@ -110,9 +110,9 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("openai: status %d: %s", e.Status, e.Body)
 }
 
-// Complete implements agent.Provider. It honors ctx for HTTP
+// Complete implements llm.Provider. It honors ctx for HTTP
 // cancellation (which is how the agent loop reacts to `agt halt`).
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}

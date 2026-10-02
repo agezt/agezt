@@ -17,8 +17,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/toolforge"
 )
@@ -33,7 +33,7 @@ type Kernel interface {
 	ToolForge() *toolforge.Store
 }
 
-// Tool implements agent.Tool. Construct with New, then Bind the live kernel
+// Tool implements toolapi.Tool. Construct with New, then Bind the live kernel
 // once it opens (the daemon is the single wiring point).
 type Tool struct {
 	mu sync.RWMutex
@@ -57,11 +57,11 @@ func (t *Tool) current() Kernel {
 	return t.k
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "tool_forge",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// op=test RUNS the draft's code in the sandbox — a real code execution, so
 			// it rides code.exec rather than the authoring axis.
 			Name:  string(edict.CapToolForge),
@@ -92,8 +92,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "input":        {"type":"string", "description":"For op=test (optional): a sample JSON input for the run (default {})."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Draft, update, test, inspect, or request promotion of agent-authored script tools.",
 				"Testing executes draft code inside the configured sandbox; promotion changes future tool availability after approval.",
@@ -116,17 +116,17 @@ type input struct {
 	Input       string `json:"input"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("tool_forge: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("tool_forge: parse input: %w", err)
 	}
 	k := t.current()
 	if k == nil {
 		return errResult("the tool forge is not available on this daemon"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 
 	switch in.Op {
 	case "draft":
@@ -188,7 +188,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		if !st.TestedOK {
 			verdict = "FAILED — fix the code (op=update) and test again"
 		}
-		return agent.Result{Output: "test " + verdict + "\n\n" + out, IsError: !st.TestedOK}, nil
+		return toolapi.Result{Output: "test " + verdict + "\n\n" + out, IsError: !st.TestedOK}, nil
 
 	case "request_promotion":
 		if strings.TrimSpace(in.Ref) == "" {
@@ -260,14 +260,14 @@ func view(st toolforge.ScriptTool) map[string]any {
 	return v
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "tool_forge: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "tool_forge: " + msg, IsError: true}
 }

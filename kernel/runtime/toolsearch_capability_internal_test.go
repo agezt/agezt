@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -17,7 +17,7 @@ import (
 // it, so it resolved to the unknown capability "tool_search", which Edict
 // DEFAULT-DENIES: tool discovery was dead exactly when it was switched on.
 func TestToolSearch_DeclaresAGovernedCapability(t *testing.T) {
-	tools := withToolSearch(map[string]agent.Tool{"echo": echoTool{}})
+	tools := withToolSearch(map[string]toolapi.Tool{"echo": echoTool{}})
 	ts, ok := tools[toolSearchName]
 	if !ok {
 		t.Fatal("withToolSearch did not inject tool_search")
@@ -36,7 +36,9 @@ func TestToolSearch_DeclaresAGovernedCapability(t *testing.T) {
 
 type echoTool struct{}
 
-func (echoTool) Definition() agent.ToolDef { return agent.ToolDef{Name: "echo", Description: "echo"} }
-func (echoTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: string(raw)}, nil
+func (echoTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "echo", Description: "echo"}
+}
+func (echoTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: string(raw)}, nil
 }

@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
@@ -41,7 +41,7 @@ const MaxResponseBytes = 256 * 1024
 // MaxRequestBodyBytes caps the request body the model can send.
 const MaxRequestBodyBytes = 256 * 1024
 
-// Tool is the http tool implementation of agent.Tool.
+// Tool is the http tool implementation of toolapi.Tool.
 type Tool struct {
 	// AllowedHosts is the case-insensitive set of bare hostnames the tool
 	// will contact (no scheme, no path). "*.example.com" wildcards are
@@ -122,17 +122,17 @@ func (t *Tool) client() *stdhttp.Client {
 // default; made explicit because setting CheckRedirect replaces that default.
 const maxRedirects = 10
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
 	hosts := strings.Join(t.AllowedHosts, ", ")
 	if t.AllowAll {
 		hosts = "all hosts allowed by tool config"
 	} else if hosts == "" {
 		hosts = "none configured"
 	}
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name: "http",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			Name:  string(edict.CapHTTPGet),
 			Field: "method",
 			ByValue: map[string]string{
@@ -141,8 +141,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		},
 		Description: "Fetch a URL (GET) or POST a JSON/text body to it. " +
 			"Hosts must be in the tool's allowlist; otherwise the call is denied.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"perform an outbound HTTP GET or POST to an allowed host",
 				"POST requests may mutate remote state controlled by that service",
@@ -177,11 +177,11 @@ type httpInput struct {
 // outside the allowlist.
 var ErrHostDenied = errors.New("http: host not in allowlist")
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in httpInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("http: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("http: parse input: %w", err)
 	}
 
 	method := strings.ToUpper(strings.TrimSpace(in.Method))
@@ -261,10 +261,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output:            string(enc),
 		IsError:           resp.StatusCode >= 400,
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: resp.Request.URL.String(),
 	}, nil
 }
@@ -308,6 +308,6 @@ func flattenHeaders(h stdhttp.Header) map[string]string {
 	return out
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: msg, IsError: true}
 }

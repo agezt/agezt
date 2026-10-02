@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestSendmediaCoverageDefinition(t *testing.T) {
@@ -36,8 +36,8 @@ func TestSendmediaCoverageDefinition(t *testing.T) {
 	if !strings.Contains(def.Description, "discord, telegram") {
 		t.Fatalf("description should list sorted kinds, got %q", def.Description)
 	}
-	if def.Effect.Class != agent.EffectCompensable {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectCompensable)
+	if def.Effect.Class != toolapi.EffectCompensable {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectCompensable)
 	}
 }
 

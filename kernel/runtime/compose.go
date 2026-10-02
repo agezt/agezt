@@ -10,7 +10,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
+	"log/slog"
+	"maps"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
@@ -18,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
@@ -46,11 +52,6 @@ import (
 	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"log/slog"
-	"maps"
-	"os"
-	"path/filepath"
-	"time"
 )
 
 // This file is the kernel's composition root: Open + Close + closeAll +
@@ -247,7 +248,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// The agent's effective tool set is the configured tools plus the
 	// in-process memory/world tools (when enabled). Built once, exposed via
 	// Tools() so `agt tool list` reflects what the loop actually sees.
-	effTools := make(map[string]agent.Tool, len(cfg.Tools)+2)
+	effTools := make(map[string]toolapi.Tool, len(cfg.Tools)+2)
 	maps.Copy(effTools, cfg.Tools)
 	if cfg.MemoryTool {
 		effTools["memory"] = mgr.Tool()

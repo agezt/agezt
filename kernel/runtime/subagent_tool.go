@@ -11,17 +11,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
 func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
 
-func (t *subAgentTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *subAgentTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "delegate",
-		Capability: agent.ToolCapability{Name: string(edict.CapDelegate)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Delegate a focused subtask to a fresh sub-agent that works " +
 			"autonomously (its own tool-loop) and returns a concise result. LEAD the work: " +
 			"break a big task into parts and delegate each — your sub-agents can delegate " +
@@ -60,8 +60,8 @@ func (t *subAgentTool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Spawn a governed sub-agent run with its own tool loop, budget, and journal correlation.",
 				"Async mode may keep the child run active after the delegate call returns until collected or cancelled.",
@@ -73,7 +73,7 @@ func (t *subAgentTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Task     string `json:"task"`
 		Model    string `json:"model"`
@@ -82,44 +82,44 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (agent
 		Async    bool   `json:"async"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	if in.Async {
 		if t.spawn == nil {
-			return agent.Result{Output: "sub-agent spawner not wired", IsError: true}, nil
+			return toolapi.Result{Output: "sub-agent spawner not wired", IsError: true}, nil
 		}
 		id, err := t.spawn(ctx, in.Task, in.Model, in.TaskType, in.Agent)
 		if err != nil {
-			return agent.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
 		}
-		return agent.Result{Output: fmt.Sprintf("spawned sub-agent %s — it is working in the background. Collect its result with delegate_await {\"spawn_id\":%q} before your final answer.", id, id)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("spawned sub-agent %s — it is working in the background. Collect its result with delegate_await {\"spawn_id\":%q} before your final answer.", id, id)}, nil
 	}
 	if t.run == nil {
-		return agent.Result{Output: "sub-agent runner not wired", IsError: true}, nil
+		return toolapi.Result{Output: "sub-agent runner not wired", IsError: true}, nil
 	}
 	out, err := t.run(ctx, in.Task, in.Model, in.TaskType, in.Agent)
 	if err != nil {
 		// Surface as a tool error so the lead agent can adapt, not crash.
-		return agent.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
 	}
-	return agent.Result{Output: out}, nil
+	return toolapi.Result{Output: out}, nil
 }
 
 // subAgentAwaitTool is the in-process `delegate_await` tool (M881): the
 // collect half of async delegation. Its runner is wired to k.awaitSubAgent
 // after the kernel is constructed.
 type subAgentAwaitTool struct {
-	await func(ctx context.Context, spawnID string) (agent.Result, error)
+	await func(ctx context.Context, spawnID string) (toolapi.Result, error)
 }
 
 func newSubAgentAwaitTool() *subAgentAwaitTool { return &subAgentAwaitTool{} }
 
-func (t *subAgentAwaitTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *subAgentAwaitTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "delegate_await",
 		// Collecting an async delegation's result is the same axis as spawning
 		// it (M881) — no new capability, it inherits the delegate grant.
-		Capability: agent.ToolCapability{Name: string(edict.CapDelegate)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapDelegate)},
 		Description: "Wait for an async delegation (delegate with async=true) to finish and " +
 			"return its result. Call it once per spawn_id; issue several delegate_await calls " +
 			"in one turn to collect a whole fan-out. If it reports the sub-agent is still " +
@@ -134,8 +134,8 @@ func (t *subAgentAwaitTool) Definition() agent.ToolDef {
   },
   "required": ["spawn_id"]
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Wait for and collect one previously spawned async sub-agent result.",
 			},
@@ -146,15 +146,15 @@ func (t *subAgentAwaitTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t *subAgentAwaitTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *subAgentAwaitTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		SpawnID string `json:"spawn_id"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	if t.await == nil {
-		return agent.Result{Output: "sub-agent awaiter not wired", IsError: true}, nil
+		return toolapi.Result{Output: "sub-agent awaiter not wired", IsError: true}, nil
 	}
 	return t.await(ctx, in.SpawnID)
 }

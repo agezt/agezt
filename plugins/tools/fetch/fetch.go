@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
@@ -41,7 +41,7 @@ type Indexer interface {
 	PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error)
 }
 
-// Tool is the `fetch` implementation of agent.Tool.
+// Tool is the `fetch` implementation of toolapi.Tool.
 type Tool struct {
 	// HTTP overrides the default client; when nil a netguard-protected client is
 	// built (default-deny to internal/metadata addresses).
@@ -94,11 +94,11 @@ func (t *Tool) client() *stdhttp.Client {
 	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "fetch",
-		Capability: agent.ToolCapability{Name: string(edict.CapHTTPGet)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapHTTPGet)},
 		Description: "Download a URL and SAVE its bytes as an artifact (file) — use this to keep " +
 			"an image, PDF, or other file from the web (it appears in the Files view and can be " +
 			"downloaded). Returns the artifact {id, mime, size, name}. For reading a page's TEXT " +
@@ -111,8 +111,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "name": {"type":"string", "description":"Optional file name for the saved artifact."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Download bytes from an HTTP(S) URL with GET.",
 				"Persist the downloaded content into the artifact store for later viewing or reuse.",
@@ -129,11 +129,11 @@ type fetchInput struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in fetchInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("fetch: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("fetch: parse input: %w", err)
 	}
 	u := strings.TrimSpace(in.URL)
 	if u == "" {
@@ -203,9 +203,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		"saved": true,
 		"note":  "saved to the Files view; reference it by id",
 	}, "", "  ")
-	return agent.Result{
+	return toolapi.Result{
 		Output:            string(out),
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: u,
 	}, nil
 }
@@ -240,6 +240,6 @@ func nameFromURL(raw string) string {
 	return "download"
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "fetch: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "fetch: " + msg, IsError: true}
 }

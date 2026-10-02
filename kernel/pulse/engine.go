@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -30,7 +30,7 @@ type Config struct {
 	Bus         *bus.Bus
 	State       *state.FileStore // for novelty cache + observer state; optional
 	Warden      warden.Engine    // for the probe observer; optional
-	Provider    agent.Provider   // for the optional LLM salience refine
+	Provider    llm.Provider     // for the optional LLM salience refine
 	Model       string
 	Relevance   Relevance // world-model relevance signal; optional
 	Observers   []Observer

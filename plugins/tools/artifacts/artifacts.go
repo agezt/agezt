@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -40,7 +40,7 @@ type Index interface {
 	Delete(id string) error
 }
 
-// Tool is the `artifacts` implementation of agent.Tool.
+// Tool is the `artifacts` implementation of toolapi.Tool.
 type Tool struct {
 	index Index
 }
@@ -52,11 +52,11 @@ func New() *Tool { return &Tool{} }
 // since the index lives on the kernel). Without it, the tool reports unavailable.
 func (t *Tool) SetIndex(idx Index) { t.index = idx }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "artifacts",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// list/read — and anything unrecognised — only READ stored files, so the
 			// read axis is the fallback: a garbled call cannot gain delete.
 			Name:  string(edict.CapFileRead),
@@ -82,8 +82,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit":  {"type":"integer", "description":"list: max entries to return (default 50)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"List or read saved artifacts from the local artifact store.",
 				"Delete one saved artifact when op=delete is requested.",
@@ -104,11 +104,11 @@ type input struct {
 	Limit  int    `json:"limit,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("artifacts: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("artifacts: parse input: %w", err)
 	}
 	if t.index == nil {
 		return errResult("artifact store unavailable"), nil
@@ -125,7 +125,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 }
 
-func (t *Tool) list(in input) agent.Result {
+func (t *Tool) list(in input) toolapi.Result {
 	entries := t.index.List(artifact.Filter{Kind: in.Kind, Source: in.Source, Corr: in.Corr})
 	limit := in.Limit
 	if limit <= 0 {
@@ -152,10 +152,10 @@ func (t *Tool) list(in input) agent.Result {
 		"truncated": truncated,
 		"artifacts": rows,
 	}, "", "  ")
-	return agent.Result{Output: string(out)}
+	return toolapi.Result{Output: string(out)}
 }
 
-func (t *Tool) read(in input) agent.Result {
+func (t *Tool) read(in input) toolapi.Result {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		return errResult("id required for read")
@@ -170,7 +170,7 @@ func (t *Tool) read(in input) agent.Result {
 			"binary": true,
 			"note":   "binary file — not shown inline; download it from the Files view",
 		}, "", "  ")
-		return agent.Result{Output: string(out)}
+		return toolapi.Result{Output: string(out)}
 	}
 	text := string(data)
 	note := ""
@@ -179,10 +179,10 @@ func (t *Tool) read(in input) agent.Result {
 		note = fmt.Sprintf("\n\n[truncated: showing first %d of %d bytes]", MaxReadBytes, len(data))
 	}
 	header := fmt.Sprintf("%s (%s, %d bytes)\n\n", e.Name, e.Mime, e.Size)
-	return agent.Result{Output: header + text + note}
+	return toolapi.Result{Output: header + text + note}
 }
 
-func (t *Tool) del(in input) agent.Result {
+func (t *Tool) del(in input) toolapi.Result {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		return errResult("id required for delete")
@@ -190,7 +190,7 @@ func (t *Tool) del(in input) agent.Result {
 	if err := t.index.Delete(id); err != nil {
 		return errResult("delete " + id + ": " + err.Error())
 	}
-	return agent.Result{Output: "deleted " + id}
+	return toolapi.Result{Output: "deleted " + id}
 }
 
 // isTextMime reports whether an artifact is safe to return inline as text — either
@@ -213,6 +213,6 @@ func isTextMime(mime string, data []byte) bool {
 	}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "artifacts: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "artifacts: " + msg, IsError: true}
 }

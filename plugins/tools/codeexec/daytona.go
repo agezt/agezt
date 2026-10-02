@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -34,7 +34,7 @@ func (t *Tool) invokeDaytona(
 	allowNet bool,
 	timeout time.Duration,
 	codeBytes int,
-) agent.Result {
+) toolapi.Result {
 	remoteDir := daytonaWorkDir(cfg, dir, projectSlug)
 	if strings.TrimSpace(remoteDir) == "" {
 		return errResult("daytona remote workdir is empty")

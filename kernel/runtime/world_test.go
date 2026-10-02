@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -20,7 +20,7 @@ import (
 func TestWorldEntitiesInjectedIntoSystemPrompt(t *testing.T) {
 	prov := mock.New(mock.FinalText("answered"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
@@ -58,7 +58,7 @@ func TestWorldEntitiesInjectedIntoSystemPrompt(t *testing.T) {
 func TestWorldInjectionOffByDefault(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
@@ -83,7 +83,7 @@ func TestWorldToolRegisteredWhenEnabled(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   t.TempDir(),
 		Provider:  mock.New(mock.FinalText("ok")),
-		Tools:     map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:     map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		WorldTool: true,
 	})
 	if err != nil {

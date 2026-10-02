@@ -14,7 +14,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // UnconfiguredName is the Name() of the sentinel primary registered when no
@@ -33,7 +33,7 @@ const UnconfiguredName = "unconfigured"
 type unconfiguredProvider struct{}
 
 func (unconfiguredProvider) Name() string { return UnconfiguredName }
-func (unconfiguredProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (unconfiguredProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

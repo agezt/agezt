@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -16,7 +16,7 @@ import (
 type failIfCalledProvider struct{}
 
 func (failIfCalledProvider) Name() string { return "fail-if-called" }
-func (failIfCalledProvider) Complete(context.Context, agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (failIfCalledProvider) Complete(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return nil, errors.New("provider should not be called")
 }
 

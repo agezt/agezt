@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -40,7 +40,7 @@ const (
 	modalArtifactArchiveBytes = 8 << 20
 )
 
-// Tool implements agent.Tool. Construct with New (tests) or NewWithWarden
+// Tool implements toolapi.Tool. Construct with New (tests) or NewWithWarden
 // (production); Bind wires the bus so each run journals a code.executed event.
 type Tool struct {
 	// Warden is the isolation engine code runs through. Nil → a no-bus engine.
@@ -97,9 +97,9 @@ func (t *Tool) SetIndex(idx artifactIndexer) { t.index = idx }
 // Languages returns the available language ids (sorted) — for the daemon banner.
 func (t *Tool) Languages() []string { return sortedLangs(t.Runtimes) }
 
-// Definition implements agent.Tool. The language enum and description reflect
+// Definition implements toolapi.Tool. The language enum and description reflect
 // exactly the runtimes detected on this host.
-func (t *Tool) Definition() agent.ToolDef {
+func (t *Tool) Definition() toolapi.ToolDef {
 	langs := sortedLangs(t.Runtimes)
 	enum, _ := json.Marshal(langs)
 	netLine := "Network is ON by default"
@@ -130,12 +130,12 @@ func (t *Tool) Definition() agent.ToolDef {
   }
 }`
 
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name:        "code_exec",
-		Capability:  agent.ToolCapability{Name: string(edict.CapCodeExec)},
+		Capability:  toolapi.ToolCapability{Name: string(edict.CapCodeExec)},
 		Description: desc,
-		Effect: agent.ToolEffect{
-			Class: agent.EffectIrreversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectIrreversible,
 			PredictedEffects: []string{
 				"write and execute model-provided code in the sandbox workspace",
 				"may create project files, install packages, consume compute, and contact the network when enabled",

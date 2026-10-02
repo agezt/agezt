@@ -31,7 +31,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // DefaultResponseCacheSize bounds the LRU entry count when the cache is
@@ -51,7 +52,7 @@ type respCache struct {
 
 type cacheEntry struct {
 	key  string
-	resp agent.CompletionResponse
+	resp llm.CompletionResponse
 	at   time.Time
 }
 
@@ -67,24 +68,24 @@ func newRespCache(ttl time.Duration, size int, now func() time.Time) *respCache 
 
 // cacheKey fingerprints everything that shapes a completion. Two requests
 // with the same key would be served identically by a deterministic provider.
-func cacheKey(req agent.CompletionRequest) string {
+func cacheKey(req llm.CompletionRequest) string {
 	h := sha256.New()
 	_ = json.NewEncoder(h).Encode(struct {
 		Model           string
 		System          string
-		Messages        []agent.Message
-		Tools           []agent.ToolDef
+		Messages        []llm.Message
+		Tools           []toolapi.ToolDef
 		MaxTokens       int
 		JSONMode        bool
 		TaskType        string
-		Params          agent.Params
+		Params          llm.Params
 		ProviderOptions map[string]json.RawMessage
 	}{req.Model, req.System, req.Messages, req.Tools, req.MaxTokens, req.JSONMode, req.TaskType, req.Params, req.ProviderOptions})
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // get returns a copy of the cached response for key, expiring stale entries.
-func (c *respCache) get(key string) (*agent.CompletionResponse, bool) {
+func (c *respCache) get(key string) (*llm.CompletionResponse, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	el, ok := c.items[key]
@@ -103,7 +104,7 @@ func (c *respCache) get(key string) (*agent.CompletionResponse, bool) {
 }
 
 // put stores resp under key, evicting the least-recently-used entry past max.
-func (c *respCache) put(key string, resp agent.CompletionResponse) {
+func (c *respCache) put(key string, resp llm.CompletionResponse) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if el, ok := c.items[key]; ok {

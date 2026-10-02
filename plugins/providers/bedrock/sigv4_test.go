@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
@@ -59,10 +59,10 @@ func collapseSpaces(s string) string {
 	return sb.String()
 }
 
-func agentReq(model string) agent.CompletionRequest {
-	return agent.CompletionRequest{
+func agentReq(model string) llm.CompletionRequest {
+	return llm.CompletionRequest{
 		Model:    model,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	}
 }
 

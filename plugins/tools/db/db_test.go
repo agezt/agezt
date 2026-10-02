@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 )
 
@@ -97,7 +97,7 @@ func TestDB_FullLifecycle(t *testing.T) {
 
 func TestDB_ProvenanceUsesAgentAndCorrelation(t *testing.T) {
 	tool := newTool(t)
-	ctx := agent.WithCorrelation(agent.WithAgent(context.Background(), "researcher"), "corr-123")
+	ctx := toolapi.WithCorrelation(toolapi.WithAgent(context.Background(), "researcher"), "corr-123")
 	out, isErr := callCtx(t, ctx, tool, `{"op":"create_collection","name":"notes"}`)
 	if isErr {
 		t.Fatalf("create: %s", out)
@@ -126,7 +126,7 @@ func TestDB_ProvenanceUsesAgentAndCorrelation(t *testing.T) {
 		t.Fatalf("record provenance after insert = %q/%q", inserted.Record.CreatedBy, inserted.Record.UpdatedBy)
 	}
 
-	updateCtx := agent.WithCorrelation(agent.WithAgent(context.Background(), "reviewer"), "corr-456")
+	updateCtx := toolapi.WithCorrelation(toolapi.WithAgent(context.Background(), "reviewer"), "corr-456")
 	out, isErr = callCtx(t, updateCtx, tool, `{"op":"update","collection":"notes","id":"`+inserted.Record.ID+`","record":{"title":"reviewed"}}`)
 	if isErr {
 		t.Fatalf("update: %s", out)

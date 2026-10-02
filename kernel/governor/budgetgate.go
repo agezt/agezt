@@ -7,7 +7,7 @@ package governor
 import (
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -30,13 +30,13 @@ type budgetScope struct {
 	// whether the scope applies at all (a request with no TaskType has no
 	// per-task ceiling; an unnamed agent has no agent ceiling). Reads happen
 	// under g.mu after rollover so the decision is a consistent snapshot.
-	Limits func(g *Governor, req *agent.CompletionRequest) (spent, ceiling int64, applies bool)
+	Limits func(g *Governor, req *llm.CompletionRequest) (spent, ceiling int64, applies bool)
 	// Detail adds the scope's identifying field to the journal payload
 	// ("task_type", "agent"). Nil for the daemon-wide scope, which has none.
-	Detail func(req *agent.CompletionRequest) (key, value string)
+	Detail func(req *llm.CompletionRequest) (key, value string)
 	// Err builds the refusal, wrapping this scope's sentinel error so callers
 	// can still distinguish which ceiling stopped them.
-	Err func(req *agent.CompletionRequest, spent, ceiling int64) error
+	Err func(req *llm.CompletionRequest, spent, ceiling int64) error
 }
 
 // budgetScopes are checked in widening-to-narrowing order: the daemon-wide cap
@@ -53,7 +53,7 @@ type budgetScope struct {
 var budgetScopes = []budgetScope{
 	{
 		Name: "global",
-		Limits: func(g *Governor, _ *agent.CompletionRequest) (int64, int64, bool) {
+		Limits: func(g *Governor, _ *llm.CompletionRequest) (int64, int64, bool) {
 			g.mu.Lock()
 			g.rolloverIfNeededLocked()
 			ceiling := g.effectiveCeilingLocked()
@@ -61,13 +61,13 @@ var budgetScopes = []budgetScope{
 			g.mu.Unlock()
 			return spent, ceiling, ceiling > 0
 		},
-		Err: func(_ *agent.CompletionRequest, spent, ceiling int64) error {
+		Err: func(_ *llm.CompletionRequest, spent, ceiling int64) error {
 			return fmt.Errorf("%w (spent=%d, ceiling=%d microcents)", ErrBudgetExceeded, spent, ceiling)
 		},
 	},
 	{
 		Name: "task",
-		Limits: func(g *Governor, req *agent.CompletionRequest) (int64, int64, bool) {
+		Limits: func(g *Governor, req *llm.CompletionRequest) (int64, int64, bool) {
 			if req.TaskType == "" || len(g.cfg.TaskBudgets) == 0 {
 				return 0, 0, false
 			}
@@ -81,15 +81,15 @@ var budgetScopes = []budgetScope{
 			g.mu.Unlock()
 			return spent, ceiling, true
 		},
-		Detail: func(req *agent.CompletionRequest) (string, string) { return "task_type", req.TaskType },
-		Err: func(req *agent.CompletionRequest, spent, ceiling int64) error {
+		Detail: func(req *llm.CompletionRequest) (string, string) { return "task_type", req.TaskType },
+		Err: func(req *llm.CompletionRequest, spent, ceiling int64) error {
 			return fmt.Errorf("%w (task=%s, spent=%d, ceiling=%d microcents)",
 				ErrTaskBudgetExceeded, req.TaskType, spent, ceiling)
 		},
 	},
 	{
 		Name: "agent",
-		Limits: func(g *Governor, req *agent.CompletionRequest) (int64, int64, bool) {
+		Limits: func(g *Governor, req *llm.CompletionRequest) (int64, int64, bool) {
 			if req.Agent == "" || req.AgentDailyCeilingMc <= 0 {
 				return 0, 0, false
 			}
@@ -99,8 +99,8 @@ var budgetScopes = []budgetScope{
 			g.mu.Unlock()
 			return spent, req.AgentDailyCeilingMc, true
 		},
-		Detail: func(req *agent.CompletionRequest) (string, string) { return "agent", req.Agent },
-		Err: func(req *agent.CompletionRequest, spent, ceiling int64) error {
+		Detail: func(req *llm.CompletionRequest) (string, string) { return "agent", req.Agent },
+		Err: func(req *llm.CompletionRequest, spent, ceiling int64) error {
 			return fmt.Errorf("%w (agent=%s, spent=%d, ceiling=%d microcents)",
 				ErrAgentBudgetExceeded, req.Agent, spent, ceiling)
 		},
@@ -111,7 +111,7 @@ var budgetScopes = []budgetScope{
 // scope's limits to the request and decide. A scope that does not apply reports
 // "not exceeded" with a zero ceiling, which is what makes an unconfigured cap a
 // no-op rather than a refusal.
-func (g *Governor) evalBudgetScope(scope budgetScope, req *agent.CompletionRequest) (exceeded bool, spent, ceiling int64) {
+func (g *Governor) evalBudgetScope(scope budgetScope, req *llm.CompletionRequest) (exceeded bool, spent, ceiling int64) {
 	spent, ceiling, applies := scope.Limits(g, req)
 	if !applies {
 		return false, spent, 0
@@ -127,7 +127,7 @@ func (g *Governor) evalBudgetScope(scope budgetScope, req *agent.CompletionReque
 // which walks the whole table. Test-only helpers now sit with their tests.
 
 // gateBudgets refuses the call if any applicable ceiling is already spent.
-func (g *Governor) gateBudgets(req *agent.CompletionRequest) error {
+func (g *Governor) gateBudgets(req *llm.CompletionRequest) error {
 	for _, scope := range budgetScopes {
 		exceeded, spent, ceiling := g.evalBudgetScope(scope, req)
 		if !exceeded {

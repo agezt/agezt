@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -27,10 +27,10 @@ func TestRun_AsAgent_MemoryScope(t *testing.T) {
 		mock.FinalText("run2"), // the plain run
 	)
 	var systems []string
-	prov.OnRequest = func(req agent.CompletionRequest) { systems = append(systems, req.System) }
+	prov.OnRequest = func(req llm.CompletionRequest) { systems = append(systems, req.System) }
 	k, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider:     prov,
-		Tools:        map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:        map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryInject: true,
 	})
 	ctx := context.Background()
@@ -94,7 +94,7 @@ func TestRun_AsAgent_ModelChain(t *testing.T) {
 		mock.FinalText("run3"),
 	)
 	var chains [][]string
-	prov.OnRequest = func(req agent.CompletionRequest) { chains = append(chains, req.ModelChain) }
+	prov.OnRequest = func(req llm.CompletionRequest) { chains = append(chains, req.ModelChain) }
 	_, _, c, _ := startPair(t, prov)
 	ctx := context.Background()
 

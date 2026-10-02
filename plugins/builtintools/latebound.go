@@ -18,7 +18,7 @@ package builtintools
 import (
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
 	"github.com/agezt/agezt/plugins/tools/notify"
@@ -42,7 +42,7 @@ func specNotify() toolreg.Spec {
 			nt = notify.New() // unbound; Late wires the sender once channels exist
 			return toolreg.Built{Tool: nt}, nil
 		},
-		Late: func(_ agent.Tool, d toolreg.LateDeps) error {
+		Late: func(_ toolapi.Tool, d toolreg.LateDeps) error {
 			if d.ChannelSend != nil {
 				nt.Bind(d.ChannelSend, targets)
 			}
@@ -68,7 +68,7 @@ func specSendMedia() toolreg.Spec {
 			smt = sendmedia.New()
 			return toolreg.Built{Tool: smt}, nil
 		},
-		Late: func(_ agent.Tool, d toolreg.LateDeps) error {
+		Late: func(_ toolapi.Tool, d toolreg.LateDeps) error {
 			if d.ChannelSendMedia == nil {
 				return nil
 			}
@@ -102,7 +102,7 @@ func specBoard() toolreg.Spec {
 			bt = boardtool.New()
 			return toolreg.Built{Tool: bt}, nil
 		},
-		Late: func(_ agent.Tool, d toolreg.LateDeps) error {
+		Late: func(_ toolapi.Tool, d toolreg.LateDeps) error {
 			if d.Board != nil {
 				bt.BindStore(d.Board)
 				bt.OnPost(d.BoardNotify)

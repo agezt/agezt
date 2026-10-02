@@ -12,7 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestComplete_HappyPath_TextOnly(t *testing.T) {
@@ -37,8 +38,8 @@ func TestComplete_HappyPath_TextOnly(t *testing.T) {
 	p.Endpoint = srv.URL
 	p.Model = "llama-test"
 
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}},
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -46,7 +47,7 @@ func TestComplete_HappyPath_TextOnly(t *testing.T) {
 	if resp.Message.Content != "hello back" {
 		t.Errorf("content=%q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("StopReason=%q want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 4 || resp.Usage.OutputTokens != 3 {
@@ -71,14 +72,14 @@ func TestComplete_ToolCallResponse(t *testing.T) {
 
 	p := New()
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("StopReason=%q want tool_use", resp.StopReason)
 	}
 	if len(resp.Message.ToolCalls) != 1 {
@@ -103,11 +104,11 @@ func TestComplete_StopReasonLength(t *testing.T) {
 	defer srv.Close()
 	p := New()
 	p.Endpoint = srv.URL
-	resp, _ := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, _ := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("StopReason=%q want max_tokens", resp.StopReason)
 	}
 }
@@ -120,9 +121,9 @@ func TestComplete_APIError(t *testing.T) {
 	defer srv.Close()
 	p := New()
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("expected error for 404")
@@ -138,15 +139,15 @@ func TestComplete_APIError(t *testing.T) {
 
 func TestEncodeRequest_RolesAndTools(t *testing.T) {
 	body, err := encodeRequest("m", "be precise",
-		[]agent.Message{
-			{Role: agent.RoleUser, Content: "hi"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`)}}},
-			{Role: agent.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
+		[]llm.Message{
+			{Role: llm.RoleUser, Content: "hi"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`)}}},
+			{Role: llm.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
 		},
-		[]agent.ToolDef{{Name: "shell", Description: "run a command", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		[]toolapi.ToolDef{{Name: "shell", Description: "run a command", InputSchema: json.RawMessage(`{"type":"object"}`)}},
 		0,
 		false,
-		agent.Params{},
+		llm.Params{},
 		nil,
 	)
 	if err != nil {
@@ -165,7 +166,7 @@ func TestEncodeRequest_RolesAndTools(t *testing.T) {
 }
 
 func TestRoleTool_RequiresID(t *testing.T) {
-	_, err := canonicalToOllama(agent.Message{Role: agent.RoleTool, Content: "x"})
+	_, err := canonicalToOllama(llm.Message{Role: llm.RoleTool, Content: "x"})
 	if err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Errorf("expected tool_call_id error; got %v", err)
 	}
@@ -174,7 +175,7 @@ func TestRoleTool_RequiresID(t *testing.T) {
 // TestEncodeRequest_MaxTokensAsNumPredict (M310): the run's token cap is
 // forwarded as Ollama's options.num_predict; 0 omits it (Ollama's own default).
 func TestEncodeRequest_MaxTokensAsNumPredict(t *testing.T) {
-	body, err := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 256, false, agent.Params{}, nil)
+	body, err := encodeRequest("llama3", "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, nil, 256, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +193,7 @@ func TestEncodeRequest_MaxTokensAsNumPredict(t *testing.T) {
 	}
 
 	// 0 → options omitted entirely (no behaviour change for uncapped runs).
-	body0, _ := encodeRequest("llama3", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 0, false, agent.Params{}, nil)
+	body0, _ := encodeRequest("llama3", "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, nil, 0, false, llm.Params{}, nil)
 	if strings.Contains(string(body0), "num_predict") {
 		t.Errorf("maxTokens=0 must omit num_predict: %s", body0)
 	}

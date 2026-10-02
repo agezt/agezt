@@ -2,17 +2,17 @@
 
 package browser
 
-// Provenance: Package browser: per-verb agent.Tool metadata (actionVerbDescription +
+// Provenance: Package browser: per-verb toolapi.Tool metadata (actionVerbDescription +
 //             actionVerbEffect + actionVerbSchema + defaultBool). Each verb has a
 //             description, an effect annotation, and a JSON schema — these are what
-//             Definition assembles into the agent.ToolDef. Extracted from
+//             Definition assembles into the toolapi.ToolDef. Extracted from
 //             action_verbs.go during the Day-211 god-file split. Public API
 //             unchanged.
 
 import (
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func defaultBool(v *bool, fallback bool) *bool {
@@ -49,10 +49,10 @@ func actionVerbDescription(name string) string {
 	}
 }
 
-func actionVerbEffect(name string) agent.ToolEffect {
+func actionVerbEffect(name string) toolapi.ToolEffect {
 	if name == ActionVerbClose {
-		return agent.ToolEffect{
-			Class: agent.EffectIrreversible,
+		return toolapi.ToolEffect{
+			Class: toolapi.EffectIrreversible,
 			PredictedEffects: []string{
 				"delete the local AGEZT-managed browser session directory for the requested session_id",
 			},
@@ -61,8 +61,8 @@ func actionVerbEffect(name string) agent.ToolEffect {
 			Confidence:        0.8,
 		}
 	}
-	return agent.ToolEffect{
-		Class: agent.EffectIrreversible,
+	return toolapi.ToolEffect{
+		Class: toolapi.EffectIrreversible,
 		PredictedEffects: []string{
 			"launch a headless browser process and navigate to an allowed HTTP(S) page",
 			"perform the named browser verb over a Playwright page",

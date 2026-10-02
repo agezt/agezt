@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // The spend-enforcement checks use `>=` (spend AT the ceiling is over budget). The
@@ -38,13 +38,13 @@ func budgetScopeNamed(name string) budgetScope {
 
 // budgetExceeded reports the daemon-wide ceiling's state.
 func (g *Governor) budgetExceeded() (bool, int64, int64) {
-	return g.evalBudgetScope(budgetScopeNamed("global"), &agent.CompletionRequest{})
+	return g.evalBudgetScope(budgetScopeNamed("global"), &llm.CompletionRequest{})
 }
 
 // taskBudgetExceeded reports the per-task-type ceiling's state (M1.zz).
 // (false, 0, 0) when no cap is configured for that type.
 func (g *Governor) taskBudgetExceeded(taskType string) (bool, int64, int64) {
-	return g.evalBudgetScope(budgetScopeNamed("task"), &agent.CompletionRequest{TaskType: taskType})
+	return g.evalBudgetScope(budgetScopeNamed("task"), &llm.CompletionRequest{TaskType: taskType})
 }
 
 func newBudgetGov(cfg Config) *Governor {

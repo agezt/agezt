@@ -20,9 +20,10 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
 	stdhttp "net/http"
 	"path/filepath"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func stripBase64Whitespace(s string) string {
@@ -126,7 +127,7 @@ func artifactKind(mimeType string) string {
 	return "file"
 }
 
-func appendArtifactExport(res agent.Result, profile string, artifacts []artifactExportRecord, exportErr error) agent.Result {
+func appendArtifactExport(res toolapi.Result, profile string, artifacts []artifactExportRecord, exportErr error) toolapi.Result {
 	if len(artifacts) == 0 && exportErr == nil {
 		return res
 	}

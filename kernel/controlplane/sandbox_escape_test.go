@@ -22,14 +22,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	ageruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 // nopProvider satisfies runtime.Config's non-nil Provider requirement without
 // supplying behavior; Open only stores the provider during init.
 type nopProvider struct {
-	agent.Provider
+	llm.Provider
 }
 
 func newSandboxTestServer(t *testing.T) *Server {

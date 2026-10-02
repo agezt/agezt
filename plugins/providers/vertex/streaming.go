@@ -14,15 +14,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-// CompleteStream implements agent.StreamingProvider. It POSTs to the
+// CompleteStream implements llm.StreamingProvider. It POSTs to the
 // Vertex `:streamGenerateContent?alt=sse` endpoint with the same
-// body Complete uses, parses the SSE stream into agent.Chunk
+// body Complete uses, parses the SSE stream into llm.Chunk
 // callbacks, and returns the same CompletionResponse shape Complete
 // would.
 //
@@ -39,7 +39,7 @@ import (
 // Parser logic is duplicated from plugins/providers/google by
 // design — the package-level comment on vertex.go explains: Vertex
 // evolves independently and the duplication is contained.
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	if p.TokenSource == nil {
 		return nil, ErrNoTokenSource
 	}
@@ -131,7 +131,7 @@ func (p *Provider) ResolveStreamEndpoint(model string) string {
 type streamState struct {
 	textParts      strings.Builder
 	reasoningParts strings.Builder // M320: thought-summary parts
-	toolCalls      []agent.ToolCall
+	toolCalls      []llm.ToolCall
 	finishReason   string
 	model          string
 	inputTokens    int
@@ -142,7 +142,7 @@ type streamState struct {
 
 // parseStream consumes the SSE response body until EOF. Each
 // `data:` line is a complete partial vxResponse JSON.
-func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseStream(body io.Reader, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
@@ -183,12 +183,12 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 				// Thought-summary delta (M320): reasoning, surfaced on
 				// ReasoningDelta and kept out of the answer text.
 				st.reasoningParts.WriteString(part.Text)
-				if err := onChunk(agent.Chunk{ReasoningDelta: part.Text}); err != nil {
+				if err := onChunk(llm.Chunk{ReasoningDelta: part.Text}); err != nil {
 					return nil, err
 				}
 			case part.Text != "":
 				st.textParts.WriteString(part.Text)
-				if err := onChunk(agent.Chunk{TextDelta: part.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: part.Text}); err != nil {
 					return nil, err
 				}
 			case part.FunctionCall != nil:
@@ -198,25 +198,25 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 				}
 				callID := "call-" + strconv.Itoa(toolIdx)
 				toolIdx++
-				start := &agent.ToolCall{
+				start := &llm.ToolCall{
 					ID:    callID,
 					Name:  part.FunctionCall.Name,
 					Input: args,
 				}
-				if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+				if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 					return nil, err
 				}
 				// Full args in one chunk (Vertex inherits Gemini's
 				// non-streaming-tool-input behavior). Synthesize the
 				// full ToolUseStart→Delta→Stop lifecycle so callers
 				// don't need provider-specific code.
-				if err := onChunk(agent.Chunk{ToolInputJSONDelta: string(args)}); err != nil {
+				if err := onChunk(llm.Chunk{ToolInputJSONDelta: string(args)}); err != nil {
 					return nil, err
 				}
-				if err := onChunk(agent.Chunk{ToolUseStop: callID}); err != nil {
+				if err := onChunk(llm.Chunk{ToolUseStop: callID}); err != nil {
 					return nil, err
 				}
-				st.toolCalls = append(st.toolCalls, agent.ToolCall{
+				st.toolCalls = append(st.toolCalls, llm.ToolCall{
 					ID:    callID,
 					Name:  part.FunctionCall.Name,
 					Input: args,
@@ -230,29 +230,29 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 	return assembleResponse(st), nil
 }
 
-func assembleResponse(st *streamState) *agent.CompletionResponse {
-	var stop agent.StopReason
+func assembleResponse(st *streamState) *llm.CompletionResponse {
+	var stop llm.StopReason
 	switch {
 	case len(st.toolCalls) > 0:
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	default:
 		switch st.finishReason {
 		case "STOP", "":
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		case "MAX_TOKENS":
-			stop = agent.StopMaxTokens
+			stop = llm.StopMaxTokens
 		default:
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		}
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: st.toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:       st.inputTokens,
 			CachedInputTokens: st.cachedTokens,
 			OutputTokens:      st.outputTokens + st.thoughtsTokens, // thinking billed as output (M320)

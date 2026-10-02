@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -36,7 +37,7 @@ type store interface {
 	List() []cadence.Entry
 }
 
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the store.
+// Tool implements toolapi.Tool. Created unbound via New(); Bind wires the store.
 type Tool struct {
 	mu          sync.RWMutex
 	store       store
@@ -72,17 +73,17 @@ func (t *Tool) current() (store, func() time.Time, func(string) (roster.Profile,
 	return t.store, now, t.agentLookup
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
 	systemTaskEnum, _ := json.Marshal(cadence.SystemTasks())
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name:       "schedule",
-		Capability: agent.ToolCapability{Name: string(edict.CapSchedule)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapSchedule)},
 		Description: "Schedule future work: run your own agent task later, wake a workflow, " +
 			"run a system task, or invoke a registered tool on a cadence. Use typed targets " +
 			"instead of embedding execution instructions in the task/label.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"create, list, or remove future scheduled jobs",
 				"created schedules will launch typed cron jobs later until removed",
@@ -149,7 +150,7 @@ func applyAssure(st store, e cadence.Entry, n int) cadence.Entry {
 }
 
 func applyActingAgent(ctx context.Context, st store, e cadence.Entry) cadence.Entry {
-	if slug := agent.AgentFromContext(ctx); slug != "" {
+	if slug := toolapi.AgentFromContext(ctx); slug != "" {
 		if _, err := st.SetAgent(e.ID, slug); err == nil {
 			e.Agent = slug
 		}
@@ -165,13 +166,13 @@ func scheduleBindsActingAgent(in input) bool {
 	return target == "agent" || target == cadence.TargetIntent || target == cadence.TargetWorkflow || target == cadence.TargetTool
 }
 
-func validateActingAgentSchedule(ctx context.Context, in input, lookup func(string) (roster.Profile, bool)) agent.Result {
+func validateActingAgentSchedule(ctx context.Context, in input, lookup func(string) (roster.Profile, bool)) toolapi.Result {
 	if lookup == nil || !scheduleBindsActingAgent(in) {
-		return agent.Result{}
+		return toolapi.Result{}
 	}
-	slug := strings.TrimSpace(agent.AgentFromContext(ctx))
+	slug := strings.TrimSpace(toolapi.AgentFromContext(ctx))
 	if slug == "" {
-		return agent.Result{}
+		return toolapi.Result{}
 	}
 	p, ok := lookup(slug)
 	if !ok {
@@ -186,7 +187,7 @@ func validateActingAgentSchedule(ctx context.Context, in input, lookup func(stri
 	if !p.AllowsDirectCall() {
 		return errResult(managedSubAgentScheduleHint(p))
 	}
-	return agent.Result{}
+	return toolapi.Result{}
 }
 
 func managedSubAgentScheduleHint(p roster.Profile) string {

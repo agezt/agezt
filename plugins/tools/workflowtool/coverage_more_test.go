@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestInvoke_ParseError(t *testing.T) {
@@ -47,4 +47,4 @@ func TestSaveUpdatePath(t *testing.T) {
 	}
 }
 
-var _ = agent.Tool(New()) // compile-time check
+var _ = toolapi.Tool(New()) // compile-time check

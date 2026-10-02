@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 )
@@ -37,7 +37,7 @@ type Store interface {
 	Query(coll string, q datalake.Query) ([]datalake.Record, error)
 }
 
-// Tool is the `db` implementation of agent.Tool.
+// Tool is the `db` implementation of toolapi.Tool.
 type Tool struct {
 	lake Store
 }
@@ -48,11 +48,11 @@ func New() *Tool { return &Tool{} }
 // SetStore injects the data lake (done by the daemon after the kernel opens).
 func (t *Tool) SetStore(s Store) { t.lake = s }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "db",
-		Capability: agent.ToolCapability{Name: string(edict.CapMemory)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapMemory)},
 		Description: "Your Personal Data Lake — real databases you can build and use. Collections are " +
 			"shared with other agents and the human (they can read your data from chat / the Files-style " +
 			"Data view). Ops: list_collections; create_collection {name, title?, icon?, view?, fields?}; " +
@@ -80,8 +80,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit":      {"type":"integer", "description":"query: max records (default 50)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Read data lake schemas and records for list/get/query operations.",
 				"Create or drop collections and insert, update, or delete structured records for mutating operations.",
@@ -112,11 +112,11 @@ type input struct {
 
 const defaultQueryLimit = 50
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("db: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("db: parse input: %w", err)
 	}
 	if t.lake == nil {
 		return errResult("data lake unavailable"), nil
@@ -149,8 +149,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 }
 
 func dataLakeActor(ctx context.Context) string {
-	agentSlug := strings.TrimSpace(agent.AgentFromContext(ctx))
-	corr := strings.TrimSpace(agent.CorrelationFromContext(ctx))
+	agentSlug := strings.TrimSpace(toolapi.AgentFromContext(ctx))
+	corr := strings.TrimSpace(toolapi.CorrelationFromContext(ctx))
 	switch {
 	case agentSlug != "" && corr != "":
 		return agentSlug + ":" + corr
@@ -163,7 +163,7 @@ func dataLakeActor(ctx context.Context) string {
 	}
 }
 
-func (t *Tool) create(in input, actor string) (agent.Result, error) {
+func (t *Tool) create(in input, actor string) (toolapi.Result, error) {
 	name := firstNonEmpty(in.Name, in.Collection)
 	sc, err := t.lake.CreateCollection(datalake.Schema{
 		Name: name, Title: in.Title, Icon: in.Icon, View: in.View, Fields: in.Fields,
@@ -177,7 +177,7 @@ func (t *Tool) create(in input, actor string) (agent.Result, error) {
 	return jsonResult(map[string]any{"created": true, "collection": sc})
 }
 
-func (t *Tool) drop(in input) (agent.Result, error) {
+func (t *Tool) drop(in input) (toolapi.Result, error) {
 	name := firstNonEmpty(in.Name, in.Collection)
 	if err := t.lake.DropCollection(name); err != nil {
 		return errResult(dropErr(name, err)), nil
@@ -196,7 +196,7 @@ func dropErr(name string, err error) string {
 	}
 }
 
-func (t *Tool) insert(in input, actor string) (agent.Result, error) {
+func (t *Tool) insert(in input, actor string) (toolapi.Result, error) {
 	if in.Collection == "" {
 		return errResult("collection required for insert"), nil
 	}
@@ -207,7 +207,7 @@ func (t *Tool) insert(in input, actor string) (agent.Result, error) {
 	return jsonResult(map[string]any{"inserted": true, "record": r})
 }
 
-func (t *Tool) get(in input) (agent.Result, error) {
+func (t *Tool) get(in input) (toolapi.Result, error) {
 	if in.Collection == "" || in.ID == "" {
 		return errResult("collection and id required for get"), nil
 	}
@@ -218,7 +218,7 @@ func (t *Tool) get(in input) (agent.Result, error) {
 	return jsonResult(map[string]any{"record": r})
 }
 
-func (t *Tool) update(in input, actor string) (agent.Result, error) {
+func (t *Tool) update(in input, actor string) (toolapi.Result, error) {
 	if in.Collection == "" || in.ID == "" {
 		return errResult("collection and id required for update"), nil
 	}
@@ -229,7 +229,7 @@ func (t *Tool) update(in input, actor string) (agent.Result, error) {
 	return jsonResult(map[string]any{"updated": true, "record": r})
 }
 
-func (t *Tool) del(in input) (agent.Result, error) {
+func (t *Tool) del(in input) (toolapi.Result, error) {
 	if in.Collection == "" || in.ID == "" {
 		return errResult("collection and id required for delete"), nil
 	}
@@ -239,7 +239,7 @@ func (t *Tool) del(in input) (agent.Result, error) {
 	return jsonResult(map[string]any{"deleted": in.ID})
 }
 
-func (t *Tool) query(in input) (agent.Result, error) {
+func (t *Tool) query(in input) (toolapi.Result, error) {
 	if in.Collection == "" {
 		return errResult("collection required for query"), nil
 	}
@@ -270,11 +270,11 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-func jsonResult(v any) (agent.Result, error) {
+func jsonResult(v any) (toolapi.Result, error) {
 	out, _ := json.MarshalIndent(v, "", "  ")
-	return agent.Result{Output: string(out)}, nil
+	return toolapi.Result{Output: string(out)}, nil
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "db: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "db: " + msg, IsError: true}
 }

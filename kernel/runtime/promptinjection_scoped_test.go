@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -20,30 +21,30 @@ import (
 // iteration without re-tainting the run.
 type benignReadTool struct{}
 
-func (benignReadTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (benignReadTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:        "benign.read",
 		Description: "benign web reader",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
-		Effect:      agent.ToolEffect{Class: agent.EffectReadOnly},
+		Effect:      toolapi.ToolEffect{Class: toolapi.EffectReadOnly},
 	}
 }
 
-func (benignReadTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{
+func (benignReadTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{
 		Output:            "A normal search result about pasta recipes and cooking times.",
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: "https://ok.example/",
 	}, nil
 }
 
-func injectionKernel(t *testing.T, prov agent.Provider, invoked *int32, mode runtime.PromptInjectionMode) (*runtime.Kernel, *approval.Registry) {
+func injectionKernel(t *testing.T, prov llm.Provider, invoked *int32, mode runtime.PromptInjectionMode) (*runtime.Kernel, *approval.Registry) {
 	t.Helper()
 	reg := approval.New(approval.Config{Timeout: 2 * time.Second}) // safety net: a wrongful gate denies, never hangs
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"browser.read":  untrustedReadTool{},
 			"benign.read":   benignReadTool{},
 			"approvalprobe": probeTool{invoked: invoked},

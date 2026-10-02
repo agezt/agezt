@@ -11,8 +11,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // error only when there is no provider or the synthesis model call fails.
@@ -29,11 +30,11 @@ func (k *Kernel) Research(ctx context.Context, corr, question string, opts Resea
 
 	// 1. PLAN — decompose into sub-questions (falls back to the question itself).
 	subqs := []string{question}
-	if planResp, err := k.completeAux(ctx, corr, "research", agent.CompletionRequest{
+	if planResp, err := k.completeAux(ctx, corr, "research", llm.CompletionRequest{
 		Model:     opts.Model,
 		MaxTokens: researchPlanMaxTokens,
 		System:    "You are a research planner. Break the user's question into distinct, specific sub-questions that together cover it. Reply with ONLY a JSON array of strings.",
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: buildResearchPlanPrompt(question, opts.MaxSubQuestions)}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: buildResearchPlanPrompt(question, opts.MaxSubQuestions)}},
 	}); err == nil {
 		subqs = parseSubQuestions(planResp.Message.Content, question, opts.MaxSubQuestions)
 	} else {
@@ -94,11 +95,11 @@ func (k *Kernel) Research(ctx context.Context, corr, question string, opts Resea
 	}
 
 	// 3. SYNTHESIZE — cited answer grounded only on the numbered sources.
-	synthResp, err := k.completeAux(ctx, corr, "research", agent.CompletionRequest{
+	synthResp, err := k.completeAux(ctx, corr, "research", llm.CompletionRequest{
 		Model:     opts.Model,
 		MaxTokens: researchSynthMaxTokens,
 		System:    researchSynthSystem,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: buildResearchSynthPrompt(question, report.Sources)}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: buildResearchSynthPrompt(question, report.Sources)}},
 	})
 	if err != nil {
 		return report, fmt.Errorf("research: synthesis failed: %w", err)

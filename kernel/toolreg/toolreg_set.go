@@ -13,12 +13,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
 func BuildAll(d BuildDeps) (*Set, error) {
-	s := &Set{tools: map[string]agent.Tool{}, claim: map[string]string{}, dropped: map[string]bool{}}
+	s := &Set{tools: map[string]toolapi.Tool{}, claim: map[string]string{}, dropped: map[string]bool{}}
 	for _, sp := range snapshot() {
 		if sp.Build == nil {
 			continue
@@ -45,7 +45,7 @@ func BuildAll(d BuildDeps) (*Set, error) {
 	return s, nil
 }
 
-func (s *Set) add(name string, tl agent.Tool, sp Spec, d BuildDeps) error {
+func (s *Set) add(name string, tl toolapi.Tool, sp Spec, d BuildDeps) error {
 	if prev, dup := s.claim[name]; dup {
 		if sp.YieldOnConflict {
 			// In-process wins: drop the later (plugin) claimant, keep the
@@ -65,8 +65,8 @@ func (s *Set) add(name string, tl agent.Tool, sp Spec, d BuildDeps) error {
 }
 
 // Tools returns the merged name → instance map (a copy; instances are shared).
-func (s *Set) Tools() map[string]agent.Tool {
-	out := make(map[string]agent.Tool, len(s.tools))
+func (s *Set) Tools() map[string]toolapi.Tool {
+	out := make(map[string]toolapi.Tool, len(s.tools))
 	for name, tl := range s.tools {
 		out[name] = tl
 	}
@@ -199,7 +199,7 @@ func (s *Set) NetguardGaps() []string {
 	return gaps
 }
 
-func sortedKeys(m map[string]agent.Tool) []string {
+func sortedKeys(m map[string]toolapi.Tool) []string {
 	if len(m) == 0 {
 		return nil
 	}

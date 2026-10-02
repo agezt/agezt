@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func parseStream(body io.Reader, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseStream(body io.Reader, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	// Tool input JSON can be large; bump from default 64K to 1MB.
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
@@ -50,7 +50,7 @@ func parseStream(body io.Reader, onChunk func(agent.Chunk) error) (*agent.Comple
 }
 
 // dispatchSSEFrame parses one JSON chunk and updates state.
-func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) error) error {
+func dispatchSSEFrame(data string, st *streamState, onChunk func(llm.Chunk) error) error {
 	var f struct {
 		Model   string `json:"model"`
 		Choices []struct {
@@ -109,19 +109,19 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 	// separate reasoning_content field before the answer tokens.
 	if rd := choice.Delta.ReasoningContent; rd != "" {
 		st.reasoningParts.WriteString(rd)
-		if err := onChunk(agent.Chunk{ReasoningDelta: rd}); err != nil {
+		if err := onChunk(llm.Chunk{ReasoningDelta: rd}); err != nil {
 			return err
 		}
 	} else if rd := choice.Delta.Reasoning; rd != "" {
 		st.reasoningParts.WriteString(rd)
-		if err := onChunk(agent.Chunk{ReasoningDelta: rd}); err != nil {
+		if err := onChunk(llm.Chunk{ReasoningDelta: rd}); err != nil {
 			return err
 		}
 	}
 
 	if choice.Delta.Content != "" {
 		st.textParts.WriteString(choice.Delta.Content)
-		if err := onChunk(agent.Chunk{TextDelta: choice.Delta.Content}); err != nil {
+		if err := onChunk(llm.Chunk{TextDelta: choice.Delta.Content}); err != nil {
 			return err
 		}
 	}
@@ -144,7 +144,7 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 			tool.name = tcd.Function.Name
 			// Emit ToolUseStart only once per index, on the first
 			// chunk where we know the name.
-			start := &agent.ToolCall{
+			start := &llm.ToolCall{
 				ID:    tool.id,
 				Name:  tool.name,
 				Input: json.RawMessage(`{}`),
@@ -156,13 +156,13 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 				start.ID = "call-" + strconv.Itoa(idx)
 				tool.id = start.ID
 			}
-			if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 				return err
 			}
 		}
 		if tcd.Function.Arguments != "" {
 			tool.argsBuf.WriteString(tcd.Function.Arguments)
-			if err := onChunk(agent.Chunk{ToolInputJSONDelta: tcd.Function.Arguments}); err != nil {
+			if err := onChunk(llm.Chunk{ToolInputJSONDelta: tcd.Function.Arguments}); err != nil {
 				return err
 			}
 		}
@@ -179,7 +179,7 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 			if id == "" {
 				id = "call-" + strconv.Itoa(idx)
 			}
-			if err := onChunk(agent.Chunk{ToolUseStop: id}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStop: id}); err != nil {
 				return err
 			}
 		}
@@ -189,18 +189,18 @@ func dispatchSSEFrame(data string, st *streamState, onChunk func(agent.Chunk) er
 
 // assembleResponse converts the accumulated streamState into the same
 // CompletionResponse shape Complete returns.
-func assembleResponse(st *streamState) *agent.CompletionResponse {
-	stop := agent.StopEndTurn
+func assembleResponse(st *streamState) *llm.CompletionResponse {
+	stop := llm.StopEndTurn
 	switch st.finishReason {
 	case "stop":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_calls", "function_call":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "length":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
 
-	var toolCalls []agent.ToolCall
+	var toolCalls []llm.ToolCall
 	for _, idx := range st.toolOrder {
 		tool := st.tools[idx]
 		args := strings.TrimSpace(tool.argsBuf.String())
@@ -211,28 +211,28 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 		if id == "" {
 			id = "call-" + strconv.Itoa(idx)
 		}
-		toolCalls = append(toolCalls, agent.ToolCall{
+		toolCalls = append(toolCalls, llm.ToolCall{
 			ID:    id,
 			Name:  tool.name,
 			Input: json.RawMessage(args),
 		})
 	}
-	if len(toolCalls) > 0 && stop == agent.StopEndTurn {
+	if len(toolCalls) > 0 && stop == llm.StopEndTurn {
 		// finish_reason is sometimes absent on openai-compatible
 		// servers when tool calls are emitted (same quirk Complete
 		// works around).
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	}
 
-	return &agent.CompletionResponse{
+	return &llm.CompletionResponse{
 		ReasoningContent: st.reasoningParts.String(), // M317
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:       st.inputTokens,
 			CachedInputTokens: st.cachedTokens, // M887: cache hits price at the cache-read rate
 			OutputTokens:      st.outputTokens,

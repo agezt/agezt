@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "board",
-		Capability: agent.ToolCapability{Name: string(edict.CapBoard)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapBoard)},
 		Description: "A shared mailbox every agent on this daemon uses to coordinate: " +
 			"op=post leaves a message on a topic; op=read returns recent messages (optionally for " +
 			"one topic); op=topics lists the active topics. Direct agent-to-agent messaging: " +
@@ -44,8 +44,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "limit": {"type":"integer", "description":"For op=read/inbox/replies/help-list: max messages (default 20, max 100)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Read board topics, messages, inboxes, replies, and help requests.",
 				"Post, send, broadcast, acknowledge, or reply to persistent coordination messages.",
@@ -79,11 +79,11 @@ func clampLimit(n int) int {
 	return n
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("board: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("board: parse input: %w", err)
 	}
 	st, nowFn, notify := t.current()
 	if st == nil {
@@ -125,7 +125,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		// Journal the post so standing orders can react to it (M656). corr ties
 		// the board.posted event to the run that posted (CorrelationFromContext).
 		if notify != nil {
-			notify(m, agent.CorrelationFromContext(ctx))
+			notify(m, toolapi.CorrelationFromContext(ctx))
 		}
 		return okJSON(map[string]any{"posted": msgView(m)}), nil
 
@@ -145,7 +145,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			return errResult(err.Error()), nil
 		}
 		if notify != nil {
-			notify(m, agent.CorrelationFromContext(ctx))
+			notify(m, toolapi.CorrelationFromContext(ctx))
 		}
 		return okJSON(map[string]any{"sent": msgView(m),
 			"hint": "the recipient answers with op=reply id=" + m.ID + "; check op=replies id=" + m.ID}), nil
@@ -181,7 +181,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			return errResult(err.Error()), nil
 		}
 		if notify != nil {
-			notify(m, agent.CorrelationFromContext(ctx))
+			notify(m, toolapi.CorrelationFromContext(ctx))
 		}
 		return okJSON(map[string]any{"replied": msgView(m)}), nil
 
@@ -220,7 +220,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			return errResult(err.Error()), nil
 		}
 		if notify != nil {
-			notify(m, agent.CorrelationFromContext(ctx))
+			notify(m, toolapi.CorrelationFromContext(ctx))
 		}
 		return okJSON(map[string]any{"broadcast": msgView(m),
 			"hint": "delivered to every agent's inbox; an agent answers with op=reply id=" + m.ID}), nil
@@ -260,7 +260,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			return errResult(err.Error()), nil
 		}
 		if notify != nil {
-			notify(m, agent.CorrelationFromContext(ctx))
+			notify(m, toolapi.CorrelationFromContext(ctx))
 		}
 		return okJSON(map[string]any{"help_requested": msgView(m),
 			"hint": "stays open until answered; read answers with op=replies id=" + m.ID}), nil

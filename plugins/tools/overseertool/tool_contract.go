@@ -2,22 +2,23 @@
 
 package overseertool
 
-// Provenance: Overseer tool: Definition (the agent.Tool contract) + input struct
+// Provenance: Overseer tool: Definition (the toolapi.Tool contract) + input struct
 //             (the payload shape). The Invoke dispatcher lives in tool.go; helpers
 //             (parseProfile, agentView, okJSON, ...) live in tool_helpers.go.
 //             Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "overseer",
-		Capability: agent.ToolCapability{Name: string(edict.CapOversee)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapOversee)},
 		Description: "Supervise and intervene on the whole system — the brain/overseer's controls. " +
 			"op=status shows the daemon's health (halted?, active runs, agent count, open help); " +
 			"op=agents lists every agent with its state (enabled/paused/retired) and model; " +
@@ -52,8 +53,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "agents": {"type":"array", "items":{"type":"string"}, "description":"For op=bulk_pause/unpause/retire/replicate/delete: list of agent slugs to operate on."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Read fleet health, active runs, help requests, and agent profiles.",
 				"Cancel or halt runs and create, edit, pause, retire, or revive agents for mutating operations.",

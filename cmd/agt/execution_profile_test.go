@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -24,7 +24,7 @@ func TestCmdExecProfileListAndShow(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -40,11 +40,11 @@ func TestComplete_MetaLlama_HappyPath(t *testing.T) {
 
 	p := bedrock.New("token", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:     "meta.llama3-1-70b-instruct-v1:0",
 		System:    "be terse",
 		MaxTokens: 256,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -88,14 +88,14 @@ func TestComplete_MetaLlama_LengthStop(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "meta.llama3-8b-instruct-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("stop = %q want max_tokens", resp.StopReason)
 	}
 }

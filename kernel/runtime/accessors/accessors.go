@@ -13,7 +13,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
@@ -21,6 +20,8 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
@@ -58,14 +59,14 @@ func (a *Accessor) Edict() *edict.Engine           { return a.k.Edict() }
 func (a *Accessor) Warden() warden.Engine          { return a.k.Warden() }
 func (a *Accessor) Approvals() *approval.Registry  { return a.k.Approvals() }
 func (a *Accessor) Scheduler() *scheduler.Executor { return a.k.Scheduler() }
-func (a *Accessor) Provider() agent.Provider       { return a.k.Provider() }
+func (a *Accessor) Provider() llm.Provider         { return a.k.Provider() }
 func (a *Accessor) Memory() *memory.Manager        { return a.k.Memory() }
 func (a *Accessor) AgentGateway() *agentgw.Gateway { return a.k.AgentGateway() }
 func (a *Accessor) Schedules() *cadence.Store      { return a.k.Schedules() }
 
 // ---- Day 14: live reads ----
 
-func (a *Accessor) Tools() map[string]agent.Tool       { return a.k.Tools() }
+func (a *Accessor) Tools() map[string]toolapi.Tool     { return a.k.Tools() }
 func (a *Accessor) World() *worldmodel.Graph           { return a.k.World() }
 func (a *Accessor) Forge() *skill.Forge                { return a.k.Forge() }
 func (a *Accessor) StartTime() time.Time               { return a.k.StartTime() }

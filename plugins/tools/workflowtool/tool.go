@@ -18,7 +18,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/workflow"
@@ -33,7 +33,7 @@ type Kernel interface {
 	RunWorkflow(ctx context.Context, corr, ref string, payload any) (runtime.RunWorkflowResult, error)
 }
 
-// Tool implements agent.Tool. Construct with New, then Bind the live kernel
+// Tool implements toolapi.Tool. Construct with New, then Bind the live kernel
 // once it opens (the daemon is the single wiring point).
 type Tool struct {
 	mu sync.RWMutex
@@ -57,11 +57,11 @@ func (t *Tool) current() Kernel {
 	return t.k
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "workflow",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// list/show read the library. save/run/enable — and anything
 			// unrecognised — installs or fires automation, so that is the fallback.
 			Name:  string(edict.CapWorkflow),
@@ -90,8 +90,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "enabled":  {"type":"boolean", "description":"For op=enable: true arms the workflow's triggers, false disarms them."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Save, inspect, enable, disable, or run durable workflow graphs.",
 				"Enabled workflows can launch future governed runs; manual runs may execute each workflow node's own effects.",
@@ -111,17 +111,17 @@ type input struct {
 	Enabled  *bool           `json:"enabled"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("workflow: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("workflow: parse input: %w", err)
 	}
 	k := t.current()
 	if k == nil {
 		return errResult("workflows are not available on this daemon"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 
 	switch in.Op {
 	case "save":
@@ -223,14 +223,14 @@ func view(w workflow.Workflow) map[string]any {
 	return v
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "workflow: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "workflow: " + msg, IsError: true}
 }

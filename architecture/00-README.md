@@ -147,7 +147,7 @@ Verified with `go list` (internal edges only):
   kernel→plugins edges in the graph.
 - **Other upward or unusual edges:**
   - `kernel/toolreg` → `kernel/runtime`.
-  - `kernel/governor`, `kernel/memory` and `kernel/worldmodel` → `kernel/agent` (the data layer depends on the loop types). Since W1.1 the types they use live in `kernel/contract/{llm,toolapi}` (aliased in `kernel/agent`); W1.2 repoints the importers and removes the edge.
+  - `kernel/governor`, `kernel/memory` and `kernel/worldmodel` → `kernel/agent` (the data layer depends on the loop types). Since W1.1 the types they use live in `kernel/contract/{llm,toolapi}` (aliased in `kernel/agent`); W1.2 repointed the importers: `governor` and `worldmodel` no longer import the loop; `memory` still does, for `GenerateObject` only (a model-gateway helper, moves with `platform/modelgw`).
   - `workboard → proof → assure` puts verifier types into the on-disk task format.
   - `cmd/agezt` imports `plugins/tools/codeexec` only for a banner line.
   - `cmd/agt` imports `plugins/tools/peer` for doctor checks.

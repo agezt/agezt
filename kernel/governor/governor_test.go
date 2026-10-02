@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
@@ -36,13 +37,13 @@ func newBus(t *testing.T) (*bus.Bus, *journal.Journal) {
 
 type fakeProvider struct {
 	name  string
-	resp  *agent.CompletionResponse
+	resp  *llm.CompletionResponse
 	err   error
 	calls atomic.Int64
 }
 
 func (p *fakeProvider) Name() string { return p.name }
-func (p *fakeProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *fakeProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.calls.Add(1)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -53,11 +54,11 @@ func (p *fakeProvider) Complete(ctx context.Context, _ agent.CompletionRequest) 
 	return p.resp, nil
 }
 
-func okResp(model string, in, out int) *agent.CompletionResponse {
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: "ok from " + model},
-		StopReason: agent.StopEndTurn,
-		Usage:      agent.Usage{InputTokens: in, OutputTokens: out, Model: model},
+func okResp(model string, in, out int) *llm.CompletionResponse {
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: "ok from " + model},
+		StopReason: llm.StopEndTurn,
+		Usage:      llm.Usage{InputTokens: in, OutputTokens: out, Model: model},
 	}
 }
 
@@ -126,7 +127,7 @@ func TestGovernor_ConcurrentReplaceAndComplete(t *testing.T) {
 				case <-stop:
 					return
 				default:
-					if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+					if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err != nil {
 						completeErr.Store(err)
 					}
 					_ = g.Providers()
@@ -190,7 +191,7 @@ func TestComplete_HappyPath_RecordsUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "claude-sonnet-4-6",
 	})
 	if err != nil {
@@ -241,7 +242,7 @@ func TestComplete_BudgetConsumedCarriesCorrelation(t *testing.T) {
 	}
 
 	const corr = "run-SPEND-1"
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:         "claude-sonnet-4-6",
 		CorrelationID: corr,
 	}); err != nil {
@@ -292,7 +293,7 @@ func TestComplete_FallbackChain(t *testing.T) {
 	// in-place transient retry layer (M882) has its own tests.
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b, ProviderRetries: -1})
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "llama3.2"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "llama3.2"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -331,7 +332,7 @@ func TestComplete_FallbackOrder_PrimaryThenFallback(t *testing.T) {
 
 	// A model is required now (no baked-in default); the request just needs one
 	// to reach the provider chain this test exercises.
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "llama3.2"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "llama3.2"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +355,7 @@ func TestComplete_AllFail_ReturnsErrNoProviders(t *testing.T) {
 	)
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	var e *governor.ErrNoProviders
 	if !errors.As(err, &e) {
 		t.Fatalf("got %v, want *ErrNoProviders", err)
@@ -375,7 +376,7 @@ func TestComplete_NoModelNoChain_ReturnsErrNoModelConfigured(t *testing.T) {
 	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: p, AuthMode: governor.AuthAPIKey})
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{})
 	var e *governor.ErrNoModelConfigured
 	if !errors.As(err, &e) {
 		t.Fatalf("got %v, want *ErrNoModelConfigured", err)
@@ -385,7 +386,7 @@ func TestComplete_NoModelNoChain_ReturnsErrNoModelConfigured(t *testing.T) {
 	}
 
 	// With a model present, the same governor dispatches normally.
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err != nil {
 		t.Fatalf("request with a model should dispatch; got %v", err)
 	}
 }
@@ -401,7 +402,7 @@ func TestComplete_NoModelButDefaultChain_Dispatches(t *testing.T) {
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 	g.SetFallbackChains(map[string][]string{"std": {"chain-model"}}, "std")
 
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{}); err != nil {
 		t.Fatalf("empty model with a default chain should dispatch; got %v", err)
 	}
 	if p.calls.Load() != 1 {
@@ -421,7 +422,7 @@ func TestComplete_CtxCancel_NoFallback(t *testing.T) {
 	)
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("got %v, want context.Canceled", err)
 	}
@@ -444,11 +445,11 @@ func TestBudgetCeiling_RefusesNewCalls(t *testing.T) {
 	})
 
 	// First call succeeds (spend happens after the call).
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Fatalf("first call: %v", err)
 	}
 	// Second call is blocked at the pre-check.
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"})
 	if !errors.Is(err, governor.ErrBudgetExceeded) {
 		t.Errorf("second call: got %v, want ErrBudgetExceeded", err)
 	}
@@ -493,10 +494,10 @@ func TestWithDailyCeiling_IndependentLedgers(t *testing.T) {
 	}
 
 	// Sibling: first call ok, second blocked at the pre-check.
-	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+	if _, err := tenant.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Fatalf("tenant first call: %v", err)
 	}
-	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrBudgetExceeded) {
+	if _, err := tenant.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrBudgetExceeded) {
 		t.Errorf("tenant second call: got %v, want ErrBudgetExceeded", err)
 	}
 
@@ -504,7 +505,7 @@ func TestWithDailyCeiling_IndependentLedgers(t *testing.T) {
 	if parent.SpentMicrocents() != 0 {
 		t.Errorf("parent ledger = %d, want 0 (sibling spend must not bleed in)", parent.SpentMicrocents())
 	}
-	if _, err := parent.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+	if _, err := parent.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Errorf("parent call after sibling exhausted: %v (parent must keep its headroom)", err)
 	}
 	// And the sibling's own ceiling is what we set, not the parent's.
@@ -528,12 +529,12 @@ func TestRateLimit_PerMinuteWindow(t *testing.T) {
 
 	// First two calls in the 10:30 window are admitted.
 	for i := 0; i < 2; i++ {
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 			t.Fatalf("call %d should be admitted: %v", i+1, err)
 		}
 	}
 	// Third in the same minute is rejected (provider not called a 3rd time).
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrRateLimited) {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrRateLimited) {
 		t.Errorf("3rd call: got %v, want ErrRateLimited", err)
 	}
 	if prov.calls.Load() != 2 {
@@ -553,7 +554,7 @@ func TestRateLimit_PerMinuteWindow(t *testing.T) {
 
 	// Advance into the next clock-minute: the window resets, calls admitted again.
 	clock = clock.Add(time.Minute)
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Errorf("call after window rollover should be admitted: %v", err)
 	}
 	if prov.calls.Load() != 3 {
@@ -576,15 +577,15 @@ func TestWithLimits_IndependentRateWindows(t *testing.T) {
 	})
 	tenant, _ := parent.WithLimits(0, 1) // 1 call/min for the tenant
 	// Tenant's single allowance is consumed, second is throttled.
-	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+	if _, err := tenant.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Fatalf("tenant first call: %v", err)
 	}
-	if _, err := tenant.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrRateLimited) {
+	if _, err := tenant.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); !errors.Is(err, governor.ErrRateLimited) {
 		t.Errorf("tenant second call: got %v, want ErrRateLimited", err)
 	}
 	// Parent (no cap) is unaffected and keeps running.
 	for i := 0; i < 5; i++ {
-		if _, err := parent.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+		if _, err := parent.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 			t.Errorf("parent call %d should not be throttled by tenant: %v", i+1, err)
 		}
 	}
@@ -604,7 +605,7 @@ func TestBudgetRollover_NewUTCDay(t *testing.T) {
 	})
 
 	// First call on Jan 1.
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6"}); err != nil {
 		t.Fatal(err)
 	}
 	jan1Spent := g.SpentMicrocents()
@@ -659,7 +660,7 @@ func costMicrocentsForTest(model string, in, out int) int64 {
 	r := governor.NewRegistry()
 	_ = r.Register(&governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
-	_, _ = g.Complete(context.Background(), agent.CompletionRequest{Model: model})
+	_, _ = g.Complete(context.Background(), llm.CompletionRequest{Model: model})
 	var cost int64
 	_ = j.Range(func(e *event.Event) error {
 		if e.Kind == event.KindBudgetConsumed {
@@ -839,7 +840,7 @@ func TestGovernor_ReplaceRoutesToNewProvider(t *testing.T) {
 	gov.SetBus(b)
 
 	// First call hits the old provider.
-	_, _ = gov.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, _ = gov.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	if old.calls.Load() != 1 {
 		t.Errorf("old.calls = %d, want 1", old.calls.Load())
 	}
@@ -853,7 +854,7 @@ func TestGovernor_ReplaceRoutesToNewProvider(t *testing.T) {
 		t.Fatalf("Replace: %v", err)
 	}
 
-	_, _ = gov.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, _ = gov.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	if old.calls.Load() != 1 {
 		t.Errorf("old.calls = %d, want 1 (Governor leaked old provider after Replace)", old.calls.Load())
 	}
@@ -880,7 +881,7 @@ func TestGovernor_RoutesSubscriptionBeforeAPIKey(t *testing.T) {
 	b, _ := newBus(t)
 	gov.SetBus(b)
 
-	_, _ = gov.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, _ = gov.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	if subProv.calls.Load() != 1 {
 		t.Errorf("subscription provider should be tried first (calls=%d)", subProv.calls.Load())
 	}
@@ -908,7 +909,7 @@ func TestGovernor_RoutesLocalAheadOfAPIKeyButBehindSubscription(t *testing.T) {
 	b, _ := newBus(t)
 	gov.SetBus(b)
 
-	_, err = gov.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, err = gov.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	if err == nil {
 		t.Fatal("expected ErrNoProviders when all fail")
 	}
@@ -946,7 +947,7 @@ func TestGovernor_StableSortWithinSameTier(t *testing.T) {
 	}
 	bus2, _ := newBus(t)
 	gov.SetBus(bus2)
-	_, err = gov.Complete(context.Background(), agent.CompletionRequest{Model: "x"})
+	_, err = gov.Complete(context.Background(), llm.CompletionRequest{Model: "x"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -981,9 +982,9 @@ func TestStrictCapabilities_RejectsToolsOnNonToolModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "mini",
-		Tools: []agent.ToolDef{{Name: "shell"}},
+		Tools: []toolapi.ToolDef{{Name: "shell"}},
 	})
 	if !errors.Is(err, governor.ErrModelLacksToolUse) {
 		t.Fatalf("err = %v, want ErrModelLacksToolUse", err)
@@ -1009,13 +1010,13 @@ func TestStrictCapabilities_RejectsToolsOnNonToolModel(t *testing.T) {
 // can assert capability down-routing remapped the model (M37).
 type recordingProvider struct {
 	name     string
-	resp     *agent.CompletionResponse
+	resp     *llm.CompletionResponse
 	gotModel string
 	calls    atomic.Int64
 }
 
 func (p *recordingProvider) Name() string { return p.name }
-func (p *recordingProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *recordingProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.gotModel = req.Model
 	p.calls.Add(1)
 	return p.resp, nil
@@ -1047,8 +1048,8 @@ func TestDownRoute_RemapsToolIncapableModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+		Model: "mini", Tools: []toolapi.ToolDef{{Name: "shell"}},
 	}); err != nil {
 		t.Fatalf("down-route should let the request proceed; got %v", err)
 	}
@@ -1086,8 +1087,8 @@ func TestDownRoute_NoAlternativeFallsThroughToStrict(t *testing.T) {
 		ModelToolCapable:        capLookup(map[string]bool{"mini": false}),
 		ToolCapableAlternative:  altLookup(map[string]string{}), // no alternative
 	})
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{
-		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{
+		Model: "mini", Tools: []toolapi.ToolDef{{Name: "shell"}},
 	})
 	if !errors.Is(err, governor.ErrModelLacksToolUse) {
 		t.Fatalf("err = %v, want ErrModelLacksToolUse (no alt → strict reject)", err)
@@ -1109,8 +1110,8 @@ func TestDownRoute_OffLeavesModelUnchanged(t *testing.T) {
 		ToolCapableAlternative: altLookup(map[string]string{"mini": "big"}),
 		// DownRouteToolModels not set → off.
 	})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+		Model: "mini", Tools: []toolapi.ToolDef{{Name: "shell"}},
 	}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -1129,7 +1130,7 @@ func TestStrictCapabilities_AllowsWhenNoTools(t *testing.T) {
 		ModelToolCapable:        capLookup(map[string]bool{"mini": false}),
 	})
 	// No tools in the request → the gate doesn't apply.
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mini"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "mini"}); err != nil {
 		t.Errorf("non-tool request should pass on a non-tool model; got %v", err)
 	}
 }
@@ -1144,8 +1145,8 @@ func TestStrictCapabilities_UnknownModelNotBlocked(t *testing.T) {
 		ModelToolCapable:        capLookup(map[string]bool{"mini": false}), // "who" absent → unknown
 	})
 	// Unknown model must not be blocked even with tools (catalog-gap safety).
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-		Model: "who", Tools: []agent.ToolDef{{Name: "shell"}},
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+		Model: "who", Tools: []toolapi.ToolDef{{Name: "shell"}},
 	}); err != nil {
 		t.Errorf("unknown model must not be blocked; got %v", err)
 	}
@@ -1160,8 +1161,8 @@ func TestStrictCapabilities_OffByDefault(t *testing.T) {
 		Registry:         r,
 		ModelToolCapable: capLookup(map[string]bool{"mini": false}),
 	})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-		Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}},
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+		Model: "mini", Tools: []toolapi.ToolDef{{Name: "shell"}},
 	}); err != nil {
 		t.Errorf("strict off: request should pass; got %v", err)
 	}
@@ -1176,21 +1177,21 @@ func TestStrictCapabilities_AllowsToolCapableModel(t *testing.T) {
 		StrictModelCapabilities: true,
 		ModelToolCapable:        capLookup(map[string]bool{"big": true}),
 	})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-		Model: "big", Tools: []agent.ToolDef{{Name: "shell"}},
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+		Model: "big", Tools: []toolapi.ToolDef{{Name: "shell"}},
 	}); err != nil {
 		t.Errorf("tool-capable model should pass; got %v", err)
 	}
 }
 
-// streamingFake implements both agent.Provider and agent.StreamingProvider,
+// streamingFake implements both llm.Provider and llm.StreamingProvider,
 // emitting a fixed list of text deltas on the streaming path.
 type streamingFake struct {
 	fakeProvider
 	deltas []string
 }
 
-func (p *streamingFake) CompleteStream(ctx context.Context, _ agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *streamingFake) CompleteStream(ctx context.Context, _ llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	p.calls.Add(1)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -1199,7 +1200,7 @@ func (p *streamingFake) CompleteStream(ctx context.Context, _ agent.CompletionRe
 		return nil, p.err
 	}
 	for _, d := range p.deltas {
-		if err := onChunk(agent.Chunk{TextDelta: d}); err != nil {
+		if err := onChunk(llm.Chunk{TextDelta: d}); err != nil {
 			return nil, err
 		}
 	}
@@ -1207,10 +1208,10 @@ func (p *streamingFake) CompleteStream(ctx context.Context, _ agent.CompletionRe
 }
 
 // The crux of the streaming bug (M597): the governor MUST satisfy
-// agent.StreamingProvider, otherwise the agent loop's streaming branch never
+// llm.StreamingProvider, otherwise the agent loop's streaming branch never
 // engages for any real run (every run goes through the governor) and the Web UI
 // Chat never streams live.
-var _ agent.StreamingProvider = (*governor.Governor)(nil)
+var _ llm.StreamingProvider = (*governor.Governor)(nil)
 
 // CompleteStream routes through a streaming-capable provider, forwards its
 // deltas to onChunk, and returns the assembled response.
@@ -1225,7 +1226,7 @@ func TestGovernor_CompleteStreamForwardsDeltas(t *testing.T) {
 	}
 
 	var got string
-	resp, err := g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(c agent.Chunk) error {
+	resp, err := g.CompleteStream(context.Background(), llm.CompletionRequest{Model: "m"}, func(c llm.Chunk) error {
 		got += c.TextDelta
 		return nil
 	})
@@ -1257,7 +1258,7 @@ func TestGovernor_CompleteStreamNonStreamingProviderCompletes(t *testing.T) {
 	}
 
 	deltas := 0
-	resp, err := g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error {
+	resp, err := g.CompleteStream(context.Background(), llm.CompletionRequest{Model: "m"}, func(llm.Chunk) error {
 		deltas++
 		return nil
 	})
@@ -1290,7 +1291,7 @@ func TestGovernor_CompleteStreamFallsBack(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	resp, err := g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error { return nil })
+	resp, err := g.CompleteStream(context.Background(), llm.CompletionRequest{Model: "m"}, func(llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("CompleteStream: %v", err)
 	}

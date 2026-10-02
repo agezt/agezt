@@ -13,7 +13,7 @@ package builtintools
 // store and stay in main.go until the LateDeps PR.
 
 import (
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
@@ -39,7 +39,7 @@ func specSchedule() toolreg.Spec {
 			st = scheduletool.New()
 			return toolreg.Built{Tool: st}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K == nil {
 				return nil
 			}
@@ -62,7 +62,7 @@ func specRuns() toolreg.Spec {
 			rt = runstool.New()
 			return toolreg.Built{Tool: rt}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Journal != nil {
 				rt.Bind(d.Journal)
 			}
@@ -82,7 +82,7 @@ func specStanding() toolreg.Spec {
 			st = standingtool.New()
 			return toolreg.Built{Tool: st}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				st.Bind(d.K)
 			}
@@ -102,7 +102,7 @@ func specSkill() toolreg.Spec {
 			sk = skilltool.New()
 			return toolreg.Built{Tool: sk}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K == nil {
 				return nil
 			}
@@ -126,7 +126,7 @@ func specIntrospect() toolreg.Spec {
 			it = introspecttool.New()
 			return toolreg.Built{Tool: it}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				it.Bind(introspecttool.NewKernelSource(d.K))
 			}
@@ -147,7 +147,7 @@ func specOverseer() toolreg.Spec {
 			ot = overseertool.New()
 			return toolreg.Built{Tool: ot}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				ot.Bind(overseertool.NewKernelSource(d.K, d.BaseDir))
 			}
@@ -168,7 +168,7 @@ func specToolForge() toolreg.Spec {
 			ft = forgetool.New()
 			return toolreg.Built{Tool: ft}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				ft.Bind(d.K)
 			}
@@ -189,7 +189,7 @@ func specMCP() toolreg.Spec {
 			mt = mcptool.New()
 			return toolreg.Built{Tool: mt}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				mt.Bind(d.K)
 			}
@@ -210,7 +210,7 @@ func specWorkflow() toolreg.Spec {
 			wt = workflowtool.New()
 			return toolreg.Built{Tool: wt}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				wt.Bind(d.K)
 			}
@@ -230,7 +230,7 @@ func specWorkboard() toolreg.Spec {
 			wb = workboardtool.New()
 			return toolreg.Built{Tool: wb}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				wb.Bind(d.K)
 			}

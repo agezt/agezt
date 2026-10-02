@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -117,7 +117,7 @@ func TestScheduleCoverageValidateActingAgent(t *testing.T) {
 	}
 
 	// Slug in context but unknown to lookup → "not in the roster".
-	ctx := agent.WithAgent(context.Background(), "missing")
+	ctx := toolapi.WithAgent(context.Background(), "missing")
 	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (roster.Profile, bool) {
 		return roster.Profile{}, false
 	})

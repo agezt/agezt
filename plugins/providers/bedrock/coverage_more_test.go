@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func TestBedrockCoverageIdentityErrorsHeadersAndFamilies(t *testing.T) {
@@ -37,20 +37,20 @@ func TestBedrockCoverageIdentityErrorsHeadersAndFamilies(t *testing.T) {
 }
 
 func TestBedrockCoverageAnthropicHelpers(t *testing.T) {
-	if msg, err := canonicalToAnth(agent.Message{Role: agent.RoleSystem, Content: "ignored"}, nil); err != nil || msg != nil {
+	if msg, err := canonicalToAnth(llm.Message{Role: llm.RoleSystem, Content: "ignored"}, nil); err != nil || msg != nil {
 		t.Fatalf("system canonical = %#v err %v", msg, err)
 	}
-	assistant, err := canonicalToAnth(agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "call", Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
+	assistant, err := canonicalToAnth(llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "call", Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
 	if err != nil {
 		t.Fatalf("assistant canonical: %v", err)
 	}
 	if assistant.Role != "assistant" || assistant.Content[0].Name != "wire_tool" || string(assistant.Content[0].Input) != "{}" {
 		t.Fatalf("assistant canonical = %+v", assistant)
 	}
-	if _, err := canonicalToAnth(agent.Message{Role: agent.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
+	if _, err := canonicalToAnth(llm.Message{Role: llm.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Fatalf("tool without id = %v", err)
 	}
-	if _, err := canonicalToAnth(agent.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
+	if _, err := canonicalToAnth(llm.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("unknown role = %v", err)
 	}
 	if th, maxTok := thinkingConfig(1, 1); th == nil || th.BudgetTokens != MinThinkingBudget || maxTok <= th.BudgetTokens {
@@ -62,13 +62,13 @@ func TestBedrockCoverageAnthropicHelpers(t *testing.T) {
 }
 
 func TestBedrockCoverageVendorRoleParamAndDecodeEdges(t *testing.T) {
-	if got := ai21JambaRole(agent.RoleAssistant); got != "assistant" {
+	if got := ai21JambaRole(llm.RoleAssistant); got != "assistant" {
 		t.Fatalf("ai21 assistant role = %q", got)
 	}
-	if got := ai21JambaRole(agent.RoleTool); got != "user" {
+	if got := ai21JambaRole(llm.RoleTool); got != "user" {
 		t.Fatalf("ai21 tool role = %q", got)
 	}
-	if _, err := encodeAI21JambaOnBedrockRequest("", nil, 10, agent.Params{}, nil); err == nil || !strings.Contains(err.Error(), "at least one message") {
+	if _, err := encodeAI21JambaOnBedrockRequest("", nil, 10, llm.Params{}, nil); err == nil || !strings.Contains(err.Error(), "at least one message") {
 		t.Fatalf("ai21 empty encode = %v", err)
 	}
 	if _, err := decodeAI21JambaOnBedrockResponse([]byte(`{"choices":[]}`), "ai21.jamba"); err == nil || !strings.Contains(err.Error(), "no choices") {
@@ -78,20 +78,20 @@ func TestBedrockCoverageVendorRoleParamAndDecodeEdges(t *testing.T) {
 		t.Fatalf("ai21 empty content = %v", err)
 	}
 
-	if got := cohereRole(agent.RoleAssistant); got != "CHATBOT" {
+	if got := cohereRole(llm.RoleAssistant); got != "CHATBOT" {
 		t.Fatalf("cohere assistant role = %q", got)
 	}
-	if got := cohereRole(agent.RoleSystem); got != "USER" {
+	if got := cohereRole(llm.RoleSystem); got != "USER" {
 		t.Fatalf("cohere system role = %q", got)
 	}
-	if _, err := encodeCohereOnBedrockRequest("", []agent.Message{{Role: agent.RoleAssistant, Content: "no user"}}, 10, agent.Params{}, nil); err == nil || !strings.Contains(err.Error(), "user turn") {
+	if _, err := encodeCohereOnBedrockRequest("", []llm.Message{{Role: llm.RoleAssistant, Content: "no user"}}, 10, llm.Params{}, nil); err == nil || !strings.Contains(err.Error(), "user turn") {
 		t.Fatalf("cohere no user = %v", err)
 	}
 	resp, err := decodeCohereOnBedrockResponse([]byte(`{"text":"partial","finish_reason":"MAX_TOKENS"}`), "cohere.command")
 	if err != nil {
 		t.Fatalf("cohere decode: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens || resp.Message.Content != "partial" {
+	if resp.StopReason != llm.StopMaxTokens || resp.Message.Content != "partial" {
 		t.Fatalf("cohere response = %+v", resp)
 	}
 	if _, err := decodeCohereOnBedrockResponse([]byte(`{"text":""}`), "cohere.command"); err == nil || !strings.Contains(err.Error(), "empty text") {
@@ -102,19 +102,19 @@ func TestBedrockCoverageVendorRoleParamAndDecodeEdges(t *testing.T) {
 	topP := 0.7
 	stop := []string{"END"}
 	wire := ai21JambaRequest{}
-	wire.applyParams(agent.Params{Temperature: &temp, TopP: &topP, Stop: stop})
+	wire.applyParams(llm.Params{Temperature: &temp, TopP: &topP, Stop: stop})
 	if wire.Temperature != &temp || wire.TopP != &topP || len(wire.Stop) != 1 {
 		t.Fatalf("ai21 params = %+v", wire)
 	}
 	cohereWire := cohereBedrockRequest{}
-	cohereWire.applyParams(agent.Params{Temperature: &temp, TopP: &topP, Stop: stop})
+	cohereWire.applyParams(llm.Params{Temperature: &temp, TopP: &topP, Stop: stop})
 	if cohereWire.Temperature != &temp || cohereWire.P != &topP || len(cohereWire.StopSequences) != 1 {
 		t.Fatalf("cohere params = %+v", cohereWire)
 	}
 }
 
 func TestBedrockCoverageCompleteUnsupportedModel(t *testing.T) {
-	_, err := New("bearer", "us-east-1").Complete(context.Background(), agent.CompletionRequest{Model: "amazon.titan-text-lite-v1", Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}}})
+	_, err := New("bearer", "us-east-1").Complete(context.Background(), llm.CompletionRequest{Model: "amazon.titan-text-lite-v1", Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
 	if err == nil || !strings.Contains(err.Error(), ErrVendorUnsupported.Error()) {
 		t.Fatalf("unsupported model error = %v", err)
 	}

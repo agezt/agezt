@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
@@ -44,17 +44,17 @@ type input struct {
 	IncludeArchived bool     `json:"include_archived"`
 }
 
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("workboard: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("workboard: parse input: %w", err)
 	}
 	k := t.current()
 	if k == nil || k.Workboard() == nil {
 		return errResult("workboard is not available on this daemon"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
-	actor := strings.TrimSpace(agent.AgentFromContext(ctx))
+	corr := toolapi.CorrelationFromContext(ctx)
+	actor := strings.TrimSpace(toolapi.AgentFromContext(ctx))
 	in.applyContextDefaults(actor, corr)
 
 	switch strings.ToLower(strings.TrimSpace(in.Op)) {

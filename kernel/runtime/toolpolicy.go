@@ -10,10 +10,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func applyAgentNoisePolicyToPromptTools(tools map[string]agent.Tool, ctx context.Context) map[string]agent.Tool {
+func applyAgentNoisePolicyToPromptTools(tools map[string]toolapi.Tool, ctx context.Context) map[string]toolapi.Tool {
 	policy, ok := agentNoisePolicyFromCtx(ctx)
 	if !ok || !policy.disableMemoryWrites {
 		return tools
@@ -21,7 +21,7 @@ func applyAgentNoisePolicyToPromptTools(tools map[string]agent.Tool, ctx context
 	if _, ok := tools["memory"]; !ok {
 		return tools
 	}
-	out := make(map[string]agent.Tool, len(tools)-1)
+	out := make(map[string]toolapi.Tool, len(tools)-1)
 	for name, tool := range tools {
 		if name != "memory" {
 			out[name] = tool
@@ -33,14 +33,14 @@ func applyAgentNoisePolicyToPromptTools(tools map[string]agent.Tool, ctx context
 // filterTools returns the subset of tools whose names are in allow (a registered
 // name not present is dropped; an allow name with no matching tool is ignored).
 // An empty/nil allow yields an empty map — no tools.
-func filterTools(tools map[string]agent.Tool, allow []string) map[string]agent.Tool {
+func filterTools(tools map[string]toolapi.Tool, allow []string) map[string]toolapi.Tool {
 	keep := make(map[string]struct{}, len(allow))
 	for _, n := range allow {
 		if n = strings.ToLower(strings.TrimSpace(n)); n != "" {
 			keep[n] = struct{}{}
 		}
 	}
-	out := make(map[string]agent.Tool, len(keep))
+	out := make(map[string]toolapi.Tool, len(keep))
 	for name, tool := range tools {
 		if _, ok := keep[strings.ToLower(name)]; ok {
 			out[name] = tool
@@ -49,7 +49,7 @@ func filterTools(tools map[string]agent.Tool, allow []string) map[string]agent.T
 	return out
 }
 
-func applyAgentToolPolicy(tools map[string]agent.Tool, pol agentToolPolicy) map[string]agent.Tool {
+func applyAgentToolPolicy(tools map[string]toolapi.Tool, pol agentToolPolicy) map[string]toolapi.Tool {
 	out := tools
 	if len(pol.allow) > 0 {
 		out = filterTools(out, pol.allow)
@@ -63,7 +63,7 @@ func applyAgentToolPolicy(tools map[string]agent.Tool, pol agentToolPolicy) map[
 			deny[name] = struct{}{}
 		}
 	}
-	next := make(map[string]agent.Tool, len(out))
+	next := make(map[string]toolapi.Tool, len(out))
 	for name, tool := range out {
 		if _, blocked := deny[strings.ToLower(name)]; blocked {
 			continue

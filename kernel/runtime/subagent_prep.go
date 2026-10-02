@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
@@ -40,7 +40,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		if !p.Enabled {
 			return nil, fmt.Errorf("agent %q is paused (agt agent resume %s)", p.Slug, p.Slug)
 		}
-		caller := agent.AgentFromContext(ctx)
+		caller := toolapi.AgentFromContext(ctx)
 		if !p.AllowsDelegationFrom(caller) {
 			manager := strings.TrimSpace(p.ParentAgent)
 			if manager == "" {
@@ -212,7 +212,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		// child run is attributable to its leader through status -> detail -> activity.
 		spawnPayload["autonomy_runbook"] = roster.AutonomyRunbook(*prof)
 		spawnPayload["wake_source"] = "delegated"
-		if caller := strings.TrimSpace(agent.AgentFromContext(ctx)); caller != "" {
+		if caller := strings.TrimSpace(toolapi.AgentFromContext(ctx)); caller != "" {
 			spawnPayload["delegated_by"] = caller
 		}
 		if parentCorr != "" {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
@@ -304,7 +304,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 	t.Setenv("AGEZT_HOME", dir)
 	prov := mock.New()
 	calls := 0
-	prov.OnRequest = func(agent.CompletionRequest) { calls++ }
+	prov.OnRequest = func(llm.CompletionRequest) { calls++ }
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: prov})
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)

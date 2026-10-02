@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
@@ -54,7 +55,7 @@ func (d Deps) stderr() io.Writer {
 
 // Result is what Boot hands back to the daemon.
 type Result struct {
-	// Governor is the constructed routing layer (also the agent.Provider the
+	// Governor is the constructed routing layer (also the llm.Provider the
 	// kernel runs against).
 	Governor *governor.Governor
 	// Primary is the primary provider's registry name. Equal to
@@ -110,7 +111,7 @@ func Middleware(get func(string) string) []agent.Middleware {
 	}
 	var mws []agent.Middleware
 
-	var defaults agent.Params
+	var defaults llm.Params
 	if s := strings.TrimSpace(get(brand.EnvPrefix + "GEN_TEMPERATURE")); s != "" {
 		if f, err := strconv.ParseFloat(s, 64); err == nil {
 			defaults.Temperature = &f

@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
@@ -34,7 +34,7 @@ type rosterHost interface {
 	Roster() *roster.Store
 }
 
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the kernel.
+// Tool implements toolapi.Tool. Created unbound via New(); Bind wires the kernel.
 type Tool struct {
 	host host
 }
@@ -49,11 +49,11 @@ func (t *Tool) Bind(h host) {
 	}
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "standing",
-		Capability: agent.ToolCapability{Name: string(edict.CapStanding)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapStanding)},
 		Description: "Create durable event/cron wake rules for this agent. " +
 			"A standing order is not an agent identity: it binds event/cron triggers to the bound " +
 			"agent's governed task plan. op=create_event fires the plan whenever a matching journal " +
@@ -61,8 +61,8 @@ func (t *Tool) Definition() agent.ToolDef {
 			"a cron schedule. op=list / op=remove manage them. Managed sub-agents cannot create " +
 			"independently firing self-wake orders; their parent/owner should schedule or run them. " +
 			"Use this to set up reactive or recurring behaviour that should happen without the user asking again.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"create, list, or remove autonomous standing orders",
 				"created orders may launch future governed agent runs on cron or event triggers",
@@ -101,11 +101,11 @@ type input struct {
 	ID       string `json:"id"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("standing: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("standing: parse input: %w", err)
 	}
 	if t.host == nil {
 		return errResult("standing orders are not available on this daemon"), nil
@@ -152,7 +152,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 }
 
-func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (agent.Result, error) {
+func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (toolapi.Result, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return errResult(`a "name" is required`), nil
@@ -175,7 +175,7 @@ func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (age
 		Assure:      assure,
 		CooldownSec: cooldown,
 	}
-	if actor := strings.TrimSpace(agent.AgentFromContext(ctx)); actor != "" {
+	if actor := strings.TrimSpace(toolapi.AgentFromContext(ctx)); actor != "" {
 		if res, ok := t.validateActingAgent(actor); ok {
 			return res, nil
 		}
@@ -190,10 +190,10 @@ func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (age
 	return okJSON(v), nil
 }
 
-func (t *Tool) validateActingAgent(slug string) (agent.Result, bool) {
+func (t *Tool) validateActingAgent(slug string) (toolapi.Result, bool) {
 	h, ok := t.host.(rosterHost)
 	if !ok || h.Roster() == nil {
-		return agent.Result{}, false
+		return toolapi.Result{}, false
 	}
 	p, found := h.Roster().Get(slug)
 	if !found {
@@ -208,7 +208,7 @@ func (t *Tool) validateActingAgent(slug string) (agent.Result, bool) {
 	if !p.AllowsDirectCall() {
 		return errResult(managedSubAgentStandingHint(p)), true
 	}
-	return agent.Result{}, false
+	return toolapi.Result{}, false
 }
 
 func managedSubAgentStandingHint(p roster.Profile) string {
@@ -251,16 +251,16 @@ func orderView(o standing.Order) map[string]any {
 	return v
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "standing: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "standing: " + msg, IsError: true}
 }
 
 func max64(a, b int64) int64 {

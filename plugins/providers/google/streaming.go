@@ -14,15 +14,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-// CompleteStream implements agent.StreamingProvider. It POSTs to the
+// CompleteStream implements llm.StreamingProvider. It POSTs to the
 // `:streamGenerateContent?alt=sse` endpoint and parses the SSE stream
-// into agent.Chunk callbacks. The returned CompletionResponse matches
+// into llm.Chunk callbacks. The returned CompletionResponse matches
 // what Complete would return for the same request.
 //
 // Wire shape notes (different from both Anthropic and OpenAI):
@@ -40,13 +40,13 @@ import (
 //     in one chunk).
 //   - `usageMetadata` and `finishReason` appear in the terminal chunk.
 //
-// Because Gemini delivers tool calls whole, the agent.Chunk lifecycle
+// Because Gemini delivers tool calls whole, the llm.Chunk lifecycle
 // for a tool call is: emit ToolUseStart → emit a single
 // ToolInputJSONDelta carrying the full marshaled args → emit
 // ToolUseStop. Callers that synthesize per-tool UI from chunks get a
 // consistent start→deltas→stop story regardless of whether the
 // upstream provider truly streamed the input.
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -124,7 +124,7 @@ func (p *Provider) resolveStreamEndpoint(model string) string {
 type streamState struct {
 	textParts      strings.Builder
 	reasoningParts strings.Builder // M319: thought-summary parts
-	toolCalls      []agent.ToolCall
+	toolCalls      []llm.ToolCall
 	finishReason   string
 	model          string
 	inputTokens    int
@@ -135,7 +135,7 @@ type streamState struct {
 
 // parseStream consumes the SSE response body until EOF. Each
 // `data:` line is a complete partial geminiResponse JSON.
-func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseStream(body io.Reader, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	// Tool arguments + system instructions can produce large frames;
 	// bump from default 64K to 1MB to match the Anthropic / OpenAI
@@ -179,12 +179,12 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 				// Thought-summary delta (M319): reasoning, surfaced on
 				// ReasoningDelta and kept out of the answer text.
 				st.reasoningParts.WriteString(part.Text)
-				if err := onChunk(agent.Chunk{ReasoningDelta: part.Text}); err != nil {
+				if err := onChunk(llm.Chunk{ReasoningDelta: part.Text}); err != nil {
 					return nil, err
 				}
 			case part.Text != "":
 				st.textParts.WriteString(part.Text)
-				if err := onChunk(agent.Chunk{TextDelta: part.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: part.Text}); err != nil {
 					return nil, err
 				}
 			case part.FunctionCall != nil:
@@ -196,25 +196,25 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 				// ones (same convention as the non-streaming path).
 				callID := "call-" + strconv.Itoa(toolIdx)
 				toolIdx++
-				start := &agent.ToolCall{
+				start := &llm.ToolCall{
 					ID:    callID,
 					Name:  part.FunctionCall.Name,
 					Input: args,
 				}
-				if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+				if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 					return nil, err
 				}
 				// The full args arrive in one chunk, so we emit them as
 				// a single ToolInputJSONDelta — keeps the chunk
 				// lifecycle consistent with adapters that genuinely
 				// stream (Anthropic/OpenAI).
-				if err := onChunk(agent.Chunk{ToolInputJSONDelta: string(args)}); err != nil {
+				if err := onChunk(llm.Chunk{ToolInputJSONDelta: string(args)}); err != nil {
 					return nil, err
 				}
-				if err := onChunk(agent.Chunk{ToolUseStop: callID}); err != nil {
+				if err := onChunk(llm.Chunk{ToolUseStop: callID}); err != nil {
 					return nil, err
 				}
-				st.toolCalls = append(st.toolCalls, agent.ToolCall{
+				st.toolCalls = append(st.toolCalls, llm.ToolCall{
 					ID:    callID,
 					Name:  part.FunctionCall.Name,
 					Input: args,
@@ -230,29 +230,29 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 
 // assembleResponse converts the accumulated streamState into the same
 // CompletionResponse shape Complete returns.
-func assembleResponse(st *streamState) *agent.CompletionResponse {
-	var stop agent.StopReason
+func assembleResponse(st *streamState) *llm.CompletionResponse {
+	var stop llm.StopReason
 	switch {
 	case len(st.toolCalls) > 0:
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	default:
 		switch st.finishReason {
 		case "STOP", "":
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		case "MAX_TOKENS":
-			stop = agent.StopMaxTokens
+			stop = llm.StopMaxTokens
 		default:
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		}
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: st.toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:       st.inputTokens,
 			CachedInputTokens: st.cachedTokens,
 			OutputTokens:      st.outputTokens + st.thoughtsTokens, // thinking billed as output (M319)

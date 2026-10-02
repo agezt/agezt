@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Package compat builds a wire `agent.Provider` from a `catalog.Provider`
+// Package compat builds a wire `llm.Provider` from a `catalog.Provider`
 // entry — no per-provider Go package needed. The Family hint on the
 // catalog entry (derived from the upstream `npm` field, see
 // kernel/catalog.FamilyFromNPM) picks the right adapter, the `api`
@@ -63,8 +63,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 	"github.com/agezt/agezt/plugins/providers/cohere"
@@ -101,7 +101,7 @@ type CredLookup func(name string) string
 // Returns (provider, modelID-used, error). The returned Provider's
 // Name() reports the catalog provider id so the Governor's registry
 // stays keyed on stable, catalog-aligned names.
-func Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provider, string, error) {
+func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider, string, error) {
 	if p == nil {
 		return nil, "", errors.New("compat: nil provider entry")
 	}

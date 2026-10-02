@@ -17,7 +17,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
@@ -40,7 +41,7 @@ type anthBedrockRequest struct {
 // applyParams copies the universal sampling knobs Anthropic-on-Bedrock
 // understands. ReasoningEffort is handled separately (mapped to a thinking
 // budget); an unset Params leaves the request unchanged.
-func (wire *anthBedrockRequest) applyParams(p agent.Params) {
+func (wire *anthBedrockRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -115,7 +116,7 @@ type anthCacheControl struct {
 // repeats every agent-loop iteration. Bedrock ignores the marker when the prefix
 // is below the minimum cacheable size, so it's safe to always set; cache reads
 // bill at ~0.1× input (M289-291/M296).
-func buildBedrockTools(tools []agent.ToolDef, fwd map[string]string) []anthTool {
+func buildBedrockTools(tools []toolapi.ToolDef, fwd map[string]string) []anthTool {
 	if len(tools) == 0 {
 		return nil
 	}
@@ -167,11 +168,11 @@ type anthBedrockResponse struct {
 }
 
 // anthBedrockUsageToAgent maps Claude-on-Bedrock's split token counts to the
-// canonical agent.Usage (M296), mirroring the direct-Anthropic provider:
+// canonical llm.Usage (M296), mirroring the direct-Anthropic provider:
 // input_tokens excludes cached prompt tokens, so the real prompt is
 // input + cache_read + cache_creation; cache reads are marked cached (cheaper
 // rate, M289), cache-creation as cache-write (the premium, M291).
-func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeAnthropicOnBedrockRequest(system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	// A per-request reasoning effort (M997) maps to an extended-thinking budget,
 	// exactly like the direct-Anthropic adapter. Empty effort → no thinking block.
 	thinking, maxTok := thinkingConfig(func() int {
@@ -208,14 +209,14 @@ func encodeAnthropicOnBedrockRequest(system string, msgs []agent.Message, tools 
 // "data:<media-type>;base64,<payload>" into its media type and base64 payload,
 // returning ok=false for anything else (including a legacy bare filename),
 // which the caller skips. The CLI sends data: URLs (M241).
-func decodeAnthropicOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeAnthropicOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var ar anthBedrockResponse
 	if err := json.Unmarshal(body, &ar); err != nil {
 		return nil, fmt.Errorf("bedrock: parse response: %w", err)
 	}
 	var (
 		textParts []string
-		toolCalls []agent.ToolCall
+		toolCalls []llm.ToolCall
 	)
 	for _, b := range ar.Content {
 		switch b.Type {
@@ -226,25 +227,25 @@ func decodeAnthropicOnBedrockResponse(body []byte, model string) (*agent.Complet
 			if len(input) == 0 {
 				input = json.RawMessage(`{}`)
 			}
-			toolCalls = append(toolCalls, agent.ToolCall{
+			toolCalls = append(toolCalls, llm.ToolCall{
 				ID:    b.ID,
 				Name:  b.Name,
 				Input: input,
 			})
 		}
 	}
-	stop := agent.StopReason(ar.StopReason)
+	stop := llm.StopReason(ar.StopReason)
 	switch ar.StopReason {
 	case "end_turn", "stop_sequence":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_use":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},

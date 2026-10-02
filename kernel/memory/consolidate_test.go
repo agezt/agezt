@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func consolidationCorpus() []Record {
@@ -68,15 +68,15 @@ type scriptedProvider struct {
 
 func (p *scriptedProvider) Name() string { return "consolidation-mock" }
 
-func (p *scriptedProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *scriptedProvider) Complete(_ context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	i := p.calls
 	if i >= len(p.answers) {
 		i = len(p.answers) - 1
 	}
 	p.calls++
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: p.answers[i]},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: p.answers[i]},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 

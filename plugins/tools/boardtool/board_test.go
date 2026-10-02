@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // fakeStore is an in-memory boardStore so the tool's op → store mapping is
@@ -221,7 +221,7 @@ func TestPostThenRead_SharedAcrossCalls(t *testing.T) {
 
 func TestActorIdentityDefaultsAndPreventsSpoofing(t *testing.T) {
 	tool := newTool(t)
-	ctx := agent.WithAgent(context.Background(), "researcher")
+	ctx := toolapi.WithAgent(context.Background(), "researcher")
 	out, isErr := invokeCtx(t, ctx, tool, map[string]any{"op": "send", "to": "ops", "text": "ping"})
 	if isErr {
 		t.Fatalf("send with actor default errored: %v", out)
@@ -240,7 +240,7 @@ func TestInboxDefaultsToActingAgent(t *testing.T) {
 	if _, isErr := invoke(t, tool, map[string]any{"op": "send", "from": "ops", "to": "researcher", "text": "need you"}); isErr {
 		t.Fatal("setup send errored")
 	}
-	out, isErr := invokeCtx(t, agent.WithAgent(context.Background(), "researcher"), tool, map[string]any{"op": "inbox"})
+	out, isErr := invokeCtx(t, toolapi.WithAgent(context.Background(), "researcher"), tool, map[string]any{"op": "inbox"})
 	if isErr {
 		t.Fatalf("inbox default errored: %v", out)
 	}
@@ -316,7 +316,7 @@ func TestPost_NotifiesWithCorrelation(t *testing.T) {
 		calls++
 		got, gotCorr = m, corr
 	})
-	ctx := agent.WithCorrelation(context.Background(), "run-42")
+	ctx := toolapi.WithCorrelation(context.Background(), "run-42")
 	raw, _ := json.Marshal(map[string]any{"op": "post", "topic": "handoff", "from": "ci", "text": "build green"})
 	if _, err := tool.Invoke(ctx, raw); err != nil {
 		t.Fatalf("Invoke: %v", err)

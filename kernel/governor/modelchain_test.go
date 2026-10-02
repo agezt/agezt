@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 )
@@ -24,7 +24,7 @@ type modelAwareProvider struct {
 }
 
 func (p *modelAwareProvider) Name() string { return p.name }
-func (p *modelAwareProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *modelAwareProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.calls.Add(1)
 	if !p.ok[req.Model] {
 		return nil, fmt.Errorf("%s: model %q unavailable", p.name, req.Model)
@@ -55,7 +55,7 @@ func TestTaskModelChain_FallsBackToNextModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{TaskType: "chat"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{TaskType: "chat"})
 	if err != nil {
 		t.Fatalf("complete: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestTaskModelChain_PrimaryWinsStops(t *testing.T) {
 		Registry:        r,
 		TaskModelChains: governor.TaskModelChains{"chat": {"model-a", "model-b"}},
 	})
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{TaskType: "chat"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{TaskType: "chat"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestTaskModelChain_NoChainUsesRequestModel(t *testing.T) {
 	alpha := &modelAwareProvider{name: "alpha", ok: map[string]bool{"model-a": true}}
 	mustRegister(t, r, &governor.ProviderInfo{Name: "alpha", Provider: alpha, AuthMode: governor.AuthAPIKey, Models: []string{"model-a"}})
 	g, _ := governor.New(governor.Config{Registry: r}) // no chains
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "model-a", TaskType: "chat"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "model-a", TaskType: "chat"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestTaskModelChain_SetHotSwaps(t *testing.T) {
 	g, _ := governor.New(governor.Config{Registry: r})
 
 	// No chain yet: a "chat" request with model-a fails (alpha down, beta won't serve model-a).
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "model-a", TaskType: "chat"}); err == nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "model-a", TaskType: "chat"}); err == nil {
 		t.Fatal("expected failure before chain configured")
 	}
 
@@ -160,7 +160,7 @@ func TestTaskModelChain_SetHotSwaps(t *testing.T) {
 	if got := g.TaskModelChainsView()["chat"]; len(got) != 2 {
 		t.Fatalf("view after set: %v", got)
 	}
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{TaskType: "chat"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{TaskType: "chat"})
 	if err != nil || resp.Usage.Model != "model-b" {
 		t.Fatalf("after hot-swap, expected model-b: resp=%v err=%v", resp, err)
 	}

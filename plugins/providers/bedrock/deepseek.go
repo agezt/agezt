@@ -36,7 +36,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -68,7 +68,7 @@ type deepseekBedrockRequest struct {
 
 // applyParams copies the sampling knobs Bedrock DeepSeek understands; an unset
 // Params leaves the request unchanged.
-func (wire *deepseekBedrockRequest) applyParams(p agent.Params) {
+func (wire *deepseekBedrockRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -88,7 +88,7 @@ type deepseekBedrockResponse struct {
 // BOS, the system prompt as a bare prefix, then alternating <｜User｜> /
 // <｜Assistant｜> turns, ending with an open assistant tag + <think> so the
 // model produces its reasoning then the answer.
-func deepseekR1Template(system string, msgs []agent.Message) string {
+func deepseekR1Template(system string, msgs []llm.Message) string {
 	var sb strings.Builder
 	sb.WriteString(dsBOS)
 	if s := strings.TrimSpace(system); s != "" {
@@ -96,7 +96,7 @@ func deepseekR1Template(system string, msgs []agent.Message) string {
 	}
 	for _, m := range msgs {
 		switch m.Role {
-		case agent.RoleAssistant:
+		case llm.RoleAssistant:
 			sb.WriteString(dsAssistant)
 			sb.WriteString(m.Content)
 			sb.WriteString(dsEOS)
@@ -112,7 +112,7 @@ func deepseekR1Template(system string, msgs []agent.Message) string {
 	return sb.String()
 }
 
-func encodeDeepSeekOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeDeepSeekOnBedrockRequest(system string, msgs []llm.Message, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-deepseek: at least one message required")
 	}
@@ -132,7 +132,7 @@ func encodeDeepSeekOnBedrockRequest(system string, msgs []agent.Message, maxTok 
 // reasoning (before </think>) and answer (after). Usage is left zero — the
 // InvokeModel text-completion body carries no token counts; Complete's
 // response-header overlay (M327) fills them.
-func decodeDeepSeekOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeDeepSeekOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var wire deepseekBedrockResponse
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("bedrock-deepseek: parse response: %w", err)
@@ -156,18 +156,18 @@ func decodeDeepSeekOnBedrockResponse(body []byte, model string) (*agent.Completi
 		answer = strings.TrimSpace(ch.Text)
 	}
 
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	if strings.EqualFold(ch.StopReason, "length") {
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:    agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:    llm.RoleAssistant,
 			Content: answer,
 		},
 		ReasoningContent: reasoning,
 		StopReason:       stop,
-		Usage:            agent.Usage{Model: model},
+		Usage:            llm.Usage{Model: model},
 	}, nil
 }
 

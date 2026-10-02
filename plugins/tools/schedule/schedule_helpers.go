@@ -13,23 +13,24 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func validateScheduledJob(in input) agent.Result {
+func validateScheduledJob(in input) toolapi.Result {
 	switch in.Op {
 	case "in", "every", "daily", "continuous":
 	default:
-		return agent.Result{}
+		return toolapi.Result{}
 	}
 	if scheduleTarget(in) == cadence.TargetIntent && strings.TrimSpace(in.Intent) == "" {
 		return errResult("target=agent needs agent task text in the intent field")
 	}
-	return agent.Result{}
+	return toolapi.Result{}
 }
 
-func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) (cadence.Entry, agent.Result, bool) {
+func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) (cadence.Entry, toolapi.Result, bool) {
 	target := scheduleTarget(in)
 	in.Workflow = strings.TrimSpace(in.Workflow)
 	in.System = strings.TrimSpace(in.System)
@@ -44,7 +45,7 @@ func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) 
 		if bindings > 0 {
 			return e, errResult("target=agent/intent cannot also set workflow, system_task, or tool"), false
 		}
-		return applyActingAgent(ctx, st, e), agent.Result{}, true
+		return applyActingAgent(ctx, st, e), toolapi.Result{}, true
 	}
 	if bindings > 1 {
 		return e, errResult("choose only one of workflow, system_task, or tool"), false
@@ -94,10 +95,10 @@ func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) 
 	default:
 		return e, errResult("unknown target " + target + " (agent|workflow|system_task|tool)"), false
 	}
-	return e, agent.Result{}, true
+	return e, toolapi.Result{}, true
 }
 
-func finalizeEntry(ctx context.Context, st store, e cadence.Entry, in input, msg string) agent.Result {
+func finalizeEntry(ctx context.Context, st store, e cadence.Entry, in input, msg string) toolapi.Result {
 	e, res, ok := applyTypedTarget(ctx, st, e, in)
 	if !ok {
 		_, _ = st.Remove(e.ID)
@@ -106,11 +107,11 @@ func finalizeEntry(ctx context.Context, st store, e cadence.Entry, in input, msg
 	return okEntry(msg, applyAssure(st, e, in.Assure))
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("schedule: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("schedule: parse input: %w", err)
 	}
 	st, nowFn, lookup := t.current()
 	if st == nil {
@@ -272,20 +273,20 @@ func entryView(e cadence.Entry) map[string]any {
 	return v
 }
 
-func okEntry(msg string, e cadence.Entry) agent.Result {
+func okEntry(msg string, e cadence.Entry) toolapi.Result {
 	view := entryView(e)
 	view["message"] = msg
 	return okJSON(view)
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "schedule: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "schedule: " + msg, IsError: true}
 }

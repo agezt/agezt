@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // decodeMessages pulls the messages out of an encoded request with content left
@@ -34,8 +34,8 @@ func decodeMessages(t *testing.T, body []byte) []struct {
 // content-parts array: a text part then an image_url part (M242).
 func TestEncodeRequest_ImageContentParts(t *testing.T) {
 	du := "data:image/png;base64,QUJD"
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "describe", Images: []string{du}}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "describe", Images: []string{du}}}
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -60,8 +60,8 @@ func TestEncodeRequest_ImageContentParts(t *testing.T) {
 
 // A text-only user message keeps the plain-string content form (no drift).
 func TestEncodeRequest_TextOnlyStaysString(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hello"}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hello"}}
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -78,8 +78,8 @@ func TestEncodeRequest_TextOnlyStaysString(t *testing.T) {
 // A non-URL attachment (legacy bare filename) is skipped, so the message stays
 // a plain-string content rather than carrying an invalid image_url.
 func TestEncodeRequest_SkipsNonURLImage(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -96,11 +96,11 @@ func TestEncodeRequest_SkipsNonURLImage(t *testing.T) {
 // A tool-call-only assistant message still omits "content" entirely — the any
 // retype must not regress the omitempty wire shape OpenAI expects.
 func TestEncodeRequest_ToolCallAssistantOmitsContent(t *testing.T) {
-	msgs := []agent.Message{{
-		Role:      agent.RoleAssistant,
-		ToolCalls: []agent.ToolCall{{ID: "c1", Name: "ls", Input: json.RawMessage(`{}`)}},
+	msgs := []llm.Message{{
+		Role:      llm.RoleAssistant,
+		ToolCalls: []llm.ToolCall{{ID: "c1", Name: "ls", Input: json.RawMessage(`{}`)}},
 	}}
-	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, agent.Params{}, nil)
+	body, err := encodeRequest("gpt-x", "", msgs, nil, 100, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}

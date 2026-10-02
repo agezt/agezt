@@ -29,7 +29,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // RefineSystemPrompt is the system message for refinement calls.
@@ -100,12 +100,12 @@ func Refine(ctx context.Context, cfg Config, original Plan, feedback string) (ra
 	}
 
 	user := "CURRENT PLAN:\n```json\n" + string(origJSON) + "\n```\n\nOPERATOR FEEDBACK:\n" + feedback
-	req := agent.CompletionRequest{
+	req := llm.CompletionRequest{
 		System:    sys,
 		Model:     cfg.Model,
 		MaxTokens: maxTok,
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: user},
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: user},
 		},
 		TaskType: TaskType, // same routing/pricing bucket as initial planning
 	}

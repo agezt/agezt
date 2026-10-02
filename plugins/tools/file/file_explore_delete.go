@@ -14,10 +14,10 @@ import (
 	"errors"
 	"os"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func (t *Tool) doDelete(ctx context.Context, in fileInput) (agent.Result, error) {
+func (t *Tool) doDelete(ctx context.Context, in fileInput) (toolapi.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil
@@ -40,7 +40,7 @@ func (t *Tool) doDelete(ctx context.Context, in fileInput) (agent.Result, error)
 	if err := os.Remove(p); err != nil {
 		return errResult("remove: " + err.Error()), nil
 	}
-	return agent.Result{Output: "deleted " + in.Path}, nil
+	return toolapi.Result{Output: "deleted " + in.Path}, nil
 }
 
 // ----- containment -----

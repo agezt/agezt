@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
@@ -121,7 +121,7 @@ func TestCreateEvent_AssureBudget(t *testing.T) {
 
 func TestCreateEvent_BindsActingAgentFromContext(t *testing.T) {
 	tool, st := newTool(t)
-	out, isErr := invokeCtx(t, agent.WithAgent(context.Background(), "researcher"), tool, map[string]any{
+	out, isErr := invokeCtx(t, toolapi.WithAgent(context.Background(), "researcher"), tool, map[string]any{
 		"op": "create_event", "name": "watch-own-work", "subject": "task.failed",
 		"plan": "Inspect the failed task and repair it.",
 	})
@@ -164,7 +164,7 @@ func TestCreateEvent_ManagedSubAgentCannotCreateDirectWake(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{
 		"op": "create_event", "name": "self-wake", "subject": "task.failed", "plan": "wake me",
 	})
-	res, err := tool.Invoke(agent.WithAgent(context.Background(), "worker"), raw)
+	res, err := tool.Invoke(toolapi.WithAgent(context.Background(), "worker"), raw)
 	if err != nil {
 		t.Fatalf("invoke standing: %v", err)
 	}

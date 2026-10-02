@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
@@ -31,8 +31,8 @@ func TestDelegate_AsNamedAgent(t *testing.T) {
 		mock.FinalText("found it"), // child's run
 		mock.FinalText("done"),     // lead's final
 	)
-	var reqs []agent.CompletionRequest
-	prov.OnRequest = func(req agent.CompletionRequest) { reqs = append(reqs, req) }
+	var reqs []llm.CompletionRequest
+	prov.OnRequest = func(req llm.CompletionRequest) { reqs = append(reqs, req) }
 	k := openSubAgentKernel(t, prov, 1)
 
 	if _, err := k.AddProfile(roster.Profile{
@@ -61,7 +61,7 @@ func TestDelegate_AsNamedAgent(t *testing.T) {
 	}
 
 	// The child's completion request carried the profile's model + soul.
-	var child *agent.CompletionRequest
+	var child *llm.CompletionRequest
 	for i := range reqs {
 		if reqs[i].Model == "agent-model" {
 			child = &reqs[i]
@@ -121,8 +121,8 @@ func TestDelegate_NamedAgentToolPolicyFiltersChildTools(t *testing.T) {
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
-	var reqs []agent.CompletionRequest
-	prov.OnRequest = func(req agent.CompletionRequest) { reqs = append(reqs, req) }
+	var reqs []llm.CompletionRequest
+	prov.OnRequest = func(req llm.CompletionRequest) { reqs = append(reqs, req) }
 	k := openSubAgentKernel(t, prov, 1)
 
 	if _, err := k.AddProfile(roster.Profile{
@@ -138,7 +138,7 @@ func TestDelegate_NamedAgentToolPolicyFiltersChildTools(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	var child *agent.CompletionRequest
+	var child *llm.CompletionRequest
 	for i := range reqs {
 		if reqs[i].Model == "worker-model" {
 			child = &reqs[i]
@@ -167,7 +167,7 @@ func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil)), "notify": quietTool{name: "notify"}},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil)), "notify": quietTool{name: "notify"}},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		Edict:            edict.New(edict.Options{UnknownAllow: true}),
@@ -476,7 +476,7 @@ func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
-		Tools:            map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		MemoryTool:       true,
@@ -523,7 +523,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 		mock.FinalText("lead done"),
 	)
 	var childSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		if strings.Contains(req.System, "focused sub-agent") {
 			childSystem = req.System
 		}
@@ -531,7 +531,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
-		Tools:        map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:        map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool: true,
 		MemoryInject: true,
 		SkillInject:  true,
@@ -592,7 +592,7 @@ func TestDelegate_AgentModelChainFollowsChild(t *testing.T) {
 		mock.FinalText("lead"),
 	)
 	var chains [][]string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		if req.Model == "agent-model" { // the child's request
 			chains = append(chains, req.ModelChain)
 		}
@@ -624,7 +624,7 @@ func TestDelegate_AgentConfigOverrideModelFollowsChild(t *testing.T) {
 	)
 	var models []string
 	var chains [][]string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		models = append(models, req.Model)
 		if req.Model == "override-model" {
 			chains = append(chains, req.ModelChain)
@@ -662,7 +662,7 @@ func TestDelegate_ExplicitModelWinsOverConfigOverride(t *testing.T) {
 		mock.FinalText("lead"),
 	)
 	var models []string
-	prov.OnRequest = func(req agent.CompletionRequest) { models = append(models, req.Model) }
+	prov.OnRequest = func(req llm.CompletionRequest) { models = append(models, req.Model) }
 	k := openSubAgentKernel(t, prov, 1)
 	if _, err := k.AddProfile(roster.Profile{
 		Slug: "researcher",
@@ -698,7 +698,7 @@ func TestDelegate_ExplicitModelWinsOverProfile(t *testing.T) {
 		mock.FinalText("lead"),
 	)
 	var models []string
-	prov.OnRequest = func(req agent.CompletionRequest) { models = append(models, req.Model) }
+	prov.OnRequest = func(req llm.CompletionRequest) { models = append(models, req.Model) }
 	k := openSubAgentKernel(t, prov, 1)
 	if _, err := k.AddProfile(roster.Profile{Slug: "researcher", Model: "agent-model"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)

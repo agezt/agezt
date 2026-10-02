@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -23,9 +23,9 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 	// The mock bills 100k input tokens under a catalog-priced model
 	// (claude-sonnet-4-6 at the fallback price = 300M microcents/MTok → 0.1 MTok ≈
 	// 30M microcents ≈ $0.03), comfortably over the $0.01 cap below.
-	mkProv := func() agent.Provider {
+	mkProv := func() llm.Provider {
 		return mock.New(testWithUsage(mock.FinalText("done"),
-			agent.Usage{Model: "claude-sonnet-4-6", InputTokens: 100_000, OutputTokens: 0}))
+			llm.Usage{Model: "claude-sonnet-4-6", InputTokens: 100_000, OutputTokens: 0}))
 	}
 
 	t.Run("over cap → cost_budget failure", func(t *testing.T) {

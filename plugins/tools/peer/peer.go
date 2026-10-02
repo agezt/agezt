@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/tenantctx"
 )
@@ -51,7 +51,7 @@ type modelCacheEntry struct {
 	at     time.Time
 }
 
-// Tool implements agent.Tool. Constructed only when at least one peer is
+// Tool implements toolapi.Tool. Constructed only when at least one peer is
 // configured; see New.
 type Tool struct {
 	Peers map[string]Peer
@@ -135,10 +135,10 @@ func (t *Tool) cachedModels(ctx context.Context, p Peer) ([]string, error) {
 	return models, nil
 }
 
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "remote_run",
-		Capability: agent.ToolCapability{Name: string(edict.CapRemoteRun)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapRemoteRun)},
 		Description: "Delegate a self-contained task to a PEER Agezt node and return its answer. " +
 			"The peer runs the task through its own governed agent loop (its tools, its policy) and " +
 			"reports back. Use to hand work to a node with different capabilities, data access, or " +
@@ -163,8 +163,8 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"POST a task to a configured peer Agezt node and wait for the remote governed run to finish.",
 				"May execute side effects on the peer according to that peer's own tools and policy.",

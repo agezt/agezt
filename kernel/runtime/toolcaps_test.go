@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -17,12 +18,12 @@ import (
 // quietTool is a no-op tool standing in for an out-of-process plugin tool.
 type quietTool struct{ name string }
 
-func (q quietTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: q.name, Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (q quietTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: q.name, Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (quietTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: "ran"}, nil
+func (quietTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: "ran"}, nil
 }
 
 // TestToolCapabilities_DeclaredAxisGoverns (M900): a plugin tool whose
@@ -33,20 +34,20 @@ func (quietTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) 
 // name classification.
 func TestToolCapabilities_DeclaredAxisGoverns(t *testing.T) {
 	prov := mock.New(
-		agent.CompletionResponse{
-			Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{
+		llm.CompletionResponse{
+			Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
 				{ID: "c1", Name: "plug.post", Input: json.RawMessage(`{}`)},
 				{ID: "c2", Name: "plug.read", Input: json.RawMessage(`{}`)},
 				{ID: "c3", Name: "plug.weird", Input: json.RawMessage(`{}`)},
 			}},
-			StopReason: agent.StopToolUse,
+			StopReason: llm.StopToolUse,
 		},
 		mock.FinalText("done"),
 	)
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"plug.post":  quietTool{name: "plug.post"},
 			"plug.read":  quietTool{name: "plug.read"},
 			"plug.weird": quietTool{name: "plug.weird"},
@@ -95,7 +96,7 @@ func TestToolCapabilities_DeclaredAxisGoverns(t *testing.T) {
 	if d := got["plug.post"]; d.cap != "http.post" || d.allow {
 		t.Errorf("plug.post decision = %+v, want capability http.post, denied (declared axis at L0)", d)
 	}
-	if d := got["plug.post"]; d.effect != string(agent.EffectCompensable) {
+	if d := got["plug.post"]; d.effect != string(toolapi.EffectCompensable) {
 		t.Errorf("plug.post effect class = %q, want compensable for http.post", d.effect)
 	}
 	if d := got["plug.read"]; d.cap != "plug.read" || !d.allow {
@@ -113,7 +114,7 @@ func TestRunTool_JournalsPolicyDecisionOnDirectPath(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"plug.post": quietTool{name: "plug.post"},
 			"plug.read": quietTool{name: "plug.read"},
 		},

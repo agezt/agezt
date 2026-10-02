@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // modelsPayload is a trimmed copy of a real /models reply: two listed models out
@@ -148,7 +148,7 @@ func TestInstructionsPerModel(t *testing.T) {
 	p.BaseURL = srv.URL
 	p.Instructions = map[string]string{"gpt-5.6-sol": "SOL PROMPT"}
 
-	req := agent.CompletionRequest{Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}}}
+	req := llm.CompletionRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}}
 	if _, err := p.Complete(t.Context(), req); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}

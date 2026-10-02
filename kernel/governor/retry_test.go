@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 )
@@ -23,7 +23,7 @@ type flakyProvider struct {
 }
 
 func (p *flakyProvider) Name() string { return p.name }
-func (p *flakyProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *flakyProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	n := p.calls.Add(1)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func TestGovernor_RetryInPlaceOnTransient(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestGovernor_NoRetryOnNonTransient(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -118,12 +118,12 @@ type tornStreamProvider struct {
 	fakeProvider
 }
 
-func (p *tornStreamProvider) CompleteStream(ctx context.Context, _ agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *tornStreamProvider) CompleteStream(ctx context.Context, _ llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	p.calls.Add(1)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := onChunk(agent.Chunk{TextDelta: "partial "}); err != nil {
+	if err := onChunk(llm.Chunk{TextDelta: "partial "}); err != nil {
 		return nil, err
 	}
 	return nil, errors.New("upstream 503 mid-stream")
@@ -146,7 +146,7 @@ func TestGovernor_StreamInterruptedIsTerminal(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	_, err = g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error { return nil })
+	_, err = g.CompleteStream(context.Background(), llm.CompletionRequest{Model: "m"}, func(llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("CompleteStream succeeded, want a terminal stream-interrupted error")
 	}
@@ -179,7 +179,7 @@ func TestGovernor_NoInPlaceRetryOfRefusedDial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}

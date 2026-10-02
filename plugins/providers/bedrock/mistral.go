@@ -39,7 +39,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -58,7 +58,7 @@ type mistralBedrockRequest struct {
 // applyParams copies the sampling knobs Bedrock Mistral understands; an unset
 // Params leaves the request unchanged. ReasoningEffort/seed/penalties are not
 // part of the Mistral chat shape and are ignored.
-func (wire *mistralBedrockRequest) applyParams(p agent.Params) {
+func (wire *mistralBedrockRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -89,11 +89,11 @@ type mistralBedrockResponse struct {
 }
 
 // encodeMistralOnBedrockRequest converts a canonical
-// agent.CompletionRequest into the Mistral chat body. System
+// llm.CompletionRequest into the Mistral chat body. System
 // prompts are converted to a leading system-role message (Bedrock
 // Mistral honours that role; the older `prompt`-string shape did
 // not). Tool definitions are dropped — see the file doc-comment.
-func encodeMistralOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeMistralOnBedrockRequest(system string, msgs []llm.Message, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	out := mistralBedrockRequest{MaxTokens: maxTok}
 	out.applyParams(params)
 	if system != "" {
@@ -128,7 +128,7 @@ func encodeMistralOnBedrockRequest(system string, msgs []agent.Message, maxTok i
 // into a canonical CompletionResponse. The model id is echoed back
 // in Usage so downstream tracking (governor cost accounting, audit
 // events) sees the same id the caller specified.
-func decodeMistralOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeMistralOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var wire mistralBedrockResponse
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("bedrock-mistral: parse response: %w", err)
@@ -137,20 +137,20 @@ func decodeMistralOnBedrockResponse(body []byte, model string) (*agent.Completio
 		return nil, errors.New("bedrock-mistral: response has no choices")
 	}
 	ch := wire.Choices[0]
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	if ch.FinishReason == "length" {
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
+	return &llm.CompletionResponse{
+		Message: llm.Message{
 			// Hard-code the assistant role rather than trusting the upstream value:
 			// an OpenAI-shaped backend often omits message.role on the response, which
 			// would leave the canonical role empty and misclassify the turn for
 			// downstream role switches. Every sibling adapter does the same. (M484)
-			Role:    agent.RoleAssistant,
+			Role:    llm.RoleAssistant,
 			Content: ch.Message.Content,
 		},
 		StopReason: stop,
-		Usage:      agent.Usage{Model: model},
+		Usage:      llm.Usage{Model: model},
 	}, nil
 }

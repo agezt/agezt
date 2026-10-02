@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -44,12 +44,12 @@ func TestComplete_AI21Jamba_HappyPath(t *testing.T) {
 
 	p := bedrock.New("token", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:     "ai21.jamba-1-5-large-v1:0",
 		System:    "be terse",
 		MaxTokens: 128,
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "hi"},
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "hi"},
 		},
 	})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestComplete_AI21Jamba_HappyPath(t *testing.T) {
 	if resp.Message.Content != "jamba response" {
 		t.Errorf("content = %q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 11 || resp.Usage.OutputTokens != 5 {
@@ -97,14 +97,14 @@ func TestComplete_AI21Jamba_LengthStop(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "ai21.jamba-instruct-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("stop = %q want max_tokens", resp.StopReason)
 	}
 }
@@ -125,9 +125,9 @@ func TestComplete_AI21Jamba_RegionalProfile(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "us.ai21.jamba-1-5-large-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
 	})
 	if err != nil {
 		t.Fatalf("regional Jamba profile should route: %v", err)
@@ -140,7 +140,7 @@ func TestComplete_AI21Jamba_RegionalProfile(t *testing.T) {
 // message rather than a confusing 400 from Bedrock.
 func TestComplete_AI21LegacyJ2Refused(t *testing.T) {
 	p := bedrock.New("k", "us-east-1")
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "ai21.j2-ultra-v1",
 	})
 	if err == nil {

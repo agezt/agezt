@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/plugin"
 )
 
@@ -282,7 +282,7 @@ func TestSpawn_InitTimeoutEnforced(t *testing.T) {
 
 // ---- helpers ----
 
-func keys(m map[string]agent.Tool) []string {
+func keys(m map[string]toolapi.Tool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)

@@ -11,7 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestOpenAIResponsesCoverageBasicProviderBranches(t *testing.T) {
@@ -32,10 +33,10 @@ func TestOpenAIResponsesCoverageBasicProviderBranches(t *testing.T) {
 		t.Fatalf("session override = %q", got)
 	}
 
-	if _, err := (&Provider{}).Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err == nil || !strings.Contains(err.Error(), "no token") {
+	if _, err := (&Provider{}).Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err == nil || !strings.Contains(err.Error(), "no token") {
 		t.Fatalf("missing token error = %v", err)
 	}
-	if _, err := (&Provider{Token: staticToken}).Complete(context.Background(), agent.CompletionRequest{}); err == nil || !strings.Contains(err.Error(), "no model") {
+	if _, err := (&Provider{Token: staticToken}).Complete(context.Background(), llm.CompletionRequest{}); err == nil || !strings.Contains(err.Error(), "no model") {
 		t.Fatalf("missing model error = %v", err)
 	}
 }
@@ -67,12 +68,12 @@ func TestOpenAIResponsesCoverageSendTokenErrorAndNoAccountHeader(t *testing.T) {
 }
 
 func TestOpenAIResponsesCoverageToInputAllRoles(t *testing.T) {
-	items := toInput([]agent.Message{
-		{Role: agent.RoleSystem, Content: "system note"},
-		{Role: agent.RoleUser, Content: "hello"},
-		{Role: agent.RoleAssistant, Content: "assistant text", ToolCalls: []agent.ToolCall{{ID: "call-1", Name: "lookup", Input: json.RawMessage(`{"q":"x"}`)}}},
-		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "call-empty", Name: "noop"}}},
-		{Role: agent.RoleTool, ToolCallID: "call-1", Content: "tool output"},
+	items := toInput([]llm.Message{
+		{Role: llm.RoleSystem, Content: "system note"},
+		{Role: llm.RoleUser, Content: "hello"},
+		{Role: llm.RoleAssistant, Content: "assistant text", ToolCalls: []llm.ToolCall{{ID: "call-1", Name: "lookup", Input: json.RawMessage(`{"q":"x"}`)}}},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "call-empty", Name: "noop"}}},
+		{Role: llm.RoleTool, ToolCallID: "call-1", Content: "tool output"},
 	}, nil)
 	b, _ := json.Marshal(items)
 	text := string(b)
@@ -88,10 +89,10 @@ func TestOpenAIResponsesCoverageBuildBodyOptionsAndTools(t *testing.T) {
 	topP := 0.75
 	p := New("chatgpt", "default", staticToken)
 	p.ReasoningEffort = ""
-	body, err := p.buildBody(agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
-		Tools:    []agent.ToolDef{{Name: "plain_tool"}},
-		Params:   agent.Params{Temperature: &temp, TopP: &topP, ReasoningEffort: "high"},
+	body, err := p.buildBody(llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
+		Tools:    []toolapi.ToolDef{{Name: "plain_tool"}},
+		Params:   llm.Params{Temperature: &temp, TopP: &topP, ReasoningEffort: "high"},
 		ProviderOptions: map[string]json.RawMessage{
 			"openai": json.RawMessage(`{"metadata":{"source":"test"}}`),
 		},

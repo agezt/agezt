@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
@@ -159,7 +159,7 @@ var optInTools = []string{
 // buildRealBootTools builds the actual boot registry — with every opt-in tool
 // switched on — so the guards read each tool's real ToolDef rather than a
 // hand-maintained copy of it, over the whole tool surface.
-func buildRealBootTools(t *testing.T) map[string]agent.Tool {
+func buildRealBootTools(t *testing.T) map[string]toolapi.Tool {
 	t.Helper()
 	RegisterAll()
 	var stderr bytes.Buffer

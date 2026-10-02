@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func f64(v float64) *float64 { return &v }
@@ -17,8 +17,8 @@ func iptr(v int) *int        { return &v }
 // TestEncodeRequest_ParamsUnset (M997): an unset Params must leave the body free
 // of any sampling field — the default-preserving contract.
 func TestEncodeRequest_ParamsUnset(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, err := encodeRequest("command-r", "", msgs, nil, 0, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, err := encodeRequest("command-r", "", msgs, nil, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +37,8 @@ func TestEncodeRequest_ParamsUnset(t *testing.T) {
 // the top level, spelling top_p as `p`, top_k as `k`, and the stop list as
 // `stop_sequences`.
 func TestEncodeRequest_ParamsSet(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	p := agent.Params{
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	p := llm.Params{
 		Temperature:      f64(0.2),
 		TopP:             f64(0.9),
 		TopK:             iptr(40),
@@ -88,9 +88,9 @@ func TestEncodeRequest_ParamsSet(t *testing.T) {
 // TestEncodeRequest_ProviderOptionsMerge (M997): a ProviderOptions["cohere"]
 // object is overlaid onto the wire body; an unset map changes nothing.
 func TestEncodeRequest_ProviderOptionsMerge(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	extra := json.RawMessage(`{"safety_mode":"CONTEXTUAL"}`)
-	body, err := encodeRequest("command-r", "", msgs, nil, 0, agent.Params{}, extra)
+	body, err := encodeRequest("command-r", "", msgs, nil, 0, llm.Params{}, extra)
 	if err != nil {
 		t.Fatal(err)
 	}

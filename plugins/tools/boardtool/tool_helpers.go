@@ -12,21 +12,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func applyActorIdentity(ctx context.Context, in *input) agent.Result {
-	actor := strings.TrimSpace(agent.AgentFromContext(ctx))
+func applyActorIdentity(ctx context.Context, in *input) toolapi.Result {
+	actor := strings.TrimSpace(toolapi.AgentFromContext(ctx))
 	if actor == "" {
-		return agent.Result{}
+		return toolapi.Result{}
 	}
 	switch in.Op {
 	case "post", "send", "reply", "broadcast", "help", "ack":
 		from := strings.TrimSpace(in.From)
 		if from == "" {
 			in.From = actor
-			return agent.Result{}
+			return toolapi.Result{}
 		}
 		if from != actor {
 			return errResult("acting agent " + actor + " cannot send board messages as " + from)
@@ -36,7 +36,7 @@ func applyActorIdentity(ctx context.Context, in *input) agent.Result {
 			in.To = actor
 		}
 	}
-	return agent.Result{}
+	return toolapi.Result{}
 }
 
 func msgView(m board.Message) map[string]any {
@@ -65,14 +65,14 @@ func msgView(m board.Message) map[string]any {
 	return v
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "board: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "board: " + msg, IsError: true}
 }

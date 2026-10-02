@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -24,14 +25,14 @@ func TestPolicyHook_TrustCeiling(t *testing.T) {
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Edict:    eng,
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	call := agent.ToolCall{Name: "shell", Input: []byte(`{"command":"echo hi"}`)}
+	call := llm.ToolCall{Name: "shell", Input: []byte(`{"command":"echo hi"}`)}
 
 	// No ceiling → the L4 capability is auto-allowed.
 	if v := k.policyHook(context.Background(), call); !v.Allow {

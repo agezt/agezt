@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
@@ -216,10 +216,10 @@ func TestComplete_HappyPathWithCachedToken(t *testing.T) {
 	// running the real URL-builder against api.googleapis.com.
 	p.Endpoint = apiSrv.URL + "/v1/projects/test-project/locations/us-central1/publishers/google/models/gemini-1.5-flash:generateContent"
 
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
 		System:   "be terse",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -247,7 +247,7 @@ func TestComplete_HappyPathWithCachedToken(t *testing.T) {
 
 func TestComplete_NoTokenSource(t *testing.T) {
 	p := vertex.New(nil, "p", "us-central1")
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != vertex.ErrNoTokenSource {
 		t.Errorf("got %v want ErrNoTokenSource", err)
 	}
@@ -263,13 +263,13 @@ func TestComplete_MissingProjectOrLocation(t *testing.T) {
 
 	// Missing project.
 	p := vertex.New(ts, "", "us-central1")
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err == nil ||
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err == nil ||
 		!strings.Contains(err.Error(), "Project required") {
 		t.Errorf("expected Project-required error; got %v", err)
 	}
 	// Missing location.
 	p2 := vertex.New(ts, "p", "")
-	if _, err := p2.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err == nil ||
+	if _, err := p2.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err == nil ||
 		!strings.Contains(err.Error(), "Location required") {
 		t.Errorf("expected Location-required error; got %v", err)
 	}
@@ -290,9 +290,9 @@ func TestComplete_APIError(t *testing.T) {
 	ts, _ := vertex.NewTokenSource(sa, "", nil)
 	p := vertex.New(ts, "p", "us-central1")
 	p.Endpoint = apiSrv.URL + "/x"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	apiErr, ok := err.(*vertex.APIError)
 	if !ok {

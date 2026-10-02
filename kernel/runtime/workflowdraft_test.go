@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -34,9 +34,9 @@ const goodDraftJSON = "Here is your workflow:\n```json\n" + `{
 // TestDraftWorkflow_DesignsValidatedGraph: prose+fenced answer → validated,
 // auto-laid-out, name-overridden, journaled — and NOT saved.
 func TestDraftWorkflow_DesignsValidatedGraph(t *testing.T) {
-	var req agent.CompletionRequest
+	var req llm.CompletionRequest
 	prov := mock.New(mock.FinalText(goodDraftJSON))
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
 
 	var mu sync.Mutex
@@ -99,7 +99,7 @@ func TestDraftWorkflow_RepairRound(t *testing.T) {
 	bad := `{"name":"oops","nodes":[{"id":"start","type":"trigger"},{"id":"x","type":"transform","config":{"template":"hi"}}],"edges":[{"from":"start","to":"x"},{"from":"x","to":"start"}]}`
 	var prompts []string
 	prov := mock.New(mock.FinalText(bad), mock.FinalText(goodDraftJSON))
-	prov.OnRequest = func(r agent.CompletionRequest) { prompts = append(prompts, r.Messages[0].Content) }
+	prov.OnRequest = func(r llm.CompletionRequest) { prompts = append(prompts, r.Messages[0].Content) }
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
 
 	w, err := k.DraftWorkflow(context.Background(), k.NewCorrelation(), "", "loop forever")
@@ -150,9 +150,9 @@ func TestRefineWorkflow_RevisesBaseGraph(t *testing.T) {
     {"from": "gate", "to": "greet"}
   ]
 }` + "\n```"
-	var req agent.CompletionRequest
+	var req llm.CompletionRequest
 	prov := mock.New(mock.FinalText(revised))
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
 
 	base := workflow.Workflow{

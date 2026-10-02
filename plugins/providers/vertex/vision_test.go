@@ -7,19 +7,19 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // Anthropic-on-Vertex: a user message's image data: URL becomes a type=image
 // block before the text block (M245).
 func TestEncodeAnthropicOnVertex_ImageBlock(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString([]byte{0x89, 0x50, 0x4e, 0x47})
-	msgs := []agent.Message{{
-		Role:    agent.RoleUser,
+	msgs := []llm.Message{{
+		Role:    llm.RoleUser,
 		Content: "describe",
 		Images:  []string{"data:image/png;base64," + b64},
 	}}
-	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false, agent.Params{}, nil)
+	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -45,12 +45,12 @@ func TestEncodeAnthropicOnVertex_ImageBlock(t *testing.T) {
 // before the text part (M245).
 func TestEncodeGeminiOnVertex_InlineImageData(t *testing.T) {
 	b64 := base64.StdEncoding.EncodeToString([]byte{0xff, 0xd8, 0xff})
-	msgs := []agent.Message{{
-		Role:    agent.RoleUser,
+	msgs := []llm.Message{{
+		Role:    llm.RoleUser,
 		Content: "what is this",
 		Images:  []string{"data:image/jpeg;base64," + b64},
 	}}
-	body, err := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
+	body, err := encodeRequest("", msgs, nil, 100, false, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -72,9 +72,9 @@ func TestEncodeGeminiOnVertex_InlineImageData(t *testing.T) {
 
 // Non-data-URL attachments are skipped on both Vertex encoders.
 func TestEncodeOnVertex_SkipsNonDataURLImage(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi", Images: []string{"photo.png"}}}
 
-	ab, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false, agent.Params{}, nil)
+	ab, err := encodeAnthropicOnVertexRequest("", msgs, nil, 100, 0, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("anthropic encode: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestEncodeOnVertex_SkipsNonDataURLImage(t *testing.T) {
 		t.Errorf("anthropic: want single text block, got %+v", b)
 	}
 
-	gb, err := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
+	gb, err := encodeRequest("", msgs, nil, 100, false, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("gemini encode: %v", err)
 	}

@@ -11,7 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -29,15 +30,15 @@ type toggledNotifyTool struct {
 	fail atomic.Bool
 }
 
-func (t *toggledNotifyTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "notify", Description: "test notify", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *toggledNotifyTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "notify", Description: "test notify", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *toggledNotifyTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (t *toggledNotifyTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	if t.fail.Load() {
-		return agent.Result{Output: "notify failed", IsError: true}, nil
+		return toolapi.Result{Output: "notify failed", IsError: true}, nil
 	}
-	return agent.Result{Output: "sent"}, nil
+	return toolapi.Result{Output: "sent"}, nil
 }
 
 // TestWithAgentProfile_AppliesIdentityToRun: the one-call profile application
@@ -46,13 +47,13 @@ func (t *toggledNotifyTool) Invoke(context.Context, json.RawMessage) (agent.Resu
 // notes in the injected context.
 func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		Model:        "default-model",
-		Tools:        map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:        map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryInject: true,
 	})
 	if err != nil {
@@ -108,7 +109,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"file": ft},
+		Tools:    map[string]toolapi.Tool{"file": ft},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -116,7 +117,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "researcher", Workdir: "research"})
-	if got := agent.WorkdirFromContext(ctx); got != "research" {
+	if got := toolapi.WorkdirFromContext(ctx); got != "research" {
 		t.Fatalf("context workdir = %q, want research", got)
 	}
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "take a note"); err != nil {
@@ -130,7 +131,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 
 func TestWithAgentProfile_WorkdirRejectsEscape(t *testing.T) {
 	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "escape", Workdir: "../outside"})
-	if got := agent.WorkdirFromContext(ctx); got != "" {
+	if got := toolapi.WorkdirFromContext(ctx); got != "" {
 		t.Fatalf("unsafe workdir propagated into tool context: %q", got)
 	}
 }
@@ -140,13 +141,13 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 		testToolUse("c1", "shell", map[string]string{"command": "echo hi"}),
 		mock.FinalText("done"),
 	)
-	var requests []agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { requests = append(requests, r) }
+	var requests []llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { requests = append(requests, r) }
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
 		Model:                 "default-model",
-		Tools:                 map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:                 map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		System:                "base",
 		MemoryInject:          true,
 		MemoryDistill:         true,
@@ -206,8 +207,8 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 
 func TestWithAgentProfile_IncludesInstructionsAndTasks(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
@@ -470,12 +471,12 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 
 func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   prov,
-		Tools:      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryTool: true,
 	})
 	if err != nil {
@@ -502,8 +503,8 @@ func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 
 func TestWithAgentProfile_NoisePolicyDisablesMemoryTool(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   prov,
@@ -560,7 +561,7 @@ func TestWithAgentProfile_ToolPermissionsGateDirectToolRuns(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"alpha": quietTool{name: "alpha"},
 			"beta":  quietTool{name: "beta"},
 		},
@@ -588,7 +589,7 @@ func TestWithAgentProfile_NoisePolicyGatesNotifySeverityAndCooldown(t *testing.T
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"notify": quietTool{name: "notify"},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
@@ -622,7 +623,7 @@ func TestWithAgentProfile_NoisePolicyDoesNotCooldownFailedNotify(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"notify": notify,
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
@@ -655,7 +656,7 @@ func TestWithAgentProfile_SilentOnSuccessBlocksRoutineNotify(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"notify": quietTool{name: "notify"},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
@@ -681,8 +682,8 @@ func TestWithAgentProfile_SilentOnSuccessBlocksRoutineNotify(t *testing.T) {
 
 func TestWithAgentProfile_ConfigOverrideChangesModel(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,

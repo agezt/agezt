@@ -16,17 +16,19 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+	"net/http"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
-	"net/http"
 )
 
-// CompleteStream implements agent.StreamingProvider. It POSTs to the
+// CompleteStream implements llm.StreamingProvider. It POSTs to the
 // Messages endpoint with stream=true and parses the SSE stream into
-// agent.Chunk callbacks. The returned CompletionResponse matches
+// llm.Chunk callbacks. The returned CompletionResponse matches
 // what Complete would return for the same request — same usage,
 // stop_reason, and assembled assistant Message.
 //
@@ -42,7 +44,7 @@ import (
 //	message_stop          → end of stream; close
 //	ping                  → keep-alive; ignored
 //	error                 → returns the error to the caller
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -104,7 +106,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // Kept separate (rather than adding a bool param to encodeRequest) so
 // the non-streaming wire format stays byte-identical to what M0.5
 // tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok, thinkingBudget int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	// Same shape as anthRequest plus the Stream field.
 	type streamReq struct {
 		Model     string        `json:"model"`
@@ -157,7 +159,7 @@ type streamState struct {
 	textParts      strings.Builder
 	reasoningParts strings.Builder // extended thinking (M318)
 	openBlock      *openBlock      // currently-streaming block, if any
-	finishedTools  []agent.ToolCall
+	finishedTools  []llm.ToolCall
 	inputTokens    int
 	cacheRead      int // cache_read_input_tokens (M290)
 	cacheCreation  int // cache_creation_input_tokens (M290)
@@ -188,7 +190,7 @@ type openBlock struct {
 // and dispatch by event name. Lines outside that pattern (comments,
 // retry directives) are ignored — Anthropic doesn't use them today
 // but the parser must tolerate them to stay forward-compatible.
-func parseStream(body io.Reader, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseStream(body io.Reader, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	// Anthropic content_block_delta frames for large inputs can exceed
 	// the default 64K bufio limit. Bump to 1MB; a single SSE frame

@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func (g *Governor) completeChained(req agent.CompletionRequest, runOne func(agent.CompletionRequest) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
+func (g *Governor) completeChained(req llm.CompletionRequest, runOne func(llm.CompletionRequest) (*llm.CompletionResponse, error)) (*llm.CompletionResponse, error) {
 	// A per-request chain (M787 — a named agent's own fallbacks) WINS over
 	// the task type's configured chain: the more specific identity beats the
 	// broader category. The fallback events stay distinguishable via scope.

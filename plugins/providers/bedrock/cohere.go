@@ -42,7 +42,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -63,7 +63,7 @@ type cohereBedrockRequest struct {
 // applyParams maps the universal sampling knobs onto Cohere's idiosyncratic
 // field names (p/k/stop_sequences). An unset Params leaves the request
 // unchanged; seed/penalties/ReasoningEffort have no Cohere equivalent.
-func (wire *cohereBedrockRequest) applyParams(p agent.Params) {
+func (wire *cohereBedrockRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -88,7 +88,7 @@ type cohereBedrockResponse struct {
 // Cohere chat shape. Splits the message list at the last user
 // turn — everything before is `chat_history`, the last user turn
 // becomes the standalone `message` field.
-func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeCohereOnBedrockRequest(system string, msgs []llm.Message, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-cohere: at least one message required")
 	}
@@ -96,7 +96,7 @@ func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok in
 	// turns form chat_history.
 	lastUserIdx := -1
 	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == agent.RoleUser {
+		if msgs[i].Role == llm.RoleUser {
 			lastUserIdx = i
 			break
 		}
@@ -127,13 +127,13 @@ func encodeCohereOnBedrockRequest(system string, msgs []agent.Message, maxTok in
 // cohereRole maps canonical agent roles to Cohere's uppercase
 // scheme. Unknown roles fold to USER so the model at least sees
 // the content.
-func cohereRole(r agent.Role) string {
+func cohereRole(r llm.Role) string {
 	switch r {
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		return "CHATBOT"
-	case agent.RoleUser:
+	case llm.RoleUser:
 		return "USER"
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		// Cohere uses `preamble` for system; a system message
 		// appearing mid-history is unusual but we fold it to USER
 		// rather than dropping it.
@@ -142,7 +142,7 @@ func cohereRole(r agent.Role) string {
 	return "USER"
 }
 
-func decodeCohereOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeCohereOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var wire cohereBedrockResponse
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("bedrock-cohere: parse response: %w", err)
@@ -150,16 +150,16 @@ func decodeCohereOnBedrockResponse(body []byte, model string) (*agent.Completion
 	if wire.Text == "" {
 		return nil, errors.New("bedrock-cohere: response has empty text")
 	}
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	if strings.EqualFold(wire.FinishReason, "MAX_TOKENS") {
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:    agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:    llm.RoleAssistant,
 			Content: wire.Text,
 		},
 		StopReason: stop,
-		Usage:      agent.Usage{Model: model},
+		Usage:      llm.Usage{Model: model},
 	}, nil
 }

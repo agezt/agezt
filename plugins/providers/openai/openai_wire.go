@@ -12,12 +12,14 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, jsonMode bool, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	wire := oaRequest{
 		Model:          model,
 		Stream:         false,
@@ -66,16 +68,16 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 // names to their wire names so an assistant turn's replayed tool calls carry the
 // SAME (collision-safe) names as the current tool definitions; a name absent from
 // fwd (a tool no longer offered) falls back to a plain sanitisation.
-func canonicalToOA(m agent.Message, fwd map[string]string) (*oaMessage, error) {
+func canonicalToOA(m llm.Message, fwd map[string]string) (*oaMessage, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		// System is set once via CompletionRequest.System; per-message
 		// system roles are folded there.
 		if strings.TrimSpace(m.Content) == "" {
 			return nil, nil
 		}
 		return &oaMessage{Role: "system", Content: m.Content}, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		// Vision (M242): a user message may carry image attachments as URLs
 		// (the CLI sends RFC 2397 data: URLs). When present, switch to the
 		// multimodal content-parts array — text first, then one image_url part
@@ -97,7 +99,7 @@ func canonicalToOA(m agent.Message, fwd map[string]string) (*oaMessage, error) {
 		}
 		content = append(content, parts...)
 		return &oaMessage{Role: "user", Content: content}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		om := &oaMessage{Role: "assistant", Content: oaTextOrNil(m.Content)}
 		for _, tc := range m.ToolCalls {
 			args := tc.Input
@@ -117,7 +119,7 @@ func canonicalToOA(m agent.Message, fwd map[string]string) (*oaMessage, error) {
 			})
 		}
 		return om, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("openai: role=tool requires tool_call_id")
 		}
@@ -131,7 +133,7 @@ func canonicalToOA(m agent.Message, fwd map[string]string) (*oaMessage, error) {
 	}
 }
 
-func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
+func decodeResponse(body []byte) (*llm.CompletionResponse, error) {
 	var or oaResponse
 	if err := json.Unmarshal(body, &or); err != nil {
 		return nil, fmt.Errorf("openai: parse response: %w", err)
@@ -141,7 +143,7 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 	}
 	choice := or.Choices[0]
 
-	var toolCalls []agent.ToolCall
+	var toolCalls []llm.ToolCall
 	for i, tc := range choice.Message.ToolCalls {
 		id := tc.ID
 		if id == "" {
@@ -153,37 +155,37 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 		if args == "" {
 			args = "{}"
 		}
-		toolCalls = append(toolCalls, agent.ToolCall{
+		toolCalls = append(toolCalls, llm.ToolCall{
 			ID:    id,
 			Name:  tc.Function.Name,
 			Input: json.RawMessage(args),
 		})
 	}
 
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	switch choice.FinishReason {
 	case "stop":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_calls", "function_call":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "length":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
 	// finish_reason is sometimes absent on openai-compatible servers
 	// when tool_calls are emitted; fall back to tool-calls presence.
-	if len(toolCalls) > 0 && stop == agent.StopEndTurn {
-		stop = agent.StopToolUse
+	if len(toolCalls) > 0 && stop == llm.StopEndTurn {
+		stop = llm.StopToolUse
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   oaContentText(choice.Message.Content),
 			ToolCalls: toolCalls,
 		},
 		ReasoningContent: choice.Message.reasoningText(), // M317: DeepSeek-R1 et al.
 		StopReason:       stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:       or.Usage.PromptTokens,
 			CachedInputTokens: cachedInputTokens(or.Usage.PromptTokensDetails.CachedTokens, or.Usage.PromptCacheHitTokens),
 			OutputTokens:      or.Usage.CompletionTokens,

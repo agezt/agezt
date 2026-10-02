@@ -12,11 +12,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
-func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
+func renderResult(timeout time.Duration, res *warden.Result) toolapi.Result {
 	// Combine streams the way the previous implementation did
 	// (CombinedOutput). Stderr appended after stdout keeps the order
 	// stable across shells.
@@ -80,7 +80,7 @@ func renderResult(timeout time.Duration, res *warden.Result) agent.Result {
 		final = append([]byte(marker), final...)
 	}
 
-	return agent.Result{Output: string(final), IsError: isError}
+	return toolapi.Result{Output: string(final), IsError: isError}
 }
 func (t *Tool) ShellHint() (string, string) { return t.resolveShell() }
 func (t *Tool) resolveShell() (string, string) {

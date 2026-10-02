@@ -13,10 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func (t *Tool) doList(in fileInput) (agent.Result, error) {
+func (t *Tool) doList(in fileInput) (toolapi.Result, error) {
 	target := in.Path
 	if target == "" {
 		target = "."
@@ -68,7 +68,7 @@ func (t *Tool) doList(in fileInput) (agent.Result, error) {
 	return fileObservation(target, string(body)), nil
 }
 
-func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
+func (t *Tool) doSearch(in fileInput) (toolapi.Result, error) {
 	if in.Pattern == "" {
 		return errResult("search requires a pattern"), nil
 	}
@@ -165,7 +165,7 @@ func (t *Tool) doSearch(in fileInput) (agent.Result, error) {
 // lacked (M119). `list` shows one directory and `search` greps content; glob
 // answers "where are the *.go files?". Directories are skipped; results are
 // workspace-relative, sorted, and capped.
-func (t *Tool) doGlob(in fileInput) (agent.Result, error) {
+func (t *Tool) doGlob(in fileInput) (toolapi.Result, error) {
 	if in.Pattern == "" {
 		return errResult("glob requires a pattern"), nil
 	}
@@ -226,7 +226,7 @@ func (t *Tool) doGlob(in fileInput) (agent.Result, error) {
 	return fileObservation(target, string(body)), nil
 }
 
-func (t *Tool) doStat(in fileInput) (agent.Result, error) {
+func (t *Tool) doStat(in fileInput) (toolapi.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
 		return errResult(err.Error()), nil

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -103,7 +103,7 @@ func TestJournalExportSinceWindow(t *testing.T) {
 // contiguous window.
 func TestJournalExportScopedByCorrelation(t *testing.T) {
 	// A Responder answers every run (two runs here), unlike a fixed scripted list.
-	prov := &mock.Provider{Responder: func(agent.CompletionRequest) agent.CompletionResponse {
+	prov := &mock.Provider{Responder: func(llm.CompletionRequest) llm.CompletionResponse {
 		return mock.FinalText("done")
 	}}
 	_, _, c, _ := startPair(t, prov)

@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/envscrub"
 )
 
@@ -218,8 +218,8 @@ func truncateActionOutput(s string) string {
 	return truncateUTF8(s, 4096) + "\n...[truncated]"
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: msg, IsError: true}
 }
 
 // ResolveActionDriverPath finds the bundled browser-use Playwright driver when

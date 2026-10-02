@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/google"
 )
 
@@ -44,10 +45,10 @@ func TestComplete_TextResponse(t *testing.T) {
 
 	p := google.New("test-key")
 	p.Endpoint = srv.URL + "/v1beta/models/gemini-1.5-flash:generateContent"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
 		System:   "be terse",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -55,7 +56,7 @@ func TestComplete_TextResponse(t *testing.T) {
 	if resp.Message.Content != "hi from gemini" {
 		t.Errorf("content=%q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop=%q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 5 || resp.Usage.OutputTokens != 3 {
@@ -107,10 +108,10 @@ func TestComplete_ToolCalls(t *testing.T) {
 
 	p := google.New("k")
 	p.Endpoint = srv.URL + "/v1beta/models/gemini-1.5-pro:generateContent"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-pro",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list"}},
-		Tools: []agent.ToolDef{{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list"}},
+		Tools: []toolapi.ToolDef{{
 			Name: "shell", Description: "run shell",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}}}`),
 		}},
@@ -118,7 +119,7 @@ func TestComplete_ToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop=%q want tool_use", resp.StopReason)
 	}
 	if len(resp.Message.ToolCalls) != 1 {
@@ -151,10 +152,10 @@ func TestEncode_ToolDefsAsFunctionDeclarations(t *testing.T) {
 
 	p := google.New("k")
 	p.Endpoint = srv.URL + "/x"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-		Tools: []agent.ToolDef{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+		Tools: []toolapi.ToolDef{
 			{Name: "a", InputSchema: json.RawMessage(`{"type":"object"}`)},
 			{Name: "b", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		},
@@ -188,14 +189,14 @@ func TestEncode_ToolResultRoundtrip(t *testing.T) {
 
 	p := google.New("k")
 	p.Endpoint = srv.URL + "/x"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "gemini",
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "list"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "list"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{
 				ID: "call-0", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`),
 			}}},
-			{Role: agent.RoleTool, ToolCallID: "call-0", Content: "a.txt\nb.txt"},
+			{Role: llm.RoleTool, ToolCallID: "call-0", Content: "a.txt\nb.txt"},
 		},
 	})
 	if err != nil {
@@ -255,7 +256,7 @@ func TestResolveEndpoint(t *testing.T) {
 				// Replace scheme+host of c.base with the test server's.
 				p.BaseURL = srv.URL + suffixAfterHost(c.base)
 			}
-			_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: c.model})
+			_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: c.model})
 			if err != nil {
 				t.Fatalf("Complete: %v", err)
 			}
@@ -280,7 +281,7 @@ func suffixAfterHost(u string) string {
 
 func TestComplete_NoAPIKey(t *testing.T) {
 	p := google.New("")
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "g"}); err != google.ErrNoAPIKey {
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "g"}); err != google.ErrNoAPIKey {
 		t.Errorf("got %v want ErrNoAPIKey", err)
 	}
 }
@@ -294,7 +295,7 @@ func TestComplete_APIError(t *testing.T) {
 
 	p := google.New("k")
 	p.Endpoint = srv.URL + "/x"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "g"})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "g"})
 	apiErr, ok := err.(*google.APIError)
 	if !ok {
 		t.Fatalf("got %v want *google.APIError", err)
@@ -325,9 +326,9 @@ func TestComplete_CacheUsage(t *testing.T) {
 
 	p := google.New("k")
 	p.Endpoint = srv.URL + "/v1beta/models/gemini-1.5-flash:generateContent"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)

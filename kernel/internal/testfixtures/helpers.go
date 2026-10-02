@@ -7,26 +7,26 @@ package testfixtures
 import (
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // WithUsage sets the usage on a CompletionResponse (test helper).
-func WithUsage(resp agent.CompletionResponse, usage agent.Usage) agent.CompletionResponse {
+func WithUsage(resp llm.CompletionResponse, usage llm.Usage) llm.CompletionResponse {
 	resp.Usage = usage
 	return resp
 }
 
 // ToolUse constructs a tool-use CompletionResponse (test helper).
-func ToolUse(callID, toolName string, input any) agent.CompletionResponse {
+func ToolUse(callID, toolName string, input any) llm.CompletionResponse {
 	raw, err := json.Marshal(input)
 	if err != nil {
 		panic("ToolUse: marshal input: " + err.Error())
 	}
-	return agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
-			ToolCalls: []agent.ToolCall{{ID: callID, Name: toolName, Input: raw}},
+	return llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
+			ToolCalls: []llm.ToolCall{{ID: callID, Name: toolName, Input: raw}},
 		},
-		StopReason: agent.StopToolUse,
+		StopReason: llm.StopToolUse,
 	}
 }

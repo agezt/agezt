@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // FuzzParseStream hardens the streaming response parser against a malformed,
@@ -22,6 +22,6 @@ func FuzzParseStream(f *testing.F) {
 	f.Add([]byte{0x00, 0xff, 0xfe, '\n'})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _ = parseStream(bytes.NewReader(data), "fuzz-model", func(agent.Chunk) error { return nil })
+		_, _ = parseStream(bytes.NewReader(data), "fuzz-model", func(llm.Chunk) error { return nil })
 	})
 }

@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
@@ -168,7 +168,7 @@ func buildBrowserAction(d toolreg.BuildDeps) (toolreg.Built, *browser.ActionTool
 	} else {
 		ba.SessionRoot = filepath.Join(d.BaseDir, "browser-sessions")
 	}
-	extra := map[string]agent.Tool{}
+	extra := map[string]toolapi.Tool{}
 	for _, tool := range browser.NewActionVerbTools(ba) {
 		extra[tool.Definition().Name] = tool
 	}

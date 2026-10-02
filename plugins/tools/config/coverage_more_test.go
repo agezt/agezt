@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestConfigCoverageDefinition(t *testing.T) {
@@ -20,8 +20,8 @@ func TestConfigCoverageDefinition(t *testing.T) {
 	if !strings.Contains(def.Description, "Config Center") {
 		t.Fatalf("description should mention Config Center, got %q", def.Description)
 	}
-	if def.Effect.Class != agent.EffectReversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectReversible)
+	if def.Effect.Class != toolapi.EffectReversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectReversible)
 	}
 	schema := string(def.InputSchema)
 	for _, want := range []string{`"schema"`, `"get"`, `"set"`, `"register"`, `"unregister"`, `"scope"`} {
@@ -122,7 +122,7 @@ func TestConfigCoverageDoGetValidationBranches(t *testing.T) {
 	}
 
 	// scope=agent on a secret field (always denied for agent overrides).
-	res, err = tl.doGet(agent.WithAgent(context.Background(), "tester"), input{Name: "AGEZT_X_WEATHER_API_KEY", Scope: "agent"})
+	res, err = tl.doGet(toolapi.WithAgent(context.Background(), "tester"), input{Name: "AGEZT_X_WEATHER_API_KEY", Scope: "agent"})
 	if err != nil || !res.IsError || !strings.Contains(res.Output, "secret") {
 		t.Fatalf("agent scope on secret = %+v err %v", res, err)
 	}

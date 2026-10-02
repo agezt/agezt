@@ -9,7 +9,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // Provider replays a scripted sequence of completion responses. Useful for
@@ -17,32 +17,32 @@ import (
 // when ANTHROPIC_API_KEY is absent.
 type Provider struct {
 	mu        sync.Mutex
-	responses []agent.CompletionResponse
+	responses []llm.CompletionResponse
 	idx       int
 	// OnRequest, if set, is called with each incoming request before the
 	// scripted response is returned. Useful for test assertions.
-	OnRequest func(agent.CompletionRequest)
+	OnRequest func(llm.CompletionRequest)
 	// Responder, if set, computes the response from the request instead of
 	// replaying the scripted list — so a demo/test can reflect the input (e.g.
 	// echo how many image attachments the message carried, M93). Takes
 	// precedence over the scripted responses when non-nil.
-	Responder func(agent.CompletionRequest) agent.CompletionResponse
+	Responder func(llm.CompletionRequest) llm.CompletionResponse
 }
 
 // New returns a Provider that replays responses in order.
-func New(responses ...agent.CompletionResponse) *Provider {
-	return &Provider{responses: append([]agent.CompletionResponse{}, responses...)}
+func New(responses ...llm.CompletionResponse) *Provider {
+	return &Provider{responses: append([]llm.CompletionResponse{}, responses...)}
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "mock" }
 
 // ErrExhausted is returned when Complete is called after the scripted
 // responses have been exhausted.
 var ErrExhausted = errors.New("mock: scripted responses exhausted")
 
-// Complete implements agent.Provider.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+// Complete implements llm.Provider.
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -72,9 +72,9 @@ func (p *Provider) CallCount() int {
 
 // FinalText is a convenience constructor for a response that ends the loop
 // with the given assistant text.
-func FinalText(text string) agent.CompletionResponse {
-	return agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: text},
-		StopReason: agent.StopEndTurn,
+func FinalText(text string) llm.CompletionResponse {
+	return llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: text},
+		StopReason: llm.StopEndTurn,
 	}
 }

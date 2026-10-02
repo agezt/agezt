@@ -13,11 +13,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func (f *Forge) ShadowEvaluate(ctx context.Context, corr string, provider agent.Provider, model, intent, outcome string, limit int) error {
+func (f *Forge) ShadowEvaluate(ctx context.Context, corr string, provider llm.Provider, model, intent, outcome string, limit int) error {
 	if provider == nil {
 		return errors.New("skill: shadow eval requires a provider")
 	}
@@ -28,10 +29,10 @@ func (f *Forge) ShadowEvaluate(ctx context.Context, corr string, provider agent.
 	for _, c := range RetrieveShadow(all, intent, limit, f.now().UnixMilli()) {
 		user := fmt.Sprintf("Task intent:\n%s\n\nWhat actually happened:\n%s\n\nCandidate skill %q:\n%s",
 			intent, outcome, c.Skill.Name, c.Skill.Body)
-		resp, cerr := provider.Complete(ctx, agent.CompletionRequest{
+		resp, cerr := provider.Complete(ctx, llm.CompletionRequest{
 			Model:         model,
 			System:        shadowJudgeSystem,
-			Messages:      []agent.Message{{Role: agent.RoleUser, Content: user}},
+			Messages:      []llm.Message{{Role: llm.RoleUser, Content: user}},
 			CorrelationID: corr,
 			TaskType:      "shadow-eval",
 			MaxTokens:     16,
@@ -96,15 +97,15 @@ func (f *Forge) maybeAutoPromote(corr string, sk Skill) {
 
 // ----
 
-func (f *Forge) Propose(ctx context.Context, corr string, provider agent.Provider, model, intent, transcript string) ([]string, error) {
+func (f *Forge) Propose(ctx context.Context, corr string, provider llm.Provider, model, intent, transcript string) ([]string, error) {
 	if provider == nil {
 		return nil, errors.New("skill: propose requires a provider")
 	}
 	user := fmt.Sprintf("Task intent:\n%s\n\nWhat happened:\n%s", intent, transcript)
-	resp, err := provider.Complete(ctx, agent.CompletionRequest{
+	resp, err := provider.Complete(ctx, llm.CompletionRequest{
 		Model:    model,
 		System:   proposeSystem,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: user}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: user}},
 		TaskType: "forge",
 	})
 	if err != nil {
@@ -128,7 +129,7 @@ func (f *Forge) Propose(ctx context.Context, corr string, provider agent.Provide
 		Triggers:      parsed.Skill.Triggers,
 		Body:          parsed.Skill.Body,
 		ToolsRequired: parsed.Skill.Tools,
-		Agent:         agent.AgentFromContext(ctx),
+		Agent:         toolapi.AgentFromContext(ctx),
 	})
 	if err != nil {
 		return nil, err

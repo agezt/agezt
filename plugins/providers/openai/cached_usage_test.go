@@ -9,12 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/openai"
 )
 
 // TestComplete_CachedTokens_BothSpellings (M887): both wire spellings of
-// "prompt tokens served from cache" land on agent.Usage.CachedInputTokens —
+// "prompt tokens served from cache" land on llm.Usage.CachedInputTokens —
 // OpenAI's prompt_tokens_details.cached_tokens and DeepSeek's top-level
 // prompt_cache_hit_tokens. Without the DeepSeek fallback, a DeepSeek run's
 // cache hits were silently billed as fresh input.
@@ -67,9 +67,9 @@ func TestComplete_CachedTokens_BothSpellings(t *testing.T) {
 
 			p := openai.New("sk-test")
 			p.Endpoint = srv.URL
-			resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+			resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 				Model:    "deepseek-chat",
-				Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}},
+				Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
 			})
 			if err != nil {
 				t.Fatalf("Complete: %v", err)

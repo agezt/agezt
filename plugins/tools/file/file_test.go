@@ -13,7 +13,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func newTool(t *testing.T) *Tool {
@@ -71,7 +71,7 @@ func TestMutatingOpsWriteRollbackCheckpointsWhenEnabled(t *testing.T) {
 		t.Fatalf("NewWithCheckpoint: %v", err)
 	}
 
-	ctx := agent.WithCorrelation(context.Background(), "run-file-123")
+	ctx := toolapi.WithCorrelation(context.Background(), "run-file-123")
 	invokeWithContext(t, ctx, tool, fileInput{Op: "write", Path: "notes.txt", Content: "v1"})
 	invokeWithContext(t, ctx, tool, fileInput{Op: "replace", Path: "notes.txt", Find: "v1", Replacement: "v2"})
 	invokeWithContext(t, ctx, tool, fileInput{Op: "delete", Path: "notes.txt"})
@@ -120,7 +120,7 @@ func TestReadOnlyOpsAreUntrustedObservationsButWritesAreNot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("write Invoke: %v", err)
 	}
-	if writeRes.ObservationTrust != agent.ObservationTrustDefault {
+	if writeRes.ObservationTrust != toolapi.ObservationTrustDefault {
 		t.Fatalf("write observation trust = %q, want default/trusted operational output", writeRes.ObservationTrust)
 	}
 
@@ -129,7 +129,7 @@ func TestReadOnlyOpsAreUntrustedObservationsButWritesAreNot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read Invoke: %v", err)
 	}
-	if readRes.ObservationTrust != agent.ObservationUntrusted {
+	if readRes.ObservationTrust != toolapi.ObservationUntrusted {
 		t.Fatalf("read observation trust = %q, want untrusted", readRes.ObservationTrust)
 	}
 	if readRes.ObservationSource != "workspace:prompt.txt" {

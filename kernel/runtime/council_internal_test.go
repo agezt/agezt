@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -20,7 +21,7 @@ import (
 type councilFakeProvider struct{}
 
 func (councilFakeProvider) Name() string { return "council-fake" }
-func (councilFakeProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (councilFakeProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	var text string
 	if strings.Contains(strings.ToLower(req.System), "chair") {
 		text = "CONSENSUS: the council agrees to ship it.\nDISSENT: none"
@@ -28,9 +29,9 @@ func (councilFakeProvider) Complete(_ context.Context, req agent.CompletionReque
 		// Echo the model so we can prove per-member routing happened.
 		text = req.Model + " has spoken."
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: text},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: text},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 
@@ -39,7 +40,7 @@ func openCouncilKernel(t *testing.T, members []CouncilMember) *Kernel {
 	k, err := Open(Config{
 		BaseDir:        t.TempDir(),
 		Provider:       councilFakeProvider{},
-		Tools:          map[string]agent.Tool{},
+		Tools:          map[string]toolapi.Tool{},
 		CouncilMembers: func() []CouncilMember { return members },
 	})
 	if err != nil {
@@ -127,10 +128,10 @@ type councilCapturingProvider struct {
 }
 
 func (p *councilCapturingProvider) Name() string { return "council-capture" }
-func (p *councilCapturingProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *councilCapturingProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.mu.Lock()
 	for _, m := range req.Messages {
-		if m.Role == agent.RoleUser {
+		if m.Role == llm.RoleUser {
 			p.prompts = append(p.prompts, m.Content)
 		}
 	}
@@ -139,7 +140,7 @@ func (p *councilCapturingProvider) Complete(_ context.Context, req agent.Complet
 	if strings.Contains(strings.ToLower(req.System), "chair") {
 		text = "CONSENSUS: ok.\nDISSENT: none"
 	}
-	return &agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, Content: text}, StopReason: agent.StopEndTurn}, nil
+	return &llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: text}, StopReason: llm.StopEndTurn}, nil
 }
 
 // allPromptsContain reports whether every captured user prompt includes sub (and
@@ -162,16 +163,16 @@ type fakeSearchTool struct {
 	calls int
 }
 
-func (f *fakeSearchTool) Definition() agent.ToolDef { return agent.ToolDef{Name: "web_search"} }
-func (f *fakeSearchTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
+func (f *fakeSearchTool) Definition() toolapi.ToolDef { return toolapi.ToolDef{Name: "web_search"} }
+func (f *fakeSearchTool) Invoke(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	f.mu.Lock()
 	f.calls++
 	f.mu.Unlock()
-	return agent.Result{Output: `{"query":"q","count":1,"results":[{"title":"Mars news","url":"https://example.com/mars","snippet":"A rover landed."}]}`}, nil
+	return toolapi.Result{Output: `{"query":"q","count":1,"results":[{"title":"Mars news","url":"https://example.com/mars","snippet":"A rover landed."}]}`}, nil
 }
 func (f *fakeSearchTool) callCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.calls }
 
-func openGroundedCouncil(t *testing.T, prov agent.Provider, members []CouncilMember, tools map[string]agent.Tool, ws bool) *Kernel {
+func openGroundedCouncil(t *testing.T, prov llm.Provider, members []CouncilMember, tools map[string]toolapi.Tool, ws bool) *Kernel {
 	t.Helper()
 	k, err := Open(Config{
 		BaseDir:          t.TempDir(),
@@ -191,7 +192,7 @@ func TestCouncil_GroundsWithDateAndBrief(t *testing.T) {
 	prov := &councilCapturingProvider{}
 	tool := &fakeSearchTool{}
 	members := []CouncilMember{{Seat: "Alpha", Model: "model-a"}, {Seat: "Beta", Model: "model-b"}}
-	k := openGroundedCouncil(t, prov, members, map[string]agent.Tool{"web_search": tool}, true)
+	k := openGroundedCouncil(t, prov, members, map[string]toolapi.Tool{"web_search": tool}, true)
 
 	res, err := k.Council(context.Background(), "corr-ground", "is there water on mars?", nil, 1)
 	if err != nil {
@@ -232,7 +233,7 @@ func TestCouncil_GroundsWithDateAndBrief(t *testing.T) {
 func TestCouncil_DateOnlyWhenSearchDisabled(t *testing.T) {
 	prov := &councilCapturingProvider{}
 	tool := &fakeSearchTool{}
-	k := openGroundedCouncil(t, prov, []CouncilMember{{Seat: "Solo", Model: "model-x"}}, map[string]agent.Tool{"web_search": tool}, false)
+	k := openGroundedCouncil(t, prov, []CouncilMember{{Seat: "Solo", Model: "model-x"}}, map[string]toolapi.Tool{"web_search": tool}, false)
 
 	res, err := k.Council(context.Background(), "c-off", "q", nil, 0)
 	if err != nil {

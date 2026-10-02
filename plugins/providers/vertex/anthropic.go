@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -96,7 +97,7 @@ type anthVertexRequest struct {
 // applyParams copies the universal sampling knobs Anthropic understands. The
 // reasoning knob is handled separately (mapped to a thinking budget) and so is
 // ignored here. An unset Params leaves the request unchanged.
-func (wire *anthVertexRequest) applyParams(p agent.Params) {
+func (wire *anthVertexRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -170,7 +171,7 @@ type anthVxCacheControl struct {
 // tool with cache_control so Vertex caches the stable tools prefix that repeats
 // every agent-loop iteration. Vertex ignores the marker when the prefix is below
 // the minimum cacheable size, so it's safe to always set.
-func buildVxTools(tools []agent.ToolDef, fwd map[string]string) []anthVxTool {
+func buildVxTools(tools []toolapi.ToolDef, fwd map[string]string) []anthVxTool {
 	if len(tools) == 0 {
 		return nil
 	}
@@ -222,13 +223,13 @@ type anthVxResponse struct {
 	} `json:"usage"`
 }
 
-// anthVxUsageToAgent maps Anthropic-on-Vertex split token counts to agent.Usage
+// anthVxUsageToAgent maps Anthropic-on-Vertex split token counts to llm.Usage
 // (M290), mirroring the direct-Anthropic provider: input_tokens excludes cached
 // prompt tokens, so the real prompt is input + cache_read + cache_creation;
 // cache reads are marked cached (cheaper rate), cache-creation as cache-write
 // (the cache-write premium, M291).
-func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
-	return agent.Usage{
+func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) llm.Usage {
+	return llm.Usage{
 		InputTokens:           inputTokens + cacheRead + cacheCreation,
 		CachedInputTokens:     cacheRead,
 		CacheWriteInputTokens: cacheCreation,
@@ -239,7 +240,7 @@ func anthVxUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int,
 
 // completeAnthropic is the Anthropic-on-Vertex non-streaming path.
 // Called from Complete when isAnthropicModel(model) is true.
-func (p *Provider) completeAnthropic(ctx context.Context, req agent.CompletionRequest, model string) (*agent.CompletionResponse, error) {
+func (p *Provider) completeAnthropic(ctx context.Context, req llm.CompletionRequest, model string) (*llm.CompletionResponse, error) {
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {
 		maxTokens = DefaultAnthropicMaxTokens

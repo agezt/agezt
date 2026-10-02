@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // sampleGeminiTextStream is a representative text-only SSE response.
@@ -46,7 +46,7 @@ data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"shell","args"
 
 func TestParseStream_GeminiTextOnly(t *testing.T) {
 	var deltas []string
-	resp, err := parseStream(strings.NewReader(sampleGeminiTextStream), "gemini-1.5-flash", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleGeminiTextStream), "gemini-1.5-flash", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			deltas = append(deltas, c.TextDelta)
 		}
@@ -58,7 +58,7 @@ func TestParseStream_GeminiTextOnly(t *testing.T) {
 	if resp.Message.Content != "pong!" {
 		t.Errorf("content = %q, want 'pong!'", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q, want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 3 {
@@ -74,13 +74,13 @@ func TestParseStream_GeminiTextOnly(t *testing.T) {
 
 func TestParseStream_GeminiToolCall(t *testing.T) {
 	var (
-		gotStart   *agent.ToolCall
+		gotStart   *llm.ToolCall
 		gotInput   string
 		gotStop    string
 		startCount int
 		stopCount  int
 	)
-	resp, err := parseStream(strings.NewReader(sampleGeminiToolCallStream), "gemini-1.5-pro", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleGeminiToolCallStream), "gemini-1.5-pro", func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			gotStart = c.ToolUseStart
 			startCount++
@@ -124,15 +124,15 @@ func TestParseStream_GeminiToolCall(t *testing.T) {
 	if tc.Name != "shell" {
 		t.Errorf("assembled tool name = %q", tc.Name)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q, want tool_use (must derive from tool_calls presence even when finishReason=STOP)", resp.StopReason)
 	}
 }
 
 func TestParseStream_GeminiInterleaved(t *testing.T) {
 	var deltas []string
-	var gotTool *agent.ToolCall
-	resp, err := parseStream(strings.NewReader(sampleGeminiInterleavedStream), "gemini-1.5-pro", func(c agent.Chunk) error {
+	var gotTool *llm.ToolCall
+	resp, err := parseStream(strings.NewReader(sampleGeminiInterleavedStream), "gemini-1.5-pro", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			deltas = append(deltas, c.TextDelta)
 		}
@@ -161,7 +161,7 @@ func TestParseStream_GeminiInterleaved(t *testing.T) {
 }
 
 func TestParseStream_Gemini_OnChunkAborts(t *testing.T) {
-	_, err := parseStream(strings.NewReader(sampleGeminiTextStream), "x", func(c agent.Chunk) error {
+	_, err := parseStream(strings.NewReader(sampleGeminiTextStream), "x", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			return &cancelErr{"aborted"}
 		}
@@ -184,7 +184,7 @@ data: {not parseable
 data: {"candidates":[{"content":{"parts":[{"text":" there"}],"role":"model"},"index":0,"finishReason":"STOP"}]}
 
 `
-	resp, err := parseStream(strings.NewReader(garbage), "x", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(garbage), "x", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("garbage should not kill stream: %v", err)
 	}
@@ -211,11 +211,11 @@ func TestCompleteStream_Gemini_EndToEnd(t *testing.T) {
 
 	p := &Provider{APIKey: "test-key", Endpoint: srv.URL, HTTP: srv.Client()}
 	var got strings.Builder
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
 		System:   "Be terse.",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say 'pong' in one word."}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say 'pong' in one word."}},
+	}, func(c llm.Chunk) error {
 		got.WriteString(c.TextDelta)
 		return nil
 	})
@@ -240,10 +240,10 @@ func TestCompleteStream_Gemini_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	p := &Provider{APIKey: "x", Endpoint: srv.URL, HTTP: srv.Client()}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -255,8 +255,8 @@ func TestCompleteStream_Gemini_HTTPError(t *testing.T) {
 
 func TestCompleteStream_Gemini_NilOnChunkRejected(t *testing.T) {
 	p := &Provider{APIKey: "k"}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Errorf("got %v, want nil-callback rejection", err)
@@ -306,4 +306,4 @@ func TestResolveStreamEndpoint(t *testing.T) {
 }
 
 // Compile-time guard — *Provider must satisfy StreamingProvider.
-var _ agent.StreamingProvider = (*Provider)(nil)
+var _ llm.StreamingProvider = (*Provider)(nil)

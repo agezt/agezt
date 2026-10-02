@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // TestMaps_LongNameLeavesSuffixRoom covers the branch that truncates a
@@ -14,7 +15,7 @@ import (
 func TestMaps_LongNameLeavesSuffixRoom(t *testing.T) {
 	// A 100-char name → Sanitize caps to 64, Maps truncates to maxLen-4 (60).
 	long := strings.Repeat("a", 100)
-	tools := []agent.ToolDef{{Name: long}}
+	tools := []toolapi.ToolDef{{Name: long}}
 	fwd, _ := Maps(tools)
 	wire := fwd[long]
 	if len(wire) != 60 { // maxLen(64) - 4
@@ -25,7 +26,7 @@ func TestMaps_LongNameLeavesSuffixRoom(t *testing.T) {
 // TestMaps_DuplicateToolName covers the `dup` continue branch: a repeated tool
 // name must not produce a second wire mapping.
 func TestMaps_DuplicateToolName(t *testing.T) {
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "browser.read"},
 		{Name: "browser.read"}, // duplicate → skipped
 	}
@@ -46,7 +47,7 @@ func TestMaps_DuplicateToolName(t *testing.T) {
 // wire names.
 func TestMaps_CollisionSuffix(t *testing.T) {
 	// "a.b" and "a/b" both sanitize to "a_b".
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "a.b"},
 		{Name: "a/b"},
 	}
@@ -70,7 +71,7 @@ func TestMaps_CollisionSuffix(t *testing.T) {
 
 // TestMaps_NoChanges verifies rev is nil when nothing needs conforming.
 func TestMaps_NoChanges(t *testing.T) {
-	tools := []agent.ToolDef{{Name: "shell"}, {Name: "web_search"}}
+	tools := []toolapi.ToolDef{{Name: "shell"}, {Name: "web_search"}}
 	fwd, rev := Maps(tools)
 	if rev != nil {
 		t.Fatalf("rev should be nil when no name changed, got %v", rev)
@@ -107,9 +108,9 @@ func TestRestoreCalls(t *testing.T) {
 	RestoreCalls(nil, rev)
 
 	// empty rev → no-op.
-	resp := &agent.CompletionResponse{
-		Message: agent.Message{
-			ToolCalls: []agent.ToolCall{{Name: "browser_read"}},
+	resp := &llm.CompletionResponse{
+		Message: llm.Message{
+			ToolCalls: []llm.ToolCall{{Name: "browser_read"}},
 		},
 	}
 	RestoreCalls(resp, nil)
@@ -118,9 +119,9 @@ func TestRestoreCalls(t *testing.T) {
 	}
 
 	// rev with a hit → renamed back to original; a miss stays as-is.
-	resp2 := &agent.CompletionResponse{
-		Message: agent.Message{
-			ToolCalls: []agent.ToolCall{
+	resp2 := &llm.CompletionResponse{
+		Message: llm.Message{
+			ToolCalls: []llm.ToolCall{
 				{Name: "browser_read"}, // in rev → renamed
 				{Name: "shell"},        // not in rev → unchanged
 			},

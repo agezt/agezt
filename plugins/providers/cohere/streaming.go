@@ -13,14 +13,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-// CompleteStream implements agent.StreamingProvider for Cohere v2.
+// CompleteStream implements llm.StreamingProvider for Cohere v2.
 // POSTs to the same /v2/chat endpoint with stream:true. Response is
 // SSE with Cohere-specific typed events:
 //
@@ -37,7 +38,7 @@ import (
 // Frame format: `event: <name>\ndata: <json>\n\n` (Anthropic-like
 // shape, OpenAI-like keys). The `data` payload always nests the
 // actual contents under `delta.message.{content|tool_calls}`.
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -87,7 +88,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 }
 
 // encodeStreamRequest mirrors encodeRequest but flips stream=true.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	fwd, _ := toolname.Maps(tools)
 	wire := cohereRequest{
 		Model:     model,
@@ -149,7 +150,7 @@ type openTool struct {
 
 // parseStream consumes the Cohere v2 SSE stream. Each event has the
 // `event: <name>\ndata: <json>` form; we dispatch on event name.
-func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseStream(body io.Reader, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
@@ -184,42 +185,42 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 	return assembleResponse(st), nil
 }
 
-func assembleResponse(st *streamState) *agent.CompletionResponse {
-	var toolCalls []agent.ToolCall
+func assembleResponse(st *streamState) *llm.CompletionResponse {
+	var toolCalls []llm.ToolCall
 	for _, idx := range st.toolOrder {
 		ot := st.openTools[idx]
 		args := strings.TrimSpace(ot.argsBuf.String())
 		if args == "" {
 			args = "{}"
 		}
-		toolCalls = append(toolCalls, agent.ToolCall{
+		toolCalls = append(toolCalls, llm.ToolCall{
 			ID:    ot.id,
 			Name:  ot.name,
 			Input: json.RawMessage(args),
 		})
 	}
 
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	switch strings.ToUpper(st.finishReason) {
 	case "COMPLETE", "STOP_SEQUENCE", "":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "MAX_TOKENS":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	case "TOOL_CALL":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	}
-	if len(toolCalls) > 0 && stop == agent.StopEndTurn {
-		stop = agent.StopToolUse
+	if len(toolCalls) > 0 && stop == llm.StopEndTurn {
+		stop = llm.StopToolUse
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:  st.inputTokens,
 			OutputTokens: st.outputTokens,
 			Model:        st.model,

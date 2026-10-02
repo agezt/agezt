@@ -17,7 +17,7 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/acpcatalog"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -33,7 +33,7 @@ type transport struct {
 // for tests (a fake ACP peer over pipes).
 type dialFunc func(ctx context.Context, cmd, cwd string) (*transport, error)
 
-// Tool implements agent.Tool. Constructed only when an agent command is
+// Tool implements toolapi.Tool. Constructed only when an agent command is
 // configured; see New.
 type Tool struct {
 	// Cmd is the shell command that launches the external ACP agent, e.g.
@@ -54,10 +54,10 @@ func New(cmd, cwd string) *Tool {
 	}
 	return &Tool{Cmd: cmd, Cwd: cwd, dial: spawnAgent}
 }
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "acp_agent",
-		Capability: agent.ToolCapability{Name: string(edict.CapACPAgent)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapACPAgent)},
 		Description: "Delegate a task to an EXTERNAL agent that speaks the Agent Client Protocol " +
 			"(Claude Code, Codex, Gemini CLI, …) and return its answer. The external agent runs in " +
 			"its own sandbox with the workspace as its working directory; use it to hand off work to " +
@@ -78,8 +78,8 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["task"]
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Spawn an operator-configured external ACP agent process.",
 				"Delegate a task to that agent in the workspace and relay its answer back into this run.",

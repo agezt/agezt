@@ -19,7 +19,7 @@ package builtintools
 import (
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/fetch"
@@ -111,7 +111,7 @@ func specBrowserAction() toolreg.Spec {
 			ba = tool
 			return built, err
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if ba != nil && d.Artifacts != nil {
 				ba.SetIndex(d.Artifacts)
 			}
@@ -139,7 +139,7 @@ func specFetch() toolreg.Spec {
 			}
 			return toolreg.Built{Tool: fe, Desc: "fetch(url→artifact)"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Artifacts != nil {
 				fe.SetIndex(d.Artifacts)
 			}

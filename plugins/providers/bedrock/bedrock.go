@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -130,7 +130,7 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("bedrock: status %d: %s", e.Status, e.Body)
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "bedrock" }
 
 // ResolveEndpoint returns the URL Complete will POST to for a given
@@ -151,8 +151,8 @@ func (p *Provider) ResolveEndpoint(model string) string {
 	return base + "/model/" + model + "/invoke"
 }
 
-// Complete implements agent.Provider.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+// Complete implements llm.Provider.
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if !p.hasAuth() {
 		return nil, ErrNoBearerToken
 	}
@@ -170,12 +170,12 @@ func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*
 
 	// A single dialect key carries per-request provider extras for every Bedrock
 	// model family (M997); the encoders overlay it after marshalling their wire
-	// body. agent.Params (sampling knobs) is threaded the same way.
+	// body. llm.Params (sampling knobs) is threaded the same way.
 	extra := req.ProviderOptions["bedrock"]
 	var (
 		body       []byte
 		err        error
-		decodeResp func([]byte, string) (*agent.CompletionResponse, error)
+		decodeResp func([]byte, string) (*llm.CompletionResponse, error)
 	)
 	switch {
 	case isAnthropicModel(model):

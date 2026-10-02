@@ -29,8 +29,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -42,7 +42,7 @@ type MediaSender func(ctx context.Context, kind, channelID, text string, atts []
 // ArtifactResolver resolves a content-addressed artifact ref to its bytes.
 type ArtifactResolver func(ref string) ([]byte, error)
 
-// Tool implements agent.Tool. Constructed unbound via New; the daemon calls Bind
+// Tool implements toolapi.Tool. Constructed unbound via New; the daemon calls Bind
 // once the live channels exist. Until bound, Invoke returns a clean error.
 type Tool struct {
 	mu      sync.RWMutex
@@ -86,21 +86,21 @@ func kinds(targets map[string][]string) []string {
 	return ks
 }
 
-func (t *Tool) Definition() agent.ToolDef {
+func (t *Tool) Definition() toolapi.ToolDef {
 	_, _, targets := t.snapshot()
 	avail := strings.Join(kinds(targets), ", ")
 	if avail == "" {
 		avail = "(none configured yet)"
 	}
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name:       "send_media",
-		Capability: agent.ToolCapability{Name: string(edict.CapNotify)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapNotify)},
 		Description: "Send an image, voice clip or file to the operator over a configured chat channel " +
 			"(" + avail + "). Reference the content by its artifact ref (e.g. an image you rendered or a " +
 			"clip you produced this run) and optionally add a caption. The media goes ONLY to the operator's " +
 			"pre-configured chats; you cannot choose arbitrary recipients. Text-only channels receive just the caption.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"send an outbound media attachment to the operator's configured channel allowlist",
 				"may interrupt or notify the operator outside the current run UI",
@@ -135,10 +135,10 @@ func (t *Tool) Definition() agent.ToolDef {
 	}
 }
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	send, resolve, targets := t.snapshot()
 	if send == nil || resolve == nil || len(targets) == 0 {
-		return agent.Result{Output: "send_media is not configured (no channel with an allowlist)", IsError: true}, nil
+		return toolapi.Result{Output: "send_media is not configured (no channel with an allowlist)", IsError: true}, nil
 	}
 
 	var in struct {
@@ -148,19 +148,19 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		Channel  string `json:"channel"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	ref := strings.TrimSpace(in.Artifact)
 	if ref == "" {
-		return agent.Result{Output: "artifact is required", IsError: true}, nil
+		return toolapi.Result{Output: "artifact is required", IsError: true}, nil
 	}
 
 	data, err := resolve(ref)
 	if err != nil {
-		return agent.Result{Output: "could not resolve artifact " + ref + ": " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "could not resolve artifact " + ref + ": " + err.Error(), IsError: true}, nil
 	}
 	if len(data) == 0 {
-		return agent.Result{Output: "artifact " + ref + " is empty", IsError: true}, nil
+		return toolapi.Result{Output: "artifact " + ref + " is empty", IsError: true}, nil
 	}
 
 	att := buildAttachment(data, strings.ToLower(strings.TrimSpace(in.Kind)))
@@ -170,7 +170,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	var deliver []string
 	if k := strings.ToLower(strings.TrimSpace(in.Channel)); k != "" {
 		if _, ok := targets[k]; !ok {
-			return agent.Result{Output: fmt.Sprintf("channel %q is not configured; available: %s", k, strings.Join(kinds(targets), ", ")), IsError: true}, nil
+			return toolapi.Result{Output: fmt.Sprintf("channel %q is not configured; available: %s", k, strings.Join(kinds(targets), ", ")), IsError: true}, nil
 		}
 		deliver = []string{k}
 	} else {
@@ -190,13 +190,13 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 
 	if sent == 0 {
-		return agent.Result{Output: "send_media failed: " + strings.Join(errs, "; "), IsError: true}, nil
+		return toolapi.Result{Output: "send_media failed: " + strings.Join(errs, "; "), IsError: true}, nil
 	}
 	out := fmt.Sprintf("sent %s media to the operator (%d recipient(s) across %s)", att.Kind, sent, strings.Join(deliver, ", "))
 	if len(errs) > 0 {
-		return agent.Result{Output: out + "; but some deliveries FAILED: " + strings.Join(errs, "; "), IsError: true}, nil
+		return toolapi.Result{Output: out + "; but some deliveries FAILED: " + strings.Join(errs, "; "), IsError: true}, nil
 	}
-	return agent.Result{Output: out}, nil
+	return toolapi.Result{Output: out}, nil
 }
 
 // buildAttachment classifies the bytes into an image/audio/file attachment. An

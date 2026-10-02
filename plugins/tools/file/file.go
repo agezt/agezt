@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -32,7 +32,7 @@ const MaxSearchHits = 200
 // daemon by grepping or replacing in it (M427). Generous for real source files.
 const MaxScanBytes = 8 * 1024 * 1024
 
-// Tool is the file tool implementation of agent.Tool.
+// Tool is the file tool implementation of toolapi.Tool.
 type Tool struct {
 	root         string // absolute, symlink-resolved
 	rollbackBase string // AGEZT home for checkpoint catalog; empty disables checkpoints
@@ -90,11 +90,11 @@ func NewWithCheckpoint(root, baseDir string) (*Tool, error) {
 // Root returns the canonicalized root path.
 func (t *Tool) Root() string { return t.root }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "file",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// No fallback axis on purpose: an op outside this map is also outside the
 			// schema enum above, so it cannot reach a handler. Deferring leaves it on
 			// the policy engine's unknown-capability path, which denies — the right
@@ -115,8 +115,8 @@ func (t *Tool) Definition() agent.ToolDef {
 		Description: "Read, write, list, search, and edit files in the workspace. " +
 			"All paths are relative to the workspace root; absolute paths or `..` " +
 			"escape are rejected. Prefer `replace` for small edits over rewriting a whole file.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"read workspace files for read/list/search/stat/glob operations",
 				"mutate workspace files for write/append/delete/replace operations",
@@ -159,14 +159,14 @@ type fileInput struct {
 	MaxResults  int    `json:"max_results,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in fileInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("file: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("file: parse input: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
-		return agent.Result{}, err
+		return toolapi.Result{}, err
 	}
 
 	// Per-agent workdir (M792): a run executing AS a named agent whose profile
@@ -174,7 +174,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	// under it (and an empty list/glob path means "my directory"). Absolute
 	// paths are untouched; full root containment below still applies, and the
 	// workdir itself is escape-proofed twice (profile validation + ctx setter).
-	if wd := agent.WorkdirFromContext(ctx); wd != "" {
+	if wd := toolapi.WorkdirFromContext(ctx); wd != "" {
 		if in.Path == "" {
 			in.Path = wd
 		} else if !filepath.IsAbs(in.Path) {

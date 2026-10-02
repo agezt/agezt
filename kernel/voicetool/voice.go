@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -33,7 +33,7 @@ type Voice interface {
 	HasTTS() bool
 }
 
-// Tool implements agent.Tool over a Voice adapter. SaveArtifact is bound to the
+// Tool implements toolapi.Tool over a Voice adapter. SaveArtifact is bound to the
 // kernel's artifact store after runtime.Open (the audio bytes are persisted
 // there, never returned inline to the model).
 type Tool struct {
@@ -44,10 +44,10 @@ type Tool struct {
 // New returns the `voice` agent tool over the given adapter.
 func New(v Voice) *Tool { return &Tool{voice: v} }
 
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "voice",
-		Capability: agent.ToolCapability{Name: string(edict.CapProviderCall)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapProviderCall)},
 		Description: "Hear and speak. op=transcribe converts inbound audio to text — pass the audio as a data: URL " +
 			"(e.g. a voice note delivered by a channel) or bare base64. op=speak synthesizes a spoken reply from text " +
 			"and saves it as an audio artifact you can attach to a message. Use transcribe to understand voice messages; " +
@@ -62,7 +62,7 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["op"]
 }`),
-		Effect: agent.ToolEffect{Class: agent.EffectReadOnly},
+		Effect: toolapi.ToolEffect{Class: toolapi.EffectReadOnly},
 	}
 }
 
@@ -73,13 +73,13 @@ type voiceToolInput struct {
 	Text     string `json:"text"`
 }
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	if t.voice == nil {
-		return agent.Result{Output: "voice is not available on this daemon", IsError: true}, nil
+		return toolapi.Result{Output: "voice is not available on this daemon", IsError: true}, nil
 	}
 	var in voiceToolInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	switch strings.TrimSpace(in.Op) {
 	case "transcribe":
@@ -87,49 +87,49 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	case "speak":
 		return t.speak(ctx, in)
 	default:
-		return agent.Result{Output: fmt.Sprintf("unknown op %q (use transcribe|speak)", in.Op), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("unknown op %q (use transcribe|speak)", in.Op), IsError: true}, nil
 	}
 }
 
-func (t *Tool) transcribe(ctx context.Context, in voiceToolInput) (agent.Result, error) {
+func (t *Tool) transcribe(ctx context.Context, in voiceToolInput) (toolapi.Result, error) {
 	if !t.voice.HasSTT() {
-		return agent.Result{Output: "transcription is not configured (set AGEZT_STT_URL + AGEZT_STT_MODEL)", IsError: true}, nil
+		return toolapi.Result{Output: "transcription is not configured (set AGEZT_STT_URL + AGEZT_STT_MODEL)", IsError: true}, nil
 	}
 	audio, err := decodeAudio(in.Audio)
 	if err != nil {
-		return agent.Result{Output: "invalid audio: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid audio: " + err.Error(), IsError: true}, nil
 	}
 	text, err := t.voice.Transcribe(ctx, audio, in.Filename)
 	if err != nil {
-		return agent.Result{Output: "transcribe failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "transcribe failed: " + err.Error(), IsError: true}, nil
 	}
 	if text == "" {
-		return agent.Result{Output: "(no speech detected)", ObservationTrust: agent.ObservationUntrusted, ObservationSource: "voice:transcription"}, nil
+		return toolapi.Result{Output: "(no speech detected)", ObservationTrust: toolapi.ObservationUntrusted, ObservationSource: "voice:transcription"}, nil
 	}
 	// The transcript is external content — mark it untrusted so the loop renders
 	// it as data, never as instructions.
-	return agent.Result{Output: text, ObservationTrust: agent.ObservationUntrusted, ObservationSource: "voice:transcription"}, nil
+	return toolapi.Result{Output: text, ObservationTrust: toolapi.ObservationUntrusted, ObservationSource: "voice:transcription"}, nil
 }
 
-func (t *Tool) speak(ctx context.Context, in voiceToolInput) (agent.Result, error) {
+func (t *Tool) speak(ctx context.Context, in voiceToolInput) (toolapi.Result, error) {
 	if !t.voice.HasTTS() {
-		return agent.Result{Output: "synthesis is not configured (set AGEZT_TTS_URL + AGEZT_TTS_MODEL)", IsError: true}, nil
+		return toolapi.Result{Output: "synthesis is not configured (set AGEZT_TTS_URL + AGEZT_TTS_MODEL)", IsError: true}, nil
 	}
 	if strings.TrimSpace(in.Text) == "" {
-		return agent.Result{Output: "op=speak needs text", IsError: true}, nil
+		return toolapi.Result{Output: "op=speak needs text", IsError: true}, nil
 	}
 	audio, mime, err := t.voice.Speak(ctx, in.Text)
 	if err != nil {
-		return agent.Result{Output: "speak failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "speak failed: " + err.Error(), IsError: true}, nil
 	}
 	if t.SaveArtifact == nil {
-		return agent.Result{Output: fmt.Sprintf("synthesized %d bytes of %s, but artifact storage is unavailable to persist it", len(audio), mime), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("synthesized %d bytes of %s, but artifact storage is unavailable to persist it", len(audio), mime), IsError: true}, nil
 	}
 	ref, err := t.SaveArtifact(audio)
 	if err != nil {
-		return agent.Result{Output: "saved synthesis failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "saved synthesis failed: " + err.Error(), IsError: true}, nil
 	}
-	return agent.Result{Output: fmt.Sprintf("spoke %d byte(s) of %s, saved as artifact %s", len(audio), mime, ref)}, nil
+	return toolapi.Result{Output: fmt.Sprintf("spoke %d byte(s) of %s, saved as artifact %s", len(audio), mime, ref)}, nil
 }
 
 // decodeAudio accepts a data: URL ("data:audio/ogg;base64,...."), a bare base64

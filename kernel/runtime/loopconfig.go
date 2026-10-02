@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -101,6 +102,6 @@ func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) age
 		ContextBudget:        ctxBudget,               // M393/M394 (SPEC-10 §3)
 		ContextProtectFirst:  cfg.ContextProtectFirst, // M395
 		SummarizeElided:      summarizeElided,         // M398
-		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
+		ContextRescueMarkers: []string{toolapi.DefaultContextRescueMarker},
 	}
 }

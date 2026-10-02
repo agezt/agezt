@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -185,7 +185,7 @@ func TestBudgetSet_RejectsMissingAndBadArgs(t *testing.T) {
 	}
 }
 
-// Compile-time pin: agent.Provider is the surface startPair needs;
+// Compile-time pin: llm.Provider is the surface startPair needs;
 // governor.Governor satisfies it. If that breaks, this test stops
 // compiling — a useful canary if the Governor interface drifts.
-var _ agent.Provider = (*governor.Governor)(nil)
+var _ llm.Provider = (*governor.Governor)(nil)

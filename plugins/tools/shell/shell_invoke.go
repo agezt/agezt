@@ -14,18 +14,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in shellInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("shell: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("shell: parse input: %w", err)
 	}
 	if in.Command == "" {
-		return agent.Result{Output: "command is required", IsError: true}, nil
+		return toolapi.Result{Output: "command is required", IsError: true}, nil
 	}
 
 	timeout := DefaultTimeout
@@ -53,7 +53,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			CorrelationID: warden.CorrelationFrom(ctx),
 		})
 		if err != nil {
-			return agent.Result{
+			return toolapi.Result{
 				Output:  fmt.Sprintf("ssh run failed: %v", err),
 				IsError: true,
 			}, nil
@@ -73,7 +73,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			CorrelationID: warden.CorrelationFrom(ctx),
 		})
 		if err != nil {
-			return agent.Result{
+			return toolapi.Result{
 				Output:  fmt.Sprintf("kubectl run failed: %v", err),
 				IsError: true,
 			}, nil
@@ -93,7 +93,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			CorrelationID: warden.CorrelationFrom(ctx),
 		})
 		if err != nil {
-			return agent.Result{
+			return toolapi.Result{
 				Output:  fmt.Sprintf("modal run failed: %v", err),
 				IsError: true,
 			}, nil
@@ -114,7 +114,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 			CorrelationID: warden.CorrelationFrom(ctx),
 		})
 		if err != nil {
-			return agent.Result{
+			return toolapi.Result{
 				Output:  fmt.Sprintf("daytona run failed: %v", err),
 				IsError: true,
 			}, nil
@@ -148,7 +148,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	// to anchor to, so the ctx workdir is ignored. The ctx value is
 	// escape-proofed at the setter (and by profile validation upstream).
 	workDir := t.WorkDir
-	if wd := agent.WorkdirFromContext(ctx); wd != "" && t.WorkDir != "" {
+	if wd := toolapi.WorkdirFromContext(ctx); wd != "" && t.WorkDir != "" {
 		workDir = filepath.Join(t.WorkDir, filepath.FromSlash(wd))
 		_ = os.MkdirAll(workDir, 0o755)
 	}
@@ -157,7 +157,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	env := executionprofile.AppendEnvPassthrough(scrubEnv(workDir), profileID)
 	secretEnv, cleanupSecrets, _, serr := executionprofile.PrepareSecretFileMounts(t.BaseDir, profileID, workDir)
 	if serr != nil {
-		return agent.Result{Output: "shell: secret file mounts: " + serr.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "shell: secret file mounts: " + serr.Error(), IsError: true}, nil
 	}
 	defer cleanupSecrets()
 	env = append(env, secretEnv...)
@@ -181,7 +181,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		CorrelationID: warden.CorrelationFrom(ctx),
 	})
 	if err != nil {
-		return agent.Result{
+		return toolapi.Result{
 			Output:  fmt.Sprintf("warden run failed: %v", err),
 			IsError: true,
 		}, nil

@@ -14,10 +14,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeAnthropicOnVertexResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var ar anthVxResponse
 	if err := json.Unmarshal(body, &ar); err != nil {
 		return nil, fmt.Errorf("vertex: parse anthropic response: %w", err)
@@ -25,7 +25,7 @@ func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.Completi
 	var (
 		textParts      []string
 		reasoningParts []string
-		toolCalls      []agent.ToolCall
+		toolCalls      []llm.ToolCall
 	)
 	for _, b := range ar.Content {
 		switch b.Type {
@@ -39,25 +39,25 @@ func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.Completi
 			if len(input) == 0 {
 				input = json.RawMessage(`{}`)
 			}
-			toolCalls = append(toolCalls, agent.ToolCall{
+			toolCalls = append(toolCalls, llm.ToolCall{
 				ID:    b.ID,
 				Name:  b.Name,
 				Input: input,
 			})
 		}
 	}
-	stop := agent.StopReason(ar.StopReason)
+	stop := llm.StopReason(ar.StopReason)
 	switch ar.StopReason {
 	case "end_turn", "stop_sequence":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_use":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},

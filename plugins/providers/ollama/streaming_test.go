@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // sampleOllamaTextStream is a representative NDJSON streaming
@@ -32,7 +32,7 @@ const sampleOllamaToolCallStream = `{"model":"llama3.2","message":{"role":"assis
 
 func TestParseStream_OllamaTextOnly(t *testing.T) {
 	var deltas []string
-	resp, err := parseStream(strings.NewReader(sampleOllamaTextStream), "llama3.2", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleOllamaTextStream), "llama3.2", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			deltas = append(deltas, c.TextDelta)
 		}
@@ -44,7 +44,7 @@ func TestParseStream_OllamaTextOnly(t *testing.T) {
 	if resp.Message.Content != "pong!" {
 		t.Errorf("content = %q, want 'pong!'", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 3 {
@@ -60,13 +60,13 @@ func TestParseStream_OllamaTextOnly(t *testing.T) {
 
 func TestParseStream_OllamaToolCall(t *testing.T) {
 	var (
-		gotStart   *agent.ToolCall
+		gotStart   *llm.ToolCall
 		gotInput   string
 		gotStop    string
 		startCount int
 		stopCount  int
 	)
-	resp, err := parseStream(strings.NewReader(sampleOllamaToolCallStream), "llama3.2", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleOllamaToolCallStream), "llama3.2", func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			gotStart = c.ToolUseStart
 			startCount++
@@ -103,7 +103,7 @@ func TestParseStream_OllamaToolCall(t *testing.T) {
 	if len(resp.Message.ToolCalls) != 1 {
 		t.Fatalf("want 1 tool call, got %d", len(resp.Message.ToolCalls))
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q, want tool_use", resp.StopReason)
 	}
 }
@@ -113,7 +113,7 @@ func TestParseStream_OllamaSynthesizesMissingID(t *testing.T) {
 	// synthesize stable ones so the loop's tool_call_id binding works.
 	const noIDStream = `{"model":"x","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"shell","arguments":{"cmd":"ls"}}}]},"done":true,"done_reason":"stop"}
 `
-	resp, err := parseStream(strings.NewReader(noIDStream), "x", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(noIDStream), "x", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestParseStream_OllamaSynthesizesMissingID(t *testing.T) {
 }
 
 func TestParseStream_Ollama_OnChunkAborts(t *testing.T) {
-	_, err := parseStream(strings.NewReader(sampleOllamaTextStream), "x", func(c agent.Chunk) error {
+	_, err := parseStream(strings.NewReader(sampleOllamaTextStream), "x", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			return &cancelErr{"aborted"}
 		}
@@ -149,7 +149,7 @@ func TestParseStream_Ollama_GarbageLineIgnored(t *testing.T) {
 not json at all here
 {"model":"x","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","prompt_eval_count":1,"eval_count":1}
 `
-	resp, err := parseStream(strings.NewReader(garbage), "x", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(garbage), "x", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("garbage shouldn't kill stream: %v", err)
 	}
@@ -162,11 +162,11 @@ func TestParseStream_OllamaLengthDoneReason(t *testing.T) {
 	const lengthStream = `{"model":"x","message":{"role":"assistant","content":"truncated..."},"done":false}
 {"model":"x","message":{"role":"assistant","content":""},"done":true,"done_reason":"length","prompt_eval_count":5,"eval_count":50}
 `
-	resp, err := parseStream(strings.NewReader(lengthStream), "x", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(lengthStream), "x", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("stop = %q, want max_tokens", resp.StopReason)
 	}
 }
@@ -183,10 +183,10 @@ func TestCompleteStream_Ollama_EndToEnd(t *testing.T) {
 
 	p := &Provider{Endpoint: srv.URL, HTTP: srv.Client()}
 	var got strings.Builder
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "llama3.2",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say pong"}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say pong"}},
+	}, func(c llm.Chunk) error {
 		got.WriteString(c.TextDelta)
 		return nil
 	})
@@ -208,10 +208,10 @@ func TestCompleteStream_Ollama_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	p := &Provider{Endpoint: srv.URL, HTTP: srv.Client()}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -223,8 +223,8 @@ func TestCompleteStream_Ollama_HTTPError(t *testing.T) {
 
 func TestCompleteStream_Ollama_NilOnChunkRejected(t *testing.T) {
 	p := &Provider{Endpoint: "http://localhost:1"}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Errorf("got %v, want nil-callback rejection", err)
@@ -232,4 +232,4 @@ func TestCompleteStream_Ollama_NilOnChunkRejected(t *testing.T) {
 }
 
 // Compile-time guard — *Provider must satisfy StreamingProvider.
-var _ agent.StreamingProvider = (*Provider)(nil)
+var _ llm.StreamingProvider = (*Provider)(nil)

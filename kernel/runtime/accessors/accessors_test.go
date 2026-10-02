@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
@@ -16,6 +15,8 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -46,8 +47,8 @@ type fakeKernel struct {
 	warden        warden.Engine
 	approvals     *approval.Registry
 	scheduler     *scheduler.Executor
-	provider      agent.Provider
-	tools         map[string]agent.Tool
+	provider      llm.Provider
+	tools         map[string]toolapi.Tool
 	memory        *memory.Manager
 	gateway       *agentgw.Gateway
 	schedules     *cadence.Store
@@ -90,8 +91,8 @@ func (k *fakeKernel) Edict() *edict.Engine               { return k.edict }
 func (k *fakeKernel) Warden() warden.Engine              { return k.warden }
 func (k *fakeKernel) Approvals() *approval.Registry      { return k.approvals }
 func (k *fakeKernel) Scheduler() *scheduler.Executor     { return k.scheduler }
-func (k *fakeKernel) Provider() agent.Provider           { return k.provider }
-func (k *fakeKernel) Tools() map[string]agent.Tool       { return k.tools }
+func (k *fakeKernel) Provider() llm.Provider             { return k.provider }
+func (k *fakeKernel) Tools() map[string]toolapi.Tool     { return k.tools }
 func (k *fakeKernel) Memory() *memory.Manager            { return k.memory }
 func (k *fakeKernel) AgentGateway() *agentgw.Gateway     { return k.gateway }
 func (k *fakeKernel) Schedules() *cadence.Store          { return k.schedules }

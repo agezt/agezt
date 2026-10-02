@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // covIndex is a tiny per-test fake. The existing artifacts_test.go already
@@ -49,8 +49,8 @@ func TestArtifactsCoverageDefinition(t *testing.T) {
 	if def.Name != "artifacts" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectReversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectReversible)
+	if def.Effect.Class != toolapi.EffectReversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectReversible)
 	}
 	schema := string(def.InputSchema)
 	for _, want := range []string{`"list"`, `"read"`, `"delete"`, `"id"`, `"kind"`} {

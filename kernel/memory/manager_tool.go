@@ -2,7 +2,7 @@
 
 package memory
 
-// Provenance: Package memory: agent.Tool surface for the memory manager (toolInput +
+// Provenance: Package memory: toolapi.Tool surface for the memory manager (toolInput +
 //             memoryTool + Tool + Definition + Invoke). The context.Context helpers
 //             (WithCorrelation + CorrelationFrom + WithScope + ScopeFrom) moved to
 //             manager_tool_ctx.go; the small tool helpers (toolActor + toolTags +
@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -34,19 +34,19 @@ type toolInput struct {
 	Scope      string   `json:"scope"`
 }
 
-// memoryTool is the in-process agent.Tool that lets the agent remember,
+// memoryTool is the in-process toolapi.Tool that lets the agent remember,
 // recall, and forget during a run. Writes are journaled by the Manager under
 // the run's correlation (read from ctx via CorrelationFrom).
 type memoryTool struct{ mgr *Manager }
 
 // Tool returns the agent-facing memory tool. Register it under the name
 // "memory" in the agent loop's tool map.
-func (m *Manager) Tool() agent.Tool { return memoryTool{mgr: m} }
+func (m *Manager) Tool() toolapi.Tool { return memoryTool{mgr: m} }
 
-func (t memoryTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t memoryTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "memory",
-		Capability: agent.ToolCapability{Name: string(edict.CapMemory)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapMemory)},
 		Description: "Persist and retrieve durable knowledge across tasks. " +
 			"action=remember stores a fact (subject, content); " +
 			"action=recall searches stored memory (query); " +
@@ -54,8 +54,8 @@ func (t memoryTool) Definition() agent.ToolDef {
 			"Your notes are PRIVATE to you by default — recall surfaces them plus the shared memory. " +
 			"Pass shared=true only for facts genuinely useful to ALL agents " +
 			"(owner preferences, project-wide decisions); be selective about the shared brain.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"read durable memory for recall/find_related actions",
 				"write or tombstone durable memory for remember/forget/bulk_forget actions",
@@ -68,10 +68,10 @@ func (t memoryTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in toolInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid memory input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid memory input: " + err.Error(), IsError: true}, nil
 	}
 	corr := CorrelationFrom(ctx)
 	switch strings.ToLower(strings.TrimSpace(in.Action)) {
@@ -94,7 +94,7 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 			Actor: toolActor(ctx), // who is writing — the agent slug, or "agent" (M851)
 		})
 		if err != nil {
-			return agent.Result{Output: "remember failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "remember failed: " + err.Error(), IsError: true}, nil
 		}
 		verb := "reinforced"
 		if created {
@@ -104,7 +104,7 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		if scope != "" {
 			where = "private to " + scope
 		}
-		return agent.Result{Output: fmt.Sprintf("%s memory %s (%s: %s) — %s", verb, rec.ID[:12], rec.Type, rec.Subject, where)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("%s memory %s (%s: %s) — %s", verb, rec.ID[:12], rec.Type, rec.Subject, where)}, nil
 	case "recall":
 		limit := in.Limit
 		if limit <= 0 {
@@ -121,21 +121,21 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		}
 		hits, err := t.mgr.RecallScoped(corr, in.Query, limit, scope)
 		if err != nil {
-			return agent.Result{Output: "recall failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "recall failed: " + err.Error(), IsError: true}, nil
 		}
-		return agent.Result{Output: renderHits(hits)}, nil
+		return toolapi.Result{Output: renderHits(hits)}, nil
 	case "forget":
 		ok, err := t.mgr.Forget(corr, in.ID)
 		if err != nil {
-			return agent.Result{Output: "forget failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "forget failed: " + err.Error(), IsError: true}, nil
 		}
 		if !ok {
-			return agent.Result{Output: "no memory with id " + in.ID, IsError: true}, nil
+			return toolapi.Result{Output: "no memory with id " + in.ID, IsError: true}, nil
 		}
-		return agent.Result{Output: "forgot memory " + in.ID}, nil
+		return toolapi.Result{Output: "forgot memory " + in.ID}, nil
 	case "find_related":
 		if in.ID == "" {
-			return agent.Result{Output: "find_related requires id", IsError: true}, nil
+			return toolapi.Result{Output: "find_related requires id", IsError: true}, nil
 		}
 		limit := in.Limit
 		if limit <= 0 {
@@ -146,14 +146,14 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 		}
 		seed, found, err := t.mgr.Get(in.ID)
 		if err != nil {
-			return agent.Result{Output: "find_related failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "find_related failed: " + err.Error(), IsError: true}, nil
 		}
 		if !found {
-			return agent.Result{Output: "seed memory id " + in.ID + " not found", IsError: true}, nil
+			return toolapi.Result{Output: "seed memory id " + in.ID + " not found", IsError: true}, nil
 		}
 		hits, err := t.mgr.Search(seed.Content, limit+1) // +1 because seed itself may appear
 		if err != nil {
-			return agent.Result{Output: "find_related failed: " + err.Error(), IsError: true}, nil
+			return toolapi.Result{Output: "find_related failed: " + err.Error(), IsError: true}, nil
 		}
 		// Exclude the seed record from results.
 		out := make([]string, 0, limit)
@@ -166,21 +166,21 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 			}
 		}
 		if len(out) == 0 {
-			return agent.Result{Output: "no related memories found for " + in.ID}, nil
+			return toolapi.Result{Output: "no related memories found for " + in.ID}, nil
 		}
-		return agent.Result{Output: "related memories for " + in.ID + ":\n" + strings.Join(out, "\n")}, nil
+		return toolapi.Result{Output: "related memories for " + in.ID + ":\n" + strings.Join(out, "\n")}, nil
 	case "bulk_forget":
 		if len(in.IDs) == 0 {
-			return agent.Result{Output: "bulk_forget requires ids", IsError: true}, nil
+			return toolapi.Result{Output: "bulk_forget requires ids", IsError: true}, nil
 		}
 		if len(in.IDs) > 500 {
-			return agent.Result{Output: "bulk_forget exceeds 500 ids per call", IsError: true}, nil
+			return toolapi.Result{Output: "bulk_forget exceeds 500 ids per call", IsError: true}, nil
 		}
 		var forgotten, notFound int
 		for _, id := range in.IDs {
 			ok, err := t.mgr.Forget(corr, id)
 			if err != nil {
-				return agent.Result{Output: "bulk_forget failed: " + err.Error(), IsError: true}, nil
+				return toolapi.Result{Output: "bulk_forget failed: " + err.Error(), IsError: true}, nil
 			}
 			if ok {
 				forgotten++
@@ -188,8 +188,8 @@ func (t memoryTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Re
 				notFound++
 			}
 		}
-		return agent.Result{Output: fmt.Sprintf("forgotten: %d  not_found: %d", forgotten, notFound)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("forgotten: %d  not_found: %d", forgotten, notFound)}, nil
 	default:
-		return agent.Result{Output: "unknown action " + in.Action + " (remember|recall|forget|find_related|bulk_forget)", IsError: true}, nil
+		return toolapi.Result{Output: "unknown action " + in.Action + " (remember|recall|forget|find_related|bulk_forget)", IsError: true}, nil
 	}
 }

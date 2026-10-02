@@ -2,7 +2,7 @@ package workboardtool
 
 // Provenance: SPDX-License-Identifier: MIT Workboard tool: the Kernel interface +
 //             the Tool struct + the lifecycle (New + Bind + current) + Definition
-//             (the agent.ToolDef JSON schema). The Invoke entry point lives in
+//             (the toolapi.ToolDef JSON schema). The Invoke entry point lives in
 //             workboard_invoke.go; the actual operations + helpers live in
 //             workboard_ops.go. Extracted from workboard.go during the Day-206
 //             god-file split. Public API unchanged.
@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/workboard"
 )
@@ -53,10 +53,10 @@ func (t *Tool) current() Kernel {
 	return t.k
 }
 
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "workboard",
-		Capability: agent.ToolCapability{Name: string(edict.CapWorkboard)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapWorkboard)},
 		Description: "Use AGEZT's durable typed workboard: list/show tasks, create new tasks, claim work, heartbeat while running, comment, block/unblock, complete, archive, link runs/artifacts/workflows, declare dependencies, and reclaim stale claims. " +
 			"Tasks are not agents; they are visible durable work records with status, priority, assignee, tenant, idempotency key, comments, links, claims, and journaled transitions. " +
 			"Use this when work must survive restarts, be picked up by another agent, or be reviewed later instead of hiding it in chat.",
@@ -91,8 +91,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "include_archived": {"type":"boolean", "description":"For list: include archived tasks."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Read or mutate durable typed workboard tasks.",
 				"Created and mutated tasks are persisted and journaled as workboard.task.* events.",

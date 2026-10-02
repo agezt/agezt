@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -14,8 +15,8 @@ import (
 // never the raw dotted one. (Unit coverage of the conformance maps themselves
 // lives in plugins/providers/internal/toolname.)
 func TestEncodeRequestSanitizesToolNames(t *testing.T) {
-	tools := []agent.ToolDef{{Name: "browser.read", Description: "read a page"}}
-	body, err := encodeRequest("gpt-5.5", "sys", nil, tools, 100, false, agent.Params{}, nil)
+	tools := []toolapi.ToolDef{{Name: "browser.read", Description: "read a page"}}
+	body, err := encodeRequest("gpt-5.5", "sys", nil, tools, 100, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,13 +35,13 @@ func TestEncodeRequestSanitizesToolNames(t *testing.T) {
 // misroute a tool_call (M415). "browser.read" and "browser_read" both naively →
 // "browser_read".
 func TestEncodeRequest_CollisionStaysDistinct(t *testing.T) {
-	tools := []agent.ToolDef{{Name: "browser.read"}, {Name: "browser_read"}}
+	tools := []toolapi.ToolDef{{Name: "browser.read"}, {Name: "browser_read"}}
 	// Sanity: the shared mapping is injective.
 	fwd, _ := toolname.Maps(tools)
 	if fwd["browser.read"] == fwd["browser_read"] {
 		t.Fatalf("collision not broken: both → %q", fwd["browser.read"])
 	}
-	body, err := encodeRequest("m", "", nil, tools, 0, false, agent.Params{}, nil)
+	body, err := encodeRequest("m", "", nil, tools, 0, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

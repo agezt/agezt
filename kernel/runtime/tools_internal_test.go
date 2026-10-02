@@ -8,26 +8,26 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-// stubTool is a minimal agent.Tool for exercising filterTools by name.
+// stubTool is a minimal toolapi.Tool for exercising filterTools by name.
 type stubTool struct{ name string }
 
-func (s stubTool) Definition() agent.ToolDef { return agent.ToolDef{Name: s.name} }
-func (s stubTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: s.name}, nil
+func (s stubTool) Definition() toolapi.ToolDef { return toolapi.ToolDef{Name: s.name} }
+func (s stubTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: s.name}, nil
 }
 
-func toolSet(names ...string) map[string]agent.Tool {
-	m := make(map[string]agent.Tool, len(names))
+func toolSet(names ...string) map[string]toolapi.Tool {
+	m := make(map[string]toolapi.Tool, len(names))
 	for _, n := range names {
 		m[n] = stubTool{name: n}
 	}
 	return m
 }
 
-func sortedKeys(m map[string]agent.Tool) []string {
+func sortedKeys(m map[string]toolapi.Tool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)

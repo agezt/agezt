@@ -20,13 +20,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.CompletionRequest, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) completeStreamAnthropic(ctx context.Context, req llm.CompletionRequest, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {
 		maxTokens = DefaultAnthropicMaxTokens
@@ -78,7 +78,7 @@ type anthStreamState struct {
 	textParts      strings.Builder
 	reasoningParts strings.Builder // extended-thinking blocks (M321)
 	openBlock      *anthOpenBlock
-	finishedTools  []agent.ToolCall
+	finishedTools  []llm.ToolCall
 	inputTokens    int
 	cacheRead      int // cache_read_input_tokens (M290)
 	cacheCreation  int // cache_creation_input_tokens (M290)
@@ -94,7 +94,7 @@ type anthOpenBlock struct {
 	inputBuf strings.Builder
 }
 
-func parseAnthropicSSE(body io.Reader, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseAnthropicSSE(body io.Reader, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
@@ -129,7 +129,7 @@ func parseAnthropicSSE(body io.Reader, model string, onChunk func(agent.Chunk) e
 	return assembleAnthropicResponse(st, model), nil
 }
 
-func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk func(agent.Chunk) error) error {
+func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk func(llm.Chunk) error) error {
 	switch eventName {
 	case "message_start":
 		var f struct {
@@ -172,7 +172,7 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 		case "text":
 			st.openBlock.textBuf.WriteString(f.ContentBlock.Text)
 			if f.ContentBlock.Text != "" {
-				if err := onChunk(agent.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
 					return err
 				}
 			}
@@ -181,19 +181,19 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			// to reasoningParts at block_stop) and surface as ReasoningDelta.
 			st.openBlock.textBuf.WriteString(f.ContentBlock.Thinking)
 			if f.ContentBlock.Thinking != "" {
-				if err := onChunk(agent.Chunk{ReasoningDelta: f.ContentBlock.Thinking}); err != nil {
+				if err := onChunk(llm.Chunk{ReasoningDelta: f.ContentBlock.Thinking}); err != nil {
 					return err
 				}
 			}
 		case "tool_use":
 			st.openBlock.toolID = f.ContentBlock.ID
 			st.openBlock.toolName = f.ContentBlock.Name
-			start := &agent.ToolCall{
+			start := &llm.ToolCall{
 				ID:    f.ContentBlock.ID,
 				Name:  f.ContentBlock.Name,
 				Input: json.RawMessage(`{}`),
 			}
-			if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 				return err
 			}
 		}
@@ -218,7 +218,7 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 		case "text_delta":
 			st.openBlock.textBuf.WriteString(f.Delta.Text)
 			if f.Delta.Text != "" {
-				if err := onChunk(agent.Chunk{TextDelta: f.Delta.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: f.Delta.Text}); err != nil {
 					return err
 				}
 			}
@@ -226,14 +226,14 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			// Extended-thinking delta (M321): accumulate + surface as ReasoningDelta.
 			st.openBlock.textBuf.WriteString(f.Delta.Thinking)
 			if f.Delta.Thinking != "" {
-				if err := onChunk(agent.Chunk{ReasoningDelta: f.Delta.Thinking}); err != nil {
+				if err := onChunk(llm.Chunk{ReasoningDelta: f.Delta.Thinking}); err != nil {
 					return err
 				}
 			}
 		case "input_json_delta":
 			st.openBlock.inputBuf.WriteString(f.Delta.PartialJSON)
 			if f.Delta.PartialJSON != "" {
-				if err := onChunk(agent.Chunk{ToolInputJSONDelta: f.Delta.PartialJSON}); err != nil {
+				if err := onChunk(llm.Chunk{ToolInputJSONDelta: f.Delta.PartialJSON}); err != nil {
 					return err
 				}
 			}
@@ -254,12 +254,12 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 			if input == "" {
 				input = "{}"
 			}
-			st.finishedTools = append(st.finishedTools, agent.ToolCall{
+			st.finishedTools = append(st.finishedTools, llm.ToolCall{
 				ID:    ob.toolID,
 				Name:  ob.toolName,
 				Input: json.RawMessage(input),
 			})
-			if err := onChunk(agent.Chunk{ToolUseStop: ob.toolID}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStop: ob.toolID}); err != nil {
 				return err
 			}
 		}
@@ -301,19 +301,19 @@ func dispatchAnthropicSSE(eventName, data string, st *anthStreamState, onChunk f
 	return nil
 }
 
-func assembleAnthropicResponse(st *anthStreamState, model string) *agent.CompletionResponse {
-	stop := agent.StopReason(st.stopReason)
+func assembleAnthropicResponse(st *anthStreamState, model string) *llm.CompletionResponse {
+	stop := llm.StopReason(st.stopReason)
 	switch st.stopReason {
 	case "end_turn", "stop_sequence":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_use":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: st.finishedTools,
 		},

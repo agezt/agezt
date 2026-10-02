@@ -9,11 +9,11 @@ package governor
 // Day 29 god file split #1.
 
 import (
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, resp *agent.CompletionResponse) {
+func (g *Governor) recordUsage(p *ProviderInfo, req llm.CompletionRequest, resp *llm.CompletionResponse) {
 	model := resp.Usage.Model
 	if model == "" {
 		model = req.Model

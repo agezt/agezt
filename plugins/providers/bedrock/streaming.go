@@ -14,13 +14,14 @@ import (
 
 	"encoding/base64"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 type bedStreamState struct {
 	textParts     strings.Builder
 	openBlock     *bedOpenBlock
-	finishedTools []agent.ToolCall
+	finishedTools []llm.ToolCall
 	inputTokens   int
 	cacheRead     int // cache_read_input_tokens (M296)
 	cacheCreation int // cache_creation_input_tokens (M296)
@@ -44,7 +45,7 @@ type chunkPayload struct {
 
 // parseEventStream is the per-stream loop: read a frame, branch on
 // :message-type, decode the inner Anthropic event, dispatch.
-func parseEventStream(body io.Reader, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseEventStream(body io.Reader, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	st := bedStreamState{}
 	for {
 		hdrs, payload, err := readEventStreamMessage(body)
@@ -97,7 +98,7 @@ func parseEventStream(body io.Reader, model string, onChunk func(agent.Chunk) er
 // dispatchBedrockInnerEvent handles the JSON Anthropic emits inside
 // each "chunk" frame. Returns (stop, err) — stop=true when the
 // inner event is message_stop and the outer loop should exit.
-func dispatchBedrockInnerEvent(data []byte, st *bedStreamState, onChunk func(agent.Chunk) error) (bool, error) {
+func dispatchBedrockInnerEvent(data []byte, st *bedStreamState, onChunk func(llm.Chunk) error) (bool, error) {
 	// The inner event always has a "type" field discriminating the
 	// payload shape. Peek it first.
 	var head struct {
@@ -147,19 +148,19 @@ func dispatchBedrockInnerEvent(data []byte, st *bedStreamState, onChunk func(age
 		case "text":
 			st.openBlock.textBuf.WriteString(f.ContentBlock.Text)
 			if f.ContentBlock.Text != "" {
-				if err := onChunk(agent.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
 					return false, err
 				}
 			}
 		case "tool_use":
 			st.openBlock.toolID = f.ContentBlock.ID
 			st.openBlock.toolName = f.ContentBlock.Name
-			start := &agent.ToolCall{
+			start := &llm.ToolCall{
 				ID:    f.ContentBlock.ID,
 				Name:  f.ContentBlock.Name,
 				Input: json.RawMessage(`{}`),
 			}
-			if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 				return false, err
 			}
 		}
@@ -183,14 +184,14 @@ func dispatchBedrockInnerEvent(data []byte, st *bedStreamState, onChunk func(age
 		case "text_delta":
 			st.openBlock.textBuf.WriteString(f.Delta.Text)
 			if f.Delta.Text != "" {
-				if err := onChunk(agent.Chunk{TextDelta: f.Delta.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: f.Delta.Text}); err != nil {
 					return false, err
 				}
 			}
 		case "input_json_delta":
 			st.openBlock.inputBuf.WriteString(f.Delta.PartialJSON)
 			if f.Delta.PartialJSON != "" {
-				if err := onChunk(agent.Chunk{ToolInputJSONDelta: f.Delta.PartialJSON}); err != nil {
+				if err := onChunk(llm.Chunk{ToolInputJSONDelta: f.Delta.PartialJSON}); err != nil {
 					return false, err
 				}
 			}
@@ -209,12 +210,12 @@ func dispatchBedrockInnerEvent(data []byte, st *bedStreamState, onChunk func(age
 			if input == "" {
 				input = "{}"
 			}
-			st.finishedTools = append(st.finishedTools, agent.ToolCall{
+			st.finishedTools = append(st.finishedTools, llm.ToolCall{
 				ID:    ob.toolID,
 				Name:  ob.toolName,
 				Input: json.RawMessage(input),
 			})
-			if err := onChunk(agent.Chunk{ToolUseStop: ob.toolID}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStop: ob.toolID}); err != nil {
 				return false, err
 			}
 		}
@@ -260,19 +261,19 @@ func dispatchBedrockInnerEvent(data []byte, st *bedStreamState, onChunk func(age
 	return false, nil
 }
 
-func assembleBedrockResponse(st *bedStreamState, model string) *agent.CompletionResponse {
-	stop := agent.StopReason(st.stopReason)
+func assembleBedrockResponse(st *bedStreamState, model string) *llm.CompletionResponse {
+	stop := llm.StopReason(st.stopReason)
 	switch st.stopReason {
 	case "end_turn", "stop_sequence":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_use":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: st.finishedTools,
 		},

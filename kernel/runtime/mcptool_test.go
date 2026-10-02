@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -31,7 +32,7 @@ func (c *fakeMCPConn) Call(_ context.Context, tool string, args json.RawMessage)
 }
 func (c *fakeMCPConn) Close() error { c.closed = true; return nil }
 
-func openMCPKernel(t *testing.T, prov agent.Provider, conn *fakeMCPConn) (*runtime.Kernel, *int) {
+func openMCPKernel(t *testing.T, prov llm.Provider, conn *fakeMCPConn) (*runtime.Kernel, *int) {
 	t.Helper()
 	dials := 0
 	k, err := runtime.Open(runtime.Config{
@@ -58,9 +59,9 @@ func TestAttach_OffersAndForwardsBridgedTool(t *testing.T) {
 		testToolUse("c1", "mcp_fake_greet", map[string]any{"name": "ersin"}),
 		mock.FinalText("done"),
 	)
-	var first agent.CompletionRequest
+	var first llm.CompletionRequest
 	seen := false
-	prov.OnRequest = func(r agent.CompletionRequest) {
+	prov.OnRequest = func(r llm.CompletionRequest) {
 		if !seen {
 			first, seen = r, true
 		}
@@ -160,9 +161,9 @@ func TestAttach_RemoteRoutesThroughHTTPDialer(t *testing.T) {
 // the listed tools to a run — the others are kept out of context (M899).
 func TestAttach_ToolAllowFilters(t *testing.T) {
 	prov := mock.New(mock.FinalText("done"))
-	var first agent.CompletionRequest
+	var first llm.CompletionRequest
 	seen := false
-	prov.OnRequest = func(r agent.CompletionRequest) {
+	prov.OnRequest = func(r llm.CompletionRequest) {
 		if !seen {
 			first, seen = r, true
 		}
@@ -206,9 +207,9 @@ func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
 		testToolUse("c1", "mcp_fake", map[string]any{"tool": "greet", "arguments": map[string]any{"name": "ersin"}}),
 		mock.FinalText("done"),
 	)
-	var first agent.CompletionRequest
+	var first llm.CompletionRequest
 	seen := false
-	prov.OnRequest = func(r agent.CompletionRequest) {
+	prov.OnRequest = func(r llm.CompletionRequest) {
 		if !seen {
 			first, seen = r, true
 		}
@@ -232,7 +233,7 @@ func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
 	}
 
 	// Exactly one dispatcher tool, no per-tool bridged names.
-	var dispatch *agent.ToolDef
+	var dispatch *toolapi.ToolDef
 	for i, d := range first.Tools {
 		if d.Name == "mcp_fake" {
 			dispatch = &first.Tools[i]
@@ -261,8 +262,8 @@ func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
 // vanish from the next run; double-attach is refused while live.
 func TestDetach_KillSwitch(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}}}
 	k, _ := openMCPKernel(t, prov, conn)
 
@@ -327,8 +328,8 @@ func TestRemoveAndAttachEnabled(t *testing.T) {
 // registered ones (merge before filter).
 func TestAllowlistGatesBridgedTools(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"), mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}}}
 	k, _ := openMCPKernel(t, prov, conn)
 	if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
@@ -358,8 +359,8 @@ func TestAllowlistGatesBridgedTools(t *testing.T) {
 // a provider-safe, length-capped name.
 func TestBridgedToolNameSanitized(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	long := strings.Repeat("x", 80)
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "weird/tool name!" + long}}}
 	k, _ := openMCPKernel(t, prov, conn)

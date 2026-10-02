@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -90,7 +90,7 @@ func (p *Provider) resolveEndpoint(model string) string {
 	return prefix + "/models/" + model + ":generateContent"
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "google" }
 
 // ErrNoAPIKey is returned by Complete when APIKey is empty.
@@ -111,8 +111,8 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("google: status %d: %s", e.Status, e.Body)
 }
 
-// Complete implements agent.Provider.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+// Complete implements llm.Provider.
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -169,7 +169,7 @@ type geminiGenConfig struct {
 	ThinkingConfig   *geminiThinkingConfig `json:"thinkingConfig,omitempty"`   // M319
 	// Per-request sampling knobs (M997). Gemini nests these inside
 	// generationConfig (NOT top-level), and has no seed / penalties. An unset
-	// agent.Params leaves every field nil/empty (omitempty), so the request
+	// llm.Params leaves every field nil/empty (omitempty), so the request
 	// stays byte-for-byte unchanged.
 	Temperature   *float64 `json:"temperature,omitempty"`
 	TopP          *float64 `json:"topP,omitempty"`
@@ -180,7 +180,7 @@ type geminiGenConfig struct {
 // applyParams copies the universal sampling knobs Gemini understands into the
 // generationConfig. Reasoning is handled separately (mapped to a thinking
 // budget), so it is ignored here. An unset Params leaves the config unchanged.
-func (gc *geminiGenConfig) applyParams(p agent.Params) {
+func (gc *geminiGenConfig) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}

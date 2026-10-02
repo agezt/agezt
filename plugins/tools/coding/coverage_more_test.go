@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestCodingCoverageDefinitionAndHelpers(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCodingCoverageDefinitionAndHelpers(t *testing.T) {
 	if def.Name != "coding" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectCompensable {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectCompensable)
+	if def.Effect.Class != toolapi.EffectCompensable {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectCompensable)
 	}
 	schema := string(def.InputSchema)
 	for _, want := range []string{`"task"`, `"required"`} {

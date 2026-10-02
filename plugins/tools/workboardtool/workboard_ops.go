@@ -11,11 +11,11 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
-func (t *Tool) list(k Kernel, in input) (agent.Result, error) {
+func (t *Tool) list(k Kernel, in input) (toolapi.Result, error) {
 	var st workboard.Status
 	if strings.TrimSpace(in.Status) != "" {
 		parsed, err := workboard.ParseStatus(in.Status)
@@ -45,7 +45,7 @@ func (t *Tool) list(k Kernel, in input) (agent.Result, error) {
 	return okJSON(map[string]any{"count": len(out), "tasks": out}), nil
 }
 
-func (t *Tool) create(k Kernel, corr string, in input) (agent.Result, error) {
+func (t *Tool) create(k Kernel, corr string, in input) (toolapi.Result, error) {
 	var st workboard.Status
 	if strings.TrimSpace(in.Status) != "" {
 		parsed, err := workboard.ParseStatus(in.Status)
@@ -73,14 +73,14 @@ func (t *Tool) create(k Kernel, corr string, in input) (agent.Result, error) {
 	return okJSON(map[string]any{"created": created, "task": taskView(task)}), nil
 }
 
-func taskOrError(action string, task workboard.Task, err error) (agent.Result, error) {
+func taskOrError(action string, task workboard.Task, err error) (toolapi.Result, error) {
 	if err != nil {
 		return errResult(err.Error()), nil
 	}
 	return okJSON(map[string]any{"action": action, "task": taskView(task)}), nil
 }
 
-func taskDecisionOrError(action string, task workboard.Task, decision workboard.RetryDecision, err error) (agent.Result, error) {
+func taskDecisionOrError(action string, task workboard.Task, decision workboard.RetryDecision, err error) (toolapi.Result, error) {
 	if err != nil {
 		return errResult(err.Error()), nil
 	}
@@ -151,14 +151,14 @@ func taskView(t workboard.Task) map[string]any {
 	return v
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "workboard: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "workboard: " + msg, IsError: true}
 }

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime/types"
 )
@@ -174,11 +174,11 @@ func (k *Kernel) councilRound(ctx context.Context, corr string, members []Counci
 				"seat": m.Seat, "model": m.Model, "round": round,
 			})
 			op := Opinion{Seat: m.Seat, Model: m.Model, Round: round}
-			resp, err := k.completeAux(ctx, corr, "council", agent.CompletionRequest{
+			resp, err := k.completeAux(ctx, corr, "council", llm.CompletionRequest{
 				Model:     m.Model,
 				MaxTokens: councilOpinionMaxTokens,
 				System:    councilSeatSystem(m.Seat),
-				Messages:  []agent.Message{{Role: agent.RoleUser, Content: promptFor(i)}},
+				Messages:  []llm.Message{{Role: llm.RoleUser, Content: promptFor(i)}},
 			})
 			if err != nil {
 				op.Error = err.Error()
@@ -214,11 +214,11 @@ func (k *Kernel) councilSynthesize(ctx context.Context, corr, grounding, questio
 	b.WriteString("CONSENSUS: the council's agreed answer to the question, decisive and actionable.\n")
 	b.WriteString("DISSENT: any notable disagreement worth recording, or write \"none\".")
 
-	resp, err := k.completeAux(ctx, corr, "council", agent.CompletionRequest{
+	resp, err := k.completeAux(ctx, corr, "council", llm.CompletionRequest{
 		Model:     chair.Model,
 		MaxTokens: councilConsensusMaxTokens,
 		System:    "You are the chair of a council of expert advisors. Synthesize the members' positions into a single decisive consensus, fairly noting genuine dissent. Do not invent agreement that isn't there.",
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: b.String()}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: b.String()}},
 	})
 	if err != nil {
 		// Fall back to the chair's own final position so the council still answers.

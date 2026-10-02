@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func TestCoveragePureFormattingHelpers(t *testing.T) {
@@ -44,11 +44,11 @@ func TestCoverageProviderCheckHelpers(t *testing.T) {
 	if summary.Total != 3 || summary.OK != 2 || summary.Failed != 1 {
 		t.Fatalf("summaryFromProbes = %+v", summary)
 	}
-	if got := computeCostMicrocents(nil, agent.Usage{InputTokens: 10, OutputTokens: 20}); got != 0 {
+	if got := computeCostMicrocents(nil, llm.Usage{InputTokens: 10, OutputTokens: 20}); got != 0 {
 		t.Fatalf("nil model cost = %d", got)
 	}
 	model := &catalog.Model{Cost: &catalog.Cost{Input: 2, Output: 3}}
-	gotCost := computeCostMicrocents(model, agent.Usage{InputTokens: 1_000_000, OutputTokens: 2_000_000})
+	gotCost := computeCostMicrocents(model, llm.Usage{InputTokens: 1_000_000, OutputTokens: 2_000_000})
 	if gotCost != 8_000_000_000 {
 		t.Fatalf("computeCostMicrocents = %d, want 8000000000", gotCost)
 	}

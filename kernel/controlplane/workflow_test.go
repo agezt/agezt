@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -20,23 +20,23 @@ import (
 // wireEchoTool is the tool-node double for the wire round-trip.
 type wireEchoTool struct{ last string }
 
-func (t *wireEchoTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "echo", Description: "echoes", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *wireEchoTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "echo", Description: "echoes", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *wireEchoTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *wireEchoTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	t.last = string(raw)
-	return agent.Result{Output: `{"status":"done"}`}, nil
+	return toolapi.Result{Output: `{"status":"done"}`}, nil
 }
 
 // panickingTool is the tool-node double for the detached-run firewall test.
 type panickingTool struct{ calls atomic.Int64 }
 
-func (t *panickingTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "boom", Description: "panics", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *panickingTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "boom", Description: "panics", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *panickingTool) Invoke(_ context.Context, _ json.RawMessage) (agent.Result, error) {
+func (t *panickingTool) Invoke(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	t.calls.Add(1)
 	panic("node exploded")
 }
@@ -51,7 +51,7 @@ func TestWorkflow_AsyncRunPanicDoesNotKillTheDaemon(t *testing.T) {
 	tool := &panickingTool{}
 	k, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("unused")),
-		Tools:    map[string]agent.Tool{"boom": tool},
+		Tools:    map[string]toolapi.Tool{"boom": tool},
 	})
 	k.Edict().SetLevel("boom", edict.LevelAllow)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -101,7 +101,7 @@ func TestWorkflow_WireRoundTrip(t *testing.T) {
 	tool := &wireEchoTool{}
 	k, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("unused")),
-		Tools:    map[string]agent.Tool{"echo": tool},
+		Tools:    map[string]toolapi.Tool{"echo": tool},
 	})
 	k.Edict().SetLevel("echo", edict.LevelAllow)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

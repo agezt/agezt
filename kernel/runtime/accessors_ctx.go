@@ -13,7 +13,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/skill"
 )
@@ -149,7 +150,7 @@ func (k *Kernel) ResumeOwnedKindFromCtx(ctx context.Context) (string, bool) {
 // ResumeSeedFromCtx returns (prior messages, start iter, true) if
 // the run context carries a seeded conversation snapshot (resumed
 // run). Wraps the package-level resumeSeedFromCtx (Day 34).
-func (k *Kernel) ResumeSeedFromCtx(ctx context.Context) ([]agent.Message, int, bool) {
+func (k *Kernel) ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool) {
 	return resumeSeedFromCtx(ctx)
 }
 
@@ -172,14 +173,14 @@ func (k *Kernel) BuildRunPrompt(runCtx context.Context, corr, actor, intent stri
 // InjectHostEnvironment prepends the host-environment preamble to
 // the system prompt when Config.EnvironmentInject is set. Day 34
 // wrapper for the runexec sub-package.
-func (k *Kernel) InjectHostEnvironment(system string, tools map[string]agent.Tool) string {
+func (k *Kernel) InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string {
 	return k.injectHostEnvironment(system, tools)
 }
 
 // ResumeCheckpointFn returns the per-iteration checkpoint callback
 // for a resumed run (M1002). Wraps the package-level resume.go
 // helper so the runexec sub-package can drive it through KernelAPI.
-func (k *Kernel) ResumeCheckpointFn(corr string) func(int, []agent.Message) {
+func (k *Kernel) ResumeCheckpointFn(corr string) func(int, []llm.Message) {
 	return k.resumeCheckpointFn(corr)
 }
 

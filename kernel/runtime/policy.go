@@ -12,6 +12,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
@@ -66,7 +68,7 @@ func validatedToolCaps(declared map[string]string) map[string]edict.Capability {
 // — the exact failure this field was introduced to end. Same rule the plugin
 // manifest overlay already applied (a tool may join an existing axis, never
 // invent one), now applied to in-tree declarations too.
-func (k *Kernel) capabilityFor(tc agent.ToolCall, def agent.ToolDef) edict.Capability {
+func (k *Kernel) capabilityFor(tc llm.ToolCall, def toolapi.ToolDef) edict.Capability {
 	if !def.Capability.IsZero() {
 		if cap := def.Capability.For(tc.Input); edict.KnownCapability(cap) {
 			return edict.Capability(cap)
@@ -78,7 +80,7 @@ func (k *Kernel) capabilityFor(tc agent.ToolCall, def agent.ToolDef) edict.Capab
 	return edict.CapabilityForToolCall(tc.Name, tc.Input)
 }
 
-func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
+func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict {
 	def, _ := agent.PolicyToolDefFromContext(ctx)
 	cap := k.capabilityFor(tc, def)
 	var out edict.Outcome
@@ -170,7 +172,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc agent.ToolCall) agent.Policy
 	// directive-like untrusted observation. The agent loop already scoped
 	// taint.DirectiveLike to that window, so this no longer fires for the whole
 	// run after one suspicious observation.
-	if k.cfg.PromptInjectionGuard != PromptInjectionOff && verdict.Allow && hasTaint && taint.DirectiveLike && bundle.EffectClass != string(agent.EffectReadOnly) {
+	if k.cfg.PromptInjectionGuard != PromptInjectionOff && verdict.Allow && hasTaint && taint.DirectiveLike && bundle.EffectClass != string(toolapi.EffectReadOnly) {
 		// Block only in On mode and only when the operator hasn't trusted this
 		// run; warn mode and a trusted run audit without interrupting.
 		if k.cfg.PromptInjectionGuard == PromptInjectionOn && !trustedObservations(ctx) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestMCPCoverageDefinitionAndHelpers(t *testing.T) {
@@ -17,8 +17,8 @@ func TestMCPCoverageDefinitionAndHelpers(t *testing.T) {
 	if def.Name != "mcp" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectCompensable {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectCompensable)
+	if def.Effect.Class != toolapi.EffectCompensable {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectCompensable)
 	}
 	schema := string(def.InputSchema)
 	for _, want := range []string{`"add"`, `"attach"`, `"detach"`, `"list"`, `"remove"`, `"op"`, `"name"`} {

@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 )
@@ -103,7 +104,7 @@ func newGovWithStrictToolArgsNative(t *testing.T, native map[string]bool) (*gove
 // still PROCEEDS (degradation, not rejection): the provider is called.
 func TestCapabilityDegraded_JSONModeOnNonNativeModel(t *testing.T) {
 	g, j, prov := newGovWithJSONNative(t, map[string]bool{"mini": false})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "mini",
 		JSONMode: true,
 	}); err != nil {
@@ -144,7 +145,7 @@ func TestCapabilityDegraded_JSONModeOnNonNativeModel(t *testing.T) {
 // reaches it (rather than being orphaned).
 func TestCapabilityDegraded_CarriesRunCorrelation(t *testing.T) {
 	g, j, _ := newGovWithJSONNative(t, map[string]bool{"mini": false})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:         "mini",
 		JSONMode:      true,
 		CorrelationID: "run-CORR-9",
@@ -170,7 +171,7 @@ func TestCapabilityDegraded_CarriesRunCorrelation(t *testing.T) {
 // is the happy path — no degradation event.
 func TestCapabilityDegraded_NativeModelNotFlagged(t *testing.T) {
 	g, j, _ := newGovWithJSONNative(t, map[string]bool{"mini": true})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mini", JSONMode: true}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "mini", JSONMode: true}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
@@ -182,7 +183,7 @@ func TestCapabilityDegraded_NativeModelNotFlagged(t *testing.T) {
 // — we don't journal a degradation we can't confirm (fail-safe).
 func TestCapabilityDegraded_UnknownModelNotFlagged(t *testing.T) {
 	g, j, _ := newGovWithJSONNative(t, map[string]bool{"mini": false})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "stranger", JSONMode: true}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "stranger", JSONMode: true}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
@@ -194,7 +195,7 @@ func TestCapabilityDegraded_UnknownModelNotFlagged(t *testing.T) {
 // degrade, even on a non-native model.
 func TestCapabilityDegraded_NoJSONModeNoEvent(t *testing.T) {
 	g, j, _ := newGovWithJSONNative(t, map[string]bool{"mini": false})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mini", JSONMode: false}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "mini", JSONMode: false}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
@@ -204,9 +205,9 @@ func TestCapabilityDegraded_NoJSONModeNoEvent(t *testing.T) {
 
 func TestCapabilityDegraded_StrictToolArgsFallback(t *testing.T) {
 	g, j, prov := newGovWithStrictToolArgsNative(t, map[string]bool{"mini": false})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "mini",
-		Tools: []agent.ToolDef{{
+		Tools: []toolapi.ToolDef{{
 			Name:        "shell",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		}},
@@ -240,9 +241,9 @@ func TestCapabilityDegraded_StrictToolArgsFallback(t *testing.T) {
 
 func TestCapabilityDegraded_StrictToolArgsNativeNotFlagged(t *testing.T) {
 	g, j, _ := newGovWithStrictToolArgsNative(t, map[string]bool{"mini": true})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "mini",
-		Tools: []agent.ToolDef{{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		Tools: []toolapi.ToolDef{{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)}},
 	}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -253,13 +254,13 @@ func TestCapabilityDegraded_StrictToolArgsNativeNotFlagged(t *testing.T) {
 
 func TestCapabilityDegraded_StrictToolArgsUnknownOrNoToolsNotFlagged(t *testing.T) {
 	g, j, _ := newGovWithStrictToolArgsNative(t, map[string]bool{"mini": false})
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "stranger",
-		Tools: []agent.ToolDef{{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+		Tools: []toolapi.ToolDef{{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)}},
 	}); err != nil {
 		t.Fatalf("Complete unknown: %v", err)
 	}
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mini"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "mini"}); err != nil {
 		t.Fatalf("Complete no tools: %v", err)
 	}
 	if got := countKind(j, event.KindCapabilityDegraded); got != 0 {
