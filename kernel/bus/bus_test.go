@@ -36,7 +36,7 @@ func TestSubscribePublish(t *testing.T) {
 	}
 	defer sub.Cancel()
 
-	got, err := b.Publish(event.Spec{Subject: "agent.spawned", Kind: event.KindAgentSpawned, Actor: "kernel"})
+	got, err := b.Publish(event.Spec{Subject: "agent.spawned", Kind: event.KindInfo, Actor: "kernel"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,7 +38,7 @@ func TestStart_ContextCancelStopsWatcher(t *testing.T) {
 		t.Fatalf("Start returned false for an enabled config")
 	}
 	// A non-tool event exercises the `continue` branch without tripping.
-	if _, err := b.Publish(event.Spec{Subject: "agent.spawned", Kind: event.KindAgentSpawned, Actor: "kernel"}); err != nil {
+	if _, err := b.Publish(event.Spec{Subject: "agent.spawned", Kind: event.KindInfo, Actor: "kernel"}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)

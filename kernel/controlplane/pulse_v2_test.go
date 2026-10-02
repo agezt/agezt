@@ -227,7 +227,7 @@ func TestPulse_DroppedNoticeDoesNotFireWithoutDrops(t *testing.T) {
 		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
 			map[string]any{"pattern": ">"},
 			func(e *event.Event) {
-				if e.Kind == event.Kind("agezt.pulse.dropped") {
+				if e.Kind == event.KindPulseDropped {
 					mu.Lock()
 					notice++
 					mu.Unlock()
