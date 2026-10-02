@@ -116,7 +116,7 @@ Today → target mapping of the key moves:
 
 | Today | Target | Why |
 |---|---|---|
-| `kernel/agent` (contract **and** loop) | `contract/llm` + `contract/tool` (L1) and `modules/runs/internal/loop` (the kept `agent.Run`) | F4: data modules stop importing the loop. Measured: `memory` and `worldmodel` use only contract types (`Tool`, `Result`, `Provider`, `Message`) |
+| `kernel/agent` (contract **and** loop) | `contract/llm` + `contract/toolapi` (L1, **done W1.1**) and `modules/runs/internal/loop` (the kept `agent.Run`) | F4: data modules stop importing the loop. Measured: `memory` and `worldmodel` use only contract types (`Tool`, `Result`, `Provider`, `Message`) |
 | `kernel/runtime` (284 methods) | **dissolved**: run engine → `modules/runs`; council/conductor/research → `modules/reasoning`; reaper → `modules/health`; workboard dispatch + proof + OKR → `modules/work`; workflow execution → `modules/workflows`; taste/intent/epistemic → `platform/policy` guards or `modules/knowledge` | F1 |
 | `kernel/controlplane` (437 methods) | `adapters/controlplane`: wire framing + auth only (~10 files). Handlers move to each module's `ops.go` | F1, F2 |
 | `kernel/webui` 198 fixed routes | routes **derived** from op registry metadata (`HTTP: GET /api/x`) | F2; deletes a hand-maintained table |
@@ -127,7 +127,7 @@ Today → target mapping of the key moves:
 | `netguard` + 3 provider HTTP postures + bare `http.Client` | `platform/netout.Client(profile)` (the only way to dial out) with built-in retry/Retry-After | F3: SSRF inconsistency, broken TransientError retry |
 | `journal` + `bus` + `event` + 15 projections | `platform/eventlog` with a **kind registry** and a **sidecar index** | No index (full scans on `why`, channel history, epistemic gate); 8 dead kinds; ad-hoc kinds |
 | 13 `jsonstore` users + `board` single-instance rule | `platform/store` with a process-wide path registry + 0600 + optional cross-process lock | P5; perms; vault races |
-| `kernel/channel` + `channelwire` + `builtinchannels` | `contract/channel` + `modules/channels` (supervisor, conversation store, accounts from config schema) + `plugins/channels/*` transports | Silent dead channels, panics crash daemon, history misses replies |
+| `kernel/channel` + `channelwire` + `builtinchannels` | `contract/channelapi` (**done W1.1**) + `modules/channels` (supervisor, conversation store, accounts from config schema) + `plugins/channels/*` transports | Silent dead channels, panics crash daemon, history misses replies |
 | `kernel/plugin` + `plugins/sdk` + dead `contract/gen` | `platform/extension` (one out-of-process protocol, kinds: tool now; channel/provider later) + delete the dead schema halves | Dead architecture |
 | `kernel/controlplane` → `plugins/tools/overseertool` | overseer logic → `modules/fleet` ops; the tool becomes a thin L6 caller of `app` | Kernel→plugins edge |
 

@@ -647,6 +647,21 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Changed: the provider, tool and channel contracts now live in their own leaf packages
+  (`kernel/contract/llm`, `kernel/contract/toolapi`, `kernel/contract/channelapi`).** They
+  used to be declared in `kernel/agent` — next to the agent loop — and in `kernel/channel`,
+  next to process-global registry state and a bus-publishing panic guard. So every package
+  that only needed to *describe* a message or a tool depended on the loop or on the bus:
+  `memory`, `worldmodel` and `governor` all import `kernel/agent` for `Message`,
+  `Provider` and `Tool` alone. The old packages keep `type X = llm.X` aliases, which are
+  type-identical, so nothing changes at run time and no importer has to change yet; W1.2
+  repoints them (architecture/21). `tools/archcheck` gains an `impure-contract` rule: a
+  package under `kernel/contract/` may import only the standard library and other contract
+  packages. Layer order alone could not catch that — an L0 helper or a third-party module
+  is "below" L1 but still logic. `kernel/event` was deliberately left where it is: it
+  already imports nothing but the stdlib and the BLAKE3 hash that defines an event's
+  identity, so moving it would rewrite 61 importers and remove no edge.
+
 - **Changed: fifteen of the seventeen CI jobs were pinned to a runner pool that does not
   exist.** `gh api repos/agezt/agezt/actions/runners` returns `{"total_count":0}` — no
   self-hosted runner is registered for this repo. Fifteen job definitions nonetheless carried

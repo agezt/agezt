@@ -151,7 +151,7 @@ func TestEdgeKind(t *testing.T) {
 func TestEvaluateIgnoresExternalAndDedupes(t *testing.T) {
 	cfg := testConfig(t)
 	pkgs := []Pkg{
-		{ImportPath: mod + "/kernel/contract/llm", Imports: []string{"fmt", mod + "/kernel/platform/bus", mod + "/kernel/platform/bus"}},
+		{ImportPath: mod + "/internal/strutil", Imports: []string{"fmt", mod + "/kernel/platform/bus", mod + "/kernel/platform/bus"}},
 		{ImportPath: mod + "/kernel/platform/bus", Imports: []string{"lukechampine.com/blake3"}},
 		{ImportPath: mod + "/kernel/mystery", Imports: nil},
 		{ImportPath: "example.com/other", Imports: []string{mod + "/kernel/platform/bus"}},
@@ -160,11 +160,35 @@ func TestEvaluateIgnoresExternalAndDedupes(t *testing.T) {
 	if rep.Packages != 3 {
 		t.Fatalf("packages = %d, want 3 (external package excluded)", rep.Packages)
 	}
-	if len(rep.Violations) != 1 || rep.Violations[0].Key() != "upward kernel/contract/llm -> kernel/platform/bus" {
+	if len(rep.Violations) != 1 || rep.Violations[0].Key() != "upward internal/strutil -> kernel/platform/bus" {
 		t.Fatalf("violations = %+v, want one deduplicated upward edge", rep.Violations)
 	}
 	if len(rep.Unmapped) != 1 || rep.Unmapped[0] != "kernel/mystery" {
 		t.Fatalf("unmapped = %v", rep.Unmapped)
+	}
+}
+
+// TestEvaluateContractPurity pins P4: a contract package may import the
+// standard library and other contract packages, nothing else — not even the
+// L0 helpers or third-party modules that layer order alone would allow.
+func TestEvaluateContractPurity(t *testing.T) {
+	cfg := testConfig(t)
+	pkgs := []Pkg{
+		{ImportPath: mod + "/kernel/contract/llm", Imports: []string{"context", "encoding/json", mod + "/kernel/contract/toolapi"}},
+		{ImportPath: mod + "/kernel/contract/toolapi", Imports: []string{"strings", mod + "/internal/strutil", "lukechampine.com/blake3"}},
+		{ImportPath: mod + "/internal/strutil", Imports: []string{"lukechampine.com/blake3"}},
+	}
+	rep := evaluate(cfg, pkgs)
+	var got []string
+	for _, v := range rep.Violations {
+		got = append(got, v.Key())
+	}
+	want := []string{
+		"impure-contract kernel/contract/toolapi -> internal/strutil",
+		"impure-contract kernel/contract/toolapi -> lukechampine.com/blake3",
+	}
+	if g, w := strings.Join(got, "\n"), strings.Join(want, "\n"); g != w {
+		t.Fatalf("violations =\n%s\nwant\n%s", g, w)
 	}
 }
 
@@ -230,11 +254,11 @@ func runFixture(t *testing.T, pkgs []Pkg, allow string, args ...string) (int, st
 }
 
 var badGraph = []Pkg{
-	{ImportPath: mod + "/kernel/contract/llm", Imports: []string{mod + "/kernel/platform/bus"}},
-	{ImportPath: mod + "/kernel/platform/bus"},
+	{ImportPath: mod + "/kernel/platform/bus", Imports: []string{mod + "/plugins/telegram"}},
+	{ImportPath: mod + "/plugins/telegram"},
 }
 
-const badEdge = "upward kernel/contract/llm -> kernel/platform/bus"
+const badEdge = "upward kernel/platform/bus -> plugins/telegram"
 
 func TestRunFailsOnNewViolation(t *testing.T) {
 	code, _, stderr, _ := runFixture(t, badGraph, "")
@@ -251,7 +275,7 @@ func TestRunPassesWhenAllowlisted(t *testing.T) {
 }
 
 func TestRunFailsOnStaleEntry(t *testing.T) {
-	clean := []Pkg{{ImportPath: mod + "/kernel/contract/llm"}, {ImportPath: mod + "/kernel/platform/bus"}}
+	clean := []Pkg{{ImportPath: mod + "/kernel/platform/bus"}, {ImportPath: mod + "/plugins/telegram"}}
 	code, _, stderr, _ := runFixture(t, clean, badEdge+"\n")
 	if code != 1 || !strings.Contains(stderr, "no longer occur") {
 		t.Fatalf("a fixed edge left in the allowlist must fail the ratchet; code=%d stderr=%s", code, stderr)
@@ -267,7 +291,7 @@ func TestRunFailsOnUnmappedPackage(t *testing.T) {
 }
 
 func TestUpdateDropsFixedButRefusesNew(t *testing.T) {
-	clean := []Pkg{{ImportPath: mod + "/kernel/contract/llm"}, {ImportPath: mod + "/kernel/platform/bus"}}
+	clean := []Pkg{{ImportPath: mod + "/kernel/platform/bus"}, {ImportPath: mod + "/plugins/telegram"}}
 	code, _, _, written := runFixture(t, clean, badEdge+"\n", "-update")
 	if code != 0 || strings.Contains(written, badEdge) {
 		t.Fatalf("-update must drop the fixed entry; code=%d allowlist=%q", code, written)

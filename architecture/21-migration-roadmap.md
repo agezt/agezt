@@ -54,7 +54,7 @@ domain X's module.
 
 | PR | Content | Notes |
 |---|---|---|
-| W1.1 | `kernel/contract/{llm,tool,event,channel}`: **move** the type/interface declarations out of `kernel/agent`, `kernel/event`, `kernel/channel`; leave `type X = llm.X` aliases in the old packages | 67 importers keep compiling; zero behaviour change |
+| W1.1 ✅ | `kernel/contract/{llm,toolapi,channelapi}`: the provider, tool and channel type/interface declarations **moved** out of `kernel/agent` and `kernel/channel`; `type X = llm.X` aliases left behind. archcheck gains `impure-contract` (P4): a `kernel/contract/...` package may import only the stdlib and other contracts. `kernel/event` was **not** moved — it already is a leaf (stdlib + the BLAKE3 hash that defines an event's identity), so a new path would rewrite every importer and fix no edge; it moves with the eventlog work (W1.6). Package names carry an `api` suffix where the bare noun would collide with the legacy package during the strangler (`channel` ↔ `channelapi`) or with ubiquitous identifiers (`tool`) | Zero behaviour change: aliases are type-identical, every importer compiles unchanged |
 | W1.2 | Repoint `memory`, `worldmodel`, `governor`, `skill`, `catalog` at `contract/*`; remove their `kernel/agent` import | Removes the data→loop edge (archcheck entries drop) |
 | W1.3 | `platform/store`: `Registry` + `Collection[T]` (atomic, 0600, path-unique) + cross-process `Lock`; migrate the 13 `jsonstore` users one PR each; vault and settings take the lock | Fixes single-instance hazard, perms, vault races |
 | W1.4 | `platform/netout`: `Client(Profile)` + uniform retry; migrate providers (one family per PR), market sync, webhooks, fetch/http/websearch tools | One SSRF posture per profile; fixes `fetch` allowlist |

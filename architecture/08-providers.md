@@ -36,7 +36,7 @@ The kernel never imports any of these packages (verified: only `cmd/agezt`, `cmd
 
 ## 1. The provider contract (defined in `kernel/agent`, not here)
 
-All adapters target types in `kernel/agent` (`agent.go`, `streaming.go`, `agent_helpers.go`, `middleware.go`,
+All adapters target the contract in `kernel/contract/llm` (aliased in `kernel/agent/agent.go` since W1.1) plus `kernel/agent` (`middleware.go`,
 `generate.go`). Details of the agent loop are in 04; the wire-relevant contract:
 
 ```go
@@ -45,7 +45,7 @@ type Provider interface {
     Name() string
     Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error)
 }
-// kernel/agent/streaming.go:30
+// kernel/contract/llm/llm.go (was kernel/agent/streaming.go)
 type StreamingProvider interface {
     Provider
     CompleteStream(ctx, req CompletionRequest, onChunk func(Chunk) error) (*CompletionResponse, error)

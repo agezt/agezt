@@ -200,8 +200,7 @@ The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.
 | File | What it does |
 |---|---|
 | `doc.go` | Package doc: canonical loop, Provider/Tool interfaces, panic containment. |
-| `agent.go` | Core types: Role, Message, ToolCall, ToolDef, ToolCapability, CompletionRequest, StopReason, CompletionResponse, Usage, Provider, Tool, Result. |
-| `agent_helpers.go` | `ToolCapability.IsZero/For`, `EffectClass` consts, `ToolEffect`, `Params` + `IsZero`. |
+| `agent.go` | Type aliases only (W1.1). The provider contract (Role, Message, ToolCall, CompletionRequest/Response, StopReason, Usage, Params, Provider, StreamingProvider, Chunk) lives in `kernel/contract/llm`; the tool contract (Tool, ToolDef, ToolCapability + `For`, EffectClass, ToolEffect, Result, ObservationTrust) in `kernel/contract/toolapi`. New code imports those directly. |
 | `agent_loop.go` | `LoopConfig` (every knob documented) and the start of the `Steerer` doc. |
 | `agent_steer.go` | `Steerer`, `Directive`, compaction constants (`DefaultContextProtectLast/First`, `ContextCharsPerToken=4`, `DefaultCompressFraction=0.5`). |
 | `agent_run.go` | `Run`, the main loop driver, plus `failureReason`. |
@@ -212,12 +211,11 @@ The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.
 | `agent_context.go` | Budget and compaction (`AutoContextBudgetChars`, `compactMessagesDetailed`, `rescuedToolOutput`, `contextSize`, `truncateForJournal`), loop defaults, sentinels (`ErrMaxIter`, `ErrPanic`, `ErrRunBudgetExceeded`, `ErrUnknownTool`), steering prefixes, `autoContinuePrompt`. |
 | `agent_context_offload.go` | `ArtifactPutter`, `DefaultArtifactThreshold`, `offloadToolOutput`. |
 | `agent_context_policy.go` | `PolicyVerdict`, `Policy`. |
-| `observation.go` | Trust boundary: `ObservationTrust`, `ObservationBoundary`, `ObservationBoundaryForTool`, `RenderObservationForModel`, `MergeUntrustedObservationTaint`, directive-needle matching, `DiffObservation`, `DefaultDirectiveTaintWindow=1`. |
+| `observation.go` | Trust boundary (the `ObservationTrust` type itself is in `contract/toolapi`): `ObservationBoundary`, `ObservationBoundaryForTool`, `RenderObservationForModel`, `MergeUntrustedObservationTaint`, directive-needle matching, `DiffObservation`, `DefaultDirectiveTaintWindow=1`. |
 | `toolctx.go` | Context keys: `WithCorrelation`/`CorrelationFromContext`, `WithPolicyToolDef`, `WithUntrustedObservationTaint`, `WithAgent`/`AgentFromContext`, `WithWorkdir` (rejects absolute paths and `..`). |
 | `toolselect.go` | `LexicalToolSelector`, `DeferredLexicalToolSelector` (pinned `tool_search`, no fallback-all), `normalizeSelectedTools`, scoring. `max <= 0` returns a nil selector. |
 | `schema.go` | `ValidateToolInput`, `ValidateJSON`, `LintToolSchema`: a dependency-free JSON-Schema subset (type, enum, required, properties, additionalProperties, items). |
 | `memo.go` | `ToolMemo` (`NewToolMemo`, `Get`, `Set`, LRU order), `memoKey` (SHA-256). |
-| `streaming.go` | `StreamingProvider`, `Chunk`, `IsEmpty`. |
 | `middleware.go` | `Middleware`, `Wrap`, synthesized streams, `ExtractReasoningMiddleware`, `SimulateStreamingMiddleware`, `DefaultParamsMiddleware`. |
 | `generate.go` | `GenerateObject` (JSONMode plus schema instruction, `extractJSON`/`balancedSpan`, validate, repair loop), `ObjectError`. |
 

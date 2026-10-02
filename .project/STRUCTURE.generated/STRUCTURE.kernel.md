@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-89 package(s):
+92 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -19,11 +19,14 @@
 - **`kernel/cadence`** — Package cadence is the typed schedule subsystem (autonomy): it wakes agent tasks, workflows, daemon maintenance tasks, or approved tools on recurring, one-shot, daily, or continuous cadences.
 - **`kernel/cadence/systemtasks`** — Package systemtasks holds the executors behind cadence's built-in system tasks (catalog_sync, artifact_collect, memory_clean, memory_tidy, log_clean, graveyard_scan, profile_distill) — the daemon-side maintenance work a schedule entry with Target=system_task dispatches (Phase 2.6 extraction from cmd/agezt; the catalogue + validation already lived in kernel/cadence).
 - **`kernel/catalog`** — Package catalog is the live provider/model registry.
-- **`kernel/channel`** — Package channel defines the canonical messaging types every channel normalizes to (SPEC-04 §1.3) and the Channel interface a duplex messaging surface implements.
+- **`kernel/channel`** — Package channel is the in-process channel machinery: the inbound Allowlist, the panic Guard, the process-wide manifest/liveness registry, conversation history and message splitting.
 - **`kernel/channelwire`** — Package channelwire is the channel FACTORY layer (Phase 2.1 of docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory that builds its configured instances from a Deps bundle, and the daemon walks the manifest registry calling BuildKind per kind — one loop instead of 27 hand-listed builder call sites (the allInsts drift surface).
 - **`kernel/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
+- **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
+- **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
+- **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.

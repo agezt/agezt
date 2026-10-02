@@ -26,7 +26,7 @@ Defined in `kernel/agent` (full detail in 04-agent-runtime.md):
 |---|---|---|
 | `agent.Tool` | `Definition() ToolDef`, `Invoke(ctx, json.RawMessage) (Result, error)` | `Invoke` must honour ctx. A returned `error` is a transport failure; tool-level failures should be `Result{IsError:true}` so the model can retry. |
 | `agent.ToolDef` | `Name`, `Description`, `InputSchema json.RawMessage`, `Effect ToolEffect` (`json:"-"`), `Capability ToolCapability` (`json:"-"`) | Effect/Capability are governance metadata only. |
-| `agent.ToolCapability` | `Name string` (fallback axis), `Field string` (top-level input key that selects the axis, e.g. `op`, `method`, `operation`), `ByValue map[string]string` | `For(input)` (`agent_helpers.go`): unparseable input / missing field / unknown value → `Name`. Lookup lower-cases+trims. `IsZero()` = no Name and no ByValue. |
+| `agent.ToolCapability` | `Name string` (fallback axis), `Field string` (top-level input key that selects the axis, e.g. `op`, `method`, `operation`), `ByValue map[string]string` | `For(input)` (`kernel/contract/toolapi`): unparseable input / missing field / unknown value → `Name`. Lookup lower-cases+trims. `IsZero()` = no Name and no ByValue. |
 | `agent.ToolEffect` | `Class EffectClass` (`read_only`/`reversible`/`compensable`/`irreversible`), `PredictedEffects`, `AffectedResources`, `RollbackNotes`, `Confidence` | `plugins/tools/tool_effects_test.go` requires every first-party tool to fill all five. |
 | `agent.Result` | `Output`, `IsError`, `ObservationTrust` (`ObservationUntrusted` for external content), `ObservationSource` | Untrusted observations are rendered as data, not instructions (prompt-injection guard). |
 
