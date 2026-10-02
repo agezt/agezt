@@ -274,20 +274,41 @@ From the daemon's perspective, MCP tools are plugin tools.
 **Threat.** A plugin process inherits the daemon's environment, gaining access
 to provider API keys, vault passphrases, or the control-plane token.
 
-**Control.** The plugin host constructs the child's environment explicitly via
-`Config.Env`. When `Env` is nil, the child inherits the parent's environment;
-when set, only the specified variables are passed. The daemon's own boot code
-sets plugin environments to include only what the plugin needs.
+**Control.** The daemon starts every plugin with an explicit `Config.Env`
+(`pluginEnv` in `plugins/builtintools/plugins.go`): the scrubbed OS base from
+`kernel/envscrub` — `PATH`, home/profile and temp directories, locale; never a
+secret-shaped name (`*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*`, `*CRED*`,
+`AWS_*`, `AGEZT_*`) — plus exactly the variables the operator grants that
+plugin:
+
+```bash
+# Hand the github plugin its token, and nothing else of the daemon's.
+AGEZT_PLUGIN_ENV="github=GITHUB_TOKEN"
+# Several variables: + separates names; , separates plugins.
+AGEZT_PLUGIN_ENV="github=GITHUB_TOKEN+GITHUB_API_URL,jira=JIRA_TOKEN"
+```
+
+The spec has the `AGEZT_PLUGIN_TOOLS` shape and the same semantics: a
+malformed value refuses daemon start, an entry naming no loaded plugin is a
+startup warning, and `agt doctor` checks both. Pinned by
+`TestPlugins_ChildGetsScrubbedEnvPlusGrants`, which spawns a real plugin and
+reads its environment.
+
+Until 2026-10 the daemon passed `Config.Env = nil`, which `os/exec` treats as
+"inherit everything": every plugin received every provider API key, the vault
+passphrase and channel tokens, while MCP servers, ACP agents and the coding
+bridge already got the scrubbed environment. A plugin that relied on reading a
+daemon variable implicitly now needs an `AGEZT_PLUGIN_ENV` grant.
 
 For the warden (shell, code_exec), a nil `Env` is treated as an **empty**
-environment (the safe default). Plugin spawning uses the `Config.Env` field
-directly, so the operator/daemon controls exactly what leaks.
+environment (the safe default).
 
 **Limitations.**
 
-- If the daemon sets `Config.Env = nil` for a plugin, the plugin inherits the
-  full daemon environment, including secrets. The daemon should always pass a
-  minimal env. Plugin authors should not assume secrets are available.
+- `kernel/plugin` itself still treats `Config.Env = nil` as "inherit": a new
+  spawn site must pass an environment. The archcheck `exec` rule (and, from
+  W1.5, the sandbox launcher) is what keeps spawn sites few and reviewed.
+  Plugin authors should not assume secrets are available.
 - A plugin running with the daemon's OS user can read the daemon's files
   (`creds.json`, `control.token`) directly from the filesystem, regardless of
   environment. Process isolation does not protect against filesystem access by

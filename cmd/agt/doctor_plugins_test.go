@@ -101,3 +101,19 @@ func TestCheckPlugins_ValidWithPinsAndTools(t *testing.T) {
 		t.Errorf("detail = %q, want pinned + allow-listed annotations", c.Detail)
 	}
 }
+
+func TestCheckPlugins_MalformedEnvGrantFails(t *testing.T) {
+	t.Setenv("AGEZT_PLUGINS", "gh=/usr/local/bin/gh-plugin")
+	t.Setenv("AGEZT_PLUGIN_ENV", "missing-equals")
+	if c := checkPlugins(); c.Status != statusFail || !strings.Contains(c.Detail, "AGEZT_PLUGIN_ENV") {
+		t.Fatalf("check = %+v, want a fail naming AGEZT_PLUGIN_ENV", c)
+	}
+}
+
+func TestCheckPlugins_StaleEnvGrantWarns(t *testing.T) {
+	t.Setenv("AGEZT_PLUGINS", "gh=/usr/local/bin/gh-plugin")
+	t.Setenv("AGEZT_PLUGIN_ENV", "jira=JIRA_TOKEN")
+	if c := checkPlugins(); c.Status != statusWarn || !strings.Contains(c.Detail, "env:jira") {
+		t.Fatalf("check = %+v, want a warning naming env:jira", c)
+	}
+}

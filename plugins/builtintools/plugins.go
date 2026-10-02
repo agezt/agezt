@@ -19,6 +19,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/envscrub"
 	"github.com/agezt/agezt/kernel/plugin"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -71,6 +72,17 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 		}
 		allowedTools = parsed
 	}
+	// Env grants — same spec shape and hard-error semantics as the tool
+	// allowlist: prefix=NAME1+NAME2 passes exactly those variables to that
+	// plugin on top of the scrubbed base environment (pluginEnv).
+	var envGrants plugin.ToolAllowlistSpec
+	if grantSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_ENV")); grantSpec != "" {
+		parsed, err := plugin.ParseToolAllowlistSpec(grantSpec)
+		if err != nil {
+			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_ENV: %w", brand.EnvPrefix, err)
+		}
+		envGrants = parsed
+	}
 	// Parse the spec up front (M223). A malformed entry — missing '=', empty
 	// path, or a duplicate prefix — is a hard startup error, matching the
 	// pin/allowlist specs parsed just above. A repeated prefix used to spawn
@@ -102,6 +114,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 			},
 			PinnedHash:   pins[prefix],         // empty if no pin configured for this prefix
 			AllowedTools: allowedTools[prefix], // nil if no allowlist for this prefix
+			Env:          pluginEnv(d.Get, envGrants[prefix]),
 		}
 		p, err := plugin.Spawn(ctx, cfg)
 		if err != nil {
@@ -145,8 +158,30 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	for _, stale := range allowedTools.Unused(usedPrefixes) {
 		fmt.Fprintf(d.Stderr, "WARNING: %sPLUGIN_TOOLS has entry for %q but no plugin with that prefix was loaded\n", brand.EnvPrefix, stale)
 	}
+	for _, stale := range envGrants.Unused(usedPrefixes) {
+		fmt.Fprintf(d.Stderr, "WARNING: %sPLUGIN_ENV has entry for %q but no plugin with that prefix was loaded\n", brand.EnvPrefix, stale)
+	}
 	built.Desc = strings.Join(registered, ", ")
 	return built, nil
+}
+
+// pluginEnv is the environment a plugin child starts with: the scrubbed OS
+// base (PATH, HOME, locale, temp dirs — no secret-shaped names) plus exactly
+// the variables AGEZT_PLUGIN_ENV grants this plugin.
+//
+// It used to be nil, which os/exec treats as "inherit everything": every
+// third-party plugin received the daemon's full environment — every provider
+// API key, the vault passphrase, channel tokens — while MCP servers, ACP
+// agents and the coding bridge already got the scrubbed one. A plugin that
+// needs a credential now receives it by name, and only that one.
+func pluginEnv(get func(string) string, grants []string) []string {
+	env := envscrub.Scrubbed()
+	for _, name := range grants {
+		if v := get(name); v != "" {
+			env = append(env, name+"="+v)
+		}
+	}
+	return env
 }
 
 // pluginLogLine formats a plugin's stderr line for the daemon log, scrubbing
