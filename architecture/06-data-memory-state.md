@@ -1,6 +1,6 @@
 # 06 — Data, Memory & State
 
-**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/jsonstore`, `kernel/memory`, `kernel/worldmodel`, `kernel/datalake`, `kernel/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/taste`, `kernel/anomaly`, `kernel/alerter`.
+**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/memory`, `kernel/worldmodel`, `kernel/datalake`, `kernel/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/taste`, `kernel/anomaly`, `kernel/alerter`.
 
 Sibling docs: [00-README.md](00-README.md) (overview) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (where these stores are opened/wired) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt journal|why|memory|world|board|workboard|okr|taste`) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (handlers, SSE, webhooks, REST mailbox) · [04-agent-runtime.md](04-agent-runtime.md) (agent loop, context injection, proof/assure) · [05-governance-routing-security.md](05-governance-routing-security.md) (redact, state, edict capabilities) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (pulse, standing orders, workflow, selfrepair, cadence systemtasks) · [10-tools.md](10-tools.md) (`boardtool`, `workboardtool`, `artifacts`, `db` tools) · [11-frontend-console.md](11-frontend-console.md).
 
@@ -14,7 +14,7 @@ Sibling docs: [00-README.md](00-README.md) (overview) · [01-daemon-boot-cmd-age
 | Event spec | `event` | The one `Event` struct, its deterministic JSON + BLAKE3 hash chain, and the append-only `Kind` catalog (164 constants). |
 | Durable log | `journal` | Append-only, fsync'd, hash-chained JSONL segments under `$AGEZT_HOME/journal/`; recovery, verify, restore, tail, provenance (`Why`/`Causes`/`ParentOf`), cursor pagination helpers. |
 | Fan-out | `bus` | In-process NATS-style pub/sub; **durable-before-publish** (journal append + fsync before any subscriber sees the event); secret redaction; ephemeral streaming path. |
-| Store plumbing | `jsonstore` | Tolerant `Load` + atomic `Save` shared by every single-file JSON store. |
+| Store plumbing | `filestore` | Tolerant `Load` + atomic `Save` shared by every single-file JSON store. |
 | Knowledge | `memory` | Content-addressed, journaled fact store with private-by-default scopes, hybrid keyword+embedding recall, distillation, consolidation, operator profile, retention/hygiene. |
 | Knowledge graph | `worldmodel` | Content-addressed, journaled entity/relation graph with alias resolve, neighbors, decay. |
 | Structured data | `datalake` | "Personal Data Lake": schema'd collections, one JSON file per record, 7 built-in system collections. Not journaled. |
@@ -30,7 +30,7 @@ Key architectural facts:
 
 1. **Two persistence tiers.** The *journal* is the immutable audit/replay truth. Every other store in this area is a **mutable projection/cache** written by its own package (memory.json, worldmodel.json, workboard.json …). The memory and worldmodel *managers* journal every mutation (event first, then store write); workboard/okr/taste/board events are published by the **runtime/daemon wrappers**, not by the store packages; datalake and artifact are **not journaled at all**.
 2. **Single serialization point.** `bus.Publish` holds `Bus.mu` across `journal.Append` (which itself holds `Journal.mu` and fsyncs). All durable publishes in the daemon are therefore globally serialized, one fsync each.
-3. **Stores are "load whole file, save whole file".** Every jsonstore-based store keeps the full dataset in memory under one mutex and rewrites the entire file atomically on every mutation. Correct and crash-safe, O(n) per write; and **two instances of the same store in one process silently clobber each other** (hence the board invariant).
+3. **Stores are "load whole file, save whole file".** Every filestore-based store keeps the full dataset in memory under one mutex and rewrites the entire file atomically on every mutation. Correct and crash-safe, O(n) per write; and **two instances of the same store in one process silently clobber each other** (hence the board invariant).
 
 ---
 
@@ -42,17 +42,17 @@ From `internal-deps.txt`:
 |---|---|---|
 | `event` | — (leaf; only `lukechampine.com/blake3`) | ~60 packages: virtually all of `kernel/*`, every `plugins/channels/*`, `cmd/agezt`, `cmd/agt`, `sdk` |
 | `ulid` | — (leaf, stdlib only) | journal, artifact, board, datalake, okr, taste, workboard, approval, cadence, controlplane, mcp, openaiapi, pulse, roster, runtime(+lifecycle), scheduler, standing, toolforge, workflow, agentgw, every channel plugin, cmd/agezt |
-| `jsonstore` | `internal/atomicfile` | board, cadence, mcp, memory, okr, roster, skill, standing, taste, toolforge, workboard, workflow, worldmodel |
+| `filestore` | `internal/atomicfile` | board, cadence, mcp, memory, okr, roster, skill, standing, taste, toolforge, workboard, workflow, worldmodel |
 | `journal` | event, ulid | bus, agentgw, controlplane, reflect, runtime(+accessors, runexec), toolreg, cmd/agt |
 | `bus` | event, journal | ~45 packages (all event producers/consumers, every channel plugin, codeexec) |
-| `memory` | **agent**, bus, **edict**, event, jsonstore | cmd/agezt, agentgw, contextselect, controlplane, runtime(+accessors, runexec) |
-| `worldmodel` | **agent**, bus, **edict**, event, jsonstore | contextselect, controlplane, reflect, runtime(+accessors, runexec) |
+| `memory` | **agent**, bus, **edict**, event, filestore | cmd/agezt, agentgw, contextselect, controlplane, runtime(+accessors, runexec) |
+| `worldmodel` | **agent**, bus, **edict**, event, filestore | contextselect, controlplane, reflect, runtime(+accessors, runexec) |
 | `datalake` | atomicfile, ulid | controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/db |
 | `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/{artifacts,browser,codeexec,fetch} |
-| `board` | jsonstore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, plugins/tools/{boardtool,overseertool} |
-| `workboard` | jsonstore, **proof**, ulid | controlplane, runtime, plugins/tools/workboardtool |
-| `okr` | jsonstore, ulid | controlplane, runtime |
-| `taste` | jsonstore, ulid | controlplane, runtime |
+| `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, plugins/tools/{boardtool,overseertool} |
+| `workboard` | filestore, **proof**, ulid | controlplane, runtime, plugins/tools/workboardtool |
+| `okr` | filestore, ulid | controlplane, runtime |
+| `taste` | filestore, ulid | controlplane, runtime |
 | `anomaly` | bus, event | cmd/agezt only |
 | `alerter` | bus, event, **pulse** | cmd/agezt only |
 
@@ -319,17 +319,18 @@ Subscriber inventory (`grep "\.Subscribe("`, non-test): `cmd/agezt/main.go` (`>`
 
 ---
 
-## 6. `kernel/jsonstore`
+## 6. `kernel/platform/filestore`
 
 | File | What it does |
 |---|---|
-| `jsonstore.go` | `Load(path, out)`: missing / empty / whitespace-only file ⇒ nil (first boot), strips a UTF-8 BOM, otherwise wraps read/parse errors with the path. `LoadFrom(dir, name, out)`: `MkdirAll(dir, 0o755)` then Load, returns the joined path. `Save(path, v)`: `json.MarshalIndent` + `atomicfile.WriteFile(path, b, 0o644)`. |
+| `store.go` | `Load(path, out)`: missing / empty / whitespace-only file ⇒ nil (first boot), strips a UTF-8 BOM, otherwise wraps read/parse errors with the path. `LoadFrom(dir, name, out)`: `EnsureDir(dir)` then Load, returns the joined path. `Save(path, v)`: `json.MarshalIndent` + `atomicfile.WriteFile(path, b, FilePerm)`. `EnsureDir`: `MkdirAll(dir, 0o700)` + best-effort `Chmod` so pre-existing 0755 installs tighten (same posture and best-effort rule as the journal). `FilePerm`=0600, `DirPerm`=0700. |
+| `lock.go` + `lock_{unix,windows,other}.go` | `Lock(path) (unlock, error)`: exclusive OS lock on the sidecar `path+".lock"` (flock / LockFileEx via `golang.org/x/sys`), blocking, released by the kernel if the holder dies. Conflicts between two opens even inside one process, so it serialises goroutines and processes alike. Creates a missing directory but never re-permissions an existing one (the vault sits directly in the base dir). Used by `creds` and `settings` for merge-on-save. |
 
 - Deliberately **not** a generic `Store[T]`; each store keeps its own mutex and domain methods (Phase 1.1 of `docs/REFACTORING-SCAN-2026-08.md`).
 - `internal/atomicfile.WriteFile`: unique temp `.<base>.*.tmp` in the target dir → write → fsync → close → chmod → rename; on Windows a failed rename falls back to remove+rename, then a direct non-atomic write as last resort.
-- **Gotcha:** files are written `0o644` in `0o755` dirs — memory.json, worldmodel.json, board.json, workboard.json etc. are world-readable, unlike the journal (0600/0700), datalake and artifacts (0600/0700) that were hardened by EXPOSE-001.
+- Files are written 0600 in 0700 dirs (W1.3). Until then they were 0644 in 0755 dirs — memory.json, worldmodel.json, board.json, workboard.json were world-readable while the journal holding the same material was 0600/0700.
 - **Gotcha:** a corrupt JSON file is a hard `Open` error, which propagates to `runtime.Open` failure for memory/worldmodel/workboard/okr/taste (boot fails), while board's failure only disables board commands.
-- Tests: `jsonstore_test.go`.
+- Tests: `store_test.go` (load/save), `lock_test.go` (privacy modes; goroutine exclusion; **two-process** exclusion via a re-exec'd helper process).
 
 ---
 
@@ -640,7 +641,7 @@ Env (`buildAlertNotify` in `cmd/agezt/main_overlay_anomaly.go`): `AGEZT_ALERT_NO
 | `okr/okr.json` | JSON `{version:1, objectives:[Objective]}` | 0644 / 0755 | `okr.Store` via runtime wrappers | same |
 | `taste/taste.json` | JSON `{version:1, exemplars:[Exemplar]}` | 0644 / 0755 | `taste.Store` (controlplane CRUD) | runtime `ForScope` at run start |
 
-Not persisted: bus subscriptions, memory embedding cache, anomaly/alerter windows (all in-memory). `event`, `ulid`, `jsonstore`, `anomaly`, `alerter` own no files.
+Not persisted: bus subscriptions, memory embedding cache, anomaly/alerter windows (all in-memory). `event`, `ulid`, `filestore`, `anomaly`, `alerter` own no files.
 
 ---
 
@@ -650,7 +651,7 @@ Not persisted: bus subscriptions, memory embedding cache, anomaly/alerter window
 - **New event field:** append to `Event` with `omitempty` at the end only — reordering breaks every existing hash.
 - **New subscriber:** `bus.Subscribe(pattern, buf)`; drain fast, watch `Dropped`, `Cancel` on exit; wrap the loop in a panic firewall that *journals* the panic (the `KindStandingError`/`KindWorkflowPanic`/`KindSelfRepairPanic` pattern) rather than a bare `recover()`.
 - **New journal-backed list endpoint:** sort DESC by `(ms, seq)` and use `journal.DecodeCursor/KeepBeforeCursor/NextCursor`.
-- **New single-file store:** `jsonstore.LoadFrom(dir, "<name>.json", &state)` in `Open`, own `sync.Mutex`, `jsonstore.Save` under the lock, mutate-with-rollback like `workboard.mutate`; open it once in `runtime.Open` (`kernel/runtime/compose.go`) and pass that instance everywhere. Publish events from the runtime/daemon wrapper with a domain subject (`<domain>.<id>`).
+- **New single-file store:** `filestore.LoadFrom(dir, "<name>.json", &state)` in `Open`, own `sync.Mutex`, `filestore.Save` under the lock, mutate-with-rollback like `workboard.mutate`; open it once in `runtime.Open` (`kernel/runtime/compose.go`) and pass that instance everywhere. Publish events from the runtime/daemon wrapper with a domain subject (`<domain>.<id>`).
 - **Swap the memory/world backend:** implement `memory.Store` / `worldmodel.Store` (both interfaces exist for a CobaltDB-class engine, DECISIONS D2).
 - **Provider embeddings:** implement `memory.Embedder` and set `runtime.Config.MemoryEmbedder` (or `Manager.SetEmbedder` live).
 - **New memory maintenance pass:** reuse `Remember`/`Forget`/`supersedeExisting` so every mutation stays journaled and soft; only `Prune`/`CleanLowValue` may hard-delete.
@@ -666,12 +667,12 @@ Not persisted: bus subscriptions, memory embedding cache, anomaly/alerter window
 3. **Boot cost and boot failure:** `journal.Open` re-verifies every event hash on every start; a single corrupt line mid-journal is `ErrChainBreak` and aborts `runtime.Open`. Only a torn *final* line is auto-repaired.
 4. **No purge path.** The journal is append-only with no redaction-after-the-fact; the bus redactor must be installed before anything sensitive is published (`cmd/agezt/main.go` calls `SetRedactor` after `runtime.Open` and tool configuration, "before any Run"; anything a boot step publishes earlier is journaled unscrubbed). Hence the 0600/0700 hardening (EXPOSE-001).
 5. **`journal/doc.go` is stale** (claims a sidecar offset index). Every read is a sequential scan; `agt why` costs three full scans; `ProveTask` evidence gathering and `ParentOf` are full scans too.
-6. **Single-writer per store file.** Board is the documented case (M937), but the same hazard applies to every jsonstore store; they are safe only because `runtime.Open` opens each once.
+6. **Single-writer per store file.** Board is the documented case (M937), but the same hazard applies to every filestore store; they are safe only because `runtime.Open` opens each once.
 7. **Memory identity is content-addressed**, so "updating" a fact means a new record; the old one stays active unless explicitly superseded. Consequence for the operator profile: when a facet's synthesized content changes, `DistillProfile` creates a *second* active record on the same `operator profile: <facet>` subject (nothing supersedes the old one) and `ProfileText` injects both until consolidation/dedupe merges them. `TestDistillProfile_ReinforcesNotDuplicatesOnRerun` only covers identical content.
 8. **Distill dedupe gate is opportunistic-only:** explicit `memory` tool writes and curated writes are never collapsed; only `source=distill` notes.
 9. **Retention filter runs on agent/distill writes** — an agent `remember` can be refused with "low-value record rejected"; operator/control-plane writes set `Force`.
 10. **Workboard events come from the runtime, not the store** — calling `workboard.Store` methods directly (e.g. from a tool holding the store) bypasses journaling and OKR recompute. `workboardtool` and controlplane go through the kernel wrappers.
 11. **Artifact GC vs journal refs** can leave dangling `raw_ref`s (see §10).
 12. **anomaly/alerter watchers die silently** on panic or after one anomaly trip (see §15/§16).
-13. **jsonstore permissions** (0644/0755) are looser than journal/datalake/artifact (0600/0700) even though memory.json holds distilled conversation content.
+13. ✅ **Fixed (W1.3):** store files were 0644 in 0755 dirs, looser than the journal (0600/0700) though memory.json holds distilled conversation content. `filestore` now writes 0600/0700 and tightens existing installs.
 14. **Doc-comment drift from god-file splits:** `Supersede`'s comment straddles `manager_hygiene.go`/`manager_recall.go`; `Distill`'s comment sits at the end of `manager_tool_helpers.go`; `datalake.Insert`'s comment starts mid-sentence; `workboard_store_crud.go` names a nonexistent `workboard_helpers.go`.

@@ -40,20 +40,20 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 
 | Package | Imports (internal) | Imported by (non-test) |
 |---|---|---|
-| `roster` | edict, jsonstore, ulid | cmd/agezt, agentgw, controlplane, runtime (+accessors, runexec), selfrepair, builtinguardians, tools/{config, overseertool, schedule, standingtool} |
-| `cadence` | bus, event, jsonstore, ulid | cmd/agezt, cmd/agt, cadence/systemtasks, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, schedule} |
+| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, controlplane, runtime (+accessors, runexec), selfrepair, builtinguardians, tools/{config, overseertool, schedule, standingtool} |
+| `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, cadence/systemtasks, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, schedule} |
 | `cadence/systemtasks` | brand, cadence, catalog, event, runtime | cmd/agezt only |
 | `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors, runexec) |
-| `standing` | bus, jsonstore, ulid | cmd/agezt, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, standingtool} |
+| `standing` | bus, filestore, ulid | cmd/agezt, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, standingtool} |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
 | `selfrepair` | brand, strutil, board, bus, event, roster, runtime, **plugins/tools/overseertool** | cmd/agezt only |
-| `skill` | agent, bus, event, jsonstore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinmarket, builtinskills, tools/skilltool |
+| `skill` | agent, bus, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinmarket, builtinskills, tools/skilltool |
 | `market` | atomicfile, agent, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors), builtinmarket |
 | `plugin` | agent | cmd/agt, plugins/builtintools |
-| `mcp` | jsonstore, netguard, ulid | controlplane, market, runtime (+compose), builtinmarket, tools/mcptool |
+| `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose), builtinmarket, tools/mcptool |
 | `acp` | brand | cmd/agt, tools/acpagent |
 | `acpcatalog` | — | controlplane, tools/acpagent |
-| `workflow` | bus, event, jsonstore, ulid | cmd/agezt, controlplane, runtime, tools/workflowtool |
+| `workflow` | bus, event, filestore, ulid | cmd/agezt, controlplane, runtime, tools/workflowtool |
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
 | `update` | brand, netguard | cmd/agezt, controlplane, restapi |
 | `toolbox` | — | controlplane |
@@ -73,7 +73,7 @@ kernel→plugins imports outside tests. They break the "kernel never imports plu
 ## 1. `kernel/roster` — agent identity
 
 **Purpose.** The durable store of named agent identities (M783). `agt run --agent X`, schedules, standing orders and channels
-can all run "AS" a profile. The package only holds data and validation. It imports only `jsonstore`, `ulid` and `edict`
+can all run "AS" a profile. The package only holds data and validation. It imports only `filestore`, `ulid` and `edict`
 (the last for `ParseTrustLevel`). Journaling happens one layer up, in `kernel/runtime/accessors_roster.go`.
 
 ### 1.1 `roster.Profile` (every field, `roster.go:38-133`)
@@ -166,7 +166,7 @@ There are no channel, comms, skill or persona fields. Persona = `Soul` + `Instru
 
 | Aspect | Details |
 |---|---|
-| File | `<home>/roster/roster.json` (`runtime/compose.go:202`). Indented JSON array of `*Profile` via `jsonstore.Save` → `atomicfile.WriteFile` (temp + fsync + rename). |
+| File | `<home>/roster/roster.json` (`runtime/compose.go:202`). Indented JSON array of `*Profile` via `filestore.Save` → `atomicfile.WriteFile` (temp + fsync + rename). |
 | Load | BOM-tolerant. Missing file = first boot. `Open` saves when the System-defaults migration changed anything. |
 | Concurrency | One `sync.Mutex`. No goroutines. Getters return copies. Every mutator rolls memory back if the save fails. |
 | Events | Emitted by runtime accessors, not this package: `roster.created`, `roster.updated` (action paused|resumed|retired|revived|edited), `roster.removed`. Subject `roster.<slug>`, actor `roster`. |
@@ -1735,7 +1735,7 @@ It is excluded from the env-var inventory guard (`controlplane/config_inventory_
 | `update.lock`, `update.sentinel`, `bin/agezt*` | update | Lockfile, RFC3339, binary |
 | *(journal only)* | selfrepair, workflow run history, channel conversations | `doctor.auto_repair`, `workflow.*`, `channel.inbound/outbound` events |
 
-All JSON stores go through `kernel/jsonstore` → `internal/atomicfile` (unique temp file, fsync, rename, Windows retry). They rewrite the whole file on each mutation and roll memory back if the save fails.
+All JSON stores go through `kernel/platform/filestore` → `internal/atomicfile` (unique temp file, fsync, rename, Windows retry). They rewrite the whole file on each mutation and roll memory back if the save fails.
 
 ## Env vars by package (all must be listed in `controlplane/config.go configEnvVars`; a guard test enforces it)
 

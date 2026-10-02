@@ -51,7 +51,7 @@ kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool,
 kernel/runtime/types     -> (none)
 kernel/toolexec     -> agent, event
 kernel/toolreg      -> agent, artifact, board, bus, channel, datalake, journal, runtime, warden
-kernel/toolforge    -> jsonstore, ulid
+kernel/toolforge    -> filestore, ulid
 kernel/delegation   -> agent, edict
 kernel/resume       -> internal/atomicfile, agent
 kernel/planner      -> internal/strutil, agent, intent
@@ -619,7 +619,7 @@ Tests (59 files), grouped:
 ### kernel/toolforge
 - `doc.go`: lifecycle draft → test → (operator) promote → active `forge_<name>`; quarantine is the kill switch; any code edit demotes to draft and clears the test record.
 - `toolforge.go`: `ScriptTool{ID, Name, Description, Language, Code, InputSchema, Status, TestedOK, TestedMS, CreatedMS, UpdatedMS}`; `Status` draft/active/quarantined; `Runner.RunScript(ctx, language, code, inputJSON)`; `Validate` (name `^[a-z][a-z0-9_]{0,39}$`, code ≤128 KiB, desc ≤2 KiB, schema ≤16 KiB); `ErrNotFound`, `ErrUntested`; `safeCall`.
-- `toolforge_store.go`: `Store` (single JSON `toolforge/scripttools.json` via `jsonstore`, mutex) with `Add`, `Update`, `RecordTest`, `Promote` (requires `TestedOK`), `Quarantine`, `Remove`, `Get`, `List`, `Active`, `Count`.
+- `toolforge_store.go`: `Store` (single JSON `toolforge/scripttools.json` via `filestore`, mutex) with `Add`, `Update`, `RecordTest`, `Promote` (requires `TestedOK`), `Quarantine`, `Remove`, `Get`, `List`, `Active`, `Count`.
 - Tests: `toolforge_test.go`, `r7_proof_test.go`, `coverage_supp_test.go`.
 
 ---

@@ -57,8 +57,8 @@ Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) 
 
 | Path under `<baseDir>` | Owner | Format / perms |
 |---|---|---|
-| `creds.json` | creds | Plaintext `{NAME: value}` map **or** encrypted envelope `{"schema":"agezt-creds-v2", "encryption":"aes-256-gcm", "kdf":"pbkdf2-hmac-sha256", "kdf_iter":200000, "kdf_salt", "nonce", "ciphertext"}` (base64 fields). 0600, atomic via `internal/atomicfile`. |
-| `config.json` | settings | `{account: {AGEZT_X: value}}` (`_default` account); legacy flat map accepted on load; UTF-8 BOM stripped. 0600. |
+| `creds.json` | creds | Plaintext `{NAME: value}` map **or** encrypted envelope `{"schema":"agezt-creds-v2", "encryption":"aes-256-gcm", "kdf":"pbkdf2-hmac-sha256", "kdf_iter":200000, "kdf_salt", "nonce", "ciphertext"}` (base64 fields). 0600, atomic via `internal/atomicfile`. **Merge-on-save** (W1.3): `Save`/`Rotate` take `filestore.Lock`, re-read the file with the passphrase that opened it, apply only this Store's pending `Set`/`Remove`s, write, and adopt the merged map — so the daemon and `agt` no longer delete each other's keys, and a Store that cannot decrypt the file refuses to overwrite it. |
+| `config.json` | settings | `{account: {AGEZT_X: value}}` (`_default` account); legacy flat map accepted on load; UTF-8 BOM stripped. 0600. **Merge-on-save** (W1.3): `Save` takes `filestore.Lock`, re-reads the file and applies only this Store's pending changes, so the per-request `NewStore→Load→Set→Save` handlers and `agt config` no longer revert each other. |
 | `schemas/<id>.json` | settings.Registry | One registered `Section` per file. 0600. |
 | `catalog/api.json`, `local.json`, `custom.json`, `meta.json` | catalog | models.dev-shaped JSON; meta sidecar. 0644. |
 | `configcenter/entry_<sha256(key)[:16]>.json` | configcenter | Full `ConfigEntry` **including raw `value`**, 0644, plain `os.WriteFile` (not atomic). |

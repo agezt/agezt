@@ -22,7 +22,7 @@ page, then open the area document you need.
 | 03 | [03-control-plane-and-http.md](03-control-plane-and-http.md) | `kernel/controlplane` protocol and all **321 ops**, `httpserver`, Web UI Go side (198 routes), REST, OpenAI-compatible API, `agentgw`, `auth`, `streamlimit`, `tunnel`, outbound `webhook`; HTTP-edge security; SSE path | ~1300 lines |
 | 04 | [04-agent-runtime.md](04-agent-runtime.md) | `kernel/agent` loop, `kernel/runtime` (+`runexec`, `lifecycle`, `accessors`, `compose`, `types`), policy hook, delegation, steering/intervention, compaction, resume, planner, assure/proof, tool registry | ~730 lines |
 | 05 | [05-governance-routing-security.md](05-governance-routing-security.md) | `governor` routing/budgets/breakers, `catalog`, `creds` vault + `sigv4`, `chatgptauth`, `settings`, `configcenter`, `executionprofile`, **Edict** policy, `warden`, `netguard`, `envscrub`, `redact`, `approval`, `seat`, `tenant`, `tenantctx`, `state` | ~720 lines |
-| 06 | [06-data-memory-state.md](06-data-memory-state.md) | `event` (164 kinds), `journal` (BLAKE3 chain), `bus`, `ulid`, `jsonstore`, `memory`, `worldmodel`, `datalake`, `artifact`, `board`, `workboard`, `okr`, `taste`, `anomaly`, `alerter`; the store table | ~680 lines |
+| 06 | [06-data-memory-state.md](06-data-memory-state.md) | `event` (164 kinds), `journal` (BLAKE3 chain), `bus`, `ulid`, `filestore`, `memory`, `worldmodel`, `datalake`, `artifact`, `board`, `workboard`, `okr`, `taste`, `anomaly`, `alerter`; the store table | ~680 lines |
 | 07 | [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) | `roster`, `cadence`(+`systemtasks`), `scheduler`, `standing`, `pulse`, `selfrepair`, `skill`, `market`, `plugin`, `mcp`, `acp`, `acpcatalog`, `workflow`, `workflowexec`, `update`, `toolbox`, `channel`, `channelwire`, `stt`, `voicetool`, `imagetool`, `reranktool`; how wakes become governed runs | ~1860 lines |
 | 08 | [08-providers.md](08-providers.md) | Provider contract, 8 wire adapters + `compat` factory, sidecars (embed/voice/image/rerank), `providerboot` boot/reload, ChatGPT subscription, Bedrock/Vertex auth, `plugins/sdk`, `mcpbridge` | ~790 lines |
 | 09 | [09-channels.md](09-channels.md) | `Channel` interface, 25 transport packages → 34 channel kinds, `builtinchannels` factories, multi-account `ENV#label`, inbound → run → reply | ~655 lines |
@@ -139,7 +139,7 @@ tool allowlist, execution profile and agent resolution. See [03](03-control-plan
 Verified with `go list` (internal edges only):
 - **Highest fan-in** (most imported): `kernel/agent` (67 importers), `kernel/event` (61), `kernel/bus` (55),
   `kernel/ulid` (46), `kernel/edict` (46), `kernel/channel` (31), `internal/brand` (21), `kernel/netguard` (17),
-  `kernel/runtime` (14), `internal/atomicfile` (14), `kernel/jsonstore` (13).
+  `kernel/runtime` (14), `internal/atomicfile` (14), `kernel/platform/filestore` (13).
 - **Highest fan-out:** `cmd/agezt` (59 internal imports), `kernel/controlplane` (49), `kernel/runtime` (48),
   `plugins/builtintools` (36), `cmd/agt` (33), `plugins/builtinchannels` (29).
 - **The kernel never imports `plugins/*` — with one exception.** `kernel/controlplane` (`roster_repair.go`,
@@ -213,7 +213,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `journal` | Append-only BLAKE3-chained JSONL segments (64 MiB), full re-verify on open, no index (full scans). |
 | `bus` | In-process pub/sub. `Publish` journals under lock (+fsync) then fans out non-blocking (slow subscriber drops). `PublishStreaming` skips the journal. |
 | `ulid` | 26-char Crockford ULIDs. |
-| `jsonstore` | Tolerant load + atomic save for single-file JSON stores. |
+| `platform/filestore` | Tolerant load + atomic private (0600/0700) save for single-file JSON stores, plus a cross-process `Lock` for files the daemon and `agt` both write. |
 | `memory` | Content-addressed memory: private by default, shared opt-in, distillation, dedupe, tidy, operator profile facets, keyword + hashed/provider embeddings. |
 | `worldmodel` | Journaled graph of the operator's world (entities, relations). |
 | `datalake` | File-based structured store ("Personal Data Lake") behind the `db` tool. |
@@ -374,7 +374,7 @@ See [07](07-autonomy-and-extensibility.md).
 There are **two persistence tiers**:
 1. The **journal**, the only immutable record (`journal/NNNNNNNN.jsonl`, 0600/0700).
 2. **Mutable JSON projections**, each owned by one package and rewritten whole and atomically through
-   `jsonstore`/`internal/atomicfile`.
+   `filestore`/`internal/atomicfile`.
 
 Each store must be opened **once** per daemon. Two instances of the same store silently overwrite each
 other; the board is the best-known case of this.
@@ -456,7 +456,7 @@ backlog. Details and file references are in the linked documents.
 | One corrupt mid-journal line aborts `runtime.Open`; only a torn final line self-repairs. No journal index: `agt why` = 3 full scans. | [06](06-data-memory-state.md) |
 | Operator-profile facet text changes create a second active record (the old one is never superseded); both are injected into every run. | [06](06-data-memory-state.md) |
 | ✅ **Fixed (W0.4):** Anomaly breaker disarmed after one trip and was not re-armed after resume. Anomaly/alerter watchers died silently on panic. | [06](06-data-memory-state.md) |
-| Artifact GC can delete blobs still referenced by journal `raw_ref`. JSON stores are written 0644 (journal/datalake/artifacts are 0600). Failed distillation is journaled as `memory.written`. | [06](06-data-memory-state.md) |
+| Artifact GC can delete blobs still referenced by journal `raw_ref`. ~~JSON stores are written 0644~~ ✅ Fixed (W1.3): 0600/0700. Failed distillation is journaled as `memory.written`. | [06](06-data-memory-state.md) |
 | Named agents with soul/model overrides are marked non-resumable ⇒ quarantined at boot instead of resumed. | [04](04-agent-runtime.md) |
 | `epistemicGate` scans the whole journal on every gated tool call, even when escalation is off. | [04](04-agent-runtime.md) |
 | Conversation history misses agent replies on most channels (only Telegram/Slack/Discord/Matrix/Signal fold them back). | [09](09-channels.md) |

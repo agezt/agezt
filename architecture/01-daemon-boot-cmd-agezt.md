@@ -511,7 +511,7 @@ Tests: `daemonconfig_test.go` — `TestLoad_Defaults`, `_KnowledgeSwitches`, `_P
   `Rename`. Windows: if rename-over-existing fails (AV/indexer handle), remove target then rename, then as a last resort a
   direct non-atomic `os.WriteFile`. Parent dir must exist; no parent-dir fsync.
 - Comment states it is "the one canonical implementation"; per-package `atomicWrite` helpers wrap it.
-- Used by: artifact, auth, catalog, creds, datalake, edict, jsonstore, market, resume, seat, settings, state, webui,
+- Used by: artifact, auth, catalog, creds, datalake, edict, filestore, market, resume, seat, settings, state, webui,
   plugins/tools/file. Files: `atomicfile.go`. Tests: `atomicfile_test.go`.
 
 ### 6.4 `internal/strutil`

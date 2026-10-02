@@ -4,6 +4,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: the daemon's JSON stores were world-readable.** memory.json (distilled
+  conversation content), worldmodel.json, roster.json, workboard.json, board.json and the
+  other single-file stores were written 0644 in 0755 directories, while the journal
+  recording the same material had already been hardened to 0600/0700. The shared store
+  layer (now `kernel/platform/filestore`, formerly `kernel/jsonstore`) writes 0600 files in
+  0700 directories and tightens existing installs in place, best-effort like the journal:
+  a filesystem that refuses chmod degrades, never fails boot.
+
 - **Security: out-of-process plugins received the daemon's entire environment** — every
   provider API key, the vault passphrase, channel tokens — because the plugin host was given
   `Config.Env = nil` ("inherit everything"); `docs/PLUGIN-SECURITY.md` claimed a minimal env
@@ -925,6 +933,19 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Fixed: a key set with `agt provider creds set` while the daemon ran was deleted by the
+  daemon's next vault save.** Both processes held their own copy of the vault and saved it
+  whole, so the later save silently dropped the other's keys. The same shape hit
+  `config.json`: every control-plane handler opens its own settings store
+  (load → set → save), so two concurrent console edits, or a console edit racing
+  `agt config`, reverted one another. Both stores now save by merging: under a
+  cross-process file lock (flock / LockFileEx, released by the OS if the holder dies)
+  `Save` re-reads the file and applies only that store's own changes. A vault store that
+  cannot decrypt the file now refuses to save instead of replacing the vault with its own,
+  possibly empty, map. Rotation and `agt vault decrypt` re-read with the passphrase that
+  opened the file. Regression tests cover two writers, parallel writers, removals, an
+  unloaded store, a wrong passphrase and rotation, and fail against the old save.
 
 - **Fixed: a failed auto-update left the daemon halted.** The checker drained and halted the
   kernel before calling `Apply`, so a download error, checksum mismatch or refused signature
