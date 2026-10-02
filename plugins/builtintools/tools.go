@@ -94,13 +94,6 @@ func splitHosts(dst []string, csv string) []string {
 	return dst
 }
 
-// buildHTTP — default-ALLOW (M818, owner law: every capability open unless you
-// opt out). Any PUBLIC host is reachable out of the box; the opt-OUT is a
-// non-empty $AGEZT_HTTP_ALLOWED_HOSTS (comma-separated), which RESTRICTS the
-// tool to just those hosts. The SSRF egress guard (loopback / private /
-// cloud-metadata refused) is the hard floor and stays on regardless — relaxed
-// only by the explicit AGEZT_HTTP_ALLOW_* flags below. So "open" means the
-// public internet, not a pivot into co-located admin surfaces.
 func specBrowserAction() toolreg.Spec {
 	var ba *browser.ActionTool
 	return toolreg.Spec{
@@ -133,11 +126,10 @@ func specFetch() toolreg.Spec {
 		Netguard: true,
 		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
 			fe = fetch.New()
-			if d.AllowAll {
-				fe.AllowLoopback = true
-				fe.AllowPrivate = true
-			}
-			return toolreg.Built{Tool: fe, Desc: "fetch(url→artifact)"}, nil
+			e, desc := httpEgress(d)
+			fe.AllowAll, fe.AllowedHosts = e.AnyHost, e.AllowedHosts
+			fe.AllowLoopback, fe.AllowPrivate = e.AllowLoopback, e.AllowPrivate
+			return toolreg.Built{Tool: fe, Desc: "fetch(url→artifact, " + desc + ")"}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Artifacts != nil {

@@ -3,7 +3,7 @@
 package browser
 
 // Provenance: Package browser: Invoke (the SSRF-guarded fetch → strip → decode →
-//             truncate pipeline) + hostAllowed (the AllowedHosts matcher with
+//             truncate pipeline) + hostAllowed (the AllowedHosts matcher, delegated to netout, with
 //             "*.example.com" wildcard support). Extracted from browser.go during
 //             the Day-211 god-file split. Public API unchanged.
 
@@ -19,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
@@ -37,8 +38,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return toolapi.Result{}, fmt.Errorf("browser: scheme %q not allowed (only http/https)", u.Scheme)
 	}
-	if !t.AllowAll && !hostAllowed(u.Host, t.AllowedHosts) {
-		return toolapi.Result{}, fmt.Errorf("%w: %s", ErrHostDenied, u.Host)
+	if !t.AllowAll && !hostAllowed(u.Hostname(), t.AllowedHosts) {
+		return toolapi.Result{}, fmt.Errorf("browser: %w: %s", ErrHostDenied, u.Hostname())
 	}
 
 	req, err := stdhttp.NewRequestWithContext(ctx, "GET", in.URL, nil)
@@ -139,34 +140,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}, nil
 }
 
-// hostAllowed reports whether host (with optional :port) matches
-// any entry in allowed. Each entry may be a bare hostname or a
-// "*.example.com" one-level wildcard. Case-insensitive. Duplicated
-// from plugins/tools/http because keeping each tool self-contained
-// is cheaper than building shared allowlist infrastructure for
-// what's effectively the same eight-line check.
+// hostAllowed reports whether host (a bare hostname, url.URL.Hostname) matches
+// an entry in allowed, using the one allowlist grammar every network tool
+// shares (netout.Egress.HostAllowed). This used to be a private copy of the
+// http tool's matcher, and the two disagreed on "*.example.com".
 func hostAllowed(host string, allowed []string) bool {
-	if len(allowed) == 0 {
-		return false
-	}
-	// Drop port from host for matching.
-	if i := strings.IndexByte(host, ':'); i >= 0 {
-		host = host[:i]
-	}
-	host = strings.ToLower(host)
-	for _, a := range allowed {
-		a = strings.ToLower(strings.TrimSpace(a))
-		if a == "" {
-			continue
-		}
-		if strings.HasPrefix(a, "*.") {
-			suffix := a[1:] // ".example.com"
-			if strings.HasSuffix(host, suffix) && strings.Count(host, ".") == strings.Count(a, ".") {
-				return true
-			}
-		} else if a == host {
-			return true
-		}
-	}
-	return false
+	return netout.Egress{AllowedHosts: allowed}.HostAllowed(host)
 }

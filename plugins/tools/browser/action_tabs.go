@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 type actionTabState struct {
@@ -328,8 +328,8 @@ func (t *ActionTool) validateURL(ctx context.Context, raw string) error {
 	if u.Host == "" {
 		return errors.New("url missing host")
 	}
-	if !t.AllowAll && !hostAllowed(u.Host, t.AllowedHosts) {
-		return fmt.Errorf("%w: %s", ErrHostDenied, u.Hostname())
+	if !t.AllowAll && !hostAllowed(u.Hostname(), t.AllowedHosts) {
+		return fmt.Errorf("browser: %w: %s", ErrHostDenied, u.Hostname())
 	}
 	return t.validateHostEgress(ctx, u.Hostname())
 }
@@ -352,17 +352,7 @@ func (t *ActionTool) validateHostEgress(ctx context.Context, host string) error 
 			return fmt.Errorf("resolve %s: no addresses", host)
 		}
 	}
-	var opts []netguard.Option
-	if t.AllowLoopback {
-		opts = append(opts, netguard.AllowLoopback())
-	}
-	if t.AllowPrivate {
-		opts = append(opts, netguard.AllowPrivate())
-	}
-	if t.OnBlock != nil {
-		opts = append(opts, netguard.OnBlock(t.OnBlock))
-	}
-	g := netguard.New(opts...)
+	g := netout.Egress{AllowLoopback: t.AllowLoopback, AllowPrivate: t.AllowPrivate, OnBlock: t.OnBlock}.Guard()
 	for _, ip := range ips {
 		if ok, reason := g.Allowed(ip); !ok {
 			return fmt.Errorf("egress blocked: %s resolves to %s (%s)", host, ip, reason)

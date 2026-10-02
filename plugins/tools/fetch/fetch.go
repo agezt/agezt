@@ -7,9 +7,12 @@
 // the artifact store / file manager, where the operator can preview and download
 // it. The capability is a plain network GET (edict CapHTTPGet).
 //
-// Like the http/web_search tools it goes through a netguard-protected client
-// that refuses internal/metadata addresses (SSRF guard), relaxed only by the
-// explicit AllowLoopback/AllowPrivate flags.
+// It is governed as the same capability as the http tool's GET (http.get), so it
+// takes the same egress posture (kernel/platform/netout): the operator's host
+// allowlist when one is pinned, re-checked on every redirect, and the dial-time
+// guard that refuses internal/metadata addresses unless AllowLoopback /
+// AllowPrivate opt back in. It used to ignore the allowlist, so restricting the
+// http tool left a second, unrestricted way to download from any host.
 package fetch
 
 import (
@@ -26,7 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultTimeout caps a single download.
@@ -46,6 +49,12 @@ type Tool struct {
 	// HTTP overrides the default client; when nil a netguard-protected client is
 	// built (default-deny to internal/metadata addresses).
 	HTTP *stdhttp.Client
+	// AllowedHosts / AllowAll are the host allowlist, with the http tool's
+	// semantics (netout.Egress): AllowAll = any public host; otherwise only
+	// AllowedHosts. New() starts with AllowAll; the daemon applies the same
+	// posture as the http tool.
+	AllowedHosts []string
+	AllowAll     bool
 	// AllowLoopback / AllowPrivate relax the egress guard for the default client.
 	AllowLoopback bool
 	AllowPrivate  bool
@@ -64,7 +73,7 @@ const DefaultUserAgent = "agezt-fetch/1.0"
 
 // New returns a Tool with safe defaults.
 func New() *Tool {
-	return &Tool{UserAgent: DefaultUserAgent, Now: func() int64 { return time.Now().UnixMilli() }}
+	return &Tool{AllowAll: true, UserAgent: DefaultUserAgent, Now: func() int64 { return time.Now().UnixMilli() }}
 }
 
 // SetIndex injects the artifact index (done by the daemon after the kernel opens,
@@ -81,17 +90,18 @@ func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	var opts []netguard.Option
-	if t.AllowLoopback {
-		opts = append(opts, netguard.AllowLoopback())
+	return t.egress().Client(DefaultTimeout)
+}
+
+// egress is this tool's outbound posture (kernel/platform/netout).
+func (t *Tool) egress() netout.Egress {
+	return netout.Egress{
+		AnyHost:       t.AllowAll,
+		AllowedHosts:  t.AllowedHosts,
+		AllowLoopback: t.AllowLoopback,
+		AllowPrivate:  t.AllowPrivate,
+		OnBlock:       t.OnBlock,
 	}
-	if t.AllowPrivate {
-		opts = append(opts, netguard.AllowPrivate())
-	}
-	if t.OnBlock != nil {
-		opts = append(opts, netguard.OnBlock(t.OnBlock))
-	}
-	return netguard.New(opts...).HTTPClient(DefaultTimeout)
 }
 
 // Definition implements toolapi.Tool.
@@ -141,6 +151,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}
 	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
 		return errResult("url must be an absolute http/https URL"), nil
+	}
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Hostname() == "" {
+		return errResult("url must be an absolute http/https URL"), nil
+	}
+	if !t.egress().HostAllowed(parsed.Hostname()) {
+		return errResult(fmt.Sprintf("fetch: %v: %s", netout.ErrHostDenied, parsed.Hostname())), nil
 	}
 	if t.index == nil {
 		return errResult("artifact store unavailable"), nil

@@ -18,7 +18,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultTimeout caps a single search request.
@@ -79,17 +79,13 @@ func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	var opts []netguard.Option
-	if t.AllowLoopback {
-		opts = append(opts, netguard.AllowLoopback())
-	}
-	if t.AllowPrivate {
-		opts = append(opts, netguard.AllowPrivate())
-	}
-	if t.OnBlock != nil {
-		opts = append(opts, netguard.OnBlock(t.OnBlock))
-	}
-	return netguard.New(opts...).HTTPClient(DefaultTimeout)
+	// The engine host is fixed, so no host allowlist: just the dial-time guard.
+	return netout.Egress{
+		AnyHost:       true,
+		AllowLoopback: t.AllowLoopback,
+		AllowPrivate:  t.AllowPrivate,
+		OnBlock:       t.OnBlock,
+	}.Client(DefaultTimeout)
 }
 
 // Definition implements toolapi.Tool.

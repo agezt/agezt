@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	stdhttp "net/http"
@@ -29,7 +28,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultTimeout caps a single request.
@@ -89,38 +88,23 @@ func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	var opts []netguard.Option
-	if t.AllowLoopback {
-		opts = append(opts, netguard.AllowLoopback())
-	}
-	if t.AllowPrivate {
-		opts = append(opts, netguard.AllowPrivate())
-	}
-	if t.OnBlock != nil {
-		opts = append(opts, netguard.OnBlock(t.OnBlock))
-	}
-	c := netguard.New(opts...).HTTPClient(DefaultTimeout)
-	// Enforce the host allowlist on every redirect hop, not just the initial URL
-	// (M251). netguard's dial-level guard blocks internal/metadata IPs on each
-	// hop, but the host allowlist was checked only once — so an allowlisted host
-	// that 302-redirects to an arbitrary external host would escape it, carrying
-	// the request's headers (including any Authorization the agent set) to a host
-	// the operator never allowed. Re-check on each hop and cap the chain.
-	c.CheckRedirect = func(req *stdhttp.Request, via []*stdhttp.Request) error {
-		if len(via) >= maxRedirects {
-			return fmt.Errorf("http: stopped after %d redirects", maxRedirects)
-		}
-		if !t.hostAllowed(req.URL.Hostname()) {
-			return fmt.Errorf("%w: %s (redirect target)", ErrHostDenied, req.URL.Hostname())
-		}
-		return nil
-	}
-	return c
+	// The egress posture re-checks the allowlist on every redirect hop (M251):
+	// an allowlisted host that 302s elsewhere must not carry the request — and
+	// any Authorization header the agent set — to a host the operator never
+	// allowed.
+	return t.egress().Client(DefaultTimeout)
 }
 
-// maxRedirects caps a single http-tool call's redirect chain. Matches Go's
-// default; made explicit because setting CheckRedirect replaces that default.
-const maxRedirects = 10
+// egress is this tool's outbound posture (kernel/platform/netout).
+func (t *Tool) egress() netout.Egress {
+	return netout.Egress{
+		AnyHost:       t.AllowAll,
+		AllowedHosts:  t.AllowedHosts,
+		AllowLoopback: t.AllowLoopback,
+		AllowPrivate:  t.AllowPrivate,
+		OnBlock:       t.OnBlock,
+	}
+}
 
 // Definition implements toolapi.Tool.
 func (t *Tool) Definition() toolapi.ToolDef {
@@ -173,9 +157,9 @@ type httpInput struct {
 	ContentType string            `json:"content_type,omitempty"`
 }
 
-// ErrHostDenied is returned (as a tool error) when the requested host is
-// outside the allowlist.
-var ErrHostDenied = errors.New("http: host not in allowlist")
+// ErrHostDenied is returned (as a tool error) when the requested host, or a
+// redirect target, is outside the allowlist.
+var ErrHostDenied = netout.ErrHostDenied
 
 // Invoke implements toolapi.Tool.
 func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
@@ -204,7 +188,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		return errResult("url missing host"), nil
 	}
 	if !t.hostAllowed(u.Hostname()) {
-		return errResult(fmt.Sprintf("%v: %s", ErrHostDenied, u.Hostname())), nil
+		return errResult(fmt.Sprintf("http: %v: %s", ErrHostDenied, u.Hostname())), nil
 	}
 
 	if len(in.Body) > MaxRequestBodyBytes {
@@ -269,29 +253,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}, nil
 }
 
-// hostAllowed checks t.AllowedHosts (case-insensitive, with one-level "*."
-// wildcard support) and respects t.AllowAll.
-func (t *Tool) hostAllowed(host string) bool {
-	if t.AllowAll {
-		return true
-	}
-	host = strings.ToLower(host)
-	for _, pat := range t.AllowedHosts {
-		pat = strings.ToLower(strings.TrimSpace(pat))
-		if pat == host {
-			return true
-		}
-		if strings.HasPrefix(pat, "*.") {
-			suffix := pat[1:] // ".example.com"
-			if strings.HasSuffix(host, suffix) && host != suffix[1:] {
-				// "foo.example.com" matches "*.example.com"
-				// but "example.com" alone does NOT (subdomain required)
-				return true
-			}
-		}
-	}
-	return false
-}
+// hostAllowed applies the shared allowlist grammar (netout.Egress.HostAllowed).
+func (t *Tool) hostAllowed(host string) bool { return t.egress().HostAllowed(host) }
 
 // flattenHeaders converts http.Header to map[string]string by joining
 // multi-value headers with commas (the model rarely needs them split).
