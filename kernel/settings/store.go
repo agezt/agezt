@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // utf8BOM is the byte-order mark some Windows editors (and PowerShell's
@@ -34,6 +35,12 @@ type Store struct {
 
 	mu       sync.RWMutex
 	accounts map[string]map[string]string // account -> {AGEZT_X: value}
+	// pending holds this Store's unsaved default-account changes (nil value =
+	// removal). Save applies exactly these onto config.json as it is on disk at
+	// save time: every control-plane handler, `agt config` and the daemon open
+	// their own Store, and saving a whole stale map let the later writer
+	// silently revert the other's setting.
+	pending map[string]*string
 }
 
 // NewStore returns a Store at <baseDir>/config.json. Touches no files until Load.
@@ -50,33 +57,41 @@ func NewStore(baseDir string) *Store {
 func (s *Store) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	accounts, err := s.readFile()
+	if err != nil {
+		return err
+	}
+	s.accounts, s.pending = accounts, nil
+	return nil
+}
 
+// readFile decodes config.json as it is on disk now.
+func (s *Store) readFile() (map[string]map[string]string, error) {
 	raw, err := os.ReadFile(s.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			s.accounts = map[string]map[string]string{}
-			return nil
+			return map[string]map[string]string{}, nil
 		}
-		return fmt.Errorf("settings: read %s: %w", s.Path, err)
+		return nil, fmt.Errorf("settings: read %s: %w", s.Path, err)
 	}
 	raw = bytes.TrimPrefix(raw, utf8BOM)
 	if len(bytes.TrimSpace(raw)) == 0 {
-		s.accounts = map[string]map[string]string{}
-		return nil
+		return map[string]map[string]string{}, nil
 	}
 
 	var nested map[string]map[string]string
 	if err := json.Unmarshal(raw, &nested); err == nil {
-		s.accounts = nested
-		return nil
+		if nested == nil {
+			nested = map[string]map[string]string{}
+		}
+		return nested, nil
 	}
 	// Fall back to a flat {k:v} file (hand-written or legacy) → default account.
 	var flat map[string]string
 	if err := json.Unmarshal(raw, &flat); err != nil {
-		return fmt.Errorf("settings: parse %s: %w", s.Path, err)
+		return nil, fmt.Errorf("settings: parse %s: %w", s.Path, err)
 	}
-	s.accounts = map[string]map[string]string{DefaultAccount: flat}
-	return nil
+	return map[string]map[string]string{DefaultAccount: flat}, nil
 }
 
 // account returns the (mutable) map for acct, creating it if absent. Caller holds
@@ -103,6 +118,7 @@ func (s *Store) Set(name, value string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.account(DefaultAccount)[name] = value
+	s.markLocked(name, &value)
 }
 
 // Remove deletes name from the default account; reports whether it was present.
@@ -114,7 +130,17 @@ func (s *Store) Remove(name string) bool {
 		return false
 	}
 	delete(m, name)
+	s.markLocked(name, nil)
 	return true
+}
+
+// markLocked records an unsaved change for Save to merge (nil = removal).
+// Caller holds s.mu for writing.
+func (s *Store) markLocked(name string, value *string) {
+	if s.pending == nil {
+		s.pending = map[string]*string{}
+	}
+	s.pending[name] = value
 }
 
 // All returns a copy of the default account's settings.
@@ -142,25 +168,44 @@ func (s *Store) Names() []string {
 
 // Save atomically writes the store to disk (0600), always in the nested
 // account-keyed form.
+//
+// It writes this Store's changes (Set/Remove since the last Load or Save) onto
+// config.json as it is NOW, under a cross-process lock — not this Store's whole
+// map — so a setting another writer saved in the meantime survives. The merged
+// result becomes this Store's view.
 func (s *Store) Save() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0755); err != nil {
-		return fmt.Errorf("settings: ensure dir: %w", err)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	unlock, err := filestore.Lock(s.Path)
+	if err != nil {
+		return fmt.Errorf("settings: %w", err)
 	}
-	// Always persist nested, ensuring the default account key exists.
-	out := s.accounts
-	if out == nil {
-		out = map[string]map[string]string{}
+	defer unlock()
+	out, err := s.readFile()
+	if err != nil {
+		return fmt.Errorf("settings: re-read before save: %w", err)
 	}
-	if _, ok := out[DefaultAccount]; !ok {
-		out[DefaultAccount] = map[string]string{}
+	def := out[DefaultAccount]
+	if def == nil {
+		def = map[string]string{}
+		out[DefaultAccount] = def
+	}
+	for name, v := range s.pending {
+		if v == nil {
+			delete(def, name)
+		} else {
+			def[name] = *v
+		}
 	}
 	raw, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return fmt.Errorf("settings: marshal: %w", err)
 	}
-	return atomicWrite(s.Path, raw)
+	if err := atomicWrite(s.Path, raw); err != nil {
+		return err
+	}
+	s.accounts, s.pending = out, nil
+	return nil
 }
 
 // atomicWrite writes data to path via a unique temp file + rename, forcing 0600

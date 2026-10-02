@@ -22,8 +22,10 @@ func (s *Store) Set(name, value string) error {
 	defer s.mu.Unlock()
 	if value == "" {
 		delete(s.data, name)
+		s.markLocked(name, nil)
 	} else {
 		s.data[name] = value
+		s.markLocked(name, &value)
 	}
 	return nil
 }
@@ -52,7 +54,17 @@ func (s *Store) Remove(name string) bool {
 	defer s.mu.Unlock()
 	_, existed := s.data[name]
 	delete(s.data, name)
+	s.markLocked(name, nil)
 	return existed
+}
+
+// markLocked records an unsaved change for Save to merge (nil = removal).
+// Caller holds s.mu for writing.
+func (s *Store) markLocked(name string, value *string) {
+	if s.pending == nil {
+		s.pending = map[string]*string{}
+	}
+	s.pending[name] = value
 }
 
 // Names returns the sorted list of all stored env-var names.

@@ -63,6 +63,18 @@ type Store struct {
 	// uses this to surface "you're about to silently downgrade an
 	// encrypted vault to plaintext" rather than just doing it.
 	wasEncrypted bool
+
+	// pending holds this instance's unsaved changes: name → new value, or nil
+	// for a removal. Save applies exactly these onto the file as it is on disk
+	// at save time, never the whole in-memory map — the daemon and `agt` each
+	// hold their own Store over the same file, and whole-map saves let the
+	// last writer silently delete the other's keys.
+	pending map[string]*string
+	// openedWith is the passphrase that last decrypted (or wrote) the file.
+	// Save re-reads the file before writing, and must be able to even when the
+	// WRITE passphrase has just changed — `vault decrypt` switches it to "",
+	// Rotate to a new one.
+	openedWith string
 }
 
 // NewStore returns a Store at <baseDir>/creds.json. Doesn't touch the
