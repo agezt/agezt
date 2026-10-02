@@ -87,6 +87,10 @@ type Built struct {
 	// Infos are the plugin-manifest entries for external-plugin specs (one per
 	// spawned plugin; the plugin-host spec yields several from a single Build).
 	Infos []runtime.PluginInfo
+	// Close releases what Build started — the plugin host's child processes.
+	// Set.Close calls it once at daemon shutdown (and BuildAll calls it if the
+	// set it belonged to fails to build). Nil when there is nothing to release.
+	Close func() error
 }
 
 // Spec describes one first-party tool: how to build it and which lifecycle

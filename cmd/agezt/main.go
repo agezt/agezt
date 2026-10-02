@@ -332,6 +332,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
 	}
+	// Close plugin children at shutdown. Deferred before the kernel opens, so
+	// it runs after the kernel's own Close: in-flight runs finish with their
+	// plugin tools still alive.
+	defer func() {
+		if err := toolSet.Close(); err != nil {
+			fmt.Fprintf(stderr, "%s: closing tools: %v\n", brand.Binary, err)
+		}
+	}()
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,

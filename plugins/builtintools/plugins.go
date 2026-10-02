@@ -13,6 +13,7 @@ package builtintools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -100,6 +101,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 
 	var built toolreg.Built
 	var registered []string
+	var spawned []*plugin.Plugin
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -121,6 +123,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 			fmt.Fprintf(d.Stderr, "WARNING: plugin %q (%s) failed to start: %v\n", prefix, e.Path, err)
 			continue
 		}
+		spawned = append(spawned, p)
 		pluginTools := p.Tools(prefix + ".")
 		declaredCaps := p.ToolCapabilities(prefix + ".") // M900: manifest-declared policy axes
 		for name, tool := range pluginTools {
@@ -162,6 +165,15 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 		fmt.Fprintf(d.Stderr, "WARNING: %sPLUGIN_ENV has entry for %q but no plugin with that prefix was loaded\n", brand.EnvPrefix, stale)
 	}
 	built.Desc = strings.Join(registered, ", ")
+	if len(spawned) > 0 {
+		built.Close = func() error {
+			var errs []error
+			for _, p := range spawned {
+				errs = append(errs, p.Close())
+			}
+			return errors.Join(errs...)
+		}
+	}
 	return built, nil
 }
 

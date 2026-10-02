@@ -66,15 +66,9 @@ func buildEnvProbePlugin(t *testing.T) string {
 	if testing.Short() {
 		t.Skip("builds a plugin binary")
 	}
-	// Not t.TempDir: buildPlugins keeps no *Plugin handle (plugins are never
-	// Close()d — a known gap), so on Windows the running binary stays locked
-	// and TempDir's cleanup would fail the test. The child exits on stdin EOF
-	// when the test binary does; the directory is removed best-effort.
-	dir, err := os.MkdirTemp("", "agezt-envprobe-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	// t.TempDir is safe: callers Close the built plugins before cleanup, which
+	// reaps the child, so Windows no longer holds the binary locked.
+	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(envProbePlugin), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -142,6 +136,19 @@ func TestPlugins_ChildGetsScrubbedEnvPlusGrants(t *testing.T) {
 	}
 	if got := read("PATH"); got == "" {
 		t.Error("plugin child lost PATH — the scrubbed base must keep ordinary launch variables")
+	}
+
+	// The daemon closes plugin children at shutdown through Built.Close; they
+	// used to be left running.
+	if built.Close == nil {
+		t.Fatal("buildPlugins spawned a plugin but returned no Close")
+	}
+	if err := built.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	in, _ := json.Marshal(map[string]string{"name": "PATH"})
+	if res, err := tool.Invoke(context.Background(), in); err == nil && !res.IsError {
+		t.Fatal("plugin still answering after Close")
 	}
 }
 

@@ -9,6 +9,7 @@ package toolreg
 // Public API unchanged.
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -25,24 +26,51 @@ func BuildAll(d BuildDeps) (*Set, error) {
 		}
 		b, err := sp.Build(d)
 		if err != nil {
+			_ = s.Close()
 			return nil, fmt.Errorf("tool %s: %w", sp.Name, err)
 		}
 		if b.Tool == nil && len(b.Extra) == 0 && len(b.Infos) == 0 {
+			if b.Close != nil {
+				_ = b.Close()
+			}
 			continue // env-gated off
 		}
+		// Record the pair before registering names, so a collision below still
+		// closes what this spec started.
+		s.pairs = append(s.pairs, pair{spec: sp, built: b})
 		if b.Tool != nil {
 			if err := s.add(b.Tool.Definition().Name, b.Tool, sp, d); err != nil {
+				_ = s.Close()
 				return nil, err
 			}
 		}
 		for _, name := range sortedKeys(b.Extra) {
 			if err := s.add(name, b.Extra[name], sp, d); err != nil {
+				_ = s.Close()
 				return nil, err
 			}
 		}
-		s.pairs = append(s.pairs, pair{spec: sp, built: b})
 	}
 	return s, nil
+}
+
+// Close releases every built spec's resources (Built.Close), in reverse build
+// order, once. The daemon defers it after building the set: boot-spawned plugin
+// children used to be left running at shutdown — surviving only if they exited
+// on stdin EOF by themselves.
+func (s *Set) Close() error {
+	var errs []error
+	for i := len(s.pairs) - 1; i >= 0; i-- {
+		c := s.pairs[i].built.Close
+		if c == nil {
+			continue
+		}
+		s.pairs[i].built.Close = nil
+		if err := c(); err != nil {
+			errs = append(errs, fmt.Errorf("tool %s: close: %w", s.pairs[i].spec.Name, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (s *Set) add(name string, tl toolapi.Tool, sp Spec, d BuildDeps) error {
