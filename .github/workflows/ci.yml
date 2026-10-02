@@ -478,6 +478,13 @@ jobs:
         run: bash scripts/ci-go-retry.sh go run ./tools/sdkparity -check docs/SDK-PARITY.md
       - name: Verify no unexpected Go dead code
         run: bash scripts/ci-go-retry.sh go run ./tools/deadcodecheck
+      - name: Verify layer architecture (archcheck ratchet)
+        # architecture/20-target-architecture.md: every package is placed in a
+        # layer by tools/archcheck/layers.json. New upward / cross-module /
+        # adapter-bypass / plugin-reach edges fail; so do allowlisted edges that
+        # were fixed but left in tools/archcheck/allowlist.txt (the allowlist
+        # may only shrink), and packages no rule places.
+        run: bash scripts/ci-go-retry.sh go run ./tools/archcheck
       - name: Verify generated structure docs are up to date
         # This is the one project gate that had no CI step, and its absence is
         # not hypothetical: three stale files under .project/STRUCTURE.generated/

@@ -6,7 +6,7 @@
 # Requires: Go 1.26.4+ (see go.mod), Make, git (for version stamping)
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check doc-claims frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
+.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check arch-check doc-claims frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -139,6 +139,13 @@ deadcode-check:
 	@echo "Checking for unexpected dead code..."
 	go run ./tools/deadcodecheck
 
+# Layer architecture ratchet (architecture/20-target-architecture.md):
+# fails on any new forbidden import edge AND on allowlisted edges that were
+# fixed but not removed from tools/archcheck/allowlist.txt.
+arch-check:
+	@echo "Checking layer architecture..."
+	go run ./tools/archcheck
+
 frontend-build:
 	@echo "Building frontend..."
 	cd frontend && npm run build
@@ -169,7 +176,7 @@ doc-claims:
 	@echo "Checking the audit documents' numbers against the branch..."
 	go run ./tools/docclaimscheck -base origin/main
 
-check: gen fmt vet test deps-check sdk-parity deadcode-check structure-md-check doc-claims frontend-deadcode frontend-test
+check: gen fmt vet test deps-check sdk-parity deadcode-check arch-check structure-md-check doc-claims frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT (version=$(VERSION), commit=$(COMMIT))..."

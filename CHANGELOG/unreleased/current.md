@@ -178,6 +178,22 @@ This file holds the active `[Unreleased]` working set.
 
 ### Added
 
+- **Architecture codemap + target architecture (`architecture/`).** `00-README.md` … `12-*.md`
+  map every package and file of the current system (purpose, persistence, events, wiring,
+  gotchas) with a findings register; `20-target-architecture.md` defines the clean layering
+  (L0 foundation … L7 root, three pipelines: operation / run / tool) and
+  `21-migration-roadmap.md` the module-by-module strangler plan (waves W0–W5, owner
+  decisions recorded).
+- **`tools/archcheck` — layer-architecture ratchet (W0.1).** `tools/archcheck/layers.json`
+  places every package in a layer (and L3 packages in a module); four rules (upward,
+  cross-module, adapter-bypass, plugin-reach) are evaluated over `go list`. The 200
+  pre-existing violations (88 plugin-reach, 70 cross-module, 34 adapter-bypass, 8 upward —
+  including the only kernel→plugins edges, `kernel/controlplane` and `kernel/selfrepair` →
+  `plugins/tools/overseertool`) are recorded in `tools/archcheck/allowlist.txt`. The check
+  fails on a new forbidden edge, on an allowlisted edge that no longer occurs (fixed debt
+  must be deleted from the list), and on a package no rule places. Wired as `make
+  arch-check` and a CI step.
+
 - **Added: a gate that fails when the console's documented surface stops matching
   the shipped one.** `README.md` claimed 64 views across 36 rows and
   `docs/CONSOLE-IA.md` claimed 67, for a `nav.tsx` that ships 39 views across

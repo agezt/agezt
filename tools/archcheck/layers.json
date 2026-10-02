@@ -1,0 +1,120 @@
+{
+  "module_path": "github.com/agezt/agezt",
+  "rules": [
+    {"pattern": "kernel/contract/...", "layer": 1, "note": "target home of pure contracts (W1.1)"},
+    {"pattern": "kernel/platform/...", "layer": 2, "note": "target home of infrastructure (W1)"},
+    {"pattern": "kernel/modules/*/...", "layer": 3, "module": "@1", "note": "target home of bounded contexts (W3)"},
+    {"pattern": "kernel/app/...", "layer": 4, "note": "operation registry + pipelines (W2)"},
+    {"pattern": "kernel/adapters/...", "layer": 5, "note": "inbound transports (W2)"},
+
+    {"pattern": "internal/...", "layer": 0},
+
+    {"pattern": "kernel/event", "layer": 1},
+    {"pattern": "kernel/ulid", "layer": 1},
+    {"pattern": "kernel/channel", "layer": 1, "note": "Channel interface + UnifiedMessage + manifest registry"},
+    {"pattern": "kernel/tenantctx", "layer": 1},
+    {"pattern": "kernel/meshctx", "layer": 1},
+    {"pattern": "kernel/intervention", "layer": 1, "note": "live-change grammar types"},
+
+    {"pattern": "kernel/journal", "layer": 2, "note": "-> platform/eventlog"},
+    {"pattern": "kernel/bus", "layer": 2, "note": "-> platform/eventlog"},
+    {"pattern": "kernel/jsonstore", "layer": 2, "note": "-> platform/store"},
+    {"pattern": "kernel/governor", "layer": 2, "note": "-> platform/modelgw"},
+    {"pattern": "kernel/edict", "layer": 2, "note": "-> platform/policy"},
+    {"pattern": "kernel/approval", "layer": 2, "note": "-> platform/policy"},
+    {"pattern": "kernel/intent", "layer": 2, "note": "intent/regret guard -> platform/policy"},
+    {"pattern": "kernel/warden", "layer": 2, "note": "-> platform/sandbox"},
+    {"pattern": "kernel/envscrub", "layer": 2, "note": "-> platform/sandbox"},
+    {"pattern": "kernel/executionprofile", "layer": 2, "note": "-> platform/sandbox"},
+    {"pattern": "kernel/netguard", "layer": 2, "note": "-> platform/netout"},
+    {"pattern": "kernel/redact", "layer": 2},
+    {"pattern": "kernel/creds/...", "layer": 2, "note": "-> platform/secrets"},
+    {"pattern": "kernel/settings", "layer": 2, "note": "-> platform/config"},
+    {"pattern": "kernel/configcenter", "layer": 2, "note": "folded into platform/config + secrets (W1.8)"},
+    {"pattern": "kernel/tenant", "layer": 2, "note": "-> platform/tenancy"},
+    {"pattern": "kernel/state", "layer": 2, "note": "-> platform/store"},
+    {"pattern": "kernel/httpserver", "layer": 2, "note": "-> platform/httpx"},
+    {"pattern": "kernel/auth", "layer": 2, "note": "-> platform/httpx"},
+    {"pattern": "kernel/streamlimit", "layer": 2, "note": "-> platform/httpx"},
+    {"pattern": "kernel/stt", "layer": 2, "note": "speech-to-text client"},
+
+    {"pattern": "kernel/agent", "layer": 3, "module": "runs", "note": "contract half -> contract/llm+tool (W1.1); loop stays in runs"},
+    {"pattern": "kernel/runtime/...", "layer": 3, "module": "runs", "note": "dissolved into modules in W3"},
+    {"pattern": "kernel/resume", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/delegation", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/contextselect", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/convo", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/planner", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/scheduler", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/reflect", "layer": 3, "module": "runs"},
+    {"pattern": "kernel/toolreg", "layer": 3, "module": "runs", "note": "-> app/tools registry (W2.3)"},
+    {"pattern": "kernel/toolexec", "layer": 3, "module": "runs", "note": "-> app/tools.Invoke (W2.3)"},
+
+    {"pattern": "kernel/memory", "layer": 3, "module": "knowledge"},
+    {"pattern": "kernel/worldmodel", "layer": 3, "module": "knowledge"},
+    {"pattern": "kernel/taste", "layer": 3, "module": "knowledge"},
+
+    {"pattern": "kernel/skill", "layer": 3, "module": "skills"},
+    {"pattern": "kernel/market", "layer": 3, "module": "market"},
+
+    {"pattern": "kernel/workboard", "layer": 3, "module": "work"},
+    {"pattern": "kernel/okr", "layer": 3, "module": "work"},
+    {"pattern": "kernel/proof", "layer": 3, "module": "work"},
+    {"pattern": "kernel/assure", "layer": 3, "module": "work"},
+    {"pattern": "kernel/seat", "layer": 3, "module": "work"},
+
+    {"pattern": "kernel/workflow", "layer": 3, "module": "workflows"},
+    {"pattern": "kernel/workflowexec", "layer": 3, "module": "workflows"},
+
+    {"pattern": "kernel/cadence/...", "layer": 3, "module": "triggers"},
+    {"pattern": "kernel/standing", "layer": 3, "module": "triggers"},
+
+    {"pattern": "kernel/pulse", "layer": 3, "module": "pulse"},
+    {"pattern": "kernel/anomaly", "layer": 3, "module": "pulse"},
+    {"pattern": "kernel/alerter", "layer": 3, "module": "pulse"},
+
+    {"pattern": "kernel/channelwire", "layer": 3, "module": "channels"},
+
+    {"pattern": "kernel/roster", "layer": 3, "module": "agents"},
+    {"pattern": "kernel/selfrepair", "layer": 3, "module": "agents"},
+
+    {"pattern": "kernel/board", "layer": 3, "module": "board"},
+
+    {"pattern": "kernel/artifact", "layer": 3, "module": "artifacts"},
+    {"pattern": "kernel/datalake", "layer": 3, "module": "artifacts"},
+
+    {"pattern": "kernel/mcp", "layer": 3, "module": "extensions"},
+    {"pattern": "kernel/plugin", "layer": 3, "module": "extensions"},
+    {"pattern": "kernel/toolforge", "layer": 3, "module": "extensions"},
+    {"pattern": "kernel/toolbox", "layer": 3, "module": "extensions"},
+    {"pattern": "kernel/acpcatalog", "layer": 3, "module": "extensions"},
+
+    {"pattern": "kernel/catalog", "layer": 3, "module": "providers"},
+    {"pattern": "kernel/chatgptauth", "layer": 3, "module": "providers"},
+
+    {"pattern": "kernel/update", "layer": 3, "module": "system"},
+
+    {"pattern": "kernel/voicetool", "layer": 3, "module": "media"},
+    {"pattern": "kernel/imagetool", "layer": 3, "module": "media"},
+    {"pattern": "kernel/reranktool", "layer": 3, "module": "media"},
+
+    {"pattern": "kernel/controlplane", "layer": 5},
+    {"pattern": "kernel/webui", "layer": 5},
+    {"pattern": "kernel/restapi", "layer": 5},
+    {"pattern": "kernel/openaiapi", "layer": 5},
+    {"pattern": "kernel/agentgw", "layer": 5},
+    {"pattern": "kernel/acp", "layer": 5},
+    {"pattern": "kernel/webhook", "layer": 5, "note": "outbound dispatcher; event subscriber transport"},
+    {"pattern": "kernel/tunnel", "layer": 5},
+
+    {"pattern": "kernel/internal/testfixtures", "layer": 7, "note": "imported by tests only"},
+
+    {"pattern": "plugins/...", "layer": 6},
+
+    {"pattern": "cmd/...", "layer": 7},
+    {"pattern": "sdk/...", "layer": 7},
+    {"pattern": "tools/...", "layer": 7},
+    {"pattern": "examples/...", "layer": 7},
+    {"pattern": "contract/...", "layer": 7, "note": "legacy plugin-contract codegen; W0.5 trims dead halves"}
+  ]
+}
