@@ -24,14 +24,27 @@ type sessionStore struct {
 	mu sync.Mutex
 	m  map[string]time.Time
 
-	// Brute-force bound (shared across sessions — it's a per-daemon gate, not
-	// per-session). fails counts consecutive failures; lockedUntil holds the
-	// cooldown deadline.
-	fails       int
-	lockedUntil time.Time
+	// Brute-force bound. Per client (remote address): consecutive failures and
+	// that client's cooldown. It used to be one shared counter, so eight wrong
+	// guesses from anyone locked everyone out. Plus a global backstop for
+	// guesses spread over many addresses (globalFails within the window that
+	// started at globalSince).
+	clients           map[string]*loginFails
+	globalFails       int
+	globalSince       time.Time
+	globalLockedUntil time.Time
 }
 
-func newSessionStore() *sessionStore { return &sessionStore{m: map[string]time.Time{}} }
+// loginFails is one client's failure record.
+type loginFails struct {
+	n           int
+	lockedUntil time.Time
+	last        time.Time
+}
+
+func newSessionStore() *sessionStore {
+	return &sessionStore{m: map[string]time.Time{}, clients: map[string]*loginFails{}}
+}
 
 // create mints a fresh random session id and records its expiry.
 func (s *sessionStore) create() (string, error) {
@@ -76,29 +89,68 @@ func (s *sessionStore) revoke(id string) {
 	s.mu.Unlock()
 }
 
-// lockedOut reports whether login is currently in cooldown after too many bad
-// attempts.
-func (s *sessionStore) lockedOut() bool {
+// lockedOut reports whether login from client is in cooldown: that client
+// failed too often, or the global backstop tripped.
+func (s *sessionStore) lockedOut(client string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return time.Now().Before(s.lockedUntil)
-}
-
-// noteFail records a failed attempt, arming the lockout at the threshold.
-func (s *sessionStore) noteFail() {
-	s.mu.Lock()
-	s.fails++
-	if s.fails >= maxLoginFails {
-		s.lockedUntil = time.Now().Add(loginLockout)
-		s.fails = 0
+	now := time.Now()
+	if now.Before(s.globalLockedUntil) {
+		return true
 	}
-	s.mu.Unlock()
+	c, ok := s.clients[client]
+	return ok && now.Before(c.lockedUntil)
 }
 
-// noteSuccess clears the failure counter on a correct password.
-func (s *sessionStore) noteSuccess() {
+// noteFail records a failed attempt from client, arming that client's lockout
+// at maxLoginFails and the global one at maxGlobalLoginFails per window.
+func (s *sessionStore) noteFail(client string) {
 	s.mu.Lock()
-	s.fails = 0
-	s.lockedUntil = time.Time{}
+	defer s.mu.Unlock()
+	now := time.Now()
+
+	c, ok := s.clients[client]
+	if !ok {
+		if len(s.clients) >= maxTrackedLoginClients {
+			s.pruneClients(now)
+		}
+		c = &loginFails{}
+		s.clients[client] = c
+	}
+	c.n++
+	c.last = now
+	if c.n >= maxLoginFails {
+		c.lockedUntil = now.Add(loginLockout)
+		c.n = 0
+	}
+
+	if now.Sub(s.globalSince) > loginLockout {
+		s.globalSince, s.globalFails = now, 0
+	}
+	s.globalFails++
+	if s.globalFails >= maxGlobalLoginFails {
+		s.globalLockedUntil = now.Add(loginLockout)
+		s.globalSince, s.globalFails = now, 0
+	}
+}
+
+// pruneClients drops records that are neither locked nor recently active,
+// and, if that frees nothing, the whole map (the global backstop keeps
+// bounding guesses meanwhile). Caller holds s.mu.
+func (s *sessionStore) pruneClients(now time.Time) {
+	for k, c := range s.clients {
+		if now.After(c.lockedUntil) && now.Sub(c.last) > loginLockout {
+			delete(s.clients, k)
+		}
+	}
+	if len(s.clients) >= maxTrackedLoginClients {
+		s.clients = map[string]*loginFails{}
+	}
+}
+
+// noteSuccess clears client's failure record on a correct password.
+func (s *sessionStore) noteSuccess(client string) {
+	s.mu.Lock()
+	delete(s.clients, client)
 	s.mu.Unlock()
 }

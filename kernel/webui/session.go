@@ -37,11 +37,20 @@ const (
 	sessionCookie = "agezt_web_session"
 	sessionTTL    = 12 * time.Hour
 
-	// Online-guess lockout: after this many consecutive bad passwords, refuse
-	// further attempts for the cooldown. Reset on a correct password.
-	maxLoginFails  = 8
-	loginLockout   = 5 * time.Minute
-	loginBodyLimit = 4 * 1024
+	// Online-guess lockout, PER CLIENT: after this many consecutive bad
+	// passwords from one address, refuse that address for the cooldown. Reset
+	// on a correct password from it.
+	maxLoginFails = 8
+	// Global backstop against guesses spread over many addresses: this many
+	// failures from anyone within one cooldown window lock the route for
+	// everyone. Locking everyone out now takes this many addresses' worth of
+	// failures instead of eight from one.
+	maxGlobalLoginFails = 64
+	loginLockout        = 5 * time.Minute
+	loginBodyLimit      = 4 * 1024
+	// maxTrackedLoginClients bounds the per-client failure map; beyond it the
+	// oldest-idle records are dropped (the global backstop still counts).
+	maxTrackedLoginClients = 4096
 )
 
 // SetPasswordFn wires a LIVE password source (M933): evaluated on each gate
@@ -125,7 +134,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "password_required": false})
 		return
 	}
-	if s.sessions.lockedOut() {
+	client := streamClientKey(r)
+	if s.sessions.lockedOut(client) {
 		http.Error(w, "too many attempts — try again later", http.StatusTooManyRequests)
 		return
 	}
@@ -138,11 +148,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(body.Password), []byte(password)) != 1 {
-		s.sessions.noteFail()
+		s.sessions.noteFail(client)
 		http.Error(w, "invalid password", http.StatusUnauthorized)
 		return
 	}
-	s.sessions.noteSuccess()
+	s.sessions.noteSuccess(client)
 	id, err := s.sessions.create()
 	if err != nil {
 		http.Error(w, "session mint failed", http.StatusInternalServerError)
