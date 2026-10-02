@@ -1221,11 +1221,21 @@ reported until a real file confirmed it.
 ## 16. Finding K — the HTTP router's auth guard could not fire — **FIXED**
 
 The audit's original Verdict said the kernel was sound. That was measured this
-time, on the three defect classes most likely to show up in Go: swallowed
-failures, request-reachable panics, and leaked goroutines. **All three came back
-clean** — four candidate hits were read and discarded (a `ctx == nil` guard, two
-`bufio.Scanner` loops bounded by a child process, and a deliberate documented
-fail-fast in `ulid`).
+time, on the four defect classes most likely to show up in Go: swallowed
+failures, request-reachable panics, leaked goroutines, and data races. **All four
+came back clean** — four candidate hits were read and discarded (a `ctx == nil`
+guard, two `bufio.Scanner` loops bounded by a child process, and a deliberate
+documented fail-fast in `ulid`).
+
+The race measurement is worth its own note, because "no races" is also what a
+sweep that tested nothing would report. CI runs `-race` on two packages only, so
+this was genuinely unmeasured. Run in a `golang:1.26` container over
+`./kernel/...`: **85 packages passed, 0 failed, 0 `DATA RACE`**, 3 with no test
+files. The count is the evidence that the sweep ran.
+
+That result is a snapshot, not a protection: nothing keeps those 85 packages
+under the detector. Widening the race job is a real CI-time cost and is the
+owner's call, so it is recorded here rather than assumed.
 
 Then the authorization boundary was measured, and that produced a finding.
 
