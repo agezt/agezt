@@ -75,13 +75,13 @@ func (e *engine) Run(ctx context.Context, spec Spec) (*Result, error) {
 
 	execSpec := spec
 	if effective == ProfileContainer {
-		argv, err := buildContainerArgv(spec, e.container)
+		argv, cliEnv, err := buildContainerArgv(spec, e.container)
 		if err != nil {
 			return nil, fmt.Errorf("warden: container: %w", err)
 		}
 		execSpec.Argv = argv
 		execSpec.WorkDir = ""
-		execSpec.Env = []string{}
+		execSpec.Env = cliEnv
 	}
 
 	timeout := spec.Limits.Timeout

@@ -7,6 +7,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/envscrub"
 )
 
 const (
@@ -54,37 +56,62 @@ func (o ContainerOptions) active() bool {
 	return o.Enabled && strings.TrimSpace(o.Runtime) != "" && strings.TrimSpace(o.Image) != ""
 }
 
-func buildContainerArgv(spec Spec, opts ContainerOptions) ([]string, error) {
+// buildContainerArgv returns the runtime CLI's argv and the environment the CLI
+// process itself must run with.
+//
+// A secret-shaped variable (envscrub.IsSecretName) is passed as `-e NAME` and its
+// value placed in the CLI's own environment, from which docker/podman copy it
+// into the container. Passing `-e NAME=VALUE` put the value in argv, readable by
+// every local user in the process list and kept in runtime event logs. Other
+// variables stay inline, so the CLI runs with exactly the environment it always
+// had plus those values — never anything that could steer the CLI itself
+// (DOCKER_*/PODMAN_*/CONTAINER* names always go inline).
+func buildContainerArgv(spec Spec, opts ContainerOptions) (argv, cliEnv []string, err error) {
 	opts = normalizeContainerOptions(opts)
 	if !opts.active() {
-		return nil, fmt.Errorf("container backend is not enabled")
+		return nil, nil, fmt.Errorf("container backend is not enabled")
 	}
 	inner, err := containerInnerArgv(spec)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	argv := []string{opts.Runtime, "run", "--rm"}
+	argv = []string{opts.Runtime, "run", "--rm"}
+	cliEnv = []string{}
 	if opts.Network != "" {
 		argv = append(argv, "--network", opts.Network)
 	}
 	if spec.WorkDir != "" {
 		abs, err := filepath.Abs(spec.WorkDir)
 		if err != nil {
-			return nil, fmt.Errorf("resolve container workdir: %w", err)
+			return nil, nil, fmt.Errorf("resolve container workdir: %w", err)
 		}
 		argv = append(argv, "-v", abs+":"+containerWorkDir, "-w", containerWorkDir)
 	}
 	for _, env := range spec.Env {
-		if containerEnvOK(env) {
-			argv = append(argv, "-e", env)
+		if !containerEnvOK(env) {
+			continue
 		}
+		name, _, _ := strings.Cut(env, "=")
+		if envscrub.IsSecretName(name) && !steersRuntime(name) {
+			argv = append(argv, "-e", name)
+			cliEnv = append(cliEnv, env)
+			continue
+		}
+		argv = append(argv, "-e", env)
 	}
 	if spec.Limits.AddressSpaceBytes > 0 {
 		argv = append(argv, "--memory", fmt.Sprintf("%d", spec.Limits.AddressSpaceBytes))
 	}
 	argv = append(argv, opts.Image)
 	argv = append(argv, inner...)
-	return argv, nil
+	return argv, cliEnv, nil
+}
+
+// steersRuntime reports whether a variable would change what the runtime CLI
+// does if it were in the CLI's own environment.
+func steersRuntime(name string) bool {
+	up := strings.ToUpper(name)
+	return strings.HasPrefix(up, "DOCKER_") || strings.HasPrefix(up, "PODMAN_") || strings.HasPrefix(up, "CONTAINER")
 }
 
 func containerEnvOK(v string) bool {
