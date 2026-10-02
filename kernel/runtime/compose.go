@@ -375,6 +375,16 @@ func Open(cfg Config) (*Kernel, error) {
 	if apr != nil {
 		configCenter.SetApprovalRegistry(apr)
 	}
+	// Secret-rated values live in the vault, not the entry files. Migration of
+	// plaintext secrets left by older versions happens here. A vault failure
+	// degrades (the values stay in their 0600 files) instead of failing boot.
+	if cfg.ConfigVault != nil {
+		if n, err := configCenter.UseVault(cfg.ConfigVault); err != nil {
+			slog.Warn("config center: secrets not moved into the vault", "error", err, "moved", n)
+		} else if n > 0 {
+			slog.Info("config center: moved plaintext secrets into the vault", "count", n)
+		}
+	}
 	k.configCenter = configCenter
 
 	// Agent Gateway for subprocess communication (Agent SDK)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
@@ -199,6 +200,12 @@ type Config struct {
 	// the kernel constructs the default registry (M100); an explicitly
 	// supplied registry carries its own timeout.
 	ApprovalTimeout time.Duration
+
+	// ConfigVault, when set, holds the config center's secret-rated values
+	// (the daemon passes its encrypted vault). Nil keeps them in the 0600
+	// entry files. A tenant kernel must NOT inherit the primary's: its keys
+	// would share the primary vault's configcenter: namespace.
+	ConfigVault configcenter.SecretStore
 
 	// AutoApproveCapabilities is a daemon-wide operator grant for capabilities
 	// that should not block in live HITL mode. It is applied to every run and

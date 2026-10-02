@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // AuditLogger handles audit logging for config access events.
@@ -105,12 +107,13 @@ func (a *AuditLogger) writeToFile(entry *AuditEntry) {
 
 	filename := filepath.Join(a.dir, fmt.Sprintf("audit_%s.jsonl", time.Now().Format("2006-01-02")))
 
-	if err := os.MkdirAll(a.dir, 0o755); err != nil {
+	if err := filestore.EnsureDir(a.dir); err != nil {
 		slog.Warn("config center: audit dir create failed", "dir", a.dir, "error", err)
 		return
 	}
 
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	// 0600: entries carry value previews (and full public values).
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filestore.FilePerm)
 	if err != nil {
 		slog.Warn("config center: audit log open failed", "file", filename, "error", err)
 		return

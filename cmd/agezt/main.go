@@ -784,6 +784,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// plus a shared web research brief (via the always-registered web_search tool).
 	// Default on; AGEZT_COUNCIL_WEBSEARCH=off convenes the panel with the date only.
 	cfg.CouncilWebSearch = dcfg.Misc.CouncilWebSearch
+	cfg.ConfigVault = credStore // config-center secrets live in the vault
 
 	var openErr error
 	k, openErr = kernelruntime.Open(cfg)
@@ -1050,11 +1051,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 			}
 			tcfg := cfg // copy the primary config value
 			tcfg.BaseDir = tdir
-			tcfg.TenantID = id   // stamp tenant identity onto every run's ctx (M219)
-			tcfg.Provider = tgov // isolated spend ledger + per-tenant ceiling
-			tcfg.Warden = nil    // fresh per-tenant warden (isolated HALT)
-			tcfg.Edict = nil     // fresh per-tenant policy engine
-			tcfg.OnReload = nil  // no per-tenant reload wiring yet
+			tcfg.TenantID = id     // stamp tenant identity onto every run's ctx (M219)
+			tcfg.Provider = tgov   // isolated spend ledger + per-tenant ceiling
+			tcfg.Warden = nil      // fresh per-tenant warden (isolated HALT)
+			tcfg.Edict = nil       // fresh per-tenant policy engine
+			tcfg.OnReload = nil    // no per-tenant reload wiring yet
+			tcfg.ConfigVault = nil // never the primary's vault: keys would share its namespace
 			tk, oerr := kernelruntime.Open(tcfg)
 			if oerr != nil {
 				return nil, oerr

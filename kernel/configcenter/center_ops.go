@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 )
 
 // Get retrieves a config value with access control.
@@ -62,15 +61,16 @@ func (c *Center) Delete(key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	entry, _ := c.store.Get(key)
 	// Remove from store
 	if err := c.store.Delete(key); err != nil {
 		return err
 	}
-
-	// Remove from disk
-	entryFile := c.entryFile(key)
-	os.Remove(entryFile)
-
+	// Remove from disk, and from the vault if it lived there.
+	if entry == nil {
+		entry = &ConfigEntry{Key: key}
+	}
+	c.removeEntry(entry)
 	return nil
 }
 

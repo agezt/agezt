@@ -23,6 +23,9 @@ type Center struct {
 	classifier *SecretClassifier
 	policy     *AccessPolicy
 	auditLog   *AuditLogger
+	// vault holds secret-rated values (UseVault); nil keeps them in the
+	// (0600) entry files, as for a tenant kernel or a test.
+	vault SecretStore
 
 	mu sync.RWMutex
 }
