@@ -4,6 +4,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: running an agent directly ignored its tool restrictions.** `agt run --agent X`
+  and the console's run-as-agent applied only part of X's profile: the model was still offered
+  tools the profile's `tool_deny` forbids (or that its `tool_allow` omits), and the run had no
+  trust ceiling. Its standing instructions, lifecycle, retry and noise policy and config
+  overrides were dropped too. Standing orders, schedules, the workboard, wakes and delegation
+  always applied the whole profile; a direct run now does as well, and `--dry-run` lists the
+  tools the agent can actually use.
 - **Security: config-center secrets were stored in plaintext.** Every value agents can read
   through the config center, secret-rated ones included, was written to
   `configcenter/entry_*.json` in plaintext. The files were 0644 in a 0755 directory,
