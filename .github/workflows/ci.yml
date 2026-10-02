@@ -197,13 +197,12 @@ jobs:
             -in  .project/agezt-contract.jsonc \
             -out contract/gen/types.gen.go \
             -pkg gen
-      - name: Verify no drift
-        run: |
-          if ! git diff --exit-code -- contract/gen/; then
-            echo "::error::contract/gen/ is out of sync with the contract."
-            echo "Run \`make gen\` and commit the result."
-            exit 1
-          fi
+      - name: Verify the generated types compile
+        # contract/gen/*.gen.go is gitignored (generated at build time), so the
+        # `git diff --exit-code` this step used to run compared an untracked
+        # file and could never fail. What can actually break is the contract or
+        # the generator producing Go that does not build.
+        run: bash scripts/ci-go-retry.sh go build ./contract/gen/
 
   frontend-dist-in-sync:
     name: frontend-dist-in-sync
