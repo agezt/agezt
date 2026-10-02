@@ -270,6 +270,9 @@ const (
 	KindBriefingSent  Kind = "briefing.sent"
 	KindPulsePaused   Kind = "pulse.paused"
 	KindPulseResumed  Kind = "pulse.resumed"
+	// KindJournalRecovered is the first event of a chain resumed after Open
+	// quarantined a corrupt suffix: break seq, reason, quarantined files.
+	KindJournalRecovered Kind = "journal.recovered"
 	// KindPulseDropped is the synthetic, never-journaled notice the pulse
 	// stream sends a subscriber that fell behind and lost events.
 	KindPulseDropped Kind = "agezt.pulse.dropped"

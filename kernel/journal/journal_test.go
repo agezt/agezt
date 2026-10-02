@@ -420,11 +420,15 @@ func TestVerify_ClearChain(t *testing.T) {
 	}
 }
 
-func TestVerify_DetectsTamper(t *testing.T) {
+// TestOpen_QuarantinesTamperedSuffix: a record in the middle of the chain that
+// no longer verifies used to abort Open — and daemon boot. Owner decision 5.6:
+// the tamper is still DETECTED, but Open quarantines everything from the bad
+// record on (bytes kept, never deleted), resumes from the last verified event,
+// and records the gap as the first event of the resumed chain.
+func TestOpen_QuarantinesTamperedSuffix(t *testing.T) {
 	j := newTestJournal(t, 0)
 	for range 3 {
-		_, err := j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"})
-		if err != nil {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -432,28 +436,107 @@ func TestVerify_DetectsTamper(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Tamper with the middle event in the segment.
+	// Tamper with the MIDDLE event (seq 1).
 	path := filepath.Join(j.dir, fmt.Sprintf("%0*d%s", segmentDigits, 1, segmentExt))
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tampered := strings.Replace(string(data), `"actor":"kernel"`, `"actor":"attacker"`, 1)
-	if tampered == string(data) {
+	lines := strings.SplitAfter(string(data), "\n")
+	tamperedLine := strings.Replace(lines[1], `"actor":"kernel"`, `"actor":"attacker"`, 1)
+	if tamperedLine == lines[1] {
 		t.Fatal("test setup failure: no actor field to tamper")
 	}
-	if err := os.WriteFile(path, []byte(tampered), 0o644); err != nil {
+	lines[1] = tamperedLine
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Reopen and verify — must detect.
 	reopened, err := Open(j.dir, Options{})
-	if err == nil {
-		reopened.Close()
-		t.Fatal("Open should detect tamper at recovery time, got nil error")
+	if err != nil {
+		t.Fatalf("Open must quarantine and continue, got %v", err)
 	}
-	if !errors.Is(err, ErrChainBreak) {
-		t.Errorf("got err=%v, want ErrChainBreak wrapped", err)
+	defer reopened.Close()
+	rec := reopened.Recovery()
+	if rec == nil || rec.BreakSeq != 1 || !strings.Contains(rec.Reason, ErrChainBreak.Error()) {
+		t.Fatalf("Recovery = %+v, want break at seq 1 naming the chain break", rec)
+	}
+	if len(rec.Quarantined) != 1 {
+		t.Fatalf("quarantined = %v, want the tail of segment 1", rec.Quarantined)
+	}
+	q, err := os.ReadFile(filepath.Join(j.dir, rec.Quarantined[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(q), `"actor":"attacker"`) || rec.Bytes != int64(len(q)) {
+		t.Fatalf("quarantine file lost the evidence or miscounted it (%d bytes vs %d)", rec.Bytes, len(q))
+	}
+
+	// The live chain: seq 0 (verified) then the recovery record at seq 1.
+	var kinds []event.Kind
+	if err := reopened.Range(func(e *event.Event) error { kinds = append(kinds, e.Kind); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(kinds) != 2 || kinds[0] != event.KindHalt || kinds[1] != event.KindJournalRecovered {
+		t.Fatalf("live chain kinds = %v, want [halt journal.recovered]", kinds)
+	}
+	if err := reopened.Verify(); err != nil {
+		t.Fatalf("resumed chain does not verify: %v", err)
+	}
+}
+
+// TestOpen_QuarantinesLaterSegmentsAndReopensClean: a break in an early
+// segment moves every later segment aside too, and the next Open is clean.
+func TestOpen_QuarantinesLaterSegmentsAndReopensClean(t *testing.T) {
+	j := newTestJournal(t, 300) // tiny segments: several rotations
+	for range 12 {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := j.Close(); err != nil {
+		t.Fatal(err)
+	}
+	segs, err := listSegments(j.dir)
+	if err != nil || len(segs) < 3 {
+		t.Fatalf("setup: want >=3 segments, got %d (%v)", len(segs), err)
+	}
+	// Garbage instead of a record at the start of segment 2.
+	data, _ := os.ReadFile(segs[1].path)
+	if err := os.WriteFile(segs[1].path, append([]byte("{not json}\n"), data...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(j.dir, Options{SegmentBytes: 300})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	rec := reopened.Recovery()
+	if rec == nil || len(rec.Quarantined) != len(segs)-1 {
+		t.Fatalf("Recovery = %+v, want segment 2's content and every later segment quarantined (%d files)", rec, len(segs)-1)
+	}
+	for _, name := range rec.Quarantined {
+		if !strings.Contains(name, QuarantineMarker) {
+			t.Fatalf("quarantine name %q lacks the marker", name)
+		}
+	}
+	if _, err := reopened.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	again, err := Open(j.dir, Options{SegmentBytes: 300})
+	if err != nil {
+		t.Fatalf("reopen after recovery: %v", err)
+	}
+	defer again.Close()
+	if again.Recovery() != nil {
+		t.Fatalf("a recovered journal must reopen clean, got %+v", again.Recovery())
+	}
+	if err := again.Verify(); err != nil {
+		t.Fatalf("Verify after recovery: %v", err)
 	}
 }
 
@@ -777,5 +860,34 @@ func TestOpen_TightensPermissions(t *testing.T) {
 		if got := fi.Mode().Perm(); got != journalSegmentPerm {
 			t.Errorf("segment %s created with mode %#o, want %#o", s.path, got, journalSegmentPerm)
 		}
+	}
+}
+
+// TestOpen_FailOnCorruptionLeavesTheJournalAlone: offline tools (agt backup,
+// import, restore) must not move a journal's bytes aside — they still get the
+// error, and nothing on disk changes.
+func TestOpen_FailOnCorruptionLeavesTheJournalAlone(t *testing.T) {
+	j := newTestJournal(t, 0)
+	for range 2 {
+		if _, err := j.Append(event.Spec{Subject: "x", Kind: event.KindHalt, Actor: "kernel"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := j.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(j.dir, fmt.Sprintf("%0*d%s", segmentDigits, 1, segmentExt))
+	data, _ := os.ReadFile(path)
+	bad := strings.Replace(string(data), `"actor":"kernel"`, `"actor":"x"`, 1)
+	if err := os.WriteFile(path, []byte(bad), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(j.dir, Options{FailOnCorruption: true}); !errors.Is(err, ErrChainBreak) {
+		t.Fatalf("err = %v, want ErrChainBreak", err)
+	}
+	after, _ := os.ReadFile(path)
+	entries, _ := os.ReadDir(j.dir)
+	if string(after) != bad || len(entries) != 1 {
+		t.Fatalf("FailOnCorruption still modified the journal (%d entries)", len(entries))
 	}
 }

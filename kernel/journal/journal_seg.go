@@ -39,37 +39,38 @@ func (j *Journal) openCurrent(appendMode bool) error {
 	return nil
 }
 
-// scanSegment scans a segment for recovery: updates nextSeq and head, fails
-// on chain break.
-func (j *Journal) scanSegment(s segment) error {
+// scanSegment scans a segment for recovery: updates nextSeq and head. It
+// returns the byte offset just past the last line that verified. A line that
+// does not decode or does not continue the chain is returned as a
+// *CorruptionError (the caller decides whether to quarantine); a read failure
+// is returned as-is.
+func (j *Journal) scanSegment(s segment) (good int64, err error) {
 	f, err := os.Open(s.path)
 	if err != nil {
-		return fmt.Errorf("journal: open %s: %w", s.path, err)
+		return 0, fmt.Errorf("journal: open %s: %w", s.path, err)
 	}
 	defer f.Close()
 
 	err = rangeCompleteLines(s.path, f, func(line []byte) error {
 		ev, err := event.Decode(line)
 		if err != nil {
-			return fmt.Errorf("journal: decode in %s: %w", s.path, err)
+			return &CorruptionError{Path: s.path, Seq: j.nextSeq, Err: fmt.Errorf("decode: %w", err)}
 		}
 		if ev.Seq != j.nextSeq {
-			return fmt.Errorf("%w: %s: expected seq %d, got %d", ErrChainBreak, s.path, j.nextSeq, ev.Seq)
+			return &CorruptionError{Path: s.path, Seq: j.nextSeq, Err: fmt.Errorf("%w: expected seq %d, got %d", ErrChainBreak, j.nextSeq, ev.Seq)}
 		}
 		if ev.PrevHash != j.head {
-			return fmt.Errorf("%w: %s: seq %d prev %s != head %s", ErrChainBreak, s.path, ev.Seq, ev.PrevHash, j.head)
+			return &CorruptionError{Path: s.path, Seq: j.nextSeq, Err: fmt.Errorf("%w: seq %d prev %s != head %s", ErrChainBreak, ev.Seq, ev.PrevHash, j.head)}
 		}
 		if err := ev.VerifyHash(); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrChainBreak, s.path, err)
+			return &CorruptionError{Path: s.path, Seq: j.nextSeq, Err: fmt.Errorf("%w: %w", ErrChainBreak, err)}
 		}
 		j.head = ev.Hash
 		j.nextSeq++
+		good += int64(len(line)) + 1
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
+	return good, err
 }
 
 func (j *Journal) segmentPath(idx int) string {

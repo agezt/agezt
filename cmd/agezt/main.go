@@ -792,6 +792,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer k.Close()
+	if rec := k.Journal().Recovery(); rec != nil {
+		// Owner decision 5.6: a corrupt record mid-journal no longer stops the
+		// daemon, but it must never pass unnoticed.
+		fmt.Fprintf(stderr, "WARNING: journal: corrupt record at seq %d — everything from there was quarantined (%d bytes kept in %s) and the chain resumed; a journal.recovered event records it. Inspect the quarantined files before deleting them. Cause: %s\n",
+			rec.BreakSeq, rec.Bytes, strings.Join(rec.Quarantined, ", "), rec.Reason)
+	}
 
 	// Post-Open dependency injection (config's kernel, the artifact index for
 	// fetch/browser.action/artifacts/code_exec, the db data lake, the

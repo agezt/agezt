@@ -114,7 +114,7 @@ func cmdJournalImport(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// Confirm the restored journal boots cleanly (same scan the daemon runs).
-	jj, oerr := journal.Open(journalDir, journal.Options{})
+	jj, oerr := journal.Open(journalDir, journal.Options{FailOnCorruption: true})
 	if oerr != nil {
 		fmt.Fprintf(stderr, "%s journal import: restored but journal does not open: %v\n", brand.CLI, oerr)
 		return 1

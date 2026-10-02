@@ -35,6 +35,10 @@ type Options struct {
 	Now func() time.Time
 	// IDGen mints event IDs. nil → ulid.New.
 	IDGen func() string
+	// FailOnCorruption makes Open return a corrupt mid-chain record as an
+	// error instead of quarantining it. Offline tools (agt backup/import/
+	// restore) set it: only the daemon may move a journal's bytes aside.
+	FailOnCorruption bool
 }
 
 // Journal owns the on-disk event log under a single directory.
@@ -50,6 +54,9 @@ type Journal struct {
 	curFile  *os.File
 	curBytes int64
 	curIndex int // current segment number (1-based)
+
+	// recovery is set when Open quarantined a corrupt suffix (see Recovery).
+	recovery *Recovery
 }
 
 // Permissions for the journal directory and its segments (EXPOSE-001,
