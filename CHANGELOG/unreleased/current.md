@@ -4,6 +4,20 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: out-of-process plugins received the daemon's entire environment** — every
+  provider API key, the vault passphrase, channel tokens — because the plugin host was given
+  `Config.Env = nil` ("inherit everything"); `docs/PLUGIN-SECURITY.md` claimed a minimal env
+  was passed. Plugins now start with the scrubbed base (`kernel/envscrub`) plus exactly the
+  variables `AGEZT_PLUGIN_ENV=prefix=VAR+VAR` grants them (malformed = refuse boot; checked
+  by `agt doctor`). **Behaviour change:** a plugin that read a daemon variable implicitly
+  needs a grant.
+- **Security: eight wrong console passwords from anyone locked everyone out for five
+  minutes.** The lockout counter was one daemon-wide number. It is now per client address,
+  with a global backstop of 64 failures per window against guesses spread over many
+  addresses.
+- **Security: a per-tenant REST token read the primary kernel's data.** `/metrics` (daemon-wide
+  spend and activity) now requires the admin token; `/api/v1/health` and `/api/v1/models`
+  answer from the tenant's own engine.
 - **Security: the branch protection required a status check that has never existed.**
 - **Security: there are two rulesets on `main` and they disagree about what this workflow is
   called — `main protection` (22200577) requires the status check `ci.yml`, `main ruleset`
@@ -884,6 +898,29 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Fixed: a failed auto-update left the daemon halted.** The checker drained and halted the
+  kernel before calling `Apply`, so a download error, checksum mismatch or refused signature
+  (the normal case while no release key is configured) left it running but unable to run
+  anything. The drain now happens inside `Apply`, after verification, and the kernel is
+  resumed on every failure after the halt.
+- **Fixed: provider dial failures (connection refused/reset, DNS) were never retried by the
+  wire layer** — `retry.IsTransient` ignored the `TransientError` wrapper every adapter puts
+  on a failed `client.Do`. The governor no longer retries a refused dial on top of that, which
+  would have multiplied attempts before a dead endpoint fell back.
+- **Fixed: `tool_search` was default-denied** (no declared capability, no name-switch case),
+  so tool discovery died exactly when `AGEZT_TOOL_DISCOVERY_MAX` enabled it; it now declares
+  `introspect`. The capability guards now build the tool registry with every opt-in tool
+  enabled, which surfaced `browser.action` and its ten verb tools declaring no capability.
+- **Fixed: the anomaly breaker latched after one trip,** leaving the daemon with no runaway
+  protection once the operator resumed it; it now re-arms on resume. The anomaly and alerter
+  watchers no longer die silently on a panic.
+- **Fixed: a channel that failed to start was still reported live,** and a panic in the IRC,
+  email or Mastodon loop crashed the daemon. Channels now run under a guard that marks a
+  failed instance dead and journals `channel.error`; those three also guard each message.
+- **Fixed: the email recipient allowlist was case-sensitive** (`Alice@Example.com` refused
+  `alice@example.com`).
+- **Fixed: `AGEZT_BROWSER_COOKIES=1` did nothing** — a refactor had replaced its wiring with a
+  comment pointing at a different tool.
 - **Fixed: `docclaimscheck` turned CI red on `main` and on every PR once the audit it guards
   merged.** The `.project/` deliverables state numbers about the branch that wrote them
   ("79 doc.go files"); after #594 merged, every other branch — and the push to `main`
@@ -2094,6 +2131,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: dead architecture (W0.5).** `kernel/runtime/compose` and `kernel/workflowexec`
+  (unimported half-extractions), the unwired duplicate delegate tools in `kernel/delegation`,
+  the second definitions of `ErrHalted`/`ErrNoVisionModel` (same text, different identity —
+  now one value re-exported), `update.Service.DrainTimeout`, and the never-implemented
+  channel/provider/memory/storage/tunnel plugin kinds in `.project/agezt-contract.jsonc` (the
+  out-of-process plugin surface is tools-only). `codegen-in-sync` compared a gitignored file
+  and could never fail; it now builds the generated package.
 - **Removed: `internal/apperrors`.** All four of its functions were `fmt.Errorf("%s: %w", …)` with a
   nil guard, `Wrap` and `Wrapf` took a `context.Context` they discarded, and the `Code` type it
   exported along with eight error-code constants had zero references anywhere in the tree. At 43

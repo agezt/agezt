@@ -430,23 +430,23 @@ backlog. Details and file references are in the linked documents.
 ### 9.1 Security / correctness (highest signal)
 | Finding | Area |
 |---|---|
-| Inbound **email trusts the `From:` header** (no DKIM/SPF); allowlists are case-sensitive. IRC/Twitch allowlist whole `#channel`s (any viewer can trigger billable runs). | [09](09-channels.md) |
-| Channel `Start` errors are ignored (`go ch.Start(ctx)`): a dead channel is still reported live. IRC/email/Mastodon loops lack `channel.Guard`, so a handler panic crashes the daemon. | [09](09-channels.md) |
+| Inbound **email trusts the `From:` header** (no DKIM/SPF, W4.4); ✅ case-sensitive allowlist fixed (W0.3). IRC/Twitch allowlist whole `#channel`s (any viewer can trigger billable runs). | [09](09-channels.md) |
+| ✅ **Fixed (W0.3):** Channel `Start` errors were ignored (`go ch.Start(ctx)`): a dead channel was still reported live. IRC/email/Mastodon loops lacked `channel.Guard`, so a handler panic crashed the daemon. | [09](09-channels.md) |
 | REST/OpenAI/agentgw runs **bypass control-plane run checks** (vision gate, tool allowlist, execution profiles, agent resolution). | [03](03-control-plane-and-http.md) |
-| Web UI `/events` streams the **whole main-kernel bus, unfiltered by tenant**. REST `/metrics`, `/api/v1/health` and `/api/v1/models` ignore the tenant header. | [03](03-control-plane-and-http.md) |
+| ✅ **Fixed (W0.3):** REST `/metrics`, `/api/v1/health` and `/api/v1/models` answered tenant tokens from the primary kernel. **Correction:** the Web UI `/events` stream being unfiltered is not a leak — the console admits only operator credentials. | [03](03-control-plane-and-http.md) |
 | Web UI File Manager and rollback restore write the filesystem with **no op, no policy check, no journal event**. | [03](03-control-plane-and-http.md) |
-| Login lockout counter is global: 8 bad passwords from anyone lock everyone out for 5 minutes. | [03](03-control-plane-and-http.md) |
+| ✅ **Fixed (W0.3):** Login lockout counter was global: 8 bad passwords from anyone locked everyone out for 5 minutes. Now per client + global backstop. | [03](03-control-plane-and-http.md) |
 | `configcenter` stores raw values in plaintext `entry_*.json` (0644, non-atomic). `Get` holds a read lock up to 5 minutes awaiting approval. | [05](05-governance-routing-security.md) |
 | Warden Docker backend passes env secrets as `-e NAME=VALUE` argv. Warden isolation is nominal on Windows/macOS. | [05](05-governance-routing-security.md) |
 | Vault load-modify-save has no file lock: daemon and `agt` can lose each other's updates. | [05](05-governance-routing-security.md) |
 | Seat `"container"` never maps to the container execution profile (dispatch only knows `"docker"`). | [05](05-governance-routing-security.md) |
 | `coding` tool runs `git` with the full daemon env (repo hooks see secrets). `coding`/`acp_agent`/browser bypass warden. Browser has a DNS-rebinding window. `fetch` has no host allowlist. `shell` `timeout_ms` is uncapped. | [10](10-tools.md) |
-| Out-of-process plugins inherit the **full daemon environment** (no envscrub/warden; MCP/ACP children *are* scrubbed). Plugins are never `Close()`d at shutdown. | [07](07-autonomy-and-extensibility.md) |
-| **Self-update cannot apply today**: `DefaultPublicKeyHex` is empty, the GitHub check never fills a SHA-256, apply paths drop the signature. The background checker halts the kernel *before* verifying and never resumes it on failure. | [07](07-autonomy-and-extensibility.md) |
+| ✅ **Fixed (W0.3):** Out-of-process plugins inherited the **full daemon environment**; now scrubbed base + `AGEZT_PLUGIN_ENV` grants. **Open:** plugins are never `Close()`d at shutdown (W1.5). | [07](07-autonomy-and-extensibility.md) |
+| **Self-update cannot apply today**: `DefaultPublicKeyHex` is empty, the GitHub check never fills a SHA-256, apply paths drop the signature (W4.5). ✅ **Fixed (W0.4):** the checker halted the kernel *before* verifying and never resumed it on failure. | [07](07-autonomy-and-extensibility.md) |
 | Market install verifies signatures with **no pinned key** (`VerifyPack(p, "")`); authenticity only comes from the source pin at sync time. Partial install failures are not rolled back. | [07](07-autonomy-and-extensibility.md) |
 | Side paths skip governance/audit: workflow tool nodes journal no policy/tool events; Council grounding calls `web_search` without a policy check; Conductor verifier executes model code without a `code.exec` decision; `toolexec` emits no `tool.result` on deny. | [04](04-agent-runtime.md) |
-| `tool_search` and `browser.action` (+10 verbs) declare no capability; `tool_search` resolves to an unknown capability ⇒ default-denied. | [04](04-agent-runtime.md), [10](10-tools.md) |
-| Provider retry never matches the adapters' `TransientError` wrapper, so connection-refused/reset/DNS errors are **not retried**. | [08](08-providers.md) |
+| ✅ **Fixed (W0.4):** `tool_search` and `browser.action` (+10 verbs) declared no capability; `tool_search` was default-denied. Guards now build opt-in tools. | [04](04-agent-runtime.md), [10](10-tools.md) |
+| ✅ **Fixed (W0.4):** Provider retry never matched the adapters' `TransientError` wrapper, so connection-refused/reset/DNS errors were **not retried**. | [08](08-providers.md) |
 | Anthropic thinking blocks are not replayed across tool turns. Bedrock-Anthropic discards thinking (billed, not shown). Vertex `claude-*` ignores JSON mode. Bedrock non-Anthropic streaming fails. Inconsistent SSRF clients across adapters. | [08](08-providers.md) |
 | Agent SDK default socket `@agezt/agentgw.sock` ≠ the daemon's random `agentgw-<hex>.sock` (never published). Python `AgentClient` ignores HTTP status. Python `agent.py` star-import raises. The 30 s SDK timeout cuts long blocking runs. | [12](12-sdks-and-contract.md) |
 
@@ -455,7 +455,7 @@ backlog. Details and file references are in the linked documents.
 |---|---|
 | One corrupt mid-journal line aborts `runtime.Open`; only a torn final line self-repairs. No journal index: `agt why` = 3 full scans. | [06](06-data-memory-state.md) |
 | Operator-profile facet text changes create a second active record (the old one is never superseded); both are injected into every run. | [06](06-data-memory-state.md) |
-| Anomaly breaker disarms after one trip and is not re-armed after resume. Anomaly/alerter watchers die silently on panic. | [06](06-data-memory-state.md) |
+| ✅ **Fixed (W0.4):** Anomaly breaker disarmed after one trip and was not re-armed after resume. Anomaly/alerter watchers died silently on panic. | [06](06-data-memory-state.md) |
 | Artifact GC can delete blobs still referenced by journal `raw_ref`. JSON stores are written 0644 (journal/datalake/artifacts are 0600). Failed distillation is journaled as `memory.written`. | [06](06-data-memory-state.md) |
 | Named agents with soul/model overrides are marked non-resumable ⇒ quarantined at boot instead of resumed. | [04](04-agent-runtime.md) |
 | `epistemicGate` scans the whole journal on every gated tool call, even when escalation is off. | [04](04-agent-runtime.md) |
@@ -467,12 +467,12 @@ backlog. Details and file references are in the linked documents.
 | Finding | Area |
 |---|---|
 | Kernel→plugins edge: `kernel/controlplane`, `kernel/selfrepair` → `plugins/tools/overseertool`. Module→adapter edge: `kernel/runtime` (+`accessors`, `runexec`) → `kernel/agentgw`. All 200 forbidden edges are now tracked by `tools/archcheck` (ratchet). | §4.1, [20](20-target-architecture.md) |
-| `kernel/workflowexec` and `kernel/runtime/compose` have no importers; `acpcatalog.ResolveLaunch` and plugin host callbacks/`Reload` have no production caller. `runtime/accessors` is constructed but unused. `delegation` tool types duplicate runtime's. `ErrHalted`/`ErrNoVisionModel` are each defined twice. | [04](04-agent-runtime.md) |
-| `contract/gen` CI drift check can never fail (gitignored output + `git diff`). `sdkparity` only checks report freshness. Fixtures are self-validating only. | [12](12-sdks-and-contract.md) |
+| ✅ **Removed (W0.5):** `kernel/workflowexec` and `kernel/runtime/compose` had no importers. Open: `acpcatalog.ResolveLaunch` and plugin host callbacks/`Reload` have no production caller. `runtime/accessors` is constructed but unused. `delegation` tool types duplicate runtime's. `ErrHalted`/`ErrNoVisionModel` are each defined twice. | [04](04-agent-runtime.md) |
+| ✅ **Fixed (W0.5):** `contract/gen` CI drift check could never fail (gitignored output + `git diff`); it now builds the package. Open: `sdkparity` only checks report freshness. Fixtures are self-validating only. | [12](12-sdks-and-contract.md) |
 | `designsystem.test.ts` scans only `components/`, not `features/`. 9 frontend modules are used only by their tests. Monaco loads from a CDN the CSP blocks. Fake file tree on 404. Observe badge never clears. | [11](11-frontend-console.md) |
 | 8 of 164 event kinds are never emitted. About 7 ad-hoc `event.Kind("…")` strings live outside `kinds.go`. Market journals un-constanted kinds. | [06](06-data-memory-state.md), [07](07-autonomy-and-extensibility.md) |
 | Stale package docs: `governor` (`PreferredProvider`), `creds` ("unencrypted"), Edict "ask-first" comments, several provider docs ("unsupported"), `journal` (sidecar index), email ("outbound-only"), `restapi` (doc lost). | [05](05-governance-routing-security.md), [06](06-data-memory-state.md), [08](08-providers.md), [09](09-channels.md) |
-| `AGEZT_BROWSER_COOKIES` is listed but never read. ~15 channel `RequiredEnv` values disagree with factory gates. qq/wechat/zalo have no Config Center section. Boot banner says 6 guardians, 7 ship. | [09](09-channels.md), [10](10-tools.md) |
+| ✅ **Fixed (W0.5):** `AGEZT_BROWSER_COOKIES` was never read — a lost feature, rewired. Open: ~15 channel `RequiredEnv` values disagree with factory gates. qq/wechat/zalo have no Config Center section. Boot banner says 6 guardians, 7 ship. | [09](09-channels.md), [10](10-tools.md) |
 | CI aggregator `success*` match may not evaluate `needs.*.result`. `gofmt` roots differ between CI and `make fmt`. `scripts/webui-e2e.sh` still sets `AGEZT_MODEL=mock`. | [01](01-daemon-boot-cmd-agezt.md), [11](11-frontend-console.md) |
 
 ---
