@@ -884,6 +884,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Fixed: `docclaimscheck` turned CI red on `main` and on every PR once the audit it guards
+  merged.** The `.project/` deliverables state numbers about the branch that wrote them
+  ("79 doc.go files"); after #594 merged, every other branch — and the push to `main`
+  itself, where the range is empty — was measured against them, so `deps-check` failed on
+  every run. A claim is now checked only on a branch that adds or edits the document making
+  it; a failing `git diff` falls through to the full check (fail closed).
 - **Fixed: three nav entries that opened a page the operator could already reach one click
   away.** `Observe › Runs` carried three tabs — Runs, Activity, Replay — and all three rendered
   the `Runs` component; `Admin › Identity` rendered the `Skills` component, which the `Skills`
