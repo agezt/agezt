@@ -8,10 +8,11 @@ package toolbox
 
 import (
 	"context"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // Outdated runs each present manager's "what can upgrade" query and returns the
@@ -52,7 +53,8 @@ func Outdated(ctx context.Context) map[string]bool {
 	var blob strings.Builder
 	for _, argv := range queries {
 		cctx, cancel := context.WithTimeout(ctx, 25*time.Second)
-		cmd := exec.CommandContext(cctx, argv[0], argv[1:]...)
+		cmd := sandbox.CommandContext(cctx, argv[0], argv[1:]...)
+		cmd.Env = sandbox.HelperEnv()
 		out, _ := cmd.CombinedOutput() // exit code is unreliable across managers
 		blob.Write(out)
 		blob.WriteByte('\n')

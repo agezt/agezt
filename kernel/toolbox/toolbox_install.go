@@ -6,10 +6,11 @@ package toolbox
 
 import (
 	"context"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // InstallResult is one tool's install outcome (streamed per-tool by the caller).
@@ -48,7 +49,10 @@ func Install(ctx context.Context, name string) InstallResult {
 	}
 	cctx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, r.Install[0], r.Install[1:]...)
+	cmd := sandbox.CommandContext(cctx, r.Install[0], r.Install[1:]...)
+	// Package managers run arbitrary install scripts: they get the operator's
+	// toolchain configuration, never the daemon's API keys.
+	cmd.Env = sandbox.HelperEnv()
 	out, err := cmd.CombinedOutput()
 	res.OutputTail = tail(string(out), 1200)
 	if err != nil {

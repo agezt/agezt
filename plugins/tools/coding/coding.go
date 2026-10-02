@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -30,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/envscrub"
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // DefaultTimeout caps one delegated coding run.
@@ -203,11 +203,12 @@ func platformShell() (string, string) {
 	return "sh", "-c"
 }
 
-// execCommand runs name+args in dir with the given env (nil = inherit), and
+// execCommand runs name+args in dir with the given env (nil = sandbox.IsolatedEnv:
+// git runs a repository's hooks, so it never sees the daemon's secrets), and
 // returns combined stdout+stderr. A non-zero exit is returned as an error with
 // the output still captured by the caller via the returned string.
 func execCommand(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := sandbox.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	if env != nil {
 		cmd.Env = env

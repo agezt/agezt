@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 	"lukechampine.com/blake3"
 )
 
@@ -37,7 +38,7 @@ func resolvePluginPath(path string) string {
 // (the host's Spawn used to call osexec.Command inline; the wrapper
 // makes pin enforcement, future sandbox stubs, etc. easier to add).
 func makeChild(path string, args []string) *osexec.Cmd {
-	cmd := osexec.Command(path, args...)
+	cmd := sandbox.Command(path, args...)
 	// Put the child in its own process group so teardown can kill the
 	// whole tree, not just the direct child (M184). Platform-specific:
 	// a real process group on Unix, a no-op on Windows (see proc_*.go).

@@ -15,11 +15,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // clientConn is the production Conn: one child process, one reader goroutine
@@ -45,8 +46,8 @@ type clientConn struct {
 // top of the scrubbed base, so a credentialed server gets exactly what it needs
 // without un-scrubbing the daemon's ambient secrets.
 func Dial(ctx context.Context, command string, args []string, env map[string]string) (Conn, error) {
-	cmd := exec.Command(command, args...)
-	cmd.Env = appendEnv(scrubbedEnv(), env)
+	cmd := sandbox.Command(command, args...)
+	cmd.Env = appendEnv(sandbox.IsolatedEnv(), env)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("mcp: stdin: %w", err)

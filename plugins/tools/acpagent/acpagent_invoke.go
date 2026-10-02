@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/envscrub"
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // DefaultTimeout caps one delegated ACP session.
@@ -110,8 +109,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Resul
 }
 func spawnAgent(ctx context.Context, cmdStr, cwd string) (*transport, error) {
 	shell, arg := platformShell()
-	c := exec.Command(shell, arg, cmdStr) // not CommandContext: we manage teardown via close()
-	c.Env = envscrub.Scrubbed()
+	c := sandbox.Command(shell, arg, cmdStr) // not CommandContext: we manage teardown via close()
 	if cwd != "" {
 		c.Dir = cwd
 	}
