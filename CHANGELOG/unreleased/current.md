@@ -196,9 +196,11 @@ This file holds the active `[Unreleased]` working set.
 - **archcheck forbidden-call rules (W0.2).** Starting a child process (`os/exec`), building
   an HTTP client (`http.Client{}`, `http.DefaultClient`, `http.Get/Post/...`) and raw file
   writes (`os.WriteFile`/`os.Create`) are only legitimate in the platform package that owns
-  the guarantee (warden / netguard / jsonstore, declared in `layers.json`). The 84
-  pre-existing sites (12 exec, 58 http-client, 14 raw-write) are counted per package in
-  `tools/archcheck/calls-allowlist.txt`; counts may only go down.
+  the guarantee (warden / netguard / jsonstore, declared in `layers.json`). The 85
+  pre-existing sites (13 exec, 58 http-client, 14 raw-write) are counted per package in
+  `tools/archcheck/calls-allowlist.txt`; counts may only go down. Both archcheck ratchets
+  analyse the union of linux/windows/darwin `go list` output, so the verdict does not
+  depend on the host the check runs on.
 
 - **Added: a gate that fails when the console's documented surface stops matching
   the shipped one.** `README.md` claimed 64 views across 36 rows and

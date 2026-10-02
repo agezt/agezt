@@ -74,16 +74,69 @@ func goBinary() string {
 	return "go"
 }
 
+// targetOSes are the platforms whose build-constrained files are analysed.
+// `go list` only reports the imports and files of the HOST platform, so a
+// windows-only import edge would exist when the allowlist is regenerated on
+// Windows and vanish on the Linux CI runner — a ratchet that flips by host.
+// Taking the union over every shipped platform makes the result identical
+// wherever the check runs, and also covers code no single host builds.
+var targetOSes = []string{"linux", "windows", "darwin"}
+
 // listPackages is injectable in tests to avoid running `go list`.
 var listPackages = func() ([]Pkg, error) {
-	cmd := exec.Command(goBinary(), "list", "-e", "-json=ImportPath,Imports,Dir,GoFiles", "./...")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("go list: %v: %s", err, strings.TrimSpace(stderr.String()))
+	var perOS [][]Pkg
+	for _, goos := range targetOSes {
+		cmd := exec.Command(goBinary(), "list", "-e", "-json=ImportPath,Imports,Dir,GoFiles", "./...")
+		cmd.Env = append(os.Environ(), "GOOS="+goos, "GOARCH=amd64", "CGO_ENABLED=0")
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("go list (GOOS=%s): %v: %s", goos, err, strings.TrimSpace(stderr.String()))
+		}
+		pkgs, err := decodePackages(bytes.NewReader(out))
+		if err != nil {
+			return nil, err
+		}
+		perOS = append(perOS, pkgs)
 	}
-	return decodePackages(bytes.NewReader(out))
+	return unionPackages(perOS...), nil
+}
+
+// unionPackages merges per-platform package lists: a package's imports and
+// files are the union across platforms, in first-seen order.
+func unionPackages(lists ...[]Pkg) []Pkg {
+	var out []Pkg
+	idx := map[string]int{}
+	for _, list := range lists {
+		for _, p := range list {
+			i, ok := idx[p.ImportPath]
+			if !ok {
+				idx[p.ImportPath] = len(out)
+				out = append(out, Pkg{ImportPath: p.ImportPath, Dir: p.Dir})
+				i = len(out) - 1
+			}
+			out[i].Imports = appendUnique(out[i].Imports, p.Imports...)
+			out[i].GoFiles = appendUnique(out[i].GoFiles, p.GoFiles...)
+		}
+	}
+	return out
+}
+
+func appendUnique(dst []string, add ...string) []string {
+	for _, a := range add {
+		dup := false
+		for _, d := range dst {
+			if d == a {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			dst = append(dst, a)
+		}
+	}
+	return dst
 }
 
 func decodePackages(r io.Reader) ([]Pkg, error) {

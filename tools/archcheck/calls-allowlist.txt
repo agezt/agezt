@@ -5,7 +5,7 @@
 # Format: <rule> <package> <count>. Counts may only go DOWN; a package whose
 # count reaches 0 is removed. Where each rule is legitimate: layers.json "calls".
 exec kernel/acpcatalog 1
-exec kernel/creds 1
+exec kernel/creds 2
 exec kernel/mcp 1
 exec kernel/plugin 1
 exec kernel/toolbox 3

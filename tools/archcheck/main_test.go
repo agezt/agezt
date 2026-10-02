@@ -180,6 +180,24 @@ func TestDecodePackages(t *testing.T) {
 	}
 }
 
+func TestUnionPackagesMergesPlatforms(t *testing.T) {
+	linux := []Pkg{{ImportPath: "p", Dir: "d", Imports: []string{"a"}, GoFiles: []string{"x.go", "proc_unix.go"}}}
+	windows := []Pkg{
+		{ImportPath: "p", Dir: "d", Imports: []string{"a", "w"}, GoFiles: []string{"x.go", "proc_windows.go"}},
+		{ImportPath: "winonly", Dir: "e"},
+	}
+	got := unionPackages(linux, windows)
+	if len(got) != 2 {
+		t.Fatalf("packages = %+v", got)
+	}
+	if strings.Join(got[0].Imports, ",") != "a,w" {
+		t.Errorf("imports = %v, want the union a,w", got[0].Imports)
+	}
+	if strings.Join(got[0].GoFiles, ",") != "x.go,proc_unix.go,proc_windows.go" {
+		t.Errorf("files = %v, want the union", got[0].GoFiles)
+	}
+}
+
 // runFixture writes a config + allowlist into a temp dir, stubs `go list`,
 // and runs the command.
 func runFixture(t *testing.T, pkgs []Pkg, allow string, args ...string) (int, string, string, string) {
