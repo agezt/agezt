@@ -309,7 +309,7 @@ Rules that keep modules clean:
 | Run entry points outside `modules/runs` | 10 | **1** (`RunService.Start`, called only from `app` ops and triggers) |
 | Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside their L2 home (`tools/archcheck/calls-allowlist.txt`) | **85 sites** (13 exec · 58 http-client · 14 raw-write; union over linux/windows/darwin), 2026-10-02 → **27** after W1.4 (http-client 0) → **14** after W1.5 (exec 0; raw-write remains) | 0 |
 | Hand-maintained route/op/SDK tables | control plane table, 198 webui routes, 4 SDKs | 0 (generated) |
-| Event kinds without schema / never emitted | ~7 ad-hoc / 8 dead → **0 ad-hoc / 0 dead** (1 reserved, W1.6; `TestKindRegistryIsClosed`). Payload schemas per kind: not yet | 0 / 0 |
+| Event kinds without schema / never emitted | ~7 ad-hoc / 8 dead → **0 ad-hoc / 0 dead / 0 reserved** (W1.6, W1.8; `TestKindRegistryIsClosed`). Payload schemas per kind: not yet | 0 / 0 |
 | Journal full scans on hot paths (`why`, channel history, epistemic gate) | 3+ per call | 0 (index) |
 | Registry-time validation (tools, ops, kinds, channels, settings) | partial (tests only) | all, at boot + test |
 | Findings register items open | ~60 | 0 |

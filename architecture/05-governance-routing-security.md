@@ -61,7 +61,7 @@ Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) 
 | `config.json` | settings | `{account: {AGEZT_X: value}}` (`_default` account); legacy flat map accepted on load; UTF-8 BOM stripped. 0600. **Merge-on-save** (W1.3): `Save` takes `filestore.Lock`, re-reads the file and applies only this Store's pending changes, so the per-request `NewStore→Load→Set→Save` handlers and `agt config` no longer revert each other. |
 | `schemas/<id>.json` | settings.Registry | One registered `Section` per file. 0600. |
 | `catalog/api.json`, `local.json`, `custom.json`, `meta.json` | catalog | models.dev-shaped JSON; meta sidecar. 0644. |
-| `configcenter/entry_<sha256(key)[:16]>.json` | configcenter | Full `ConfigEntry` **including raw `value`**, 0644, plain `os.WriteFile` (not atomic). |
+| `configcenter/entry_<sha256(key)[:16]>.json` | configcenter | `ConfigEntry`, atomic via `filestore`, 0600 in a 0700 dir (W1.8). **Secret-rated** entries keep neither the value nor its hash: the value lives in the vault as `configcenter:<key>` (`VaultBacked`/`VaultPath`). Until W1.8 every value was plaintext 0644, and the loader never matched a file name, so no entry survived a restart. |
 | `configcenter/audit_YYYY-MM-DD.jsonl` | configcenter | One `AuditEntry` per line, 0644, O_APPEND. |
 | `runtime/edict_overlay_snapshot.json` | edict (written by controlplane compact handler) | `OverlaySnapshot{through_seq, changes[]}`, 0644, atomic. Trusted at boot only if its `ContentHash()` matches the latest journaled `policy.compacted`. |
 | `seats/seats.json` | seat | `{version:1, seats:[custom...]}` (built-ins live in code). |
@@ -613,7 +613,9 @@ Tests: `settings_test.go`, `registry_test.go`, `accounts_test.go`.
 - Ratings `public|internal|restricted|secret` → default policies `auto|auto|hitl|deny` (`PolicySecretDeny` alias). `Set` auto-classifies when Rating empty and computes SHA-256 `ValueHash`.
 - `AccessPolicy.Evaluate`: per-agent (120/min) and per-key (600/min) sliding windows → entry lookup → AllowedAgents/ExcludedAgents → rating (stored or classified) → stale-cache hash check (`CachedValueHash` mismatch → deny with old/new hash) → policy: auto (allow+audit), deny, hitl (`approval.Registry.Submit` with capability `config.access`, tool `config.get`; no registry → deny).
 - `SecretClassifier.Classify(key,value)`: manual override → contextual rules (DB URL with creds, PEM private key, sk- key in name field, HMAC key length) → weighted key regexes → value regexes.
-- Audit: `audit_YYYY-MM-DD.jsonl`; value logging re-classifies (`REDACTED` for secret, preview `first8...hash8` for restricted/internal, hash or full for public); `Query`/`QueryAccessLog`.
+- Audit: `audit_YYYY-MM-DD.jsonl` (0600); value logging re-classifies (`REDACTED` for secret, preview `first8...hash8` for restricted/internal, hash or full for public); `Query`/`QueryAccessLog`. **Also journaled** (W1.8): every access publishes `config.access` (key, agent, run, decision, policy, reason). It carries no value log, because the journal cannot be purged.
+- Vault (W1.8): `UseVault(SecretStore)` moves secret-rated values into the daemon vault (`runtime.Config.ConfigVault` = the `*creds.Store`) and migrates plaintext secrets left by older versions. A vault failure degrades. Tenant kernels get no vault (namespace collision).
+- `Get` does not hold the center lock (W1.8): it used to hold the read lock across a HITL wait, freezing every `Set` and then every `Get`.
 - `VaultConfig` (hashicorp/aws-secrets/azure) and `HitlConfig.NotifyChannels`, `AutoDenyOnTimeout`, `Audit.RetentionDays` are declared but not consumed by any code path in this package.
 
 | File | What it does |

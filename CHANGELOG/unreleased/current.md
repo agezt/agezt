@@ -4,6 +4,19 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: config-center secrets were stored in plaintext.** Every value agents can read
+  through the config center, secret-rated ones included, was written to
+  `configcenter/entry_*.json` in plaintext. The files were 0644 in a 0755 directory,
+  written non-atomically, next to a SHA-256 of the value; the audit log was 0644 too.
+  Secret-rated values now live in the daemon's encrypted vault as `configcenter:<key>`,
+  and their files keep neither the value nor its hash. Plaintext secrets left by older
+  versions move into the vault on the next boot. Files are written atomically, 0600 in a
+  0700 directory. Tenant kernels keep their secrets in their own 0600 files.
+- **Security: agents' config reads were not in the audit chain.** The config center logged
+  accesses only to its own files. Every access is now also journaled as `config.access`:
+  key, agent, run, decision, policy and reason, but never the value (the journal cannot be
+  purged).
+
 - **Security: several child processes inherited the daemon's entire environment** —
   every provider API key, channel token and the vault passphrase — because Go's
   `os/exec` treats an unset `Cmd.Env` as "inherit". Affected: git under the `coding`
@@ -985,6 +998,16 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Fixed: config-center entries never survived a daemon restart.** The loader compared the
+  first seven characters of each file name with the six-character `entry_`, so it matched
+  nothing: every value, rating and ACL set through the config center was lost at each
+  restart, since the feature shipped. Entries written since then reappear on the first
+  boot with this fix. Unreadable or corrupt entry files are now logged instead of skipped
+  silently.
+- **Fixed: one pending config approval could freeze the config center.** A `Get` on a
+  restricted key held the center's lock while waiting up to five minutes for the operator.
+  Any `Set` then blocked, and behind it every other `Get`.
 
 - **Fixed: one corrupt record in the middle of the journal stopped the daemon from
   booting.** Any record that failed to decode or verify aborted `journal.Open`, and with
