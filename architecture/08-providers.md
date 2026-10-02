@@ -113,8 +113,10 @@ Legend: ✓ supported, — not supported/ignored. "DoHTTP" = `retry.DoHTTP` (sha
 
 Common to every chat adapter: model id required (request or field), `httpread.All` 64 MiB body cap, `toolname`
 forward-map on encode + `toolname.RestoreCalls` on decode (except ollama), `APIError{Status, Body}` per package for
-non-2xx after retries, plain `*http.Client` with 5-min timeout (ollama 10 min) — **not** netguard-wrapped (only
-`openairesponses`, `embed`, `voice` use netguard clients).
+non-2xx after retries, `netout.OperatorClient` with 5-min timeout (ollama 10 min): http.DefaultTransport behaviour
+(proxy, pooling) on a shared transport whose dialer refuses link-local / cloud metadata (W1.4; previously a plain
+client that would dial 169.254.169.254). `openairesponses` uses a strict netguard client; `embed`/`voice` netguard
+with loopback+private allowed.
 
 ### Non-chat modality clients
 
@@ -769,9 +771,11 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
     tool-use loops — worth verifying if thinking + tools misbehaves).
 11. **JSON mode on Vertex-Claude:** `FamilyGoogleVertex` is declared JSON-native for the whole family, but the
     `claude-*` branch ignores `JSONMode` (structured callers still have `GenerateObject`'s prompt+repair path).
-12. **SSRF posture differs by package.** Chat adapters use plain `http.Client` (operator-configured base URLs incl.
-    localhost Ollama); `openairesponses` uses a strict netguard client; `embed`/`voice` netguard with loopback+private
-    allowed; `image`/`rerank` plain clients; mcpbridge SSE POST-URL gated via netguard.
+12. ✅ **Fixed (W1.4): SSRF posture differed by package.** Chat, image and rerank adapters used plain clients, so a
+    configured or catalog-synced base URL could point at the metadata service. All now use `netout.OperatorClient`
+    (loopback/private allowed, link-local/metadata refused); Vertex's GCE metadata token source uses the named
+    exception `netout.MetadataClient`. `openairesponses` strict, `embed`/`voice` loopback+private netguard; archcheck
+    keeps the http-client allowlist empty.
 13. **Body caps everywhere:** 64 MiB (`httpread`), 16 MiB (Responses buffer, SDK frames, mcpbridge frames),
     8 MiB (`/models`), 1 MiB SSE scanner frames (anthropic), 1 MiB metadata responses, 25 MiB audio.
 14. **Vertex metadata project lookup** happens inside `compat.Build` with `context.Background()` — on a non-GCP host

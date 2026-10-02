@@ -4,6 +4,25 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: `fetch` ignored the http tool's host allowlist.** `fetch` is governed as
+  `http.get`, the same capability as the `http` tool's GET, but it never read
+  `AGEZT_HTTP_ALLOWED_HOSTS` (or `AGEZT_HTTP_ALLOW_LOOPBACK/PRIVATE`). With `http` pinned
+  to one host, an agent could still download from any host through `fetch`. Both tools
+  now take one egress posture computed from the same settings, and the allowlist is
+  re-checked on every redirect hop. **Behaviour change:** the http tool's `*.example.com`
+  now matches exactly one subdomain level, as its documentation always said; it used to
+  also match `a.b.example.com`, which the browser tool never did.
+- **Security: operator-configured endpoints would dial the cloud metadata service.**
+  Provider, image and rerank adapters, the 22 HTTP channels, outbound webhooks, peer nodes,
+  STS/SSO and the ACP registry used bare `http.Client`s, so a configured or catalog-synced
+  URL resolving to 169.254.169.254 (or any link-local address) was dialled. They now use
+  `netout.OperatorClient`. It behaves like `http.DefaultTransport` (HTTP(S)_PROXY,
+  connection pooling, HTTP/2, timeouts) on one shared transport, but its dialer refuses
+  link-local / metadata and the unspecified address. Loopback and private networks stay
+  reachable (local Ollama, LAN chat servers). Only AWS IMDS and the GCE metadata token
+  source, whose job is to ask the metadata service, use the named `netout.MetadataClient`.
+  `tools/archcheck` keeps the http-client allowlist empty, so a new bare client fails CI.
+
 - **Security: the daemon's JSON stores were world-readable.** memory.json (distilled
   conversation content), worldmodel.json, roster.json, workboard.json, board.json and the
   other single-file stores were written 0644 in 0755 directories, while the journal

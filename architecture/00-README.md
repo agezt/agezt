@@ -200,6 +200,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `approval` | In-memory HITL pause point (5-minute timeout ⇒ deny; session auto-approve). |
 | `warden` | Process isolation (process groups/rlimits on Linux; optional Docker backend; little isolation on Windows/macOS). |
 | `netguard` | Egress SSRF guard checking the resolved IP at dial time (blocks link-local/metadata always). |
+| `platform/netout` | The only HTTP client factory: `Egress` (agent tools: host allowlist per redirect + IP guard), `OperatorClient` (configured endpoints: proxy/pooling as DefaultTransport, metadata refused), `MetadataClient` (IMDS/GCE only). |
 | `envscrub` | Builds child envs without daemon/provider secrets. |
 | `redact` | Secret scrubbing (vault values + patterns), installed on the bus before journaling. |
 | `seat` | Named execution "seats" for workboard dispatch. |
@@ -440,14 +441,14 @@ backlog. Details and file references are in the linked documents.
 | Warden Docker backend passes env secrets as `-e NAME=VALUE` argv. Warden isolation is nominal on Windows/macOS. | [05](05-governance-routing-security.md) |
 | Vault load-modify-save has no file lock: daemon and `agt` can lose each other's updates. | [05](05-governance-routing-security.md) |
 | Seat `"container"` never maps to the container execution profile (dispatch only knows `"docker"`). | [05](05-governance-routing-security.md) |
-| `coding` tool runs `git` with the full daemon env (repo hooks see secrets). `coding`/`acp_agent`/browser bypass warden. Browser has a DNS-rebinding window. `fetch` has no host allowlist. `shell` `timeout_ms` is uncapped. | [10](10-tools.md) |
+| `coding` tool runs `git` with the full daemon env (repo hooks see secrets). `coding`/`acp_agent`/browser bypass warden. Browser has a DNS-rebinding window. ~~`fetch` has no host allowlist~~ ✅ Fixed (W1.4): it takes the http tool's posture. `shell` `timeout_ms` is uncapped. | [10](10-tools.md) |
 | ✅ **Fixed (W0.3):** Out-of-process plugins inherited the **full daemon environment**; now scrubbed base + `AGEZT_PLUGIN_ENV` grants. **Open:** plugins are never `Close()`d at shutdown (W1.5). | [07](07-autonomy-and-extensibility.md) |
 | **Self-update cannot apply today**: `DefaultPublicKeyHex` is empty, the GitHub check never fills a SHA-256, apply paths drop the signature (W4.5). ✅ **Fixed (W0.4):** the checker halted the kernel *before* verifying and never resumed it on failure. | [07](07-autonomy-and-extensibility.md) |
 | Market install verifies signatures with **no pinned key** (`VerifyPack(p, "")`); authenticity only comes from the source pin at sync time. Partial install failures are not rolled back. | [07](07-autonomy-and-extensibility.md) |
 | Side paths skip governance/audit: workflow tool nodes journal no policy/tool events; Council grounding calls `web_search` without a policy check; Conductor verifier executes model code without a `code.exec` decision; `toolexec` emits no `tool.result` on deny. | [04](04-agent-runtime.md) |
 | ✅ **Fixed (W0.4):** `tool_search` and `browser.action` (+10 verbs) declared no capability; `tool_search` was default-denied. Guards now build opt-in tools. | [04](04-agent-runtime.md), [10](10-tools.md) |
 | ✅ **Fixed (W0.4):** Provider retry never matched the adapters' `TransientError` wrapper, so connection-refused/reset/DNS errors were **not retried**. | [08](08-providers.md) |
-| Anthropic thinking blocks are not replayed across tool turns. Bedrock-Anthropic discards thinking (billed, not shown). Vertex `claude-*` ignores JSON mode. Bedrock non-Anthropic streaming fails. Inconsistent SSRF clients across adapters. | [08](08-providers.md) |
+| Anthropic thinking blocks are not replayed across tool turns. Bedrock-Anthropic discards thinking (billed, not shown). Vertex `claude-*` ignores JSON mode. Bedrock non-Anthropic streaming fails. ~~Inconsistent SSRF clients across~~ ✅ Fixed (W1.4, netout) — adapters. | [08](08-providers.md) |
 | Agent SDK default socket `@agezt/agentgw.sock` ≠ the daemon's random `agentgw-<hex>.sock` (never published). Python `AgentClient` ignores HTTP status. Python `agent.py` star-import raises. The 30 s SDK timeout cuts long blocking runs. | [12](12-sdks-and-contract.md) |
 
 ### 9.2 Reliability / data

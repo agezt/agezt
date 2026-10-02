@@ -1259,7 +1259,7 @@ Tests: `acp_test`, `bound_test`, `client_test`, `coverage_direct_test`, `coverag
 **Wiring.**
 - `controlplane/acp.go` serves the `acp_agents` command and `/api/acp/agents`.
 - `plugins/tools/acpagent` (capability `acp_agent`) spawns agents with `envscrub.Scrubbed()` and a 5 m timeout.
-- No persistence and no events. The HTTP client is plain (fixed URLs, 6 s timeout, no netguard).
+- No persistence and no events. The HTTP client is `netout.OperatorClient` (fixed URLs, 6 s timeout, metadata refused).
 
 **Gotchas.**
 - Agents found only in the registry cannot be selected through `acp_agent`, because `ResolveCommand` accepts only the three catalog slugs.

@@ -686,7 +686,7 @@ Files: `tenant/tenant.go`, `tenantctx/tenantctx.go`. Tests: `tenant_test.go`, `t
 | A new isolation backend | Profile builder in `executionprofile/profile_*.go`, `RoutableRunProfileIDsFor`, a `*Config` + ctx override; warden backends via `warden.Options`. |
 | A seat | `seat.Store.Create` (control plane) or add to `builtins`. |
 | Redaction pattern | Append to `patterns`/`templatedPatterns` in `redact_patterns.go` (keep patterns specific; fuzz + regression tests). |
-| An egress-guarded HTTP client | `netguard.New(opts...).HTTPClient(timeout)`; add `OnBlock` for journaling. |
+| An outbound HTTP client | `kernel/platform/netout` — never `&http.Client{}` (archcheck fails it): `netout.Egress{...}.Client(timeout)` for agent-driven calls (host allowlist re-checked per redirect + IP guard; set `OnBlock` for journaling), `netout.OperatorClient(timeout)` for operator-configured endpoints, `netout.MetadataClient` only for IMDS/GCE metadata. |
 
 ---
 
