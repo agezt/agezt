@@ -16,8 +16,10 @@ import (
 
 // Get retrieves a config value with access control.
 func (c *Center) Get(ctx context.Context, req ConfigAccessRequest) (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	// No c.mu here: Evaluate may wait minutes for an operator's approval, and
+	// holding even the read lock across that wait blocked every Set — and,
+	// because a waiting writer blocks new readers, every other Get too. The
+	// store and the rate-limit windows Evaluate touches carry their own locks.
 
 	// Use access policy to evaluate
 	resp, err := c.policy.Evaluate(ctx, &req)
