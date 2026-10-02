@@ -3,7 +3,7 @@
 package update
 
 // Provenance: Update core: constants + types (Config, Service, Source, UpdateInfo) +
-//             New + Check + CheckInterval + DrainTimeout. Code extracted from
+//             New + Check + CheckInterval. Code extracted from
 //             update.go during the Day-55 god-file split. Public API unchanged.
 
 import (
@@ -192,15 +192,13 @@ func (s *Service) Check(ctx context.Context) (*CheckResult, error) {
 // Zero means background checking is disabled.
 func (s *Service) CheckInterval() time.Duration { return s.cfg.CheckInterval }
 
-// DrainTimeout returns the configured drain timeout.
-func (s *Service) DrainTimeout() time.Duration { return s.cfg.DrainTimeout }
-
 // Apply orchestrates the drain → atomic swap → restart sequence.
 // It returns ErrUpdateInProgress if Apply is already running.
 //
-// If DrainTimeout is zero the update aborts without modifying state
-// (no drain attempted). If DrainTimeout > 0 the drain proceeds and
-// Apply returns ErrDrainTimeout if in-flight work does not complete
+// The download is verified (SHA-256, then signature) BEFORE the drain
+// runs. If DrainTimeout is zero no drain is attempted and the swap
+// follows verification directly. If DrainTimeout > 0 the drain proceeds
+// and Apply returns ErrDrainTimeout if in-flight work does not complete
 // in time.
 //
 // On any error the current binary is left untouched and the daemon

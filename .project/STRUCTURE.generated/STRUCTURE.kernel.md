@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-91 package(s):
+89 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -64,7 +64,6 @@
 - **`kernel/roster`** — Package roster is the durable agent roster (M783): named, persistent agent profiles — an identity ("researcher", "ops-watcher") with its own soul (system prompt), model (+ ordered fallbacks), default task type, per-run spend ceiling, memory scope, and workspace subdirectory.
 - **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
 - **`kernel/runtime/accessors`** — Package accessors is the kernel's read-mostly surface extracted into a sub-package on Day 13 of the runtime split.
-- **`kernel/runtime/compose`** — Package compose is the kernel's composition-root surface extracted into a sub-package as the next step of the Day 12-20 sub-package split (lifecycle, accessors, types, compose).
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
 - **`kernel/runtime/types`** — Package types is the shared-type home for the value types the kernel/runtime sub-packages pass across the host/sub-package boundary.
@@ -93,5 +92,4 @@
 - **`kernel/webui`** — Package webui serves the Agezt Web UI (SPEC-07, decision A4): a React 19 + Vite single-page app, built to static assets and go:embed-ded into the daemon (see embed.go) — one binary, no Node at runtime, and no Go dependency added.
 - **`kernel/workboard`** — Package workboard is AGEZT's durable typed task queue.
 - **`kernel/workflow`** — Package workflow is the n8n-style workflow engine (M798): durable, named graphs of TYPED nodes — trigger, tool, llm, condition, transform, delay — wired by edges and carrying data between nodes with {{path}} templates.
-- **`kernel/workflowexec`** — Package workflowexec provides workflow graph execution: the RunWorkflow adapter and per-node dispatch.
 - **`kernel/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.

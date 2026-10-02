@@ -25,7 +25,8 @@
 // comment) because it touches ~30 private fields/methods that
 // would bloat the KernelAPI interface from 17 to ~80 entries
 // OR require breaking the existing dependency arrow by relocating
-// the Runner construction out of kernel/runtime/compose.go.
+// the Runner construction out of kernel/runtime/compose.go (the file, not
+// the abandoned kernel/runtime/compose package, removed in 2026-10).
 //
 // Circular-import guard: like lifecycle and accessors, runexec
 // does not import kernel/runtime. The Runner speaks to the host

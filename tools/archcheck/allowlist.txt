@@ -84,10 +84,6 @@ cross-module kernel/runtime/accessors -> kernel/roster
 cross-module kernel/runtime/accessors -> kernel/skill
 cross-module kernel/runtime/accessors -> kernel/standing
 cross-module kernel/runtime/accessors -> kernel/worldmodel
-cross-module kernel/runtime/compose -> kernel/imagetool
-cross-module kernel/runtime/compose -> kernel/mcp
-cross-module kernel/runtime/compose -> kernel/reranktool
-cross-module kernel/runtime/compose -> kernel/voicetool
 cross-module kernel/runtime/runexec -> kernel/artifact
 cross-module kernel/runtime/runexec -> kernel/assure
 cross-module kernel/runtime/runexec -> kernel/cadence

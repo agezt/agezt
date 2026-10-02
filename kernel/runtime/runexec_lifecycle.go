@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/tenantctx"
 )
 
@@ -22,15 +23,12 @@ import (
 // visionDescribeMaxTokens / assureVerifyMaxTokens / shadowEvalLimit
 // moved to runexec/helpers.go on Day 33.
 
-// ErrNoVisionModel is the run-engine sentinel returned by
-// DescribeImages when no vision-capable model is available.
-// The canonical definition lives in the runtime package
-// (referenced by cmd/agezt/main.go:1909); kept here as a
-// package-level value (separate identity, same text) so
-// callers inside runexec can use it. The *Kernel.DescribeImages
-// wrapper translates via errors.Is so external callers see
-// the canonical runtime.ErrNoVisionModel.
-var ErrNoVisionModel = errors.New("runtime: no vision-capable model available")
+// ErrNoVisionModel is returned by DescribeImages when no
+// vision-capable model is available (checked by the daemon's
+// channel handler). It is runexec's sentinel re-exported — the
+// same value, so errors.Is matches either name without a
+// translation step.
+var ErrNoVisionModel = runexec.ErrNoVisionModel
 
 // DescribeImages body moved to runexec.Runner.DescribeImages on
 // Day 33. Callers in this package reach it through *Kernel.DescribeImages

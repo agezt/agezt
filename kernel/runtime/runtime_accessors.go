@@ -8,8 +8,6 @@ package runtime
 //             split. Public API unchanged.
 
 import (
-	"errors"
-
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
@@ -18,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
@@ -59,5 +58,6 @@ func (k *Kernel) Schedules() *cadence.Store { return k.schedules }
 // Tools returns the live in-process tool map.
 func (k *Kernel) Tools() map[string]agent.Tool { return k.tools }
 
-// ErrHalted is returned by Run when the kernel is in halt state.
-var ErrHalted = errors.New("runtime: kernel is halted")
+// ErrHalted is returned by Run when the kernel is in halt state. It is
+// runexec's sentinel re-exported (one value, one identity).
+var ErrHalted = runexec.ErrHalted

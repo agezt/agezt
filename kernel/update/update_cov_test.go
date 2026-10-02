@@ -51,9 +51,6 @@ func TestCheckInterval_And_DrainTimeout(t *testing.T) {
 	if got := svc.CheckInterval(); got != 42*time.Minute {
 		t.Errorf("CheckInterval() = %v, want 42m", got)
 	}
-	if got := svc.DrainTimeout(); got != 7*time.Second {
-		t.Errorf("DrainTimeout() = %v, want 7s", got)
-	}
 }
 
 func TestErrChecksumMismatch_Error(t *testing.T) {

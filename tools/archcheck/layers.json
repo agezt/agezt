@@ -64,7 +64,6 @@
     {"pattern": "kernel/seat", "layer": 3, "module": "work"},
 
     {"pattern": "kernel/workflow", "layer": 3, "module": "workflows"},
-    {"pattern": "kernel/workflowexec", "layer": 3, "module": "workflows"},
 
     {"pattern": "kernel/cadence/...", "layer": 3, "module": "triggers"},
     {"pattern": "kernel/standing", "layer": 3, "module": "triggers"},

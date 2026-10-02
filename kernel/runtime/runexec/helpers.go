@@ -10,13 +10,11 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
-// ErrHalted is the run-engine sentinel returned when a Run call
-// hits a halted kernel. Mirrors runtime.ErrHalted for callers
-// that want errors.Is from outside the runtime package. The
-// canonical definition lives in the runtime package; the runexec
-// package re-exports it so a host implementation of KernelAPI
-// can use the same sentinel from its RunWith body without
-// importing the runtime package (which would create a cycle).
+// ErrHalted is the sentinel returned when a run hits a halted kernel.
+// This is the ONE definition: runtime.ErrHalted is this same value
+// (re-exported), so errors.Is matches whichever package a caller
+// names. It used to be a second errors.New with the same text — two
+// identities that errors.Is told apart.
 var ErrHalted = errors.New("runtime: kernel is halted")
 
 // shadowEvalLimit bounds how many shadow candidates are judged per

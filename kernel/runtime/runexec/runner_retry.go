@@ -191,10 +191,8 @@ func (r *Runner) PublishHeuristicBypass(ctx context.Context, corr, actor, intent
 }
 
 // ErrNoVisionModel is returned by DescribeImages when no vision-
-// capable model is available. Defined in this package (separate
-// identity from the canonical runtime.ErrNoVisionModel; same
-// text). The *Kernel.DescribeImages wrapper translates via
-// errors.Is so external callers see the canonical value.
+// capable model is available. This is the one definition;
+// runtime.ErrNoVisionModel re-exports this value.
 var ErrNoVisionModel = errors.New("runtime: no vision-capable model available")
 
 // DescribeImages runs the vision SIDECAR (M821): it sends the
