@@ -748,7 +748,12 @@ jobs:
   # other is itself the bug. This makes the workflow satisfy what protection
   # already demands, and it can fail for exactly one reason -- something
   # upstream did not pass.
-  ci.yml:
+  # The job KEY is `ci_file`, not `ci.yml`: GitHub requires job ids to match
+  # [A-Za-z_][A-Za-z0-9_-]*, and a dot makes the whole workflow fail to parse —
+  # zero jobs, run conclusion "failure", and no error pointing at the line. A
+  # first attempt used `ci.yml:` as the key and did exactly that; the name is
+  # what the check context comes from, so the key can be anything valid.
+  ci_file:
     name: ci.yml
     if: always()
     needs:
