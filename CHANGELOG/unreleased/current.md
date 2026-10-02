@@ -696,6 +696,17 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Changed: every event kind the system emits is now declared in the registry.**
+  Thirteen kinds were minted from string literals, invisible to anything reading
+  `kernel/event/kinds.go`: `policy.auto_approved` and `prompt_injection.warned` (both
+  journaled audit events), the market pack/source/sync/progress kinds, the toolbox kinds
+  and the pulse stream's drop notice. They are now constants. Seven kinds declared for
+  years but never emitted are deleted: `agent.spawned/suspended/resumed/died/crashed`,
+  `worldmodel.superseded` and `journal.segment_rotated`. `config.access` stays, reserved:
+  the config center audits to its own file instead of the journal. A test now fails on
+  any new string-literal kind and on any declared kind nothing uses. Wire values are
+  unchanged and old journals read as before.
+
 - **Changed: the provider, tool and channel contracts now live in their own leaf packages
   (`kernel/contract/llm`, `kernel/contract/toolapi`, `kernel/contract/channelapi`).** They
   used to be declared in `kernel/agent` — next to the agent loop — and in `kernel/channel`,

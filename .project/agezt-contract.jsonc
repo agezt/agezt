@@ -138,7 +138,11 @@
     }
   },
 
-  // EventKind values (string form; grow append-only). Base set for MVP:
+  // EventKind values: the authoritative list is kernel/event/kinds.go, kept
+  // closed by kernel/event/registry_guard_test.go (every emitted kind declared,
+  // every declared kind used). A kind string, once journaled, is never reused
+  // for a different meaning. The list below is the original MVP plan, not a
+  // validation enum — several of these were never implemented:
   // agent.spawned/suspended/resumed/died/crashed
   // task.received, plan.proposed (DAG layer), node.started/completed/failed, task.completed
   // tool.invoked/result, llm.request/token/response

@@ -171,17 +171,13 @@ All constants live in `kernel/event/kinds.go` (append-only; "never renumber or r
 | OKR | `KindOKRObjectiveCreated`, `KindOKRObjectiveUpdated`, `KindOKRObjectiveAchieved` (okr.objective.*) |
 | Taste | `KindTasteInjected` (taste.injected) |
 
-**Ad-hoc kinds outside `kinds.go`** (string-literal `event.Kind(...)`, bypassing the "only place new kinds are introduced" rule):
+**Registry closure (W1.6).** Every emitted kind is a constant in `kinds.go`. Thirteen kinds used to be minted from string literals; they are now constants:
+- `policy.auto_approved` and `prompt_injection.warned`, both journaled audit events;
+- the market pack/source/sync and install-progress kinds;
+- the toolbox kinds;
+- the synthetic `agezt.pulse.dropped` stream notice.
 
-| Wire kind | Where | Durable? |
-|---|---|---|
-| `market.install.progress`, `market.uninstall.progress` | `kernel/controlplane/market.go` | published on the bus |
-| `toolbox.progress` (and other `event.Kind(kind)` values) | `kernel/controlplane/toolbox.go` | published on the bus |
-| `policy.auto_approved`, `prompt_injection.warned` | `kernel/runtime/intent.go` | journaled |
-| `agezt.pulse.dropped` | `kernel/controlplane/pulse.go` | synthetic, written only to the stream client (Hash="") |
-| `webhook.test` (`webhook.TestEventKind`) | `kernel/webhook/webhook_helpers.go` | test delivery |
-
-**Defined but never referenced in non-test code** (computed by diffing `kinds.go` constants against all `event.Kind*` references in `cmd/ kernel/ plugins/ sdk/`): `KindAgentSpawned`, `KindAgentSuspended`, `KindAgentResumed`, `KindAgentDied`, `KindAgentCrashed`, `KindConfigAccess`, `KindJournalSegmentRotated`, `KindWorldSuperseded`. In particular the journal never emits `journal.segment_rotated`, and the world model has no supersede operation at all. They are kept because the enum is append-only/contract-pinned (`.project/agezt-contract.jsonc`).
+`publishMarket`/`publishToolbox` take an `event.Kind`. Seven never-emitted kinds were deleted: `agent.spawned/suspended/resumed/died/crashed`, `worldmodel.superseded` and `journal.segment_rotated`. `config.access` is **reserved**: configcenter audits to its own file instead of the journal, which W1.8 fixes. `TestKindRegistryIsClosed` (`kernel/event/registry_guard_test.go`) fails on an `event.Kind("…")` literal in production code and on a declared kind nothing references. Deleting a constant does not affect old journals (the kind is a string), but a deleted string must never be reused for a different meaning. `webhook.test` is an HTTP header value for probe deliveries, not a bus kind.
 
 **Kind misuse to know about:** `runexec.Runner.MaybeDistill` reports a distillation failure as `Kind: memory.written` with subject `memory.distill_failed` and payload `{action:"distill_failed"}` — consumers filtering on `KindMemoryWritten` see failures too.
 
