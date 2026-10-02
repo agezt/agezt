@@ -132,8 +132,33 @@ func TestBootTools_DeclareTheirCapability(t *testing.T) {
 	}
 }
 
-// buildRealBootTools builds the actual boot registry so the guards read each
-// tool's real ToolDef rather than a hand-maintained copy of it.
+// optInEnv switches on every opt-in boot tool. With an empty environment the
+// guards only ever saw the default tool set, so an opt-in tool (browser.action
+// and its ten verb tools, coding, acp_agent, homeassistant, remote_run) could
+// ship without a declared capability and nothing noticed. Values are inert:
+// nothing is dialled or executed, the tools are only constructed.
+var optInEnv = map[string]string{
+	"AGEZT_BROWSER_ACTIONS":             "1",
+	"AGEZT_BROWSER_ACTION_DRIVER":       "browse.mjs",
+	"AGEZT_CODING_CMD":                  "true",
+	"AGEZT_ACP_AGENT_CMD":               "true",
+	"AGEZT_HOMEASSISTANT_URL":           "http://homeassistant.invalid:8123",
+	"AGEZT_HOMEASSISTANT_TOKEN":         "token",
+	"AGEZT_HOMEASSISTANT_TOOL_READ":     "sensor.guard",
+	"AGEZT_HOMEASSISTANT_TOOL_SERVICES": "light.turn_on",
+	"AGEZT_PEERS":                       "guard=http://peer.invalid:8080",
+}
+
+// optInTools must all be present when optInEnv is applied — the guard of the
+// guard: if a renamed env var turned one of them off, the checks below would
+// pass vacuously over a smaller set.
+var optInTools = []string{
+	"browser.action", "browser.open", "browser.close", "coding", "acp_agent", "homeassistant", "remote_run",
+}
+
+// buildRealBootTools builds the actual boot registry — with every opt-in tool
+// switched on — so the guards read each tool's real ToolDef rather than a
+// hand-maintained copy of it, over the whole tool surface.
 func buildRealBootTools(t *testing.T) map[string]agent.Tool {
 	t.Helper()
 	RegisterAll()
@@ -143,12 +168,18 @@ func buildRealBootTools(t *testing.T) map[string]agent.Tool {
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),
 		Stderr:        &stderr,
-		Get:           func(string) string { return "" },
+		Get:           func(k string) string { return optInEnv[k] },
 	})
 	if err != nil {
 		t.Fatalf("BuildAll: %v; stderr=%s", err, stderr.String())
 	}
-	return set.Tools()
+	tools := set.Tools()
+	for _, want := range optInTools {
+		if _, ok := tools[want]; !ok {
+			t.Fatalf("opt-in tool %q not built with optInEnv — update the env so the guards cover it", want)
+		}
+	}
+	return tools
 }
 
 // And every governed capability must be allowed by default — the owner's

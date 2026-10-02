@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 const toolSearchName = "tool_search"
@@ -52,6 +53,11 @@ func (t toolSearchTool) Definition() agent.ToolDef {
     "limit": {"type":"integer", "description":"Maximum matches to return. Default 8, maximum 20."}
   }
 }`),
+		// It reads the in-run tool catalog (names + descriptions) — the agent
+		// inspecting its own environment, which is what CapIntrospect governs.
+		// Undeclared it resolved to the unknown capability "tool_search", which
+		// Edict default-denies, so discovery was dead whenever it was enabled.
+		Capability: agent.ToolCapability{Name: string(edict.CapIntrospect)},
 		Effect: agent.ToolEffect{
 			Class:             agent.EffectReadOnly,
 			PredictedEffects:  []string{"Read the in-run catalog of available tool names and descriptions."},

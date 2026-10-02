@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 const (
@@ -69,7 +70,10 @@ func (t *ActionVerbTool) Definition() agent.ToolDef {
 		Name:        t.Name,
 		Description: actionVerbDescription(t.Name),
 		InputSchema: actionVerbSchema(t.Name),
-		Effect:      actionVerbEffect(t.Name),
+		// Every verb drives the same Playwright engine as browser.action, so
+		// it is gated on the same axis.
+		Capability: agent.ToolCapability{Name: string(edict.CapBrowserAction)},
+		Effect:     actionVerbEffect(t.Name),
 	}
 }
 

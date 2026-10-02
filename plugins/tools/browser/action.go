@@ -16,6 +16,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 const (
@@ -167,6 +168,7 @@ func (t *ActionTool) Definition() agent.ToolDef {
     "max_chars": {"type":"integer", "description":"Maximum returned text chars; default 65536."}
   }
 }`),
+		Capability: agent.ToolCapability{Name: string(edict.CapBrowserAction)},
 		Effect: agent.ToolEffect{
 			Class: agent.EffectIrreversible,
 			PredictedEffects: []string{
