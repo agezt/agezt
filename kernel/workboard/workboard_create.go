@@ -9,7 +9,7 @@ package workboard
 import (
 	"errors"
 	"fmt"
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/proof"
 	"github.com/agezt/agezt/kernel/ulid"
 	"strings"
@@ -19,7 +19,7 @@ import (
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{now: time.Now}
 	var st diskState
-	path, err := jsonstore.LoadFrom(dir, "workboard.json", &st)
+	path, err := filestore.LoadFrom(dir, "workboard.json", &st)
 	if err != nil {
 		return nil, fmt.Errorf("workboard: %w", err)
 	}

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"lukechampine.com/blake3"
 )
 
@@ -126,7 +126,7 @@ type FileStore struct {
 // present. The directory is created if absent.
 func Open(dir string) (*FileStore, error) {
 	s := &FileStore{data: make(map[string]Skill)}
-	path, err := jsonstore.LoadFrom(dir, "skills.json", &s.data)
+	path, err := filestore.LoadFrom(dir, "skills.json", &s.data)
 	if err != nil {
 		return nil, fmt.Errorf("skill: %w", err)
 	}
@@ -190,7 +190,7 @@ func (s *FileStore) Close() error { return nil }
 
 // snapshotLocked writes the whole skill map atomically. Caller holds s.mu.
 func (s *FileStore) snapshotLocked() error {
-	if err := jsonstore.Save(s.path, s.data); err != nil {
+	if err := filestore.Save(s.path, s.data); err != nil {
 		return fmt.Errorf("skill: %w", err)
 	}
 	return nil

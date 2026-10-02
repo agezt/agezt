@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -73,7 +73,7 @@ type diskState struct {
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{}
 	var st diskState
-	path, err := jsonstore.LoadFrom(dir, "taste.json", &st)
+	path, err := filestore.LoadFrom(dir, "taste.json", &st)
 	if err != nil {
 		return nil, fmt.Errorf("taste: %w", err)
 	}
@@ -222,7 +222,7 @@ func (s *Store) Delete(id string) error {
 }
 
 func (s *Store) saveLocked() error {
-	return jsonstore.Save(s.path, diskState{Version: storeVersion, Exemplars: s.exemplars})
+	return filestore.Save(s.path, diskState{Version: storeVersion, Exemplars: s.exemplars})
 }
 
 func hasTag(tags []string, want string) bool {

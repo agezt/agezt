@@ -7,7 +7,7 @@ package cadence
 //             unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 	"strings"
 	"time"
@@ -51,7 +51,7 @@ func (s *Store) Count() int {
 
 // save writes the entries atomically (temp file + rename). Caller holds s.mu.
 func (s *Store) save() error {
-	return jsonstore.Save(s.path, s.entries)
+	return filestore.Save(s.path, s.entries)
 }
 
 // --- Engine ---

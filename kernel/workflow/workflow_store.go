@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -19,7 +19,7 @@ import (
 
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{now: time.Now}
-	path, err := jsonstore.LoadFrom(dir, "workflows.json", &s.items)
+	path, err := filestore.LoadFrom(dir, "workflows.json", &s.items)
 	if err != nil {
 		return nil, fmt.Errorf("workflow: %w", err)
 	}
@@ -185,5 +185,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	return jsonstore.Save(s.path, s.items)
+	return filestore.Save(s.path, s.items)
 }

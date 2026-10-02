@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -72,7 +72,7 @@ type Store struct {
 // Open loads (or creates) the board under dir/board.json.
 func Open(dir string) (*Store, error) {
 	s := &Store{}
-	path, err := jsonstore.LoadFrom(dir, "board.json", &s.msgs)
+	path, err := filestore.LoadFrom(dir, "board.json", &s.msgs)
 	if err != nil {
 		return nil, fmt.Errorf("board: %w", err)
 	}
@@ -299,5 +299,5 @@ func (s *Store) Topics() map[string]int {
 }
 
 func (s *Store) save() error {
-	return jsonstore.Save(s.path, s.msgs)
+	return filestore.Save(s.path, s.msgs)
 }

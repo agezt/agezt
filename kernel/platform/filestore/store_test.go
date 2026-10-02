@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package jsonstore
+package filestore
 
 import (
 	"os"

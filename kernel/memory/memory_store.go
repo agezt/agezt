@@ -17,7 +17,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // Store is the pure record store. Implementations persist records by id and
@@ -60,7 +60,7 @@ type FileStore struct {
 // if present. The directory is created if absent.
 func Open(dir string) (*FileStore, error) {
 	s := &FileStore{data: make(map[string]Record)}
-	path, err := jsonstore.LoadFrom(dir, "memory.json", &s.data)
+	path, err := filestore.LoadFrom(dir, "memory.json", &s.data)
 	if err != nil {
 		return nil, fmt.Errorf("memory: %w", err)
 	}
@@ -133,7 +133,7 @@ func (s *FileStore) Close() error { return nil }
 // MarshalIndent over a map sorts keys alphabetically (Go guarantee), giving
 // deterministic on-disk diffs.
 func (s *FileStore) snapshotLocked() error {
-	if err := jsonstore.Save(s.path, s.data); err != nil {
+	if err := filestore.Save(s.path, s.data); err != nil {
 		return fmt.Errorf("memory: %w", err)
 	}
 	return nil

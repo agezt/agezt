@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -174,7 +174,7 @@ type Store struct {
 // OpenStore opens (or creates) the registry under dir.
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{now: time.Now}
-	path, err := jsonstore.LoadFrom(dir, "servers.json", &s.servers)
+	path, err := filestore.LoadFrom(dir, "servers.json", &s.servers)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: %w", err)
 	}
@@ -295,5 +295,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	return jsonstore.Save(s.path, s.servers)
+	return filestore.Save(s.path, s.servers)
 }

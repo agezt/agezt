@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -29,7 +29,7 @@ type Store struct {
 // Open opens (or creates) the script-tool store under dir.
 func Open(dir string) (*Store, error) {
 	s := &Store{now: time.Now}
-	path, err := jsonstore.LoadFrom(dir, "scripttools.json", &s.tools)
+	path, err := filestore.LoadFrom(dir, "scripttools.json", &s.tools)
 	if err != nil {
 		return nil, fmt.Errorf("toolforge: %w", err)
 	}
@@ -251,5 +251,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	return jsonstore.Save(s.path, s.tools)
+	return filestore.Save(s.path, s.tools)
 }

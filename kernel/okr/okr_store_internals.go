@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 func (s *Store) mutate(id string, fn func(*Objective, int64) error, now time.Time) (Objective, error) {
@@ -59,7 +59,7 @@ func findKR(o *Objective, krID string) *KeyResult {
 }
 
 func (s *Store) saveLocked() error {
-	return jsonstore.Save(s.path, diskState{Version: storeVersion, Objectives: s.objectives})
+	return filestore.Save(s.path, diskState{Version: storeVersion, Objectives: s.objectives})
 }
 
 func cloneObjective(o Objective) Objective {

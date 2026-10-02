@@ -16,14 +16,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{now: time.Now}
 	var st diskState
-	path, err := jsonstore.LoadFrom(dir, "okr.json", &st)
+	path, err := filestore.LoadFrom(dir, "okr.json", &st)
 	if err != nil {
 		return nil, fmt.Errorf("okr: %w", err)
 	}
