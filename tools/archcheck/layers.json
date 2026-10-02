@@ -116,5 +116,10 @@
     {"pattern": "tools/...", "layer": 7},
     {"pattern": "examples/...", "layer": 7},
     {"pattern": "contract/...", "layer": 7, "note": "legacy plugin-contract codegen; W0.5 trims dead halves"}
+  ],
+  "calls": [
+    {"rule": "exec", "allow": ["kernel/warden", "kernel/platform/sandbox/..."]},
+    {"rule": "http-client", "allow": ["kernel/netguard", "kernel/platform/netout/..."]},
+    {"rule": "raw-write", "allow": ["kernel/jsonstore", "kernel/platform/store/..."]}
   ]
 }

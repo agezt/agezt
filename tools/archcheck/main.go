@@ -7,9 +7,16 @@
 // reaching into another module's internals, no adapter bypassing the app
 // layer, no plugin reaching past contracts and platform (see rules.go).
 //
+// It also enforces "one way to do each infrastructural thing" (calls.go):
+// starting a child process, building an HTTP client and writing a file raw
+// are only legitimate in the platform package that owns the guarantee
+// (layers.json "calls"); everywhere else they are counted per package.
+//
 // The existing tree violates these rules in many places; that is the work
 // of architecture/21-migration-roadmap.md. The violations are recorded in
-// tools/archcheck/allowlist.txt and the allowlist is a RATCHET:
+// tools/archcheck/allowlist.txt (import edges) and
+// tools/archcheck/calls-allowlist.txt (call-site counts per package); both
+// are RATCHETS:
 //
 //   - a violation that is not allowlisted fails the check (no new debt);
 //   - an allowlist entry that no longer occurs ALSO fails the check, so a
@@ -42,6 +49,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -68,7 +76,7 @@ func goBinary() string {
 
 // listPackages is injectable in tests to avoid running `go list`.
 var listPackages = func() ([]Pkg, error) {
-	cmd := exec.Command(goBinary(), "list", "-e", "-json=ImportPath,Imports", "./...")
+	cmd := exec.Command(goBinary(), "list", "-e", "-json=ImportPath,Imports,Dir,GoFiles", "./...")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -100,8 +108,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("archcheck", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", "tools/archcheck/layers.json", "layer map")
-	allowPath := fs.String("allowlist", "tools/archcheck/allowlist.txt", "ratchet allowlist")
-	update := fs.Bool("update", false, "rewrite the allowlist, dropping fixed entries")
+	allowPath := fs.String("allowlist", "tools/archcheck/allowlist.txt", "import-edge ratchet allowlist")
+	callsPath := fs.String("calls-allowlist", "tools/archcheck/calls-allowlist.txt", "forbidden-call ratchet allowlist")
+	update := fs.Bool("update", false, "rewrite the allowlists, dropping fixed entries")
 	allowNew := fs.Bool("allow-new", false, "with -update: also accept new violations")
 	summary := fs.Bool("summary", false, "print violation counts per kind and per importer")
 	if err := fs.Parse(args); err != nil {
@@ -123,16 +132,27 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	rep := evaluate(cfg, pkgs)
+	calls, err := scanCalls(cfg, pkgs)
+	if err != nil {
+		fmt.Fprintf(stderr, "archcheck: %v\n", err)
+		return 2
+	}
 
 	allowed, err := readAllowlist(*allowPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintf(stderr, "archcheck: read allowlist: %v\n", err)
 		return 2
 	}
+	allowedCalls, err := readCallsAllowlist(*callsPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintf(stderr, "archcheck: read calls allowlist: %v\n", err)
+		return 2
+	}
 	diff := compare(rep, allowed)
+	cdiff := compareCalls(calls, allowedCalls)
 
 	if *summary {
-		printSummary(stdout, rep)
+		printSummary(stdout, rep, calls)
 	}
 
 	if len(rep.Unmapped) > 0 {
@@ -144,37 +164,41 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if *update {
-		keep := diff.current
-		if !*allowNew {
-			keep = diff.stillAllowed
+		keep, keepCalls := diff.stillAllowed, cdiff.stillAllowed
+		if *allowNew {
+			keep, keepCalls = diff.current, cdiff.current
 		}
 		if err := writeAllowlist(*allowPath, keep); err != nil {
 			fmt.Fprintf(stderr, "archcheck: write allowlist: %v\n", err)
 			return 2
 		}
-		fmt.Fprintf(stdout, "archcheck: allowlist rewritten: %d entries (%d fixed entries dropped",
-			len(keep), len(diff.stale))
+		if err := writeCallsAllowlist(*callsPath, keepCalls); err != nil {
+			fmt.Fprintf(stderr, "archcheck: write calls allowlist: %v\n", err)
+			return 2
+		}
+		fmt.Fprintf(stdout, "archcheck: allowlists rewritten: %d import edges, %d call entries (%d+%d fixed entries tightened",
+			len(keep), len(keepCalls), len(diff.stale), len(cdiff.stale))
 		if *allowNew {
-			fmt.Fprintf(stdout, ", %d new violations accepted)\n", len(diff.added))
+			fmt.Fprintf(stdout, ", %d+%d new violations accepted)\n", len(diff.added), len(cdiff.added))
 			return 0
 		}
 		fmt.Fprintln(stdout, ")")
-		if len(diff.added) > 0 {
-			printAdded(stderr, diff.added)
+		if len(diff.added)+len(cdiff.added) > 0 {
+			printAdded(stderr, diff.added, cdiff.added)
 			return 1
 		}
 		return 0
 	}
 
 	failed := false
-	if len(diff.added) > 0 {
-		printAdded(stderr, diff.added)
+	if len(diff.added)+len(cdiff.added) > 0 {
+		printAdded(stderr, diff.added, cdiff.added)
 		failed = true
 	}
-	if len(diff.stale) > 0 {
-		fmt.Fprintln(stderr, "ERROR: allowlisted violations that no longer occur — the edge was fixed;")
-		fmt.Fprintln(stderr, "remove them so they cannot come back (go run ./tools/archcheck -update):")
-		for _, k := range diff.stale {
+	if stale := append(append([]string(nil), diff.stale...), cdiff.stale...); len(stale) > 0 {
+		fmt.Fprintln(stderr, "ERROR: allowlisted violations that no longer occur (or occur less) — the debt was paid;")
+		fmt.Fprintln(stderr, "tighten the allowlist so it cannot come back (go run ./tools/archcheck -update):")
+		for _, k := range stale {
 			fmt.Fprintln(stderr, "  -", k)
 		}
 		failed = true
@@ -182,18 +206,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if failed {
 		return 1
 	}
-	fmt.Fprintf(stdout, "OK: %d packages placed; %d allowlisted violations remain (ratchet).\n",
-		rep.Packages, len(diff.stillAllowed))
+	fmt.Fprintf(stdout, "OK: %d packages placed; %d allowlisted import violations and %d allowlisted call sites remain (ratchet).\n",
+		rep.Packages, len(diff.stillAllowed), sumCounts(cdiff.stillAllowed))
 	return 0
 }
 
-func printAdded(w io.Writer, added []string) {
-	fmt.Fprintln(w, "ERROR: new architecture violations (see architecture/20-target-architecture.md §1-§2):")
-	for _, k := range added {
-		fmt.Fprintln(w, "  -", k)
+func printAdded(w io.Writer, edges, calls []string) {
+	if len(edges) > 0 {
+		fmt.Fprintln(w, "ERROR: new architecture violations (see architecture/20-target-architecture.md §1-§2):")
+		for _, k := range edges {
+			fmt.Fprintln(w, "  -", k)
+		}
+		fmt.Fprintln(w, "Fix the dependency (move the type to a contract package, call the module's api,")
+		fmt.Fprintln(w, "go through an app operation). Allowlisting is for pre-existing debt only.")
 	}
-	fmt.Fprintln(w, "Fix the dependency (move the type to a contract package, call the module's api,")
-	fmt.Fprintln(w, "go through an app operation). Allowlisting is for pre-existing debt only.")
+	if len(calls) > 0 {
+		fmt.Fprintln(w, "ERROR: new forbidden call sites (architecture/20-target-architecture.md P3/P7):")
+		for _, k := range calls {
+			fmt.Fprintln(w, "  -", k)
+		}
+		fmt.Fprintln(w, "Start children through the sandbox launcher, dial out through the guarded client,")
+		fmt.Fprintln(w, "write files through internal/atomicfile or the store framework.")
+	}
 }
 
 type allowDiff struct {
@@ -262,7 +296,7 @@ func writeAllowlist(path string, keys []string) error {
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
-func printSummary(w io.Writer, rep Report) {
+func printSummary(w io.Writer, rep Report, calls []CallCount) {
 	byKind := map[string]int{}
 	byImporter := map[string]int{}
 	for _, v := range rep.Violations {
@@ -292,6 +326,13 @@ func printSummary(w io.Writer, rep Report) {
 		}
 		return imps[i].k < imps[j].k
 	})
+	byRule := map[string]int{}
+	for _, c := range calls {
+		byRule[c.Rule] += c.N
+	}
+	for _, r := range []string{CallExec, CallHTTPClient, CallRawWrite} {
+		fmt.Fprintf(w, "  call:%-10s %d sites\n", r, byRule[r])
+	}
 	fmt.Fprintln(w, "top importers:")
 	for i, e := range imps {
 		if i == 15 {
@@ -299,4 +340,53 @@ func printSummary(w io.Writer, rep Report) {
 		}
 		fmt.Fprintf(w, "  %4d  %s\n", e.n, e.k)
 	}
+}
+
+func sumCounts(m map[string]int) int {
+	n := 0
+	for _, v := range m {
+		n += v
+	}
+	return n
+}
+
+func readCallsAllowlist(path string) (map[string]int, error) {
+	lines, err := readAllowlist(path)
+	out := map[string]int{}
+	for line := range lines {
+		f := strings.Fields(line)
+		if len(f) != 3 {
+			return out, fmt.Errorf("%s: malformed line %q (want: <rule> <package> <count>)", path, line)
+		}
+		n, convErr := strconv.Atoi(f[2])
+		if convErr != nil || n <= 0 {
+			return out, fmt.Errorf("%s: bad count in %q", path, line)
+		}
+		out[f[0]+" "+f[1]] = n
+	}
+	return out, err
+}
+
+const callsAllowlistHeader = `# archcheck forbidden-call ratchet — pre-existing call sites that bypass a
+# platform guarantee (exec: sandbox launcher · http-client: guarded client ·
+# raw-write: atomic writer / store framework).
+# Generated by: go run ./tools/archcheck -update
+# Format: <rule> <package> <count>. Counts may only go DOWN; a package whose
+# count reaches 0 is removed. Where each rule is legitimate: layers.json "calls".
+`
+
+func writeCallsAllowlist(path string, entries map[string]int) error {
+	keys := make([]string, 0, len(entries))
+	for k, n := range entries {
+		if n > 0 {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString(callsAllowlistHeader)
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s %d\n", k, entries[k])
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o644)
 }

@@ -28,6 +28,8 @@ const (
 type Pkg struct {
 	ImportPath string
 	Imports    []string
+	Dir        string
+	GoFiles    []string
 }
 
 // Violation is one forbidden dependency edge between two packages.

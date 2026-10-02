@@ -53,6 +53,8 @@ type Config struct {
 	// ModulePath is the Go module prefix stripped from import paths.
 	ModulePath string `json:"module_path"`
 	Rules      []Rule `json:"rules"`
+	// Calls says where each forbidden-call rule (calls.go) is legitimate.
+	Calls []CallPolicy `json:"calls"`
 }
 
 // Class is the classification of one package.
@@ -83,6 +85,9 @@ func (c *Config) validate() error {
 	}
 	if len(c.Rules) == 0 {
 		return fmt.Errorf("no rules")
+	}
+	if err := validateCallPolicies(c.Calls); err != nil {
+		return err
 	}
 	seen := map[string]bool{}
 	for i, r := range c.Rules {

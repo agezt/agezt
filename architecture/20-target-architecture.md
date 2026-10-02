@@ -307,7 +307,7 @@ Rules that keep modules clean:
 | Methods on the biggest type | `controlplane.Server` 437, `runtime.Kernel` 284 | no type > 60 methods |
 | Largest Go package (files) | controlplane 204, runtime 81 | ≤ 40 |
 | Run entry points outside `modules/runs` | 10 | **1** (`RunService.Start`, called only from `app` ops and triggers) |
-| Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside L2 | many | 0 (analyzer) |
+| Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside their L2 home (`tools/archcheck/calls-allowlist.txt`) | **84 sites** (12 exec · 58 http-client · 14 raw-write), 2026-10-02 | 0 |
 | Hand-maintained route/op/SDK tables | control plane table, 198 webui routes, 4 SDKs | 0 (generated) |
 | Event kinds without schema / never emitted | ~7 ad-hoc / 8 dead | 0 / 0 |
 | Journal full scans on hot paths (`why`, channel history, epistemic gate) | 3+ per call | 0 (index) |

@@ -23,11 +23,19 @@ func testConfig(t *testing.T) *Config {
 		{Pattern: "kernel/adapters/...", Layer: LayerAdapter},
 		{Pattern: "plugins/...", Layer: LayerPlugin},
 		{Pattern: "cmd/...", Layer: LayerRoot},
-	}}
+	}, Calls: allCallPolicies()}
 	if err := cfg.validate(); err != nil {
 		t.Fatalf("test config invalid: %v", err)
 	}
 	return cfg
+}
+
+func allCallPolicies() []CallPolicy {
+	return []CallPolicy{
+		{Rule: CallExec, Allow: []string{"kernel/platform/sandbox/..."}},
+		{Rule: CallHTTPClient, Allow: []string{"kernel/platform/netout/..."}},
+		{Rule: CallRawWrite, Allow: []string{"kernel/platform/store/..."}},
+	}
 }
 
 func TestMatch(t *testing.T) {
@@ -55,7 +63,7 @@ func TestMatch(t *testing.T) {
 }
 
 func TestClassifyFirstMatchWinsAndCapturesModule(t *testing.T) {
-	cfg := &Config{ModulePath: mod, Rules: []Rule{
+	cfg := &Config{ModulePath: mod, Calls: allCallPolicies(), Rules: []Rule{
 		{Pattern: "kernel/internal/testfixtures", Layer: LayerRoot},
 		{Pattern: "kernel/...", Layer: LayerPlatform},
 		{Pattern: "kernel/modules/*/...", Layer: LayerModule, Module: "@1"},
@@ -87,6 +95,19 @@ func TestValidateRejectsBadRules(t *testing.T) {
 		{ModulePath: mod, Rules: []Rule{{Pattern: "a", Layer: LayerPlatform, Module: "x"}}},
 		{ModulePath: mod, Rules: []Rule{{Pattern: "a", Layer: LayerModule, Module: "@1"}}},
 		{ModulePath: mod, Rules: []Rule{{Pattern: "a", Layer: 0}, {Pattern: "a", Layer: 1}}},
+	}
+	for i := range bad {
+		if bad[i].Calls == nil {
+			bad[i].Calls = allCallPolicies()
+		}
+	}
+	badCalls := [][]CallPolicy{
+		nil, // every rule needs a policy entry
+		{{Rule: "teleport"}, {Rule: CallExec}, {Rule: CallHTTPClient}, {Rule: CallRawWrite}},
+		{{Rule: CallExec}, {Rule: CallExec}, {Rule: CallHTTPClient}, {Rule: CallRawWrite}},
+	}
+	for _, bc := range badCalls {
+		bad = append(bad, Config{ModulePath: mod, Rules: []Rule{{Pattern: "a", Layer: 0}}, Calls: bc})
 	}
 	for i, c := range bad {
 		if err := c.validate(); err == nil {
@@ -168,11 +189,13 @@ func runFixture(t *testing.T, pkgs []Pkg, allow string, args ...string) (int, st
 	cfgJSON := `{"module_path":"` + mod + `","rules":[
 		{"pattern":"kernel/contract/...","layer":1},
 		{"pattern":"kernel/platform/...","layer":2},
-		{"pattern":"plugins/...","layer":6}]}`
+		{"pattern":"plugins/...","layer":6}],
+		"calls":[{"rule":"exec","allow":[]},{"rule":"http-client","allow":[]},{"rule":"raw-write","allow":[]}]}`
 	if err := os.WriteFile(cfgPath, []byte(cfgJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	allowPath := filepath.Join(dir, "allowlist.txt")
+	callsPath := filepath.Join(dir, "calls-allowlist.txt")
 	if allow != "" {
 		if err := os.WriteFile(allowPath, []byte(allow), 0o644); err != nil {
 			t.Fatal(err)
@@ -183,7 +206,7 @@ func runFixture(t *testing.T, pkgs []Pkg, allow string, args ...string) (int, st
 	t.Cleanup(func() { listPackages = old })
 
 	var stdout, stderr bytes.Buffer
-	code := run(append([]string{"-config", cfgPath, "-allowlist", allowPath}, args...), &stdout, &stderr)
+	code := run(append([]string{"-config", cfgPath, "-allowlist", allowPath, "-calls-allowlist", callsPath}, args...), &stdout, &stderr)
 	written, _ := os.ReadFile(allowPath)
 	return code, stdout.String(), stderr.String(), string(written)
 }
@@ -204,7 +227,7 @@ func TestRunFailsOnNewViolation(t *testing.T) {
 
 func TestRunPassesWhenAllowlisted(t *testing.T) {
 	code, stdout, stderr, _ := runFixture(t, badGraph, "# header\n"+badEdge+"\n")
-	if code != 0 || !strings.Contains(stdout, "1 allowlisted violations remain") {
+	if code != 0 || !strings.Contains(stdout, "1 allowlisted import violations") {
 		t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout, stderr)
 	}
 }
