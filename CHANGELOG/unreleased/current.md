@@ -4,6 +4,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: several child processes inherited the daemon's entire environment** —
+  every provider API key, channel token and the vault passphrase — because Go's
+  `os/exec` treats an unset `Cmd.Env` as "inherit". Affected: git under the `coding`
+  tool (a hostile repository's hooks ran with the keys), the toolbox's
+  install/detect/outdated commands (npm/pip install scripts), tunnel binaries and ACP
+  version probes. Every child outside warden is now built by `kernel/platform/sandbox`,
+  whose `Command` presets a non-inheriting environment:
+  - agent-steered children (git, ACP agents, browser driver, MCP servers) get a launch
+    allowlist plus explicit grants;
+  - operator-triggered helper CLIs get everything except secret-shaped names, so
+    toolchain settings (`GOPATH`, `CARGO_HOME`, `NVM_DIR`, …) keep working;
+  - tunnels are granted their own token variables.
+
+  The launch allowlist now also carries proxies (`HTTP(S)_PROXY`, `NO_PROXY`,
+  `ALL_PROXY`), `SSH_AUTH_SOCK`, `USER`/`LOGNAME`/`SHELL`/`TERM`/`TZ`/`LANGUAGE` and the
+  XDG directories; until now scrubbed children behind a corporate proxy could not reach
+  the network. `tools/archcheck` keeps the exec allowlist empty.
+- **Security: secrets passed into a warden container were visible in the process list.**
+  The container backend passed child variables as `docker|podman run -e NAME=VALUE`,
+  putting granted secrets in argv. Secret-shaped variables now go as `-e NAME`, with
+  the value in the runtime CLI's own environment.
+
 - **Security: `fetch` ignored the http tool's host allowlist.** `fetch` is governed as
   `http.get`, the same capability as the `http` tool's GET, but it never read
   `AGEZT_HTTP_ALLOWED_HOSTS` (or `AGEZT_HTTP_ALLOW_LOOPBACK/PRIVATE`). With `http` pinned
@@ -952,6 +974,11 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Fixed: plugin children outlived the daemon.** Plugins started at boot were never
+  closed: they kept running after shutdown unless they exited on stdin EOF, and a tool
+  set that failed to build leaked the plugins started before the failure. The daemon
+  now closes them at shutdown, after in-flight runs finish.
 
 - **Fixed: a key set with `agt provider creds set` while the daemon ran was deleted by the
   daemon's next vault save.** Both processes held their own copy of the vault and saved it

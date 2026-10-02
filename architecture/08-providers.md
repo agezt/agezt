@@ -663,7 +663,7 @@ speaks the agezt plugin protocol to the daemon and JSON-RPC 2.0 MCP to one serve
   The bridge does not emit `capability` or progress frames; MCP `notifications/progress` and `notifications/message`
   are only logged to stderr.
 * Transports (`transport` interface `send/close`; `transportDeliver` callbacks `onResponse/onNotification/onTransportDead`):
-  * stdio: `exec.Command`, child inherits the bridge's environment (no scrubbing here, unlike `kernel/mcp`), stderr
+  * stdio: `sandbox.Command` with `Env = os.Environ()` — deliberately the bridge's own env, which is already the plugin host's scrubbed base + the operator's `AGEZT_PLUGIN_ENV` grants the fronted server needs; stderr
     passthrough, read loop with `readBoundedLine` (16 MiB frame cap, M185).
   * SSE: GET event stream; first `endpoint` event announces the POST URL, validated by `sse_guard.go`
     (`buildSSEEndpointPolicy`, `resolveEndpoint`, `classifyHost`, `ipPolicyReason`) — same-origin as the operator's

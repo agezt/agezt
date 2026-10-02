@@ -123,7 +123,7 @@ Today → target mapping of the key moves:
 | `kernel/restapi`, `openaiapi`, `agentgw` call kernel interfaces directly | call `app` operations; OpenAI/REST runs go through `RunService` | F2: closes the run-check bypass and tenant leaks |
 | `cadence` + `standing` + pulse initiative + `workflow` triggers + `cadence/systemtasks` + `scheduler` | `modules/triggers` (one model: `Trigger{Source, Target, Policy}`) | Five overlapping wake mechanisms, one of which bypasses Edict |
 | `settings` + `configcenter` + `creds` | `platform/config` (non-secret settings, schema registry) + `platform/secrets` (vault, keyring, file lock) — one precedence rule | Two "Config Centers", plaintext secrets, opposite precedence, races |
-| `warden` + `envscrub` + ad-hoc `exec.Command` in plugins/coding/browser/git | `platform/sandbox.Launcher` (the only way to start a child) | F3: secret leakage into plugin/git children |
+| `warden` + `envscrub` + ad-hoc `exec.Command` in plugins/coding/browser/git | `platform/sandbox` (**done W1.5**): `Command` presets a non-inheriting env; the only way to start a child outside warden (archcheck exec allowlist empty) | F3: secret leakage into plugin/git children |
 | `netguard` + 3 provider HTTP postures + bare `http.Client` | `platform/netout` (**done W1.4**): `Egress.Client` / `OperatorClient` / `MetadataClient` — the only way to dial out (archcheck allowlist empty); retry stays provider-side | F3: SSRF inconsistency, broken TransientError retry |
 | `journal` + `bus` + `event` + 15 projections | `platform/eventlog` with a **kind registry** and a **sidecar index** | No index (full scans on `why`, channel history, epistemic gate); 8 dead kinds; ad-hoc kinds |
 | 13 `jsonstore` users + `board` single-instance rule | `platform/filestore` (**done W1.3**: 0600/0700 + cross-process `Lock`; path registry not needed, see roadmap) | P5; perms; vault races |
@@ -307,7 +307,7 @@ Rules that keep modules clean:
 | Methods on the biggest type | `controlplane.Server` 437, `runtime.Kernel` 284 | no type > 60 methods |
 | Largest Go package (files) | controlplane 204, runtime 81 | ≤ 40 |
 | Run entry points outside `modules/runs` | 10 | **1** (`RunService.Start`, called only from `app` ops and triggers) |
-| Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside their L2 home (`tools/archcheck/calls-allowlist.txt`) | **85 sites** (13 exec · 58 http-client · 14 raw-write; union over linux/windows/darwin), 2026-10-02 → **27** after W1.4 (http-client 0) | 0 |
+| Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside their L2 home (`tools/archcheck/calls-allowlist.txt`) | **85 sites** (13 exec · 58 http-client · 14 raw-write; union over linux/windows/darwin), 2026-10-02 → **27** after W1.4 (http-client 0) → **14** after W1.5 (exec 0; raw-write remains) | 0 |
 | Hand-maintained route/op/SDK tables | control plane table, 198 webui routes, 4 SDKs | 0 (generated) |
 | Event kinds without schema / never emitted | ~7 ad-hoc / 8 dead | 0 / 0 |
 | Journal full scans on hot paths (`why`, channel history, epistemic gate) | 3+ per call | 0 (index) |

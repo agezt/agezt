@@ -421,7 +421,7 @@ Tests: `approval_test.go`, `coverage_edge_test.go`, `timeout_default_internal_te
 
 Cross-platform: `context.WithTimeout` (default 30s), `cmd.WaitDelay` (500ms), stdout/stderr each tail-capped (`capBuffer`, default 256 KiB), `Spec.Env == nil` → **empty** env (M186; never inherits daemon env), Windows `cmd /S /C` verbatim fixup (M958).
 
-**Container backend** (`container.go`): `docker|podman run --rm --network none(default) -v <abs workdir>:/workspace -w /workspace -e K=V… <image python:3.12-slim> <inner argv>`; the runtime CLI itself is launched with an empty env. Env vars are passed as `-e NAME=VALUE` **on the CLI argv** (visible in host process listings).
+**Container backend** (`container.go`): `docker|podman run --rm --network none(default) -v <abs workdir>:/workspace -w /workspace -e K=V… <image python:3.12-slim> <inner argv>`; the runtime CLI itself is launched with an empty env plus the secret values it forwards. Non-secret vars go inline as `-e NAME=VALUE`; secret-shaped vars (`envscrub.IsSecretName`) go as `-e NAME` with the value in the CLI's own env, so they never appear in argv (W1.5). `DOCKER_*`/`PODMAN_*`/`CONTAINER*` names always stay inline so they cannot steer the CLI.
 
 **Events:** `warden.executed` (subject `warden.exec`: requested/effective profile, exit, durations, bytes, truncated, timed_out), `warden.profile_downgraded` (once per requested profile per process), `warden.limit_exceeded` (timeout/output_bytes/rlimit failures).
 
@@ -486,7 +486,7 @@ Single file `netguard.go`. Tests: `netguard_test.go`, `coverage_test.go`.
 
 ## C.4 `kernel/envscrub`
 
-`Scrubbed()` returns a child env containing only an allowlist (PATH, PATHEXT, COMSPEC, SYSTEMROOT, HOME/USERPROFILE/APPDATA…, TEMP/TMP, LANG, `LC_*`, …) minus any name for which `IsSecretName` is true (contains `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `CRED`, `AWS_`, `AGEZT_`). `With(base, kvs...)` appends explicit values. Used by AWS `credential_process` (SEC-003), `acpagent`, `browser`, `coding` tools. Single file `envscrub.go`; tests `envscrub_test.go`, `coverage_test.go`.
+`Scrubbed()` returns a child env containing only an allowlist (PATH, PATHEXT, COMSPEC, SYSTEMROOT, HOME/USERPROFILE/APPDATA…, TEMP/TMP, LANG, `LC_*`, …) minus any name for which `IsSecretName` is true (contains `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `CRED`, `AWS_`, `AGEZT_`). The allowlist also keeps proxies (`HTTP(S)_PROXY`, `NO_PROXY`, `ALL_PROXY`), `SSH_AUTH_SOCK`, `USER`/`LOGNAME`/`SHELL`/`TERM`/`TZ`/`LANGUAGE` and the XDG dirs (W1.5: scrubbed children behind a proxy could not reach the network). `With(base, kvs...)` appends explicit values. Consumed through `kernel/platform/sandbox` (`IsolatedEnv`, `HelperEnv`, `Command`/`CommandContext` with the env preset), which every child-process launch outside warden goes through (archcheck exec allowlist empty). Single file `envscrub.go`; tests `envscrub_test.go`, `coverage_test.go`.
 
 ## C.5 `kernel/redact`
 
@@ -702,7 +702,7 @@ Files: `tenant/tenant.go`, `tenantctx/tenantctx.go`. Tests: `tenant_test.go`, `t
 8. **Model routing hoists, doesn't restrict**: a model id no provider lists is still sent to the cost-preferred provider unless *every* provider declares a model list (`modelKnownUnservable`).
 9. **Doc drift**: `governor/doc.go` mentions `RouteOptions.PreferredProvider` — no such type exists in the codebase. `routes_parsers.go`'s trailing comment says `applyTaskRouteRequire` returns "a SINGLE-element chain containing nil"; the code returns `nil`. `creds/doc.go` (and the `creds.go` provenance block) still say "Plain-JSON storage. No encryption" — the vault has encrypted by default since M934. Many `edict.go` capability comments say "Ask-first by default" while `DefaultLevels` is all-L4.
 10. **Warden isolation is mostly nominal**: no namespaces/seccomp/cgroups anywhere; Windows/macOS run everything as `none`. Always key decisions (e.g. secret buckets) off `EffectiveProfile`, never the requested profile (RCE-001).
-11. **Warden container backend leaks env values into argv** (`-e NAME=VALUE`), visible to other host users via process listings; secret-file mounts (`AGEZT_EXEC_SECRET_FILES_DOCKER`) avoid that.
+11. ✅ **Fixed (W1.5):** the warden container backend put env values into argv (`-e NAME=VALUE`), visible to other host users in process listings. Secret-shaped values now travel by name through the CLI's environment.
 12. **`Spec.Env == nil` means empty env**, not inheritance (M186). Callers wanting inheritance must pass `os.Environ()` explicitly.
 13. **netguard always blocks link-local** (cloud metadata) regardless of options, and its client ignores proxy env. Validation is at dial time so it covers DNS rebinding and redirects.
 14. **Redaction literals come only from the vault** (+ `AGEZT_REDACT_EXTRA`). A provider key supplied solely via the real process env is protected only if it matches a built-in pattern. Literals < 8 chars are never scrubbed.

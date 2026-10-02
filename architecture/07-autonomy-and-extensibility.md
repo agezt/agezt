@@ -1064,7 +1064,7 @@ Tests: `installguard`, `librarydefensive`, `librarypick`, `libraryversion`, `lis
 - Windows: only the direct child is killed.
 
 **No isolation.**
-- **No sandbox, no warden, no env scrubbing.** `Config.Env` is nil, so the child **inherits the full daemon environment**, unlike MCP (§12).
+- No warden. ✅ Env fixed (W0.3): the child gets the scrubbed base plus `AGEZT_PLUGIN_ENV` grants (it used to inherit the full daemon environment).
 - stderr is pattern-redacted (`redact.New()`) and prefixed `[plugin:<prefix>]`.
 
 ### 11.3 Lifecycle
@@ -1258,7 +1258,7 @@ Tests: `acp_test`, `bound_test`, `client_test`, `coverage_direct_test`, `coverag
 
 **Wiring.**
 - `controlplane/acp.go` serves the `acp_agents` command and `/api/acp/agents`.
-- `plugins/tools/acpagent` (capability `acp_agent`) spawns agents with `envscrub.Scrubbed()` and a 5 m timeout.
+- `plugins/tools/acpagent` (capability `acp_agent`) spawns agents with `sandbox.Command` (`IsolatedEnv`) and a 5 m timeout.
 - No persistence and no events. The HTTP client is `netout.OperatorClient` (fixed URLs, 6 s timeout, metadata refused).
 
 **Gotchas.**
@@ -1803,7 +1803,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 
 **Governance-relevant**
 1. **System-task schedules bypass the agent loop.** There is no Edict check, trust ceiling or approval. Safety rests on the closed `IsSystemTask` enum and operator-only creation.
-2. **Plugin children inherit the full daemon environment, including secrets.** `Config.Env` is nil in `builtintools/plugins.go`. MCP children get a scrubbed env and ACP children get `envscrub.Scrubbed()`.
+2. ✅ **Fixed (W0.3/W1.5):** plugin children inherited the full daemon environment. Plugins now get the scrubbed base + grants; MCP and ACP children get `sandbox.IsolatedEnv` (MCP's private, drifted allowlist copy was deleted).
 3. **Market install-time verification checks only that the signature is self-consistent** (`VerifyPack(p, "")`). Publisher pinning exists only at sync time via `Source.PubKey`. Installed pack skills **skip the draft/shadow gate** (promoted straight to active) and are **shared**. Agent-tool installs do not journal `market.pack.installed`.
 4. **Standing order trust ceilings:**
    - `act_or_ask` with no `max_trust` → `LevelAskFirst`
