@@ -89,11 +89,18 @@ func buildBrowserRead(d toolreg.BuildDeps) (toolreg.Built, error) {
 		br.AllowPrivate = true
 		fmt.Fprintln(d.Stderr, "WARNING: AGEZT_BROWSER_ALLOW_PRIVATE=1 lets browser.read reach the private network.")
 	}
-	// Browser cookies (M1.mm) — handled out-of-band by the browser.cookies tool
-	// (registered when AGEZT_BROWSER_COOKIES=1); left as a no-op here.
 	desc := "browser.read(any host)"
 	if browserRestricted {
 		desc = fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts))
+	}
+	// Session cookie jar (M1.mm), opt-in. A refactor once replaced this with a
+	// comment pointing at browser.cookies — a different tool, gated by
+	// AGEZT_BROWSER_ACTIONS — so the documented setting silently did nothing.
+	if d.Get(brand.EnvPrefix+"BROWSER_COOKIES") == "1" {
+		if err := br.EnableCookies(); err != nil {
+			return toolreg.Built{}, fmt.Errorf("%sBROWSER_COOKIES: %w", brand.EnvPrefix, err)
+		}
+		desc += "+cookies"
 	}
 	return toolreg.Built{Tool: br, Desc: desc}, nil
 }
