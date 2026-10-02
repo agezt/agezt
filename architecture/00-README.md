@@ -455,7 +455,7 @@ backlog. Details and file references are in the linked documents.
 ### 9.2 Reliability / data
 | Finding | Area |
 |---|---|
-| One corrupt mid-journal line aborts `runtime.Open`; only a torn final line self-repairs. No journal index: `agt why` = 3 full scans. | [06](06-data-memory-state.md) |
+| ✅ Fixed (W1.6c): one corrupt mid-journal line aborted `runtime.Open`; it is now quarantined and the gap journaled. Open: no journal index — `agt why` = 3 full scans (measured, deferred: W1.6b). | [06](06-data-memory-state.md) |
 | Operator-profile facet text changes create a second active record (the old one is never superseded); both are injected into every run. | [06](06-data-memory-state.md) |
 | ✅ **Fixed (W0.4):** Anomaly breaker disarmed after one trip and was not re-armed after resume. Anomaly/alerter watchers died silently on panic. | [06](06-data-memory-state.md) |
 | Artifact GC can delete blobs still referenced by journal `raw_ref`. ~~JSON stores are written 0644~~ ✅ Fixed (W1.3): 0600/0700. Failed distillation is journaled as `memory.written`. | [06](06-data-memory-state.md) |

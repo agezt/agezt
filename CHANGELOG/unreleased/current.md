@@ -986,6 +986,21 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Fixed: one corrupt record in the middle of the journal stopped the daemon from
+  booting.** Any record that failed to decode or verify aborted `journal.Open`, and with
+  it every start, until the operator repaired the file by hand. The damage is still
+  detected, but the daemon now quarantines and continues:
+  - everything from the bad record on is moved to `*.quarantined-<UTC>` files in the
+    journal directory (copied and fsynced before anything is truncated; nothing is
+    deleted);
+  - the hash chain resumes from the last verified event, and its first event is a
+    `journal.recovered` record naming the break, the cause and the quarantined files;
+  - the boot prints a WARNING.
+
+  `agt` backup, import and restore keep failing loudly instead, so only the daemon ever
+  moves journal bytes. The journal package doc no longer claims a sidecar index, which
+  never existed.
+
 - **Fixed: plugin children outlived the daemon.** Plugins started at boot were never
   closed: they kept running after shutdown unless they exited on stdin EOF, and a tool
   set that failed to build leaked the plugins started before the failure. The daemon

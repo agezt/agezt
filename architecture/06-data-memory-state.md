@@ -234,7 +234,7 @@ bus.Publish(spec)                       [Bus.mu held]
 
 ### 4.3 Recovery (`Open`)
 
-1. List segments; `scanSegment` each in order, checking `ev.Seq == nextSeq`, `ev.PrevHash == head`, and `VerifyHash()` — any failure → `ErrChainBreak` and **Open fails** (daemon boot fails in `runtime.Open`).
+1. List segments; `scanSegment` each in order, checking `ev.Seq == nextSeq`, `ev.PrevHash == head`, and `VerifyHash()` — a failure is a `*CorruptionError` (wrapping `ErrChainBreak` or the decode error). Since W1.6c (owner decision 5.6) Open **quarantines** instead of failing: `recover.go` copies the broken segment's tail from the bad record on into `<seg>.jsonl.quarantined-<UTC>` (fsynced) before truncating to the last verified line, and renames every later segment the same way. Nothing is deleted. The chain resumes from the last verified event with a `journal.recovered` event (break seq, cause, files, bytes); `Journal.Recovery()` exposes it and `cmd/agezt` prints a boot WARNING. Read I/O errors still fail Open. `Options.FailOnCorruption` (agt backup/import/restore) keeps fail-closed.
 2. Append target: if the last segment `>= segBytes` start `idx+1`; else compute `lastCompleteOffset` and **truncate a torn tail** (crash mid-write) so the next O_APPEND write starts exactly after the last committed line.
 3. Cost: Open reads and hash-verifies the entire journal on every boot (O(total bytes)).
 
@@ -660,7 +660,7 @@ Not persisted: bus subscriptions, memory embedding cache, anomaly/alerter window
 
 1. **Durable-before-publish:** no subscriber may ever see a durable event that is not in the chain; `publish_error_test.go` guards it. Ephemeral events (`Hash==""`) are the only exception and must never be needed for audit/replay.
 2. **Global publish serialization:** `Bus.mu` is held across the fsync; any slow disk or very slow subscriber channel send (sends are non-blocking, so only the disk) throttles the entire daemon.
-3. **Boot cost and boot failure:** `journal.Open` re-verifies every event hash on every start; a single corrupt line mid-journal is `ErrChainBreak` and aborts `runtime.Open`. Only a torn *final* line is auto-repaired.
+3. **Boot cost and boot failure:** `journal.Open` re-verifies every event hash on every start; measured at 323 ms for 8,396 events (W1.6b, linear). ✅ A corrupt line mid-journal no longer aborts boot (W1.6c): it is quarantined and the gap journaled.
 4. **No purge path.** The journal is append-only with no redaction-after-the-fact; the bus redactor must be installed before anything sensitive is published (`cmd/agezt/main.go` calls `SetRedactor` after `runtime.Open` and tool configuration, "before any Run"; anything a boot step publishes earlier is journaled unscrubbed). Hence the 0600/0700 hardening (EXPOSE-001).
 5. **`journal/doc.go` is stale** (claims a sidecar offset index). Every read is a sequential scan; `agt why` costs three full scans; `ProveTask` evidence gathering and `ParentOf` are full scans too.
 6. **Single-writer per store file.** Board is the documented case (M937), but the same hazard applies to every filestore store; they are safe only because `runtime.Open` opens each once.
