@@ -119,3 +119,79 @@ func TestMonitor_BelowCeilingDoesNotTrip(t *testing.T) {
 		// expected: nothing
 	}
 }
+
+func publishResume(t *testing.T, b *bus.Bus) {
+	t.Helper()
+	if _, err := b.Publish(event.Spec{Subject: "kernel", Kind: event.KindResume, Actor: "operator"}); err != nil {
+		t.Fatalf("publish resume: %v", err)
+	}
+}
+
+func waitTrip(t *testing.T, tripped <-chan string, what string) {
+	t.Helper()
+	select {
+	case <-tripped:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("%s: breaker did not trip", what)
+	}
+}
+
+// TestMonitor_RearmsAfterResume: the breaker used to latch — after ONE trip
+// its goroutine returned, so once the operator resumed the halted kernel the
+// daemon ran with no runaway protection for the rest of its life. It now
+// stays armed: after a trip it ignores tool calls until the kernel resumes,
+// then trips again on the next spike.
+func TestMonitor_RearmsAfterResume(t *testing.T) {
+	b := newBus(t)
+	tripped := make(chan string, 4)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	Start(ctx, b, Config{MaxToolCalls: 3, Window: 10 * time.Second}, func(r string) { tripped <- r })
+
+	for i := 0; i < 4; i++ {
+		publishToolCall(t, b)
+	}
+	waitTrip(t, tripped, "first spike")
+
+	// While halted (no resume yet) further calls must not re-trip.
+	for i := 0; i < 8; i++ {
+		publishToolCall(t, b)
+	}
+	select {
+	case <-tripped:
+		t.Fatal("tripped again before the kernel was resumed")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	publishResume(t, b)
+	for i := 0; i < 4; i++ {
+		publishToolCall(t, b)
+	}
+	waitTrip(t, tripped, "spike after resume")
+}
+
+// TestMonitor_SurvivesAPanickingTripHandler: a panic in onTrip used to be
+// swallowed by a recover that sat OUTSIDE the loop, so the watcher silently
+// stopped forever. A panic now costs only the event that caused it.
+func TestMonitor_SurvivesAPanickingTripHandler(t *testing.T) {
+	b := newBus(t)
+	tripped := make(chan string, 4)
+	calls := 0
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	Start(ctx, b, Config{MaxToolCalls: 3, Window: 10 * time.Second}, func(r string) {
+		calls++
+		if calls == 1 {
+			panic("handler bug")
+		}
+		tripped <- r
+	})
+	for i := 0; i < 4; i++ {
+		publishToolCall(t, b)
+	}
+	publishResume(t, b)
+	for i := 0; i < 4; i++ {
+		publishToolCall(t, b)
+	}
+	waitTrip(t, tripped, "after a panicking handler")
+}

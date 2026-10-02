@@ -365,3 +365,44 @@ func TestParseMuteSources(t *testing.T) {
 		t.Fatal("empty input must yield nil")
 	}
 }
+
+// panicOnceSink panics on its first delivery, then captures.
+type panicOnceSink struct {
+	captureSink
+	panicked bool
+}
+
+func (p *panicOnceSink) Deliver(b pulse.Brief) error {
+	if !p.panicked {
+		p.panicked = true
+		panic("channel delivery bug")
+	}
+	return p.captureSink.Deliver(b)
+}
+
+// TestStart_SurvivesAPanickingDelivery: the recover used to sit OUTSIDE the
+// loop, so one panicking delivery silently ended operator alerting for the
+// rest of the daemon's life. A panic now costs only the alert that caused it.
+func TestStart_SurvivesAPanickingDelivery(t *testing.T) {
+	b := newBus(t)
+	sink := &panicOnceSink{}
+	if !Start(t.Context(), b, sink, Config{}) {
+		t.Fatal("Start returned false")
+	}
+	for _, corr := range []string{"run-1", "run-2"} {
+		if _, err := b.Publish(event.Spec{Subject: "agent." + corr + ".task", Kind: event.KindTaskFailed,
+			Actor: "agent", CorrelationID: corr, Payload: map[string]any{"reason": "boom"}}); err != nil {
+			t.Fatalf("publish task.failed: %v", err)
+		}
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for len(sink.all()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("no alert delivered after the first delivery panicked — the notifier died")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := sink.all()[0].CorrelationID; got != "run-2" {
+		t.Fatalf("delivered %q, want run-2 (run-1's delivery panicked)", got)
+	}
+}
