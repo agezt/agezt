@@ -10,8 +10,10 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func (c *Center) entryFile(key string) string {
@@ -54,18 +56,22 @@ func loadStoreFromDisk(store *Store, dir string) error {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || len(entry.Name()) < 7 || entry.Name()[:7] != "entry_" {
+		// "entry_" is six bytes; this compared the first SEVEN ("entry_8…") with
+		// it, so no file ever matched and every entry was lost at each restart.
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "entry_") || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
 
 		filepath := filepath.Join(dir, entry.Name())
 		data, err := os.ReadFile(filepath)
 		if err != nil {
+			slog.Warn("config center: unreadable entry file skipped", "file", filepath, "error", err)
 			continue
 		}
 
 		var e ConfigEntry
 		if err := json.Unmarshal(data, &e); err != nil {
+			slog.Warn("config center: corrupt entry file skipped", "file", filepath, "error", err)
 			continue
 		}
 
