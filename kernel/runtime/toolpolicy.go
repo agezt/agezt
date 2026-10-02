@@ -49,6 +49,14 @@ func filterTools(tools map[string]toolapi.Tool, allow []string) map[string]toola
 	return out
 }
 
+// AgentTools narrows tools to what the run's agent profile allows (its
+// tool_allow / tool_deny, applied by WithAgentProfile). Without a profile the
+// set is returned unchanged. The run loop and the dry-run plan both shape the
+// tool set with it, so the plan cannot list a tool the run would not offer.
+func AgentTools(ctx context.Context, tools map[string]toolapi.Tool) map[string]toolapi.Tool {
+	return applyAgentToolPolicy(tools, agentToolPolicyFromCtx(ctx))
+}
+
 func applyAgentToolPolicy(tools map[string]toolapi.Tool, pol agentToolPolicy) map[string]toolapi.Tool {
 	out := tools
 	if len(pol.allow) > 0 {

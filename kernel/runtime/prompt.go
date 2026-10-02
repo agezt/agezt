@@ -14,7 +14,9 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
-func agentProfileSystem(p roster.Profile) string {
+// AgentProfileSystem renders a profile's system prompt: its soul, standing
+// instructions and task list. Empty when the profile defines none of them.
+func AgentProfileSystem(p roster.Profile) string {
 	var b strings.Builder
 	if soul := strings.TrimSpace(p.Soul); soul != "" {
 		b.WriteString(soul)

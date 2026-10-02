@@ -40,7 +40,7 @@ func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) age
 	// BEFORE the allowlist filter so a restricted run only sees the dynamic
 	// tools its allowlist grants (M794/M796).
 	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-	runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(runCtx))
+	runTools = AgentTools(runCtx, runTools)
 	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
 	if allow, ok := toolsFromCtx(runCtx); ok {
 		runTools = filterTools(runTools, allow)

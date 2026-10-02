@@ -16,10 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -91,24 +89,19 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			return
 		}
 		agentProf = &p
+		// The whole profile binds the run, exactly as it does a standing
+		// order, a cadence tick or a workboard dispatch: tool allow/deny,
+		// trust ceiling, standing instructions, memory scope, workdir, ledger
+		// identity. This handler once copied a subset by hand, so a direct
+		// run could use tools the agent was denied. Explicit per-run flags
+		// below layer on top of it.
+		ctx = runtime.WithAgentProfile(ctx, p)
 		if modelOverride == "" {
 			modelOverride = strings.TrimSpace(p.Model)
 		}
-		// The agent's memory follows it (M786): recalls — context injection
-		// and the memory tool — default to its scope (private notes + shared).
-		scope := strings.TrimSpace(p.MemoryScope)
-		if scope == "" {
-			scope = p.Slug
-		}
-		ctx = memory.WithScope(ctx, scope)
-		// And its working directory (M792): file/shell tools operate inside
-		// the profile's workspace subdirectory.
-		ctx = toolapi.WithWorkdir(ctx, p.Workdir)
-		// And its identity + daily ceiling for the Governor's ledger (M793).
-		ctx = runtime.WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
-		// Its own model fallback chain too (M787): primary (the resolved
-		// model — an explicit --model still wins the front slot) followed by
-		// the profile's ordered fallbacks; the Governor walks it in order.
+		// The fallback chain is rebuilt around the resolved primary (M787):
+		// an explicit --model, or the daemon default when the profile names
+		// no model, still takes the front slot.
 		if len(p.Fallbacks) > 0 {
 			primary := modelOverride
 			if primary == "" {
@@ -192,7 +185,8 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	systemOverride := strings.TrimSpace(sysRaw)
 	if systemOverride == "" && agentProf != nil {
-		systemOverride = strings.TrimSpace(agentProf.Soul) // the agent's soul IS its system prompt
+		// The agent's soul, standing instructions and tasks ARE its system prompt.
+		systemOverride = strings.TrimSpace(runtime.AgentProfileSystem(*agentProf))
 	}
 	if systemOverride != "" {
 		ctx = runtime.WithSystem(ctx, systemOverride)
@@ -437,7 +431,7 @@ executionProfileDone:
 				in.ContextLimit = m.Limit.Context
 			}
 		}
-		for name := range k.Tools() {
+		for name := range runtime.AgentTools(ctx, k.Tools()) {
 			in.AllToolNames = append(in.AllToolNames, name)
 		}
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: buildRunPlan(in)})

@@ -252,8 +252,8 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// sub-agent's identity); the sub-agent preamble always stays on top.
 	system := delegation.SystemPrompt
 	switch {
-	case prof != nil && agentProfileSystem(*prof) != "":
-		system += "\n\n" + agentProfileSystem(*prof)
+	case prof != nil && AgentProfileSystem(*prof) != "":
+		system += "\n\n" + AgentProfileSystem(*prof)
 	default:
 		// The LIVE default identity (SetSystem, M710) — an operator editing the
 		// persona expects delegated runs to inherit the edit, not the prompt the

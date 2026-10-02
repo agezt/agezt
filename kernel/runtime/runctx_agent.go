@@ -18,13 +18,20 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
-// application (its model resolves before the vision gate).
+// WithAgentProfile binds a run to a roster profile (M790): its system prompt
+// (soul + standing instructions + tasks), model and ordered fallbacks, tool
+// allow/deny lists, trust ceiling, lifecycle, retry and noise policy, config
+// overrides, memory scope, workdir, and ledger identity. Every way of running
+// an agent goes through it, so no entry point grants an agent more than its
+// profile does. The per-run cost ceiling is NOT applied here — callers layer
+// it so their own explicit budget wins; callers likewise layer explicit
+// per-run model/system overrides on top.
 func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	noise := effectiveAgentNoisePolicy(p)
 	if p.System {
 		ctx = context.WithValue(ctx, ctxKeySystemAgent, true)
 	}
-	if sys := agentProfileSystem(p); sys != "" {
+	if sys := AgentProfileSystem(p); sys != "" {
 		ctx = WithSystem(ctx, sys)
 	}
 	if p.Lifecycle.Mode != "" || p.Lifecycle.RetireOnComplete {
