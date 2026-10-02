@@ -1306,16 +1306,27 @@ quietly stop guarding again, which is precisely what happened the first time.
 Found while trying to close out the merge, which is not a place that usually
 yields anything.
 
-### What the ruleset asks for
+### What the rulesets ask for
 
-`main` is governed by ruleset `22206739`:
+There are **two** rulesets on `main`, and they disagree about what this workflow
+is called:
 
 ```json
+// 22200577 "main protection"
+"required_status_checks": { "required_status_checks": [{"context": "ci.yml"}] }
+
+// 22206739 "main ruleset"
 "pull_request":          { "required_approving_review_count": 1 }
 "required_status_checks": { "required_status_checks": [{"context": "CI"}] }
 ```
 
-One approving review, and a status check whose context is literally `CI`.
+`ci.yml` is what GitHub records when a workflow is picked by its **file name**;
+`CI` is the workflow's own `name:`. One approving review is also required.
+
+Neither status-check context had ever been produced. The first version of the
+fix added a single job named `CI` and so satisfied one ruleset while leaving the
+other still waiting — it was corrected only when the merge attempt produced the
+second error, quoted below. The requirement is a *pair*, not a single name.
 
 ### What the workflow actually reports
 

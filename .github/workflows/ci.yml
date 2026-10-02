@@ -730,3 +730,34 @@ jobs:
             exit 1
           fi
           echo "All 17 jobs succeeded or were legitimately skipped."
+
+  # A second required context, carrying the same verdict.
+  #
+  # There are TWO rulesets on main and they disagree about what this workflow is
+  # called. `main protection` (22200577) requires the context `ci.yml` -- what
+  # GitHub records when you pick a workflow by its file name. `main ruleset`
+  # (22206739) requires `CI` -- the workflow's own `name:`. Neither context was
+  # ever produced, because Actions reports one check-run per JOB and no job here
+  # is named after the workflow. GitHub's own merge error named both:
+  #
+  #   Required status check "ci.yml" is expected.
+  #   Required status check "CI" is expected.
+  #
+  # Two small jobs rather than two policies: editing a ruleset to match the
+  # workflow is a governance change, and the two rulesets disagreeing with each
+  # other is itself the bug. This makes the workflow satisfy what protection
+  # already demands, and it can fail for exactly one reason -- something
+  # upstream did not pass.
+  ci.yml:
+    name: ci.yml
+    if: always()
+    needs:
+      - CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the CI verdict under the file-name context
+        if: needs.CI.result != 'success'
+        run: |
+          echo "::error::The CI gate did not pass (needs.CI.result=${{ needs.CI.result }})."
+          exit 1
+      - run: echo "CI passed."

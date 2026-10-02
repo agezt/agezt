@@ -5,6 +5,24 @@ This file holds the active `[Unreleased]` working set.
 ### Security
 
 - **Security: the branch protection required a status check that has never existed.**
+- **Security: there are two rulesets on `main` and they disagree about what this workflow is
+  called — `main protection` (22200577) requires the status check `ci.yml`, `main ruleset`
+  (22206739) requires `CI`.** Neither context was ever produced, so neither ruleset's status
+  check was enforcing anything. This is the correction to the entry above: adding a single job
+  named `CI` satisfied one ruleset and left the other still waiting. GitHub's own merge error
+  is what named both:
+
+  ```
+  Required status check "ci.yml" is expected.
+  Required status check "CI" is expected.
+  At least 1 approving review is required by reviewers with write access.
+  ```
+
+  The workflow now emits both contexts from one verdict: a `CI` job that needs all seventeen
+  real jobs, and a `ci.yml` job that needs only `CI`. Two small jobs rather than editing a
+  ruleset to match the workflow — a ruleset is a governance decision, and the two of them
+  disagreeing is the bug, not the thing to paper over. The pair can fail for exactly one
+  reason: something upstream did not pass.
   `main` is governed by ruleset `22206739`, which lists a required status check with the
   context `CI`. `ci.yml` sets `name: CI` at the top, but a *workflow* name is not a *check
   context* — Actions creates one check-run per **job**, and every job in this file is named
