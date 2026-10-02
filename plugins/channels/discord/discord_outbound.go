@@ -29,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 )
+
 const discordAttachMaxRaw = 12 << 20
 
 // validDiscordAttachmentURL accepts only https URLs whose host is a Discord CDN

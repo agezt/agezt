@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
+package runtime
+
 // research_prompts.go owns the LLM-input prompt builders:
 // buildResearchPlanPrompt, buildResearchSynthPrompt,
-// buildRefutedWarning, and buildResearchVerifyPrompt.
-// The parsers / extractors / regex patterns that consume
-// the LLM output live in research_helpers.go.
-package runtime
+// buildRefutedWarning, and buildResearchVerifyPrompt. The parsers /
+// extractors / regex patterns that consume the LLM output live in
+// research_helpers.go.
 
 import (
 	"fmt"

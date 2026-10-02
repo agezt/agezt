@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel composition root: Config struct + PluginInfo alias.
-// Code extracted from runtime.go during the Day-41 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel composition root: Config struct + PluginInfo alias. Code
+//             extracted from runtime.go during the Day-41 god-file split. Public API
+//             unchanged.
 
 import (
 	"time"
@@ -18,8 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/warden"
 )
-
-
 
 // PluginInfo is the daemon-supplied manifest entry for one
 // external plugin spawned at startup. Carried on Config so the

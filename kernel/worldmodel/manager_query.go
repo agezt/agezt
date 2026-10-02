@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// World model query: resolveOrCreate + Resolve + ResolveQuiet + IsActiveSubject + Neighbors + Forget + Get + Entities + Relations + Count + publish + alias/attr helpers.
-// Code extracted from manager.go during the Day-65 god-file split. Public API unchanged.
 package worldmodel
 
+// Provenance: World model query: resolveOrCreate + Resolve + ResolveQuiet +
+//             IsActiveSubject + Neighbors + Forget + Get + Entities + Relations +
+//             Count + publish + alias/attr helpers. Code extracted from manager.go
+//             during the Day-65 god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
@@ -11,7 +13,6 @@ import (
 	"sort"
 	"strings"
 )
-
 
 func (g *Graph) resolveOrCreate(corr, name string) (string, error) {
 	all, err := g.store.AllEntities()

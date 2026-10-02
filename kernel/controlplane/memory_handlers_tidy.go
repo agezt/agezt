@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// Memory control-plane hygiene handlers: handleMemoryForget +
-// handleMemoryPromote (the soft-delete + ownership-promotion) +
-// handleMemoryPrune + handleMemoryTidy (the hard-remove + compaction) +
-// defaultPruneDays (the age threshold constant).
-// Extracted from memory_handlers.go during the Day-205 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Memory control-plane hygiene handlers:
+//             handleMemoryForget + handleMemoryPromote (the soft-delete +
+//             ownership-promotion) + handleMemoryPrune + handleMemoryTidy (the
+//             hard-remove + compaction) + defaultPruneDays (the age threshold
+//             constant). Extracted from memory_handlers.go during the Day-205
+//             god-file split. Public API unchanged.
 
 import (
 	"net"

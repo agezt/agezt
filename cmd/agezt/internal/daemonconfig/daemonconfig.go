@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Daemon config types + tiny helpers (voiceProviderIsNative + splitNonEmpty).
-// Code extracted from daemonconfig.go during the Day-94 god-file split.
-// Public API unchanged.
 package daemonconfig
 
+// Provenance: Daemon config types + tiny helpers (voiceProviderIsNative +
+//             splitNonEmpty). Code extracted from daemonconfig.go during the Day-94
+//             god-file split. Public API unchanged.
 
 import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/edict"
 )
-
 
 // Config is every post-inject AGEZT_* boot setting runDaemon consumes, grouped
 // by the natural clusters of the old inline code.

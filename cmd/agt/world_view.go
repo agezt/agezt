@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt world view helpers: renderEntityLine + cmdWorldAudit (audit subcommand + entity-line formatter).
-// Code extracted from world.go during the Day-98 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt world view helpers: renderEntityLine + cmdWorldAudit (audit
+//             subcommand + entity-line formatter). Code extracted from world.go
+//             during the Day-98 god-file split. Public API unchanged.
 
 import (
 	"context"

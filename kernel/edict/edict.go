@@ -21,8 +21,7 @@
 // easily-testable function.
 package edict
 
-import (
-)
+import ()
 
 // Capability identifies a class of action governed by policy. Capability
 // strings are stable; downstream loggers/UIs depend on them.

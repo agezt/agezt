@@ -11,12 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
-
 
 // cmdWebhook dispatches `agt webhook <subcommand>` (M112) — visibility into
 // outbound webhook delivery (webhook.delivered / webhook.failed).
@@ -240,4 +239,3 @@ func cmdWebhookStats(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
-

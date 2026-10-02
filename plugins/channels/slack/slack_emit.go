@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// slack_emit.go owns the bus-side event emitters for the
-// Slack channel: Channel.emitInbound (channel.inbound.slack)
-// and Channel.emitOutbound (channel.outbound.slack). The
-// actual send-API calls (postMessage / sendFile / Send /
-// fetchFileDataURL / send) live in slack_send.go.
 package slack
+
+// slack_emit.go owns the bus-side event emitters for the Slack channel:
+// Channel.emitInbound (channel.inbound.slack) and Channel.emitOutbound
+// (channel.outbound.slack). The actual send-API calls (postMessage /
+// sendFile / Send / fetchFileDataURL / send) live in slack_send.go.
 
 import (
 	"github.com/agezt/agezt/kernel/channel"

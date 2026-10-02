@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/catalog"
 )
+
 func compatVendorBaseURL(npm string) string {
 	n := strings.TrimSpace(strings.ToLower(npm))
 	if n == "@openrouter/ai-sdk-provider" {

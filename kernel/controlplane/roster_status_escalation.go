@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Escalation/routing helpers: uniqueStrings + agentEscalationLoadViews + agentRoutingMatchesProfile.
-// Code extracted from roster_status.go during the Day-39 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Escalation/routing helpers: uniqueStrings + agentEscalationLoadViews +
+//             agentRoutingMatchesProfile. Code extracted from roster_status.go
+//             during the Day-39 god-file split. Public API unchanged.
 
 import (
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 func uniqueStrings(in []string) []string {
 	if len(in) == 0 {

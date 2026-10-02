@@ -80,7 +80,7 @@ try {
   if (-not $url) { Fail "could not find Web UI URL" }
   Write-Host "  ok: web ui url resolved"
 
-  Write-Host "running Playwright nav-screenshots spec (39 views)..."
+  Write-Host "running Playwright nav-screenshots spec (36 views)..."
   Push-Location (Join-Path $repoRoot "frontend")
   try {
     $env:AGEZT_WEBUI_URL = $url

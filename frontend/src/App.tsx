@@ -31,6 +31,7 @@ import { SectionNav, Header, ViewTabs } from "@/components/AppNav";
 import {
   NAV,
   NAV_GROUPS,
+  VIEW_ALIASES,
   groupForView,
   rowForView,
   sectionForView,
@@ -231,14 +232,22 @@ export default function App() {
 
   // Deep-linkable views: setActive also reflects into the URL hash, so views are
   // bookmarkable and the browser back/forward buttons move between them.
+  //
+  // VIEW_ALIASES is resolved HERE as well as in viewFromHash. Without it, an
+  // in-app navigation into a retired id (a help chip, a vital, a Vitals row)
+  // stores an id that NAV cannot resolve, so App renders `NAV[0]` — Chat — until
+  // the hash round-trip corrects it a tick later. That is the failure the
+  // VIEW_ALIASES comment warns about: a link that "looks exactly like the app
+  // losing the page".
   const setActive = (id: string) => {
-    setActiveRaw(id);
+    const target = NAV.some((n) => n.id === id) ? id : VIEW_ALIASES[id] || id;
+    setActiveRaw(target);
     setAgentSlug(null); // leaving any agent detail route for a normal nav view
     setIncidentId(null); // leaving any incident detail route for a normal nav view
     // goToView is a no-op when the destination already matches the current
     // hash (and that includes the strip-`#` normalisation this branch used
     // to do inline) — so dropping the manual equality check is safe.
-    goToView(id);
+    goToView(target);
   };
   // Sync when the hash changes externally (back/forward, manual edit, openAgent).
   useEffect(() => {

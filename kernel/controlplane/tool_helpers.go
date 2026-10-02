@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane tool-log preview helper (previewString + toolOutputPreviewRunes).
-// Extracted from tool_log.go during Day 211 god-file refactor (#78).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tool-log preview
+//             helper (previewString + toolOutputPreviewRunes). Extracted from
+//             tool_log.go during Day 211 god-file refactor (#78). Public API
+//             unchanged.
 
 import (
 	"strings"

@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Agent teardown state-store cleanup: the per-agent + shared memory
-// forgetters, the skill archiver, the config-center entry + access-ref
-// pruners, and the workspace deleter.
-// Extracted from roster_teardown.go during the Day-204 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Agent teardown state-store cleanup: the
+//             per-agent + shared memory forgetters, the skill archiver, the
+//             config-center entry + access-ref pruners, and the workspace deleter.
+//             Extracted from roster_teardown.go during the Day-204 god-file split.
+//             Public API unchanged.
 
 import (
 	"errors"

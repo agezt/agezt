@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// tools_helpers.go: 4 netguard-capable build functions (buildHTTP,
-// buildBrowserRead, buildBrowserAction, buildWebSearch) split off from tools.go
-// during the Day 211 god-file refactor (#140). Public API unchanged.
 package builtintools
+
+// Provenance: tools_helpers.go: 4 netguard-capable build functions (buildHTTP,
+//             buildBrowserRead, buildBrowserAction, buildWebSearch) split off from
+//             tools.go during the Day 211 god-file refactor (#140). Public API
+//             unchanged.
 
 import (
 	"fmt"

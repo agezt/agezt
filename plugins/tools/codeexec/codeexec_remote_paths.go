@@ -61,4 +61,3 @@ func k8sWorkDir(cfg executionprofile.K8sConfig, localDir, projectSlug string) st
 	}
 	return path.Join(root, "runs", base)
 }
-

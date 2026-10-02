@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime workboard: proof-verification (ProveTask + verifyCriteria + parseCriteriaVerdict + gatherProofEvidence).
-// Code extracted from workboard.go during the Day-121 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime workboard: proof-verification (ProveTask + verifyCriteria +
+//             parseCriteriaVerdict + gatherProofEvidence). Code extracted from
+//             workboard.go during the Day-121 god-file split. Public API unchanged.
 
 import (
 	"context"

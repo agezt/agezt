@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
+
 func (p *Provider) completeStreamAnthropic(ctx context.Context, req agent.CompletionRequest, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Store constructor + access methods (Get/Set/Delete/List/ListByRating/
-// ListAccessible/Search) + audit (AddAuditEntry/GetAuditLog) +
-// UpdateRating. Extracted from types.go during Day 211 god-file refactor (#55).
-// Public API unchanged.
 package configcenter
+
+// Provenance: Store constructor + access methods (Get/Set/Delete/List/ListByRating/
+//             ListAccessible/Search) + audit (AddAuditEntry/GetAuditLog) +
+//             UpdateRating. Extracted from types.go during Day 211 god-file refactor
+//             (#55). Public API unchanged.
 
 import "time"
 

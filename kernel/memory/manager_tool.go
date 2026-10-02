@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package memory: agent.Tool surface for the memory manager (toolInput +
-// memoryTool + Tool + Definition + Invoke). The context.Context helpers
-// (WithCorrelation + CorrelationFrom + WithScope + ScopeFrom) moved to
-// manager_tool_ctx.go; the small tool helpers (toolActor + toolTags +
-// scopeOf + filterScope + renderHits + plural + distillResult) moved to
-// manager_tool_helpers.go. Day-211 god-file split. Public API unchanged.
 package memory
 
+// Provenance: Package memory: agent.Tool surface for the memory manager (toolInput +
+//             memoryTool + Tool + Definition + Invoke). The context.Context helpers
+//             (WithCorrelation + CorrelationFrom + WithScope + ScopeFrom) moved to
+//             manager_tool_ctx.go; the small tool helpers (toolActor + toolTags +
+//             scopeOf + filterScope + renderHits + plural + distillResult) moved to
+//             manager_tool_helpers.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"

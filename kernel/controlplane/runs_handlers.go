@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane run-listing handler (handleRunsList).
-// Code extracted from runs_handlers.go during the Day-85 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane run-listing handler (handleRunsList). Code extracted
+//             from runs_handlers.go during the Day-85 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"
@@ -14,8 +13,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/journal"
 )
-
-
 
 func (s *Server) handleRunsList(conn net.Conn, req Request) {
 	limit := defaultRunsLimit

@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// Install path: InstallResult + installTimeout + Install + tail.
-// Extracted from toolbox.go during the Day-203 god-file split.
-// Public API unchanged.
 package toolbox
+
+// Provenance: SPDX-License-Identifier: MIT Install path: InstallResult +
+//             installTimeout + Install + tail. Extracted from toolbox.go during the
+//             Day-203 god-file split. Public API unchanged.
 
 import (
 	"context"

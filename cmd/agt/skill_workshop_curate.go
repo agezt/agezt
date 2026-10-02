@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt skill_workshop curate + scan sub-commands: the scan + curate
-// entry points + the curate-args parser + the curate renderer +
-// the scan-result types (workshopScanReport + workshopScanFinding).
-// Extracted from skill_workshop.go during the Day-205 god-file split.
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt skill_workshop curate + scan
+//             sub-commands: the scan + curate entry points + the curate-args parser
+//             + the curate renderer + the scan-result types (workshopScanReport +
+//             workshopScanFinding). Extracted from skill_workshop.go during the
+//             Day-205 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -213,4 +212,3 @@ type workshopScanFinding struct {
 	Message  string `json:"message"`
 	Evidence string `json:"evidence,omitempty"`
 }
-

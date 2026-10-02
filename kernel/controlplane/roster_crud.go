@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane roster CRUD: the agent Add / Edit /
-// SetEnabled HTTP handlers. The profile-patch helper
-// (applyAgentMutableProfilePatch) and the hierarchy
-// validators (normalizeAgentProfileKind +
-// validateAgentHierarchyRefs +
-// managedSubagentDirectCallError) live in
-// roster_crud_internal.go. Carved out of roster_crud.go
-// during the Day-116 god-file split. Public API unchanged.
 package controlplane
+
+// Provenance: Control-plane roster CRUD: the agent Add / Edit / SetEnabled HTTP
+//             handlers. The profile-patch helper (applyAgentMutableProfilePatch) and
+//             the hierarchy validators (normalizeAgentProfileKind +
+//             validateAgentHierarchyRefs + managedSubagentDirectCallError) live in
+//             roster_crud_internal.go. Carved out of roster_crud.go during the
+//             Day-116 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

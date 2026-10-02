@@ -10,10 +10,10 @@ package controlplane
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/agezt/agezt/kernel/cadence"
 	"net"
 	"strings"
 	"time"
-	"github.com/agezt/agezt/kernel/cadence"
 )
 
 func (s *Server) handleScheduleList(conn net.Conn, req Request) {
@@ -258,4 +258,3 @@ func schedulePayloadContract(e cadence.Entry) string {
 		return "task text only"
 	}
 }
-

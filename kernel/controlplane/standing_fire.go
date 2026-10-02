@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// controlplane/standing: fire-callback machinery (SetStandingFire +
-// handleStandingFire + registerStandingCommands).
-// Split from standing.go during Day 211 god-file refactor (#46).
-// Public API unchanged.
 package controlplane
+
+// Provenance: controlplane/standing: fire-callback machinery (SetStandingFire +
+//             handleStandingFire + registerStandingCommands). Split from standing.go
+//             during Day 211 god-file refactor (#46). Public API unchanged.
 
 import (
 	"net"

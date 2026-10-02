@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Settings built-in sections: builtinSections() (the giant field-definition data block).
-// Code extracted from schema.go during the Day-62 god-file split. Public API unchanged.
 package settings
 
-
+// Provenance: Settings built-in sections: builtinSections() (the giant
+//             field-definition data block). Code extracted from schema.go during the
+//             Day-62 god-file split. Public API unchanged.
 
 // builtinSections is the typed, grouped, secret-flagged description the Config
 // Center renders forms from and the server validates against. Every Env here is

@@ -10,10 +10,10 @@ package selfrepair
 
 import (
 	"fmt"
-	"sort"
-	"time"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"sort"
+	"time"
 )
 
 func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep kernelruntime.ReaperReport, profiles []roster.Profile) []autoRepairCandidate {
@@ -258,4 +258,3 @@ func (c *autoRepairCoordinator) claimOne(k *kernelruntime.Kernel, now time.Time,
 	c.last[cand.Slug] = autoRepairStamp{fingerprint: cand.Fingerprint, at: now}
 	return cand, true
 }
-

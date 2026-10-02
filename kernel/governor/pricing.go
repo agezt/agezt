@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Package governor: pricing table + catalog binding + lookup surface.
-// Pricing tables in USD-microcents per million tokens (DECISIONS C1). Lookup
-// order: live catalog → hardcoded fallback → unpricedFallbackPrice (NOT free,
-// BIZ-001). The cost computation (CostMicrocents + costMicrocents +
-// costMicrocentsCached) + saturation math (saturatingMul + saturatingAdd)
-// moved to pricing_cost.go. Day-211 god-file split. Public API unchanged.
 package governor
 
+// Provenance: Package governor: pricing table + catalog binding + lookup surface.
+//             Pricing tables in USD-microcents per million tokens (DECISIONS C1).
+//             Lookup order: live catalog → hardcoded fallback →
+//             unpricedFallbackPrice (NOT free, BIZ-001). The cost computation
+//             (CostMicrocents + costMicrocents + costMicrocentsCached) + saturation
+//             math (saturatingMul + saturatingAdd) moved to pricing_cost.go. Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"slices"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/catalog"
 )
+
 // Pricing tables. All values in USD-microcents per million tokens
 // (DECISIONS C1). 1 USD = 100 cents = 10^9 microcents, so
 // "$3 per MTok" → 3 * 100 * 10_000_000 = 3_000_000_000 microcents/MTok.

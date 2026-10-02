@@ -2,7 +2,6 @@
 
 package main
 
-
 // agt rollback command: dispatcher + List + Show subcommands.
 // Carved out of rollback.go during the Day 160 god-file split so the
 // apply / checkpoint logic and the catalog I/O can live in focused files.
@@ -158,4 +157,3 @@ func cmdRollbackShow(cmd string, args []string, stdout, stderr io.Writer) int {
 	renderRollbackCheckpoint(stdout, *cp)
 	return 0
 }
-

@@ -8,10 +8,15 @@ import type { AgentEvent } from "@/app/events";
 // folds are pure (time passed in) so they're unit-testable without a daemon.
 //
 // Mirrors lib/council.ts. The live step events carry clipped text + a verifier
-// exec FLAG (not the full execution output); the blocking POST result later
-// upgrades each step to its complete form via applyConductorResult.
+// exec FLAG (not the full execution output); the blocking POST result used to
+// upgrade each step to its complete form via conductorStore's
+// applyConductorResult, which went with the Conductor view.
 
-export interface ConductorRoles {
+// Not exported: ConductorRoles and ConductorStep are part of ConductorRun's
+// shape and are built by emptyRoles/fold below, but since the Conductor view
+// was retired nothing outside this module names them any more. They stay
+// package-private until a reader exists.
+interface ConductorRoles {
   thinker: string;
   worker: string;
   verifier: string;
@@ -24,7 +29,7 @@ interface ConductorExec {
   output?: string;
 }
 
-export interface ConductorStep {
+interface ConductorStep {
   round: number;
   role: string; // thinker | worker | verifier
   model: string;

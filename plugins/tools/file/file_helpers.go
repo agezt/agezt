@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// file_helpers.go: doRead + doReadRange split off from file.go during the Day 211
-// god-file refactor (#137). Public API unchanged.
 package file
+
+// Provenance: file_helpers.go: doRead + doReadRange split off from file.go during
+//             the Day 211 god-file refactor (#137). Public API unchanged.
 
 import (
 	"bufio"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
-
 
 // ----- ops -----
 

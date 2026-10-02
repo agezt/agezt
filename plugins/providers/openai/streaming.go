@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
+
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
 // Chat Completions endpoint with stream=true (and
 // stream_options.include_usage=true so the final chunk carries the

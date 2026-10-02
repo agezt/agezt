@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdSend implements `agt send --channel KIND --to ID <text...>` — push a one-off

@@ -54,8 +54,8 @@ func TestSnapshot_NoConcurrentMapRaceWithRecordUsage(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			_, _ = g.Complete(ctx, agent.CompletionRequest{
-				Model:        "mock",
-				TaskType:     "demo",
+				Model:         "mock",
+				TaskType:      "demo",
 				CorrelationID: "race",
 			})
 			cancel()

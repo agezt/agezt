@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package resume: CRUD + state-transition methods (Put + putLocked +
-// Snapshot + Get + getLocked + List + Delete + MarkSuspendedAll +
-// IncrementAttempt + Quarantine).
-// Split from resume.go during Day 211 god-file refactor (#48).
-// Public API unchanged.
 package resume
+
+// Provenance: Package resume: CRUD + state-transition methods (Put + putLocked +
+//             Snapshot + Get + getLocked + List + Delete + MarkSuspendedAll +
+//             IncrementAttempt + Quarantine). Split from resume.go during Day 211
+//             god-file refactor (#48). Public API unchanged.
 
 import (
 	"encoding/json"

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt overseer` CLI dispatcher and the read/pause/resume ops.
-// Fleet supervisory commands mirror the agent-facing overseer tool. Lifecycle
-// CRUD (impact/retire/revive/get/delete) moved to overseer_lifecycle.go;
-// bulk operations and the jsonOrString helper moved to overseer_bulk.go.
-// Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt overseer` CLI dispatcher and the read/pause/resume
+//             ops. Fleet supervisory commands mirror the agent-facing overseer tool.
+//             Lifecycle CRUD (impact/retire/revive/get/delete) moved to
+//             overseer_lifecycle.go; bulk operations and the jsonOrString helper
+//             moved to overseer_bulk.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -15,10 +16,11 @@ import (
 	"io"
 	"strings"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
+
 // cmdOverseer dispatches `agt overseer <subcommand>` — the CLI gateway to the
 // same fleet supervisory operations the agent-facing overseer tool provides.
 // It mirrors the tool's ops through the daemon's control-plane RPC so operators

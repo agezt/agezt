@@ -67,4 +67,3 @@ func quoteCommand(args []string) string {
 	}
 	return strings.Join(out, " ")
 }
-

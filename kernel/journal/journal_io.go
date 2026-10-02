@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Journal I/O: Tail + readSegment + Restore + Verify + writeAndSync + rotate.
-// Code extracted from journal.go during the Day-60 god-file split. Public API unchanged.
 package journal
 
+// Provenance: Journal I/O: Tail + readSegment + Restore + Verify + writeAndSync +
+//             rotate. Code extracted from journal.go during the Day-60 god-file
+//             split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -14,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 )
-
 
 func (j *Journal) Tail(n int) ([]*event.Event, error) {
 	if n <= 0 {

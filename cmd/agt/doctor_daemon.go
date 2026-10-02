@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor daemon/service checks: checkSandbox + checkProvider +
-// checkCatalog + checkApprovals + checkWebhooks + checkAgentHealth +
-// checkGuardianNoise (with all of its helpers) + checkSchedules +
-// checkStanding + int64Of. Split from doctor.go during Day 211 god-file
-// refactor (#40). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor daemon/service checks:
+//             checkSandbox + checkProvider + checkCatalog + checkApprovals +
+//             checkWebhooks + checkAgentHealth + checkGuardianNoise (with all of its
+//             helpers) + checkSchedules + checkStanding + int64Of. Split from
+//             doctor.go during Day 211 god-file refactor (#40). Public API
+//             unchanged.
 
 import (
 	"context"

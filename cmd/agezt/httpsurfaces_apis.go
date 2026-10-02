@@ -35,6 +35,7 @@ import (
 	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/webhook"
 )
+
 func writeAPIListenToken(baseDir, filename, token string) (prefix string, err error) {
 	return kernelauth.WriteTokenFile(baseDir, filename, token)
 }

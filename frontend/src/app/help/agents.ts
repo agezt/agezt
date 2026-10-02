@@ -226,7 +226,7 @@ export const Agents: Record<string, HelpTopic> = {
     ],
     related: [
       { id: "agents", label: "Agents" },
-      { id: "activity", label: "Activity" },
+      { id: "runs", label: "Runs" },
     ],
   },
 
@@ -392,36 +392,8 @@ export const Agents: Record<string, HelpTopic> = {
     ],
   },
 
-  replay: {
-    title: "Replay",
-    intro:
-      "The flight recorder: pick any run and step through its exact sequence — every LLM round, tool call, policy decision, and the spend as it accumulated.",
-    sections: [
-      {
-        heading: "Using the recorder",
-        items: [
-          {
-            term: "Run selector",
-            desc: "Newest first; runs still in flight are marked with a dot. The newest run is auto-selected on load.",
-          },
-          {
-            term: "The timeline",
-            desc: "The recorder lays out every step in order with its payload, so you can audit precisely what the agent saw and did.",
-          },
-          {
-            term: "Live runs",
-            desc: "Selecting an in-flight run folds live events in as they happen — you watch the recording being made.",
-          },
-        ],
-      },
-    ],
-    tips: [
-      "Replay is the best post-mortem tool: when a run went sideways, the answer is in the step where the inputs stopped matching your expectations.",
-    ],
-    related: [
-      { id: "runs", label: "Runs" },
-      { id: "activity", label: "Activity" },
-    ],
-  },
-
+  // The `replay` topic used to live here and has been folded into the `runs`
+  // topic in monitor.ts: Replay was never a separate screen, it was this same
+  // component with a different tab label, so its guidance described what the
+  // Runs page already does.
 };

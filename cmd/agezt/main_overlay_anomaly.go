@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Anomaly auto-halt + alert-notify + standing-trust-ceiling builders
-// (buildAnomaly, buildAlertNotify, standingTrustCeiling). Extracted from
-// main_overlay.go during Day 211 god-file refactor (#56).
-// Public API unchanged.
 package main
+
+// Provenance: Anomaly auto-halt + alert-notify + standing-trust-ceiling builders
+//             (buildAnomaly, buildAlertNotify, standingTrustCeiling). Extracted from
+//             main_overlay.go during Day 211 god-file refactor (#56). Public API
+//             unchanged.
 
 import (
 	"context"

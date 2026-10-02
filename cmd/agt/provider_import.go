@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt provider import` (SPEC-15 §1.3) — discover API keys the
-// operator already has on the machine (process env, .env, well-known CLI
-// creds files) and offer to copy recognised ones into the encrypted vault.
-// The file-parsing helpers (knownCredFiles + parseDotEnvFile +
-// parseJSONCredFile) moved to provider_import_files.go. Day-211 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: Package main: `agt provider import` (SPEC-15 §1.3) — discover API keys
+//             the operator already has on the machine (process env, .env, well-known
+//             CLI creds files) and offer to copy recognised ones into the encrypted
+//             vault. The file-parsing helpers (knownCredFiles + parseDotEnvFile +
+//             parseJSONCredFile) moved to provider_import_files.go. Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/creds"
 )
+
 // cmdProviderImport implements `agt provider import` (SPEC-15 §1.3): discover
 // API keys the operator already has on the machine — process environment, a
 // local `.env`, and well-known CLI credential files (Codex, Gemini) — and offer

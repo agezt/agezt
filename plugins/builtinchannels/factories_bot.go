@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Bot-style channel factories (oneBotFactory, buildZalo, buildNostr).
-// Extracted from factories_bot.go during Day 211 god-file refactor (#44, #62).
-// Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT Bot-style channel factories
+//             (oneBotFactory, buildZalo, buildNostr). Extracted from
+//             factories_bot.go during Day 211 god-file refactor (#44, #62). Public
+//             API unchanged.
 
 import (
 	"fmt"

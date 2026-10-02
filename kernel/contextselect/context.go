@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Package contextselect: selection logic + types (Candidate, Manifest,
-// SplitCandidates + rejectReason + Summary + FailureAnalysisSuspects +
-// totalTokens + ChosenIDSet + CandidateIDs).
-// Extracted from context.go during Day 211 god-file refactor (#71).
-// Public API unchanged.
 package contextselect
+
+// Provenance: SPDX-License-Identifier: MIT Package contextselect: selection logic +
+//             types (Candidate, Manifest, SplitCandidates + rejectReason + Summary +
+//             FailureAnalysisSuspects + totalTokens + ChosenIDSet + CandidateIDs).
+//             Extracted from context.go during Day 211 god-file refactor (#71).
+//             Public API unchanged.
 
 import (
 	"sort"
@@ -15,6 +14,7 @@ const (
 	CandidateLimit = 12
 	rejectedLimit  = 5
 )
+
 // Candidate describes one item considered for context inclusion.
 type Candidate struct {
 	Source     string   `json:"source"`
@@ -31,6 +31,7 @@ type Candidate struct {
 	Reason     string   `json:"reason"`
 	Signals    []string `json:"signals,omitempty"`
 }
+
 // Manifest is the full selection result published as a context.selection event.
 type Manifest struct {
 	Phase       string         `json:"phase"`
@@ -40,6 +41,7 @@ type Manifest struct {
 	Rejected    []Candidate    `json:"rejected,omitempty"`
 	Summary     map[string]any `json:"summary,omitempty"`
 }
+
 func SplitCandidates(all []Candidate, chosenIDs map[string]bool, reason string) (chosen, rejected []Candidate) {
 	for _, c := range all {
 		if chosenIDs[c.ID] {

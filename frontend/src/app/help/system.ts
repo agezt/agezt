@@ -134,7 +134,7 @@ export const System: Record<string, HelpTopic> = {
     ],
   },
 
-  prompts: {
+  skills: {
     title: "Prompts",
     intro:
       "Your saved prompt library — reusable starters offered on Chat's empty state, editable and reorderable here.",

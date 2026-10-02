@@ -1,13 +1,12 @@
-// SPDX-License-Identifier: MIT
-//
-// Edict control-plane surface: edictFor + handleEdictShow + handleEdictTest
-// + askPolicyLabel + registerEdictCommands (the dispatch registration for
-// ALL edict handlers, including those in edict_deny.go / edict_set.go).
-// The hard-deny handlers live in edict_deny.go; the runtime setters live
-// in edict_set.go.
-// Extracted from edict.go during the Day-204 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Edict control-plane surface: edictFor +
+//             handleEdictShow + handleEdictTest + askPolicyLabel +
+//             registerEdictCommands (the dispatch registration for ALL edict
+//             handlers, including those in edict_deny.go / edict_set.go). The
+//             hard-deny handlers live in edict_deny.go; the runtime setters live in
+//             edict_set.go. Extracted from edict.go during the Day-204 god-file
+//             split. Public API unchanged.
 
 import (
 	"net"

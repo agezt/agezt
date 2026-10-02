@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// systemtasks_helpers.go: 7 runScheduled* tasks + graveyardRetentionDays +
-// envOrDefaultLocal split off from systemtasks.go during the Day 211 god-file
-// refactor (#131). Public API unchanged.
 package systemtasks
+
+// Provenance: systemtasks_helpers.go: 7 runScheduled* tasks + graveyardRetentionDays
+//             + envOrDefaultLocal split off from systemtasks.go during the Day 211
+//             god-file refactor (#131). Public API unchanged.
 
 import (
 	"context"
@@ -20,7 +21,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
-
 
 // runScheduledProfileDistill synthesizes the operator profile from accumulated
 // memory (M1000). LLM-backed (unlike the maintenance tasks), so it runs at a low

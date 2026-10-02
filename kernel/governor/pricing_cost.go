@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Package governor: cost computation + saturation-math helpers
-// (CostMicrocents + costMicrocents + costMicrocentsCached +
-// saturatingMul + saturatingAdd). The saturatingMul/saturatingAdd helpers
-// protect against malicious or buggy token counts. Extracted from pricing.go
-// during the Day-211 god-file split. Public API unchanged.
 package governor
 
+// Provenance: Package governor: cost computation + saturation-math helpers
+//             (CostMicrocents + costMicrocents + costMicrocentsCached +
+//             saturatingMul + saturatingAdd). The saturatingMul/saturatingAdd
+//             helpers protect against malicious or buggy token counts. Extracted
+//             from pricing.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"math"
 	"math/bits"
 )
+
 // Behaviour identical to the internal costMicrocents.
 func CostMicrocents(model string, inputTokens, outputTokens int) int64 {
 	return costMicrocents(model, inputTokens, outputTokens)

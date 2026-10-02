@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane remote-mirror HTTP fetch helpers (fetchRemoteEvents, fetchRemoteArtifacts).
-// Extracted from remote_mirror.go during Day 211 god-file refactor (#86).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane remote-mirror HTTP
+//             fetch helpers (fetchRemoteEvents, fetchRemoteArtifacts). Extracted
+//             from remote_mirror.go during Day 211 god-file refactor (#86). Public
+//             API unchanged.
 
 import (
 	"context"

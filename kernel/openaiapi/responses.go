@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// /v1/responses request types + entry-point handler. Split from responses.go
-// during Day 211 god-file refactor (#31).
-// Public API unchanged.
 package openaiapi
+
+// Provenance: SPDX-License-Identifier: MIT /v1/responses request types + entry-point
+//             handler. Split from responses.go during Day 211 god-file refactor
+//             (#31). Public API unchanged.
 
 import (
 	"encoding/json"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 // This file adds POST /v1/responses — OpenAI's newer Responses API surface
 // (alongside the Chat Completions API in openaiapi.go). It runs through the

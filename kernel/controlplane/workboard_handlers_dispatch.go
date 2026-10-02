@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard control-plane handlers — dispatch/watch.
-// handleWorkboardDispatch (the long-running dispatch handler) +
-// handleWorkboardWatch (the streaming-watch handler).
-// Extracted from workboard_handlers.go during the Day-211 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Workboard control-plane handlers —
+//             dispatch/watch. handleWorkboardDispatch (the long-running dispatch
+//             handler) + handleWorkboardWatch (the streaming-watch handler).
+//             Extracted from workboard_handlers.go during the Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"net"

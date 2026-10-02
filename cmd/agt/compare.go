@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt compare top-level handlers + types + consts (cmdCompare,
-// cmdCompareAudit + compareCapability + compareEvidence + compareAuditRow +
-// compareAudit).
-// Extracted from compare.go during Day 211 god-file refactor (#72).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt compare top-level handlers +
+//             types + consts (cmdCompare, cmdCompareAudit + compareCapability +
+//             compareEvidence + compareAuditRow + compareAudit). Extracted from
+//             compare.go during Day 211 god-file refactor (#72). Public API
+//             unchanged.
 
 import (
 	"fmt"
@@ -25,6 +24,7 @@ const (
 	compareStatusPartial   = "partial"
 	compareStatusMissing   = "missing"
 )
+
 type compareCapability struct {
 	ID          string
 	Area        string
@@ -65,6 +65,7 @@ type compareAudit struct {
 	EvidenceMissing int               `json:"evidence_missing"`
 	Rows            []compareAuditRow `json:"rows"`
 }
+
 func cmdCompare(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintf(stderr, "%s compare: subcommand required (audit)\n", brand.CLI)

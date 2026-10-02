@@ -8,11 +8,11 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/event"
 	"os"
 	"strings"
 	"time"
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/event"
 )
 
 func agentAutoRepairCooldown() time.Duration {
@@ -215,4 +215,3 @@ func repairRowView(row agentRepairRow) map[string]any {
 		"previous_routing_force_generation": row.PreviousRoutingForceGeneration,
 	}
 }
-

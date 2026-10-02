@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
+
 func (s *kernelSource) BulkSetEnabled(slugs []string, enabled bool) []BulkResult {
 	results := make([]BulkResult, 0, len(slugs))
 	for _, slug := range slugs {
@@ -326,4 +327,3 @@ func (s *kernelSource) OpenHelp(limit int) []board.Message {
 	}
 	return st.OpenHelp(limit)
 }
-

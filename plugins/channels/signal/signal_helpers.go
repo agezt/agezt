@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// signal_helpers.go: send/getJSON/authorize/scrubToken/emit* split off from
-// signal.go during the Day 211 god-file refactor (#129). Public API unchanged.
 package signal
+
+// Provenance: signal_helpers.go: send/getJSON/authorize/scrubToken/emit* split off
+//             from signal.go during the Day 211 god-file refactor (#129). Public API
+//             unchanged.
 
 import (
 	"bytes"
@@ -17,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // send POSTs /v2/send (chunked to the platform limit) and journals
 // channel.outbound under corr.

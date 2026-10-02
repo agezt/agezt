@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence/scheduled-task payload + context helpers extracted from main_cadence.go
-// during Day 211 god-file refactor (#52). Public API unchanged.
 package main
+
+// Provenance: Cadence/scheduled-task payload + context helpers extracted from
+//             main_cadence.go during Day 211 god-file refactor (#52). Public API
+//             unchanged.
 
 import (
 	"context"
@@ -66,6 +68,7 @@ func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, prof
 	}
 	return payload
 }
+
 // agentAutonomyRunbookPayload attaches the machine-readable wake contract to
 // autonomous wake evidence (schedule.fired and standing.fired) when the firing
 // resolves a concrete agent profile. It delegates to the canonical roster builder

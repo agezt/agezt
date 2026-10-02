@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Agent run-tools: gateToolCalls (per-call policy + capability matching).
-// Code extracted from run_tools.go during the Day-127 god-file split.
-// Public API unchanged.
 package agent
 
+// Provenance: Agent run-tools: gateToolCalls (per-call policy + capability
+//             matching). Code extracted from run_tools.go during the Day-127
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

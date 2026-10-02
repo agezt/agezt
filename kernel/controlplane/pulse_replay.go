@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane pulse: replayHistorical (connect-time historical replay).
-// Code extracted from pulse.go during the Day-141 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane pulse: replayHistorical (connect-time historical
+//             replay). Code extracted from pulse.go during the Day-141 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

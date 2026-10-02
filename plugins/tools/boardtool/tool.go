@@ -13,7 +13,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-
 // Definition implements agent.Tool.
 func (t *Tool) Definition() agent.ToolDef {
 	return agent.ToolDef{

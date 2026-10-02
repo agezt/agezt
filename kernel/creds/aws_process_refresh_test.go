@@ -78,7 +78,7 @@ func countingHelperLookup(t *testing.T, mode string) (lookup func(string) string
 	bin, counter := countingHelperBin(t, mode)
 	dir := t.TempDir()
 	credsPath := filepath.Join(dir, "credentials")
-	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = "+bin+" "+counter+" "+mode+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(credsPath, []byte("[default]\ncredential_process = \""+bin+"\" \""+counter+"\" "+mode+"\n"), 0o600); err != nil {
 		t.Fatalf("write credentials: %v", err)
 	}
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", credsPath)

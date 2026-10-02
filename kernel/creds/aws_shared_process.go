@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// aws shared credential_process sub-command parser: runCredentialProcess +
-// splitCommandLine.
-// Extracted from aws_shared.go during the Day-204 god-file split.
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT aws shared credential_process sub-command
+//             parser: runCredentialProcess + splitCommandLine. Extracted from
+//             aws_shared.go during the Day-204 god-file split. Public API unchanged.
 
 import (
 	"context"

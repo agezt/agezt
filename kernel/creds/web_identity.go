@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/creds AssumeRoleWithWebIdentity + AWSWebIdentityLookup + types
-// (WebIdentityParams, webIdentityCache).
-// Extracted from web_identity.go during Day 211 god-file refactor (#93).
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT kernel/creds AssumeRoleWithWebIdentity +
+//             AWSWebIdentityLookup + types (WebIdentityParams, webIdentityCache).
+//             Extracted from web_identity.go during Day 211 god-file refactor (#93).
+//             Public API unchanged.
 
 import (
 	"context"

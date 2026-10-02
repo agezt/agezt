@@ -78,35 +78,8 @@ export function splitDescription(desc: string): { gist: string; rest: string } {
   return { gist, rest };
 }
 
-// capabilityCounts tallies rows per Edict capability for the filter chips,
-// sorted by count then name. Structural in its input so both the Tool registry
-// (CatalogRow) and the usage monitor (ToolView) can use the one implementation.
-export function capabilityCounts<T extends { capability: string }>(rows: T[]): { capability: string; n: number }[] {
-  const m = new Map<string, number>();
-  for (const r of rows) {
-    if (!r.capability) continue;
-    m.set(r.capability, (m.get(r.capability) || 0) + 1);
-  }
-  return [...m.entries()]
-    .map(([capability, n]) => ({ capability, n }))
-    .sort((a, b) => (b.n !== a.n ? b.n - a.n : a.capability.localeCompare(b.capability)));
-}
-
-// filterCatalogRows narrows a tool list by free text (name / description /
-// capability, case-insensitive) and an optional exact capability.
-export function filterCatalogRows<T extends { name: string; description: string; capability: string }>(
-  rows: T[],
-  query: string,
-  capability: string,
-): T[] {
-  const q = query.trim().toLowerCase();
-  return rows.filter((r) => {
-    if (capability && r.capability !== capability) return false;
-    if (!q) return true;
-    return (
-      r.name.toLowerCase().includes(q) ||
-      r.description.toLowerCase().includes(q) ||
-      r.capability.toLowerCase().includes(q)
-    );
-  });
-}
+// capabilityCounts and filterCatalogRows were removed. They were exported for
+// the Tool registry and the usage monitor to share "the one implementation",
+// but neither ended up importing them — the pages that host those chips do the
+// counting and filtering inline. Nothing imported either function, and
+// knip had been reporting both since the catalog page was rewritten.

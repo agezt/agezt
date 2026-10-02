@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence Entry: FormatDays + ParseDays + dayAbbr + maskWeekdays/maskWeekends (days-bitmask helpers).
-// Code extracted from cadence_entry.go during the Day-128 god-file split.
-// Public API unchanged.
 package cadence
 
+// Provenance: Cadence Entry: FormatDays + ParseDays + dayAbbr +
+//             maskWeekdays/maskWeekends (days-bitmask helpers). Code extracted from
+//             cadence_entry.go during the Day-128 god-file split. Public API
+//             unchanged.
 
 import (
 	"fmt"

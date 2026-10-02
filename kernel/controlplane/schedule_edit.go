@@ -9,10 +9,10 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/cadence"
 	"net"
 	"strings"
 	"time"
-	"github.com/agezt/agezt/kernel/cadence"
 )
 
 func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
@@ -354,4 +354,3 @@ func (s *Server) handleScheduleEdit(conn net.Conn, req Request) {
 		Result: mergeScheduleEntryView(scheduleEntryView(e), map[string]any{"updated": true}),
 	})
 }
-

@@ -162,4 +162,3 @@ func (c *Channel) tenantToken(ctx context.Context) (string, error) {
 	c.tokenExp = time.Now().Add(time.Duration(exp-60) * time.Second)
 	return c.token, nil
 }
-

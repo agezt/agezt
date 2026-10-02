@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package main thin-wraps the cmd/agt/providerlookup package so
-// the call sites in check.go and quickstart.go can keep their
-// existing `catalogCredentialLookup` name. Day 31 wiring: the
-// inline implementation that lived here was a duplicate of
-// providerlookup.CredentialLookup; the package is now actually
-// exercised by the binary and the deadcode-check allowlist
-// entry can go.
 package main
+
+// Package main thin-wraps the cmd/agt/providerlookup package so the call
+// sites in check.go and quickstart.go can keep their existing
+// `catalogCredentialLookup` name. Day 31 wiring: the inline
+// implementation that lived here was a duplicate of
+// providerlookup.CredentialLookup; the package is now actually exercised
+// by the binary and the deadcode-check allowlist entry can go.
 
 import (
 	"github.com/agezt/agezt/cmd/agt/providerlookup"

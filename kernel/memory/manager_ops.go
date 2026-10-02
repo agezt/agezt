@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Memory housekeeping: Suspend, Audit, CleanLowValue, publish helper, clampConf.
-// Code extracted from manager.go during the Day-44 god-file split. Public API unchanged.
 package memory
 
+// Provenance: Memory housekeeping: Suspend, Audit, CleanLowValue, publish helper,
+//             clampConf. Code extracted from manager.go during the Day-44 god-file
+//             split. Public API unchanged.
 
 import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func (m *Manager) Suspend(corr, id, reason string) (bool, error) {
 	m.mu.Lock()

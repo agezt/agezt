@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: file-parsing helpers for `agt provider import`
-// (knownCredFiles builds the list of well-known CLI credential files;
-// parseDotEnvFile reads .env into a name→value map; parseJSONCredFile reads
-// JSON creds files picking the fields named in `names`). Extracted from
-// provider_import.go during the Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: file-parsing helpers for `agt provider import`
+//             (knownCredFiles builds the list of well-known CLI credential files;
+//             parseDotEnvFile reads .env into a name→value map; parseJSONCredFile
+//             reads JSON creds files picking the fields named in `names`). Extracted
+//             from provider_import.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"

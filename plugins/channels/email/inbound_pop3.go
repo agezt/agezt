@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Email channel: POP3 transport (popConn + dialPOP3 + readLine/cmd/readMultiline/close + popUIDLs/uidls + pollPOP3).
-// Code extracted from inbound.go during the Day-125 god-file split.
-// Public API unchanged.
 package email
 
+// Provenance: Email channel: POP3 transport (popConn + dialPOP3 +
+//             readLine/cmd/readMultiline/close + popUIDLs/uidls + pollPOP3). Code
+//             extracted from inbound.go during the Day-125 god-file split. Public
+//             API unchanged.
 
 import (
 	"bufio"

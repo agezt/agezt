@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// OpenAI Responses provider: SSE event types + parseSSE + sseError.
-// Code extracted from openairesponses.go during the Day-124 god-file split.
-// Public API unchanged.
 package openairesponses
 
+// Provenance: OpenAI Responses provider: SSE event types + parseSSE + sseError. Code
+//             extracted from openairesponses.go during the Day-124 god-file split.
+//             Public API unchanged.
 
 import (
 	"bufio"

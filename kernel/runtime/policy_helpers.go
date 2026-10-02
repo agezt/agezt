@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime policy helpers (agent-noise + memory + approval bundle + effect-class).
-// Code extracted from policy.go during the Day-82 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime policy helpers (agent-noise + memory + approval bundle +
+//             effect-class). Code extracted from policy.go during the Day-82
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/edict"
 )
-
 
 func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc agent.ToolCall) (string, bool) {
 	policy, ok := agentNoisePolicyFromCtx(ctx)

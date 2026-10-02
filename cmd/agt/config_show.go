@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt config show` snapshot display + routing-table render +
-// configValues helper. Extracted from config.go during the Day-211 god-file
-// split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt config show` snapshot display + routing-table
+//             render + configValues helper. Extracted from config.go during the
+//             Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func renderRoutingTable(stdout io.Writer, label string, raw any) {
 	m, ok := raw.(map[string]any)
 	if !ok || len(m) == 0 {

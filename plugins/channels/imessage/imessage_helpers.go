@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// iMessage channel: helpers (scrubURLError + fetchAttachmentData + seenBefore + parseWebhook + chatGUID).
-// Code extracted from imessage.go during the Day-102 god-file split.
-// Public API unchanged.
 package imessage
 
+// Provenance: iMessage channel: helpers (scrubURLError + fetchAttachmentData +
+//             seenBefore + parseWebhook + chatGUID). Code extracted from imessage.go
+//             during the Day-102 god-file split. Public API unchanged.
 
 import (
 	"context"

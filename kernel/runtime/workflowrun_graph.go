@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Workflow execution orchestration: runWorkflowGraph + mergeMode + execNodeWithReliability + wfSnippet + nodeInputPreview.
-// Code extracted from workflowrun.go during the Day-47 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Workflow execution orchestration: runWorkflowGraph + mergeMode +
+//             execNodeWithReliability + wfSnippet + nodeInputPreview. Code extracted
+//             from workflowrun.go during the Day-47 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -16,7 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 )
-
 
 func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.Workflow, payload any) (RunWorkflowResult, error) {
 	// Outgoing edges grouped by (from, port); incoming counts for merge "all".

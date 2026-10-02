@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// ChatGPT auth: token-exchange HTTP surface (tokenResp + postToken).
-// Code extracted from chatgptauth.go during the Day-131 god-file split.
-// Public API unchanged.
 package chatgptauth
 
+// Provenance: ChatGPT auth: token-exchange HTTP surface (tokenResp + postToken).
+//             Code extracted from chatgptauth.go during the Day-131 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"

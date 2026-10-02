@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// acpagent Tool type + transport + dialFunc + constructor + Definition +
-// render/shell helpers (New, Definition, render, truncate, platformShell, AbsCwd).
-// Extracted from acpagent.go during Day 211 god-file refactor (#69).
-// Public API unchanged.
 package acpagent
+
+// Provenance: SPDX-License-Identifier: MIT acpagent Tool type + transport + dialFunc
+//             + constructor + Definition + render/shell helpers (New, Definition,
+//             render, truncate, platformShell, AbsCwd). Extracted from acpagent.go
+//             during Day 211 god-file refactor (#69). Public API unchanged.
 
 import (
 	"context"

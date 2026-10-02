@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package controlplane: Workflow test/invoke handlers + their timeouts
-// (workflowTestNodeTimeout + workflowWebhookReplyTimeout consts +
-// handleWorkflowTestNode + handleWorkflowWebhook + runWorkflowDetached).
-// Extracted from workflow_handlers.go during the Day-211 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Package controlplane: Workflow test/invoke handlers + their timeouts
+//             (workflowTestNodeTimeout + workflowWebhookReplyTimeout consts +
+//             handleWorkflowTestNode + handleWorkflowWebhook + runWorkflowDetached).
+//             Extracted from workflow_handlers.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/workflow"
 )
+
 // workflowTestNodeTimeout bounds one single-node probe — a node's own
 // timeout_sec applies inside it; this is the outer hard stop.
 const workflowTestNodeTimeout = 3 * time.Minute

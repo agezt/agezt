@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt overseer bulk` batch operations + jsonOrString helper.
-// Extracted from overseer.go during the Day-211 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: Package main: `agt overseer bulk` batch operations + jsonOrString
+//             helper. Extracted from overseer.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -13,10 +13,11 @@ import (
 	"io"
 	"strings"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
+
 func overseerBulk(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
 		fmt.Fprintf(stderr, "%s overseer bulk: requires an action (pause|unpause|retire|revive|delete) and comma-separated slugs\n", brand.CLI)

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// World model tool + correlation: WithCorrelation + CorrelationFrom + Tool/Definition/Invoke + renderResolve + renderNeighbors.
-// Code extracted from manager.go during the Day-65 god-file split. Public API unchanged.
 package worldmodel
 
+// Provenance: World model tool + correlation: WithCorrelation + CorrelationFrom +
+//             Tool/Definition/Invoke + renderResolve + renderNeighbors. Code
+//             extracted from manager.go during the Day-65 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -13,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"strings"
 )
-
 
 func WithCorrelation(ctx context.Context, corr string) context.Context {
 	return context.WithValue(ctx, ctxKeyCorrelation, corr)

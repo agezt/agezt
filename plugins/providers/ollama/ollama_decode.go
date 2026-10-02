@@ -66,4 +66,3 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 		},
 	}, nil
 }
-

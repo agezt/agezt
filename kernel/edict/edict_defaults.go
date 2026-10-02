@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Package edict: default level map + default hard-deny rules + capability list
-// + the deny-rule parser (DefaultLevels + DefaultHardDeny + AllCapabilities +
-// knownCapability + KnownCapability + ParseDenyRules). Extracted from
-// edict_engine.go during the Day-211 god-file split. Public API unchanged.
 package edict
 
+// Provenance: Package edict: default level map + default hard-deny rules +
+//             capability list + the deny-rule parser (DefaultLevels +
+//             DefaultHardDeny + AllCapabilities + knownCapability + KnownCapability
+//             + ParseDenyRules). Extracted from edict_engine.go during the Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"fmt"
 	"slices"
 	"strings"
 )
+
 func DefaultLevels() map[Capability]TrustLevel {
 	levels := make(map[Capability]TrustLevel, len(AllCapabilities()))
 	for _, c := range AllCapabilities() {

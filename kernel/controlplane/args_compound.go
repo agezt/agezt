@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane request-arg string-collection helpers (argStrings, argStringMap,
-// argStringList).
-// Extracted from args.go during Day 211 god-file refactor (#99).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg
+//             string-collection helpers (argStrings, argStringMap, argStringList).
+//             Extracted from args.go during Day 211 god-file refactor (#99). Public
+//             API unchanged.
 
 import (
 	"fmt"

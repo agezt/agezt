@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Execution profile remote: sshProfile + remoteAgeztProfile + modalProfile + daytonaProfile + k8sProfile.
-// Code extracted from profile.go during the Day-71 god-file split. Public API unchanged.
 package executionprofile
 
-
-
-
+// Provenance: Execution profile remote: sshProfile + remoteAgeztProfile +
+//             modalProfile + daytonaProfile + k8sProfile. Code extracted from
+//             profile.go during the Day-71 god-file split. Public API unchanged.
 
 func sshProfile(tools map[string]bool, cfg SSHConfig) Profile {
 	routed := cfg.Active() && anyTool(tools, "shell", "code_exec")

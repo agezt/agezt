@@ -121,4 +121,3 @@ func canonicalToOllama(m agent.Message) (ollamaMessage, error) {
 		return ollamaMessage{}, fmt.Errorf("ollama: unknown role %q", m.Role)
 	}
 }
-

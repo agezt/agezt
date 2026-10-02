@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt backup` (the CLI dispatcher) + `agt backup inspect` —
-// backupManifest + backupEntry types. The read/build helpers (inspectBackup
-// + createBackup + writeTarFile) moved to backup_lib.go. Day-211 god-file
-// split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt backup` (the CLI dispatcher) + `agt backup inspect`
+//             — backupManifest + backupEntry types. The read/build helpers
+//             (inspectBackup + createBackup + writeTarFile) moved to backup_lib.go.
+//             Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 )
+
 // backupManifest is the metadata entry written at the root of a backup archive
 // (M113). It records what the bundle holds and the journal head at backup time
 // so a restore can sanity-check it.

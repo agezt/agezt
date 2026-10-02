@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime MCP lifecycle: MCPStore + Add/SetEnabled/Attach/Detach/Remove/AttachEnabled + dialMCP + MCPAttached + closeMCPConns + mcpToolName.
-// Code extracted from mcptool.go during the Day-130 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime MCP lifecycle: MCPStore +
+//             Add/SetEnabled/Attach/Detach/Remove/AttachEnabled + dialMCP +
+//             MCPAttached + closeMCPConns + mcpToolName. Code extracted from
+//             mcptool.go during the Day-130 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -14,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/mcp"
 )
-
 
 // MCPStore returns the durable MCP-server registry (M796). Always non-nil
 // after Open.

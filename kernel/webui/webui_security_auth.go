@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// WebUI security auth: secure + shellAuth + setSecurityHeaders + hostAllowed + sameOriginMutation + hostName + canonicalHostPort + tokenPresented + dataTokenPresented + tokenPresentedFrom + authorized + tokenMatch + sseTokenMatch.
-// Code extracted from webui_security.go during the Day-75 god-file split. Public API unchanged.
 package webui
 
+// Provenance: WebUI security auth: secure + shellAuth + setSecurityHeaders +
+//             hostAllowed + sameOriginMutation + hostName + canonicalHostPort +
+//             tokenPresented + dataTokenPresented + tokenPresentedFrom + authorized
+//             + tokenMatch + sseTokenMatch. Code extracted from webui_security.go
+//             during the Day-75 god-file split. Public API unchanged.
 
 import (
 	kernelauth "github.com/agezt/agezt/kernel/auth"
@@ -12,7 +15,6 @@ import (
 	"net/url"
 	"strings"
 )
-
 
 // (the bundle + favicon) that the browser must be able to load without a token.
 func (s *Server) secure(next http.HandlerFunc) http.HandlerFunc {

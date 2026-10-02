@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package bedrock: AWS Bedrock Provider — consts + Provider struct + auth +
-// New + APIError + Name + ResolveEndpoint + Complete + headerTokenCount.
-// The vendor-detection predicates (isAnthropicModel + isMistralModel +
-// isCohereModel + isMetaLlamaModel) moved to bedrock_models.go.
-// Day-211 god-file split. Public API unchanged.
 package bedrock
 
+// Provenance: Package bedrock: AWS Bedrock Provider — consts + Provider struct +
+//             auth + New + APIError + Name + ResolveEndpoint + Complete +
+//             headerTokenCount. The vendor-detection predicates (isAnthropicModel +
+//             isMistralModel + isCohereModel + isMetaLlamaModel) moved to
+//             bedrock_models.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
+
 const (
 	// AnthropicBedrockVersion is the value sent in the
 	// `anthropic_version` body field. Bedrock pins this; updating

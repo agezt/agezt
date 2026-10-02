@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/netguard"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdNetguard dispatches `agt netguard <subcommand>`. Today the only subcommand

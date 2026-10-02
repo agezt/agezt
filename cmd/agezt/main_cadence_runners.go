@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence/scheduled-task runner + payload type + scheduling helpers extracted
-// from main_cadence.go during Day 211 god-file refactor (#52).
-// Public API unchanged.
 package main
+
+// Provenance: Cadence/scheduled-task runner + payload type + scheduling helpers
+//             extracted from main_cadence.go during Day 211 god-file refactor (#52).
+//             Public API unchanged.
 
 import (
 	"context"
@@ -65,6 +66,7 @@ func runScheduledTrackedTarget(ctx context.Context, k *kernelruntime.Kernel, cor
 	})
 	return nil
 }
+
 type scheduledTargetPayload struct {
 	ScheduleID string
 	Intent     string
@@ -74,6 +76,7 @@ type scheduledTargetPayload struct {
 	SystemTask string
 	Tool       string
 }
+
 func schedulePayloadForEntry(ent cadence.Entry, intent string) scheduledTargetPayload {
 	return scheduledTargetPayload{
 		ScheduleID: ent.ID,

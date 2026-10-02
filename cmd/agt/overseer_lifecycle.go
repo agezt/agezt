@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt overseer` lifecycle CRUD ops (impact, retire, revive, get, delete).
-// Extracted from overseer.go during the Day-211 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: Package main: `agt overseer` lifecycle CRUD ops (impact, retire,
+//             revive, get, delete). Extracted from overseer.go during the Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -13,10 +13,11 @@ import (
 	"io"
 	"strings"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
+
 func overseerAgentImpact(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
 		fmt.Fprintf(stderr, "%s overseer impact: requires an agent slug\n", brand.CLI)

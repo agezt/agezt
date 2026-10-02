@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Lake schema management: CreateCollection + EnsureCollection + writeSchema + DropCollection + ListCollections + Schema + titleOf + canonicalDate + canonicalizeDateFields.
-// Code extracted from datalake.go during the Day-68 god-file split. Public API unchanged.
 package datalake
 
+// Provenance: Lake schema management: CreateCollection + EnsureCollection +
+//             writeSchema + DropCollection + ListCollections + Schema + titleOf +
+//             canonicalDate + canonicalizeDateFields. Code extracted from
+//             datalake.go during the Day-68 god-file split. Public API unchanged.
 
 import (
 	"errors"
@@ -16,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 )
-
 
 // (ErrExists) or invalid. CreatedMs/CreatedBy are stamped here.
 func (l *Lake) CreateCollection(sc Schema, actor string) (Schema, error) {

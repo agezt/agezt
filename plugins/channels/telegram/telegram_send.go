@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Telegram channel: outbound attachment send + media-type helper.
-// Code extracted from telegram.go during the Day-95 god-file split.
-// Public API unchanged.
 package telegram
 
+// Provenance: Telegram channel: outbound attachment send + media-type helper. Code
+//             extracted from telegram.go during the Day-95 god-file split. Public
+//             API unchanged.
 
 import (
 	"bytes"

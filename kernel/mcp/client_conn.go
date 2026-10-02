@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// client_conn.go owns the clientConn implementation: the
-// child-process / pipe-paired Conn that speaks the JSON-RPC
-// wire format, plus every Conn method (readLoop / handshake /
-// Tools / Call / Close / roundTrip / send). The public Conn
-// surface + Dial live in client.go; env helpers in
-// client_helpers.go.
 package mcp
+
+// client_conn.go owns the clientConn implementation: the child-process /
+// pipe-paired Conn that speaks the JSON-RPC wire format, plus every Conn
+// method (readLoop / handshake / Tools / Call / Close / roundTrip /
+// send). The public Conn surface + Dial live in client.go; env helpers
+// in client_helpers.go.
 
 import (
 	"bufio"

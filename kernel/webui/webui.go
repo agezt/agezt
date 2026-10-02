@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Web UI server: Caller/Transcriber/Synthesizer interfaces + Server struct + SetTranscriber/SetSynthesizer/SetAllowedHosts + New.
-// Code extracted from webui.go during the Day-51 god-file split. Public API unchanged.
 package webui
 
+// Provenance: Web UI server: Caller/Transcriber/Synthesizer interfaces + Server
+//             struct + SetTranscriber/SetSynthesizer/SetAllowedHosts + New. Code
+//             extracted from webui.go during the Day-51 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -18,8 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 )
-
-
 
 // Caller is the API the dashboard proxies to — satisfied by
 // *controlplane.Client. An interface keeps webui testable without a live

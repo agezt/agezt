@@ -36,7 +36,6 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
-
 const (
 	// DefaultPath is the route the channel serves for inbound deliveries.
 	DefaultPath = "/webhook"

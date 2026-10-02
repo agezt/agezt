@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent printing helpers (printAgentPolicy, emptyJSONValue,
-// joinAnyStrings, padValue, printAgentLifecycle, printAgentTaskSummary).
-// Extracted from agent_render.go during Day 211 god-file refactor (#53).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent printing helpers
+//             (printAgentPolicy, emptyJSONValue, joinAnyStrings, padValue,
+//             printAgentLifecycle, printAgentTaskSummary). Extracted from
+//             agent_render.go during Day 211 god-file refactor (#53). Public API
+//             unchanged.
 
 import (
 	"fmt"

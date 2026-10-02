@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane roster task-update handler + hasArg + taskFieldPresent helpers.
-// Code extracted from roster_crud.go during the Day-116 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane roster task-update handler + hasArg + taskFieldPresent
+//             helpers. Code extracted from roster_crud.go during the Day-116
+//             god-file split. Public API unchanged.
 
 import (
 	"net"

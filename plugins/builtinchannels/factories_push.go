@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// builtinchannels: push-style channel adapters (pushBuilt helper + Ntfy +
-// Pushover + Gotify + Pushbullet + RocketChat + Zulip + Synology).
-// Split from factories.go during Day 211 god-file refactor (#44).
-// Public API unchanged.
 package builtinchannels
+
+// Provenance: builtinchannels: push-style channel adapters (pushBuilt helper + Ntfy
+//             + Pushover + Gotify + Pushbullet + RocketChat + Zulip + Synology).
+//             Split from factories.go during Day 211 god-file refactor (#44). Public
+//             API unchanged.
 
 import (
 	"strings"

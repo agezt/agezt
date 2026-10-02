@@ -10,12 +10,12 @@ import (
 	"os"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // cmdACP runs the Agent Client Protocol bridge (SPEC-15 §3): it speaks ACP

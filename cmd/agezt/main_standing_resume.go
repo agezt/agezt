@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Resume-on-boot helpers extracted from main_standing.go during Day 211
-// god-file refactor (#51). Public API unchanged.
 package main
+
+// Provenance: Resume-on-boot helpers extracted from main_standing.go during Day 211
+//             god-file refactor (#51). Public API unchanged.
 
 import (
 	"context"

@@ -1,13 +1,12 @@
-// SPDX-License-Identifier: MIT
-//
-// Control-plane connection plumbing: handleConn + writeResp + recoverConn
-// (the per-connection loop, the response writers, and the panic containment).
-// The command handlers (handleVersion + handleHalt + handleCancelRun +
-// handleResume + handleWhy + handleWhoami + handleVerify + handleApprovals)
-// live in server_commands.go.
-// Extracted from server_handlers.go during the Day-206 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT Control-plane connection plumbing:
+//             handleConn + writeResp + recoverConn (the per-connection loop, the
+//             response writers, and the panic containment). The command handlers
+//             (handleVersion + handleHalt + handleCancelRun + handleResume +
+//             handleWhy + handleWhoami + handleVerify + handleApprovals) live in
+//             server_commands.go. Extracted from server_handlers.go during the
+//             Day-206 god-file split. Public API unchanged.
 
 import (
 	"bufio"
@@ -161,4 +160,3 @@ func writeResp(conn net.Conn, resp Response) error {
 	_, err = conn.Write(enc)
 	return err
 }
-

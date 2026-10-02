@@ -65,7 +65,10 @@ export function Vitals({ onNavigate }: { onNavigate: (id: string) => void }) {
           says no run has happened — which is false the moment one finishes.
           Name what is actually counted. */}
       <Vital icon={Activity} label="running" value={runs} live={runs > 0} onClick={() => onNavigate("activity")} />
-      <Vital icon={Wallet} label="today" value={money(bg?.spent_mc ?? 0)} onClick={() => onNavigate("budget")} />
+      {/* No onClick: "budget" was retired with no live equivalent, so there is
+          nothing honest to link to. The number still reads out; it just stopped
+          promising a page. */}
+      <Vital icon={Wallet} label="today" value={money(bg?.spent_mc ?? 0)} />
       <Vital
         icon={CalendarClock}
         label="schedules"
@@ -101,17 +104,15 @@ function Vital({
   value: string | number;
   live?: boolean;
   attention?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      title={`Go to ${label}`}
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors focus-glow",
-        attention ? "bg-amber-500/10 text-amber-500" : "text-muted hover:bg-panel hover:text-foreground",
-      )}
-    >
+  const className = cn(
+    "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors",
+    onClick && "focus-glow",
+    attention ? "bg-amber-500/10 text-amber-500" : "text-muted hover:bg-panel hover:text-foreground",
+  );
+  const body = (
+    <>
       <Icon className={cn("size-3.5", live && "animate-pulse text-good", attention && "text-amber-500")} />
       {typeof value === "number" ? (
         <AnimatedNumber value={value} className="tabular-nums font-medium text-foreground" />
@@ -119,6 +120,19 @@ function Vital({
         <span className="tabular-nums font-medium text-foreground">{value}</span>
       )}
       <span className="hidden text-muted sm:inline">{label}</span>
+    </>
+  );
+  // A vital with no destination renders as a readout, not a link. The budget
+  // vital used to pass onClick={() => onNavigate("budget")} for a view that was
+  // retired with "no live equivalent" — so the button promised "Go to today" and
+  // delivered Mission Control via the hash fallback. A control that looks
+  // clickable and is not is worse than one that never claimed to be.
+  if (!onClick) {
+    return <span className={className}>{body}</span>;
+  }
+  return (
+    <button onClick={onClick} title={`Go to ${label}`} className={className}>
+      {body}
     </button>
   );
 }

@@ -202,4 +202,3 @@ func callSkillWorkshopTransitionWithClient(ctx context.Context, c *controlplane.
 	}
 	return 0
 }
-

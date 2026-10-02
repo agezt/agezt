@@ -19,7 +19,6 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 )
 
-
 func truncate(s string) string {
 	return strutil.Ellipsis(s, maxChars, "")
 }
@@ -105,5 +104,3 @@ func (c *Channel) emitOutbound(out channel.Outbound, corr string) {
 }
 
 // --- event model + crypto -------------------------------------------------
-
-

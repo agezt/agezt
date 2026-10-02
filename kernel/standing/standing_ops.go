@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package standing: CRUD + storage methods (Open + Add + SetEnabled +
-// safeCall + Update + Remove + Get + List + Count + save).
-// Split from standing.go during Day 211 god-file refactor (#47).
-// Public API unchanged.
 package standing
+
+// Provenance: Package standing: CRUD + storage methods (Open + Add + SetEnabled +
+//             safeCall + Update + Remove + Get + List + Count + save). Split from
+//             standing.go during Day 211 god-file refactor (#47). Public API
+//             unchanged.
 
 import (
 	"fmt"

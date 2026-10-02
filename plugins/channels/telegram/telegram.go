@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Telegram channel: types + lifecycle + receive flow + Send dispatcher + emit helpers.
-// Code extracted from telegram.go during the Day-95 god-file split.
-// Public API unchanged.
 package telegram
+
+// Provenance: Telegram channel: types + lifecycle + receive flow + Send dispatcher +
+//             emit helpers. Code extracted from telegram.go during the Day-95
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 )
-
 
 // DefaultBaseURL is the public Bot API root.
 const DefaultBaseURL = "https://api.telegram.org"
@@ -190,4 +190,3 @@ func (c *Channel) scrubToken(err error) error {
 	}
 	return err
 }
-

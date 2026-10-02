@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// WeCom channel: types + lifecycle + emit/dedup helpers.
-// The meatiest request-handling methods (handleInbound +
-// dispatch) live in wecom_message.go. Crypto helpers live in
-// wecom_crypto.go; the outbound send machinery lives in
-// wecom_outbound.go. Code was originally split from wecom.go
-// during the Day-112 god-file split. Public API unchanged.
 package wecom
+
+// Provenance: WeCom channel: types + lifecycle + emit/dedup helpers. The meatiest
+//             request-handling methods (handleInbound + dispatch) live in
+//             wecom_message.go. Crypto helpers live in wecom_crypto.go; the outbound
+//             send machinery lives in wecom_outbound.go. Code was originally split
+//             from wecom.go during the Day-112 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -20,7 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 const (
 	// DefaultPath is the inbound callback route WeCom should POST to.
@@ -138,7 +137,6 @@ type inbound struct {
 	mediaID   string // MediaId of an inbound image/voice message
 	mediaType string // "image" | "audio"
 }
-
 
 // Send delivers out.Text to a WeCom user (out.ChannelID) via the app message API.
 

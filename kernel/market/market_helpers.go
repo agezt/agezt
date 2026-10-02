@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/market query + sort helpers (matchesQuery, sortEntries).
-// Extracted from market.go during Day 211 god-file refactor (#87).
-// Public API unchanged.
 package market
+
+// Provenance: SPDX-License-Identifier: MIT kernel/market query + sort helpers
+//             (matchesQuery, sortEntries). Extracted from market.go during Day 211
+//             god-file refactor (#87). Public API unchanged.
 
 import (
 	"sort"

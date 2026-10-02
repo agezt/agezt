@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard tool: the input struct + Invoke (the dispatched entry) +
-// applyContextDefaults (the input normalizer).
-// Extracted from workboard.go during the Day-206 god-file split.
-// Public API unchanged.
 package workboardtool
+
+// Provenance: SPDX-License-Identifier: MIT Workboard tool: the input struct + Invoke
+//             (the dispatched entry) + applyContextDefaults (the input normalizer).
+//             Extracted from workboard.go during the Day-206 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"

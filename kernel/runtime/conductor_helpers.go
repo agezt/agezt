@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// Conductor helpers: conductorRoleSystem + conductorThinkerPrompt + conductorWorkerPrompt + parseVerdict + joinReason + parseRoleBriefs + extractRunnableCode + normalizeExecLang.
-// Code extracted from conductor.go during the Day-76 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Conductor helpers: conductorRoleSystem + conductorThinkerPrompt +
+//             conductorWorkerPrompt + parseVerdict + joinReason + parseRoleBriefs +
+//             extractRunnableCode + normalizeExecLang. Code extracted from
+//             conductor.go during the Day-76 god-file split. Public API unchanged.
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
 )
-
-
 
 func conductorRoleSystem(role, brief string) string {
 	var base string

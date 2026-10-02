@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane tool views: agentGovernanceView (full governance view with per-capability branching).
-// Code extracted from tool_views.go during the Day-138 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane tool views: agentGovernanceView (full governance view
+//             with per-capability branching). Code extracted from tool_views.go
+//             during the Day-138 god-file split. Public API unchanged.
 
 import (
 	"sort"

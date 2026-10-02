@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane tenant-lookup helpers (tenantOf, Server.kernelFor, Server.SetTenants).
-// Extracted from tenant.go during Day 211 god-file refactor (#98).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tenant-lookup helpers
+//             (tenantOf, Server.kernelFor, Server.SetTenants). Extracted from
+//             tenant.go during Day 211 god-file refactor (#98). Public API
+//             unchanged.
 
 import (
 	"fmt"

@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt provider check --caps (capability matrix) sub-command:
-// network-free, credential-free survey of supported providers and their
-// models. Extracted from check_all.go during Day 211 god-file refactor (#50).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt provider check --caps (capability
+//             matrix) sub-command: network-free, credential-free survey of supported
+//             providers and their models. Extracted from check_all.go during Day 211
+//             god-file refactor (#50). Public API unchanged.
 
 import (
 	"encoding/json"
@@ -74,6 +73,7 @@ func runCheckCapsAll(cat *catalog.Catalog, flags checkFlags, stdout io.Writer) i
 	fmt.Fprintf(stdout, "\n%d providers, %d agent-ready (advertise tool-use)\n", len(rows), ready)
 	return 0
 }
+
 // renderCapsTable lays out the capability matrix. A leading ✓/⚠ marks
 // agent-readiness (tool-use) so the eye lands on the ready ones first.
 func renderCapsTable(rows []jsonCaps) string {

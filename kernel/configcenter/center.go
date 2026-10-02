@@ -1,14 +1,13 @@
-// SPDX-License-Identifier: MIT
-//
-// ConfigCenter: the Center struct + the lifecycle (New + Open +
-// SetApprovalRegistry + Close) + the Get accessor + the Config + Classifier
-// accessors + the SearchOptions struct + GetEntry.
-// Everything else (Set/Delete/UpdateRating/SetOverride + the persistence
-// helpers + List/Search + audit + stats + ParseRating) lives in
-// center_ops.go.
-// Extracted from center.go during the Day-205 god-file split.
-// Public API unchanged.
 package configcenter
+
+// Provenance: SPDX-License-Identifier: MIT ConfigCenter: the Center struct + the
+//             lifecycle (New + Open + SetApprovalRegistry + Close) + the Get
+//             accessor + the Config + Classifier accessors + the SearchOptions
+//             struct + GetEntry. Everything else
+//             (Set/Delete/UpdateRating/SetOverride + the persistence helpers +
+//             List/Search + audit + stats + ParseRating) lives in center_ops.go.
+//             Extracted from center.go during the Day-205 god-file split. Public API
+//             unchanged.
 
 import (
 	"log/slog"
@@ -95,10 +94,12 @@ type SearchOptions struct {
 func (c *Center) GetEntry(key string) (*ConfigEntry, error) {
 	return c.store.Get(key)
 }
+
 // Config returns the current config.
 func (c *Center) Config() *Config {
 	return c.config
 }
+
 // Classifier returns the secret classifier for rating detection.
 func (c *Center) Classifier() *SecretClassifier {
 	return c.classifier

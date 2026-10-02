@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// WeCom channel: crypto helpers (signature + decrypt + pkcs7Unpad).
-// Code extracted from wecom.go during the Day-112 god-file split.
-// Public API unchanged.
 package wecom
 
+// Provenance: WeCom channel: crypto helpers (signature + decrypt + pkcs7Unpad). Code
+//             extracted from wecom.go during the Day-112 god-file split. Public API
+//             unchanged.
 
 import (
 	"fmt"

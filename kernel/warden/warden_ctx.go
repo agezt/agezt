@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Warden context: WithCorrelation + CorrelationFrom + WithProfileOverride + ProfileOverrideFrom.
-// Code extracted from warden.go during the Day-72 god-file split. Public API unchanged.
 package warden
 
+// Provenance: Warden context: WithCorrelation + CorrelationFrom +
+//             WithProfileOverride + ProfileOverrideFrom. Code extracted from
+//             warden.go during the Day-72 god-file split. Public API unchanged.
 
 import (
 	"context"
 )
-
 
 func WithCorrelation(ctx context.Context, corr string) context.Context {
 	return context.WithValue(ctx, ctxKeyCorrelation, corr)

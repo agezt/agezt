@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime MCP-to-agent bridge: mergeMCPTools + bridgedMCPTool + lazyMCPDispatch.
-// Code extracted from mcptool.go during the Day-130 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime MCP-to-agent bridge: mergeMCPTools + bridgedMCPTool +
+//             lazyMCPDispatch. Code extracted from mcptool.go during the Day-130
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

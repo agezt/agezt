@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Forge activation: visibleTo, activate (rank/return), record outcome, auto-quarantine, shadow verdict parse.
-// Code extracted from forge.go during the Day-36 god-file split. Public API unchanged.
 package skill
 
+// Provenance: Forge activation: visibleTo, activate (rank/return), record outcome,
+//             auto-quarantine, shadow verdict parse. Code extracted from forge.go
+//             during the Day-36 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // visibleTo reports whether an acting agent may retrieve a skill (M932):
 // shared skills (no owner) are everyone's; a private skill is its owner's

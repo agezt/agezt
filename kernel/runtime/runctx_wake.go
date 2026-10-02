@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Run context wake: WithWakeContext + wakeContextFromCtx + systemAgentFromCtx + agentToolPolicyFromCtx + agentRetryPolicyFromCtx + AgentConfigOverrides + WithModelChain + modelChainFromCtx + WithTools + toolsFromCtx + actorFromCtx + correlationFromCtx.
-// Code extracted from runctx.go during the Day-69 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Run context wake: WithWakeContext + wakeContextFromCtx +
+//             systemAgentFromCtx + agentToolPolicyFromCtx + agentRetryPolicyFromCtx
+//             + AgentConfigOverrides + WithModelChain + modelChainFromCtx +
+//             WithTools + toolsFromCtx + actorFromCtx + correlationFromCtx. Code
+//             extracted from runctx.go during the Day-69 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/roster"
 	"strings"
 )
-
 
 // WithWakeContext attaches run provenance to the next agent loop. Empty fields
 // are omitted from the journal; callers can layer it with WithAgentProfile.

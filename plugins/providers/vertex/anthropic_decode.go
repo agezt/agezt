@@ -70,4 +70,3 @@ func decodeAnthropicOnVertexResponse(body []byte, model string) (*agent.Completi
 }
 
 // ----- HTTP execution -----
-

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Prompt assembly: buildRunPrompt (the big 170-line function that stitches together all inject helpers).
-// Code extracted from prompt.go during the Day-73 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Prompt assembly: buildRunPrompt (the big 170-line function that
+//             stitches together all inject helpers). Code extracted from prompt.go
+//             during the Day-73 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -13,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/skill"
 	"time"
 )
-
 
 // world / skill injection below still layer on top.
 func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skill.ActivationDirective) (string, []string) {

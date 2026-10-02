@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// OpenAI-compatible HTTP surface: redactErr + errRedactor + maxRequestBodyBytes + decodeBody + chatUsage.
-// Code extracted from openaiapi.go during the Day-49 god-file split. Public API unchanged.
 package openaiapi
 
+// Provenance: OpenAI-compatible HTTP surface: redactErr + errRedactor +
+//             maxRequestBodyBytes + decodeBody + chatUsage. Code extracted from
+//             openaiapi.go during the Day-49 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,8 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/redact"
 )
-
-
 
 // errRedactor scrubs known secret patterns (API keys, tokens, bearer creds) from
 // error strings before they are returned to the HTTP client (VULN-012). Raw

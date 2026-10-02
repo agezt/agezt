@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence Entry: applyZone + nextWindowSlot + dayAllowed + nextDaily (timing helpers).
-// Extracted from cadence_entry.go during the Day-211 god-file split.
-// Public API unchanged.
 package cadence
 
+// Provenance: Cadence Entry: applyZone + nextWindowSlot + dayAllowed + nextDaily
+//             (timing helpers). Extracted from cadence_entry.go during the Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"strings"
 	"time"
 )
+
 // applyZone returns now converted into the IANA zone tz, or now unchanged when
 // tz is empty (use the caller's zone). It errors on an unloadable zone name.
 func applyZone(now time.Time, tz string) (time.Time, error) {

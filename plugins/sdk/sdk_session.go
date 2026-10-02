@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// SDK: session.initPayload + session.dispatchInvoke + session.runHandler + session.routeCallback + session.writeFrame (private session methods).
-// Code extracted from sdk.go during the Day-136 god-file split.
-// Public API unchanged.
 package sdk
 
+// Provenance: SDK: session.initPayload + session.dispatchInvoke + session.runHandler
+//             + session.routeCallback + session.writeFrame (private session
+//             methods). Code extracted from sdk.go during the Day-136 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

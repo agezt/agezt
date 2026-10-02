@@ -20,7 +20,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-
 // CompleteStream implements agent.StreamingProvider for Cohere v2.
 // POSTs to the same /v2/chat endpoint with stream:true. Response is
 // SSE with Cohere-specific typed events:
@@ -185,7 +184,6 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 	return assembleResponse(st), nil
 }
 
-
 func assembleResponse(st *streamState) *agent.CompletionResponse {
 	var toolCalls []agent.ToolCall
 	for _, idx := range st.toolOrder {
@@ -228,4 +226,3 @@ func assembleResponse(st *streamState) *agent.CompletionResponse {
 		},
 	}
 }
-

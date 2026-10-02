@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `exec-profile` typed helpers (callExecProfile, tenantArg, dashJoin).
-// Extracted from execution_profile.go during Day 211 god-file refactor (#94).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `exec-profile` typed helpers
+//             (callExecProfile, tenantArg, dashJoin). Extracted from
+//             execution_profile.go during Day 211 god-file refactor (#94). Public
+//             API unchanged.
 
 import (
 	"context"

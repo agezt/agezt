@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt workboard mutation sub-commands (sweep/dispatch/watch). Split
-// from workboard_mutate.go during Day 211 god-file refactor (#30).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt workboard mutation sub-commands
+//             (sweep/dispatch/watch). Split from workboard_mutate.go during Day 211
+//             god-file refactor (#30). Public API unchanged.
 
 import (
 	"fmt"
@@ -12,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 func cmdWorkboardSweep(args []string, stdout, stderr io.Writer) int {

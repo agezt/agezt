@@ -20,7 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/creds/sigv4"
 )
 
-
 // SSOParams describes one SSO profile worth of inputs. Most fields
 // are read out of `~/.aws/config`; AWSSSOLookup composes them by
 // profile name so callers don't have to thread the values manually.

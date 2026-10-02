@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt compare audit builders (buildCompareAudit + renderCompareAudit).
-// Extracted from compare.go during Day 211 god-file refactor (#72).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt compare audit builders
+//             (buildCompareAudit + renderCompareAudit). Extracted from compare.go
+//             during Day 211 god-file refactor (#72). Public API unchanged.
 
 import (
 	"fmt"

@@ -15,7 +15,6 @@ import (
 	"time"
 )
 
-
 // persistPulseSetting writes a live pulse setting to the config store (M760) so it
 // survives restart: buildPulse reads these env vars at startup, and the config store
 // is overlaid onto the environment first, so a persisted value becomes the new default.

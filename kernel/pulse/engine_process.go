@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Pulse engine processing: process + flushDigest + publish + briefPayload.
-// Code extracted from engine.go during the Day-54 god-file split. Public API unchanged.
 package pulse
 
+// Provenance: Pulse engine processing: process + flushDigest + publish +
+//             briefPayload. Code extracted from engine.go during the Day-54 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -11,7 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 // safeFlushDigest flushes the digest with the same panic containment as safePoll —
 // a panicking briefing sink in the periodic digest must not crash the daemon (M423).

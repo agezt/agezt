@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Warden engine: New + NewWithOptions + SetBus + EffectiveProfile + Run + classifyWaitErr + publishExecuted + publishDowngradeOnce + publishLimitExceeded.
-// Code extracted from warden.go during the Day-72 god-file split. Public API unchanged.
 package warden
 
+// Provenance: Warden engine: New + NewWithOptions + SetBus + EffectiveProfile + Run
+//             + classifyWaitErr + publishExecuted + publishDowngradeOnce +
+//             publishLimitExceeded. Code extracted from warden.go during the Day-72
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +17,6 @@ import (
 	"runtime"
 	"time"
 )
-
 
 func New(b *bus.Bus) Engine {
 	return NewWithOptions(b, Options{})

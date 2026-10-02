@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence Entry: Forecast + advance (dry-run scheduling math).
-// Extracted from cadence_entry.go during the Day-211 god-file split.
-// Public API unchanged.
 package cadence
 
+// Provenance: Cadence Entry: Forecast + advance (dry-run scheduling math). Extracted
+//             from cadence_entry.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"time"
 )
+
 // Forecast returns the next n fire times (Unix seconds) strictly after `from`,
 // simulating the cadence forward — the dry-run behind `agt schedule test` (M120).
 // The first entry matches the engine's current NextRunUnix when that is still in

@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 )
+
 func latestOperatorForceGeneration(k *runtime.Kernel, slug, taskType string) int {
 	if k == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(taskType) == "" {
 		return 0
@@ -171,4 +172,3 @@ func equalStringSlices(a, b []string) bool {
 	}
 	return true
 }
-

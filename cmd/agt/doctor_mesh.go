@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor local file/memory/auth/hop-limit checks
-// (checkMemoryStoreFile, checkMeshAuth, checkMeshHopLimit).
-// Extracted from doctor_mesh.go during Day 211 god-file refactor (#40, #65).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor local
+//             file/memory/auth/hop-limit checks (checkMemoryStoreFile,
+//             checkMeshAuth, checkMeshHopLimit). Extracted from doctor_mesh.go
+//             during Day 211 god-file refactor (#40, #65). Public API unchanged.
 
 import (
 	"bytes"

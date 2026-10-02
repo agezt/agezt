@@ -55,6 +55,7 @@ type peerArtifactBytes struct {
 	Size  int               `json:"size,omitempty"`
 	Error string            `json:"error,omitempty"`
 }
+
 func fetchPeerRun(p peer.Peer, corr string) peerRunArc {
 	out := peerRunArc{Peer: p.Name, URL: p.URL, CorrelationID: corr}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

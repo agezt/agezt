@@ -176,5 +176,3 @@ func autoRepairWakeReplyText(wake autoRepairWakeResult) string {
 	}
 	return autoRepairClip(answer, 800)
 }
-
-

@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt runs last sub-command renderTaskArc helper (the task-arc renderer).
-// Extracted from runs_last.go during Day 211 god-file refactor (#63).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt runs last sub-command
+//             renderTaskArc helper (the task-arc renderer). Extracted from
+//             runs_last.go during Day 211 god-file refactor (#63). Public API
+//             unchanged.
 
 import (
 	"fmt"

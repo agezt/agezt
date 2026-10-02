@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// manager_hygiene.go owns the memory-maintenance surface:
-// HygieneStats (summary type for `agt memory hygiene`) and
-// the two scan-then-act methods (Hygiene / Prune). Prune is
-// the ONLY destructive memory op — by construction it only
-// removes records already soft-deleted and aged out. The
-// read + write surface lives in manager_recall.go.
 package memory
 
-import (
+// manager_hygiene.go owns the memory-maintenance surface: HygieneStats
+// (summary type for `agt memory hygiene`) and the two scan-then-act
+// methods (Hygiene / Prune). Prune is the ONLY destructive memory op —
+// by construction it only removes records already soft-deleted and aged
+// out. The read + write surface lives in manager_recall.go.
 
+import (
 	"github.com/agezt/agezt/kernel/event"
 )
 

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Peer tool: HTTP request helpers + peer-spec parsers.
-// Code extracted from peer.go during the Day-99 god-file split.
-// Public API unchanged.
 package peer
 
+// Provenance: Peer tool: HTTP request helpers + peer-spec parsers. Code extracted
+//             from peer.go during the Day-99 god-file split. Public API unchanged.
 
 import (
 	"bytes"

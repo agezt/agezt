@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Scheduler event publishers + small helpers: publishPlanStarted/Completed/Failed + publishNodeStarted/Completed/Failed + nodeIDs + resultKeys + invariantSnapshot + setKeys + errorKeys.
-// Code extracted from scheduler.go during the Day-64 god-file split. Public API unchanged.
 package scheduler
 
+// Provenance: Scheduler event publishers + small helpers:
+//             publishPlanStarted/Completed/Failed +
+//             publishNodeStarted/Completed/Failed + nodeIDs + resultKeys +
+//             invariantSnapshot + setKeys + errorKeys. Code extracted from
+//             scheduler.go during the Day-64 god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
 	"maps"
 	"sort"
 )
-
-
 
 func (e *Executor) publishPlanStarted(planID string, plan Plan) {
 	if e.bus == nil {

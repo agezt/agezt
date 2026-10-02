@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/delegation sub-agent tool types (DepthKey, Prep, SubAgentTool,
-// SubAgentAwaitTool) + DefaultSubAgentMaxDepth const + SubAgentTool + SubAgentAwaitTool
-// Definition/Invoke methods.
-// Extracted from delegation.go during Day 211 god-file refactor (#90).
-// Public API unchanged.
 package delegation
+
+// Provenance: SPDX-License-Identifier: MIT kernel/delegation sub-agent tool types
+//             (DepthKey, Prep, SubAgentTool, SubAgentAwaitTool) +
+//             DefaultSubAgentMaxDepth const + SubAgentTool + SubAgentAwaitTool
+//             Definition/Invoke methods. Extracted from delegation.go during Day 211
+//             god-file refactor (#90). Public API unchanged.
 
 import (
 	"context"

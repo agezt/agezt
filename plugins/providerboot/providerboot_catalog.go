@@ -131,4 +131,3 @@ func BuildFromCatalog(d Deps, entry *catalog.Provider, modelOverride string) (ag
 	desc := fmt.Sprintf("%s(catalog; family=%s, model=%s)", entry.ID, entry.Family(), modelDesc)
 	return prov, desc, runModel, auth, nil
 }
-

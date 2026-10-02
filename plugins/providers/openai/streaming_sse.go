@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 func parseStream(body io.Reader, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	// Tool input JSON can be large; bump from default 64K to 1MB.

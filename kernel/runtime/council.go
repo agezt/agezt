@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime council flow (types + Council + grounding).
-// Code extracted from council.go during the Day-83 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime council flow (types + Council + grounding). Code extracted
+//             from council.go during the Day-83 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime/types"
 )
-
 
 // CouncilMember is one seat: a human-readable label and the model id it speaks
 // with (a bare model id the Governor routes to its serving provider).

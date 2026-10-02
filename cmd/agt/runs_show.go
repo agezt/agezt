@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt runs show sub-command + childOutcome type. Split from runs.go
-// during Day 211 god-file refactor (#36). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt runs show sub-command +
+//             childOutcome type. Split from runs.go during Day 211 god-file refactor
+//             (#36). Public API unchanged.
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"io"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdRunsShow implements `agt runs show <correlation> [--json]`.

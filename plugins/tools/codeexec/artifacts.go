@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// CodeExec artifacts: exportSSHArtifacts + exportK8sArtifacts + tempArtifactExportDir + exportArtifactsFromDir + exportTarGzBase64Artifacts.
-// Code extracted from artifacts.go during the Day-142 god-file split.
-// Public API unchanged.
 package codeexec
 
+// Provenance: CodeExec artifacts: exportSSHArtifacts + exportK8sArtifacts +
+//             tempArtifactExportDir + exportArtifactsFromDir +
+//             exportTarGzBase64Artifacts. Code extracted from artifacts.go during
+//             the Day-142 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -22,7 +23,6 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"path/filepath"
 )
-
 
 const (
 	artifactExportDir           = ".agezt-artifacts"
@@ -271,4 +271,3 @@ func (t *Tool) exportTarGzBase64Artifacts(ctx context.Context, encoded, profile 
 	}
 	return t.exportArtifactsFromDir(ctx, localDir, profile)
 }
-

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Anthropic provider: Provider type + Complete (the entry point) + endpoint
-// resolution + auth + retry. The anth* wire types and helpers live in
-// anthropic_dialect.go. Day-211 god-file split. Public API unchanged.
 package anthropic
 
+// Provenance: Anthropic provider: Provider type + Complete (the entry point) +
+//             endpoint resolution + auth + retry. The anth* wire types and helpers
+//             live in anthropic_dialect.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"bytes"

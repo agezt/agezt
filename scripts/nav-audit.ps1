@@ -3,7 +3,7 @@
 # visible nav view and asserts none of them render the Day 23 "view was
 # retired" placeholder.
 #
-# Differs from webui-smoke.ps1 in that it runs the full nav audit (39 views)
+# Differs from webui-smoke.ps1 in that it runs the full nav audit (36 views)
 # instead of just the api-keys spec.
 
 [CmdletBinding()]

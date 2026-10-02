@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt help: commandHelp + helpGroup types + printHelp + helpHas + cmdHelp + suggestCommands + editDistance.
-// Code extracted from help.go during the Day-109 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt help: commandHelp + helpGroup types + printHelp + helpHas +
+//             cmdHelp + suggestCommands + editDistance. Code extracted from help.go
+//             during the Day-109 god-file split. Public API unchanged.
 
 import (
 	"fmt"

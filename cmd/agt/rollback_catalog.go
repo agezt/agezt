@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 )
+
 func appendRollbackCheckpoint(cp rollbackCheckpoint) error {
 	path, err := rollbackCatalogPath()
 	if err != nil {

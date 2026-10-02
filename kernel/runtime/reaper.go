@@ -10,8 +10,7 @@ package runtime
 // cadence to surface candidates autonomously; the control plane exposes it
 // on-demand for `agt reaper` and the UI.
 
-import (
-)
+import ()
 
 // ReaperAgent is a dead-agent candidate: an enabled, non-retired roster agent,
 // old enough to judge, with no task activity since the idle cutoff.

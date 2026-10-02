@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agezt channel handler + inbound-media persistence
-// (makeChannelHandler, persistInboundAudio, persistInboundImages, decodeDataURL).
-// Extracted from main_channels.go during Day 211 god-file refactor (#66).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agezt channel handler + inbound-media
+//             persistence (makeChannelHandler, persistInboundAudio,
+//             persistInboundImages, decodeDataURL). Extracted from main_channels.go
+//             during Day 211 god-file refactor (#66). Public API unchanged.
 
 import (
 	"context"

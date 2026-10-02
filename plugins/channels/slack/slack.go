@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Slack channel: types + lifecycle + receive flow + Send dispatcher.
-// Code extracted from slack.go during the Day-92 god-file split.
-// Public API unchanged.
 package slack
+
+// Provenance: Slack channel: types + lifecycle + receive flow + Send dispatcher.
+//             Code extracted from slack.go during the Day-92 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -18,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 )
-
 
 // DefaultBaseURL is the Slack Web API root (chat.postMessage etc.).
 const DefaultBaseURL = "https://slack.com/api"

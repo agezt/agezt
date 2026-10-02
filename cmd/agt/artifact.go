@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdArtifact implements `agt artifact <subcommand>`. Today the one subcommand is

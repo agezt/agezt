@@ -138,15 +138,7 @@ export const IncidentPage = lazyNamed(() => import("@/features/incidents/compone
 // Day 25: Chat and Jarvis came back as proper features/* modules — those
 // two bindings are now lazy imports at the top of this file, not aliases
 // pointing at REMOVED_VIEW.
-const Activity = Runs;
 const Mission = MissionControl;
-const Replay = Runs;
-const Prompts = Skills;
-
-// Activity / Replay alias the same Runs component (different filters); Prompts
-// alias is similar enough (Skills holds templates + the prompt library). These
-// are kept because the row label AND the underlying view both promise the same
-// thing to the operator — they differ only in framing, not in what renders.
 //
 // Every other alias that used to hide content behind a misleading label was
 // removed on Day 28 (Health → Standing orders, Alerts → Standing orders,
@@ -358,6 +350,14 @@ export const NAV_GROUPS: NavGroup[] = [
         },
       ]),
       row("runs", "Runs", ListTree, [
+        // Day 28→2026-10-01: this row carried three tabs — Runs, Activity and
+        // Replay — and all three rendered this one component. App renders the
+        // active view with no props (`const View = current.render`), so the
+        // component cannot tell which tab it is being shown as, and clicking
+        // Activity or Replay produced a byte-identical screen. Two tabs that
+        // are decoration is the same defect as a row that aliases another
+        // component, which Day 28 already resolved by dropping the row; the ids
+        // stay addressable through VIEW_ALIASES below.
         {
           id: "runs",
           label: "Runs",
@@ -365,20 +365,6 @@ export const NAV_GROUPS: NavGroup[] = [
           render: Runs,
           keywords:
             "history executions correlation cancel stop trace transcript koşu daemon recent activity log",
-        },
-        {
-          id: "activity",
-          label: "Activity",
-          icon: ActivityIcon,
-          render: Activity,
-          keywords: "running now busy working in flight incidents in progress cancel",
-        },
-        {
-          id: "replay",
-          label: "Replay",
-          icon: Clapperboard,
-          render: Replay,
-          keywords: "replay reconstruct step through past run timeline journal",
         },
       ]),
     ],
@@ -677,15 +663,6 @@ export const NAV_GROUPS: NavGroup[] = [
             "settings env vars options toggles password tunnel external access schema ayarlar raw dump effective configuration debug values",
         },
       ]),
-      row("identity", "Identity", Bot, [
-        {
-          id: "prompts",
-          label: "Prompts",
-          icon: MessageSquarePlus,
-          render: Prompts,
-          keywords: "prompt library templates snippets reusable instructions",
-        },
-      ]),
       row("backups", "Backups", Archive, [
         {
           id: "backup",
@@ -751,6 +728,13 @@ export const VIEW_ALIASES: Record<string, string> = {
   overview: "mission", // was Observe › Overview's first tab (alias to Standing orders); Monitor › Mission Control
   taste: "memory", // was Knowledge › Memory › Taste (verbatim Memory dup); Memory's the home
   storage: "artifacts", // was Knowledge › Data & Files › Storage (alias to Data Lake); Artifacts owns file usage
+  // 2026-10-01: the three ids whose nav entries rendered a component another
+  // entry already rendered. Same class as the Day 28 retirements above — a row
+  // or tab that opens something already one click away — so they are retired
+  // rather than re-labelled.
+  activity: "runs", // was Observe › Runs › Activity; same component as Runs
+  replay: "runs", // was Observe › Runs › Replay; same component as Runs
+  prompts: "skills", // was Admin › Identity; rendered the Skills page verbatim
 };
 
 // viewFromHash reads a valid view id from the URL hash (#agents → "agents"),

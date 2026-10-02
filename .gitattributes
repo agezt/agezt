@@ -15,3 +15,31 @@ kernel/webui/dist/**/*.ttf binary
 # Built-in skill bundles are go:embed-ded into the binary (M852). Force LF so a
 # Windows checkout doesn't embed CRLF — the shell setup script must run on Linux.
 plugins/builtinskills/** text eol=lf
+
+# Go source: force LF, same reasoning as the lines above. gofmt normalises to
+# LF, so a CRLF-stored .go file is reported by `gofmt -l` on line endings alone
+# — which makes a formatting gate meaningless and hides real findings. At the
+# time this rule was added, 673 of the module's 2,378 .go files were stored with
+# CRLF and 1,705 with LF.
+#
+# Adding this rule is the declaration of intent. The tree still needs ONE
+# follow-up to actually take effect:
+#
+#     git add --renormalize .
+#
+# Until that lands, `gofmt -l` over the Go roots stays red on those 673 files.
+# See the commented-out `fmt` target in the Makefile for the gate to re-add once
+# the tree is normalised.
+*.go text eol=lf
+
+# The generated structure docs are rewritten by `make structure-md` on whatever
+# platform the developer is on. Without this rule `core.autocrlf=true` turns
+# them into a phantom diff ("LF will be replaced by CRLF the next time Git
+# touches it") and `structure-md -check` churns on a clean tree.
+.project/STRUCTURE.generated/** text eol=lf
+
+# The unreleased working set is rewritten by hand and by tools/changelog-split
+# on whatever platform the developer is on. Without this rule `core.autocrlf=true`
+# makes every edit to CHANGELOG/unreleased/current.md show a phantom
+# "LF will be replaced by CRLF" diff.
+CHANGELOG/** text eol=lf

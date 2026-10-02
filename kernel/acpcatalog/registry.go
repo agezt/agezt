@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Registry client: NewRegistryClient + Fetch + fetch.
-// Code extracted from registry.go during the Day-70 god-file split. Public API unchanged.
 package acpcatalog
+
+// Provenance: Registry client: NewRegistryClient + Fetch + fetch. Code extracted
+//             from registry.go during the Day-70 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -16,11 +18,6 @@ import (
 	"sync"
 	"time"
 )
-
-
-
-
-
 
 // OfficialRegistryURL is the stable v1 index published by the ACP project.
 const OfficialRegistryURL = "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Governor: preflightAndRoute + runChain + openChain + ProviderHealth + callWithRetry + isTransient + Complete + CompleteStream.
-// Code extracted from governor_complete.go during the Day-129 god-file split.
-// Public API unchanged.
 package governor
 
+// Provenance: Governor: preflightAndRoute + runChain + openChain + ProviderHealth +
+//             callWithRetry + isTransient + Complete + CompleteStream. Code
+//             extracted from governor_complete.go during the Day-129 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -14,9 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 )
-
-
-
 
 // ErrStreamInterrupted marks a streaming call that failed AFTER chunks were
 // already delivered to the consumer (M882). Retrying or falling back would

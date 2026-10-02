@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Bus subject-pattern matcher: MatchSubject + matches + ValidatePattern +
-// parsePattern (the NATS-style wildcard rules: "*" matches one token, ">"
-// matches one or more tokens and must be the final token). Split from bus.go
-// during Day 211 god-file refactor (#33). Public API unchanged.
 package bus
+
+// Provenance: SPDX-License-Identifier: MIT Bus subject-pattern matcher: MatchSubject
+//             + matches + ValidatePattern + parsePattern (the NATS-style wildcard
+//             rules: "*" matches one token, ">" matches one or more tokens and must
+//             be the final token). Split from bus.go during Day 211 god-file
+//             refactor (#33). Public API unchanged.
 
 import (
 	"fmt"

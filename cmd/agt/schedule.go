@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt schedule entry + parse helpers (scheduleSystemTaskUsage +
-// parseHHMM + parseWindow + nextWallclock). Split from schedule.go during
-// Day 211 god-file refactor (#37). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt schedule entry + parse helpers
+//             (scheduleSystemTaskUsage + parseHHMM + parseWindow + nextWallclock).
+//             Split from schedule.go during Day 211 god-file refactor (#37). Public
+//             API unchanged.
 
 import (
 	"fmt"

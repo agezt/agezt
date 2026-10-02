@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Package browser: per-verb → action.Input conversion helpers
-// (actionVerbToActionInput + resolveRef + appendOptionalWait). Each verb has
-// its own input shape (open vs snapshot vs click vs ...) and these helpers
-// translate to the unified action.Input that ActionTool consumes. Extracted
-// from action_verbs.go during the Day-211 god-file split. Public API unchanged.
 package browser
 
+// Provenance: Package browser: per-verb → action.Input conversion helpers
+//             (actionVerbToActionInput + resolveRef + appendOptionalWait). Each verb
+//             has its own input shape (open vs snapshot vs click vs ...) and these
+//             helpers translate to the unified action.Input that ActionTool
+//             consumes. Extracted from action_verbs.go during the Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"fmt"
 	"strings"
 )
+
 func actionVerbToActionInput(name string, in actionVerbInput) (actionInput, error) {
 	out := actionInput{
 		URL:           in.URL,

@@ -20,7 +20,14 @@ const URL = process.env.AGEZT_WEBUI_URL;
 // Lake, Storage→Data Lake, Taste→Memory verbatim, Wizards→Schedules,
 // Inbox→World graph, Overview→Standing orders, Messages→World graph). Those
 // rows are gone from NAV entirely and the legacy ids stay in
-// REMOVED_VIEW_IDS. This list therefore covers the surviving 39 views only.
+// REMOVED_VIEW_IDS. This list therefore covers the surviving views only.
+//
+// 2026-10-01: three more ids were retired by the same rule — `activity` and
+// `replay` (Runs' own tabs, which rendered the Runs component) and `prompts`
+// (the Identity row, which rendered Skills). They are in VIEW_ALIASES rather
+// than REMOVED_VIEW_IDS, so a deep link to them renders the real Runs/Skills
+// page. Dropping them from this list does NOT drop them from coverage: see the
+// alias-routing case below.
 const VIEWS: { section: string; row: string; id: string }[] = [
   // Talk
   { section: "Talk", row: "Jarvis", id: "jarvis" },
@@ -30,8 +37,6 @@ const VIEWS: { section: string; row: string; id: string }[] = [
   { section: "Observe", row: "Monitor", id: "mission" },
   { section: "Observe", row: "Monitor", id: "feed" },
   { section: "Observe", row: "Runs", id: "runs" },
-  { section: "Observe", row: "Runs", id: "activity" },
-  { section: "Observe", row: "Runs", id: "replay" },
   // Automate
   { section: "Automate", row: "Workflows", id: "workflows" },
   { section: "Automate", row: "Triggers", id: "schedules" },
@@ -67,8 +72,19 @@ const VIEWS: { section: string; row: string; id: string }[] = [
   // Admin
   { section: "Admin", row: "Setup", id: "setup" },
   { section: "Admin", row: "Config Center", id: "configcenter" },
-  { section: "Admin", row: "Identity", id: "prompts" },
   { section: "Admin", row: "Backups", id: "backup" },
+];
+
+// Retired ids that VIEW_ALIASES routes somewhere real. These are the ones a
+// bookmark, a help chip or ⌘K history can still arrive on, so they get the same
+// "must render real content" treatment as a live view — plus an assertion that
+// they opened the surface the alias names, not merely something with text on
+// it. `title` is that surface's <Page title=...>, which is how the page
+// identifies itself to a reader and to a test.
+const ALIASED: { id: string; resolvesTo: string; title: string }[] = [
+  { id: "activity", resolvesTo: "runs", title: "Runs" },
+  { id: "replay", resolvesTo: "runs", title: "Runs" },
+  { id: "prompts", resolvesTo: "skills", title: "Skills" },
 ];
 
 test.describe("nav audit — every visible view renders real content", () => {
@@ -122,5 +138,42 @@ test.describe("nav audit — every visible view renders real content", () => {
 
     expect(visited.length).toBe(VIEWS.length);
     expect(errors, `console errors:\n${errors.join("\n")}`).toEqual([]);
+  });
+
+  // A retired id that resolves to a real page must land on THAT page. Asserting
+  // only "some content appeared" would pass even if the alias silently pointed
+  // somewhere else, which is exactly the bug class this exists for.
+  test("a retired view id resolves to the surface its alias names", async ({ page }) => {
+    expect(URL, "AGEZT_WEBUI_URL must be set by the harness").toBeTruthy();
+    await page.addInitScript(() => localStorage.setItem("agezt.setup.skipped", "1"));
+    await page.goto(URL!, { waitUntil: "domcontentloaded" });
+
+    for (const a of ALIASED) {
+      await page.evaluate((id) => {
+        location.hash = `#/${id}`;
+      }, a.id);
+      // Assert on the RENDERED PAGE, not on the hash. The first version of this
+      // case waited for `location.hash` to become the alias target and failed
+      // with `hash is "#/activity"` -- correctly, because `viewFromHash` never
+      // rewrites the URL. It resolves the id and returns it; the hash keeps the
+      // address the operator asked for. That is the existing contract for every
+      // alias in VIEW_ALIASES, and it is the right one: rewriting would make the
+      // URL stop being a stable address for the bookmark.
+      //
+      // So the observable is which page is standing there, identified by its
+      // <Page title=...> heading. This is also the assertion that matters: if an
+      // alias pointed at the wrong surface, this is what would catch it — a
+      // "some content appeared" check would not.
+      const heading = page.locator("main").getByRole("heading", { name: a.title, level: 2 }).first();
+      try {
+        await heading.waitFor({ state: "visible", timeout: 8000 });
+      } catch {
+        const shown = (await page.locator("main").first().textContent())?.trim().slice(0, 120) ?? "";
+        throw new Error(
+          `#/${a.id} should have opened the "${a.title}" page (its alias target ` +
+            `"#/${a.resolvesTo}"), but main showed: "${shown}"`,
+        );
+      }
+    }
   });
 });

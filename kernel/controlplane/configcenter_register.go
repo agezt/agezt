@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane configcenter command registry (registerConfigCenterCommands).
-// Code extracted from configcenter_handler.go during the Day-114 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane configcenter command registry
+//             (registerConfigCenterCommands). Code extracted from
+//             configcenter_handler.go during the Day-114 god-file split. Public API
+//             unchanged.
 
 func registerConfigCenterCommands() {
 	register(

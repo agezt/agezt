@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// Peer tool: Invoke + render + routeCandidates + serversForModel +
-// resolve + truncate.
-// Extracted from peer.go during the Day-202 god-file split.
-// Public API unchanged.
 package peer
+
+// Provenance: SPDX-License-Identifier: MIT Peer tool: Invoke + render +
+//             routeCandidates + serversForModel + resolve + truncate. Extracted from
+//             peer.go during the Day-202 god-file split. Public API unchanged.
 
 import (
 	"context"

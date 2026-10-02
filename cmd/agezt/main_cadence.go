@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence/scheduled-task helpers extracted from main.go during Day 211
-// god-file refactor (#43, #52). Public API unchanged.
 package main
+
+// Provenance: Cadence/scheduled-task helpers extracted from main.go during Day 211
+//             god-file refactor (#43, #52). Public API unchanged.
 
 import (
 	"context"

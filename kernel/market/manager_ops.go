@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// market listing + install + uninstall path: Listing struct + List + Show
-// (the catalogue accessors) + Install + promoteToActive (the install path)
-// + Uninstall.
-// Extracted from manager.go during the Day-208 god-file split.
-// Public API unchanged.
 package market
+
+// Provenance: SPDX-License-Identifier: MIT market listing + install + uninstall
+//             path: Listing struct + List + Show (the catalogue accessors) + Install
+//             + promoteToActive (the install path) + Uninstall. Extracted from
+//             manager.go during the Day-208 god-file split. Public API unchanged.
 
 import (
 	"fmt"

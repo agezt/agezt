@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// SDK: Result + Text + Errorf + Handler + Tool + wire types + fromContext + Serve + ServeRW + Emit + CallHost (public SDK surface).
-// Code extracted from sdk.go during the Day-136 god-file split.
-// Public API unchanged.
 package sdk
 
+// Provenance: SDK: Result + Text + Errorf + Handler + Tool + wire types +
+//             fromContext + Serve + ServeRW + Emit + CallHost (public SDK surface).
+//             Code extracted from sdk.go during the Day-136 god-file split. Public
+//             API unchanged.
 
 import (
 	"bufio"
@@ -18,7 +19,6 @@ import (
 	"encoding/json"
 	"sync/atomic"
 )
-
 
 // maxFrameBytes bounds a single newline-delimited frame the SDK reads
 // from the host. Mirrors kernel/plugin's DefaultMaxFrameBytes (16 MiB).
@@ -250,4 +250,3 @@ func ServeRW(ctx context.Context, r io.Reader, w io.Writer, tools ...Tool) error
 		}
 	}
 }
-

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Workboard view helpers + List: workboardTaskView, workboardDependencyStateViews, workboardDependencySummary, handleWorkboardList.
-// Code extracted from workboard.go during the Day-48 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Workboard view helpers + List: workboardTaskView,
+//             workboardDependencyStateViews, workboardDependencySummary,
+//             handleWorkboardList. Code extracted from workboard.go during the
+//             Day-48 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -13,8 +15,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/workboard"
 )
-
-
 
 func workboardTaskView(t workboard.Task) map[string]any {
 	b, _ := json.Marshal(t)

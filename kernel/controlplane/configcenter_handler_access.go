@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Config-center governance handlers: handleConfigCenterSetRating +
-// handleConfigCenterSetAccess + handleConfigCenterAccessLog.
-// Carved out of configcenter_handler.go during the Day 186 god-file
-// split so the main file can stay focused on CRUD (Set/Get/List/Delete)
-// and the audit file can stay focused on observability + helpers.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Config-center governance handlers: handleConfigCenterSetRating +
+//             handleConfigCenterSetAccess + handleConfigCenterAccessLog. Carved out
+//             of configcenter_handler.go during the Day 186 god-file split so the
+//             main file can stay focused on CRUD (Set/Get/List/Delete) and the audit
+//             file can stay focused on observability + helpers. Public API
+//             unchanged.
 
 import (
 	"net"
@@ -146,4 +146,3 @@ func (s *Server) handleConfigCenterAccessLog(conn net.Conn, req Request) {
 		Result: map[string]any{"logs": result, "count": len(result)},
 	})
 }
-

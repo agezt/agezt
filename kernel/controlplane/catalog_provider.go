@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/catalog"
 )
+
 func envOrDefault(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
 		return v
@@ -95,11 +96,11 @@ func (s *Server) handleProviderConnect(conn net.Conn, req Request) {
 	if _, exists := cat.Providers[id]; exists {
 		_, providersReloaded, rerr := s.k.Reload()
 		result := map[string]any{
-			"provider_id":         id,
-			"added":               false,
-			"exists":              true,
-			"providers_reloaded":  providersReloaded,
-			"note":                "id already in catalog; custom.json was NOT written — existing entry preserved. Attach the key via /api/provider/keys/add.",
+			"provider_id":        id,
+			"added":              false,
+			"exists":             true,
+			"providers_reloaded": providersReloaded,
+			"note":               "id already in catalog; custom.json was NOT written — existing entry preserved. Attach the key via /api/provider/keys/add.",
 		}
 		if rerr != nil {
 			result["reload_error"] = rerr.Error()
@@ -163,4 +164,3 @@ func (s *Server) handleProviderReload(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
-

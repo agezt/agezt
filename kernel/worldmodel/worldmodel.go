@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled,
-// content-addressed graph of the operator's world. The Kind + Verb + Entity
-// + Relation + Store + graphData + FileStore types + Open + EntityID +
-// RelationID + NormalizeKind + NormalizeVerb + Active + sortEntities +
-// sortRelations helpers live here. The FileStore method implementations
-// (PutEntity + GetEntity + AllEntities + PutRelation + GetRelation +
-// AllRelations + Count + Close + snapshotLocked) moved to
-// worldmodel_store.go. Day-211 god-file split. Public API unchanged.
 package worldmodel
 
+// Provenance: Package worldmodel implements "World Model v1" (SPEC-05 §3): a
+//             journaled, content-addressed graph of the operator's world. The Kind +
+//             Verb + Entity + Relation + Store + graphData + FileStore types + Open
+//             + EntityID + RelationID + NormalizeKind + NormalizeVerb + Active +
+//             sortEntities + sortRelations helpers live here. The FileStore method
+//             implementations (PutEntity + GetEntity + AllEntities + PutRelation +
+//             GetRelation + AllRelations + Count + Close + snapshotLocked) moved to
+//             worldmodel_store.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/hex"
@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/jsonstore"
 	"lukechampine.com/blake3"
 )
+
 // Kind classifies an entity (SPEC-05 §3.2). It is an open string — the set
 // below is the validated, well-known vocabulary, but an unknown kind is
 // accepted (NormalizeKind keeps it verbatim) so the graph never refuses to

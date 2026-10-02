@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt schedule text-formatter helpers (scheduleTargetStatusText,
-// scheduleExecutorText, scheduleActionText). Extracted from schedule_ops.go
-// during Day 211 god-file refactor (#58). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt schedule text-formatter helpers
+//             (scheduleTargetStatusText, scheduleExecutorText, scheduleActionText).
+//             Extracted from schedule_ops.go during Day 211 god-file refactor (#58).
+//             Public API unchanged.
 
 import (
 	"strings"

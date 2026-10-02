@@ -8,11 +8,10 @@ import (
 	"io"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
-
 
 func cmdConfigCenter(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -160,4 +159,3 @@ func cmdConfigCenterDelete(args []string, stdout, stderr io.Writer) int {
 }
 
 // cmdConfigCenterRating gets or sets rating for a key
-

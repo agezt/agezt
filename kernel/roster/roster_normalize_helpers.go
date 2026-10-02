@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package roster: small normalize helpers (enforceNoiseToolDeny +
-// applySystemGuardianDefaults + noiseSeverityRank + compactStrings +
-// compactUniqueStrings). Extracted from roster_normalize.go during the
-// Day-211 god-file split. Public API unchanged.
 package roster
 
+// Provenance: Package roster: small normalize helpers (enforceNoiseToolDeny +
+//             applySystemGuardianDefaults + noiseSeverityRank + compactStrings +
+//             compactUniqueStrings). Extracted from roster_normalize.go during the
+//             Day-211 god-file split. Public API unchanged.
 
 import (
 	"strings"

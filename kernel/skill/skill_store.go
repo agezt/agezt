@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// skill_store.go owns the Skill record type + the persistent
-// Store interface + FileStore impl. Carved out of skill.go
-// during the Day-211 god-file split so skill.go can stay
-// focused on the lifecycle state machine (Status +
-// transitions). Public API unchanged.
 package skill
+
+// Provenance: skill_store.go owns the Skill record type + the persistent Store
+//             interface + FileStore impl. Carved out of skill.go during the Day-211
+//             god-file split so skill.go can stay focused on the lifecycle state
+//             machine (Status + transitions). Public API unchanged.
 
 import (
 	"encoding/hex"

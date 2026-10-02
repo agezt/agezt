@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane tool views: decodeControlplaneArg + agentCapabilityPatch + wake/governance/noise/permission/config view helpers + stringSet.
-// Code extracted from tool_views.go during the Day-138 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane tool views: decodeControlplaneArg + agentCapabilityPatch
+//             + wake/governance/noise/permission/config view helpers + stringSet.
+//             Code extracted from tool_views.go during the Day-138 god-file split.
+//             Public API unchanged.
 
 import (
 	"strings"
@@ -13,8 +13,6 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
-
 
 func decodeControlplaneArg(raw any, out any) error {
 	b, err := json.Marshal(raw)
@@ -116,4 +114,3 @@ func agentWakeAccessView(p roster.Profile) map[string]any {
 		"kind":               p.Kind(),
 	}
 }
-

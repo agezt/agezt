@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Runtime council prompt builders + tiny helpers.
-// Code extracted from council.go during the Day-83 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Runtime council prompt builders + tiny helpers. Code extracted from
+//             council.go during the Day-83 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -16,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // councilHit is one parsed web_search result folded into the research brief.
 type councilHit struct {

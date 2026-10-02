@@ -9,10 +9,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 // cmdJournalStats implements `agt journal stats [--json]` (M132) — the journal's

@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// iMessage channel: sendOne + sendAttachment (low-level POST helpers used
-// by Channel.Send).
-// Extracted from imessage.go during the Day-202 god-file split.
-// Public API unchanged.
 package imessage
+
+// Provenance: SPDX-License-Identifier: MIT iMessage channel: sendOne +
+//             sendAttachment (low-level POST helpers used by Channel.Send).
+//             Extracted from imessage.go during the Day-202 god-file split. Public
+//             API unchanged.
 
 import (
 	"bytes"
@@ -98,4 +97,3 @@ func (c *Channel) sendAttachment(ctx context.Context, guid string, att channel.A
 	}
 	return nil
 }
-

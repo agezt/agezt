@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
+
 func cmdJournalVerify(args []string, stdout, stderr io.Writer) int {
 	bundlePath := ""
 	for i := 0; i < len(args); i++ {

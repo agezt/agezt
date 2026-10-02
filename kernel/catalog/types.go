@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Catalog types + Provider credential helpers: types, ProviderCredentialName, IsProviderCredentialName, ProviderCredentialLookupNames, DuplicateCredentialEnvs, HasCredentials.
-// Code extracted from types.go during the Day-57 god-file split. Public API unchanged.
 package catalog
 
+// Provenance: Catalog types + Provider credential helpers: types,
+//             ProviderCredentialName, IsProviderCredentialName,
+//             ProviderCredentialLookupNames, DuplicateCredentialEnvs,
+//             HasCredentials. Code extracted from types.go during the Day-57
+//             god-file split. Public API unchanged.
 
 import (
 	"strings"
 )
-
-
 
 // Provider is one external service that can serve completions. Field
 // names match models.dev/api.json so the JSON unmarshals directly.

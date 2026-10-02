@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
 )
+
 func (c *Channel) Send(ctx context.Context, out channel.Outbound) error {
 	target := strings.TrimSpace(out.ChannelID)
 	text := strings.TrimSpace(out.Text)

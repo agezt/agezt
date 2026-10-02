@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// MCP client: mcpClient + lifecycle + handshake + list/call/notify + death/lifecycle handlers.
-// Code extracted from mcp.go during the Day-101 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: MCP client: mcpClient + lifecycle + handshake + list/call/notify +
+//             death/lifecycle handlers. Code extracted from mcp.go during the
+//             Day-101 god-file split. Public API unchanged.
 
 import (
 	"context"

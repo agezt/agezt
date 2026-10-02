@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor state checks: checkExposure + checkBudget + checkJournal +
-// checkCredentials + checkChannels + checkModelReadiness + budgetWarnPct.
-// Extracted from doctor_ops.go during Day 211 god-file refactor (#54).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor state checks:
+//             checkExposure + checkBudget + checkJournal + checkCredentials +
+//             checkChannels + checkModelReadiness + budgetWarnPct. Extracted from
+//             doctor_ops.go during Day 211 god-file refactor (#54). Public API
+//             unchanged.
 
 import (
 	"context"
@@ -37,9 +37,11 @@ func checkExposure(status map[string]any) doctorCheck {
 	}
 	return ok(name, fmt.Sprintf("%d HTTP server(s), all loopback-bound", len(servers)))
 }
+
 // budgetWarnPct is the daily-spend fraction (%) at which the doctor starts
 // warning — close enough to the ceiling that runs will soon be blocked.
 const budgetWarnPct = 90.0
+
 func checkBudget(ctx context.Context, client *controlplane.Client) doctorCheck {
 	res, err := client.Call(ctx, controlplane.CmdBudget, nil)
 	if err != nil {

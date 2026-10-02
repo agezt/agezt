@@ -163,5 +163,3 @@ func repairDecisionDetail(row agentRepairRow, fallback string) string {
 	}
 	return strings.Join(parts, " · ")
 }
-
-

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Core control-plane commands: lifecycle (Version/Run/Halt/Resume/Why), approvals, provider/catalog/routing, pulse/budget, tools/warden, auth/plugin/journal/rate/webhook.
-// Code extracted from protocol_commands.go during the Day-43 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Core control-plane commands: lifecycle (Version/Run/Halt/Resume/Why),
+//             approvals, provider/catalog/routing, pulse/budget, tools/warden,
+//             auth/plugin/journal/rate/webhook. Code extracted from
+//             protocol_commands.go during the Day-43 god-file split. Public API
+//             unchanged.
 
 const (
 	CmdVersion       = "version"

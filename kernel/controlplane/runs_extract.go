@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Payload extraction helpers for run entries: extractIntent/Agent/Tool/Iters/CostMicrocents/Model/AnswerPreview/SpawnLink/Reason and int64Arg.
-// Code extracted from runs.go during the Day-37 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Payload extraction helpers for run entries:
+//             extractIntent/Agent/Tool/Iters/CostMicrocents/Model/AnswerPreview/SpawnLink/Reason
+//             and int64Arg. Code extracted from runs.go during the Day-37 god-file
+//             split. Public API unchanged.
 
 import (
 	"encoding/json"
 	"strings"
 )
-
 
 func extractIntent(payload json.RawMessage) string {
 	if len(payload) == 0 {

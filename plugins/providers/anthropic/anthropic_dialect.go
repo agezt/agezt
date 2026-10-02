@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Anthropic provider: anth* wire types (anthRequest, anthMessage, anthTool,
-// anthResponse, ...) and small helpers (applyParams, thinkingConfig,
-// buildAnthSystem, buildAnthTools, anthUsageToAgent) used by Complete to
-// encode/decode requests. Extracted from anthropic_wire.go during the
-// Day-211 god-file split. Public API unchanged.
 package anthropic
 
+// Provenance: Anthropic provider: anth* wire types (anthRequest, anthMessage,
+//             anthTool, anthResponse, ...) and small helpers (applyParams,
+//             thinkingConfig, buildAnthSystem, buildAnthTools, anthUsageToAgent)
+//             used by Complete to encode/decode requests. Extracted from
+//             anthropic_wire.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
+
 // ----- dialect translation (canonical ↔ Anthropic) -----
 
 // anthRequest is the wire-shape of a Messages API request. System is `any` so it
@@ -183,4 +185,3 @@ func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, m
 		Model:                 model,
 	}
 }
-

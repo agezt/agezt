@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane dry-run pricing helpers (modelPriced, strictPricingPlan, runPlanInput type).
-// Extracted from dryrun.go during Day 211 god-file refactor (#100).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane dry-run pricing
+//             helpers (modelPriced, strictPricingPlan, runPlanInput type). Extracted
+//             from dryrun.go during Day 211 god-file refactor (#100). Public API
+//             unchanged.
 
 import (
 	"time"

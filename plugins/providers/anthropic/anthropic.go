@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Anthropic provider: Provider type + Complete + encode/decode roundtrip + canonicalToAnth.
-// Code extracted from anthropic.go during the Day-103 god-file split.
-// Public API unchanged.
 package anthropic
 
+// Provenance: Anthropic provider: Provider type + Complete + encode/decode roundtrip
+//             + canonicalToAnth. Code extracted from anthropic.go during the Day-103
+//             god-file split. Public API unchanged.
 
 import (
 	"errors"

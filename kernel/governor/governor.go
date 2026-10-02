@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 
-// Package governor is the per-task routing + budget layer
-// (TASKS P1-CONDUIT-01..04; DECISIONS C1-C6).
-//
-// The Governor implements agent.Provider so the rest of the kernel does
-// not need to know it exists; it sits between the agent tool-loop and the
-// concrete Provider plugins, choosing which one runs each call, walking a
-// fallback chain on error, tracking spend in USD-microcents (DECISIONS C1),
-// and enforcing per-day and per-task ceilings.
-//
-// Routing (M1.b minimum):
-//
-//  1. If RouteOptions.PreferredProvider is set and registered, try it.
-//  2. Otherwise pick the primary (first registered non-fallback provider).
-//  3. On a fall-back-able error (anything except context.Canceled /
-//     DeadlineExceeded / ErrBudgetExceeded), walk the chain:
-//     other non-fallback providers in registration order, then any
-//     fallback (IsFallback=true) providers last.
-//
-// Full subscription→cost→latency policy (DECISIONS C2) lands when the
-// model catalog sync (TASKS P1-CONDUIT-04) ships.
 package governor
+
+// This file holds the routing and budget engine. The package's
+// documentation — what the Governor is, and the chain order it tries
+// providers in — lives in doc.go.
+//
+// RESOLVED, and kept here because it was a real documentation bug worth not
+// losing: this file's old comment and doc.go disagreed about the chain.
+// doc.go described the order as "subscription-first -> quality -> cost ->
+// latency" in the present tense; this one said the full subscription->cost->
+// latency policy (DECISIONS C2) only lands with the model-catalog sync. Both
+// were describing something that does not exist.
+//
+// The code settles it. routeChain sorts the primary candidates with
+// authModePriority, which is purely a cost ranking — AuthSubscription (0),
+// then AuthLocal (1), then AuthAPIKey (2), with fallback providers appended
+// last. So the subscription-first and cost halves of DECISIONS C2 have
+// shipped; quality and latency are not ordering dimensions yet. doc.go now
+// says exactly that.
 
 import (
 	"errors"

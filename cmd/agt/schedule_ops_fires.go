@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt schedule fires sub-command handler (cmdScheduleFires).
-// Extracted from schedule_ops.go during Day 211 god-file refactor (#58).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt schedule fires sub-command
+//             handler (cmdScheduleFires). Extracted from schedule_ops.go during Day
+//             211 god-file refactor (#58). Public API unchanged.
 
 import (
 	"context"
@@ -13,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {

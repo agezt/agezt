@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt skill view helpers: renderSkillLine + shadowProgress + renderSkillEventDetail + shortID.
-// Code extracted from skill.go during the Day-97 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt skill view helpers: renderSkillLine + shadowProgress +
+//             renderSkillEventDetail + shortID. Code extracted from skill.go during
+//             the Day-97 god-file split. Public API unchanged.
 
 import (
 	"context"

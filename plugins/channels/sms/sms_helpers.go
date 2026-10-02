@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// SMS channel: twilioSignature + dedup (pure crypto/cache helpers).
-// Code extracted from sms.go during the Day-134 god-file split.
-// Public API unchanged.
 package sms
 
+// Provenance: SMS channel: twilioSignature + dedup (pure crypto/cache helpers). Code
+//             extracted from sms.go during the Day-134 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"

@@ -166,9 +166,20 @@ func TestRun_TimeoutKillsAndFlagsTimedOut(t *testing.T) {
 	if !res.TimedOut {
 		t.Error("expected TimedOut=true")
 	}
-	// 200ms timeout + 500ms WaitDelay = strict upper bound ~1.5s.
-	if dur > 2*time.Second {
-		t.Errorf("Run took %s; expected <2s (timeout + WaitDelay)", dur)
+	// The command is 200ms timeout + 500ms WaitDelay = ~700ms nominal, and this
+	// is a wall-clock measurement of a real process being killed, so it carries
+	// whatever scheduling delay the machine is under. At 2s it reproduced
+	// consistently inside the full `go test ./...` run — 191 packages in
+	// parallel put the box under enough load to take 2.18s — while passing
+	// every time in isolation. A bound that tight measures the scheduler, not
+	// the warden.
+	//
+	// The property worth keeping is "killed, and not after an unbounded wait";
+	// a broken kill path never returns at all and trips the package timeout
+	// instead. 6s still catches a kill that lands many multiples late, while
+	// leaving the measurement enough room to mean something.
+	if dur > 6*time.Second {
+		t.Errorf("Run took %s; expected <6s (timeout + WaitDelay, with headroom for a loaded machine)", dur)
 	}
 	// warden.limit_exceeded for the timeout.
 	if got := countEvents(t, j, event.KindWardenLimitExceeded); got < 1 {

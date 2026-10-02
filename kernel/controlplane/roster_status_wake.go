@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Wake state helpers + agentWakeStatusViews: isMailboxWakeSubject, agentPolicyDenials, applyActiveWakeContext, liveEventSummary, scheduleEntryMatchesAgent, legacyScheduleAgentSlug, scheduleWakeLabel.
-// Code extracted from roster_status.go during the Day-39 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Wake state helpers + agentWakeStatusViews: isMailboxWakeSubject,
+//             agentPolicyDenials, applyActiveWakeContext, liveEventSummary,
+//             scheduleEntryMatchesAgent, legacyScheduleAgentSlug, scheduleWakeLabel.
+//             Code extracted from roster_status.go during the Day-39 god-file split.
+//             Public API unchanged.
 
 import (
 	"sort"
@@ -14,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
-
 
 func isMailboxWakeSubject(subject string) bool {
 	return subject == "board" || strings.HasPrefix(subject, "board.")

@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent wake/repair async-action handlers + payload helpers
-// (cmdAgentWake, cmdAgentRepair, cmdAgentRepairStatus, callAgentAsyncAction,
-// buildAgentWakePayload, buildAgentRepairPayload, applyAgentActionFlags).
-// Extracted from agent_crud.go during Day 211 god-file refactor (#64).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent wake/repair async-action
+//             handlers + payload helpers (cmdAgentWake, cmdAgentRepair,
+//             cmdAgentRepairStatus, callAgentAsyncAction, buildAgentWakePayload,
+//             buildAgentRepairPayload, applyAgentActionFlags). Extracted from
+//             agent_crud.go during Day 211 god-file refactor (#64). Public API
+//             unchanged.
 
 import (
 	"context"
@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func cmdAgentWake(args []string, stdout, stderr io.Writer) int {

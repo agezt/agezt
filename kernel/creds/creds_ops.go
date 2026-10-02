@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// creds entry operations: Set + Get + Has + Remove + Names + Lookup +
-// ChainLookup + MaskValue + validateName.
-// Extracted from creds.go during the Day-203 god-file split.
-// Public API unchanged.
 package creds
+
+// Provenance: SPDX-License-Identifier: MIT creds entry operations: Set + Get + Has +
+//             Remove + Names + Lookup + ChainLookup + MaskValue + validateName.
+//             Extracted from creds.go during the Day-203 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"

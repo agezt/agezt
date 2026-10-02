@@ -1,27 +1,18 @@
-// SPDX-License-Identifier: MIT
-//
-// Command agt is the Agezt command-line client.
-//
-// Subcommands:
-//
-//	agt run "<intent>"        run an intent end-to-end; streams events
-//	agt halt                  freeze all in-flight runs
-//	agt resume                clear the halt flag
-//	agt why <event_id>        list the events sharing an event's correlation
-//	agt journal verify        verify the BLAKE3 hash chain
-//	agt version               show client version
-//	agt help                  this help
-//
-// All commands connect to a running agezt daemon via the local control
-// plane (TCP localhost + token file in $AGEZT_HOME/runtime/).
-//
-// This file holds the entry point (main + run) + resolveRunIntent +
-// cmdRun (the big `agt run` sub-command). The other sub-commands
-// (`journal`, `approvals`, `plan`, `catalog`, `decide`, `simple`)
-// live in main_run_modes.go and main_approvals_plan.go.
-// Split from main.go during Day 211 god-file refactor (#42).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT Command agt is the Agezt command-line
+//             client. Subcommands: agt run "<intent>" run an intent end-to-end;
+//             streams events agt halt freeze all in-flight runs agt resume clear the
+//             halt flag agt why <event_id> list the events sharing an event's
+//             correlation agt journal verify verify the BLAKE3 hash chain agt
+//             version show client version agt help this help All commands connect to
+//             a running agezt daemon via the local control plane (TCP localhost +
+//             token file in $AGEZT_HOME/runtime/). This file holds the entry point
+//             (main + run) + resolveRunIntent + cmdRun (the big `agt run`
+//             sub-command). The other sub-commands (`journal`, `approvals`, `plan`,
+//             `catalog`, `decide`, `simple`) live in main_run_modes.go and
+//             main_approvals_plan.go. Split from main.go during Day 211 god-file
+//             refactor (#42). Public API unchanged.
 
 import (
 	"context"
@@ -33,11 +24,11 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 func main() {

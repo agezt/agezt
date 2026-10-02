@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// workboard_store_internals.go holds the *private* Store
-// methods (mutate / find / saveLocked / dependsOnLocked) and
-// the dependencySatisfied helper used by the public CRUD
-// surface in workboard_store_more.go. Lives in its own file
-// so the public API reads linearly. Carved out during the
-// Day-211 god-file split (#114).
 package workboard
+
+// Provenance: workboard_store_internals.go holds the *private* Store methods (mutate
+//             / find / saveLocked / dependsOnLocked) and the dependencySatisfied
+//             helper used by the public CRUD surface in workboard_store_more.go.
+//             Lives in its own file so the public API reads linearly. Carved out
+//             during the Day-211 god-file split (#114).
 
 import (
 	"strings"
@@ -14,7 +14,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/jsonstore"
 )
-
 
 func (s *Store) mutate(id string, fn func(*Task, int64) error, now time.Time) (Task, error) {
 	id = strings.TrimSpace(id)

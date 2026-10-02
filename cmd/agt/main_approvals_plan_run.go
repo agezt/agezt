@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt plan sub-commands + helpers (cmdPlan, cmdPlanExecuteFile,
-// cmdPlanGenerate, cmdPlanRun, runPlanJSON, formatTime shim).
-// Extracted from main_approvals_plan.go during Day 211 god-file refactor (#67).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt plan sub-commands + helpers
+//             (cmdPlan, cmdPlanExecuteFile, cmdPlanGenerate, cmdPlanRun,
+//             runPlanJSON, formatTime shim). Extracted from main_approvals_plan.go
+//             during Day 211 god-file refactor (#67). Public API unchanged.
 
 import (
 	"context"
@@ -14,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
-	"github.com/agezt/agezt/cmd/agt/format"
 )
 
 func cmdPlan(args []string, stdout, stderr io.Writer) int {

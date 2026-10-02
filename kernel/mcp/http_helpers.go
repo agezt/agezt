@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// http_helpers.go: round-trip / notify / postLocked / applyHeaders /
-// readResponse / readSSEResponse split off from http.go during the Day 211
-// god-file refactor (#133). Public API unchanged.
 package mcp
+
+// Provenance: http_helpers.go: round-trip / notify / postLocked / applyHeaders /
+//             readResponse / readSSEResponse split off from http.go during the Day
+//             211 god-file refactor (#133). Public API unchanged.
 
 import (
 	"bufio"
@@ -16,7 +17,6 @@ import (
 	"net/http"
 	"strings"
 )
-
 
 // roundTrip POSTs one JSON-RPC request and returns ITS response, handling both
 // a single application/json body and a text/event-stream reply. Serialized

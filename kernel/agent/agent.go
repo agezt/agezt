@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Agent core types: Role + Role const + Message + ToolCall + ToolDef + ToolCapability + CompletionRequest + StopReason + CompletionResponse + Usage + Provider + Tool + Result.
-// Code extracted from agent.go during the Day-78 god-file split. Public API unchanged.
 package agent
 
+// Provenance: Agent core types: Role + Role const + Message + ToolCall + ToolDef +
+//             ToolCapability + CompletionRequest + StopReason + CompletionResponse +
+//             Usage + Provider + Tool + Result. Code extracted from agent.go during
+//             the Day-78 god-file split. Public API unchanged.
 
 import (
 	"context"
 	"encoding/json"
 )
-
-
 
 // Role is the canonical conversation role.
 type Role string

@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/market Pack methods (Counts, Validate, CanonicalBytes, ContentHash, Entry).
-// Extracted from market.go during Day 211 god-file refactor (#87).
-// Public API unchanged.
 package market
+
+// Provenance: SPDX-License-Identifier: MIT kernel/market Pack methods (Counts,
+//             Validate, CanonicalBytes, ContentHash, Entry). Extracted from
+//             market.go during Day 211 god-file refactor (#87). Public API
+//             unchanged.
 
 import (
 	"crypto/sha256"

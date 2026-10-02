@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// Runtime runexec lifecycle methods: RunWith + CompleteAgentLifecycle +
-// setupRunState + cleanupRunState + deregisterRunSteer + ErrNoVisionModel
-// sentinel. Split from runexec_helpers.go during Day 211 god-file
-// refactor (#34). Public API unchanged.
 package runtime
+
+// Provenance: SPDX-License-Identifier: MIT Runtime runexec lifecycle methods:
+//             RunWith + CompleteAgentLifecycle + setupRunState + cleanupRunState +
+//             deregisterRunSteer + ErrNoVisionModel sentinel. Split from
+//             runexec_helpers.go during Day 211 god-file refactor (#34). Public API
+//             unchanged.
 
 import (
 	"context"

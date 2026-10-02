@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Reaper: routing pressure + retry pressure (the "what's straining" cluster).
-// Code extracted from reaper_routing.go during the Day-90 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Reaper: routing pressure + retry pressure (the "what's straining"
+//             cluster). Code extracted from reaper_routing.go during the Day-90
+//             god-file split. Public API unchanged.
 
 import (
 	"os"
@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 func (k *Kernel) routingPressureAgents(profiles []roster.Profile, cutoffMS int64) []RoutingPressureAgent {
 	threshold := routingPressureThreshold()
@@ -261,4 +260,3 @@ func routingForceProbationWindow() time.Duration {
 	}
 	return d
 }
-

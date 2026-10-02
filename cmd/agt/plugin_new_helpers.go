@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `plugin new` shared helpers (pluginNewUsage, sanitizeToolName).
-// Extracted from plugin_new.go during Day 211 god-file refactor (#101).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `plugin new` shared helpers
+//             (pluginNewUsage, sanitizeToolName). Extracted from plugin_new.go
+//             during Day 211 god-file refactor (#101). Public API unchanged.
 
 import (
 	"fmt"

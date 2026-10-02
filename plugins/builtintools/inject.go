@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Set*-injection specs (Phase 2.2 PR 3): the always-on tools whose post-Open
-// dependency injection (SetKernel / SetIndex / SetStore / SetRunner) used to be
-// hand-wired through string-keyed downcasts in cmd/agezt/main.go, plus
-// code_exec whose ScriptRunner pre-Open hook and bus/Conductor wiring lived
-// there too. Each spec's hooks close over the concrete instance its OWN Build
-// produced, so no type assertion is ever needed and a wrong-name lookup is a
-// compile error, not a silently-skipped `if _, ok :=` block.
 package builtintools
+
+// Set*-injection specs (Phase 2.2 PR 3): the always-on tools whose
+// post-Open dependency injection (SetKernel / SetIndex / SetStore /
+// SetRunner) used to be hand-wired through string-keyed downcasts in
+// cmd/agezt/main.go, plus code_exec whose ScriptRunner pre-Open hook and
+// bus/Conductor wiring lived there too. Each spec's hooks close over the
+// concrete instance its OWN Build produced, so no type assertion is ever
+// needed and a wrong-name lookup is a compile error, not a
+// silently-skipped `if _, ok :=` block.
 
 import (
 	"fmt"

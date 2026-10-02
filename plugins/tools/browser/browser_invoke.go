@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package browser: Invoke (the SSRF-guarded fetch → strip → decode → truncate
-// pipeline) + hostAllowed (the AllowedHosts matcher with "*.example.com"
-// wildcard support). Extracted from browser.go during the Day-211 god-file
-// split. Public API unchanged.
 package browser
 
+// Provenance: Package browser: Invoke (the SSRF-guarded fetch → strip → decode →
+//             truncate pipeline) + hostAllowed (the AllowedHosts matcher with
+//             "*.example.com" wildcard support). Extracted from browser.go during
+//             the Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
 	var in browserInput
 	if err := json.Unmarshal(raw, &in); err != nil {

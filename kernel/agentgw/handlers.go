@@ -10,7 +10,6 @@ import (
 	"github.com/agezt/agezt/kernel/httpserver"
 )
 
-
 const (
 	defaultMemorySearchLimit = 20
 	maxMemorySearchLimit     = 200

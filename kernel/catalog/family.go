@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Catalog family + model/cost helpers: FamilyFromNPM, FamilySupportsNativeJSONMode, Provider.Family, Model helpers (SupportsModality/SupportsVision/SupportsPromptCache/SupportsStrictToolArgs/AgentWarnings), Cost helpers.
-// Code extracted from types.go during the Day-57 god-file split. Public API unchanged.
 package catalog
 
+// Provenance: Catalog family + model/cost helpers: FamilyFromNPM,
+//             FamilySupportsNativeJSONMode, Provider.Family, Model helpers
+//             (SupportsModality/SupportsVision/SupportsPromptCache/SupportsStrictToolArgs/AgentWarnings),
+//             Cost helpers. Code extracted from types.go during the Day-57 god-file
+//             split. Public API unchanged.
 
 import (
 	"fmt"
 	"strings"
 	"time"
 )
-
 
 func FamilyFromNPM(npm string) Family {
 	n := strings.TrimSpace(strings.ToLower(npm))

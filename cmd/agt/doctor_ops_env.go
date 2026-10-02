@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor environment checks: checkBaseDir + checkVersionSkew +
-// checkTools + checkHalt.
-// Extracted from doctor_ops.go during Day 211 god-file refactor (#54).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor environment checks:
+//             checkBaseDir + checkVersionSkew + checkTools + checkHalt. Extracted
+//             from doctor_ops.go during Day 211 god-file refactor (#54). Public API
+//             unchanged.
 
 import (
 	"fmt"

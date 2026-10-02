@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Memory distillation: Distill, distillKey, normalizeEvidence, defaultHalfLifeMS, contradictionTrackedType, contradictionKey, normalize helpers, DedupeDistilled, strongerNote, parseDistill.
-// Code extracted from manager.go during the Day-44 god-file split. Public API unchanged.
 package memory
 
+// Provenance: Memory distillation: Distill, distillKey, normalizeEvidence,
+//             defaultHalfLifeMS, contradictionTrackedType, contradictionKey,
+//             normalize helpers, DedupeDistilled, strongerNote, parseDistill. Code
+//             extracted from manager.go during the Day-44 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -15,7 +18,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
-
 
 func (m *Manager) Distill(ctx context.Context, corr string, provider agent.Provider, model, intent, transcript string) ([]string, error) {
 	if provider == nil {

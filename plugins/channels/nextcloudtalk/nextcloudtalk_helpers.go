@@ -85,4 +85,3 @@ func (c *Channel) seenBefore(id string) bool {
 	}
 	return false
 }
-

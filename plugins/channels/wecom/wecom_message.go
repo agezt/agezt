@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// wecom_message.go owns the request-handling side of the WeCom
-// channel: handleInbound (HTTP → parsed inbound) and dispatch
-// (parsed inbound → kernel bus + sender reply). Types +
-// lifecycle (New / Start / Handler / emitInbound / seenBefore)
-// live in wecom.go; crypto helpers live in wecom_crypto.go.
 package wecom
+
+// wecom_message.go owns the request-handling side of the WeCom channel:
+// handleInbound (HTTP → parsed inbound) and dispatch (parsed inbound →
+// kernel bus + sender reply). Types + lifecycle (New / Start / Handler /
+// emitInbound / seenBefore) live in wecom.go; crypto helpers live in
+// wecom_crypto.go.
 
 import (
 	"context"

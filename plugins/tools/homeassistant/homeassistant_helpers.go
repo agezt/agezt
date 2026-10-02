@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// homeassistant_helpers.go: matchAllowed + errResult split off from homeassistant.go
-// during the Day 211 god-file refactor (#136). Public API unchanged.
 package homeassistant
+
+// Provenance: homeassistant_helpers.go: matchAllowed + errResult split off from
+//             homeassistant.go during the Day 211 god-file refactor (#136). Public
+//             API unchanged.
 
 import (
 	"fmt"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
-
 
 // matchAllowed reports whether target is permitted by patterns. A pattern is an
 // exact dotted id ("light.turn_on"), a "domain.*" whole-domain wildcard, or "*"

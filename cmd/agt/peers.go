@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
-
 // cmdPeers implements `agt peers` (M8 mesh): list the peer Agezt nodes
 // configured via AGEZT_PEERS and check each one's health over its native REST
 // surface (GET /api/v1/health). It is a self-contained client command — it reads
@@ -170,4 +169,3 @@ type peerHealth struct {
 	ModelCount int    `json:"model_count,omitempty"`
 	Error      string `json:"error,omitempty"`
 }
-

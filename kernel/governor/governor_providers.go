@@ -138,4 +138,3 @@ func authModePriority(m AuthMode) int {
 		return 2
 	}
 }
-

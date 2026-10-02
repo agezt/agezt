@@ -62,7 +62,7 @@
 - **`kernel/restapi`** — GET /api/v1/update — check for updates (M860) POST /api/v1/update/apply — validate and stage an update (M860) Security (SPEC-06): loopback-bound by the operator, token-authed on every request (Authorization: Bearer <token>).
 - **`kernel/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/roster`** — Package roster is the durable agent roster (M783): named, persistent agent profiles — an identity ("researcher", "ops-watcher") with its own soul (system prompt), model (+ ordered fallbacks), default task type, per-run spend ceiling, memory scope, and workspace subdirectory.
-- **`kernel/runtime`** — This file is intentionally empty.
+- **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
 - **`kernel/runtime/accessors`** — Package accessors is the kernel's read-mostly surface extracted into a sub-package on Day 13 of the runtime split.
 - **`kernel/runtime/compose`** — Package compose is the kernel's composition-root surface extracted into a sub-package as the next step of the Day 12-20 sub-package split (lifecycle, accessors, types, compose).
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.

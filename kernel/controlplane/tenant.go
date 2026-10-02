@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane tenant command registrar (registerTenantCommands).
-// Extracted from tenant.go during Day 211 god-file refactor (#98).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tenant command
+//             registrar (registerTenantCommands). Extracted from tenant.go during
+//             Day 211 god-file refactor (#98). Public API unchanged.
 
 func registerTenantCommands() {
 	register(

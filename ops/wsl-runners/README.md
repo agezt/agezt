@@ -3,6 +3,24 @@
 Infrastructure for the 3 self-hosted GitHub Actions runners (`wsl-runner-1/2/3`)
 running in a WSL2 Ubuntu VM on host `WHITE`.
 
+## Status: DORMANT — no CI job depends on these runners (2026-10-01)
+
+`gh api repos/agezt/agezt/actions/runners` returns `{"total_count":0}`. **No
+runner is registered with GitHub for this repo**, so any job pinned to
+`runs-on: [self-hosted, Linux, X64]` waits in `queued` forever and never
+concludes — it is neither green nor red, it simply never runs.
+
+That is not hypothetical: on 2026-10-01 PR #594 sat with 20 of its 22 checks
+permanently `queued` for over an hour because of it. All jobs were moved to
+`ubuntu-latest` that day (see the header of `.github/workflows/ci.yml`); the repo
+is public, so hosted Linux minutes are free.
+
+What this document now describes is the **last known configuration on `WHITE`**,
+not a verified live state. Before relying on any of it, re-register a runner and
+confirm `total_count` is non-zero. The `setup-go-safe` composite action still
+carries its tmpfs staging and still detects a hosted runner, so re-pinning a job
+back to the WSL pool works without further code changes.
+
 ## Current setup
 
 | Component | Location | Status |

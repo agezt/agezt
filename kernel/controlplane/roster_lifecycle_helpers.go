@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane roster lifecycle analysis helpers (impact + reference + subagent helpers).
-// Code extracted from roster_lifecycle.go during the Day-93 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane roster lifecycle analysis helpers (impact + reference +
+//             subagent helpers). Code extracted from roster_lifecycle.go during the
+//             Day-93 god-file split. Public API unchanged.
 
 import (
 	"sort"
@@ -168,4 +168,3 @@ func (s *Server) agentSubagents(slug string) []roster.Profile {
 	})
 	return out
 }
-

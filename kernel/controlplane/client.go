@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane Client: NewClient + ProbeExisting + ErrServerError +
-// Call + CallRaw + Stream + StreamUntilCancel.
-// Code extracted from client.go during the Day-202 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane Client: NewClient + ProbeExisting + ErrServerError +
+//             Call + CallRaw + Stream + StreamUntilCancel. Code extracted from
+//             client.go during the Day-202 god-file split. Public API unchanged.
 
 import (
 	"bufio"
@@ -20,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"path/filepath"
 )
-
 
 // Client connects to a running agezt daemon's control plane.
 type Client struct {
@@ -266,4 +264,3 @@ func (c *Client) StreamUntilCancel(ctx context.Context, cmd string, args map[str
 		}
 	}
 }
-

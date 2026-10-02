@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package configcenter data types: ConfigEntry, ConfigAccessRequest,
-// ConfigAccessResponse, AccessDecision + AccessDecision constants, AuditEntry,
-// Store. Split from types.go during Day 211 god-file refactor (#55).
-// Public API unchanged.
 package configcenter
+
+// Provenance: Package configcenter data types: ConfigEntry, ConfigAccessRequest,
+//             ConfigAccessResponse, AccessDecision + AccessDecision constants,
+//             AuditEntry, Store. Split from types.go during Day 211 god-file
+//             refactor (#55). Public API unchanged.
 
 import (
 	"sync"
@@ -97,13 +98,16 @@ type ConfigAccessResponse struct {
 	// Extra contains additional context.
 	Extra map[string]string
 }
+
 // AccessDecision represents the outcome of an access request.
 type AccessDecision string
+
 const (
 	AccessAllowed AccessDecision = "allowed"
 	AccessDenied  AccessDecision = "denied"
 	AccessPending AccessDecision = "pending"
 )
+
 // AuditEntry represents an audit log entry.
 type AuditEntry struct {
 	// ID is the unique identifier for this audit entry.
@@ -133,6 +137,7 @@ type AuditEntry struct {
 	ApprovalID string            `json:"approval_id,omitempty"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
 }
+
 // Store provides persistent storage for config entries.
 type Store struct {
 	mu      sync.RWMutex

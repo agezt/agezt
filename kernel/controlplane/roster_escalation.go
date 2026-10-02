@@ -10,12 +10,12 @@ package controlplane
 
 import (
 	"context"
-	"net"
-	"strconv"
-	"strings"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
+	"net"
+	"strconv"
+	"strings"
 )
 
 func (s *Server) handleAgentEscalations(conn net.Conn, req Request) {

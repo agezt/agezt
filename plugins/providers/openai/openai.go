@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// OpenAI provider: Provider type + Complete (the entry point) + endpoint
-// resolution + auth + retry. The oa* wire types and helpers live in
-// openai_dialect.go; encodeRequest/decodeResponse live in openai_wire.go.
-// Day-211 god-file split. Public API unchanged.
 package openai
 
+// Provenance: OpenAI provider: Provider type + Complete (the entry point) + endpoint
+//             resolution + auth + retry. The oa* wire types and helpers live in
+//             openai_dialect.go; encodeRequest/decodeResponse live in
+//             openai_wire.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
+
 const (
 	// DefaultEndpoint is the real OpenAI Chat Completions URL.
 	DefaultEndpoint = "https://api.openai.com/v1/chat/completions"

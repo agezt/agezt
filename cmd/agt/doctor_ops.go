@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt doctor network/disk checks: checkNetguard + checkRateLimit +
-// checkDisk + their from-Xxx helpers + humanBytes helper + diskWarnPct/diskCritPct.
-// Split from doctor.go during Day 211 god-file refactor (#40, #54).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt doctor network/disk checks:
+//             checkNetguard + checkRateLimit + checkDisk + their from-Xxx helpers +
+//             humanBytes helper + diskWarnPct/diskCritPct. Split from doctor.go
+//             during Day 211 god-file refactor (#40, #54). Public API unchanged.
 
 import (
 	"context"
@@ -73,6 +72,7 @@ func rateLimitCheckFromStats(res map[string]any) doctorCheck {
 	hint := "a caller is exceeding its per-minute rate cap; raise the limit or pace the caller (`agt ratelimit log`)"
 	return warn(name, detail, hint)
 }
+
 // diskWarnPct / diskCritPct are the free-space thresholds for the disk check
 // (M131). Below crit the journal is in imminent danger of failing to write
 // (append-only, never shrinks); below warn it's worth acting before that.
@@ -83,6 +83,7 @@ const (
 	diskWarnPct = format.DiskWarnPct
 	diskCritPct = 3.0
 )
+
 func checkDisk(ctx context.Context, client *controlplane.Client) doctorCheck {
 	res, err := client.Call(ctx, controlplane.CmdDiskStats, nil)
 	if err != nil {

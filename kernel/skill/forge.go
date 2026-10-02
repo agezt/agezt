@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Forge: skill-store wrapper, constructors, setters, read ops, and small helpers.
-// Code extracted from forge.go during the Day-36 god-file split. Public API unchanged.
 package skill
 
+// Provenance: Forge: skill-store wrapper, constructors, setters, read ops, and small
+//             helpers. Code extracted from forge.go during the Day-36 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -16,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // Forge wraps a Store with the kernel bus so every skill transition is
 // journaled (durable-before-publish) under the originating run's correlation.

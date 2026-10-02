@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Agent live status: types (agentStatusAccums) + fillAgentStatusAccumsFromJournal (single-pass fold).
-// Code extracted from roster_status.go during the Day-39 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Agent live status: types (agentStatusAccums) +
+//             fillAgentStatusAccumsFromJournal (single-pass fold). Code extracted
+//             from roster_status.go during the Day-39 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -12,8 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
-
 
 type agentStatusAccums struct {
 	liveStatuses     map[string]agentLiveStatus

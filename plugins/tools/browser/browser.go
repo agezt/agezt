@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package browser: web-reader tool — consts + Tool struct + New + SetOnBlock
-// + client (the stdlib HTTP client builder) + EnableCookies + Definition +
-// browserInput struct (the contract surface). Invoke (the SSRF-guarded
-// fetch → strip → decode → truncate pipeline) + hostAllowed moved to
-// browser_invoke.go. Day-211 god-file split. Public API unchanged.
 package browser
 
+// Provenance: Package browser: web-reader tool — consts + Tool struct + New +
+//             SetOnBlock + client (the stdlib HTTP client builder) + EnableCookies +
+//             Definition + browserInput struct (the contract surface). Invoke (the
+//             SSRF-guarded fetch → strip → decode → truncate pipeline) + hostAllowed
+//             moved to browser_invoke.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/netguard"
 )
+
 const DefaultTimeout = 30 * time.Second
 
 // DefaultMaxChars caps the text returned to the model. Most useful

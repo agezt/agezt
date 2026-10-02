@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// agent_lifecycle_helpers.go owns the three pure helpers
-// used by `agt agent remove`:
-//   - agentRemoveResultSummary  (renders the daemon result map
-//     as a single human-readable line)
-//   - buildAgentRemovePayload    (parses argv into the ref +
-//     flags the daemon expects + reports usage on failure)
-//   - printAgentRemoveUsage      (the `--with-*` flag help text)
-// The five top-level subcommand funcs (Tombstone /
-// Graveyard / Retire / Revive / Remove) live in
-// agent_lifecycle.go.
 package main
+
+// agent_lifecycle_helpers.go owns the three pure helpers used by `agt
+// agent remove`: - agentRemoveResultSummary (renders the daemon result
+// map as a single human-readable line) - buildAgentRemovePayload (parses
+// argv into the ref + flags the daemon expects + reports usage on
+// failure) - printAgentRemoveUsage (the `--with-*` flag help text) The
+// five top-level subcommand funcs (Tombstone / Graveyard / Retire /
+// Revive / Remove) live in agent_lifecycle.go.
 
 import (
 	"fmt"

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// whatsapp_helpers.go: media-fetcher helper split off from whatsapp.go
-// during the Day 211 god-file refactor (#126). Public API unchanged.
 package whatsapp
+
+// Provenance: whatsapp_helpers.go: media-fetcher helper split off from whatsapp.go
+//             during the Day 211 god-file refactor (#126). Public API unchanged.
 
 import (
 	"context"
@@ -13,7 +14,6 @@ import (
 	"net/http"
 	"strings"
 )
-
 
 // waMediaMaxRaw bounds a downloaded media blob so the resulting data: URL stays
 // within reason (voice notes are small; 16 MiB is generous).

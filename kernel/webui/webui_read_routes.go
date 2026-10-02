@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Read-only HTTP routes: apiRoutes (parameterless GETs) + readArgsRoutes (GETs with query args).
-// Code extracted from webui.go during the Day-51 god-file split. Public API unchanged.
 package webui
 
+// Provenance: Read-only HTTP routes: apiRoutes (parameterless GETs) + readArgsRoutes
+//             (GETs with query args). Code extracted from webui.go during the Day-51
+//             god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
-
 var apiRoutes = map[string]string{
-	"/api/status":                  controlplane.CmdStatus,
-	"/api/config":                  controlplane.CmdConfig,
-	"/api/budget":                  controlplane.CmdBudget,
+	"/api/status": controlplane.CmdStatus,
+	"/api/config": controlplane.CmdConfig,
+	"/api/budget": controlplane.CmdBudget,
 	// Mission Control "Spend today" tile (Day 28+1). Slim shape {total:int} the
 	// useSpendToday hook consumes — pairs with /api/budget which carries the
 	// full breakdown.
@@ -35,8 +35,8 @@ var apiRoutes = map[string]string{
 	// (toolInstallProxy) below. The detect/updates pair is unused by the Web UI
 	// (verified in TOPOLOGY-AUDIT-DAY28-VERIFY.md §2) and reachable via the CLI
 	// through CmdToolboxDetect / CmdToolboxOutdated when an operator needs them.
-	"/api/acp/agents":      controlplane.CmdACPAgents,
-	"/api/workflows":       controlplane.CmdWorkflowList,
+	"/api/acp/agents": controlplane.CmdACPAgents,
+	"/api/workflows":  controlplane.CmdWorkflowList,
 	// Built-in workflow template gallery (M807). Read-only.
 	"/api/workflows/templates": controlplane.CmdWorkflowTemplates,
 	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
@@ -108,8 +108,8 @@ var readArgsRoutes = map[string]writeRoute{
 	// Historical journal search (M618) and journal/export both went un-wired
 	// (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2); reachable via CmdJournalGrep /
 	// CmdJournalExport when an operator needs them.
-	"/api/provider_log":   {controlplane.CmdProviderLog, []string{"limit", "cursor", "fallbacks"}},
-	"/api/tool_log":       {controlplane.CmdToolLog, []string{"limit", "cursor", "tool", "errors"}},
+	"/api/provider_log": {controlplane.CmdProviderLog, []string{"limit", "cursor", "fallbacks"}},
+	"/api/tool_log":     {controlplane.CmdToolLog, []string{"limit", "cursor", "tool", "errors"}},
 	// Read one sandbox project file's content (M686), path-confined server-side.
 	"/api/sandbox_file": {controlplane.CmdSandboxFile, []string{"project", "file"}},
 	// Artifact index listing (M822): browsable metadata for stored artifacts
@@ -168,8 +168,8 @@ var readArgsRoutes = map[string]writeRoute{
 	// approvals + recent pulse asks into one time-sorted feed. Optional window
 	// ("5m"/"1h"/"24h") filters pulse asks; approvals ignore it. limit caps the
 	// result (default 8, hard cap 50 enforced server-side). Read-only.
-	"/api/attention": {controlplane.CmdAttention, []string{"window", "limit"}},
-	"/api/plan_history":  {controlplane.CmdPlanHistory, []string{"limit", "cursor", "status"}},
+	"/api/attention":    {controlplane.CmdAttention, []string{"window", "limit"}},
+	"/api/plan_history": {controlplane.CmdPlanHistory, []string{"limit", "cursor", "status"}},
 	// Provider keyring list (M700): labels + active + last-4 for one provider/env.
 	// Read-only — values never leave the daemon.
 	"/api/provider/keys": {controlplane.CmdProviderKeyList, []string{"provider", "env"}},

@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/tunnel"
 )
+
 func buildTunnel(ctx context.Context, stdout io.Writer, web webUISurface) string {
 	provider := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL"))
 	cmdStr := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "TUNNEL_CMD"))

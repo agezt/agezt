@@ -9,7 +9,6 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 )
 
-
 // mailboxDefaultLimit / mailboxMaxLimit bound the list endpoints (mirrors the
 // control plane's board limits).
 const (
@@ -87,4 +86,3 @@ type mailboxSendRequest struct {
 	Help          bool   `json:"help"`
 	CorrelationID string `json:"correlation_id"`
 }
-

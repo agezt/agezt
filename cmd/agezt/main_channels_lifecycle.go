@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agezt channel instance lifecycle (collectChannels, combineSinks,
-// chanInstance, wireInstances, startInstances, instanceSinks,
-// registerInstances, instanceMatch, liveChannelKeys, briefSink).
-// Extracted from main_channels.go during Day 211 god-file refactor (#66).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agezt channel instance lifecycle
+//             (collectChannels, combineSinks, chanInstance, wireInstances,
+//             startInstances, instanceSinks, registerInstances, instanceMatch,
+//             liveChannelKeys, briefSink). Extracted from main_channels.go during
+//             Day 211 god-file refactor (#66). Public API unchanged.
 
 import (
 	"context"
@@ -74,12 +73,14 @@ func combineSinks(sinks ...pulse.BriefSink) pulse.BriefSink {
 		return live
 	}
 }
+
 type chanInstance struct {
 	key  string // channel.InstanceKey(kind, label): bare kind for the default, "kind#label" otherwise
 	desc string
 	ch   channel.Channel
 	sink pulse.BriefSink
 }
+
 func wireInstances(insts []channelwire.Instance) []chanInstance {
 	var out []chanInstance
 	for _, in := range insts {

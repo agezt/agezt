@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Bedrock streaming: CompleteStream + state types + parseEventStream + assembleBedrockResponse.
-// Code extracted from streaming.go during the Day-108 god-file split.
-// Public API unchanged.
 package bedrock
 
+// Provenance: Bedrock streaming: CompleteStream + state types + parseEventStream +
+//             assembleBedrockResponse. Code extracted from streaming.go during the
+//             Day-108 god-file split. Public API unchanged.
 
 import (
 	"errors"

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence store runtime: Remove + List + Get + RunNow + Due + CompleteFiring + SetAssure.
-// Code extracted from cadence_store.go during the Day-58 god-file split. Public API unchanged.
 package cadence
 
+// Provenance: Cadence store runtime: Remove + List + Get + RunNow + Due +
+//             CompleteFiring + SetAssure. Code extracted from cadence_store.go
+//             during the Day-58 god-file split. Public API unchanged.
 
 import (
 	"sort"
 	"time"
 )
-
 
 func (s *Store) Remove(id string) (bool, error) {
 	s.mu.Lock()

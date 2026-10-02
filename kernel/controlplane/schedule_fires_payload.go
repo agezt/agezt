@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Schedule-fired payload helpers: scheduleFiredPayload type +
-// extractScheduleFired. Carved out of schedule_fires.go during
-// the Day 198 god-file split so the main file can stay focused on
-// the handleScheduleFires dispatcher + latestFiringBySchedule and
-// the classify file can stay focused on the scheduleFired*
-// classifier helpers.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Schedule-fired payload helpers: scheduleFiredPayload type +
+//             extractScheduleFired. Carved out of schedule_fires.go during the Day
+//             198 god-file split so the main file can stay focused on the
+//             handleScheduleFires dispatcher + latestFiringBySchedule and the
+//             classify file can stay focused on the scheduleFired* classifier
+//             helpers. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -44,4 +43,3 @@ func extractScheduleFired(payload json.RawMessage) scheduleFiredPayload {
 	}
 	return p
 }
-

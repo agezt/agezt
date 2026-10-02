@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package agent: content-addressed artifact offload for large tool outputs
-// (ArtifactPutter interface + offloadToolOutput helper). Extracted from
-// agent_context.go during the Day-211 god-file split. Public API unchanged.
 package agent
+
+// Provenance: Package agent: content-addressed artifact offload for large tool
+//             outputs (ArtifactPutter interface + offloadToolOutput helper).
+//             Extracted from agent_context.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 // ArtifactPutter is the slice of a content-addressed store the loop needs to
 // offload large outputs. kernel/artifact.Store satisfies it. An interface keeps

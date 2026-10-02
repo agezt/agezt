@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane roster lifecycle handlers (Retire/Revive/SetRetired/Remove) + agentRemoveCascade.
-// Code extracted from roster_lifecycle.go during the Day-93 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane roster lifecycle handlers
+//             (Retire/Revive/SetRetired/Remove) + agentRemoveCascade. Code extracted
+//             from roster_lifecycle.go during the Day-93 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 func (s *Server) handleAgentRetire(conn net.Conn, req Request) {
 	s.handleAgentSetRetired(conn, req, true)
@@ -308,4 +308,3 @@ func parseAgentRemoveCascade(raw any) agentRemoveCascade {
 	c.Subagents = boolish(m["subagents"])
 	return c
 }
-

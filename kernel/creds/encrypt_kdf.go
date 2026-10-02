@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package creds: KDF helpers (cachedDeriveKey + deriveKeyPBKDF2 +
-// deriveKeyLegacyHMAC + kdfCache var). Extracted from encrypt.go during the
-// Day-211 god-file split. Public API unchanged.
 package creds
 
+// Provenance: Package creds: KDF helpers (cachedDeriveKey + deriveKeyPBKDF2 +
+//             deriveKeyLegacyHMAC + kdfCache var). Extracted from encrypt.go during
+//             the Day-211 god-file split. Public API unchanged.
 
 import (
 	"crypto/hmac"
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 )
+
 // kdfCache memoizes derived keys by (kdf id, iterations, salt, passphrase
 // digest) so repeated Loads of the SAME envelope (per-request Store instances
 // on the Config Center / catalog / keyring paths) pay the 200k-iteration KDF

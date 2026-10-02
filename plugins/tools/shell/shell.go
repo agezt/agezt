@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package shell: Tool struct + constants + Definition + Name + NewWithWarden
-// + shellInput. Invoke (the execution router) moved to shell_invoke.go;
-// renderResult + ShellHint + resolveShell moved to shell_render.go.
-// Day-211 god-file split. Public API unchanged.
 package shell
 
+// Provenance: Package shell: Tool struct + constants + Definition + Name +
+//             NewWithWarden + shellInput. Invoke (the execution router) moved to
+//             shell_invoke.go; renderResult + ShellHint + resolveShell moved to
+//             shell_render.go. Day-211 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

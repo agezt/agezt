@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane tool-event payload decoders (decodeToolInvoked,
-// decodedToolResult type, decodeToolResult).
-// Extracted from tool_log.go during Day 211 god-file refactor (#78).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tool-event payload
+//             decoders (decodeToolInvoked, decodedToolResult type,
+//             decodeToolResult). Extracted from tool_log.go during Day 211 god-file
+//             refactor (#78). Public API unchanged.
 
 import (
 	"encoding/json"

@@ -201,19 +201,28 @@ commands run from `frontend/` (`npm test`, `npm run build` — npm, not pnpm).
 ## The console
 
 With `AGEZT_WEB_ADDR` set, the startup banner prints a tokenized URL. The
-console is **64 views, folded into 36 rows across 8 sections**, organized by
+console is **36 views, folded into 27 rows across 8 sections**, organized by
 operator job rather than by backend package — a section is a job, a row is a
 noun, and a tab is a facet of that noun (see
 [docs/CONSOLE-IA.md](docs/CONSOLE-IA.md)):
 
-- **Talk** — Jarvis (the presence view) · Chat (the streaming answer, every tool call with its policy verdict, the run's real cost) · Voice · Messages (Inbox / Agent Board)
-- **Observe** — Overview (Overview / Mission Control / Live Stream) · Runs (Runs / Activity / Insights / Replay) · Health (Health / Prompt cache / Tool usage / Routing log) · Alerts · Budget
-- **Automate** — Wizards · Workflows (Workflows / Flow Studio) · Work (Workboard / Objectives) · Triggers (Schedules / Standing orders) · Autonomy
-- **Govern** — Approvals · Policy · Oversight (Overseer / Council / Conductor) · Seats
-- **Agents** — Agents · Roster · Skills · Capabilities (Tool registry / Toolbox / Tool Forge / Marketplace / Execution Profiles) · Sandbox
-- **Knowledge** — Memory (Memory / Taste) · World · Thinking (Research / Analyst / Reflection) · Search · Data & Files (Data Lake / Artifacts & Files / Storage)
-- **Connect** — Providers & Models (Models & Keys) · Routing (Routing / Fallback Chains) · Channels · Integrations (MCP Servers / ACP Agents / Connections)
-- **Admin** — Setup · Config Center · Identity (Default Identity / Prompts) · Backup
+- **Talk** — Jarvis (the presence view) · Chat (the streaming answer, every tool call with its policy verdict, the run's real cost) · Voice
+- **Observe** — Monitor (Mission Control / Live Stream) · Runs (Runs / Activity / Replay)
+- **Automate** — Workflows · Triggers (Schedules / Standing orders) · Autonomy
+- **Govern** — Approvals · Policy · Oversight (Overseer / Council)
+- **Agents** — Agents · Roster · Skills · Capabilities (Marketplace / Execution Profiles) · Sandbox
+- **Knowledge** — Memory · World · Data & Files (Data Lake / Artifacts & Files) · Thinking Partners (Research / Analyst / Reflection)
+- **Connect** — Providers & Models (Models & Keys) · Routing (Fallback Chains) · Channels · Integrations (MCP Servers / ACP Agents / Connections)
+- **Admin** — Setup · Config Center · Identity (Default Identity / Prompts) · Backups
+
+Views that were folded away during the Day-23/28 information-architecture
+cleanup (Workboard, Objectives, Taste, Seats, Tool Forge, Toolbox, Search,
+Storage, Conductor, Health, Alerts, Budget, Catalog) have no console surface.
+**Their kernel capabilities are intact and still reachable from the CLI** —
+`agt workboard`, `agt okr`, `agt taste`, `agt seats`, `agt toolforge` — and
+from the SDK; only the console surface and its HTTP routes were removed.
+`frontend/src/nav.tsx` keeps the retired ids in `REMOVED_VIEW_IDS` so old
+bookmarks and the command palette still resolve.
 
 The Activity tab shows what is running this second — each in-flight run with its
 current step, iteration, elapsed time and spend, delegated sub-agents nested

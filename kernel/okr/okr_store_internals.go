@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// okr_store_internals.go holds the *private* Store methods
-// (mutate / find / saveLocked) and the package-internal
-// helpers (findKR / cloneObjective) used by the public CRUD
-// surface in okr_store.go. Lives in its own file so the
-// public API reads linearly. Carved out during the Day-211
-// god-file split (#115).
 package okr
+
+// Provenance: okr_store_internals.go holds the *private* Store methods (mutate /
+//             find / saveLocked) and the package-internal helpers (findKR /
+//             cloneObjective) used by the public CRUD surface in okr_store.go. Lives
+//             in its own file so the public API reads linearly. Carved out during
+//             the Day-211 god-file split (#115).
 
 import (
 	"strings"

@@ -16,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/channel"
 )
 
-
 func (c *Channel) sendFile(ctx context.Context, channelID, threadTS string, att channel.Attachment) error {
 	if len(att.Data) == 0 {
 		return nil
@@ -186,7 +185,6 @@ func (c *Channel) fetchFileDataURL(ctx context.Context, urlPrivate, mimetype str
 	}
 	return "data:" + mimetype + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }
-
 
 // slackTSMillis converts a Slack ts ("1700000000.000100") to unix millis; 0 on
 // parse failure.

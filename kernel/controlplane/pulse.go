@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane pulse: handlePulseSubscribe (live streaming subscription).
-// Code extracted from pulse.go during the Day-141 god-file split.
-// Public API unchanged.
 package controlplane
 
+// Provenance: Control-plane pulse: handlePulseSubscribe (live streaming
+//             subscription). Code extracted from pulse.go during the Day-141
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 // handlePulseSubscribe is the server side of `agt pulse`. It opens a
 // long-lived bus subscription matching `args.pattern` (default ">"),

@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
+
 func resolveAzureCreds(p *catalog.Provider, lookup CredLookup) (resource, key string, err error) {
 	if lookup == nil {
 		return "", "", fmt.Errorf("%w: azure provider %q requires resource + api-key env vars (%v)",

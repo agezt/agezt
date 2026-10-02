@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Config surface: types + configEnvVars (the giant env-var listing).
-// Code extracted from config.go during the Day-74 god-file split. Public API unchanged.
 package controlplane
 
-
-
-
-
+// Provenance: Config surface: types + configEnvVars (the giant env-var listing).
+//             Code extracted from config.go during the Day-74 god-file split. Public
+//             API unchanged.
 
 // configEnvVars is the canonical set of AGEZT_* env vars the daemon
 // reads at startup. Surface PRESENCE only; the values can contain

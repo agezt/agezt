@@ -12,7 +12,6 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-
 func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, msg *board.Message, mailboxErr error) {
 	res, err := autoRepairWakeAgent(ctx, k, cand, msg)
 	if err != nil {
@@ -186,4 +185,3 @@ func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelru
 		}
 	}
 }
-

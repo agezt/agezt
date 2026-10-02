@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane skill: argResources helper + handleSkillFiles + handleSkillReadFile + handleSkillHygiene (file-related surface).
-// Code extracted from skill.go during the Day-139 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane skill: argResources helper + handleSkillFiles +
+//             handleSkillReadFile + handleSkillHygiene (file-related surface). Code
+//             extracted from skill.go during the Day-139 god-file split. Public API
+//             unchanged.
 
 import (
 	"fmt"
@@ -132,4 +132,3 @@ func (s *Server) handleSkillHygiene(conn net.Conn, req Request) {
 		"idle": idle, "idle_count": len(idle),
 	}})
 }
-

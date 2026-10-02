@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Plugin host: Reload + respawn (lifecycle management).
-// Code extracted from host_loop.go during the Day-144 god-file split.
-// Public API unchanged.
 package plugin
 
+// Provenance: Plugin host: Reload + respawn (lifecycle management). Code extracted
+//             from host_loop.go during the Day-144 god-file split. Public API
+//             unchanged.
 
 import (
 	"bufio"
@@ -185,4 +185,3 @@ type remoteTool struct {
 	def        agent.ToolDef
 	remoteName string // name as the plugin knows it (no prefix)
 }
-

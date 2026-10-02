@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Autonomy feed core: constants + autonomyKinds map + autonomyMeta + autonomyDoctorMeta.
-// Code extracted from autonomy.go during the Day-50 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Autonomy feed core: constants + autonomyKinds map + autonomyMeta +
+//             autonomyDoctorMeta. Code extracted from autonomy.go during the Day-50
+//             god-file split. Public API unchanged.
 
 import (
 	"encoding/json"
@@ -11,8 +12,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
-
 
 // autonomyScanN is how many recent journal events the feed folds over. The feed
 // is a curated "what did the system do on its own" view, so it scans a generous

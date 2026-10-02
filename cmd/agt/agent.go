@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent sub-command top-level handlers + small helpers
-// (cmdAgent, agentUsage, agentListStateLabel, agentListStatusSuffix).
-// Extracted from agent.go during Day 211 god-file refactor (#41, #60).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent sub-command top-level
+//             handlers + small helpers (cmdAgent, agentUsage, agentListStateLabel,
+//             agentListStatusSuffix). Extracted from agent.go during Day 211
+//             god-file refactor (#41, #60). Public API unchanged.
 
 import (
 	"fmt"

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt rollback apply` CLI dispatcher (cmdRollbackApply) +
-// applyRollbackCheckpoint + applyFileSnapshotCheckpoint (the apply paths).
-// The per-domain checkpoint savers (skill status / workflow snapshot / config
-// setting) + their helpers moved to rollback_apply_checkpoints.go.
-// Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: `agt rollback apply` CLI dispatcher (cmdRollbackApply) +
+//             applyRollbackCheckpoint + applyFileSnapshotCheckpoint (the apply
+//             paths). The per-domain checkpoint savers (skill status / workflow
+//             snapshot / config setting) + their helpers moved to
+//             rollback_apply_checkpoints.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -23,6 +24,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdRollbackApply(args []string, stdout, stderr io.Writer) int {
 	if rollbackHelpRequested(args) {
 		fmt.Fprintf(stdout, "usage: %s rollback apply <checkpoint> [--json]\n", brand.CLI)

@@ -131,4 +131,3 @@ func canonicalToAnthVx(m agent.Message, fwd map[string]string) (*anthVxMessage, 
 		return nil, fmt.Errorf("vertex: unknown role %q", m.Role)
 	}
 }
-

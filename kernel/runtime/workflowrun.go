@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Workflow kernel integration: Workflows accessor + CRUD (SaveWorkflow, RestoreWorkflow, SetWorkflowEnabled, RemoveWorkflow) + RunWorkflow entry + workflowRunProvenance + mergeWorkflowRunPayload.
-// Code extracted from workflowrun.go during the Day-47 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Workflow kernel integration: Workflows accessor + CRUD (SaveWorkflow,
+//             RestoreWorkflow, SetWorkflowEnabled, RemoveWorkflow) + RunWorkflow
+//             entry + workflowRunProvenance + mergeWorkflowRunPayload. Code
+//             extracted from workflowrun.go during the Day-47 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -13,8 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 )
-
-
 
 // Workflows returns the durable workflow store (M798). Always non-nil after
 // Open.

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Package agent: context budget + compaction + utilities
-// (AutoContextBudgetChars + headSnippet + compactMessagesDetailed +
-// rescuedToolOutput + contextSize + truncateForJournal).
-// Artifact offload (ArtifactPutter + offloadToolOutput) moved to
-// agent_context_offload.go; policy contract (PolicyVerdict + Policy) moved to
-// agent_context_policy.go. Day-211 god-file split. Public API unchanged.
 package agent
 
+// Provenance: Package agent: context budget + compaction + utilities
+//             (AutoContextBudgetChars + headSnippet + compactMessagesDetailed +
+//             rescuedToolOutput + contextSize + truncateForJournal). Artifact
+//             offload (ArtifactPutter + offloadToolOutput) moved to
+//             agent_context_offload.go; policy contract (PolicyVerdict + Policy)
+//             moved to agent_context_policy.go. Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"

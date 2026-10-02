@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package controlplane: Workflow CRUD handlers (handleWorkflowList + Show +
-// Save + Restore + Remove + SetEnabled). Test/invoke handlers
-// (handleWorkflowTestNode + handleWorkflowWebhook + runWorkflowDetached) moved
-// to workflow_handlers_invoke.go. Day-211 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Package controlplane: Workflow CRUD handlers (handleWorkflowList +
+//             Show + Save + Restore + Remove + SetEnabled). Test/invoke handlers
+//             (handleWorkflowTestNode + handleWorkflowWebhook + runWorkflowDetached)
+//             moved to workflow_handlers_invoke.go. Day-211 god-file split. Public
+//             API unchanged.
 
 import (
 	"encoding/json"

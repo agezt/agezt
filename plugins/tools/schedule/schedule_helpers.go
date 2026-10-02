@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Schedule tool: mutation pipeline (apply/validate/finalize) + parseHHMM.
-// Code extracted from schedule.go during the Day-100 god-file split.
-// Public API unchanged.
 package schedule
 
+// Provenance: Schedule tool: mutation pipeline (apply/validate/finalize) +
+//             parseHHMM. Code extracted from schedule.go during the Day-100 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

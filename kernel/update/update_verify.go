@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Update verify path: verifySignature + checkGitHub + checkEndpoint + requireHTTPS + downloadBinary + validateSHA256 + acquireLock.
-// Code extracted from update.go during the Day-55 god-file split. Public API unchanged.
 package update
 
+// Provenance: Update verify path: verifySignature + checkGitHub + checkEndpoint +
+//             requireHTTPS + downloadBinary + validateSHA256 + acquireLock. Code
+//             extracted from update.go during the Day-55 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -21,7 +23,6 @@ import (
 	"runtime"
 	"strings"
 )
-
 
 func (s *Service) verifySignature(info *UpdateInfo) error {
 	pub := resolvePublicKey()

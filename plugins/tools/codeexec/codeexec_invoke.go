@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package codeexec: Invoke (the execution router — language detection, SSH/
-// K8s/Modal/Daytona overrides, sandbox dir setup, code write, pip install for
-// Python, the warden.run call, artifact registration). Extracted from
-// codeexec.go during the Day-211 god-file split. Public API unchanged.
 package codeexec
 
+// Provenance: Package codeexec: Invoke (the execution router — language detection,
+//             SSH/ K8s/Modal/Daytona overrides, sandbox dir setup, code write, pip
+//             install for Python, the warden.run call, artifact registration).
+//             Extracted from codeexec.go during the Day-211 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -19,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
+
 func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {

@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	for _, a := range args {

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Overseer tool: Invoke (the op dispatcher) + overseerControlKeys (the input
-// key allowlist) + defaultHelpLimit const. Definition + input struct moved to
-// tool_contract.go. Helpers (parseProfile, agentView, okJSON, ...) live in
-// tool_helpers.go. Day-211 god-file split. Public API unchanged.
 package overseertool
 
+// Provenance: Overseer tool: Invoke (the op dispatcher) + overseerControlKeys (the
+//             input key allowlist) + defaultHelpLimit const. Definition + input
+//             struct moved to tool_contract.go. Helpers (parseProfile, agentView,
+//             okJSON, ...) live in tool_helpers.go. Day-211 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -15,7 +16,9 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 const defaultHelpLimit = 20
+
 func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
@@ -297,6 +300,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, err
 		return errResult("unknown op " + op), nil
 	}
 }
+
 // overseerControlKeys are the top-level input keys that are NOT profile fields,
 // so they're ignored when a model flattens the profile onto the tool input.
 var overseerControlKeys = map[string]bool{

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Self-repair generic fingerprint + reason + escalation helpers (M846):
-// the pure-logic helpers used by both the coordinator (claim/handleTick/
-// dispatch) and the apply pipeline (autoEscalate/autoWake).
-// Extracted from selfrepair_fingerprints.go during the Day-202 god-file split.
-// Public API unchanged.
 package selfrepair
+
+// Provenance: Self-repair generic fingerprint + reason + escalation helpers (M846):
+//             the pure-logic helpers used by both the coordinator (claim/handleTick/
+//             dispatch) and the apply pipeline (autoEscalate/autoWake). Extracted
+//             from selfrepair_fingerprints.go during the Day-202 god-file split.
+//             Public API unchanged.
 
 import (
 	"sort"

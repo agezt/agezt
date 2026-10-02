@@ -23,13 +23,13 @@ import (
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/runtime/types"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"github.com/agezt/agezt/kernel/runtime/types"
 )
 
 // KernelAPI is the surface the Accessor needs from its host kernel.

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Nostr event type + serialize + sign + verify.
-// Code extracted from nostr.go during the Day-107 god-file split.
-// Public API unchanged.
 package nostr
 
+// Provenance: Nostr event type + serialize + sign + verify. Code extracted from
+//             nostr.go during the Day-107 god-file split. Public API unchanged.
 
 import (
 	"bytes"

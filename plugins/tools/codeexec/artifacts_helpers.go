@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// CodeExec artifacts: stripBase64Whitespace + extractArtifactArchive + nowMillis + artifactMime + artifactKind + appendArtifactExport + splitArtifactEnvelope.
-// Code extracted from artifacts.go during the Day-142 god-file split.
-// Public API unchanged.
 package codeexec
 
+// Provenance: CodeExec artifacts: stripBase64Whitespace + extractArtifactArchive +
+//             nowMillis + artifactMime + artifactKind + appendArtifactExport +
+//             splitArtifactEnvelope. Code extracted from artifacts.go during the
+//             Day-142 god-file split. Public API unchanged.
 
 import (
 	"bytes"

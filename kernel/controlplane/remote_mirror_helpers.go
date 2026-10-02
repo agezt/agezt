@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane remote-mirror typed helpers (remoteEventMirrorMode, lookupNodePeer,
-// redactedRemotePayload, remoteMirrorPayloadMode).
-// Extracted from remote_mirror.go during Day 211 god-file refactor (#86).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane remote-mirror typed
+//             helpers (remoteEventMirrorMode, lookupNodePeer, redactedRemotePayload,
+//             remoteMirrorPayloadMode). Extracted from remote_mirror.go during Day
+//             211 god-file refactor (#86). Public API unchanged.
 
 import (
 	"encoding/json"

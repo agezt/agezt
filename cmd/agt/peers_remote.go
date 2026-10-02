@@ -132,5 +132,3 @@ func peersRun(peers map[string]peer.Peer, name, corr string, asJSON bool, stdout
 	}
 	return 0
 }
-
-

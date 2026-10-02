@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package roster: per-field validators (validateLifecycle + validateTaskList
-// + validateRetryPolicy + validateHealthPolicy + validateSelfRepairPolicy +
-// validateNoisePolicy). Extracted from roster_normalize.go during the
-// Day-211 god-file split. Public API unchanged.
 package roster
 
+// Provenance: Package roster: per-field validators (validateLifecycle +
+//             validateTaskList + validateRetryPolicy + validateHealthPolicy +
+//             validateSelfRepairPolicy + validateNoisePolicy). Extracted from
+//             roster_normalize.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"

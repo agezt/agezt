@@ -1,19 +1,18 @@
-// SPDX-License-Identifier: MIT
-//
-// Package contextselect: per-source candidate adapters (MemoryCandidates +
-// WorldCandidates + SkillCandidates) — convert kmemory/kworld/kskill Scored
-// hits into Candidate rows.
-// Extracted from context.go during Day 211 god-file refactor (#71).
-// Public API unchanged.
 package contextselect
+
+// Provenance: SPDX-License-Identifier: MIT Package contextselect: per-source
+//             candidate adapters (MemoryCandidates + WorldCandidates +
+//             SkillCandidates) — convert kmemory/kworld/kskill Scored hits into
+//             Candidate rows. Extracted from context.go during Day 211 god-file
+//             refactor (#71). Public API unchanged.
 
 import (
 	"fmt"
 	"strings"
 
 	kmemory "github.com/agezt/agezt/kernel/memory"
-	kworld "github.com/agezt/agezt/kernel/worldmodel"
 	kskill "github.com/agezt/agezt/kernel/skill"
+	kworld "github.com/agezt/agezt/kernel/worldmodel"
 )
 
 func MemoryCandidates(hits []kmemory.Scored, nowMS int64) []Candidate {

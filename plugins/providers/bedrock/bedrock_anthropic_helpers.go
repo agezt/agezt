@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// bedrock_anthropic_helpers.go: usage conversion + image parsing + canonical→anth
-// conversion split off from bedrock_anthropic.go during the Day 211 god-file
-// refactor (#139). Public API unchanged.
 package bedrock
+
+// Provenance: bedrock_anthropic_helpers.go: usage conversion + image parsing +
+//             canonical→anth conversion split off from bedrock_anthropic.go during
+//             the Day 211 god-file refactor (#139). Public API unchanged.
 
 import (
 	"encoding/json"

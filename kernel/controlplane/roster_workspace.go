@@ -8,11 +8,11 @@ package controlplane
 
 import (
 	"fmt"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/roster"
 	"os"
 	"path/filepath"
 	"strings"
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 func (s *Server) agentWorkspaceInfo(p roster.Profile) (string, bool) {
@@ -57,4 +57,3 @@ func countTreeFiles(root string) (int, int64) {
 	})
 	return files, bytes
 }
-

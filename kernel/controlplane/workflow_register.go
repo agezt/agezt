@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Workflow command registry: registerWorkflowCommands wires the handlers into the dispatch table.
-// Code extracted from workflow.go during the Day-38 god-file split. Public API unchanged.
 package controlplane
 
-
-
-
+// Provenance: Workflow command registry: registerWorkflowCommands wires the handlers
+//             into the dispatch table. Code extracted from workflow.go during the
+//             Day-38 god-file split. Public API unchanged.
 
 func registerWorkflowCommands() {
 	register(

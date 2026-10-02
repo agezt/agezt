@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// Chat-style channel factories (buildIRC, buildTwitch). Extracted from
-// factories_chat.go during Day 211 god-file refactor (#44, #61).
-// Public API unchanged.
 package builtinchannels
+
+// Provenance: SPDX-License-Identifier: MIT Chat-style channel factories (buildIRC,
+//             buildTwitch). Extracted from factories_chat.go during Day 211 god-file
+//             refactor (#44, #61). Public API unchanged.
 
 import (
 	"fmt"

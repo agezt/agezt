@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// Workboard tool: the Kernel interface + the Tool struct + the lifecycle
-// (New + Bind + current) + Definition (the agent.ToolDef JSON schema).
-// The Invoke entry point lives in workboard_invoke.go; the actual
-// operations + helpers live in workboard_ops.go.
-// Extracted from workboard.go during the Day-206 god-file split.
-// Public API unchanged.
 package workboardtool
+
+// Provenance: SPDX-License-Identifier: MIT Workboard tool: the Kernel interface +
+//             the Tool struct + the lifecycle (New + Bind + current) + Definition
+//             (the agent.ToolDef JSON schema). The Invoke entry point lives in
+//             workboard_invoke.go; the actual operations + helpers live in
+//             workboard_ops.go. Extracted from workboard.go during the Day-206
+//             god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

@@ -5,17 +5,30 @@
 
 name: CI
 
-# Most jobs run on self-hosted WSL-Ubuntu runners (wsl-runner-1..3), which cost
-# nothing. But hosted Linux is NOT blocked: as measured on 2026-09-06, race-depth
-# below runs on ubuntu-latest and concluded success in 6 of the 12 most recent
-# CI runs, while every self-hosted job in those same runs was cancelled because
-# the pool had zero runners registered. Cheap new gates therefore belong on
-# ubuntu-latest: a job that never gets a runner enforces nothing.
+# Every job runs on GitHub-hosted ubuntu-latest. The repo is public, so hosted
+# Linux minutes are free.
 #
-# Hosted macOS/Windows remain unproven (the successful hosted job is Linux-only),
-# so the test matrix legs stay parked (cross-build below still compile-gates
-# darwin/windows/freebsd, and the owner develops on Windows daily). To restore:
-# matrix os [ubuntu-latest, macos-latest, windows-latest] + runs-on ${{ matrix.os }}.
+# This was not always so. Most jobs were pinned to three self-hosted WSL-Ubuntu
+# runners (wsl-runner-1..3) on a separate host, which cost nothing — until the
+# pool stopped reporting. As measured on 2026-09-06, race-depth (already hosted)
+# concluded success in 6 of the 12 most recent CI runs while every self-hosted
+# job in those same runs was cancelled because the pool had zero runners
+# registered; `gh api repos/agezt/agezt/actions/runners` reports total_count 0
+# today. The rule the owner wrote then, and the reason for this change: a job
+# that never gets a runner enforces nothing. 20 of this file's 22 checks (the
+# other 2 were already hosted) sat in `queued` for hours and could never reach a
+# conclusion, so PRs were unmergeable and the gates enforced nothing at all.
+#
+# The WSL runners are still documented in ops/wsl-runners/README.md and their
+# tooling is retained: .github/actions/setup-go-safe already detects a hosted
+# runner (no RUNNER_NAME) and skips the tmpfs staging it needs only on WSL2.
+# Re-pinning any job to [self-hosted, Linux, X64] re-opens the hole above.
+#
+# Hosted macOS/Windows remain unproven (only hosted Linux has a measured
+# success), so the test matrix legs stay parked (multi-arch below still
+# compile-gates darwin/windows/freebsd, and the owner develops on Windows daily).
+# To restore: matrix os [ubuntu-latest, macos-latest, windows-latest] +
+# runs-on ${{ matrix.os }}.
 
 on:
   push:
@@ -34,7 +47,7 @@ jobs:
   test:
     name: test (linux)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -71,16 +84,16 @@ jobs:
 
   race-breadth:
     # Race detector (BREADTH pass) needs cgo, so it can't run in the default
-    # CGO_ENABLED=0 build matrix. We run it on Linux (the self-hosted
-    # WSL-Ubuntu runners, which have native gcc) with cgo enabled to surface
-    # concurrent-code regressions across the whole tree.
+    # CGO_ENABLED=0 build matrix. We run it on ubuntu-latest, which has native
+    # gcc, with cgo enabled to surface concurrent-code regressions across the
+    # whole tree.
     #
     # This is the critical gate — a single `-race ./...` run catches any
     # obviously-racy access. The DEPTH pass (race-depth below) is a separate
     # job so its failure doesn't mask a breadth-pass green (next.md #7).
     name: race-breadth (linux, cgo)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '1'
     steps:
@@ -100,8 +113,10 @@ jobs:
     # stress-run just those packages with -count, multiplying the number of
     # interleavings sampled per push at negligible extra cost.
     #
-    # Separate job from race-breadth so a depth-pass kill (often flaky on
-    # contended WSL runners) doesn't mask a breadth-pass green — next.md #7.
+    # Separate job from race-breadth so a depth-pass kill (a -count=20 stress
+    # pass samples far more interleavings than a single run, so it is the pass
+    # more likely to trip a latent race) doesn't mask a breadth-pass green —
+    # next.md #7.
     # Keep this list in sync with the concurrency/context fixes:
     #   kernel/channel        — VULN-002 registry RWMutex (boot-window race)
     #   kernel/controlplane   — pulse read-timeout + ctx-aware sleep + oauth ctx
@@ -150,7 +165,7 @@ jobs:
     # answer). See scripts/e2e-smoke.sh.
     name: e2e smoke (linux)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -168,7 +183,7 @@ jobs:
   codegen-in-sync:
     name: codegen-in-sync
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -193,7 +208,7 @@ jobs:
   frontend-dist-in-sync:
     name: frontend-dist-in-sync
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -206,9 +221,11 @@ jobs:
       # --ignore-scripts on every `npm ci` in this file and in publish-sdks.yml
       # (CICD-001, 2026-08-12). Dependabot opens weekly npm bumps for /frontend
       # and /sdk/typescript; those branches live in THIS repo, so they pass the
-      # fork guard and run here — on a SELF-HOSTED, non-ephemeral runner. Without
-      # the flag, an install script from a freshly-bumped transitive package
-      # executes on that runner before any human reads the diff.
+      # fork guard and run here — unattended, before any human reads the diff.
+      # The flag stays even though the runner is now GitHub-hosted and
+      # ephemeral rather than a persistent self-hosted box: it is the only thing
+      # between a freshly-bumped transitive package's install script and this
+      # job, and the hosted runner is discarded either way.
       #
       # It costs nothing: the only package in either lockfile declaring an
       # install script is fsevents (optional, os: darwin), which never installs
@@ -243,13 +260,13 @@ jobs:
     # loop. The `[skip ci]` footer is a defensive belt-and-suspenders in
     # case the token is later swapped for a PAT that DOES retrigger.
     name: frontend-dist-rebuild
-    # Standard fork-guard: same expression every other self-hosted job uses,
+    # Standard fork-guard: same expression every other job in this file uses,
     # so this job never runs for a fork PR. The rebuild + commit steps below
     # further gate on a push to main, so on a same-repo PR the job is a
     # harmless no-op (it exists here only so the ciguard fork-guard lint passes
     # for this push-only-main job).
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     permissions:
       # This job needs to push the rebuilt dist back to main; every other
       # job stays at the workflow-wide contents:read.
@@ -295,7 +312,7 @@ jobs:
   frontend-test:
     name: frontend-test
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -316,7 +333,7 @@ jobs:
   webui-e2e:
     name: webui-e2e
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -346,7 +363,7 @@ jobs:
   python-sdk:
     name: python-sdk
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -363,7 +380,7 @@ jobs:
   typescript-sdk:
     name: typescript-sdk
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -384,7 +401,7 @@ jobs:
   rust-sdk:
     name: rust-sdk
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -410,7 +427,7 @@ jobs:
   multi-arch:
     name: cross-build (${{ matrix.goos }}/${{ matrix.goarch }})
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     strategy:
@@ -443,10 +460,16 @@ jobs:
   deps-check:
     name: deps-check (allowlist, SDK parity, deadcode)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # docclaimscheck below measures the branch against origin/main, so the
+          # merge base has to be in the clone. A shallow checkout has no
+          # origin/main and the gate would report every count as zero — which is
+          # the "compares against a tip that already contains the changes"
+          # failure this tool already had to be fixed for once.
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-go-safe
       - name: Verify every module is in tools/depscheck/allowlist.txt
@@ -455,6 +478,34 @@ jobs:
         run: bash scripts/ci-go-retry.sh go run ./tools/sdkparity -check docs/SDK-PARITY.md
       - name: Verify no unexpected Go dead code
         run: bash scripts/ci-go-retry.sh go run ./tools/deadcodecheck
+      - name: Verify generated structure docs are up to date
+        # This is the one project gate that had no CI step, and its absence is
+        # not hypothetical: three stale files under .project/STRUCTURE.generated/
+        # sat on main for weeks while the tool that would have named them
+        # existed only in the Makefile, which nothing runs automatically.
+        #
+        # It is also the gate that catches the god-file-split tooling. Those
+        # splits overwrite a package's doc comment with a mechanical
+        # "Code extracted from … during the Day-N god-file split" block, which
+        # silently replaced the real documentation in 59 packages. The Go
+        # compiler is happy; nothing else noticed. Same failure class as the
+        # 636 files that violated the gofmt gate above — a tool writes source
+        # and is not held to the gates a human contributor must pass.
+        run: bash scripts/ci-go-retry.sh go run ./tools/structure-md -check -out .project/STRUCTURE.generated
+      - name: Verify the audit documents' numbers against the branch
+        # The second gate of this exact class, and it was still open when this
+        # line was written. docclaimscheck exists to catch the audit's own
+        # documents quoting numbers that went stale, and it was wired into
+        # `make check` and nothing else — a Makefile target nothing runs
+        # automatically. So the tool had never once run in CI, and the numbers
+        # it was written to protect had already drifted twice (a vitest count
+        # three commits behind, and two live commit counts that are stale the
+        # moment the next commit lands).
+        #
+        # It lives beside structure-md rather than in its own job because both
+        # answer the same question — is the committed record still true? — and
+        # both need the full history this checkout now has.
+        run: bash scripts/ci-go-retry.sh go run ./tools/docclaimscheck -base origin/main
 
   lint:
     # Static-analysis gates driven clean in M485/M487. gofmt + staticcheck are
@@ -462,7 +513,7 @@ jobs:
     # latest stable, which carries the patched stdlib).
     name: lint (repo hygiene, gofmt, staticcheck, govulncheck)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: '0'
     steps:
@@ -496,13 +547,13 @@ jobs:
             echo "::error::Run 'gofmt -w cmd internal kernel plugins sdk tools' and commit."
             exit 1
           fi
-      - name: staticcheck (prebuilt binary, retry — flaky WSL go compiler)
+      - name: staticcheck (prebuilt binary, retry — transient failures)
         # We use the upstream PREBUILT staticcheck so we don't `go install` its
-        # large dep tree. But staticcheck still type-checks via go/packages,
-        # which execs the local `compile` tool — and that tool intermittently
-        # corrupts on the self-hosted WSL runners ("fork/exec compile: invalid
-        # argument", "src/log/internal/: invalid argument"). The corruption is
-        # transient, so retry the run a few times like govulncheck below.
+        # large dep tree. The retry loop below is retained from the WSL-runner
+        # era, when the local `compile` tool intermittently corrupted and made
+        # staticcheck fail with "fork/exec compile: invalid argument". That
+        # corruption does not occur on ubuntu-latest, but the loop also absorbs
+        # transient network and OOM failures, so it stays cheap insurance.
         run: |
           set -e
           # Pin the staticcheck release (supply-chain, CWE-494) rather than
@@ -526,16 +577,15 @@ jobs:
           while [ $n -lt 5 ]; do
             /tmp/staticcheck/staticcheck ./... && exit 0
             n=$((n+1))
-            echo "staticcheck attempt $n/5 failed (flaky Go compiler on self-hosted runners); retrying..."
+            echo "staticcheck attempt $n/5 failed; retrying..."
             sleep 3
           done
           echo "::error::staticcheck failed after 5 attempts"
           exit 1
-      - name: "govulncheck (retry — flaky WSL go compiler)"
-        # govulncheck has no prebuilt binary, so we must `go install` it and
-        # that exercises the flaky compiler. Retry the install+run a few
-        # times — the corruption is intermittent, so a re-attempt usually
-        # succeeds.
+      - name: "govulncheck (retry — transient failures)"
+        # govulncheck has no prebuilt binary, so we must `go install` it — the
+        # longest network-bound step in this job, and the one that failed
+        # transiently in the WSL-runner era. Retry the install+run a few times.
         run: |
           set +e
           n=0
@@ -546,7 +596,7 @@ jobs:
             go install golang.org/x/vuln/cmd/govulncheck@v1.4.0
             "$(go env GOPATH)/bin/govulncheck" ./... && exit 0
             n=$((n+1))
-            echo "govulncheck attempt $n/5 failed (flaky Go compiler on self-hosted runners); retrying..."
+            echo "govulncheck attempt $n/5 failed; retrying..."
             sleep 3
           done
           echo "::error::govulncheck failed after 5 attempts"
@@ -558,7 +608,7 @@ jobs:
     # and allowlists only the known secret-shaped test fixtures.
     name: secrets (gitleaks)
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -588,10 +638,10 @@ jobs:
   changelog:
     name: changelog gates
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    # ubuntu-latest, mirroring race-depth's documented reason: the self-hosted
-    # WSL runners are unreliable for toolchain work AND currently unregistered,
-    # so a self-hosted job here would queue for 24h and be cancelled rather than
-    # ever run the gate. A gate that never executes blocks nothing.
+    # Moved to ubuntu-latest ahead of the rest of the file, on the same
+    # evidence the header now records in full: a self-hosted job here would sit
+    # in `queued` until cancelled and never run the gate at all. This job was
+    # the first to move; the 2026-10-01 migration moved the other fifteen.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -617,3 +667,102 @@ jobs:
         # flag which throws away the canonical working set.
         continue-on-error: true
         run: go run ./tools/changelog-split --verify
+
+  # ── The "CI" check this branch protection actually requires ────────────────
+  #
+  # ruleset 22206739 lists a required status check whose context is literally
+  # `CI`. Nothing in this workflow ever reported that context: the workflow is
+  # named CI, but Actions creates one check-run per JOB, and every job here is
+  # named after what it does — `test (linux)`, `frontend-test`, and so on. A
+  # workflow name is not a check context.
+  #
+  # So the required check has been reporting nothing, ever. `gh pr checks
+  # --required` answers "no required checks reported" on a branch where twenty-two
+  # checks are green, and the protection enforces nothing: the status-check half
+  # of "main is protected" was decorative, the same shape as Finding I, where
+  # twenty checks could not run at all. A comment in the changelog job reasoned
+  # about what would happen to "the required CI check" — a premise this file did
+  # not satisfy.
+  #
+  # This job is the fix, and it is deliberately a single job rather than
+  # twenty-two required contexts. Naming every job in the ruleset would recreate
+  # the hole: rename one job and the protection silently stops covering it again.
+  # One context that means "all of it" cannot drift that way.
+  CI:
+    name: CI
+    if: always()
+    needs:
+      - test
+      - race-breadth
+      - race-depth
+      - e2e
+      - codegen-in-sync
+      - frontend-dist-in-sync
+      - frontend-dist-rebuild
+      - frontend-test
+      - webui-e2e
+      - python-sdk
+      - typescript-sdk
+      - rust-sdk
+      - multi-arch
+      - deps-check
+      - lint
+      - secrets
+      - changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report which job did not pass
+        # `skipped` counts as pass: several jobs are conditional (the same-repo
+        # fork guard, and frontend-dist-rebuild's steps which are push-only), and
+        # a legitimately skipped job is not a failure. Anything else — failure,
+        # cancelled — is.
+        run: |
+          failed=""
+          for job in $(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name != "CI") | "\(.conclusion) \(.name)"'); do
+            case "$job" in
+              success*|skipped*|"") ;;
+              *) failed="$failed\n  - $job" ;;
+            esac
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::These jobs did not pass:$failed"
+            exit 1
+          fi
+          echo "All 17 jobs succeeded or were legitimately skipped."
+
+  # A second required context, carrying the same verdict.
+  #
+  # There are TWO rulesets on main and they disagree about what this workflow is
+  # called. `main protection` (22200577) requires the context `ci.yml` -- what
+  # GitHub records when you pick a workflow by its file name. `main ruleset`
+  # (22206739) requires `CI` -- the workflow's own `name:`. Neither context was
+  # ever produced, because Actions reports one check-run per JOB and no job here
+  # is named after the workflow. GitHub's own merge error named both:
+  #
+  #   Required status check "ci.yml" is expected.
+  #   Required status check "CI" is expected.
+  #
+  # Two small jobs rather than two policies: editing a ruleset to match the
+  # workflow is a governance change, and the two rulesets disagreeing with each
+  # other is itself the bug. This makes the workflow satisfy what protection
+  # already demands, and it can fail for exactly one reason -- something
+  # upstream did not pass.
+  # The job KEY is `ci_file`, not `ci.yml`: GitHub requires job ids to match
+  # [A-Za-z_][A-Za-z0-9_-]*, and a dot makes the whole workflow fail to parse —
+  # zero jobs, run conclusion "failure", and no error pointing at the line. A
+  # first attempt used `ci.yml:` as the key and did exactly that; the name is
+  # what the check context comes from, so the key can be anything valid.
+  ci_file:
+    name: ci.yml
+    if: always()
+    needs:
+      - CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the CI verdict under the file-name context
+        if: needs.CI.result != 'success'
+        run: |
+          echo "::error::The CI gate did not pass (needs.CI.result=${{ needs.CI.result }})."
+          exit 1
+      - run: echo "CI passed."

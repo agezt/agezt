@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// pulse_control_helpers.go: persistPulseSetting + SetPulseObservers +
-// watchesAvailable + handlePulseWatch/Probe/Unwatch/Dial/Quiet/Flush split off
-// from pulse_control.go during the Day 211 god-file refactor (#147). Public API unchanged.
 package controlplane
+
+// Provenance: pulse_control_helpers.go: persistPulseSetting + SetPulseObservers +
+//             watchesAvailable + handlePulseWatch/Probe/Unwatch/Dial/Quiet/Flush
+//             split off from pulse_control.go during the Day 211 god-file refactor
+//             (#147). Public API unchanged.
 
 import (
 	"net"
@@ -61,7 +63,7 @@ type PulseObservers interface {
 // SetPulseObservers wires the runtime observer registry (disk watches + command
 // probes) in one step. Nil leaves both watch commands reporting unavailable.
 func (s *Server) SetPulseObservers(o PulseObservers) { s.observers = o }
-func (s *Server) watchesAvailable() bool { return s.observers != nil }
+func (s *Server) watchesAvailable() bool             { return s.observers != nil }
 
 // handlePulseWatch adds a disk-space watch to the proactive heartbeat at runtime
 // (M767): the agent will alert when free space on `path` drops below `min_pct`. The

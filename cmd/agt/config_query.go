@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: `agt config ls` + `agt config get` read-only queries.
-// Extracted from config.go during the Day-211 god-file split. Public API
-// unchanged.
 package main
 
+// Provenance: Package main: `agt config ls` + `agt config get` read-only queries.
+//             Extracted from config.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
+
 func cmdConfigLs(args []string, stdout, stderr io.Writer) int {
 	asJSON := false
 	for _, a := range args {

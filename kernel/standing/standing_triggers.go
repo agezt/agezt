@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package standing: InitiativeMode helpers (validMode + MaxAutonomyTrust).
-// Split from standing.go during Day 211 god-file refactor (#47).
-// Public API unchanged.
 package standing
 
-import (
-)
+// Provenance: Package standing: InitiativeMode helpers (validMode +
+//             MaxAutonomyTrust). Split from standing.go during Day 211 god-file
+//             refactor (#47). Public API unchanged.
+
+import ()
 
 func validMode(m InitiativeMode) bool {
 	switch m {

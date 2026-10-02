@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Reaper scan entrypoint (ReaperScan + agentRunHealth).
-// Code extracted from reaper_scan.go during the Day-91 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Reaper scan entrypoint (ReaperScan + agentRunHealth). Code extracted
+//             from reaper_scan.go during the Day-91 god-file split. Public API
+//             unchanged.
 
 import (
 	"sort"
@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func (k *Kernel) ReaperScan(agentIdleCutoffMs, artifactStaleCutoffMs int64) ReaperReport {
 	// Last task.received timestamp per agent slug — task.received carries the
@@ -113,4 +112,3 @@ type agentRunHealth struct {
 	startedMS int64
 	endedMS   int64
 }
-

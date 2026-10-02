@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Kernel accessors: Reflect + StartTime + Plugins + memory/skill flags + ctx helpers (WakeContext* + Images/JSONMode/MaxCost/RunTimeout/Resume* + BuildRunPrompt/InjectHostEnvironment/ResumeCheckpointFn/ResolveRunModel/MergeAutoApproveCapabilities/WithActorCorrelation/ActorFromCtx).
-// Code extracted from accessors.go during the Day-56 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Kernel accessors: Reflect + StartTime + Plugins + memory/skill flags +
+//             ctx helpers (WakeContext* + Images/JSONMode/MaxCost/RunTimeout/Resume*
+//             +
+//             BuildRunPrompt/InjectHostEnvironment/ResumeCheckpointFn/ResolveRunModel/MergeAutoApproveCapabilities/WithActorCorrelation/ActorFromCtx).
+//             Code extracted from accessors.go during the Day-56 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -13,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/skill"
 )
-
 
 // Reflect returns the reflection engine backing `agt reflect` and the optional
 // periodic reflection trigger. Always non-nil after Open.
@@ -85,25 +88,35 @@ func (k *Kernel) WakeContextReason(ctx context.Context) string { return wakeCont
 // WakeContextScheduleID returns the schedule ID that triggered
 // the run ("" when the run did not originate from a schedule).
 // Wraps wakeContextFromCtx.
-func (k *Kernel) WakeContextScheduleID(ctx context.Context) string { return wakeContextFromCtx(ctx).ScheduleID }
+func (k *Kernel) WakeContextScheduleID(ctx context.Context) string {
+	return wakeContextFromCtx(ctx).ScheduleID
+}
 
 // WakeContextStandingID returns the standing order ID that
 // triggered the run. Wraps wakeContextFromCtx.
-func (k *Kernel) WakeContextStandingID(ctx context.Context) string { return wakeContextFromCtx(ctx).StandingID }
+func (k *Kernel) WakeContextStandingID(ctx context.Context) string {
+	return wakeContextFromCtx(ctx).StandingID
+}
 
 // WakeContextStandingName returns the standing order name that
 // triggered the run. Wraps wakeContextFromCtx.
-func (k *Kernel) WakeContextStandingName(ctx context.Context) string { return wakeContextFromCtx(ctx).StandingName }
+func (k *Kernel) WakeContextStandingName(ctx context.Context) string {
+	return wakeContextFromCtx(ctx).StandingName
+}
 
 // WakeContextTriggerSubject returns the bus subject that
 // triggered the run (e.g. "channel.telegram.message"). Wraps
 // wakeContextFromCtx.
-func (k *Kernel) WakeContextTriggerSubject(ctx context.Context) string { return wakeContextFromCtx(ctx).TriggerSubject }
+func (k *Kernel) WakeContextTriggerSubject(ctx context.Context) string {
+	return wakeContextFromCtx(ctx).TriggerSubject
+}
 
 // WakeContextParentCorrelation returns the parent run's
 // correlation ID (the lead run that delegated this child). Wraps
 // wakeContextFromCtx.
-func (k *Kernel) WakeContextParentCorrelation(ctx context.Context) string { return wakeContextFromCtx(ctx).ParentCorrelation }
+func (k *Kernel) WakeContextParentCorrelation(ctx context.Context) string {
+	return wakeContextFromCtx(ctx).ParentCorrelation
+}
 
 // ImagesFromCtx returns the images attached to a run context by
 // WithImages (vision-gated upstream by M91). Wraps the
@@ -129,7 +142,9 @@ func (k *Kernel) RunTimeoutFromCtx(ctx context.Context) time.Duration { return r
 // ResumeOwnedKindFromCtx returns (kind, true) if the run context
 // carries a resume-ticket owned by an outer wrapper (assure /
 // retry / resumer). Wraps the package-level resumeOwnedKind (Day 34).
-func (k *Kernel) ResumeOwnedKindFromCtx(ctx context.Context) (string, bool) { return resumeOwnedKind(ctx) }
+func (k *Kernel) ResumeOwnedKindFromCtx(ctx context.Context) (string, bool) {
+	return resumeOwnedKind(ctx)
+}
 
 // ResumeSeedFromCtx returns (prior messages, start iter, true) if
 // the run context carries a seeded conversation snapshot (resumed

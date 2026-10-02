@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 )
+
 func (t *Tool) doWrite(ctx context.Context, in fileInput, appendMode bool) (agent.Result, error) {
 	p, err := t.resolve(in.Path)
 	if err != nil {
@@ -191,4 +192,3 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	}
 	return os.Rename(tmpName, path)
 }
-

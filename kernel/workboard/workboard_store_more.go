@@ -18,7 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
-
 func reconcileCriteria(declared, judged []proof.Criterion) []proof.Criterion {
 	out := make([]proof.Criterion, len(declared))
 	copy(out, declared)

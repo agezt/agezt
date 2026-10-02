@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package chatgptauth: OAuth flow + PKCE helpers + Codex CLI importer
-// (Manager.ExchangeCode + Manager.ImportFromCodexCLI + DefaultCodexAuthPath
-// + GeneratePKCE + RandomState + AuthorizeURL). Extracted from chatgptauth.go
-// during the Day-211 god-file split. Public API unchanged.
 package chatgptauth
 
+// Provenance: Package chatgptauth: OAuth flow + PKCE helpers + Codex CLI importer
+//             (Manager.ExchangeCode + Manager.ImportFromCodexCLI +
+//             DefaultCodexAuthPath + GeneratePKCE + RandomState + AuthorizeURL).
+//             Extracted from chatgptauth.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"

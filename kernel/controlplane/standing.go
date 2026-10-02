@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// controlplane/standing: wire-shape helpers (standingView +
-// standingFrequencyWarning) used by the CRUD handlers.
-// Split from standing.go during Day 211 god-file refactor (#46).
-// Public API unchanged.
 package controlplane
+
+// Provenance: controlplane/standing: wire-shape helpers (standingView +
+//             standingFrequencyWarning) used by the CRUD handlers. Split from
+//             standing.go during Day 211 god-file refactor (#46). Public API
+//             unchanged.
 
 import (
 	"encoding/json"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/standing"
 )
-
 
 // standingView is the stable wire shape for one order.
 func standingView(o standing.Order) map[string]any {

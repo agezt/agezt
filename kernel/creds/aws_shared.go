@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// AWS shared credentials loader (M1.q): the entry point +
-// AWSSharedCredentialsLookup.
-// The credential_process sub-command parser lives in
-// aws_shared_process.go; the file-loading path (loadAWSSharedFiles +
-// awsConfigFilePath + readINISection) + the IMDS endpoint + timeout
-// constants live in aws_shared_files.go.
-// Extracted from aws_shared.go during the Day-204 god-file split.
-// Public API unchanged.
 package creds
+
+// Provenance: AWS shared credentials loader (M1.q): the entry point +
+//             AWSSharedCredentialsLookup. The credential_process sub-command parser
+//             lives in aws_shared_process.go; the file-loading path
+//             (loadAWSSharedFiles + awsConfigFilePath + readINISection) + the IMDS
+//             endpoint + timeout constants live in aws_shared_files.go. Extracted
+//             from aws_shared.go during the Day-204 god-file split. Public API
+//             unchanged.
 
 import (
 	"sync"

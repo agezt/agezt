@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Self-repair routing-rollback helpers (M846): the autoRepairRoutingRollback +
-// autoRepairRoutingRewrite structs, the journal-driven
-// autoRepairLatestForceGeneration + autoRepairLatestRoutingRewrite readers,
-// and the routing chain comparison / reason helpers.
-// Extracted from selfrepair_fingerprints.go during the Day-202 god-file split.
-// Public API unchanged.
 package selfrepair
+
+// Provenance: Self-repair routing-rollback helpers (M846): the
+//             autoRepairRoutingRollback + autoRepairRoutingRewrite structs, the
+//             journal-driven autoRepairLatestForceGeneration +
+//             autoRepairLatestRoutingRewrite readers, and the routing chain
+//             comparison / reason helpers. Extracted from selfrepair_fingerprints.go
+//             during the Day-202 god-file split. Public API unchanged.
 
 import (
 	"encoding/json"

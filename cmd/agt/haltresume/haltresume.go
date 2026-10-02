@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package haltresume is documented in doc.go; this file holds
-// the command implementation, lifted verbatim from
-// cmd/agt/halt_resume.go at the Day-5-followup refactor.
 package haltresume
+
+// Package haltresume is documented in doc.go; this file holds the
+// command implementation, lifted verbatim from cmd/agt/halt_resume.go at
+// the Day-5-followup refactor.
 
 import (
 	"context"

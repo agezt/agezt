@@ -33,7 +33,6 @@ import (
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
-
 // httpProtocolVersion is what we advertise on the HTTP transport. The
 // Streamable HTTP transport was introduced in the 2025-03-26 revision, so a
 // server that speaks it negotiates from at least this version; it is also sent

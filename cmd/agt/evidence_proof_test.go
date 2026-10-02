@@ -4,7 +4,8 @@
 // reference files that do not exist in the repository.
 //
 // The existing test TestCmdCompareAudit_JSONHermesEvidence masks this by asserting:
-//   if audit.EvidenceMissing != 0 { t.Fatalf(...) }
+//
+//	if audit.EvidenceMissing != 0 { t.Fatalf(...) }
 //
 // This test asserts the correct invariant: EvidenceMissing SHOULD be 0.
 // It FAILS before the fix (EvidenceMissing > 0) and PASSES after.

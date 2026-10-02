@@ -280,4 +280,3 @@ func (p *Provider) completeAnthropic(ctx context.Context, req agent.CompletionRe
 // Called from CompleteStream when isAnthropicModel(model) is true.
 // Wire is standard Anthropic SSE (event-tagged, not the binary
 // event-stream format Bedrock uses).
-

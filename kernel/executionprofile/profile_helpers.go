@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Execution profile helpers: toolSet + anyTool + presentTools.
-// Code extracted from profile.go during the Day-71 god-file split. Public API unchanged.
 package executionprofile
 
+// Provenance: Execution profile helpers: toolSet + anyTool + presentTools. Code
+//             extracted from profile.go during the Day-71 god-file split. Public API
+//             unchanged.
 
 import (
 	"sort"
 	"strings"
 )
-
 
 func toolSet(tools []string) map[string]bool {
 	out := make(map[string]bool, len(tools))

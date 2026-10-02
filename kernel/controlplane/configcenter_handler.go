@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane configcenter command handlers + helpers (entryToMap + string/split/clean helpers).
-// Code extracted from configcenter_handler.go during the Day-114 god-file split.
-// Public API unchanged.
 package controlplane
+
+// Provenance: Control-plane configcenter command handlers + helpers (entryToMap +
+//             string/split/clean helpers). Code extracted from
+//             configcenter_handler.go during the Day-114 god-file split. Public API
+//             unchanged.
 
 import (
 	"net"
@@ -11,8 +13,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/configcenter"
 )
-
-
 
 // handleConfigCenterSet sets a config entry.
 func (s *Server) handleConfigCenterSet(conn net.Conn, req Request) {
@@ -186,4 +186,3 @@ func (s *Server) handleConfigCenterDelete(conn net.Conn, req Request) {
 		Result: map[string]any{"deleted": true},
 	})
 }
-

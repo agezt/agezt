@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// ConfigEntry constructor + fluent builder methods (SetRating, SetTags,
-// SetDescription, SetAccessPolicy, AllowAgent, DenyAgent). Extracted from
-// types.go during Day 211 god-file refactor (#55). Public API unchanged.
 package configcenter
+
+// Provenance: ConfigEntry constructor + fluent builder methods (SetRating, SetTags,
+//             SetDescription, SetAccessPolicy, AllowAgent, DenyAgent). Extracted
+//             from types.go during Day 211 god-file refactor (#55). Public API
+//             unchanged.
 
 import "time"
 

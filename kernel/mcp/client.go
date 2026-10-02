@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-// Package mcp owns the public MCP client types: ToolDef,
-// Conn, Dialer, HTTPDialer, and the JSON-RPC wire shapes
-// (rpcRequest / rpcResponse). The clientConn implementation
-// (type + Dial + newClientConn + every Conn method) lives
-// in client_conn.go. The env helpers (appendEnv /
-// scrubbedEnv / isSecretName) live in client_helpers.go.
-// Day-211 god-file split. Public API unchanged.
 package mcp
+
+// Provenance: Package mcp owns the public MCP client types: ToolDef, Conn, Dialer,
+//             HTTPDialer, and the JSON-RPC wire shapes (rpcRequest / rpcResponse).
+//             The clientConn implementation (type + Dial + newClientConn + every
+//             Conn method) lives in client_conn.go. The env helpers (appendEnv /
+//             scrubbedEnv / isSecretName) live in client_helpers.go. Day-211
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// introspect_views.go owns the per-record render helpers
-// used by Tool.Invoke to flatten cadence.Entry /
-// standing.Order rows for JSON output, plus the
-// okJSON / errResult formatters. The Tool type + its
-// agent.Tool surface live in introspect.go.
 package introspecttool
+
+// introspect_views.go owns the per-record render helpers used by
+// Tool.Invoke to flatten cadence.Entry / standing.Order rows for JSON
+// output, plus the okJSON / errResult formatters. The Tool type + its
+// agent.Tool surface live in introspect.go.
 
 import (
 	"encoding/json"

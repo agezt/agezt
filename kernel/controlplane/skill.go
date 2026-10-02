@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Control-plane skill: List + Get + History + Promote + Quarantine + Archive + Revert + Restore + Share + Reassign + Import (standard subcommand surface).
-// Code extracted from skill.go during the Day-139 god-file split.
-// Public API unchanged.
 package controlplane
 
-
+// Provenance: Control-plane skill: List + Get + History + Promote + Quarantine +
+//             Archive + Revert + Restore + Share + Reassign + Import (standard
+//             subcommand surface). Code extracted from skill.go during the Day-139
+//             god-file split. Public API unchanged.
 
 import (
 	"net"
@@ -14,8 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/skill"
 )
-
-
 
 func (s *Server) handleSkillList(conn net.Conn, req Request) {
 	sks, err := s.k.Forge().List()

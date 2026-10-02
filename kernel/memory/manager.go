@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Memory Manager: Manager struct + NewManager + Remember (the journaling boundary that wraps a Store + bus).
-// Code extracted from manager.go during the Day-44 god-file split. Public API unchanged.
 package memory
 
+// Provenance: Memory Manager: Manager struct + NewManager + Remember (the journaling
+//             boundary that wraps a Store + bus). Code extracted from manager.go
+//             during the Day-44 god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -14,8 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 )
-
-
 
 // Manager wraps a Store with the kernel bus so every mutation is journaled
 // (durable-before-publish) and carries the originating run's correlation_id.

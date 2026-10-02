@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// Agent permissions/capabilities handlers: handleAgentPermissions + handleAgentCapabilities + decodeAgentCapabilityPatch + decodeControlplaneArg.
-// Code extracted from tool.go during the Day-59 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Agent permissions/capabilities handlers: handleAgentPermissions +
+//             handleAgentCapabilities + decodeAgentCapabilityPatch +
+//             decodeControlplaneArg. Code extracted from tool.go during the Day-59
+//             god-file split. Public API unchanged.
 
 import (
 	"github.com/agezt/agezt/kernel/roster"
 	"net"
 	"strings"
 )
-
 
 func (s *Server) handleAgentPermissions(conn net.Conn, req Request) {
 	ref, err := requiredArgString(req.Args, "ref")

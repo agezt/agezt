@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// roster_crud_internal.go owns the four pure helpers used
-// by the Add / Edit / SetEnabled HTTP handlers:
-// applyAgentMutableProfilePatch (the field-by-field merge
-// that respects a `provided` map so the daemon can keep
-// fields the client didn't intend to change — staggered
-// PUTs won't lose data),
-// normalizeAgentProfileKind (coerces raw JSON `kind`
-// strings into the roster enum + flags defaults),
-// validateAgentHierarchyRefs (catches cycles /
-// dangling parent / owner-agent refs), and
-// managedSubagentDirectCallError (the operator-facing
-// error string when someone tries to send an action to a
-// managed sub-agent instead of its manager). The HTTP
-// handlers live in roster_crud.go.
 package controlplane
+
+// roster_crud_internal.go owns the four pure helpers used by the Add /
+// Edit / SetEnabled HTTP handlers: applyAgentMutableProfilePatch (the
+// field-by-field merge that respects a `provided` map so the daemon can
+// keep fields the client didn't intend to change — staggered PUTs won't
+// lose data), normalizeAgentProfileKind (coerces raw JSON `kind` strings
+// into the roster enum + flags defaults), validateAgentHierarchyRefs
+// (catches cycles / dangling parent / owner-agent refs), and
+// managedSubagentDirectCallError (the operator-facing error string when
+// someone tries to send an action to a managed sub-agent instead of its
+// manager). The HTTP handlers live in roster_crud.go.
 
 import (
 	"encoding/json"

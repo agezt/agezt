@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane Server internal lifecycle plumbing (signalShutdown,
-// initiateShutdown, writeRuntimeFiles, acceptLoop, cancelOnConnClose).
-// Extracted from server_lifecycle.go during Day 211 god-file refactor (#88).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane Server internal
+//             lifecycle plumbing (signalShutdown, initiateShutdown,
+//             writeRuntimeFiles, acceptLoop, cancelOnConnClose). Extracted from
+//             server_lifecycle.go during Day 211 god-file refactor (#88). Public API
+//             unchanged.
 
 import (
 	"context"

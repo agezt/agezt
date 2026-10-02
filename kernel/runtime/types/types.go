@@ -1,23 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Package types is the shared-type home for the value types the
-// kernel/runtime sub-packages pass across the host/sub-package
-// boundary. Without it, every sub-package that needs SubAgentLimits
-// (or PluginInfo, or CouncilMember) would either (a) duplicate the
-// type declaration and lose type identity with the host, or (b)
-// import kernel/runtime and re-introduce the very circular-import
-// problem the Day 12-13 sub-package split solved.
-//
-// Rules of the road:
-//
-//   - This package must stay free of kernel/runtime's private
-//     fields. A type here is a *value* the kernel passes through its
-//     public surface; it never depends on a *Kernel pointer.
-//   - It must compile without any kernel/runtime import. Run
-//     `go build ./kernel/runtime/types/...` after every change.
-//   - New shared types land here, not in a sub-package — that's
-//     what "shared" means in this context.
 package types
+
+// This file holds the value-type declarations themselves. The package's
+// documentation — what belongs here and why — lives in doc.go, and the two
+// were previously split across this file's own package comment and doc.go,
+// which made `go doc` stack two different descriptions on top of each other.
 
 // SubAgentLimits reports the active delegation-governance ceilings
 // (M46–M48) for `agt status` (M49). Enabled mirrors whether the

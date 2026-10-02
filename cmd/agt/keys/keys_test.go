@@ -62,10 +62,10 @@ func TestRun_AliasAccepted(t *testing.T) {
 
 func TestProviderFlag_BothSyntaxesAndDefaults(t *testing.T) {
 	cases := []struct {
-		name       string
-		args       []string
-		wantProv   string
-		wantRest   []string
+		name     string
+		args     []string
+		wantProv string
+		wantRest []string
 	}{
 		{"no flag", []string{"ENV", "label"}, "", []string{"ENV", "label"}},
 		{"--provider X", []string{"--provider", "anthropic", "ENV", "label"}, "anthropic", []string{"ENV", "label"}},

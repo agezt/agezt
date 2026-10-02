@@ -146,4 +146,3 @@ func cmdWorkflowRemove(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "removed %s\n", args[0])
 	return 0
 }
-

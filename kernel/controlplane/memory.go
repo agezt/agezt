@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Memory top-level: handleMemoryConsolidate + handleProfileRebuild.
-// Code extracted from memory.go during the Day-61 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Memory top-level: handleMemoryConsolidate + handleProfileRebuild. Code
+//             extracted from memory.go during the Day-61 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"
 	"net"
 	"time"
 )
-
-
 
 // memoryConsolidateTimeout bounds one brain-distillation pass — at most
 // maxClustersPerPass provider calls.

@@ -126,10 +126,10 @@ func TestRegistry_NilSafe(t *testing.T) {
 
 func TestSuggest_FindsTypos(t *testing.T) {
 	r := NewRegistry()
-	r.Register(noopCmd("compile", 0))   // distance 1 from "comple"
-	r.Register(noopCmd("compare", 0))   // distance 2 from "comple" (need to swap + insert)
-	r.Register(noopCmd("complete", 0))  // distance 2 from "comple"
-	r.Register(noopCmd("run", 0))       // far away
+	r.Register(noopCmd("compile", 0))  // distance 1 from "comple"
+	r.Register(noopCmd("compare", 0))  // distance 2 from "comple" (need to swap + insert)
+	r.Register(noopCmd("complete", 0)) // distance 2 from "comple"
+	r.Register(noopCmd("run", 0))      // far away
 	r.Register(noopCmd("status", 0))
 	r.Register(noopCmd("why", 0))
 

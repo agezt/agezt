@@ -10,12 +10,12 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/httpserver"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/httpserver"
 )
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -236,4 +236,3 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
-

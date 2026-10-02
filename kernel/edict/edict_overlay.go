@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Edict engine: policy overlay types + projection + apply.
-// Code extracted from edict_engine.go during the Day-87 god-file split.
-// Public API unchanged.
 package edict
 
+// Provenance: Edict engine: policy overlay types + projection + apply. Code
+//             extracted from edict_engine.go during the Day-87 god-file split.
+//             Public API unchanged.
 
 import (
 	"slices"
@@ -134,4 +134,3 @@ func (e *Engine) Level(cap Capability) (TrustLevel, bool) {
 	lvl, ok := e.levels[cap]
 	return lvl, ok
 }
-

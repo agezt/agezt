@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"strings"
 )
+
 type discordInteraction struct {
 	ID        string         `json:"id"`
 	Type      int            `json:"type"`
@@ -155,4 +156,3 @@ func (in discordInteraction) text() string {
 	}
 	return fallback
 }
-

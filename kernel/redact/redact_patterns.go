@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// redact_patterns.go owns the pattern catalogues that drive
-// automatic redaction: the high-confidence format detectors
-// (namedPatterns), the templated identifiers
-// (templatedPatterns), the compiled `patterns` slice, and the
-// MatchedCategories helper used by `agt redact test`. The
-// Redactor type + methods live in redact.go.
 package redact
+
+// redact_patterns.go owns the pattern catalogues that drive automatic
+// redaction: the high-confidence format detectors (namedPatterns), the
+// templated identifiers (templatedPatterns), the compiled `patterns`
+// slice, and the MatchedCategories helper used by `agt redact test`. The
+// Redactor type + methods live in redact.go.
 
 import (
 	"regexp"
 )
-
 
 // Placeholder replaces every redacted span. It contains no JSON-special
 // characters, so substituting it inside already-marshaled JSON keeps the JSON

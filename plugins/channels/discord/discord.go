@@ -39,8 +39,6 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
-
-
 // DefaultBaseURL is the Discord HTTP API root (v10).
 const DefaultBaseURL = "https://discord.com/api/v10"
 

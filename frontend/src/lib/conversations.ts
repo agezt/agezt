@@ -81,7 +81,7 @@ export function normalizeMessages(messages: Msg[]): Msg[] {
   );
 }
 
-export function newConversation(id: string, now: number): Conversation {
+function newConversation(id: string, now: number): Conversation {
   return { id, title: "New chat", messages: [], updatedAt: now };
 }
 

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Standing-orders helpers extracted from main.go during Day 211
-// god-file refactor (#43, #51). Public API unchanged.
 package main
+
+// Provenance: Standing-orders helpers extracted from main.go during Day 211 god-file
+//             refactor (#43, #51). Public API unchanged.
 
 import (
 	"context"

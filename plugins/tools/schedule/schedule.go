@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Schedule tool: types + lifecycle + Definition + Invoke + view/ok helpers.
-// Code extracted from schedule.go during the Day-100 god-file split.
-// Public API unchanged.
 package schedule
 
+// Provenance: Schedule tool: types + lifecycle + Definition + Invoke + view/ok
+//             helpers. Code extracted from schedule.go during the Day-100 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
-
 
 // store is the subset of *cadence.Store the tool needs — an interface so tests
 // can inject a fake without a real on-disk store.
@@ -221,4 +220,3 @@ func scheduleTarget(in input) string {
 	}
 	return target
 }
-

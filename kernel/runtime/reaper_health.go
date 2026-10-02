@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Reaper health-classification helpers (degraded + misconfigured + binding/hierarchy config issues).
-// Code extracted from reaper_scan.go during the Day-91 god-file split.
-// Public API unchanged.
 package runtime
 
+// Provenance: Reaper health-classification helpers (degraded + misconfigured +
+//             binding/hierarchy config issues). Code extracted from reaper_scan.go
+//             during the Day-91 god-file split. Public API unchanged.
 
 import (
 	"sort"
@@ -213,4 +213,3 @@ func agentHierarchyConfigIssues(p roster.Profile, bySlug map[string]roster.Profi
 	}
 	return issues
 }
-

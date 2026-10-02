@@ -144,4 +144,3 @@ func LoadSSOParamsFromProfile(profile string) (SSOParams, bool) {
 	}
 	return p, true
 }
-

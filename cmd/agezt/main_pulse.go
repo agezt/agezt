@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Pulse periodic-ticker starters + onOff helper (startReflectTicker,
-// startWorkboardSweepTicker, startBrainDistillTicker, startProfileDistillTicker,
-// onOff). Extracted from main_pulse.go during Day 211 god-file refactor (#57).
-// Public API unchanged.
 package main
+
+// Provenance: Pulse periodic-ticker starters + onOff helper (startReflectTicker,
+//             startWorkboardSweepTicker, startBrainDistillTicker,
+//             startProfileDistillTicker, onOff). Extracted from main_pulse.go during
+//             Day 211 god-file refactor (#57). Public API unchanged.
 
 import (
 	"context"

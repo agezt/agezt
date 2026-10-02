@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Forge shadow lifecycle: shadow evaluation, record shadow outcome, auto-promote, and propose (LLM-driven skill creation).
-// Code extracted from forge.go during the Day-36 god-file split. Public API unchanged.
 package skill
 
+// Provenance: Forge shadow lifecycle: shadow evaluation, record shadow outcome,
+//             auto-promote, and propose (LLM-driven skill creation). Code extracted
+//             from forge.go during the Day-36 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 )
-
 
 func (f *Forge) ShadowEvaluate(ctx context.Context, corr string, provider agent.Provider, model, intent, outcome string, limit int) error {
 	if provider == nil {

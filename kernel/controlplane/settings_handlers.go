@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane Config Center handlers (handleConfigSchema, handleConfigValues,
-// handleConfigSet, handleConfigSchemaRegister, handleConfigSchemaUnregister).
-// Extracted from settings.go during Day 211 god-file refactor (#84).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane Config Center
+//             handlers (handleConfigSchema, handleConfigValues, handleConfigSet,
+//             handleConfigSchemaRegister, handleConfigSchemaUnregister). Extracted
+//             from settings.go during Day 211 god-file refactor (#84). Public API
+//             unchanged.
 
 import (
 	"encoding/json"

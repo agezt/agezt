@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane standing-order CRUD handlers (List, Add, Edit, SetEnabled, Remove).
-// Extracted from standing_handlers.go during Day 211 god-file refactor (#83).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane standing-order CRUD
+//             handlers (List, Add, Edit, SetEnabled, Remove). Extracted from
+//             standing_handlers.go during Day 211 god-file refactor (#83). Public
+//             API unchanged.
 
 import (
 	"encoding/json"

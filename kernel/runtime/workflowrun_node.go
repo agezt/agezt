@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Per-node dispatchers: execWorkflowNode + execPipelineNode + copyWorkflowData.
-// Code extracted from workflowrun.go during the Day-47 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Per-node dispatchers: execWorkflowNode + execPipelineNode +
+//             copyWorkflowData. Code extracted from workflowrun.go during the Day-47
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -17,7 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/workflow"
 )
-
 
 func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.Node, w workflow.Workflow, data map[string]any, payload any) (any, string, error) {
 	switch n.Type {

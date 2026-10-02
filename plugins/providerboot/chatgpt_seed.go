@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// ChatGPT provider-boot: SeedChatGPTCatalog + SyncChatGPTCatalog (the
-// public seeding entry points) + writeChatGPTEntry + sameModelIDs (the
-// writer + equality check).
-// Extracted from chatgpt.go during the Day-207 god-file split.
-// Public API unchanged.
 package providerboot
+
+// Provenance: SPDX-License-Identifier: MIT ChatGPT provider-boot: SeedChatGPTCatalog
+//             + SyncChatGPTCatalog (the public seeding entry points) +
+//             writeChatGPTEntry + sameModelIDs (the writer + equality check).
+//             Extracted from chatgpt.go during the Day-207 god-file split. Public
+//             API unchanged.
 
 import (
 	"time"
@@ -82,4 +81,3 @@ func sameModelIDs(stored map[string]*catalog.Model, ids []string) bool {
 	}
 	return true
 }
-

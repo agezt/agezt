@@ -9,11 +9,11 @@ package workboard
 import (
 	"errors"
 	"fmt"
-	"strings"
-	"time"
 	"github.com/agezt/agezt/kernel/jsonstore"
 	"github.com/agezt/agezt/kernel/proof"
 	"github.com/agezt/agezt/kernel/ulid"
+	"strings"
+	"time"
 )
 
 func OpenStore(dir string) (*Store, error) {

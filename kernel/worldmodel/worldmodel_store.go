@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Package worldmodel: FileStore method implementations — PutEntity +
-// GetEntity + AllEntities + PutRelation + GetRelation + AllRelations +
-// Count + Close + snapshotLocked. The content-addressing + soft-delete
-// (Tombstoned + SupersededBy) + per-write snapshot lives here. Extracted
-// from worldmodel.go during the Day-211 god-file split. Public API
-// unchanged.
 package worldmodel
 
+// Provenance: Package worldmodel: FileStore method implementations — PutEntity +
+//             GetEntity + AllEntities + PutRelation + GetRelation + AllRelations +
+//             Count + Close + snapshotLocked. The content-addressing + soft-delete
+//             (Tombstoned + SupersededBy) + per-write snapshot lives here. Extracted
+//             from worldmodel.go during the Day-211 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"
 	"strings"
 )
+
 func (s *FileStore) PutEntity(e Entity) error {
 	if e.ID == "" {
 		return errors.New("worldmodel: entity id required")

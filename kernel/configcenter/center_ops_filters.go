@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// configcenter: rating + audit/log + filter helpers (filterEntriesForAgent,
-// entryVisibleToAgent, UpdateRating, SetOverride, GetAuditLog, ListEntries,
-// ListByRating, AccessLog, AuditLog, Stats, GetAutoRating, ParseRating).
-// Split from center_ops.go during Day 211 god-file refactor (#45).
-// Public API unchanged.
 package configcenter
+
+// Provenance: configcenter: rating + audit/log + filter helpers
+//             (filterEntriesForAgent, entryVisibleToAgent, UpdateRating,
+//             SetOverride, GetAuditLog, ListEntries, ListByRating, AccessLog,
+//             AuditLog, Stats, GetAutoRating, ParseRating). Split from center_ops.go
+//             during Day 211 god-file refactor (#45). Public API unchanged.
 
 import (
 	"fmt"
@@ -81,7 +82,6 @@ func (c *Center) GetAuditLog(opts AuditQuery) []*AuditEntry {
 	return c.auditLog.Query(opts)
 }
 
-
 // ListEntries returns all config entries (admin use).
 func (c *Center) ListEntries() []*ConfigEntry {
 	return c.store.List()
@@ -142,7 +142,6 @@ func (c *Center) Stats() map[string]any {
 func (c *Center) GetAutoRating(key, value string) Rating {
 	return c.classifier.Classify(key, value)
 }
-
 
 // ParseRating parses a rating string and returns the Rating or an error.
 func ParseRating(s string) (Rating, error) {

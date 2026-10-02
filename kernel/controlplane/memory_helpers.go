@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-// Memory helpers: recordView + jsonMap + registerMemoryCommands.
-// Code extracted from memory.go during the Day-61 god-file split. Public API unchanged.
 package controlplane
 
+// Provenance: Memory helpers: recordView + jsonMap + registerMemoryCommands. Code
+//             extracted from memory.go during the Day-61 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/memory"
 	"time"
 )
-
 
 func recordView(r memory.Record) map[string]any {
 	v := map[string]any{

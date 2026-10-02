@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package standing implements the standing-order model and store
-// (SPEC-16 §4). This file holds the declarations: TriggerType /
-// Trigger / InitiativeMode / Initiative / Order / Store types + consts
-// + ErrNotFound + Validate. Split from standing.go during Day 211
-// god-file refactor (#47). Public API unchanged.
 package standing
+
+// Provenance: Package standing implements the standing-order model and store
+//             (SPEC-16 §4). This file holds the declarations: TriggerType / Trigger
+//             / InitiativeMode / Initiative / Order / Store types + consts +
+//             ErrNotFound + Validate. Split from standing.go during Day 211 god-file
+//             refactor (#47). Public API unchanged.
 
 import (
 	"errors"
@@ -14,7 +15,6 @@ import (
 	"sync"
 	"time"
 )
-
 
 // TriggerType enumerates what can activate a standing order's evaluation.
 type TriggerType string
@@ -42,7 +42,6 @@ const (
 	InitiativeAsk        InitiativeMode = "ask"
 	InitiativeActOrAsk   InitiativeMode = "act_or_ask"
 )
-
 
 // Initiative bounds autonomous action within an order.
 type Initiative struct {

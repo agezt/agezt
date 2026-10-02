@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/market public types (PackSkill, Signature, Pack, MarketplaceEntry,
-// Marketplace, InstalledPack) + consts/var declarations (FormatVersion,
-// MarketplaceOfficial, nameRe, semverRe) + top-level functions (SkillSummary,
-// safeRelPath).
-// Extracted from market.go during Day 211 god-file refactor (#87).
-// Public API unchanged.
 package market
+
+// Provenance: SPDX-License-Identifier: MIT kernel/market public types (PackSkill,
+//             Signature, Pack, MarketplaceEntry, Marketplace, InstalledPack) +
+//             consts/var declarations (FormatVersion, MarketplaceOfficial, nameRe,
+//             semverRe) + top-level functions (SkillSummary, safeRelPath). Extracted
+//             from market.go during Day 211 god-file refactor (#87). Public API
+//             unchanged.
 
 import (
 	"fmt"

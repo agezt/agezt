@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Sub-agent prompt/budget injection: subAgentInjectedSystem + subAgentSpendMicrocents.
-// Code extracted from subagent.go during the Day-40 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Sub-agent prompt/budget injection: subAgentInjectedSystem +
+//             subAgentSpendMicrocents. Code extracted from subagent.go during the
+//             Day-40 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/skill"
 )
-
 
 func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string, string) {
 	directive := skill.ParseActivationDirective(intent)

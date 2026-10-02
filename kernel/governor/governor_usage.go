@@ -13,7 +13,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
-
 func (g *Governor) recordUsage(p *ProviderInfo, req agent.CompletionRequest, resp *agent.CompletionResponse) {
 	model := resp.Usage.Model
 	if model == "" {

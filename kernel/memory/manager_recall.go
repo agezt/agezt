@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-// Memory retrieval + lifecycle: Recall/RecallScoped,
-// Forget, Promote, Supersede, Get/Active/All/Count,
-// Search/SearchScoped. The maintenance surface
-// (HygieneStats struct + Hygiene + Prune) lives in
-// manager_hygiene.go. Code extracted from manager.go
-// during the Day-44 god-file split. Public API unchanged.
 package memory
+
+// Provenance: Memory retrieval + lifecycle: Recall/RecallScoped, Forget, Promote,
+//             Supersede, Get/Active/All/Count, Search/SearchScoped. The maintenance
+//             surface (HygieneStats struct + Hygiene + Prune) lives in
+//             manager_hygiene.go. Code extracted from manager.go during the Day-44
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
-
 
 // Recall ranks usable records against query and journals a memory.retrieved
 // event (under corr) when anything matched, so `agt why` shows exactly what

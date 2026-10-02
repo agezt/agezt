@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// agt standing command: Add/SetEnabled/Remove mutators.
-// Code extracted from standing.go during the Day-106 god-file split.
-// Public API unchanged.
 package main
 
+// Provenance: agt standing command: Add/SetEnabled/Remove mutators. Code extracted
+//             from standing.go during the Day-106 god-file split. Public API
+//             unchanged.
 
 import (
 	"context"

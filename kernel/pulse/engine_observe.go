@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Pulse engine observation: PendingAsks + ResolveAsk + tickOnce + AddObserver + RemoveObserver + safePoll + FlushDigest + safeFlushDigest.
-// Code extracted from engine.go during the Day-54 god-file split. Public API unchanged.
 package pulse
 
+// Provenance: Pulse engine observation: PendingAsks + ResolveAsk + tickOnce +
+//             AddObserver + RemoveObserver + safePoll + FlushDigest +
+//             safeFlushDigest. Code extracted from engine.go during the Day-54
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -12,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/ulid"
 )
-
 
 // PendingAsks returns the queued asks awaiting an operator verdict (M1001), newest
 // first, as plain maps the control plane can return without importing this package.

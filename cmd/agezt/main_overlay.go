@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Policy-overlay + snapshot-path helpers (replayPolicyOverlay,
-// overlaySnapshotPath). Extracted from main_overlay.go during Day 211
-// god-file refactor (#43, #56). Public API unchanged.
 package main
+
+// Provenance: Policy-overlay + snapshot-path helpers (replayPolicyOverlay,
+//             overlaySnapshotPath). Extracted from main_overlay.go during Day 211
+//             god-file refactor (#43, #56). Public API unchanged.
 
 import (
 	"encoding/json"

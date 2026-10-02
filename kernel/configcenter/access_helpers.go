@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// access_helpers.go: resolvePolicy / checkRateLimit / requestHITLApproval /
-// maskValue / HashValue split off from access.go during the Day 211 god-file
-// refactor (#135). Public API unchanged.
 package configcenter
+
+// Provenance: access_helpers.go: resolvePolicy / checkRateLimit /
+//             requestHITLApproval / maskValue / HashValue split off from access.go
+//             during the Day 211 god-file refactor (#135). Public API unchanged.
 
 import (
 	"context"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 )
-
 
 // resolvePolicy determines the effective policy for an entry.
 func (ap *AccessPolicy) resolvePolicy(entry *ConfigEntry, rating Rating) Policy {

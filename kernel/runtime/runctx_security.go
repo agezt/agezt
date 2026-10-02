@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-// Run context security: WithAutoApproveCapabilities + mergeAutoApproveCapabilities + autoApproveCap + ParsePromptInjectionMode + WithTrustedObservations + trustedObservations.
-// Code extracted from runctx.go during the Day-69 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Run context security: WithAutoApproveCapabilities +
+//             mergeAutoApproveCapabilities + autoApproveCap +
+//             ParsePromptInjectionMode + WithTrustedObservations +
+//             trustedObservations. Code extracted from runctx.go during the Day-69
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
 	"strings"
 )
-
 
 // WithAutoApproveCapabilities marks a set of capabilities to auto-grant when
 // the policy would otherwise prompt for HITL approval, for THIS run and every

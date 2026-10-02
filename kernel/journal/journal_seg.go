@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Journal segments: openCurrent + scanSegment + segmentPath + listSegments + rangeCompleteLines.
-// Code extracted from journal.go during the Day-60 god-file split. Public API unchanged.
 package journal
 
+// Provenance: Journal segments: openCurrent + scanSegment + segmentPath +
+//             listSegments + rangeCompleteLines. Code extracted from journal.go
+//             during the Day-60 god-file split. Public API unchanged.
 
 import (
 	"bufio"
@@ -17,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 )
-
 
 func (j *Journal) openCurrent(appendMode bool) error {
 	flag := os.O_WRONLY | os.O_CREATE

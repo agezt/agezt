@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package agent: loop ↔ policy-engine contract (PolicyVerdict + Policy).
-// Extracted from agent_context.go during the Day-211 god-file split.
-// Public API unchanged.
 package agent
 
+// Provenance: Package agent: loop ↔ policy-engine contract (PolicyVerdict + Policy).
+//             Extracted from agent_context.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"

@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Package contextselect: scoring helpers (TokenCost + Freshness + Risk +
-// skillConfidence + emptyAs).
-// Extracted from context.go during Day 211 god-file refactor (#71).
-// Public API unchanged.
 package contextselect
+
+// Provenance: SPDX-License-Identifier: MIT Package contextselect: scoring helpers
+//             (TokenCost + Freshness + Risk + skillConfidence + emptyAs). Extracted
+//             from context.go during Day 211 god-file refactor (#71). Public API
+//             unchanged.
 
 import (
 	"strings"

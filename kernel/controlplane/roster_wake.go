@@ -255,4 +255,3 @@ func (s *Server) applyAgentResolution(p roster.Profile, resolution, summary stri
 		return appliedAgentResolution{}, nil
 	}
 }
-

@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-
 // TaskModelOverrides maps a task-type hint to a model id that
 // replaces CompletionRequest.Model when the task type matches
 // (M1.ll). Lets operators pin cheap models for low-stakes work

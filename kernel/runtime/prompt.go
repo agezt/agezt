@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Prompt construction: the agent-profile + tasks section + firstSentence utility.
-// The context-injection helpers live in prompt_context.go; the environment +
-// shell section lives in prompt_environment.go.
-// Extracted from prompt.go during the Day-203 god-file split.
-// Public API unchanged.
 package runtime
+
+// Provenance: Prompt construction: the agent-profile + tasks section + firstSentence
+//             utility. The context-injection helpers live in prompt_context.go; the
+//             environment + shell section lives in prompt_environment.go. Extracted
+//             from prompt.go during the Day-203 god-file split. Public API
+//             unchanged.
 
 import (
 	"strings"

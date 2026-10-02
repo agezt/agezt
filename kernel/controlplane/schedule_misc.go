@@ -8,10 +8,10 @@ package controlplane
 // schedule.go during the Day 32 god file split #1.
 
 import (
-	"net"
-	"strings"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/roster"
+	"net"
+	"strings"
 )
 
 func (s *Server) handleScheduleSystemTasks(conn net.Conn, req Request) {
@@ -148,4 +148,3 @@ func (s *Server) scheduleFrequencyWarning(e cadence.Entry) string {
 }
 
 type errString string
-

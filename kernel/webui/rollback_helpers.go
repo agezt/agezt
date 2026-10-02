@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// rollback_helpers.go: 10 supporting helpers split off from rollback.go during
-// the Day 211 god-file refactor (#138). Public API unchanged.
 package webui
+
+// Provenance: rollback_helpers.go: 10 supporting helpers split off from rollback.go
+//             during the Day 211 god-file refactor (#138). Public API unchanged.
 
 import (
 	"context"

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Anthropic streaming: CompleteStream + encodeStreamRequest + streamState + openBlock + parseStream.
-// Code extracted from streaming.go during the Day-135 god-file split.
-// Public API unchanged.
 package anthropic
 
+// Provenance: Anthropic streaming: CompleteStream + encodeStreamRequest +
+//             streamState + openBlock + parseStream. Code extracted from
+//             streaming.go during the Day-135 god-file split. Public API unchanged.
 
 import (
 	"bufio"
@@ -23,7 +23,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 	"net/http"
 )
-
 
 // CompleteStream implements agent.StreamingProvider. It POSTs to the
 // Messages endpoint with stream=true and parses the SSE stream into

@@ -9,12 +9,11 @@ package workboard
 
 import (
 	"fmt"
-	"strings"
-	"time"
 	"github.com/agezt/agezt/kernel/proof"
 	"github.com/agezt/agezt/kernel/ulid"
+	"strings"
+	"time"
 )
-
 
 func FailedAttemptCount(t Task) int {
 	n := 0
@@ -171,4 +170,3 @@ func cloneTask(t Task) Task {
 	}
 	return t
 }
-

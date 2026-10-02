@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// ChatGPT provider-boot: chatgptTokenFn + newChatGPTProvider (the token
-// function + factory) + buildChatGPTPrimary + registerChatGPTAlternate
-// (the primary + alternate providers).
-// Extracted from chatgpt.go during the Day-207 god-file split.
-// Public API unchanged.
 package providerboot
+
+// Provenance: SPDX-License-Identifier: MIT ChatGPT provider-boot: chatgptTokenFn +
+//             newChatGPTProvider (the token function + factory) +
+//             buildChatGPTPrimary + registerChatGPTAlternate (the primary +
+//             alternate providers). Extracted from chatgpt.go during the Day-207
+//             god-file split. Public API unchanged.
 
 import (
 	"context"

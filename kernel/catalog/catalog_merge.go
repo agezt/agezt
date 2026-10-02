@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-// Catalog merge + serialization: Merge, ParseAPIFile, MarshalAPI.
-// Code extracted from types.go during the Day-57 god-file split. Public API unchanged.
 package catalog
 
+// Provenance: Catalog merge + serialization: Merge, ParseAPIFile, MarshalAPI. Code
+//             extracted from types.go during the Day-57 god-file split. Public API
+//             unchanged.
 
 import (
 	"encoding/json"
 	"fmt"
 )
-
 
 func (dst *Catalog) Merge(src *Catalog) {
 	for id, sp := range src.Providers {

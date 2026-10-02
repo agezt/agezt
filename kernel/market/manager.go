@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Package market is the marketplace manager for skill/MCP packs.
-//
-// This file holds the manager surface: the Library / SkillInstaller /
-// MCPInstaller / skillQuarantiner / mcpRemover contracts + the Manager +
-// Config types + NewManager + the source-registry operations
-// (Sources + AddSource + RemoveSource + Sync).
-// The listing + install + uninstall path lives in manager_ops.go.
-//
-// Extracted from manager.go during the Day-208 god-file split.
-// Public API unchanged.
 package market
+
+// Provenance: Package market is the marketplace manager for skill/MCP packs. This
+//             file holds the manager surface: the Library / SkillInstaller /
+//             MCPInstaller / skillQuarantiner / mcpRemover contracts + the Manager +
+//             Config types + NewManager + the source-registry operations (Sources +
+//             AddSource + RemoveSource + Sync). The listing + install + uninstall
+//             path lives in manager_ops.go. Extracted from manager.go during the
+//             Day-208 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -158,4 +156,3 @@ func (m *Manager) Sync(ctx context.Context, name string) ([]SyncResult, error) {
 	}
 	return out, firstErr
 }
-

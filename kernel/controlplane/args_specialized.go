@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/controlplane request-arg specialised helpers (argLimit, argDryRun, argFlag).
-// Extracted from args.go during Day 211 god-file refactor (#99).
-// Public API unchanged.
 package controlplane
+
+// Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg
+//             specialised helpers (argLimit, argDryRun, argFlag). Extracted from
+//             args.go during Day 211 god-file refactor (#99). Public API unchanged.
 
 import (
 	"fmt"

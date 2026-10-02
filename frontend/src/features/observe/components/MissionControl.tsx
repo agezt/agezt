@@ -30,7 +30,8 @@ interface MissionPulse {
   daemonCommit?: string;
 }
 
-function usePulse(): MissionPulse {
+function usePulse(): MissionPulse & { error: string | null } {
+  const [err, setErr] = useState<string | null>(null);
   const [p, setP] = useState<MissionPulse>({
     eventsPerSec: 0,
     running: 0,
@@ -50,6 +51,7 @@ function usePulse(): MissionPulse {
           getJSON<{ version?: string; revision?: string }>("/api/status", {}),
         ]);
         if (stop) return;
+        setErr(null);
         setP({
           eventsPerSec: 0, // backfilled below from the live event hook
           running: runs.runs?.filter((r) => r.status === "running").length ?? 0,
@@ -59,8 +61,13 @@ function usePulse(): MissionPulse {
           version: status.version || "—",
           daemonCommit: status.revision?.slice(0, 8),
         });
-      } catch {
-        /* daemon offline — leave the stub */
+      } catch (e) {
+        // Kept the previous values rather than zeroing them, which is right for a
+        // transient blip and wrong for a real outage: the numbers stayed at their
+        // stub values and the screen read as a healthy system with zeroes in it.
+        // This is the cockpit — the one page an operator opens to ask whether
+        // anything is wrong — so an unread pulse has to say so.
+        if (!stop) setErr((e as Error).message);
       }
     }
     void load();
@@ -70,7 +77,7 @@ function usePulse(): MissionPulse {
       clearInterval(t);
     };
   }, []);
-  return p;
+  return { ...p, error: err };
 }
 
 function useRecentEvents() {
@@ -110,6 +117,7 @@ function useSpendToday() {
 
 function useAttentionQueue() {
   const [items, setItems] = useState<{ id: string; kind: string; summary: string; ts: number }[]>([]);
+  const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     let stop = false;
     async function load() {
@@ -118,9 +126,14 @@ function useAttentionQueue() {
           "/api/attention",
           { window: "5m" },
         );
-        if (!stop) setItems(r.items || []);
-      } catch {
-        /* ignore */
+        if (!stop) {
+          setErr(null);
+          setItems(r.items || []);
+        }
+      } catch (e) {
+        // Same reasoning as usePulse: an unread queue is not an empty queue, and
+        // this one says "nothing requires your eyes" when it has nothing.
+        if (!stop) setErr((e as Error).message);
       }
     }
     void load();
@@ -130,7 +143,7 @@ function useAttentionQueue() {
       clearInterval(t);
     };
   }, []);
-  return items;
+  return { items, error: err };
 }
 
 export default function MissionControl() {
@@ -148,6 +161,12 @@ export default function MissionControl() {
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <main className="space-y-4">
+        {pulse.error && (
+          <p className="rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad" role="alert">
+            The daemon could not be reached: {pulse.error}. The numbers below are the last values
+            this page read, not a current reading.
+          </p>
+        )}
         <section className="glass rounded-2xl p-4">
           <header className="flex flex-wrap items-baseline gap-3">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -172,11 +191,16 @@ export default function MissionControl() {
               last 5 minutes
             </span>
           </h3>
-          {attention.length === 0 ? (
+          {attention.error ? (
+            <p className="mt-2 text-sm text-muted">
+              The attention queue could not be read, so this is not a statement that nothing needs
+              you.
+            </p>
+          ) : attention.items.length === 0 ? (
             <p className="mt-2 text-sm text-muted">Nothing requires your eyes. The system is running cleanly.</p>
           ) : (
             <ul className="mt-3 space-y-1.5">
-              {attention.map((a) => (
+              {attention.items.map((a) => (
                 <li key={a.id} className="flex items-start gap-2 rounded-md border border-border/40 bg-card/30 px-2 py-1.5 text-sm">
                   <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
                   <span className="min-w-0 flex-1 truncate text-foreground/90">{a.summary}</span>

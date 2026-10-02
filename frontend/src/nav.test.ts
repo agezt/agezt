@@ -104,7 +104,6 @@ describe("operator-job navigation", () => {
     const FAMILIAR: Record<string, string> = {
       mission: "Mission Control",
       feed: "Live Stream",
-      activity: "Activity",
       agents: "Agents",
       roster: "Roster",
       connections: "Connections",
@@ -145,7 +144,7 @@ describe("operator-job navigation", () => {
       chat: ["chat", "talk"],
       voice: ["voice"],
       overview: ["mission", "live", "monitor", "stream"], // row labelled "Monitor"
-      runs: ["run", "activity", "replay"],
+      runs: ["run"],
       workflows: ["workflow"],
       triggers: ["schedule", "cron", "standing"],
       autonomy: ["autonomy"],
@@ -167,7 +166,6 @@ describe("operator-job navigation", () => {
       integrations: ["mcp", "acp", "connection"],
       setup: ["setup"],
       configcenter: ["config"],
-      identity: ["prompt"],
       backups: ["backup", "rollback"],
     };
     // The acceptable list above is the ONLY way to ship an alias-by-design;
@@ -254,4 +252,54 @@ describe("operator-job navigation", () => {
       expect(id.length).toBeGreaterThan(0);
     }
   });
+
+  // 2026-10-01. Every other test in this file asks whether a row's LABEL
+  // matches the title its render would show. None of them asks whether two rows
+  // open the same page — and three did:
+  //
+  //   Observe › Runs › Activity  ─┐
+  //   Observe › Runs › Replay    ─┼─ all three rendered the Runs component
+  //   Observe › Runs             ─┘
+  //   Admin › Identity ─────────┬─ rendered the Skills component, which the
+  //   Agents › Skills ──────────┘   Skills row beside it also rendered
+  //
+  // App instantiates the active view as `const View = current.render`, with no
+  // props — so a component cannot tell which entry it was reached through, and
+  // every one of those clicks produced a byte-identical screen. The label gate
+  // above passed all of them, because "Activity" and "Skills" each shared a root
+  // word with their render's title.
+  //
+  // Reference equality catches the whole class: an alias and a duplicate render
+  // are the same object, whether it arrives as `const A = B` or as two entries
+  // naming one component.
+  it("never renders the same component from two nav entries", () => {
+    const seen = new Map<unknown, string[]>();
+    for (const group of NAV_GROUPS) {
+      for (const row of group.rows) {
+        for (const view of row.views) {
+          const key = `${row.id}/${view.id}`;
+          const prior = seen.get(view.render) ?? [];
+          prior.push(key);
+          seen.set(view.render, prior);
+        }
+      }
+    }
+    const duplicates = [...seen.entries()]
+      .filter(([, keys]) => keys.length > 1)
+      .map(([render, keys]) => `${keys.join(" and ")} (both ${nameOf(render)})`);
+    expect(
+      duplicates,
+      "two nav entries render one component. App passes the view no props, so the\n" +
+        "component cannot tell them apart and the clicks are indistinguishable.\n" +
+        "Retire one of them and alias its id (see VIEW_ALIASES), the way Day 28\n" +
+        "did for Health, Alerts, Wizards and Storage.",
+    ).toEqual([]);
+  });
 });
+
+// Named nameOf, not describe: a module-scope `describe` would shadow the vitest
+// import and silently register no suite at all.
+function nameOf(v: unknown): string {
+  const name = (v as { displayName?: string; name?: string })?.displayName || (v as { name?: string })?.name;
+  return typeof name === "string" && name ? name : "anonymous component";
+}

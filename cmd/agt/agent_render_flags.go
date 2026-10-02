@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt agent flag parsing + application helpers (parseNonNegativeFlag,
-// applyAgentPolicyFlags, applyAgentAdvancedFlags, taskScope, parseConfigOverrides,
-// objectMap, stringList, splitList). Extracted from agent_render.go during
-// Day 211 god-file refactor (#53). Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt agent flag parsing + application
+//             helpers (parseNonNegativeFlag, applyAgentPolicyFlags,
+//             applyAgentAdvancedFlags, taskScope, parseConfigOverrides, objectMap,
+//             stringList, splitList). Extracted from agent_render.go during Day 211
+//             god-file refactor (#53). Public API unchanged.
 
 import (
 	"fmt"

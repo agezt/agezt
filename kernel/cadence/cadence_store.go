@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Cadence store: OpenStore + Add variants (Add/AddDaily/AddOnce/AddContinuous/AddWindow) + SetEnabled + validateWindow.
-// Code extracted from cadence_store.go during the Day-58 god-file split. Public API unchanged.
 package cadence
 
+// Provenance: Cadence store: OpenStore + Add variants
+//             (Add/AddDaily/AddOnce/AddContinuous/AddWindow) + SetEnabled +
+//             validateWindow. Code extracted from cadence_store.go during the Day-58
+//             god-file split. Public API unchanged.
 
 import (
 	"fmt"
@@ -12,8 +14,6 @@ import (
 	"strings"
 	"time"
 )
-
-
 
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{}

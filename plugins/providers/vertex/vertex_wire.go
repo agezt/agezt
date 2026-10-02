@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-// Vertex provider: the Provider implementation (New + Complete +
-// ResolveEndpoint + APIError + Err*). The wire/JSON types
-// (vxRequest, vxGenConfig, vxThinkingConfig, vxContent, vxPart,
-// vxInlineData, vxFunctionCall, vxFunctionResponse, vxTool,
-// vxFunctionDecl, vxResponse, vxCandidate, vxUsageMetadata +
-// vxGenConfig.applyParams) live in vertex_wire_types.go. Code
-// extracted from vertex.go during the Day-110 god-file split.
-// Public API unchanged.
 package vertex
+
+// Provenance: Vertex provider: the Provider implementation (New + Complete +
+//             ResolveEndpoint + APIError + Err*). The wire/JSON types (vxRequest,
+//             vxGenConfig, vxThinkingConfig, vxContent, vxPart, vxInlineData,
+//             vxFunctionCall, vxFunctionResponse, vxTool, vxFunctionDecl,
+//             vxResponse, vxCandidate, vxUsageMetadata + vxGenConfig.applyParams)
+//             live in vertex_wire_types.go. Code extracted from vertex.go during the
+//             Day-110 god-file split. Public API unchanged.
 
 import (
 	"bytes"
@@ -24,7 +24,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
-
 
 const (
 	// DefaultAPIVersion is the Vertex AI REST API version path segment.

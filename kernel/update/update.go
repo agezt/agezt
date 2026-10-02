@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Update core: constants + types (Config, Service, Source, UpdateInfo) + New + Check + CheckInterval + DrainTimeout.
-// Code extracted from update.go during the Day-55 god-file split. Public API unchanged.
 package update
 
+// Provenance: Update core: constants + types (Config, Service, Source, UpdateInfo) +
+//             New + Check + CheckInterval + DrainTimeout. Code extracted from
+//             update.go during the Day-55 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -14,8 +15,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/netguard"
 )
-
-
 
 // Source specifies where to fetch update metadata.
 type Source int

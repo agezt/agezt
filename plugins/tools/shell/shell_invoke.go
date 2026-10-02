@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Package shell: Invoke (the execution router — SSH/K8s/Modal/Daytona overrides
-// plus the default profile path). Extracted from shell.go during the
-// Day-211 god-file split. Public API unchanged.
 package shell
 
+// Provenance: Package shell: Invoke (the execution router — SSH/K8s/Modal/Daytona
+//             overrides plus the default profile path). Extracted from shell.go
+//             during the Day-211 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
+
 func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
 	var in shellInput
 	if err := json.Unmarshal(raw, &in); err != nil {

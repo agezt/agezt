@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: MIT
-//
-// kernel/delegation depth-tracking context helpers (DepthFromCtx, WithDepth).
-// Extracted from delegation.go during Day 211 god-file refactor (#90).
-// Public API unchanged.
 package delegation
+
+// Provenance: SPDX-License-Identifier: MIT kernel/delegation depth-tracking context
+//             helpers (DepthFromCtx, WithDepth). Extracted from delegation.go during
+//             Day 211 god-file refactor (#90). Public API unchanged.
 
 import (
 	"context"

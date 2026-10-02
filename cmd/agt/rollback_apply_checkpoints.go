@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Package main: per-domain rollback-checkpoint savers + helpers (skill status
-// / workflow snapshot / config setting — save + fetch + new each) +
-// rollbackCheckpointID + validateSkillStatusCheckpointAction. Extracted from
-// rollback_apply.go during the Day-211 god-file split. Public API unchanged.
 package main
 
+// Provenance: Package main: per-domain rollback-checkpoint savers + helpers (skill
+//             status / workflow snapshot / config setting — save + fetch + new each)
+//             + rollbackCheckpointID + validateSkillStatusCheckpointAction.
+//             Extracted from rollback_apply.go during the Day-211 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"

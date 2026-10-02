@@ -17,7 +17,6 @@ import (
 // required by the interface, plus a recorder for the bus.Publish
 // calls so the Halt/Resume-with-reason paths can be asserted.
 type fakeKernel struct {
-	mu         sync.Mutex
 	halted     bool
 	runs       map[string]context.CancelFunc
 	runsMu     sync.Mutex
@@ -39,13 +38,13 @@ func (b *fakeBus) Publish(spec event.Spec) (*event.Event, error) {
 	return nil, nil
 }
 
-func (k *fakeKernel) Halted() bool                          { return k.halted }
-func (k *fakeKernel) SetHalted(b bool)                      { k.halted = b }
-func (k *fakeKernel) Runs() map[string]context.CancelFunc   { return k.runs }
-func (k *fakeKernel) RunsMu() *sync.Mutex                   { return &k.runsMu }
-func (k *fakeKernel) RunWG() *sync.WaitGroup                { return &k.runWG }
-func (k *fakeKernel) Suspending() *atomic.Bool              { return &k.suspending }
-func (k *fakeKernel) Suspend(reason string) int             { k.suspendN++; return 0 }
+func (k *fakeKernel) Halted() bool                        { return k.halted }
+func (k *fakeKernel) SetHalted(b bool)                    { k.halted = b }
+func (k *fakeKernel) Runs() map[string]context.CancelFunc { return k.runs }
+func (k *fakeKernel) RunsMu() *sync.Mutex                 { return &k.runsMu }
+func (k *fakeKernel) RunWG() *sync.WaitGroup              { return &k.runWG }
+func (k *fakeKernel) Suspending() *atomic.Bool            { return &k.suspending }
+func (k *fakeKernel) Suspend(reason string) int           { k.suspendN++; return 0 }
 func (k *fakeKernel) PublishBus(spec event.Spec) (*event.Event, error) {
 	return k.bus.Publish(spec)
 }

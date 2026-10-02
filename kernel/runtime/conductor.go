@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Conductor core: types + SetConductorExec + Conduct main entry.
-// Code extracted from conductor.go during the Day-76 god-file split. Public API unchanged.
 package runtime
 
+// Provenance: Conductor core: types + SetConductorExec + Conduct main entry. Code
+//             extracted from conductor.go during the Day-76 god-file split. Public
+//             API unchanged.
 
 import (
 	"context"
@@ -11,8 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"strings"
 )
-
-
 
 // CodeExecutor is the minimal slice of the code_exec tool the Verifier needs to
 // actually run a worker's code. Satisfied by *codeexec.Tool (its RunScript), but

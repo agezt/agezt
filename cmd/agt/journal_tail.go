@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 )
 
 // cmdJournalTail implements `agt journal tail [N] [--json]`.

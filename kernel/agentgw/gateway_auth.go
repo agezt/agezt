@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Agent gateway: auth + ratelimit + response helpers + first handlers.
-// Code extracted from gateway.go during the Day-84 god-file split.
-// Public API unchanged.
 package agentgw
 
+// Provenance: Agent gateway: auth + ratelimit + response helpers + first handlers.
+//             Code extracted from gateway.go during the Day-84 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"

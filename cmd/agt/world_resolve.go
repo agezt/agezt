@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// cmd/agt `world resolve` + `world neighbors` subcommands
-// (cmdWorldResolve, cmdWorldNeighbors).
-// Extracted from world.go during Day 211 god-file refactor (#80).
-// Public API unchanged.
 package main
+
+// Provenance: SPDX-License-Identifier: MIT cmd/agt `world resolve` + `world
+//             neighbors` subcommands (cmdWorldResolve, cmdWorldNeighbors). Extracted
+//             from world.go during Day 211 god-file refactor (#80). Public API
+//             unchanged.
 
 import (
 	"fmt"

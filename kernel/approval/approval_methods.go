@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// approval_methods.go owns the Registry's external surface:
-// Submit (block-until-resolved), Resolve (operator verdict),
-// and Pending (snapshot of in-flight requests). The Registry
-// constructor + every data type live in approval.go. Carved
-// out during the Day-211 god-file split. Public API unchanged.
 package approval
+
+// Provenance: approval_methods.go owns the Registry's external surface: Submit
+//             (block-until-resolved), Resolve (operator verdict), and Pending
+//             (snapshot of in-flight requests). The Registry constructor + every
+//             data type live in approval.go. Carved out during the Day-211 god-file
+//             split. Public API unchanged.
 
 import (
 	"context"

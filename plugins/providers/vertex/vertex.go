@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Vertex provider: Provider type + Complete + encode/decode roundtrip + canonicalToVertex.
-// Code extracted from vertex.go during the Day-110 god-file split.
-// Public API unchanged.
 package vertex
 
+// Provenance: Vertex provider: Provider type + Complete + encode/decode roundtrip +
+//             canonicalToVertex. Code extracted from vertex.go during the Day-110
+//             god-file split. Public API unchanged.
 
 import (
 	"errors"

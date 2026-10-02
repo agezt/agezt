@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/skill"
-	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
-	"github.com/agezt/agezt/cmd/agt/jsonout"
 )
 
 // isSkillMarkdown reports whether a path looks like an agentskills.io/ClawHub

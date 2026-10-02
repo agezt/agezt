@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: MIT
-//
-// Forge status transitions: Promote + promoteWithReason + Reassign +
-// Quarantine + quarantineLocked + Archive + RestoreStatus + Revert.
-// Extracted from forge_lifecycle.go during the Day-203 god-file split.
-// Public API unchanged.
 package skill
+
+// Provenance: SPDX-License-Identifier: MIT Forge status transitions: Promote +
+//             promoteWithReason + Reassign + Quarantine + quarantineLocked + Archive
+//             + RestoreStatus + Revert. Extracted from forge_lifecycle.go during the
+//             Day-203 god-file split. Public API unchanged.
 
 import (
 	"fmt"

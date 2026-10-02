@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Profile types + Profile methods: Profile, RetryPolicy, HealthPolicy, SelfRepairPolicy, NoisePolicy, AgentLifecycle, AgentTask, plus Kind/AllowsDirectCall/AllowsDelegationFrom and safeCall.
-// Code extracted from roster.go during the Day-45 god-file split. Public API unchanged.
 package roster
 
+// Provenance: Profile types + Profile methods: Profile, RetryPolicy, HealthPolicy,
+//             SelfRepairPolicy, NoisePolicy, AgentLifecycle, AgentTask, plus
+//             Kind/AllowsDirectCall/AllowsDelegationFrom and safeCall. Code
+//             extracted from roster.go during the Day-45 god-file split. Public API
+//             unchanged.
 
 import (
 	"errors"
@@ -11,8 +14,6 @@ import (
 	"regexp"
 	"strings"
 )
-
-
 
 // ErrNotFound is returned for an unknown profile id/slug.
 var ErrNotFound = errors.New("roster: profile not found")

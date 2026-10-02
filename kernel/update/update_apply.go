@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// Update apply path: Apply (drain + atomic swap) + ErrChecksumMismatch + ErrSignatureInvalid + resolvePublicKey + signedMessage.
-// Code extracted from update.go during the Day-55 god-file split. Public API unchanged.
 package update
 
+// Provenance: Update apply path: Apply (drain + atomic swap) + ErrChecksumMismatch +
+//             ErrSignatureInvalid + resolvePublicKey + signedMessage. Code extracted
+//             from update.go during the Day-55 god-file split. Public API unchanged.
 
 import (
 	"context"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 )
-
 
 func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(context.Context, time.Duration) DrainResult) error {
 	// Guard against concurrent Apply calls.
