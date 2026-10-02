@@ -27,8 +27,14 @@ func TestGetDoesNotHoldTheCenterLockWhileAwaitingApproval(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _, _ = c.Get(ctx, ConfigAccessRequest{AgentID: "a1", Key: "db.replica", Reason: "test"}) }()
+	getDone := make(chan struct{})
+	// Stop the parked Get and wait for it before t.TempDir's cleanup: its
+	// audit write would otherwise race the directory's removal.
+	defer func() { cancel(); <-getDone }()
+	go func() {
+		defer close(getDone)
+		_, _ = c.Get(ctx, ConfigAccessRequest{AgentID: "a1", Key: "db.replica", Reason: "test"})
+	}()
 	deadline := time.Now().Add(3 * time.Second)
 	for reg.PendingCount() == 0 {
 		if time.Now().After(deadline) {
