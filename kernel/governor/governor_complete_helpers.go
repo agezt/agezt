@@ -206,6 +206,13 @@ func (g *Governor) callWithRetry(ctx context.Context, req agent.CompletionReques
 // text errors (no structured status crosses the plugin boundary), so this is
 // a deliberately conservative substring match — an unrecognised error falls
 // back to the next provider immediately, the historical behaviour.
+//
+// "connection refused" is deliberately NOT a marker: a refused dial can only
+// happen inside client.Do, which every provider adapter already retries with
+// backoff (plugins/providers/internal/retry, TransientError). Retrying it here
+// too multiplied the attempts (governor × adapter) and delayed the fallback a
+// dead endpoint needs. Reset/EOF stay: they can also strike while a response
+// body or stream is read, outside the adapter's retry.
 func isTransient(err error) bool {
 	if err == nil {
 		return false
@@ -217,7 +224,7 @@ func isTransient(err error) bool {
 		"500", "502", "503", "504",
 		"internal server error", "bad gateway", "service unavailable", "gateway timeout",
 		"timeout", "timed out", "deadline exceeded",
-		"connection refused", "connection reset", "broken pipe",
+		"connection reset", "broken pipe",
 		"unexpected eof", "eof",
 		"temporarily unavailable", "try again",
 	} {

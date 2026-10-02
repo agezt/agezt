@@ -160,3 +160,33 @@ func TestGovernor_StreamInterruptedIsTerminal(t *testing.T) {
 		t.Errorf("fallback calls = %d, want 0 (no fallback after output started)", got)
 	}
 }
+
+// TestGovernor_NoInPlaceRetryOfRefusedDial: a refused dial reaches the
+// governor only after the provider adapter's own retry (TransientError) gave
+// up, so it falls back immediately instead of being retried again here —
+// stacking the two layers multiplied the attempts and delayed the fallback a
+// dead endpoint (e.g. a stopped local model server) needs.
+func TestGovernor_NoInPlaceRetryOfRefusedDial(t *testing.T) {
+	b, _ := newBus(t)
+	primary := &fakeProvider{name: "p1", err: errors.New(`Post "http://127.0.0.1:11434/api/chat": dial tcp 127.0.0.1:11434: connect: connection refused`)}
+	fallback := &fakeProvider{name: "p2", resp: okResp("p2", 1, 1)}
+	r := governor.NewRegistry()
+	mustRegister(t, r,
+		&governor.ProviderInfo{Name: "p1", Provider: primary, AuthMode: governor.AuthLocal},
+		&governor.ProviderInfo{Name: "p2", Provider: fallback, IsFallback: true},
+	)
+	g, err := governor.New(governor.Config{Registry: r, Bus: b, RetryBaseDelay: time.Millisecond})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Message.Content != "ok from p2" {
+		t.Errorf("answered by %q, want the fallback", resp.Message.Content)
+	}
+	if got := primary.calls.Load(); got != 1 {
+		t.Errorf("primary calls = %d, want 1 (the adapter already retried the dial)", got)
+	}
+}
