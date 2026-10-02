@@ -43,7 +43,7 @@ func buildEmail(d channelwire.Deps) channelwire.Built {
 		From:          from,
 		Username:      strings.TrimSpace(d.Get(brand.EnvPrefix + "EMAIL_USERNAME")),
 		Password:      d.Get(brand.EnvPrefix + "EMAIL_PASSWORD"),
-		Allowlist:     channel.NewAllowlist(recipients),
+		Allowlist:     channel.NewFoldedAllowlist(recipients), // addresses compare case-insensitively
 		Bus:           d.Bus,
 		InboxAddr:     inboxAddr,
 		InboxProtocol: strings.TrimSpace(d.Get(brand.EnvPrefix + "EMAIL_INBOX_PROTOCOL")),
