@@ -4,6 +4,7 @@ package channel
 
 import (
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -122,11 +123,41 @@ func SetLive(kinds []string) {
 	live = next
 }
 
-// IsLive reports whether a channel kind is currently running.
+// IsLive reports whether a channel kind is currently running: it was started
+// AND at least one of its instances has not died since.
 func IsLive(kind string) bool {
 	mu.RLock()
 	defer mu.RUnlock()
-	return live[kind]
+	if !live[kind] {
+		return false
+	}
+	known := false
+	for key := range liveInstances {
+		if base, _, _ := strings.Cut(key, "#"); base != kind {
+			continue
+		}
+		known = true
+		if !deadInstances[key] {
+			return true
+		}
+	}
+	return !known // no instance-level record: trust the kind-level flag
+}
+
+// deadInstances holds instances whose Start returned an error or panicked
+// while the daemon was still running. Kept apart from liveInstances so a
+// channel that dies BEFORE the daemon records the live set (a port already in
+// use fails within milliseconds) is not resurrected by SetLiveInstances.
+var deadInstances = map[string]bool{}
+
+// MarkInstanceDead records that a channel instance stopped serving. The
+// Channels view, `agt status` and the notify tool's targets then stop
+// reporting it as live — they used to keep claiming a channel whose listener
+// never bound was running.
+func MarkInstanceDead(key string) {
+	mu.Lock()
+	defer mu.Unlock()
+	deadInstances[key] = true
 }
 
 // InstanceKey addresses a channel account-instance: the bare kind for the
@@ -159,5 +190,5 @@ func SetLiveInstances(keys []string) {
 func IsLiveInstance(key string) bool {
 	mu.RLock()
 	defer mu.RUnlock()
-	return liveInstances[key]
+	return liveInstances[key] && !deadInstances[key]
 }

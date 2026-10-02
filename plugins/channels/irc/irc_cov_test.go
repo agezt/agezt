@@ -344,3 +344,34 @@ func TestWriteLineClampsAndNoConn(t *testing.T) {
 	// No connection => writeLine is a no-op (early return), no panic.
 	New(Config{}).writeLine("anything")
 }
+
+// TestSessionSurvivesAPanickingHandler: one message whose handling panicked
+// used to unwind the whole session loop — and, started bare from the daemon,
+// the whole process. Each line is now guarded: the panic costs that message,
+// and the next one is still answered on the same connection.
+func TestSessionSurvivesAPanickingHandler(t *testing.T) {
+	srv := newIRCServer(t)
+	srv.serveOne(t, func(conn net.Conn) {
+		_, _ = conn.Write([]byte(":srv 001 bot :Welcome\r\n"))
+		_, _ = conn.Write([]byte(":erin!e@h PRIVMSG bot :explode\r\n"))
+		_, _ = conn.Write([]byte(":erin!e@h PRIVMSG bot :ping\r\n"))
+	})
+	ch := New(Config{
+		Server:    srv.addr(),
+		Nick:      "bot",
+		Allowlist: channel.NewAllowlist([]string{"erin"}),
+		Bus:       newBus(t),
+		Handler: func(ctx context.Context, m channel.UnifiedMessage, corr string) (channel.Reply, error) {
+			if m.Text == "explode" {
+				panic("handler bug")
+			}
+			return channel.Reply{Text: "pong"}, nil
+		},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = ch.Start(ctx) }()
+	if !srv.waitFor(func(l string) bool { return l == "PRIVMSG erin :pong" }, 2*time.Second) {
+		t.Fatal("the message after a panicking one was not answered — the session died")
+	}
+}

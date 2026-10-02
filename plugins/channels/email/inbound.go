@@ -50,7 +50,7 @@ func (c *Channel) startInbound(ctx context.Context) bool {
 				continue // transient; retry next tick
 			}
 			for _, m := range mails {
-				c.dispatchInbound(ctx, m)
+				channel.Guard(c.bus, "email", func() { c.dispatchInbound(ctx, m) })
 			}
 		}
 	}

@@ -129,7 +129,7 @@ func (c *Channel) poll(ctx context.Context) {
 		if n.ID > c.since {
 			c.since = n.ID
 		}
-		c.dispatch(ctx, n)
+		channel.Guard(c.bus, "mastodon", func() { c.dispatch(ctx, n) })
 	}
 }
 

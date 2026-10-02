@@ -135,7 +135,7 @@ func (c *Channel) session(ctx context.Context) error {
 		if rerr != nil {
 			return rerr
 		}
-		c.handleLine(ctx, strings.TrimRight(line, "\r\n"))
+		channel.Guard(c.cfg.Bus, c.Name(), func() { c.handleLine(ctx, strings.TrimRight(line, "\r\n")) })
 	}
 }
 

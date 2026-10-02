@@ -1190,7 +1190,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if label == "" {
 			label = m.Kind
 		}
-		startInstances(ctx, stdout, m.Kind, label, m.DisabledHint, insts)
+		startInstances(ctx, k.Bus(), stdout, stderr, m.Kind, label, m.DisabledHint, insts)
 		allInsts = append(allInsts, insts)
 	}
 	channelSinks := combineSinks(instanceSinks(allInsts...)...)
