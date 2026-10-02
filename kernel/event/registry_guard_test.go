@@ -16,9 +16,7 @@ import (
 )
 
 // reservedKinds are declared with no emitter yet, each with a recorded reason.
-var reservedKinds = map[string]string{
-	"KindConfigAccess": "configcenter audits to its own file; journaling it is W1.8",
-}
+var reservedKinds = map[string]string{}
 
 // productionGoFiles returns the module's non-test .go files outside this package.
 func productionGoFiles(t *testing.T) map[string][]byte {

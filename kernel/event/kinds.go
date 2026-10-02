@@ -235,10 +235,8 @@ const (
 	KindApprovalDenied    Kind = "approval.denied"
 	KindApprovalTimeout   Kind = "approval.timeout"
 
-	// Config Center (config.access, rating-based access control). RESERVED:
-	// nothing emits it yet — kernel/configcenter writes its access audit to its
-	// own file, outside the hash-chained journal. Journaling it is W1.8
-	// (architecture/21), which folds configcenter into platform/config.
+	// Config Center (config.access, rating-based access control): every
+	// agent read of a config value, with the decision — never the value.
 	KindConfigAccess Kind = "config.access"
 
 	// Scheduler / DAG (SPEC-02 §4; TASKS P1-SCHED-*).

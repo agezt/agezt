@@ -371,6 +371,7 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: configcenter", err)
 	}
 	closers = append(closers, configCenter)
+	configCenter.SetBus(kbus) // config reads are part of the audit chain
 	// Wire approval registry for HITL support
 	if apr != nil {
 		configCenter.SetApprovalRegistry(apr)
