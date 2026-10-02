@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 const remoteEventMirrorResponseLimit = 4 << 20
@@ -34,7 +35,7 @@ func fetchRemoteEvents(ctx context.Context, p nodePeer, corr, mode string) ([]ma
 	if p.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netout.OperatorClient(0).Do(req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -101,7 +102,7 @@ func fetchRemoteArtifacts(ctx context.Context, p nodePeer, corr string) ([]map[s
 	if p.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netout.OperatorClient(0).Do(req)
 	if err != nil {
 		return nil, false, err
 	}

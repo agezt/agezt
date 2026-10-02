@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
@@ -39,7 +40,7 @@ type Client struct {
 
 // New constructs a Client with the default HTTP timeout.
 func New(baseURL, model, apiKey string) *Client {
-	return &Client{BaseURL: baseURL, Model: model, APIKey: apiKey, HTTP: &http.Client{Timeout: DefaultTimeout}}
+	return &Client{BaseURL: baseURL, Model: model, APIKey: apiKey, HTTP: netout.OperatorClient(DefaultTimeout)}
 }
 
 // HasRerank reports whether the client is configured enough to rerank.
@@ -102,7 +103,7 @@ func (c *Client) Rerank(ctx context.Context, query string, documents []string, t
 	}
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: DefaultTimeout}
+		client = netout.OperatorClient(DefaultTimeout)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultBaseURL is the public Bot API root.
@@ -61,7 +62,7 @@ func New(cfg Config) *Channel {
 	if client == nil {
 		// Timeout must exceed the long-poll window so getUpdates isn't
 		// cut off mid-poll.
-		client = &http.Client{Timeout: 60 * time.Second}
+		client = netout.OperatorClient(60 * time.Second)
 	}
 	poll := cfg.PollTimeoutSecs
 	if poll <= 0 {

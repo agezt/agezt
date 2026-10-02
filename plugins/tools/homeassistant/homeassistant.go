@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultTimeout caps a single HA request.
@@ -56,7 +57,7 @@ func (t *Tool) client() *http.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	return &http.Client{Timeout: DefaultTimeout}
+	return netout.OperatorClient(DefaultTimeout)
 }
 
 // Definition implements toolapi.Tool. The description names which axes are enabled

@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 func sign(secret string, body []byte) string {
@@ -143,7 +144,7 @@ func (r ProbeResult) OK() bool { return r.Err == "" && r.Status >= 200 && r.Stat
 // be nil (a DefaultTimeout client is used).
 func Probe(ctx context.Context, sink Sink, now time.Time, client *http.Client) ProbeResult {
 	if client == nil {
-		client = &http.Client{Timeout: DefaultTimeout}
+		client = netout.OperatorClient(DefaultTimeout)
 	}
 	subject := sink.Subject
 	if subject == "" {

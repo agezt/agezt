@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -71,7 +72,7 @@ func New(ts TokenMinter, project, location string) *Provider {
 		TokenSource: ts,
 		Project:     project,
 		Location:    location,
-		HTTP:        &http.Client{Timeout: DefaultTimeout},
+		HTTP:        netout.OperatorClient(DefaultTimeout),
 	}
 }
 

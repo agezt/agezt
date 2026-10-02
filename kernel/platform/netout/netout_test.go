@@ -92,3 +92,29 @@ func TestPostures(t *testing.T) {
 		}
 	}
 }
+
+// TestOperatorClient: loopback/private reachable (local model servers, LAN
+// channels), the metadata range refused, the environment proxy honoured as
+// http.DefaultTransport does, and one transport shared by every client.
+func TestOperatorClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	resp, err := OperatorClient(5 * time.Second).Get(srv.URL)
+	if err != nil {
+		t.Fatalf("operator client refused loopback: %v", err)
+	}
+	resp.Body.Close()
+
+	_, err = OperatorClient(2 * time.Second).Get("http://169.254.169.254/latest/meta-data/")
+	if err == nil || !strings.Contains(err.Error(), "netguard: blocked") {
+		t.Fatalf("operator client dialled the metadata address: err = %v", err)
+	}
+
+	tr := OperatorTransport().(*http.Transport)
+	if tr.Proxy == nil {
+		t.Fatal("operator transport ignores HTTP(S)_PROXY; http.DefaultTransport honours it")
+	}
+	if OperatorClient(time.Second).Transport != OperatorClient(time.Minute).Transport {
+		t.Fatal("operator clients must share one transport (connection reuse)")
+	}
+}

@@ -18,6 +18,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 const (
@@ -118,7 +120,7 @@ func NewTokenSource(sa *ServiceAccountKey, scope string, httpClient *http.Client
 		scope = CloudPlatformScope
 	}
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = netout.OperatorClient(0)
 	}
 	return &TokenSource{
 		sa:    sa,

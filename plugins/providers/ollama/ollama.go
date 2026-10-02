@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
@@ -51,7 +52,7 @@ type Provider struct {
 func New() *Provider {
 	return &Provider{
 		Endpoint: DefaultEndpoint,
-		HTTP:     &http.Client{Timeout: DefaultTimeout},
+		HTTP:     netout.OperatorClient(DefaultTimeout),
 	}
 }
 
@@ -116,7 +117,7 @@ func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*ll
 
 	client := p.HTTP
 	if client == nil {
-		client = http.DefaultClient
+		client = netout.OperatorClient(0)
 	}
 
 	// Retry logic with exponential backoff for transient errors (429, 5xx)

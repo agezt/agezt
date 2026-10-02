@@ -26,6 +26,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultMaxAttempts bounds delivery retries per event.
@@ -91,7 +92,7 @@ func NewDispatcher(b *bus.Bus, sinks []Sink, log io.Writer, opts ...Option) *Dis
 		bus:    b,
 		pub:    b,
 		sinks:  sinks,
-		client: &http.Client{Timeout: DefaultTimeout},
+		client: netout.OperatorClient(DefaultTimeout),
 		log:    log,
 	}
 	for _, o := range opts {

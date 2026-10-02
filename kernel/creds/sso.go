@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // SSOParams describes one SSO profile worth of inputs. Most fields
@@ -159,7 +160,7 @@ func GetSSORoleCredentials(ctx context.Context, p SSOParams) (*AssumedCreds, err
 	req.URL.RawQuery = q.Encode()
 	req.Header.Set("x-amz-sso_bearer_token", tok.AccessToken)
 
-	client := &http.Client{Timeout: credentialHTTPTimeout}
+	client := netout.OperatorClient(credentialHTTPTimeout)
 	if p.HTTP != nil {
 		if c, ok := p.HTTP.(*http.Client); ok {
 			client = c

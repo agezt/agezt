@@ -18,8 +18,15 @@
 //     the operator's settings: any public host by default (owner's default-allow
 //     posture), an allowlist when the operator pins one, loopback/private only
 //     when explicitly opted in.
-// In every posture the link-local range (169.254.0.0/16 including the cloud
-// metadata endpoint, fe80::/10) and the unspecified address are refused.
+//   - An operator-configured endpoint (a provider base URL, a channel server, a
+//     webhook) uses OperatorClient: loopback and private networks are legitimate
+//     destinations there, the link-local / cloud-metadata range never is.
+//   - The two credential paths whose whole job is to ask the metadata service
+//     (AWS IMDS, the GCE metadata server) use MetadataClient — the one named,
+//     greppable exception.
+//
+// Outside MetadataClient the link-local range (169.254.0.0/16 including the
+// cloud metadata endpoint, fe80::/10) and the unspecified address are refused.
 package netout
 
 import (

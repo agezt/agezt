@@ -48,6 +48,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/creds/sigv4"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // credentialHTTPTimeout bounds each AWS credential-fetch HTTP call (SSO / STS /
@@ -139,7 +140,7 @@ func AssumeRole(ctx context.Context, p AssumeRoleParams) (*AssumedCreds, error) 
 		return nil, fmt.Errorf("sts assume-role: sign: %w", err)
 	}
 
-	client := &http.Client{Timeout: credentialHTTPTimeout}
+	client := netout.OperatorClient(credentialHTTPTimeout)
 	if p.HTTP != nil {
 		if c, ok := p.HTTP.(*http.Client); ok {
 			client = c

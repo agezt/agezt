@@ -18,6 +18,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // sttRespMaxBytes bounds the JSON response — a transcript of a short clip is
@@ -52,7 +54,7 @@ func New(cfg Config) *Client {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 120 * time.Second} // transcription can be slow
+		client = netout.OperatorClient(120 * time.Second) // transcription can be slow
 	}
 	return &Client{base: base, key: cfg.APIKey, model: model, client: client}
 }

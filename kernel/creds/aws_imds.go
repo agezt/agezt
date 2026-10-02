@@ -19,11 +19,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 func AWSIMDSLookup(client *http.Client) func(string) string {
 	if client == nil {
-		client = &http.Client{Timeout: IMDSTimeout}
+		client = netout.MetadataClient(IMDSTimeout)
 	}
 	base := strings.TrimRight(strings.TrimSpace(os.Getenv("AWS_EC2_METADATA_BASE")), "/")
 	if base == "" {

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -107,7 +108,7 @@ func New(bearer, region string) *Provider {
 	return &Provider{
 		BearerToken: bearer,
 		Region:      region,
-		HTTP:        &http.Client{Timeout: DefaultTimeout},
+		HTTP:        netout.OperatorClient(DefaultTimeout),
 	}
 }
 

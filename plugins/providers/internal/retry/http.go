@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
@@ -21,7 +22,7 @@ import (
 // Bedrock 429 failed the run where the identical OpenAI 429 recovered.
 func DoHTTP(ctx context.Context, client *http.Client, build func() (*http.Request, error), maxBytes int64) ([]byte, http.Header, error) {
 	if client == nil {
-		client = http.DefaultClient
+		client = netout.OperatorClient(0)
 	}
 	var out []byte
 	var hdr http.Header
@@ -59,7 +60,7 @@ func DoHTTP(ctx context.Context, client *http.Client, build func() (*http.Reques
 // already surfaced tokens to the caller and must not be replayed.
 func DoHTTPStream(ctx context.Context, client *http.Client, build func() (*http.Request, error), maxErrBytes int64) (*http.Response, error) {
 	if client == nil {
-		client = http.DefaultClient
+		client = netout.OperatorClient(0)
 	}
 	var out *http.Response
 	err := Do(ctx, DefaultConfig, func() error {

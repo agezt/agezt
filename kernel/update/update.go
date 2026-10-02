@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // Source specifies where to fetch update metadata.
@@ -137,35 +137,24 @@ type Service struct {
 func New(cfg Config) *Service {
 	hc := cfg.HTTPClient
 	if hc == nil {
-		const dialTimeout = 30 * time.Second
-		// SSRF guard (CWE-918): screen every connection — the initial URL and
-		// each redirect hop — through netguard so a malicious/redirected update
-		// manifest URL can't be pointed at link-local/cloud-metadata or other
-		// special-use ranges. The update source is operator-configured and may
-		// legitimately be an internal mirror, so loopback and private ranges are
-		// permitted (matching kernel/catalog/sync's posture); netguard still
-		// blocks 169.254.0.0/16 (incl. 169.254.169.254 metadata), CGNAT,
-		// broadcast and zero blocks. Defense-in-depth atop the HTTPS-every-hop
-		// and SHA256+Ed25519 verification already enforced below.
-		guard := netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate())
-		hc = &http.Client{
-			Timeout: dialTimeout,
-			// Enforce TLS on EVERY redirect hop, not just the initial URL.
-			// net/http follows redirects automatically; without a CheckRedirect
-			// hook the manual requireHTTPS check in downloadBinary never runs
-			// (the returned resp is already the final 200), so an HTTPS→HTTP
-			// downgrade would be silently followed and the binary fetched over
-			// plaintext. This hook refuses any non-TLS hop (loopback exempt) for
-			// BOTH the manifest Check and the binary download (UPD-002).
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return requireHTTPS(req.URL.String())
-			},
-			Transport: &http.Transport{
-				DialContext:         guard.Dialer(dialTimeout).DialContext,
-				MaxIdleConns:        2,
-				IdleConnTimeout:     90 * time.Second,
-				TLSHandshakeTimeout: 10 * time.Second,
-			},
+		const requestTimeout = 30 * time.Second
+		// SSRF guard (CWE-918): the operator client screens every connection —
+		// the initial URL and each redirect hop — so a malicious/redirected
+		// update manifest URL can't be pointed at link-local/cloud-metadata or
+		// other special-use ranges. The update source is operator-configured
+		// and may legitimately be an internal mirror, so loopback and private
+		// ranges stay reachable (kernel/platform/netout). Defense-in-depth atop
+		// the HTTPS-every-hop and SHA256+Ed25519 verification enforced below.
+		hc = netout.OperatorClient(requestTimeout)
+		// Enforce TLS on EVERY redirect hop, not just the initial URL.
+		// net/http follows redirects automatically; without a CheckRedirect
+		// hook the manual requireHTTPS check in downloadBinary never runs
+		// (the returned resp is already the final 200), so an HTTPS→HTTP
+		// downgrade would be silently followed and the binary fetched over
+		// plaintext. This hook refuses any non-TLS hop (loopback exempt) for
+		// BOTH the manifest Check and the binary download (UPD-002).
+		hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return requireHTTPS(req.URL.String())
 		}
 	}
 	return &Service{

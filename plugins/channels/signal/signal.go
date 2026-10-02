@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -68,7 +69,7 @@ func New(cfg Config) *Channel {
 	if client == nil {
 		// Timeout must exceed the long-poll window so /v1/receive isn't cut off
 		// mid-poll (poll seconds + a margin for the round trip).
-		client = &http.Client{Timeout: time.Duration(poll+30) * time.Second}
+		client = netout.OperatorClient(time.Duration(poll+30) * time.Second)
 	}
 	return &Channel{
 		base:     strings.TrimRight(cfg.APIURL, "/"),

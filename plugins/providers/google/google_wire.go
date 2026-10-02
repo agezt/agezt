@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -59,7 +60,7 @@ func New(apiKey string) *Provider {
 	return &Provider{
 		APIKey:  apiKey,
 		BaseURL: DefaultBaseURL,
-		HTTP:    &http.Client{Timeout: DefaultTimeout},
+		HTTP:    netout.OperatorClient(DefaultTimeout),
 	}
 }
 

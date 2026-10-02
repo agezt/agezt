@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/settings"
 )
 
@@ -149,7 +150,7 @@ func probeNodePeer(p nodePeer) map[string]any {
 	if p.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netout.OperatorClient(0).Do(req)
 	if err != nil {
 		row["error"] = err.Error()
 		return row

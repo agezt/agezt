@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultBaseURL is the Slack Web API root (chat.postMessage etc.).
@@ -111,7 +112,7 @@ func New(cfg Config) *Channel {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = netout.OperatorClient(30 * time.Second)
 	}
 	return &Channel{
 		token:   cfg.Token,
