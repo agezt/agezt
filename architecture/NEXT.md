@@ -340,6 +340,12 @@ delete the probe.
 - **Synthetic secrets in tests** (anything key-shaped) trip gitleaks and GitHub push protection. Build them
   at run time from parts (`strings.Join([]string{"abc", "def"}, "")`). Never click an "unblock secret" URL.
 - **Package-global state in tests** must be fully reset in `t.Cleanup`. race-depth runs `-count=20`.
+- **Socket responses precede deferred operation audit.** Linux stress exposed
+  audit fixtures reading only `op.invoked`, and an export fixture comparing its
+  snapshot head with a journal advanced by the run's later `op.completed`.
+  Subscribe before the request and wait for the terminal audit before asserting
+  a settled journal (`watchOpAudit` / `awaitOpAudit` in control-plane tests).
+  Production response/audit ordering is unchanged.
 - **A test that turns red after a security fix often pinned the vulnerable behaviour.** Rewrite it; don't
   revert the fix. Check sibling packages for the same pin.
 - **"Test-only" is not "dead":** `deadcodecheck` runs without `-test`, so guards look unreachable. Ask what
