@@ -49,6 +49,7 @@ kernel/runtime/lifecycle -> event, ulid
 kernel/runtime/accessors -> (store packages) + runtime/types
 kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool, warden    (NO importers: dead)
 kernel/runtime/types     -> (none)
+kernel/app/tools   -> contract/toolapi, toolexec
 kernel/toolexec     -> contract/{llm,policyapi,toolapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
 kernel/toolreg      -> agent, artifact, board, bus, channel, datalake, journal, runtime, warden
 kernel/toolforge    -> filestore, ulid
@@ -110,6 +111,8 @@ W2.3h moved these contracts verbatim to `kernel/contract/policyapi`; agent alias
 W2.3j extracted the unchanged schema validator (`platform/schema`) and policy context helpers (`platform/policyctx`) so the direct invoker can stop depending on the loop implementation. `contract/policyapi` owns the observation-taint type; agent forwards its existing public helpers. Exact error/validation and cross-accessor/parent-context tests plus seven mutations protect the move. W2.3k repointed direct Run/RunWithOptions to the platform validators/context helpers; its production dependency closure no longer reaches agent. Old/new source invoker tests preserve unknown/schema refusal before policy/backend/audit/hooks and resolved metadata, provenance, identity and allow/deny semantics. Five mutations and 20-repeat entry-point tests guard the repointing. The loop's compatible helper calls and its memo/guard/batch admission sequence remain.
 
 W2.3l adds the pure `toolapi.Invoker`/`Invocation` port. `runtime.Open` binds a service once through `Config.NewToolInvoker`, defaulting to the unchanged `toolexec.NewInvoker` compatibility pipeline. Each call forwards its lookup override and effective artifact store/threshold; per-kernel constructors bind own policy/audit/noise ports. Nil service results fail startup before gateway launch and release opened stores. Four actual-path offload, two-kernel policy/journal and nil/reopen tests plus seven mutations guard injection. Pipeline ownership and agent batch admission still remain legacy; L4 app/daemon binding follows.
+
+W2.3m binds `app/tools.NewInvoker` at daemon composition through shared `openAppKernel` for primary and tenant kernels. The service forwards context and Invocation to the canonical legacy pipeline; each Open creates fresh host dependencies. Actual app-bound offload and full policy/provenance paths, two-kernel isolation and live approval identity remain covered, with six mutations. Standalone runtime.Open keeps its legacy default. The L4 entry now exists, while implementation ownership and agent admission convergence remain open.
 
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.

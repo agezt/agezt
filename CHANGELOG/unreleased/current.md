@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: daemon tool calls enter the app invocation service.**
+  Primary and tenant kernels each receive a fresh service with their own policy
+  and audit dependencies. Existing execution, approval, output offload and
+  standalone runtime behavior are preserved.
+
 - **Architecture: runtime tool calls use an injectable invocation port.**
   Each kernel binds its own policy and audit dependencies; standalone construction
   keeps the existing pipeline. Invocation-local tools, output offload and call
