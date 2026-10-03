@@ -249,9 +249,12 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 			terminalErr = errors.Join(terminalErr, job.invokeErr)
 		}
 	}
-	if ctx.Err() != nil {
-		terminalErr = errors.Join(terminalErr, ctx.Err())
+	observeCancellation := func() {
+		if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(terminalErr, ctxErr) {
+			terminalErr = errors.Join(terminalErr, ctxErr)
+		}
 	}
+	observeCancellation()
 	for _, job := range jobs {
 		if job.memoSource != nil {
 			job.result = job.memoSource.result
@@ -341,6 +344,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 			auditErr = errors.Join(auditErr, fmt.Errorf("agent: publish tool.result: %w", err))
 			continue // retain causes and attempt the remaining terminal records
 		}
+		observeCancellation()
 		if s.cfg.ToolResultHook != nil && job.tool != nil && !job.skipped && terminalErr == nil && auditErr == nil {
 			s.cfg.ToolResultHook(ctx, job.tc, job.result)
 		}
@@ -351,6 +355,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 			ToolCallID: job.tc.ID,
 		})
 	}
+	observeCancellation()
 	if terminalErr != nil || auditErr != nil {
 		return nil, errors.Join(terminalErr, auditErr)
 	}

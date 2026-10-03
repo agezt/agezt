@@ -46,3 +46,21 @@ func TestFinalizeToolJobs_TerminalAuditFailurePreservesCauses(t *testing.T) {
 		})
 	}
 }
+
+func TestFinalizeToolJobs_CancellationDuringAuditStopsHooks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hooks, results := 0, 0
+	s := newRunState(LoopConfig{ToolResultHook: func(context.Context, ToolCall, Result) { hooks++ }}, func(kind event.Kind, _ string, _ any) (*event.Event, error) {
+		if kind == event.KindToolResult {
+			results++
+			cancel()
+		}
+		return &event.Event{}, nil
+	})
+	jobs := []*toolJob{{tc: ToolCall{ID: "one"}, tool: &stubTool{}, result: Result{Output: "done"}}, {tc: ToolCall{ID: "two"}, tool: &stubTool{}, result: Result{Output: "done"}}}
+	messages, err := s.finalizeToolJobs(ctx, jobs, 0, nil)
+	if !errors.Is(err, context.Canceled) || hooks != 0 || results != 2 || messages != nil {
+		t.Fatalf("error=%v hooks=%d records=%d messages=%v", err, hooks, results, messages)
+	}
+}
