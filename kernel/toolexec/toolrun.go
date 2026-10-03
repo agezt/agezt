@@ -146,6 +146,6 @@ func Run(
 // A faulty tool must still produce its terminal audit record and cannot take
 // down a workflow or the direct-tool caller.
 func invokeSafely(ctx context.Context, tool toolapi.Tool, args json.RawMessage) (toolapi.Result, error) {
-	res, err, _ := toolinvoke.Invoke(ctx, tool, args)
+	res, _, err := toolinvoke.Invoke(ctx, tool, args)
 	return res, err
 }

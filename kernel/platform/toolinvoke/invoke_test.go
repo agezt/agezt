@@ -48,7 +48,7 @@ func TestInvokePreservesCallContract(t *testing.T) {
 				}
 				return toolapi.Result{Output: "done"}, nil
 			}}
-			res, err, panicked := toolinvoke.Invoke(ctx, tool, input)
+			res, panicked, err := toolinvoke.Invoke(ctx, tool, input)
 			if calls != 1 {
 				t.Fatalf("calls=%d", calls)
 			}
