@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 )
 
@@ -121,34 +122,9 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 	return jobs, nil
 }
 
-// policyDecisionPayload renders one gate decision for the journal. Split out so
-// the 24-field map doesn't dominate the gating logic it belongs to.
+// policyDecisionPayload forwards the unchanged loop journal representation.
 func policyDecisionPayload(tc ToolCall, v PolicyVerdict) map[string]any {
-	return map[string]any{
-		"tool":                  tc.Name,
-		"call_id":               tc.ID,
-		"capability":            v.Capability,
-		"allow":                 v.Allow,
-		"reason":                v.Reason,
-		"would_ask":             v.WouldAsk,
-		"hard_denied":           v.HardDenied,
-		"effect_class":          v.EffectClass,
-		"affected_resources":    v.AffectedResources,
-		"epistemic_action":      v.EpistemicAction,
-		"epistemic_reason":      v.EpistemicReason,
-		"epistemic_signals":     v.EpistemicSignals,
-		"epistemic_confidence":  v.EpistemicConfidence,
-		"failure_matches":       v.FailureMatches,
-		"weighted_failures":     v.WeightedFailures,
-		"schema_hash":           v.SchemaHash,
-		"input_shape":           v.InputShape,
-		"temporal_sensitive":    v.TemporalSensitive,
-		"novel_tool":            v.NovelTool,
-		"untrusted_observation": v.UntrustedObservation,
-		"observation_sources":   v.ObservationSources,
-		"directive_like":        v.ObservationDirectiveLike,
-		"directive_matches":     v.ObservationDirectiveMatches,
-	}
+	return toolaudit.PolicyDecisionPayload(tc, v)
 }
 
 // executeToolJobs is phase 2: run every gated-allowed job. A single call (the
