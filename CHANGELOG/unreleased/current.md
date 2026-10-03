@@ -761,6 +761,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: tool admission helpers have shared platform homes.**
+  Existing schema validation and policy context behavior are preserved behind
+  agent compatibility helpers, including schema errors and observation provenance.
+
 - **Tool policy audit now retains full decision details on direct paths.**
   Direct, workflow, canvas and code calls previously omitted resource, epistemic
   and observation provenance fields that agent-loop decisions already recorded.
