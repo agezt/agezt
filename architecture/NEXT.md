@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a are complete; continue the remaining §4.3 side paths
-> (Council grounding, then verifier/code-node convergence).
+> W2.2a, W2.2b and W2.3a–c are complete; continue §4.3 with agent-loop/app
+> invoker convergence, then the unjournaled File Manager/rollback writes in §4.4.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -160,18 +160,22 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a completed; more slices open)
+### 4.3 W2.3 — tool side paths (W2.3a–c completed; agent-loop/app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
-**Next open slice:** Council grounding (verify the live path first); then the Conductor verifier and workflow code nodes, followed by agent-loop/app invoker convergence. Workflow code nodes already check policy, but still lack shared tool audit. W2.3 is not complete as a whole.
+**W2.3b measured and fixed:** actual Council grounding ignored `web.search=L0`, agent tool deny and trust ceiling, called the search and injected its evidence with no policy/tool audit. It now uses the shared invoker, preserving one search per panel, the 300-rune query/6-hit bounds, unique search IDs and date-only fallback on refusal/failure. Correlated live approval blocks both search and panel calls until resolution. Disabled/missing/nil search tools remain no-ops. Tests: `council_grounding_audit_test.go` (allow, three restriction paths, errors, malformed output, panic, disable/missing, HITL grant/deny and repeated IDs) plus the original Council suite. Seven mutations independently guard the boundaries.
 
-Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; items 1 (registered-tool/HTTP/pipeline/canvas) and 4 are fixed.
+**W2.3c measured and fixed:** the actual Conductor executed worker code and passed verification even with `code.exec=L0`, a profile deny or trust ceiling, with no policy/tool audit. Workflow code nodes enforced policy but left no tool execution audit. Both now adapt their existing sandbox runners into invocation-local `code_exec` tools and use the same governed invoker, with trusted capability/effect metadata and distinct attempt IDs. Denial/preflight audit failure never enters the runner; Conductor reports `Ran=false` in its result and a false live execution flag, failing verification without critique fallback. Backend errors, error results and panics fail with terminal audit. Interpolated inputs, structured output, workflow error ports/retries and Conductor critique-only paths remain covered. Tests: `code_execution_audit_test.go` plus the original Conductor/workflow suites; ten independent mutations guard the boundaries. Sandbox execution/network settings are unchanged.
+
+**Next open slice:** agent-loop/app invoker convergence, output offload and full policy-payload alignment. W2.3 is not complete as a whole.
+
+Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; all four original side-path findings are fixed (W2.3a–c).
 
 The findings register (9.1, "Side paths skip governance/audit") lists:
-1. ✅ workflow registered-tool/HTTP/pipeline/canvas calls now journal policy/tool events (code nodes still open);
-2. Council grounding calls `web_search` without a policy check;
-3. the Conductor verifier executes model-written code without a `code.exec` policy decision;
+1. ✅ workflow registered-tool/HTTP/pipeline/canvas calls now journal policy/tool events; code nodes joined in W2.3c;
+2. ✅ Council grounding calls the shared governed invoker and records policy/tool audit (W2.3b);
+3. ✅ Conductor code verification now checks `code.exec` and journals policy/tool events through the shared invoker (W2.3c);
 4. ✅ `toolexec` now emits `tool.result` on deny and resolves active forge/MCP tools.
 
 The remaining claims are "read from code, not runtime-verified". **Verify each with a test** that drives the path and
@@ -336,6 +340,12 @@ delete the probe.
 - **Synthetic secrets in tests** (anything key-shaped) trip gitleaks and GitHub push protection. Build them
   at run time from parts (`strings.Join([]string{"abc", "def"}, "")`). Never click an "unblock secret" URL.
 - **Package-global state in tests** must be fully reset in `t.Cleanup`. race-depth runs `-count=20`.
+- **Socket responses precede deferred operation audit.** Linux stress exposed
+  audit fixtures reading only `op.invoked`, and an export fixture comparing its
+  snapshot head with a journal advanced by the run's later `op.completed`.
+  Subscribe before the request and wait for the terminal audit before asserting
+  a settled journal (`watchOpAudit` / `awaitOpAudit` in control-plane tests).
+  Production response/audit ordering is unchanged.
 - **A test that turns red after a security fix often pinned the vulnerable behaviour.** Rewrite it; don't
   revert the fix. Check sibling packages for the same pin.
 - **"Test-only" is not "dead":** `deadcodecheck` runs without `-test`, so guards look unreachable. Ask what

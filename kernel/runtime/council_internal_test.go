@@ -163,7 +163,9 @@ type fakeSearchTool struct {
 	calls int
 }
 
-func (f *fakeSearchTool) Definition() toolapi.ToolDef { return toolapi.ToolDef{Name: "web_search"} }
+func (f *fakeSearchTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "web_search", Capability: toolapi.ToolCapability{Name: "web.search"}}
+}
 func (f *fakeSearchTool) Invoke(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	f.mu.Lock()
 	f.calls++

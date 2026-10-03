@@ -20,12 +20,17 @@ import (
 // on — proving the export survives the wire round-trip verifiably.
 func TestJournalExport(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
+	sub := watchOpAudit(t, k)
 
 	// Generate some journaled events.
 	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
 		map[string]any{"intent": "hello"}, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
+	// The run's socket result precedes its deferred op.completed record.
+	// Wait before exporting/comparing heads; the journal can otherwise advance
+	// from 5 to 6 between the export snapshot and the fixture's Head call.
+	awaitOpAudit(t, sub)
 
 	raw, err := c.CallRaw(context.Background(), controlplane.CmdJournalExport, nil)
 	if err != nil {
@@ -73,11 +78,13 @@ func TestJournalExport(t *testing.T) {
 // TestJournalExportSinceWindow checks the since_ms cutoff narrows the export to
 // recent events without breaking verifiability.
 func TestJournalExportSinceWindow(t *testing.T) {
-	_, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
+	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
+	sub := watchOpAudit(t, k)
 	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
 		map[string]any{"intent": "x"}, nil); err != nil {
 		t.Fatalf("run: %v", err)
 	}
+	awaitOpAudit(t, sub)
 	// A 1ms window in the distant-past sense: since_ms is "last N ms", so a
 	// tiny window should yield few/zero events but never error, and a huge
 	// window should yield the same as no filter. Use a large window here.
@@ -106,12 +113,14 @@ func TestJournalExportScopedByCorrelation(t *testing.T) {
 	prov := &mock.Provider{Responder: func(llm.CompletionRequest) llm.CompletionResponse {
 		return mock.FinalText("done")
 	}}
-	_, _, c, _ := startPair(t, prov)
+	k, _, c, _ := startPair(t, prov)
+	sub := watchOpAudit(t, k)
 	for _, intent := range []string{"run one", "run two"} {
 		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
 			map[string]any{"intent": intent}, nil); err != nil {
 			t.Fatalf("run %q: %v", intent, err)
 		}
+		awaitOpAudit(t, sub)
 	}
 
 	// Full export first, to discover a real correlation id and the full count.

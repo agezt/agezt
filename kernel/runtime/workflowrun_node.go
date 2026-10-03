@@ -132,28 +132,18 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		if k.cfg.ScriptRunner == nil {
 			return nil, "", errors.New("code nodes need the code-exec sandbox (not available on this daemon)")
 		}
-		// The same code.exec policy gate a direct code_exec call passes.
-		probe, _ := json.Marshal(map[string]any{"language": c.Language, "code": c.Code})
-		verdict := k.policyHook(ctx, llm.ToolCall{ID: "wf-" + n.ID, Name: "code_exec", Input: probe})
-		if !verdict.Allow {
-			reason := verdict.Reason
-			if reason == "" {
-				reason = "denied by policy"
-			}
-			return nil, "", fmt.Errorf("code refused: %s", reason)
-		}
 		input := strings.TrimSpace(workflow.Interpolate(c.Input, data))
 		if input == "" {
 			input = "{}"
 		}
-		out, isErr, err := k.cfg.ScriptRunner.RunScript(ctx, c.Language, c.Code, input)
+		res, _, err := k.runCode(ctx, corr, "wf-"+n.ID, k.cfg.ScriptRunner, c.Language, c.Code, input)
 		if err != nil {
 			return nil, "", err
 		}
-		if isErr {
-			return nil, "", fmt.Errorf("code failed: %s", truncateForErr(out))
+		if res.IsError {
+			return nil, "", fmt.Errorf("code failed: %s", truncateForErr(res.Output))
 		}
-		return parseMaybeJSON(out), "", nil
+		return parseMaybeJSON(res.Output), "", nil
 
 	case workflow.NodeMap:
 		var c workflow.MapConfig

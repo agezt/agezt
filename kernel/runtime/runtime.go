@@ -465,11 +465,12 @@ type Config struct {
 	CouncilMembers func() []CouncilMember
 
 	// CouncilWebSearch grounds the Council of Elders in current facts: before the
-	// panel deliberates, the question is run through the `web_search` tool (from
-	// cfg.Tools) and the top results are folded into a dated "research brief" every
+	// panel deliberates, the question is run through the registered `web_search`
+	// tool via the governed invoker, and the top results form a "research brief" every
 	// seat — and the chair — see, alongside today's date. The daemon sets it from
 	// AGEZT_COUNCIL_WEBSEARCH (default on). Off, or no web_search tool present, and
-	// the council convenes with only the date (its prior behaviour, plus the date).
+	// the council convenes with only the date; policy refusal/search failure also
+	// preserves this date-only behavior.
 	CouncilWebSearch bool
 }
 

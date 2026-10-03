@@ -4,6 +4,22 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: Conductor code verification now obeys execution policy.** It
+  previously ran worker-written code and could pass verification despite an
+  explicit `code.exec` denial, agent tool restriction or trust ceiling. It now
+  waits for configured approval and records policy decisions, invocations and
+  results under the run. Refused code is marked as not run in both the result and live events, and fails verification.
+  Workflow code nodes use the same invoker and audit, including canvas tests and
+  retries. Sandbox errors and panics fail with a terminal record; an unavailable
+  preflight journal prevents execution. Existing sandbox/network settings remain.
+
+- **Security: Council web grounding now obeys tool policy.** Its optional search
+  previously ran even when `web.search` was denied, the agent forbade the tool,
+  or its trust ceiling prohibited it. Search now uses the common governed
+  invoker, journals decisions/results under the Council run, and waits for live
+  approval when configured. A refusal or failed search leaves the Council with
+  today's date and its usual deliberation; failed results are not used as evidence.
+
 - **Security: workflow tool executions now leave a policy and tool audit trail.**
   Tool, HTTP, pipeline and canvas-node calls use the shared direct-tool invoker;
   allowed calls record the decision, invocation and result, while denied calls
@@ -14,8 +30,8 @@ This file holds the active `[Unreleased]` working set.
   the correct run and agent identity. Direct tool calls now resolve active forge
   and MCP tools through the same policy checks. Retry attempts get distinct audit
   IDs; tool logs/stats no longer mix inputs or latency across runs reusing an ID.
-  Workflow code nodes, Council
-  grounding and the Conductor verifier are separate remaining migration slices.
+  Council grounding and workflow/Conductor code execution are covered by the
+  subsequent fixes above; agent-loop/app invoker convergence remains open.
 
 - **Security: many control-plane changes left no audit record.** About forty operations changed
   state without writing anything to the journal, including adding, removing or activating provider keys,
