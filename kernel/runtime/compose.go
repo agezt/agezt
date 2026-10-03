@@ -46,6 +46,7 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/taste"
+	"github.com/agezt/agezt/kernel/toolexec"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/kernel/warden"
@@ -387,6 +388,16 @@ func Open(cfg Config) (*Kernel, error) {
 		}
 	}
 	k.configCenter = configCenter
+
+	newInvoker := cfg.NewToolInvoker
+	if newInvoker == nil {
+		newInvoker = toolexec.NewInvoker
+	}
+	k.toolInvoker = newInvoker(toolexec.Dependencies{Tools: k, Policy: k, Events: k, Noise: k})
+	if k.toolInvoker == nil {
+		kbus.Close()
+		return fail("runtime: tool invoker", errors.New("factory returned nil"))
+	}
 
 	// Agent Gateway for subprocess communication (Agent SDK)
 	gwCfg := agentgw.DefaultGatewayConfig(cfg.BaseDir)

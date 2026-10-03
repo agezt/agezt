@@ -43,7 +43,7 @@ func (k *Kernel) NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.R
 
 // RunTool executes one registered in-process tool under the same schema and
 // policy gate used by agent/workflow tool calls, then journals tool.invoked and
-// tool.result under corr. The implementation is delegated to toolexec.Run.
+// tool.result under corr. The implementation is delegated through the injected invocation port.
 func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, args json.RawMessage) (toolapi.Result, error) {
 	return k.runToolWithLookup(ctx, corr, callID, toolName, args, k)
 }
@@ -60,6 +60,8 @@ func (k *Kernel) runToolWithLookup(ctx context.Context, corr, callID, toolName s
 	}
 	ctx = k.WithActorCorrelation(ctx, actor, corr)
 	cfg := k.effectiveConfig(ctx)
-	return toolexec.RunWithOptions(ctx, corr, callID, toolName, args, lookup, k, k, k,
-		toolexec.Options{Artifacts: k.artifacts, ArtifactThreshold: cfg.ArtifactThreshold})
+	return k.toolInvoker.Invoke(ctx, toolapi.Invocation{
+		CorrelationID: corr, CallID: callID, Name: toolName, Input: args, Lookup: lookup,
+		Artifacts: k.artifacts, ArtifactThreshold: cfg.ArtifactThreshold,
+	})
 }

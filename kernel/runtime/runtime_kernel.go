@@ -83,6 +83,7 @@ type Kernel struct {
 	schedEngine  *cadence.Engine         // live cadence resident, set by the daemon after Open
 	agentGW      *agentgw.Gateway        // agent subprocess gateway (agent SDK)
 	configCenter *configcenter.Center    // config center for agent SDK config access
+	toolInvoker  toolapi.Invoker         // immutable invocation port, constructed per Open
 	tools        map[string]toolapi.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	// conductorExec is the optional code-execution backend the Conductor's

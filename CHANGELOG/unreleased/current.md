@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: runtime tool calls use an injectable invocation port.**
+  Each kernel binds its own policy and audit dependencies; standalone construction
+  keeps the existing pipeline. Invocation-local tools, output offload and call
+  identity are preserved. An invalid constructor result now fails startup.
+
 - **Architecture: tool admission helpers have shared platform homes.**
   Existing schema validation and policy context behavior are preserved behind
   agent compatibility helpers, including schema errors and observation provenance.
