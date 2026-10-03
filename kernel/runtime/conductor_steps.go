@@ -87,15 +87,15 @@ func (k *Kernel) conductorStep(ctx context.Context, corr string, round int, role
 func (k *Kernel) conductorVerify(ctx context.Context, corr string, round int, model, brief, task, answer string) ConductorStep {
 	step := ConductorStep{Round: round, Role: conductorRoleVerifier, Model: model}
 	if lang, code, ok := extractRunnableCode(answer); ok && k.conductorExec != nil {
-		out, isErr, err := k.conductorExec.RunScript(ctx, lang, code, "")
-		ex := &ConductorExec{Ran: true, Language: lang, Output: clip(strings.TrimSpace(out), conductorEventTextMax)}
+		res, ran, err := k.runCode(ctx, corr, "conductor-verify", k.conductorExec, lang, code, "")
+		ex := &ConductorExec{Ran: ran, Language: lang, Output: clip(strings.TrimSpace(res.Output), conductorEventTextMax)}
 		step.Exec = ex
 		switch {
 		case err != nil:
 			ex.OK = false
 			step.Verdict = "fail"
 			step.Reason = "execution error: " + err.Error()
-		case isErr:
+		case res.IsError:
 			ex.OK = false
 			step.Verdict = "fail"
 			step.Reason = "code ran but reported failure (non-zero exit / timeout); fix it"
@@ -112,7 +112,7 @@ func (k *Kernel) conductorVerify(ctx context.Context, corr string, round int, mo
 	k.conductorPublish(corr, event.KindConductorStep, map[string]any{
 		"role": conductorRoleVerifier, "model": model, "round": round,
 		"verdict": step.Verdict, "reason": clip(step.Reason, conductorEventTextMax),
-		"exec": step.Exec != nil,
+		"exec": step.Exec != nil && step.Exec.Ran,
 	})
 	return step
 }
