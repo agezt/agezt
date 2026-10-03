@@ -12,7 +12,16 @@ func TestMarkInstanceDead(t *testing.T) {
 	MarkInstanceDead("zzdead#early") // dies before the live set is recorded
 	SetLive([]string{"zzdead", "zzalive"})
 	SetLiveInstances([]string{"zzdead", "zzdead#early", "zzalive"})
-	t.Cleanup(func() { SetLive(nil); SetLiveInstances(nil) })
+	t.Cleanup(func() {
+		SetLive(nil)
+		SetLiveInstances(nil)
+		// The dead set is deliberately never reset in production; clear this
+		// test's kinds so a -count=N rerun starts from scratch.
+		mu.Lock()
+		delete(deadInstances, "zzdead")
+		delete(deadInstances, "zzdead#early")
+		mu.Unlock()
+	})
 
 	if IsLiveInstance("zzdead#early") {
 		t.Error("an instance that died before SetLiveInstances was resurrected by it")
