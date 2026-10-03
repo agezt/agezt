@@ -90,7 +90,7 @@ an error), `UpdateCheck`, `UpdateApply`, `Close` (no-op). Server errors surface 
 
 ```
 init() → registerAllCommands()            (registry.go: 28 register<Domain>Commands funcs, explicit order)
-   register(commandSpec{Cmd, Handler, TenantAllowed, TenantRouted, Streaming})   (dispatch.go; panics on dup/empty/nil)
+   register(commandSpec{Cmd, Handler, TenantAllowed, TenantRouted, Streaming, ReadOnly})   (dispatch.go; panics on dup/empty/nil)
        → commandRegistry map[string]commandSpec   (read-only after init)
 
 acceptLoop → go handleConn(ctx, conn)                     (server_handlers.go)
@@ -102,7 +102,9 @@ acceptLoop → go handleConn(ctx, conn)                     (server_handlers.go)
   6. dc := &DispatchCtx{Ctx, Conn, Req, S, K: s.k, Tenant, Primary}
      spec.TenantRouted → dc.K = kernelFor(tenantOf(req))   (tenant.Registry.Acquire → *runtime.Kernel)
   7. spec.Streaming == StreamLive → dc.Ctx = cancelOnConnClose(ctx, conn)
-  8. spec.Handler(dc)    // handlers are closures dc.S.handleX(dc.Conn, dc.Req) or (dc.Ctx, dc.Conn, dc.Req)
+  8. !spec.ReadOnly → beginOpAudit: journal op.invoked {op, caller, tenant, redacted args}; dc.Conn = auditedConn
+  9. spec.Handler(dc)    // handlers are closures dc.S.handleX(dc.Conn, dc.Req) or (dc.Ctx, dc.Conn, dc.Req)
+ 10. !spec.ReadOnly → journal op.completed, or op.failed {error} on an error response, a panic, or no response
 ```
 
 Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_test.go` + `tenant_auth_test.go`):
@@ -113,6 +115,12 @@ Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_tes
   `conductor_ask`, `council_ask`, `plan_generate`, `plan_refine`, `research_ask` are `StreamLive`. `run` handles its own
   disconnect watcher (`SetCancelOnDisconnect`, M35) and `pulse_subscribe` its own 500 ms read-deadline watcher — both
   deliberately NOT `StreamLive` to avoid two goroutines reading one conn.
+- **ReadOnly** — the op changes no state, so dispatch does not journal it (148 ops). Every other op (173) is journaled by
+  dispatch (`dispatch_audit.go`, W2.1): `op.invoked` before the handler, then `op.completed` or `op.failed`, sharing one
+  correlation and written to the request's kernel (a tenant's own journal for tenant-routed ops). Arguments are summarized:
+  scalars verbatim (strings ≤ 160 runes), names containing key/token/secret/password/cred/auth/cookie/value/code/state/…
+  redacted, lists and objects reduced to their shape. The outcome is read from the terminal response `writeResp` writes
+  through `auditedConn`. Omitting `ReadOnly` over-audits; it cannot under-audit.
 
 ### 1.4 Server state and dependency injection
 

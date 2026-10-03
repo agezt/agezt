@@ -149,6 +149,7 @@ All constants live in `kernel/event/kinds.go` (append-only; "never renumber or r
 | Warden | `KindWardenExecuted`, `KindWardenProfileDowngraded`, `KindWardenLimitExceeded` |
 | Approval / HITL | `KindApprovalRequested`, `KindApprovalGranted`, `KindApprovalDenied`, `KindApprovalTimeout` |
 | Config Center | `KindConfigAccess` (config.access) |
+| Operations (W2.1) | `KindOpInvoked`, `KindOpCompleted`, `KindOpFailed`: every non-`ReadOnly` control-plane op, journaled by dispatch |
 | Scheduler DAG | `KindPlanStarted`, `KindPlanCompleted`, `KindPlanFailed`, `KindNodeStarted`, `KindNodeCompleted`, `KindNodeFailed` |
 | Catalog | `KindCatalogSynced`, `KindCatalogSyncFailed`, `KindCatalogDiscoveryCompleted`, `KindCatalogDiscoveryFailed` |
 | Pulse | `KindPulseTick`, `KindObserverDelta`, `KindSalienceScored`, `KindInitiativeTaken`, `KindInitiativeAct` (initiative.act, M999), `KindBriefingSent`, `KindPulsePaused`, `KindPulseResumed` |
@@ -177,7 +178,7 @@ All constants live in `kernel/event/kinds.go` (append-only; "never renumber or r
 - the toolbox kinds;
 - the synthetic `agezt.pulse.dropped` stream notice.
 
-`publishMarket`/`publishToolbox` take an `event.Kind`. Seven never-emitted kinds were deleted: `agent.spawned/suspended/resumed/died/crashed`, `worldmodel.superseded` and `journal.segment_rotated`. `config.access` is **reserved**: configcenter audits to its own file instead of the journal, which W1.8 fixes. `TestKindRegistryIsClosed` (`kernel/event/registry_guard_test.go`) fails on an `event.Kind("…")` literal in production code and on a declared kind nothing references. Deleting a constant does not affect old journals (the kind is a string), but a deleted string must never be reused for a different meaning. `webhook.test` is an HTTP header value for probe deliveries, not a bus kind.
+`publishMarket`/`publishToolbox` take an `event.Kind`. Seven never-emitted kinds were deleted: `agent.spawned/suspended/resumed/died/crashed`, `worldmodel.superseded` and `journal.segment_rotated`. `config.access` was reserved until W1.8 journaled every config-center read. `TestKindRegistryIsClosed` (`kernel/event/registry_guard_test.go`) fails on an `event.Kind("…")` literal in production code and on a declared kind nothing references. Deleting a constant does not affect old journals (the kind is a string), but a deleted string must never be reused for a different meaning. `webhook.test` is an HTTP header value for probe deliveries, not a bus kind.
 
 **Kind misuse to know about:** `runexec.Runner.MaybeDistill` reports a distillation failure as `Kind: memory.written` with subject `memory.distill_failed` and payload `{action:"distill_failed"}` — consumers filtering on `KindMemoryWritten` see failures too.
 

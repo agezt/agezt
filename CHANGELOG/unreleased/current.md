@@ -4,6 +4,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: many control-plane changes left no audit record.** About forty operations changed
+  state without writing anything to the journal, including adding, removing or activating provider keys,
+  ChatGPT sign-in import and logout, channel accounts, config-center entries and their access lists,
+  routing, chains, persona, prompts, schedules, data-lake writes, and artifact and sandbox deletion. The
+  control plane now journals every state-changing operation itself, whether it comes from `agt` or the
+  web console: `op.invoked` (operation, caller, arguments with secrets redacted) and then `op.completed`
+  or `op.failed`. Read-only operations are not journaled.
 - **Security: running an agent directly ignored its tool restrictions.** `agt run --agent X`
   and the console's run-as-agent applied only part of X's profile: the model was still offered
   tools the profile's `tool_deny` forbids (or that its `tool_allow` omits), and the run had no
