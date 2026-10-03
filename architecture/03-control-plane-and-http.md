@@ -188,7 +188,7 @@ events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state 
 1. Validate `args.intent`; resolve kernel via `kernelFor(args.tenant)`.
 2. Optional overrides: `model` (M148), `agent` (the whole roster profile via `runtime.WithAgentProfile`, as for every other entry point: system prompt,
    model + fallback chain, tool allow/deny, trust ceiling, memory scope, workspace, ledger identity; plus its per-run cost ceiling and
-   execution profile as defaults. Explicit per-run flags win. Unknown, retired, paused or managed-subagent agents are rejected), `images` (vision gate M91 with vision sidecar M821), `system` (M149),
+   execution profile as defaults. Explicit per-run flags win. Unknown, retired, paused or managed-subagent agents are rejected), `images` (shared `runtime.Kernel.AdmitImages`: confirmed vision or sidecar caption, otherwise correlated rejection), `system` (M149),
    `timeout` (Go duration, M154), `tools` allowlist (M158; empty list = no tools), `max_cost_mc` (M166), `execution_profile`
    (ssh/k8s/modal/daytona/remote-agezt — each checks backend availability), `remote_peer`, `auto_approve_caps`,
    `prompt_injection_trust`, `assure` (M651).
@@ -1300,7 +1300,7 @@ and warns when no console password is set.
 - **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_repair.go`, `roster_wake.go` call
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
 - **Two kernel entry paths**: Web UI/CLI → control plane; REST/OpenAI/agentgw → kernel directly. Op-level validation in `handleRun`
-  (vision gate, tool allowlists, execution profiles, agent resolution, dry-run) is NOT applied to REST/OpenAI runs (`Engine.RunModel`).
+  (tool allowlists, execution profiles, agent resolution, dry-run) is not exposed by REST/OpenAI (`Engine.RunModel`). Image admission is shared through `runtime.Kernel.AdmitImages` (W2.2a): text-only models use the configured vision sidecar; rejections use the same message and correlated journal event.
 - **Unjournaled Web UI mutations**: the File Manager (`os.Mkdir/Rename/RemoveAll`) and rollback `file.snapshot` restore write the
   filesystem directly from `kernel/webui` without a control-plane op, Edict check or journal event. `rollbackCatalogPath` uses
   `internal/paths.BaseDir()` rather than the daemon's injected base dir.

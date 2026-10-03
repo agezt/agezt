@@ -443,7 +443,7 @@ All of these use `completeAux(ctx, corr, taskType, req)`, the single funnel that
 | Conductor | `Conduct` (thinker/worker/verifier; verifier may run code via `CodeExecutor.RunScript`) | `conductor` | `conductor.started/step/done` |
 | Deep research | `Research` (plan → `RunTool(web_search)` → `RunTool(browser.read)` → synth → `verifyResearchClaims`) | `research` | tool events via toolexec, plus its own |
 | Workflows | `RunWorkflow`/`runWorkflowGraph`/`execWorkflowNode`/`TestWorkflowNode`; `DraftWorkflow`/`RefineWorkflow` | `workflow` | `workflow.started/node/completed/failed/drafted/saved/...` |
-| Vision sidecar | `Runner.DescribeImages` (`VisionModel()`; `ErrNoVisionModel`) | vision | — |
+| Image admission / vision sidecar | `Kernel.AdmitImages` shared by control-plane, REST/OpenAI and channels → `Runner.DescribeImages` (`VisionModel()`; `ErrNoVisionModel`). Confirm primary vision or caption; empty/failed caption rejects; cancelled context stays cancelled | vision | `capability.rerouted`; correlated `capability.rejected` |
 | Elision summary | `makeElidedSummarizer` | — | — |
 | Memory distill / forge / shadow eval | `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`, `DistillBrain`, `DistillProfile` | (memory/skill pkgs) | `memory.*`, `skill.*` |
 
@@ -538,6 +538,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `runctx_basic.go` | `WithTrustCeiling`, `WithImages`, `WithJSONMode`, `WithModel`, `WithSystem`, `WithRunTimeout`, `WithMaxCost`, `rootFromCtx`, and their getters. |
 | `runctx_security.go` | `WithAutoApproveCapabilities`/merge/`autoApproveCap`, `PromptInjectionMode` + `ParsePromptInjectionMode`, `WithTrustedObservations`. |
 | `runctx_wake.go` | `WithWakeContext`, `systemAgentFromCtx`, tool/retry policy getters, `AgentConfigOverrides`, `WithModelChain`, `WithTools`, `actorFromCtx`, `correlationFromCtx`. |
+| `image_admission.go` | Shared image admission and `ImageAdmission{Intent, Images, Caption}`; caption text replaces raw refs before the primary run, while channel artifacts retain the caption. |
 | `resume.go` | Resume integration (section 4.8): `ResumeStore`, `WithResumeSeed`, `WithResumeOwned`, `claimResumeTicket`, `buildResumeTicket`, `resumeCheckpointFn`, `finalizeResumeTicket`, `ResumeFinalize`, `Suspend`, `publishResumeAnomaly`. |
 | `steer.go` | `runControl` (Wait/Drain/pause/resume/step/inject/snapshot/idempotency), `controlFor`. |
 | `steer_ops.go` | `PauseRun`, `ResumeRun`, `StepRun`, `SteerRun`, `RunControlState`, `InterveneRun`, `publishSteer`, `publishIntervention`. |

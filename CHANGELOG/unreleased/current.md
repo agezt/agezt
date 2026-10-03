@@ -1013,6 +1013,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Images work consistently across the console, REST/OpenAI API and channels.**
+  API image requests to a text-only model now use the configured vision sidecar
+  instead of rejecting immediately. If no usable vision caption is available,
+  all three paths return the same actionable error and journal a rejection tied
+  to the run. Empty captions are rejected; channel images remain archived.
+
 - **Fixed: config-center entries never survived a daemon restart.** The loader compared the
   first seven characters of each file name with the six-character `entry_`, so it matched
   nothing: every value, rating and ACL set through the config center was lost at each

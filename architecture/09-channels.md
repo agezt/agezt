@@ -128,7 +128,7 @@ platform ──(poll / webhook / socket)──▶ channel package
    6. if !allowed: (some kinds) reply "not authorized"; return
    7. rep, err := handler(ctx, msg, corr)  ─────────────▶ cmd/agezt makeChannelHandler:
                                                           a. intent = ConversationHistory(journal, kind, id, thread, sender, AGEZT_CHANNEL_HISTORY=10) or msg.Text
-                                                          b. images: visionGate → WithImages(ctx) | vision sidecar DescribeImages (M821); persist as artifacts (M822)
+                                                          b. images: runtime.AdmitImages → confirmed vision | sidecar caption | correlated rejection; persist artifacts with caption even on rejection
                                                           c. audio: STT transcribe (k.Voice()), append transcript; persist audio artifacts
                                                           d. text, err := k.RunWith(ctx, corr, intent)   // governed agent run
                                                           e. voice-in → TTS voice-out attachment unless AGEZT_VOICE_REPLY=off

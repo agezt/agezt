@@ -95,8 +95,8 @@ Key point: **there are two ways into the kernel.**
 - The CLI and the Web UI go through **control-plane ops**.
 - REST, the OpenAI-compatible API and agentgw call the kernel **directly** through narrow interfaces.
 
-Checks that live only in the control-plane `run` handler are skipped on the direct path: vision gate,
-tool allowlist, execution profile and agent resolution. See [03](03-control-plane-and-http.md).
+Image admission is shared by control-plane, REST/OpenAI and channels through `runtime.Kernel.AdmitImages` (W2.2a).
+Tool allowlists, execution profiles and agent resolution remain control-plane features. See [03](03-control-plane-and-http.md).
 
 ---
 
@@ -434,7 +434,7 @@ backlog. Details and file references are in the linked documents.
 |---|---|
 | Inbound **email trusts the `From:` header** (no DKIM/SPF, W4.4); ✅ case-sensitive allowlist fixed (W0.3). IRC/Twitch allowlist whole `#channel`s (any viewer can trigger billable runs). | [09](09-channels.md) |
 | ✅ **Fixed (W0.3):** Channel `Start` errors were ignored (`go ch.Start(ctx)`): a dead channel was still reported live. IRC/email/Mastodon loops lacked `channel.Guard`, so a handler panic crashed the daemon. | [09](09-channels.md) |
-| ✅ **Measured (W2.0):** the REST/OpenAI "bypass" is mostly missing features (they offer no `--tools`, execution profiles or `--agent`). The real outlier was the control plane's own direct agent run, which skipped the agent's tool deny-list and trust ceiling; fixed. Open: the vision gate differs (control plane captions images, REST rejects them). | [03](03-control-plane-and-http.md) |
+| ✅ **Measured (W2.0):** the REST/OpenAI "bypass" is mostly missing features (they offer no `--tools`, execution profiles or `--agent`). The real outlier was the control plane's own direct agent run, which skipped the agent's tool deny-list and trust ceiling; fixed. ✅ **Fixed (W2.2a):** image admission is shared: REST/OpenAI now caption through the configured sidecar, and all three adapters journal correlated rejections. Channels already captioned; their empty-caption and missing-audit drift is fixed. | [03](03-control-plane-and-http.md) |
 | ✅ **Fixed (W2.1a):** about 40 state-changing control-plane ops (provider keys, config-center entries and ACLs, schedules, routing, data-lake writes, deletions) left **no journal event**. Dispatch now journals every non-read-only op (`op.invoked` / `op.completed` / `op.failed`, secrets redacted). | [03](03-control-plane-and-http.md) |
 | ✅ **Fixed (W0.3):** REST `/metrics`, `/api/v1/health` and `/api/v1/models` answered tenant tokens from the primary kernel. **Correction:** the Web UI `/events` stream being unfiltered is not a leak — the console admits only operator credentials. | [03](03-control-plane-and-http.md) |
 | Web UI File Manager and rollback restore write the filesystem with **no op, no policy check, no journal event**. | [03](03-control-plane-and-http.md) |
