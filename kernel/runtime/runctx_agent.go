@@ -32,7 +32,7 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 		ctx = context.WithValue(ctx, ctxKeySystemAgent, true)
 	}
 	if sys := AgentProfileSystem(p); sys != "" {
-		ctx = WithSystem(ctx, sys)
+		ctx = context.WithValue(ctx, ctxKeySystem, runStringSetting{value: sys, profileSlug: p.Slug})
 	}
 	if p.Lifecycle.Mode != "" || p.Lifecycle.RetireOnComplete {
 		ctx = context.WithValue(ctx, ctxKeyAgentLifecycle, p.Lifecycle)
@@ -61,7 +61,7 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	}
 	primary := strings.TrimSpace(p.Model)
 	if primary != "" {
-		ctx = WithModel(ctx, primary)
+		ctx = context.WithValue(ctx, ctxKeyModel, runStringSetting{value: primary, profileSlug: p.Slug})
 	}
 	if len(p.Fallbacks) > 0 {
 		chain := []string{primary}

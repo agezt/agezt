@@ -1013,6 +1013,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Named agents can resume after a daemon restart even when their profile sets
+  a soul or model.** New runs distinguish profile defaults from per-run overrides,
+  including direct console/CLI agent runs. Resume rebuilds the agent profile while
+  retaining saved governance ceilings and the durable crash-loop counter. Explicit
+  per-run system/model/tool overrides and older non-resumable tickets still go to
+  quarantine.
+
 - **Images work consistently across the console, REST/OpenAI API and channels.**
   API image requests to a text-only model now use the configured vision sidecar
   instead of rejecting immediately. If no usable vision caption is available,

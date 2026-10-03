@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a is complete; the next open item is §4.2 (agent-profile resume).
+> W2.2a and W2.2b are complete; the next open item is §4.3 (governed tool side paths).
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -39,7 +39,8 @@ Layer map in code: `kernel/contract/*` (L1, stdlib-only contracts), `kernel/plat
 ### 2.1 Consolidated delivery and original stack
 
 **Delivery:** #612 contains the entire original stack and the W2.2a follow-up.
-Merge it with history preserved, then close the superseded PRs and continue on `main`.
+It was merged with history preserved at `415f6cea`; the superseded PRs were closed
+and the shared checkout returned to `main`. W2.2b was implemented directly on `main`.
 The only commits unique to earlier branch heads are identical cherry-picks of the
 `TestMarkInstanceDead` repeatability fix; the top branch includes that fix too.
 The table below is historical, not an instruction to recreate a stack.
@@ -134,7 +135,11 @@ vision sidecar, must caption (red on old code). With no sidecar it must still re
 
 **Note:** this is the first slice of the roadmap's `RunRequest`/`runs.Start`, so name it with that in mind.
 
-### 4.2 W2.2b — named agents with a soul or model can't resume after a restart (verify first)
+### 4.2 ✅ W2.2b — agent-profile resume (completed)
+
+**Measured result:** persistent tests interrupted soul-only, model-only and combined profile runs, reopened the stores and invoked the real boot resumer. All three were quarantined on the old code. Model/system values now carry their source profile slug in the run context; profile defaults remain reconstructible, while explicit setters replace the source. The control plane only calls those setters for explicit args. The ticket format and boot resumer are unchanged; older non-resumable tickets are still quarantined. Tests cover same-value explicit overrides, unnamed/retargeted profile values, denied tools, a tighter saved trust ceiling against a looser current profile, saved cost, attempts durable before provider dispatch, ticket cleanup and quarantine rails.
+
+**Evidence:** `resume_profile_internal_test.go`, `controlplane/run_resume_profile_test.go`, `cmd/agezt/resume_profile_test.go`. Independent mutations verify model/system source, explicit-override rejection, control-plane provenance, attempt persistence, trust/cost restoration and the attempt cap. The following is the original task context, retained for the measurement trail.
 
 **Claim** (findings register 9.2; `architecture/04-agent-runtime.md` gotcha 6):
 - `buildResumeTicket` (`kernel/runtime/resume.go:96–127`) marks a ticket `Resumable=false` whenever
@@ -252,7 +257,7 @@ go run ./tools/depscheck
 go run ./tools/docclaimscheck
 go run ./tools/changelog-lint
 go run ./tools/structure-md -check -out .project/STRUCTURE.generated   # after adding/renaming a package or doc.go
-gitleaks detect --no-banner --redact -s . -b .gitleaks-baseline --log-opts="main..HEAD"   # CI scans ALL commits
+gitleaks detect --no-banner --redact -s . -b .gitleaks-baseline --log-opts="origin/main..HEAD"   # CI scans ALL commits
 cd frontend && npm test && npm run build      # only when frontend/ is touched; npm, not pnpm
 ```
 

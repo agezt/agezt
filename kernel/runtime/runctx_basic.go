@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+// runStringSetting records whether a model/system value came from the named
+// profile, which the boot resumer can reload, or an explicit per-run override.
+// The source belongs to the value itself: a later setter replaces both.
+type runStringSetting struct {
+	value       string
+	profileSlug string
+}
+
+func runStringSettingFromCtx(ctx context.Context, key ctxKey) runStringSetting {
+	v, _ := ctx.Value(key).(runStringSetting)
+	return v
+}
+
 func cloneStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
@@ -107,14 +120,11 @@ func WithModel(ctx context.Context, model string) context.Context {
 	if model == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, ctxKeyModel, model)
+	return context.WithValue(ctx, ctxKeyModel, runStringSetting{value: model})
 }
 
 func modelFromCtx(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyModel).(string); ok {
-		return v
-	}
-	return ""
+	return runStringSettingFromCtx(ctx, ctxKeyModel).value
 }
 
 // WithSystem returns a context that overrides the base system prompt for the run
@@ -126,14 +136,11 @@ func WithSystem(ctx context.Context, system string) context.Context {
 	if system == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, ctxKeySystem, system)
+	return context.WithValue(ctx, ctxKeySystem, runStringSetting{value: system})
 }
 
 func systemFromCtx(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeySystem).(string); ok {
-		return v
-	}
-	return ""
+	return runStringSettingFromCtx(ctx, ctxKeySystem).value
 }
 
 // WithRunTimeout returns a context that overrides the per-run wall-clock budget

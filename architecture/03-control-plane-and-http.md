@@ -188,7 +188,7 @@ events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state 
 1. Validate `args.intent`; resolve kernel via `kernelFor(args.tenant)`.
 2. Optional overrides: `model` (M148), `agent` (the whole roster profile via `runtime.WithAgentProfile`, as for every other entry point: system prompt,
    model + fallback chain, tool allow/deny, trust ceiling, memory scope, workspace, ledger identity; plus its per-run cost ceiling and
-   execution profile as defaults. Explicit per-run flags win. Unknown, retired, paused or managed-subagent agents are rejected), `images` (shared `runtime.Kernel.AdmitImages`: confirmed vision or sidecar caption, otherwise correlated rejection), `system` (M149),
+   execution profile as defaults. Explicit per-run flags win; only explicit model/system args call the override setters, preserving profile provenance for resume (W2.2b). Unknown, retired, paused or managed-subagent agents are rejected), `images` (shared `runtime.Kernel.AdmitImages`: confirmed vision or sidecar caption, otherwise correlated rejection), `system` (M149),
    `timeout` (Go duration, M154), `tools` allowlist (M158; empty list = no tools), `max_cost_mc` (M166), `execution_profile`
    (ssh/k8s/modal/daytona/remote-agezt — each checks backend availability), `remote_peer`, `auto_approve_caps`,
    `prompt_injection_trust`, `assure` (M651).
