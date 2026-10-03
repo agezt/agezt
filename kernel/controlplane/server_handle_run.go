@@ -137,7 +137,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	// Route this run to the override model when given (M148); the loop reads it
 	// via modelFromCtx, the same path the OpenAI API uses.
-	if modelOverride != "" {
+	if strings.TrimSpace(modelRaw) != "" {
 		ctx = runtime.WithModel(ctx, modelOverride)
 	}
 	// Per-run system-prompt override (M149): replace the base system prompt for
@@ -153,7 +153,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		// The agent's soul, standing instructions and tasks ARE its system prompt.
 		systemOverride = strings.TrimSpace(runtime.AgentProfileSystem(*agentProf))
 	}
-	if systemOverride != "" {
+	if strings.TrimSpace(sysRaw) != "" {
 		ctx = runtime.WithSystem(ctx, systemOverride)
 	}
 	// Per-run wall-clock timeout override (M154): bound THIS run without a

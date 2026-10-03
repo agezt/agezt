@@ -74,6 +74,8 @@ type Ticket struct {
 
 	// Resumable is false when the run used a per-run override this ticket can't
 	// faithfully reconstruct (ad-hoc system prompt, tool allowlist, or model).
+	// Model/system defaults from AgentSlug's profile are reloaded on boot and
+	// therefore do not make a ticket non-resumable.
 	// Such a ticket is cleaned up on boot, not re-dispatched — resuming under the
 	// wrong constraints is worse than not resuming.
 	Resumable bool `json:"resumable"`

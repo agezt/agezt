@@ -88,11 +88,10 @@ func (k *Kernel) claimResumeTicket(ctx context.Context, corr, intent, kind strin
 	return WithResumeOwned(ctx, kind), true
 }
 
-// buildResumeTicket captures the RESOLVED run context (not the recipe) so a
-// resumed run neither loses a tightened trust ceiling nor guesses a cost cap. A
-// run carrying a per-run override this can't faithfully reconstruct (ad-hoc
-// system prompt, tool allowlist, or model pick) is marked non-resumable — the
-// resumer cleans it up rather than re-running it under the wrong constraints.
+// buildResumeTicket stores the agent slug (the profile is reloaded on boot) and
+// resolved governance ceilings, so resume cannot silently regain authority.
+// Explicit model/system/tools overrides are not stored yet and remain
+// non-resumable. Profile-sourced defaults are reconstructible, even when set.
 func (k *Kernel) buildResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) *resume.Ticket {
 	t := &resume.Ticket{
 		Corr:         corr,
@@ -118,8 +117,11 @@ func (k *Kernel) buildResumeTicket(ctx context.Context, corr, intent, kind strin
 	t.WakeStandingID = w.StandingID
 	t.WakeStandingName = w.StandingName
 	t.WakeTriggerSubject = w.TriggerSubject
-	if systemFromCtx(ctx) != "" || modelFromCtx(ctx) != "" {
-		t.Resumable = false
+	for _, key := range []ctxKey{ctxKeySystem, ctxKeyModel} {
+		setting := runStringSettingFromCtx(ctx, key)
+		if setting.value != "" && (setting.profileSlug == "" || setting.profileSlug != t.AgentSlug) {
+			t.Resumable = false
+		}
 	}
 	if _, ok := toolsFromCtx(ctx); ok {
 		t.Resumable = false
