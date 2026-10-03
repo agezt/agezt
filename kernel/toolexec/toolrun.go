@@ -14,8 +14,10 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 	"github.com/agezt/agezt/kernel/platform/tooloutput"
 )
@@ -27,7 +29,7 @@ type ToolLookup interface {
 
 // PolicyChecker is the interface for gating tool invocations.
 type PolicyChecker interface {
-	CheckPolicy(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict
+	CheckPolicy(ctx context.Context, tc llm.ToolCall) policyapi.PolicyVerdict
 }
 
 // EventPublisher is the interface for emitting tool and policy events.
@@ -83,16 +85,7 @@ func Run(
 		Kind:          event.KindPolicyDecision,
 		Actor:         "policy",
 		CorrelationID: corr,
-		Payload: map[string]any{
-			"tool":         toolName,
-			"call_id":      callID,
-			"capability":   verdict.Capability,
-			"allow":        verdict.Allow,
-			"reason":       verdict.Reason,
-			"would_ask":    verdict.WouldAsk,
-			"hard_denied":  verdict.HardDenied,
-			"effect_class": verdict.EffectClass,
-		},
+		Payload:       toolaudit.PolicyDecisionPayload(llm.ToolCall{ID: callID, Name: toolName, Input: args}, verdict),
 	}); err != nil {
 		return toolapi.Result{}, err
 	}
