@@ -8,11 +8,13 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 )
 
 func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int) ([]*toolJob, error) {
@@ -150,8 +152,8 @@ func policyDecisionPayload(tc ToolCall, v PolicyVerdict) map[string]any {
 }
 
 // executeToolJobs is phase 2: run every gated-allowed job. A single call (the
-// common case) or disabled parallelism runs inline on the caller's goroutine,
-// where Run's panic firewall (M168) covers it; a multi-call turn fans out up to
+// common case) or disabled parallelism runs inline on the caller's goroutine;
+// both paths use the shared invocation panic firewall. A multi-call turn fans out up to
 // MaxParallelTools at a time, each worker carrying its OWN recover because Run's
 // firewall only guards Run's goroutine and an unrecovered panic on a spawned
 // goroutine would crash the whole daemon. A captured panic surfaces in phase 3
@@ -171,8 +173,17 @@ func executeToolJobs(ctx context.Context, cfg LoopConfig, jobs []*toolJob) {
 		maxPar = DefaultMaxParallelTools
 	}
 	if len(toExec) <= 1 || maxPar <= 1 {
-		for _, job := range toExec {
+		for i, job := range toExec {
 			invokeToolJob(ctx, cfg, job)
+			if job.panicked {
+				// The old sequential panic firewall stopped execution here.
+				// Settle admitted later calls without performing their effects.
+				for _, pending := range toExec[i+1:] {
+					pending.skipped = true
+					pending.result = Result{Output: "tool call not executed after an earlier tool panic", IsError: true}
+				}
+				return
+			}
 		}
 		return
 	}
@@ -209,7 +220,12 @@ func invokeToolJob(ctx context.Context, cfg LoopConfig, job *toolJob) {
 	if cfg.ToolTimeout > 0 {
 		toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)
 	}
-	job.result, job.invokeErr = job.tool.Invoke(toolCtx, job.tc.Input)
+	var panicValue any
+	job.result, panicValue, job.invokeErr = toolinvoke.Invoke(toolCtx, job.tool, job.tc.Input)
+	if panicValue != nil {
+		job.panicked = true
+		job.invokeErr = fmt.Errorf("%w: %v", ErrPanic, panicValue)
+	}
 	job.toolTimedOut = cfg.ToolTimeout > 0 && toolCtx.Err() == context.DeadlineExceeded
 	if toolCancel != nil {
 		toolCancel()
@@ -224,6 +240,21 @@ func invokeToolJob(ctx context.Context, cfg LoopConfig, job *toolJob) {
 // journal publish); a tool that merely failed becomes an error Result the model
 // can react to, and the run continues.
 func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter int, messages []Message) ([]Message, error) {
+	// Executed parallel siblings have already completed. A run-terminal failure
+	// must settle the whole admitted batch before task.failed, and must not
+	// trigger runtime bookkeeping/automation on the way out.
+	var terminalErr, auditErr error
+	for _, job := range jobs {
+		if job.panicked {
+			terminalErr = errors.Join(terminalErr, job.invokeErr)
+		}
+	}
+	observeCancellation := func() {
+		if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(terminalErr, ctxErr) {
+			terminalErr = errors.Join(terminalErr, ctxErr)
+		}
+	}
+	observeCancellation()
 	for _, job := range jobs {
 		if job.memoSource != nil {
 			job.result = job.memoSource.result
@@ -231,7 +262,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 		if job.tool != nil {
 			switch {
 			case job.panicked:
-				return nil, job.invokeErr
+				job.result = Result{Output: job.invokeErr.Error(), IsError: true}
 			case job.invokeErr == nil:
 				// job.result already holds the tool's output.
 			case ctx.Err() != nil:
@@ -239,7 +270,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 				// M31 per-run deadline) — a run-level terminal, not a tool fault.
 				// Propagate so the run fails with the correct reason instead of
 				// limping on.
-				return nil, ctx.Err()
+				job.result = Result{Output: ctx.Err().Error(), IsError: true}
 			case job.toolTimedOut:
 				// The tool overran its own budget while the run is fine: hand the
 				// model a clear error and keep the run going.
@@ -306,10 +337,15 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 		if job.memoHit {
 			resultPayload["memo_hit"] = true
 		}
-		if _, err := s.publish(event.KindToolResult, "tool", resultPayload); err != nil {
-			return nil, fmt.Errorf("agent: publish tool.result: %w", err)
+		if job.skipped {
+			resultPayload["not_executed"] = true
 		}
-		if s.cfg.ToolResultHook != nil && job.tool != nil {
+		if _, err := s.publish(event.KindToolResult, "tool", resultPayload); err != nil {
+			auditErr = errors.Join(auditErr, fmt.Errorf("agent: publish tool.result: %w", err))
+			continue // retain causes and attempt the remaining terminal records
+		}
+		observeCancellation()
+		if s.cfg.ToolResultHook != nil && job.tool != nil && !job.skipped && terminalErr == nil && auditErr == nil {
 			s.cfg.ToolResultHook(ctx, job.tc, job.result)
 		}
 
@@ -318,6 +354,10 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 			Content:    modelOutput,
 			ToolCallID: job.tc.ID,
 		})
+	}
+	observeCancellation()
+	if terminalErr != nil || auditErr != nil {
+		return nil, errors.Join(terminalErr, auditErr)
 	}
 	return messages, nil
 }

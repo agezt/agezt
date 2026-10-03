@@ -28,6 +28,7 @@ type decodedToolResult struct {
 	callID            string
 	output            string
 	isError           bool
+	notExecuted       bool
 	observationTrust  string
 	observationSource string
 	directiveLike     bool
@@ -43,6 +44,7 @@ func decodeToolResult(payload json.RawMessage) decodedToolResult {
 		CallID            string   `json:"call_id"`
 		Output            string   `json:"output"`
 		Error             bool     `json:"error"`
+		NotExecuted       bool     `json:"not_executed"`
 		ObservationTrust  string   `json:"observation_trust"`
 		ObservationSource string   `json:"observation_source"`
 		DirectiveLike     bool     `json:"directive_like"`
@@ -56,6 +58,7 @@ func decodeToolResult(payload json.RawMessage) decodedToolResult {
 		callID:            p.CallID,
 		output:            previewString(p.Output),
 		isError:           p.Error,
+		notExecuted:       p.NotExecuted,
 		observationTrust:  p.ObservationTrust,
 		observationSource: p.ObservationSource,
 		directiveLike:     p.DirectiveLike,

@@ -63,13 +63,13 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 			// Latency (M71) joins the call's invoked→result span within the run. A
 			// policy-denied call has no tool.invoked, so it has no latency (0).
 			var dur int64
-			if it, ok := invokedTS[key]; ok && e.TSUnixMS >= it {
+			if it, ok := invokedTS[key]; ok && !decoded.notExecuted && e.TSUnixMS >= it {
 				dur = e.TSUnixMS - it
 			}
 			if slowMS > 0 && dur < slowMS {
 				return nil, false // M73: faster than the latency floor (or unmeasurable)
 			}
-			return map[string]any{
+			row := map[string]any{
 				"actor":          e.Actor,
 				"correlation_id": e.CorrelationID,
 				"tool":           decoded.tool,
@@ -84,7 +84,11 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 				"observation_source": decoded.observationSource,
 				"directive_like":     decoded.directiveLike,
 				"directive_matches":  decoded.directiveMatches,
-			}, true
+			}
+			if decoded.notExecuted {
+				row["not_executed"] = true
+			}
+			return row, true
 		default:
 			return nil, false
 		}
@@ -153,7 +157,7 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			}
 			errorsByMessage[msg]++
 		}
-		if it, ok := invokedTS[toolInvocationKey{e.CorrelationID, decoded.callID}]; ok && e.TSUnixMS >= it {
+		if it, ok := invokedTS[toolInvocationKey{e.CorrelationID, decoded.callID}]; ok && !decoded.notExecuted && e.TSUnixMS >= it {
 			d := e.TSUnixMS - it
 			durations = append(durations, d)
 			agg.durSum += d
