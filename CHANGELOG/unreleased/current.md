@@ -4,6 +4,15 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: agent tool panics and cancellations now leave terminal audit.**
+  These failures previously ended the task with unmatched tool invocation records;
+  a panic also skipped cleanup of its per-call timeout context. The loop now uses
+  the shared safe invocation primitive and records the whole admitted batch before
+  failing the task. Sequential panic still prevents later code/tools from running;
+  those results are marked as not executed and excluded from execution latency in
+  tool logs/stats. Terminal turns do not trigger result bookkeeping hooks or another
+  model call. Journal failures preserve the original panic/cancellation cause.
+
 - **Security: Conductor code verification now obeys execution policy.** It
   previously ran worker-written code and could pass verification despite an
   explicit `code.exec` denial, agent tool restriction or trust ceiling. It now

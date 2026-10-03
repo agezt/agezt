@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–d are complete; continue §4.3 with W2.3e:
-> agent-loop terminal audit and shared invocation, then the remaining app invoker work.
+> W2.2a, W2.2b and W2.3a–e are complete; continue §4.3 with the remaining
+> app invoker, shared output offload and policy-payload alignment work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -170,7 +170,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3d foundation (move only):** the direct invoker's panic-contained tool call now lives in `platform/toolinvoke.Invoke`. The `toolexec` forwarding helper preserves the same result/error/context and panic error text; policy, admission and audit remain in their callers. This is the move-before-rewrite step for agent convergence, not the full app invoker. Three mutations independently reject missing recovery, lost errors and replaced context.
 
-**Next open slice — W2.3e, measured:** eight actual agent-loop scenarios (panic/cancel, sequential/parallel, fault first/last) lose terminal `tool.result` records; a tool panic also skips cancellation of its per-call context. A sequential panic must still prevent later tool execution; parallel batches must settle every dispatched outcome before their task fails. Reuse the platform invocation primitive and close terminal audit before preserving the original panic/cancellation failure. Keep bounded concurrency, original result order, timeout feedback, memo/taint/offload and default allow. Full `app/tools.Invoke`, output offload and policy-payload alignment remain open; W2.3 is not complete as a whole.
+**W2.3e measured and fixed:** eight actual agent-loop scenarios (panic/cancel, sequential/parallel, fault first/last) lost terminal `tool.result` records; panic also skipped per-call context cancellation. Agent execution now uses the shared platform primitive, releases the call context and settles the whole admitted batch before task failure. A sequential panic still prevents later effects; those calls get failed results marked `not_executed`. Parallel dispatch stays bounded and results retain original order. Terminal batches do not invoke bookkeeping/automation hooks or make another model call. An audit-write failure is joined with the typed panic/cancellation cause and remaining terminal writes are attempted. Tool-log/stats honor the skipped marker and omit invented execution latency. Actual entry-point and source suites plus eleven independent mutations cover these boundaries; timeout feedback, memo/taint/offload and default allow remain.
+
+**Next open slice:** full `app/tools.Invoke`, shared output offload and policy-payload alignment. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; only admitted tool execution is shared so far. Its `tool.invoked` events still describe batch admission before execution. W2.3 is not complete as a whole.
 
 Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; all four original side-path findings are fixed (W2.3a–c).
 
