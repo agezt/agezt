@@ -49,7 +49,7 @@ kernel/runtime/lifecycle -> event, ulid
 kernel/runtime/accessors -> (store packages) + runtime/types
 kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool, warden    (NO importers: dead)
 kernel/runtime/types     -> (none)
-kernel/toolexec     -> agent, event
+kernel/toolexec     -> contract/{llm,policyapi,toolapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
 kernel/toolreg      -> agent, artifact, board, bus, channel, datalake, journal, runtime, warden
 kernel/toolforge    -> filestore, ulid
 kernel/delegation   -> agent, edict
@@ -107,7 +107,7 @@ The canonical single-agent tool loop (DECISIONS B0d). It defines `Provider` (LLM
 
 W2.3h moved these contracts verbatim to `kernel/contract/policyapi`; agent aliases retain exact callback/verdict type identity. The loop forwards policy journal rendering to `kernel/platform/toolaudit.PolicyDecisionPayload`, preserving its 23 fields and nil/zero JSON representation. W2.3i measured and repaired the direct invoker's eight-field map: `toolexec.Run` now uses the same 23-field renderer through both legacy and options entry points. Resource/epistemic/observation data and explicit nil/zero values are retained without changing the verdict or admission sequence. Same-verdict loop/direct/options and actual direct/workflow/canvas/code allow/deny journal tests reproduced the old loss; eight mutations guard wiring, metadata, identity and mandatory preflight error propagation. Source/actual-loop tests and four mutations guard the extraction.
 
-W2.3j extracted the unchanged schema validator (`platform/schema`) and policy context helpers (`platform/policyctx`) so the direct invoker can stop depending on the loop implementation. `contract/policyapi` owns the observation-taint type; agent forwards its existing public helpers. Exact error/validation and cross-accessor/parent-context tests plus seven mutations protect the move. Direct consumers remain on the old forwarding surface until the separate repointing PR.
+W2.3j extracted the unchanged schema validator (`platform/schema`) and policy context helpers (`platform/policyctx`) so the direct invoker can stop depending on the loop implementation. `contract/policyapi` owns the observation-taint type; agent forwards its existing public helpers. Exact error/validation and cross-accessor/parent-context tests plus seven mutations protect the move. W2.3k repointed direct Run/RunWithOptions to the platform validators/context helpers; its production dependency closure no longer reaches agent. Old/new source invoker tests preserve unknown/schema refusal before policy/backend/audit/hooks and resolved metadata, provenance, identity and allow/deny semantics. Five mutations and 20-repeat entry-point tests guard the repointing. The loop's compatible helper calls and its memo/guard/batch admission sequence remain.
 
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.

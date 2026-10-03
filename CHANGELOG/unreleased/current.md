@@ -764,6 +764,8 @@ This file holds the active `[Unreleased]` working set.
 - **Architecture: tool admission helpers have shared platform homes.**
   Existing schema validation and policy context behavior are preserved behind
   agent compatibility helpers, including schema errors and observation provenance.
+  Direct invoker preflight now uses those helpers without importing the agent loop;
+  validation, policy and execution behavior are preserved.
 
 - **Tool policy audit now retains full decision details on direct paths.**
   Direct, workflow, canvas and code calls previously omitted resource, epistemic

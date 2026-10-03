@@ -12,11 +12,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/policyctx"
+	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 	"github.com/agezt/agezt/kernel/platform/tooloutput"
@@ -70,11 +71,11 @@ func Run(
 		return toolapi.Result{}, fmt.Errorf("unknown tool %q", toolName)
 	}
 	def := tool.Definition()
-	if err := agent.ValidateToolInput(def, args); err != nil {
+	if err := schema.ValidateToolInput(def, args); err != nil {
 		return toolapi.Result{}, fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
 	}
 	ctx = toolapi.WithCorrelation(ctx, corr)
-	ctx = agent.WithPolicyToolDef(ctx, def)
+	ctx = policyctx.WithPolicyToolDef(ctx, def)
 	verdict := policy.CheckPolicy(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args})
 	// Journal the gating decision for the direct (operator/CLI) tool path too, so it
 	// is audited exactly like a loop tool call (kernel/agent publishes the same
