@@ -7,12 +7,46 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// The handler writes its socket response before dispatch's deferred terminal
+// audit. Receiving a response is therefore not an audit completion barrier.
+// Linux -race -count=20 caught JournalsFailedOps reading only op.invoked.
+func watchOpAudit(t *testing.T, k *runtime.Kernel) *bus.Subscription {
+	t.Helper()
+	sub, err := k.Bus().Subscribe("op.>", 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(sub.Cancel)
+	return sub
+}
+
+func awaitOpAudit(t *testing.T, sub *bus.Subscription) {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case e, ok := <-sub.C:
+			if !ok {
+				t.Fatal("operation audit subscription closed before terminal event")
+			}
+			if e.Kind == event.KindOpCompleted || e.Kind == event.KindOpFailed {
+				return
+			}
+		case <-timer.C:
+			t.Fatal("operation did not publish terminal audit")
+		}
+	}
+}
 
 // opEvents returns the op.* events journaled since seq, in order.
 func opEvents(t *testing.T, k *runtime.Kernel, since int64) []*event.Event {
@@ -44,6 +78,7 @@ func payloadOf(t *testing.T, e *event.Event) map[string]any {
 // with no journal trace at all (W2.1).
 func TestDispatch_JournalsStateChangingOps(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	sub := watchOpAudit(t, k)
 	ctx := context.Background()
 
 	for _, tc := range []struct {
@@ -62,6 +97,7 @@ func TestDispatch_JournalsStateChangingOps(t *testing.T) {
 		if _, err := c.Call(ctx, tc.cmd, tc.args); err != nil {
 			t.Fatalf("%s: %v", tc.cmd, err)
 		}
+		awaitOpAudit(t, sub)
 		evs := opEvents(t, k, seq)
 		if len(evs) != 2 || evs[0].Kind != event.KindOpInvoked || evs[1].Kind != event.KindOpCompleted {
 			t.Fatalf("%s: op events = %v, want [op.invoked op.completed]", tc.cmd, kinds(evs))
@@ -101,11 +137,13 @@ func TestDispatch_ReadOnlyOpsAreNotJournaled(t *testing.T) {
 // with the reason the caller saw.
 func TestDispatch_JournalsFailedOps(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	sub := watchOpAudit(t, k)
 	seq, _ := k.Journal().Head()
 	_, callErr := c.Call(context.Background(), controlplane.CmdScheduleAdd, map[string]any{"interval_sec": 60})
 	if callErr == nil {
 		t.Fatal("schedule_add without an intent succeeded")
 	}
+	awaitOpAudit(t, sub)
 	evs := opEvents(t, k, seq)
 	if len(evs) != 2 || evs[1].Kind != event.KindOpFailed {
 		t.Fatalf("op events = %v, want [op.invoked op.failed]", kinds(evs))
@@ -120,13 +158,16 @@ func TestDispatch_JournalsFailedOps(t *testing.T) {
 // carry it, nor any value nested in an object argument.
 func TestDispatch_AuditNeverJournalsSecrets(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	sub := watchOpAudit(t, k)
 	// Joined at run time so secret scanners do not flag a fixture literal.
 	secret := strings.Join([]string{"zq7Vb2Lr", "9Xc4Kd8M", "n3Pw6Ty1"}, "")
 	seq, _ := k.Journal().Head()
 	_, _ = c.Call(context.Background(), controlplane.CmdProviderKeyAdd,
 		map[string]any{"provider": "openai", "label": "spare", "value": secret})
+	awaitOpAudit(t, sub)
 	_, _ = c.Call(context.Background(), controlplane.CmdChannelAccountSet,
 		map[string]any{"channel": "telegram", "label": "ops", "config": map[string]any{"bot": secret}})
+	awaitOpAudit(t, sub)
 	evs := opEvents(t, k, seq)
 	if len(evs) == 0 {
 		t.Fatal("no op events journaled")
