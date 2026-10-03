@@ -761,6 +761,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: tool-policy contracts and loop audit rendering have shared homes.**
+  Existing agent verdict/callback APIs remain exact aliases; policy decisions retain
+  the same journal representation. Direct-tool audit alignment follows separately.
+
 - **Large tool audit output is handled consistently across runtime paths.**
   Direct calls, workflows, canvas tests and code/reasoning tool calls now use the
   agent loop's artifact store and configured output threshold. Large terminal

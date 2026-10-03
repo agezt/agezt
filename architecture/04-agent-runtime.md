@@ -105,6 +105,8 @@ The canonical single-agent tool loop (DECISIONS B0d). It defines `Provider` (LLM
 | `Middleware` / `Wrap` | provider middleware (M997): `TransformRequest`, `WrapComplete`, `WrapStream`, `SynthesizeStream`. Helpers: `ExtractReasoningMiddleware`, `SimulateStreamingMiddleware`, `DefaultParamsMiddleware` |
 | `GenerateObject` | JSON-schema-constrained one-shot with `DefaultObjectRepairs=2` repair rounds. Returns `*ObjectError` wrapping `ErrNoObjectGenerated` |
 
+W2.3h moved these contracts verbatim to `kernel/contract/policyapi`; agent aliases retain exact callback/verdict type identity. The loop forwards policy journal rendering to `kernel/platform/toolaudit.PolicyDecisionPayload`, preserving its 23 fields and nil/zero JSON representation. The direct invoker still writes its previous eight-field map; same-verdict allow/deny regressions measured the missing 15 fields before the separate wiring repair. Source/actual-loop tests and four mutations guard the extraction.
+
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.
 
@@ -210,7 +212,7 @@ The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.
 | `run_tools_gate.go` | `gateToolCalls`, `policyDecisionPayload`, `executeToolJobs`, `invokeToolJob` (shared platform primitive, cleanup on panic), `finalizeToolJobs` (settles terminal batches before failure, joins audit/terminal causes). Skipped sequential calls are marked `not_executed`; terminal batches suppress result hooks. |
 | `agent_context.go` | Budget and compaction (`AutoContextBudgetChars`, `compactMessagesDetailed`, `rescuedToolOutput`, `contextSize`, `truncateForJournal`), loop defaults, sentinels (`ErrMaxIter`, `ErrPanic`, `ErrRunBudgetExceeded`, `ErrUnknownTool`), steering prefixes, `autoContinuePrompt`. |
 | `agent_context_offload.go` | Compatibility `ArtifactPutter`/default aliases and `offloadToolOutput` forwarding to `platform/tooloutput.Offload` (W2.3f move only). Threshold, preview and best-effort fallback are unchanged. |
-| `agent_context_policy.go` | `PolicyVerdict`, `Policy`. |
+| `agent_context_policy.go` | Exact `PolicyVerdict`/`Policy` compatibility aliases to `contract/policyapi` (W2.3h move only). |
 | `observation.go` | Trust boundary (the `ObservationTrust` type itself is in `contract/toolapi`): `ObservationBoundary`, `ObservationBoundaryForTool`, `RenderObservationForModel`, `MergeUntrustedObservationTaint`, directive-needle matching, `DiffObservation`, `DefaultDirectiveTaintWindow=1`. |
 | `toolctx.go` | Context keys: `WithCorrelation`/`CorrelationFromContext`, `WithPolicyToolDef`, `WithUntrustedObservationTaint`, `WithAgent`/`AgentFromContext`, `WithWorkdir` (rejects absolute paths and `..`). |
 | `toolselect.go` | `LexicalToolSelector`, `DeferredLexicalToolSelector` (pinned `tool_search`, no fallback-all), `normalizeSelectedTools`, scoring. `max <= 0` returns a nil selector. |
