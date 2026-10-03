@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -27,7 +28,7 @@ func TestToolInvokerFactoryIsBoundPerKernel(t *testing.T) {
 	tool := &workflowAuditTool{name: "probe"}
 	cfg := runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"probe": tool}, NewToolInvoker: func(deps toolexec.Dependencies) toolapi.Invoker {
 		factories.Add(1)
-		return &observedInvoker{delegate: toolexec.NewInvoker(deps), calls: &calls}
+		return &observedInvoker{delegate: apptools.NewInvoker(deps), calls: &calls}
 	}}
 	primary, err := runtime.Open(cfg)
 	if err != nil {
@@ -103,7 +104,7 @@ func TestInjectedToolInvokerPreservesPaths(t *testing.T) {
 			full := strings.Repeat("DATA", 5000)
 			k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ScriptRunner: &stubRunner{out: full}, NewToolInvoker: func(deps toolexec.Dependencies) toolapi.Invoker {
 				factoryCalls.Add(1)
-				return &observedInvoker{delegate: toolexec.NewInvoker(deps), calls: &portCalls}
+				return &observedInvoker{delegate: apptools.NewInvoker(deps), calls: &portCalls}
 			}})
 			if err != nil {
 				t.Fatal(err)
