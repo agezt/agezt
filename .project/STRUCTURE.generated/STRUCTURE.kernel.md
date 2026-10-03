@@ -85,7 +85,7 @@
 - **`kernel/tenant`** — Package tenant is the multi-tenant isolation foundation (ROADMAP P6-MULTI).
 - **`kernel/tenantctx`** — Package tenantctx carries the identity of the tenant a run belongs to through the run's context.Context, so tools that behave differently per tenant (e.g.
 - **`kernel/toolbox`** — Package toolbox is the host CLI-tool inventory + installer (M956).
-- **`kernel/toolexec`** — Package toolexec provides the direct tool execution service used by the operator/CLI tool path.
+- **`kernel/toolexec`** — Package toolexec provides the shared execution service used by direct operator/CLI calls and registered workflow tool nodes.
 - **`kernel/toolforge`** — Package toolforge is the script-tool forge (M794): agent-authored code promoted into durable, callable tools — the close of the write→use→improve cycle.
 - **`kernel/toolreg`** — Package toolreg is the first-party tool registry (Phase 2.2).
 - **`kernel/tunnel`** — Package tunnel exposes a local Agezt HTTP service (the Web UI or REST API) to the public internet by supervising an operator-chosen tunnel binary — cloudflared, ngrok, Tailscale, or any custom command.

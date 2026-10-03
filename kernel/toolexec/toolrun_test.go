@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -19,6 +20,35 @@ import (
 type fakeTool struct {
 	def    toolapi.ToolDef
 	invoke func(ctx context.Context, input json.RawMessage) (toolapi.Result, error)
+}
+
+func TestRun_TerminalAuditFailurePreservesCause(t *testing.T) {
+	for _, denied := range []bool{false, true} {
+		name := "invoke-error"
+		if denied {
+			name = "deny"
+		}
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			invokeFailure := errors.New("invoke failure")
+			auditFailure := errors.New("result audit unavailable")
+			tool := &fakeTool{def: toolapi.ToolDef{Name: "probe"}, invoke: func(context.Context, json.RawMessage) (toolapi.Result, error) {
+				calls++
+				return toolapi.Result{}, invokeFailure
+			}}
+			_, err := toolexec.Run(context.Background(), "corr", "call", "probe", json.RawMessage(`{}`), mockLookup{"probe": tool}, &mockPolicy{verdict: agent.PolicyVerdict{Allow: !denied, Reason: "test denial"}}, &mockEvents{failKind: event.KindToolResult, failure: auditFailure}, &mockNoise{})
+			if !errors.Is(err, auditFailure) {
+				t.Fatalf("audit error lost: %v", err)
+			}
+			if denied {
+				if calls != 0 || !strings.Contains(err.Error(), "refused") {
+					t.Fatalf("denial lost: calls=%d error=%v", calls, err)
+				}
+			} else if calls != 1 || !errors.Is(err, invokeFailure) {
+				t.Fatalf("invoke error lost: calls=%d error=%v", calls, err)
+			}
+		})
+	}
 }
 
 func (f *fakeTool) Definition() toolapi.ToolDef { return f.def }
@@ -36,21 +66,82 @@ func (m mockLookup) LookupTool(name string) (toolapi.Tool, bool) {
 
 // mockPolicy implements toolexec.PolicyChecker with a programmable verdict.
 type mockPolicy struct {
-	verdict agent.PolicyVerdict
+	verdict     agent.PolicyVerdict
+	definition  toolapi.ToolDef
+	correlation string
 }
 
-func (m *mockPolicy) CheckPolicy(_ context.Context, _ llm.ToolCall) agent.PolicyVerdict {
+func (m *mockPolicy) CheckPolicy(ctx context.Context, _ llm.ToolCall) agent.PolicyVerdict {
+	m.definition, _ = agent.PolicyToolDefFromContext(ctx)
+	m.correlation = toolapi.CorrelationFromContext(ctx)
 	return m.verdict
 }
 
 // mockEvents implements toolexec.EventPublisher.
 type mockEvents struct {
 	published []event.Spec
+	failKind  event.Kind
+	failure   error
 }
 
 func (m *mockEvents) PublishEvent(spec event.Spec) error {
+	if spec.Kind == m.failKind {
+		return m.failure
+	}
 	m.published = append(m.published, spec)
 	return nil
+}
+
+func TestRun_UsesResolvedPolicyDefinition(t *testing.T) {
+	def := toolapi.ToolDef{Name: "greet", Capability: toolapi.ToolCapability{Name: "introspect"}}
+	tool := &fakeTool{def: def, invoke: func(context.Context, json.RawMessage) (toolapi.Result, error) {
+		return toolapi.Result{Output: "ok"}, nil
+	}}
+	ctx := agent.WithPolicyToolDef(context.Background(), toolapi.ToolDef{Name: "caller-spoof", Capability: toolapi.ToolCapability{Name: "provider.call"}})
+	policy := &mockPolicy{verdict: agent.PolicyVerdict{Allow: true}}
+	if _, err := toolexec.Run(ctx, "corr", "call", "greet", json.RawMessage(`{}`), mockLookup{"greet": tool}, policy, &mockEvents{}, &mockNoise{}); err != nil {
+		t.Fatal(err)
+	}
+	if policy.definition.Name != def.Name || policy.definition.Capability.Name != def.Capability.Name || policy.correlation != "corr" {
+		t.Fatalf("policy definition=%+v correlation=%q", policy.definition, policy.correlation)
+	}
+}
+
+func TestRun_AuditFailure(t *testing.T) {
+	for _, kind := range []event.Kind{event.KindPolicyDecision, event.KindToolInvoked, event.KindToolResult} {
+		t.Run(string(kind), func(t *testing.T) {
+			calls := 0
+			tool := &fakeTool{def: toolapi.ToolDef{Name: "greet"}, invoke: func(context.Context, json.RawMessage) (toolapi.Result, error) {
+				calls++
+				return toolapi.Result{Output: "ok"}, nil
+			}}
+			failure := errors.New("audit unavailable")
+			_, err := toolexec.Run(context.Background(), "corr", "call", "greet", json.RawMessage(`{}`), mockLookup{"greet": tool}, &mockPolicy{verdict: agent.PolicyVerdict{Allow: true}}, &mockEvents{failKind: kind, failure: failure}, &mockNoise{})
+			if !errors.Is(err, failure) {
+				t.Fatalf("error=%v want audit failure", err)
+			}
+			wantCalls := 0
+			if kind == event.KindToolResult {
+				wantCalls = 1
+			}
+			if calls != wantCalls {
+				t.Fatalf("calls=%d want %d", calls, wantCalls)
+			}
+		})
+	}
+}
+
+func TestRun_PanicIsAudited(t *testing.T) {
+	tool := &fakeTool{def: toolapi.ToolDef{Name: "panic"}, invoke: func(context.Context, json.RawMessage) (toolapi.Result, error) { panic("tool failure") }}
+	events := &mockEvents{}
+	noise := &mockNoise{}
+	_, err := toolexec.Run(context.Background(), "corr", "call", "panic", json.RawMessage(`{}`), mockLookup{"panic": tool}, &mockPolicy{verdict: agent.PolicyVerdict{Allow: true}}, events, noise)
+	if err == nil || len(events.published) != 3 || events.published[2].Kind != event.KindToolResult || noise.calls != 1 {
+		t.Fatalf("error=%v events=%v noise=%d", err, events.published, noise.calls)
+	}
+	if p := events.published[2].Payload.(map[string]any); p["error"] != true {
+		t.Fatalf("result=%v", p)
+	}
 }
 
 // mockNoise implements toolexec.NoiseNotifier.
@@ -128,6 +219,9 @@ func TestRun_DeniedByPolicy_Error(t *testing.T) {
 	}
 	if noise.calls != 0 {
 		t.Fatalf("noise notifier should not be called on denial, got %d calls", noise.calls)
+	}
+	if len(events.published) != 2 || events.published[0].Kind != event.KindPolicyDecision || events.published[1].Kind != event.KindToolResult {
+		t.Fatalf("denial audit=%v; want policy.decision then tool.result", events.published)
 	}
 }
 

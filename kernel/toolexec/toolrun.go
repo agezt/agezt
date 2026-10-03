@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// Package toolexec provides the direct tool execution service used by the
-// operator/CLI tool path. It is extracted from kernel/runtime to narrow the
+// Package toolexec provides the shared execution service used by direct
+// operator/CLI calls and registered workflow tool nodes. It narrows the
 // composition root's responsibility and to make tool-execution behaviour
 // independently testable.
 package toolexec
@@ -9,6 +9,7 @@ package toolexec
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -56,15 +57,18 @@ func Run(
 	if !ok {
 		return toolapi.Result{}, fmt.Errorf("unknown tool %q", toolName)
 	}
-	if err := agent.ValidateToolInput(tool.Definition(), args); err != nil {
+	def := tool.Definition()
+	if err := agent.ValidateToolInput(def, args); err != nil {
 		return toolapi.Result{}, fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
 	}
+	ctx = toolapi.WithCorrelation(ctx, corr)
+	ctx = agent.WithPolicyToolDef(ctx, def)
 	verdict := policy.CheckPolicy(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args})
 	// Journal the gating decision for the direct (operator/CLI) tool path too, so it
 	// is audited exactly like a loop tool call (kernel/agent publishes the same
 	// policy.decision for in-loop calls). Without this, a refused direct tool run
 	// left no journal trace and never folded into the per-agent denial audit.
-	_ = events.PublishEvent(event.Spec{
+	if err := events.PublishEvent(event.Spec{
 		Subject:       "policy",
 		Kind:          event.KindPolicyDecision,
 		Actor:         "policy",
@@ -79,13 +83,23 @@ func Run(
 			"hard_denied":  verdict.HardDenied,
 			"effect_class": verdict.EffectClass,
 		},
-	})
+	}); err != nil {
+		return toolapi.Result{}, err
+	}
 	if !verdict.Allow {
 		reason := verdict.Reason
 		if reason == "" {
 			reason = "denied by policy"
 		}
-		return toolapi.Result{}, fmt.Errorf("tool %s refused: %s", toolName, reason)
+		res := toolapi.Result{Output: "tool call denied by policy: " + reason, IsError: true}
+		refusal := fmt.Errorf("tool %s refused: %s", toolName, reason)
+		if err := events.PublishEvent(event.Spec{
+			Subject: "tool", Kind: event.KindToolResult, Actor: "tool", CorrelationID: corr,
+			Payload: map[string]any{"tool": toolName, "call_id": callID, "output": res.Output, "error": true},
+		}); err != nil {
+			return res, errors.Join(refusal, err)
+		}
+		return res, refusal
 	}
 	if err := events.PublishEvent(event.Spec{
 		Subject:       "tool",
@@ -100,9 +114,9 @@ func Run(
 	}); err != nil {
 		return toolapi.Result{}, err
 	}
-	res, err := tool.Invoke(toolapi.WithCorrelation(ctx, corr), args)
+	res, err := invokeSafely(ctx, tool, args)
 	if err != nil {
-		_ = events.PublishEvent(event.Spec{
+		auditErr := events.PublishEvent(event.Spec{
 			Subject:       "tool",
 			Kind:          event.KindToolResult,
 			Actor:         "tool",
@@ -110,6 +124,9 @@ func Run(
 			Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": err.Error(), "error": true},
 		})
 		noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, toolapi.Result{Output: err.Error(), IsError: true})
+		if auditErr != nil {
+			err = errors.Join(err, auditErr)
+		}
 		return toolapi.Result{}, err
 	}
 	if err := events.PublishEvent(event.Spec{
@@ -123,4 +140,15 @@ func Run(
 	}
 	noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, res)
 	return res, nil
+}
+
+// A faulty tool must still produce its terminal audit record and cannot take
+// down a workflow or the direct-tool caller.
+func invokeSafely(ctx context.Context, tool toolapi.Tool, args json.RawMessage) (res toolapi.Result, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("tool invocation panicked: %v", recovered)
+		}
+	}()
+	return tool.Invoke(ctx, args)
 }

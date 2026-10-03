@@ -4,6 +4,19 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: workflow tool executions now leave a policy and tool audit trail.**
+  Tool, HTTP, pipeline and canvas-node calls use the shared direct-tool invoker;
+  allowed calls record the decision, invocation and result, while denied calls
+  record a failed result without executing. Policy now sees the resolved tool
+  definition, so an explicitly denied parameter-dependent capability cannot run
+  under a static allow mapping. Execution stops if its preflight audit cannot be
+  written; tool errors and panics produce terminal records. Approval prompts carry
+  the correct run and agent identity. Direct tool calls now resolve active forge
+  and MCP tools through the same policy checks. Retry attempts get distinct audit
+  IDs; tool logs/stats no longer mix inputs or latency across runs reusing an ID.
+  Workflow code nodes, Council
+  grounding and the Conductor verifier are separate remaining migration slices.
+
 - **Security: many control-plane changes left no audit record.** About forty operations changed
   state without writing anything to the journal, including adding, removing or activating provider keys,
   ChatGPT sign-in import and logout, channel accounts, config-center entries and their access lists,

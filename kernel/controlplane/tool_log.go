@@ -10,6 +10,11 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+type toolInvocationKey struct {
+	correlationID string
+	callID        string
+}
+
 func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	errorsOnly, _, err := argBool(req.Args, "errors")
 	if err != nil {
@@ -26,7 +31,7 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 
 	// One row per tool.result (the always-present event: a policy-denied call
 	// emits a result but no tool.invoked). A first-seen tool.invoked stashes the
-	// call's input by call_id so the row can show what the agent asked for; since
+	// call's input by (correlation_id, call_id) so the row can show what the agent asked for; since
 	// the journal is in order, the invoked event precedes its result and the maps
 	// (closure state across decode calls) are already populated when we reach it.
 	//
@@ -34,29 +39,31 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 	// (an invoked can precede the cutoff its result falls inside) — safe
 	// because projectJournal runs decode on every event and applies the
 	// cutoff to decoded ROWS only, and rows only come from tool.result.
-	inputs := map[string]string{}   // call_id → input preview
-	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
+	inputs := map[toolInvocationKey]string{}   // (run, call) → input preview
+	invokedTS := map[toolInvocationKey]int64{} // (run, call) → invocation timestamp
 	s.projectJournal(conn, req, "invocations", func(e *event.Event) (map[string]any, bool) {
 		switch e.Kind {
 		case event.KindToolInvoked:
 			id, input := decodeToolInvoked(e.Payload)
 			if id != "" {
-				inputs[id] = input
-				invokedTS[id] = e.TSUnixMS
+				key := toolInvocationKey{e.CorrelationID, id}
+				inputs[key] = input
+				invokedTS[key] = e.TSUnixMS
 			}
 			return nil, false
 		case event.KindToolResult:
 			decoded := decodeToolResult(e.Payload)
+			key := toolInvocationKey{e.CorrelationID, decoded.callID}
 			if toolFilter != "" && decoded.tool != toolFilter {
 				return nil, false
 			}
 			if errorsOnly && !decoded.isError {
 				return nil, false
 			}
-			// Latency (M71) joins the call's invoked→result span by call_id. A
+			// Latency (M71) joins the call's invoked→result span within the run. A
 			// policy-denied call has no tool.invoked, so it has no latency (0).
 			var dur int64
-			if it, ok := invokedTS[decoded.callID]; ok && e.TSUnixMS >= it {
+			if it, ok := invokedTS[key]; ok && e.TSUnixMS >= it {
 				dur = e.TSUnixMS - it
 			}
 			if slowMS > 0 && dur < slowMS {
@@ -67,7 +74,7 @@ func (s *Server) handleToolLog(conn net.Conn, req Request) {
 				"correlation_id": e.CorrelationID,
 				"tool":           decoded.tool,
 				"call_id":        decoded.callID,
-				"input":          inputs[decoded.callID],
+				"input":          inputs[key],
 				"output":         decoded.output,
 				"error":          decoded.isError,
 				"duration_ms":    dur, // M71: invoked→result span (0 if unknowable)
@@ -103,8 +110,8 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 		durSum, durSamples int64 // M75: per-tool latency, to show which TOOL is slow
 	}
 	byTool := map[string]*toolAgg{}
-	invokedTS := map[string]int64{} // call_id → tool.invoked timestamp (M71)
-	durations := make([]int64, 0)   // per-call latency, for the distribution (M71)
+	invokedTS := map[toolInvocationKey]int64{} // (run, call) → invocation timestamp
+	durations := make([]int64, 0)              // per-call latency, for the distribution (M71)
 	// Failure-mode breakdown (M79): bucket error outputs by their message so an
 	// operator sees WHAT is failing (denied / not-available / timeout / …), not
 	// just how many — the tool analogue of runs stats' failed_by_reason.
@@ -112,7 +119,7 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 	if err := k.Journal().Range(func(e *event.Event) error {
 		if e.Kind == event.KindToolInvoked {
 			if id, _ := decodeToolInvoked(e.Payload); id != "" {
-				invokedTS[id] = e.TSUnixMS
+				invokedTS[toolInvocationKey{e.CorrelationID, id}] = e.TSUnixMS
 			}
 			return nil
 		}
@@ -146,7 +153,7 @@ func (s *Server) handleToolStats(conn net.Conn, req Request) {
 			}
 			errorsByMessage[msg]++
 		}
-		if it, ok := invokedTS[decoded.callID]; ok && e.TSUnixMS >= it {
+		if it, ok := invokedTS[toolInvocationKey{e.CorrelationID, decoded.callID}]; ok && e.TSUnixMS >= it {
 			d := e.TSUnixMS - it
 			durations = append(durations, d)
 			agg.durSum += d
