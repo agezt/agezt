@@ -787,7 +787,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	cfg.ConfigVault = credStore // config-center secrets live in the vault
 
 	var openErr error
-	k, openErr = kernelruntime.Open(cfg)
+	k, openErr = openAppKernel(cfg)
 	if openErr != nil {
 		fmt.Fprintf(stderr, "%s: open runtime: %v\n", brand.Binary, openErr)
 		return 1
@@ -1057,7 +1057,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			tcfg.Edict = nil       // fresh per-tenant policy engine
 			tcfg.OnReload = nil    // no per-tenant reload wiring yet
 			tcfg.ConfigVault = nil // never the primary's vault: keys would share its namespace
-			tk, oerr := kernelruntime.Open(tcfg)
+			tk, oerr := openAppKernel(tcfg)
 			if oerr != nil {
 				return nil, oerr
 			}

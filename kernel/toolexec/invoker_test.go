@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestInvokerPortPreservesPipeline(t *testing.T) {
-	for name, newInvoker := range map[string]toolexec.Factory{"compatibility": toolexec.NewInvoker} {
+	for name, newInvoker := range map[string]toolexec.Factory{"compatibility": toolexec.NewInvoker, "app": apptools.NewInvoker} {
 		for _, mode := range []string{"registry", "local", "deny", "invoke-error", "audit-error"} {
 			t.Run(name+"/"+mode, func(t *testing.T) {
 				full := strings.Repeat("x", 512)
@@ -95,7 +96,7 @@ func (discardAudit) PublishEvent(event.Spec) error { return nil }
 // This measures pipeline/port overhead with mock policy and no journal I/O,
 // not the runtime policy engine, real tools or durable storage latency.
 func BenchmarkInvokerPort(b *testing.B) {
-	for name, newInvoker := range map[string]toolexec.Factory{"compatibility": toolexec.NewInvoker} {
+	for name, newInvoker := range map[string]toolexec.Factory{"compatibility": toolexec.NewInvoker, "app": apptools.NewInvoker} {
 		b.Run(name, func(b *testing.B) {
 			tool := &fakeTool{def: toolapi.ToolDef{Name: "probe", InputSchema: json.RawMessage(`{"type":"object"}`)}, invoke: func(context.Context, json.RawMessage) (toolapi.Result, error) {
 				return toolapi.Result{Output: "ok"}, nil
