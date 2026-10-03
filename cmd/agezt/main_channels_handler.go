@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -29,35 +28,14 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 		// the control plane and OpenAI API do, so a photo sent to the bot reaches
 		// a vision model. An image with no caption gets a default instruction.
 		if len(msg.Images) > 0 {
-			var caption string
-			if err := visionGate(k, "", msg.Images); err != nil {
-				// The active model can't see images. Vision SIDECAR (M821): a keyed
-				// vision model describes the image and we inject that text into the
-				// run, so a non-vision primary still "reads" the photo instead of
-				// failing. If NO vision model is keyed, persist the image anyway
-				// (so it's not lost) and surface the clear gate error.
-				c, derr := k.DescribeImages(hctx, corr, msg.Images, "")
-				if derr != nil {
-					if errors.Is(derr, kernelruntime.ErrNoVisionModel) {
-						persistInboundImages(k, msg, corr, "")
-						return channel.Reply{}, err
-					}
-					return channel.Reply{}, derr
-				}
-				caption = c
-				if strings.TrimSpace(intent) == "" {
-					intent = "Describe the attached image(s)."
-				}
-				intent += "\n\n[Image description (analyzed by a vision model):\n" + caption + "\n]"
-			} else {
-				hctx = kernelruntime.WithImages(hctx, msg.Images)
-				if strings.TrimSpace(intent) == "" {
-					intent = "Describe the attached image(s)."
-				}
+			admission, err := k.AdmitImages(hctx, corr, "", intent, msg.Images)
+			// Archive even rejected attachments, with the sidecar caption when present.
+			persistInboundImages(k, msg, corr, admission.Caption)
+			if err != nil {
+				return channel.Reply{}, err
 			}
-			// Persist the inbound image(s) as browsable artifacts (M822) — keyed to
-			// this run's correlation, with the vision caption (if any) attached.
-			persistInboundImages(k, msg, corr, caption)
+			intent = admission.Intent
+			hctx = kernelruntime.WithImages(hctx, admission.Images)
 		}
 		// Inbound voice notes: transcribe them so a voice message "just works" —
 		// the agent reads the transcript like any text. Best-effort: if no STT is

@@ -1850,9 +1850,3 @@ func channelHistoryLimit() int {
 // tomorrow?" is understood, then runs the governed loop under the message's
 // correlation. With no prior context (or history disabled) it runs the raw
 // message text — unchanged first-turn behavior.
-// visionGate rejects an image-carrying run whose effective model is not a
-// confirmed vision-capable model, mirroring the control plane's M91 gate
-// (server.go) so the OpenAI API and channel run paths — which call RunWith
-// directly, bypassing that gate — give a clear pre-flight error instead of a
-// wasted provider call and a cryptic downstream failure (M255). Confirmed-or-
-// reject: an unknown or unpriced-but-known non-vision model is refused.

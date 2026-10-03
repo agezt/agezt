@@ -7,8 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -40,6 +42,46 @@ func TestRun_VisionGate_RejectsImageOnNonVisionModel(t *testing.T) {
 	})
 	if !found {
 		t.Errorf("no capability.rejected{capability:vision} event journaled")
+	}
+}
+
+func TestRun_VisionGate_CaptionsForRequestedTextModel(t *testing.T) {
+	prov := mock.New()
+	var sidecar, primary int
+	prov.Responder = func(req llm.CompletionRequest) llm.CompletionResponse {
+		if req.TaskType == "vision" {
+			sidecar++
+			if req.Model != "vision" || len(req.Messages[0].Images) != 1 {
+				t.Errorf("sidecar request=%+v", req)
+			}
+			return mock.FinalText("a red square")
+		}
+		primary++
+		if req.Model != "requested-text" {
+			t.Errorf("primary model=%q", req.Model)
+		}
+		var captioned bool
+		for _, msg := range req.Messages {
+			captioned = captioned || strings.Contains(msg.Content, "a red square")
+			if len(msg.Images) != 0 {
+				t.Error("captioned run kept raw images")
+			}
+		}
+		if !captioned {
+			t.Error("primary lost caption")
+		}
+		return mock.FinalText("handled")
+	}
+	_, _, c, _ := startPairWithConfig(t, runtime.Config{
+		Provider: prov, Model: "default-text", VisionModel: func() (string, bool) { return "vision", true },
+	})
+	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+		map[string]any{"intent": "describe", "model": "requested-text", "images": []any{"photo"}}, func(*event.Event) {})
+	if err != nil || res["answer"] != "handled" {
+		t.Fatalf("response=%v error=%v", res, err)
+	}
+	if sidecar != 1 || primary != 1 {
+		t.Errorf("sidecar=%d primary=%d", sidecar, primary)
 	}
 }
 
