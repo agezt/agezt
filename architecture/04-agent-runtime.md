@@ -274,7 +274,7 @@ Order (each store registers a closer; `fail()` unwinds them in reverse):
 | `RunAssured(ctx, corr, intent, n)` | `Runner.RunAssured` → `assure.Until(run=RunWith/RunWithRetry, verify=VerifyCompletion)` | controlplane (`assure` arg), cadence, standing, resumer |
 | `RunWithRetry(ctx, corr, intent, roster.RetryPolicy)` | `Runner.RunWithRetry`: up to `min(MaxAttempts,10)` RunWith attempts, `agent.retry` events, backoff via `retryDelay` | the same callers when a roster profile has a `RetryPolicy` |
 | `RunPlan(ctx, plan, planID)` | registers `plan-<ulid>` in `k.runs`, then the scheduler | controlplane `plan` |
-| `RunTool(ctx, corr, callID, name, args)` | `toolexec.Run`; stamps runtime actor/corr for approvals, resolves merged forge/MCP tools, carries the trusted ToolDef to policy | controlplane direct tool calls, research, workflow tool/HTTP/pipeline and canvas-node calls |
+| `RunTool(ctx, corr, callID, name, args)` | `toolexec.Run`; stamps runtime actor/corr for approvals, resolves merged forge/MCP tools, carries the trusted ToolDef to policy | controlplane direct tool calls, research, workflow tool/HTTP/pipeline and canvas-node calls, Council web grounding |
 
 Callers stamp the run context before calling, using exported helpers in `runctx_*.go`: `WithAgentProfile`, `WithAgentIdent`, `WithWakeContext`, `WithModel`, `WithModelChain`, `WithSystem`, `WithTools` (allowlist), `WithImages`, `WithJSONMode`, `WithRunTimeout`, `WithMaxCost`, `WithTrustCeiling`, `WithAutoApproveCapabilities`, `WithTrustedObservations`, `WithResumeSeed`, `WithResumeOwned`.
 
@@ -439,7 +439,7 @@ All of these use `completeAux(ctx, corr, taskType, req)`, the single funnel that
 |---|---|---|---|
 | Completion verify | `Runner.VerifyCompletion` | `verify` | `assure.verdict` |
 | Criteria proof | `ProveTask`/`verifyCriteria` | `verify` | `assure.verdict`, `workboard.task.proved/unproven` |
-| Council of Elders | `Council` (`councilRound`, `councilSynthesize`, `councilGrounding`) | per seat model | `council.started/brief/convened/opinion/consensus` |
+| Council of Elders | `Council` (`councilRound`, `councilSynthesize`, `councilGrounding` → shared `RunTool(web_search)` with unique search IDs). Refusal/failure yields date-only grounding | per seat model | `council.started/brief/convened/opinion/consensus`; correlated policy/tool search audit and approvals |
 | Conductor | `Conduct` (thinker/worker/verifier; verifier may run code via `CodeExecutor.RunScript`) | `conductor` | `conductor.started/step/done` |
 | Deep research | `Research` (plan → `RunTool(web_search)` → `RunTool(browser.read)` → synth → `verifyResearchClaims`) | `research` | tool events via toolexec, plus its own |
 | Workflows | `RunWorkflow`/`runWorkflowGraph`/`execWorkflowNode`/`TestWorkflowNode`; `DraftWorkflow`/`RefineWorkflow` | `workflow` | `workflow.started/node/completed/failed/drafted/saved/...` |
@@ -706,7 +706,7 @@ Everything else reaches `runtime.Config` through `cmd/agezt/internal/daemonconfi
 6. **Resume vs overrides (fixed W2.2b).** Profile model/system settings carry their source slug and are reconstructed via `WithAgentProfile` on boot. Explicit `WithSystem`/`WithModel` replace both value and source, so even an explicit value identical to the profile remains non-resumable until tickets record overrides. `WithTools` (including an empty list) is also non-resumable. A change of identity cannot reuse another profile's provenance. Trust/cost/time ceilings are still captured and restored; the durable attempt increment precedes dispatch. Approvals are re-asked, not persisted.
 7. **Policy audit gaps on side paths.**
    - ✅ **Fixed W2.3a:** `invokeWorkflowTool` uses shared `RunTool` for tool/HTTP/pipeline/canvas calls, with correlated policy/invoked/result audit on allow, deny, invocation error and reported error. Approval identity and per-call capability axes come from the resolved context/definition. Workflow **code** nodes still bypass this invoker (policy already checked; tool audit remains open).
-   - The Council's `councilSearch` invokes `web_search` directly with **no** policy check or tool events.
+   - ✅ **Fixed W2.3b:** Council `councilSearch` invokes `web_search` through shared `RunTool`, respecting explicit capability/profile/trust restrictions and approval before search or panel execution. One search grounds the panel; failure, refusal, malformed output or panic leaves only the date and never injects a failed brief. Disabled/missing tools remain no-ops. Search audit IDs are unique even under a reused run correlation.
    - The Conductor verifier runs model-written code via `CodeExecutor.RunScript` with **no** `code.exec` Edict decision. The `conductor` tool call itself is gated.
    - ✅ **Fixed W2.3a:** direct denials emit failed terminal results, direct lookup includes active forge/MCP, policy sees resolved tool metadata, and audit failures cannot silently permit execution. The invoker catches tool panics and reports terminal audit-write errors.
 8. **Performance hot spots.**

@@ -4,6 +4,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: Council web grounding now obeys tool policy.** Its optional search
+  previously ran even when `web.search` was denied, the agent forbade the tool,
+  or its trust ceiling prohibited it. Search now uses the common governed
+  invoker, journals decisions/results under the Council run, and waits for live
+  approval when configured. A refusal or failed search leaves the Council with
+  today's date and its usual deliberation; failed results are not used as evidence.
+
 - **Security: workflow tool executions now leave a policy and tool audit trail.**
   Tool, HTTP, pipeline and canvas-node calls use the shared direct-tool invoker;
   allowed calls record the decision, invocation and result, while denied calls

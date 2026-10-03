@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a are complete; continue the remaining §4.3 side paths
-> (Council grounding, then verifier/code-node convergence).
+> W2.2a, W2.2b, W2.3a and W2.3b are complete; continue §4.3 with the
+> Conductor verifier and workflow code-node convergence.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -160,17 +160,19 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a completed; more slices open)
+### 4.3 W2.3 — tool side paths (W2.3a/b completed; more slices open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
-**Next open slice:** Council grounding (verify the live path first); then the Conductor verifier and workflow code nodes, followed by agent-loop/app invoker convergence. Workflow code nodes already check policy, but still lack shared tool audit. W2.3 is not complete as a whole.
+**W2.3b measured and fixed:** actual Council grounding ignored `web.search=L0`, agent tool deny and trust ceiling, called the search and injected its evidence with no policy/tool audit. It now uses the shared invoker, preserving one search per panel, the 300-rune query/6-hit bounds, unique search IDs and date-only fallback on refusal/failure. Correlated live approval blocks both search and panel calls until resolution. Disabled/missing/nil search tools remain no-ops. Tests: `council_grounding_audit_test.go` (allow, three restriction paths, errors, malformed output, panic, disable/missing, HITL grant/deny and repeated IDs) plus the original Council suite. Seven mutations independently guard the boundaries.
 
-Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; items 1 (registered-tool/HTTP/pipeline/canvas) and 4 are fixed.
+**Next open slice:** Conductor verifier and workflow code nodes (measure first), followed by agent-loop/app invoker convergence. Workflow code nodes already check policy, but still lack shared tool audit. W2.3 is not complete as a whole.
+
+Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; items 1 (registered-tool/HTTP/pipeline/canvas), 2 and 4 are fixed.
 
 The findings register (9.1, "Side paths skip governance/audit") lists:
 1. ✅ workflow registered-tool/HTTP/pipeline/canvas calls now journal policy/tool events (code nodes still open);
-2. Council grounding calls `web_search` without a policy check;
+2. ✅ Council grounding calls the shared governed invoker and records policy/tool audit (W2.3b);
 3. the Conductor verifier executes model-written code without a `code.exec` policy decision;
 4. ✅ `toolexec` now emits `tool.result` on deny and resolves active forge/MCP tools.
 
