@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package tools is the application entry for governed direct tool invocations.
-// During migration it delegates to the existing shared execution pipeline.
+// It binds the shared platform execution mechanism to host-owned ports.
 package tools
 
 import (
@@ -9,7 +9,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
-	"github.com/agezt/agezt/kernel/toolexec"
 )
 
 type invoker struct{ pipeline toolapi.Invoker }
@@ -17,7 +16,7 @@ type invoker struct{ pipeline toolapi.Invoker }
 // NewInvoker binds host-owned policy/audit/completion ports for one kernel.
 // It preserves the existing execution pipeline while callers converge on the
 // lower-layer invocation port. The agent loop has not converged on this entry.
-func NewInvoker(deps toolexec.Dependencies) toolapi.Invoker {
+func NewInvoker(deps toolpipeline.Dependencies) toolapi.Invoker {
 	return &invoker{pipeline: toolpipeline.NewInvoker(deps)}
 }
 

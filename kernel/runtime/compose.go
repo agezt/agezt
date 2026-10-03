@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/okr"
+	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/resume"
@@ -393,7 +394,7 @@ func Open(cfg Config) (*Kernel, error) {
 	if newInvoker == nil {
 		newInvoker = toolexec.NewInvoker
 	}
-	k.toolInvoker = newInvoker(toolexec.Dependencies{Tools: k, Policy: k, Events: k, Noise: k})
+	k.toolInvoker = newInvoker(toolpipeline.Dependencies{Tools: k, Policy: k, Events: k, Noise: k})
 	if k.toolInvoker == nil {
 		kbus.Close()
 		return fail("runtime: tool invoker", errors.New("factory returned nil"))

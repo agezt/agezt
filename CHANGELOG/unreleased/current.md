@@ -764,7 +764,8 @@ This file holds the active `[Unreleased]` working set.
 - **Architecture: governed tool execution has one shared engine.**
   The existing schema, policy, audit and execution sequence now lives below the
   app service in a shared platform engine. Legacy tool APIs and standalone
-  runtime behavior are preserved.
+  runtime behavior are preserved. App and runtime dependency declarations now
+  consume that engine directly; the legacy constructor remains the standalone fallback.
 
 - **Architecture: daemon tool calls enter the app invocation service.**
   Primary and tenant kernels each receive a fresh service with their own policy

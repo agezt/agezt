@@ -10,33 +10,33 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/toolexec"
+	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
-// compile-time check: Kernel satisfies the toolexec dependency interfaces.
-var _ toolexec.ToolLookup = (*Kernel)(nil)
-var _ toolexec.PolicyChecker = (*Kernel)(nil)
-var _ toolexec.EventPublisher = (*Kernel)(nil)
-var _ toolexec.NoiseNotifier = (*Kernel)(nil)
+// compile-time check: Kernel satisfies the shared pipeline dependency interfaces.
+var _ toolapi.ToolLookup = (*Kernel)(nil)
+var _ toolpipeline.PolicyChecker = (*Kernel)(nil)
+var _ toolpipeline.EventPublisher = (*Kernel)(nil)
+var _ toolpipeline.NoiseNotifier = (*Kernel)(nil)
 
-// LookupTool implements toolexec.ToolLookup.
+// LookupTool implements toolapi.ToolLookup.
 func (k *Kernel) LookupTool(name string) (toolapi.Tool, bool) {
 	t, ok := k.mergeMCPTools(k.mergeScriptTools(k.tools))[name]
 	return t, ok
 }
 
-// CheckPolicy implements toolexec.PolicyChecker.
+// CheckPolicy implements toolpipeline.PolicyChecker.
 func (k *Kernel) CheckPolicy(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict {
 	return k.policyHook(ctx, tc)
 }
 
-// PublishEvent implements toolexec.EventPublisher.
+// PublishEvent implements toolpipeline.EventPublisher.
 func (k *Kernel) PublishEvent(spec event.Spec) error {
 	_, err := k.bus.Publish(spec)
 	return err
 }
 
-// NotifyNoise implements toolexec.NoiseNotifier.
+// NotifyNoise implements toolpipeline.NoiseNotifier.
 func (k *Kernel) NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.Result) {
 	k.completeAgentNoiseNotify(ctx, tc, res)
 }
@@ -50,7 +50,7 @@ func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, arg
 
 // runToolWithLookup also admits invocation-local adapters, without modifying
 // the registered tool map or bypassing the shared policy/audit machinery.
-func (k *Kernel) runToolWithLookup(ctx context.Context, corr, callID, toolName string, args json.RawMessage, lookup toolexec.ToolLookup) (toolapi.Result, error) {
+func (k *Kernel) runToolWithLookup(ctx context.Context, corr, callID, toolName string, args json.RawMessage, lookup toolapi.ToolLookup) (toolapi.Result, error) {
 	actor := actorFromCtx(ctx)
 	if actor == "" {
 		actor = toolapi.AgentFromContext(ctx)
