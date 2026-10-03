@@ -308,8 +308,8 @@ func dlInt(args map[string]any, key string) int {
 // registerDatalakeCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerDatalakeCommands() {
 	register(
-		commandSpec{Cmd: CmdDataCollections, Handler: func(dc *DispatchCtx) { dc.S.handleDataCollections(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdDataRecords, Handler: func(dc *DispatchCtx) { dc.S.handleDataRecords(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdDataCollections, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleDataCollections(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdDataRecords, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleDataRecords(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdDataInsert, Handler: func(dc *DispatchCtx) { dc.S.handleDataInsert(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdDataUpdate, Handler: func(dc *DispatchCtx) { dc.S.handleDataUpdate(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdDataDelete, Handler: func(dc *DispatchCtx) { dc.S.handleDataDelete(dc.Conn, dc.Req) }},

@@ -239,6 +239,13 @@ const (
 	// agent read of a config value, with the decision — never the value.
 	KindConfigAccess Kind = "config.access"
 
+	// Operations: every state-changing control-plane op, journaled by the
+	// dispatcher — op name, caller, arguments with secrets redacted — and
+	// then its outcome. Read-only ops are not journaled.
+	KindOpInvoked   Kind = "op.invoked"
+	KindOpCompleted Kind = "op.completed"
+	KindOpFailed    Kind = "op.failed"
+
 	// Scheduler / DAG (SPEC-02 §4; TASKS P1-SCHED-*).
 	KindPlanStarted   Kind = "plan.started"
 	KindPlanCompleted Kind = "plan.completed"

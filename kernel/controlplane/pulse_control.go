@@ -125,8 +125,8 @@ func (s *Server) handlePulseCadence(conn net.Conn, req Request) {
 }
 func registerPulseControlCommands() {
 	register(
-		commandSpec{Cmd: CmdPulseStatus, Handler: func(dc *DispatchCtx) { dc.S.handlePulseStatus(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdPulseAsks, Handler: func(dc *DispatchCtx) { dc.S.handlePulseAsks(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handlePulseStatus(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdPulseAsks, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handlePulseAsks(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPulseAskResolve, Handler: func(dc *DispatchCtx) { dc.S.handlePulseAskResolve(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPulsePause, Handler: func(dc *DispatchCtx) { dc.S.handlePulsePause(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPulseResume, Handler: func(dc *DispatchCtx) { dc.S.handlePulseResume(dc.Conn, dc.Req) }},

@@ -116,8 +116,8 @@ func okrWriteResp(s *Server, conn net.Conn, req Request, o okr.Objective, err er
 // registerOKRCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerOKRCommands() {
 	register(
-		commandSpec{Cmd: CmdOKRList, Handler: func(dc *DispatchCtx) { dc.S.handleOKRList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdOKRShow, Handler: func(dc *DispatchCtx) { dc.S.handleOKRShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdOKRList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleOKRList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdOKRShow, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleOKRShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdOKRCreate, Handler: func(dc *DispatchCtx) { dc.S.handleOKRCreate(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdOKRKeyResult, Handler: func(dc *DispatchCtx) { dc.S.handleOKRKeyResult(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdOKRLink, Handler: func(dc *DispatchCtx) { dc.S.handleOKRLink(dc.Conn, dc.Req) }},
