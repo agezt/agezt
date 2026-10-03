@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–h are complete; continue §4.3 with the remaining
-> app invoker and policy-payload alignment work.
+> W2.2a, W2.2b and W2.3a–i are complete; continue §4.3 with the remaining
+> app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–h completed; app/policy convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–i completed; app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -178,7 +178,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3h foundation (move only):** `PolicyVerdict` and `Policy` moved to the pure `contract/policyapi` package with exact agent aliases. The loop's existing 23-field policy renderer moved to `platform/toolaudit.PolicyDecisionPayload`; a forwarding helper preserves its journal bytes, nil/zero values and event ownership. Full-value and actual-loop regressions plus four mutations cover field retention, call identity, provenance and forwarding. Same-verdict allow/deny tests measured that direct Run/RunWithOptions still omit 15 fields; the behavior repair follows separately.
 
-**Next open slice:** full `app/tools.Invoke` and policy-payload alignment. Direct policy records still carry eight fields while the loop includes resource/epistemic/observation details. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3i measured and fixed:** same-verdict allow/deny tests drove actual agent.Run and Run/RunWithOptions: direct records omitted 15 of the loop's 23 fields. Actual direct/workflow/canvas/code allow/deny journal regressions reproduced the loss. Direct invocations now use the shared policy renderer, preserving resource, epistemic and observation/provenance metadata, call/correlation identity and explicit nil/zero values. Eight mutations guard field retention, identity, verdict, event kind and preflight audit error. Decision/admission behavior, default allow, approval and terminal output remain unchanged.
+
+**Next open slice:** full `app/tools.Invoke` convergence. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
 
 Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; all four original side-path findings are fixed (W2.3a–c).
 

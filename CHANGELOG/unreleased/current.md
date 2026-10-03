@@ -761,9 +761,15 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Tool policy audit now retains full decision details on direct paths.**
+  Direct, workflow, canvas and code calls previously omitted resource, epistemic
+  and observation provenance fields that agent-loop decisions already recorded.
+  Both paths now share all 23 journal fields; policy decisions and approval behavior
+  are unchanged.
+
 - **Architecture: tool-policy contracts and loop audit rendering have shared homes.**
   Existing agent verdict/callback APIs remain exact aliases; policy decisions retain
-  the same journal representation. Direct-tool audit alignment follows separately.
+  the same journal representation. Direct-tool audit alignment is recorded separately.
 
 - **Large tool audit output is handled consistently across runtime paths.**
   Direct calls, workflows, canvas tests and code/reasoning tool calls now use the

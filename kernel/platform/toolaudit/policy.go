@@ -9,7 +9,7 @@ import (
 )
 
 // PolicyDecisionPayload renders one gate decision for the journal. Split out so
-// the 24-field map doesn't dominate the gating logic it belongs to.
+// the 23-field map doesn't dominate the gating logic it belongs to.
 func PolicyDecisionPayload(tc llm.ToolCall, v policyapi.PolicyVerdict) map[string]any {
 	return map[string]any{
 		"tool":                  tc.Name,
