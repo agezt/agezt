@@ -24,9 +24,7 @@ import (
 )
 
 // ToolLookup is the interface for resolving tool names to their implementations.
-type ToolLookup interface {
-	LookupTool(name string) (toolapi.Tool, bool)
-}
+type ToolLookup = toolapi.ToolLookup
 
 // PolicyChecker is the interface for gating tool invocations.
 type PolicyChecker interface {
