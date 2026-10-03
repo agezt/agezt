@@ -59,5 +59,7 @@ func (k *Kernel) runToolWithLookup(ctx context.Context, corr, callID, toolName s
 		actor = "tool"
 	}
 	ctx = k.WithActorCorrelation(ctx, actor, corr)
-	return toolexec.Run(ctx, corr, callID, toolName, args, lookup, k, k, k)
+	cfg := k.effectiveConfig(ctx)
+	return toolexec.RunWithOptions(ctx, corr, callID, toolName, args, lookup, k, k, k,
+		toolexec.Options{Artifacts: k.artifacts, ArtifactThreshold: cfg.ArtifactThreshold})
 }
