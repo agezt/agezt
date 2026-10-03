@@ -11,7 +11,7 @@ This file holds the active `[Unreleased]` working set.
   failing the task. Sequential panic still prevents later code/tools from running;
   those results are marked as not executed and excluded from execution latency in
   tool logs/stats. Terminal turns do not trigger result bookkeeping hooks or another
-  model call. Journal failures preserve the original panic/cancellation cause.
+  model call, including when cancellation arrives during audit. Journal failures preserve the original panic/cancellation cause.
 
 - **Security: Conductor code verification now obeys execution policy.** It
   previously ran worker-written code and could pass verification despite an
