@@ -13,8 +13,8 @@ import (
 
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // councilHit is one parsed web_search result folded into the research brief.
@@ -26,8 +26,9 @@ type councilHit struct {
 
 // councilGrounding builds the panel's grounding for this convening: today's date
 // (always) and a shared web research brief (when CouncilWebSearch is on and a
-// web_search tool is present in cfg.Tools). The brief is best-effort — any failure
-// or empty result yields no brief and the council still convenes with the date. It
+// web_search tool is registered). The brief is best-effort — a policy refusal,
+// search failure or empty result yields no brief; the council still convenes
+// with the date. It
 // publishes a council.brief event so the live Web UI can show what evidence the
 // panel was given.
 func (k *Kernel) councilGrounding(ctx context.Context, corr, question string) (today, brief string) {
@@ -35,11 +36,11 @@ func (k *Kernel) councilGrounding(ctx context.Context, corr, question string) (t
 	if !k.cfg.CouncilWebSearch {
 		return today, ""
 	}
-	tool, ok := k.cfg.Tools["web_search"]
+	tool, ok := k.LookupTool("web_search")
 	if !ok || tool == nil {
 		return today, ""
 	}
-	hits := councilSearch(ctx, tool, question)
+	hits := k.councilSearch(ctx, corr, question)
 	if len(hits) == 0 {
 		return today, ""
 	}
@@ -54,9 +55,10 @@ func (k *Kernel) councilGrounding(ctx context.Context, corr, question string) (t
 }
 
 // councilSearch runs the question through the web_search tool and returns the
-// parsed hits. Fail-soft: a tool error, an error result, or unparseable output all
+// parsed hits through the governed invoker. A policy refusal, tool error, error
+// result, or unparseable output all
 // yield nil so the council degrades to a date-only grounding.
-func councilSearch(ctx context.Context, tool toolapi.Tool, question string) []councilHit {
+func (k *Kernel) councilSearch(ctx context.Context, corr, question string) []councilHit {
 	q := strings.TrimSpace(question)
 	if r := []rune(q); len(r) > 300 {
 		q = strings.TrimSpace(string(r[:300]))
@@ -65,7 +67,7 @@ func councilSearch(ctx context.Context, tool toolapi.Tool, question string) []co
 	if err != nil {
 		return nil
 	}
-	res, err := tool.Invoke(ctx, in)
+	res, err := k.RunTool(ctx, corr, "council-search-"+ulid.New(), "web_search", in)
 	if err != nil || res.IsError {
 		return nil
 	}
