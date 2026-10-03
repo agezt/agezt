@@ -1,19 +1,25 @@
 // SPDX-License-Identifier: MIT
 
-package toolexec
+package toolpipeline
 
 import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
-// Dependencies retains the host ports compatibility type.
-type Dependencies = toolpipeline.Dependencies
+// Dependencies are the host-owned ports bound once for one kernel. They do not
+// capture per-call lookup overrides or effective artifact configuration.
+type Dependencies struct {
+	Tools  ToolLookup
+	Policy PolicyChecker
+	Events EventPublisher
+	Noise  NoiseNotifier
+}
 
-// Factory retains the per-kernel constructor compatibility type.
-type Factory = toolpipeline.Factory
+// Factory constructs an invocation service for a single host. The runtime can
+// receive an app constructor without importing the higher application layer.
+type Factory func(Dependencies) toolapi.Invoker
 
 type invoker struct{ deps Dependencies }
 

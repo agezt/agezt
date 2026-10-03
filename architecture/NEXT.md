@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–m are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–n are complete; continue §4.3 with the remaining
 > app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–m completed; app convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–n completed; app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -188,7 +188,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3m app/daemon binding:** `app/tools.NewInvoker` binds the existing shared pipeline behind the L1 port. Primary and tenant daemon construction use the same `openAppKernel` helper, creating fresh services against each kernel's own dependencies; no global registration or L3 app import. Standalone runtime.Open/legacy Run remain compatible. Actual four-path offload/policy/provenance, two-kernel isolation, command-constructor and live approval identity tests run through app binding. Six mutations guard daemon binding, context, identity, local lookup, effective threshold and per-kernel instances. The pipeline implementation remains in legacy toolexec and the agent loop still owns its separate admission; this app ingress is not full W2.3 completion.
 
-**Next open slice:** move pipeline ownership behind the app boundary and converge agent-loop admission without changing batch/memo/terminal semantics. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3n generic-engine move:** the sole schema/policy/audit/execution implementation moved unchanged from legacy toolexec into `platform/toolpipeline`. Host policy remains injected; the engine has no runtime/agent/app import. Public toolexec types remain exact aliases and Run/RunWithOptions retain production-reachable forwarding through the same output decorator. App construction now uses the moved engine, while dependency type consumers remain on compatibility aliases until repointing. Execution/recovery/output/port-adapter bodies were compared to old source; new primitive and original source contracts plus eight mutations guard schema/audit/denial, typed errors, caller bytes, artifact options, context and local lookup.
+
+**Next open slice:** repoint app/runtime dependency declarations to the platform engine ports, then converge agent-loop admission without changing batch/memo/terminal semantics. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
 
 The lower-layer invocation port and per-kernel constructor injection are in place. Before moving the pipeline to L4 `app`, L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 

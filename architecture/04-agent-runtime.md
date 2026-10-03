@@ -114,6 +114,8 @@ W2.3l adds the pure `toolapi.Invoker`/`Invocation` port. `runtime.Open` binds a 
 
 W2.3m binds `app/tools.NewInvoker` at daemon composition through shared `openAppKernel` for primary and tenant kernels. The service forwards context and Invocation to the canonical legacy pipeline; each Open creates fresh host dependencies. Actual app-bound offload and full policy/provenance paths, two-kernel isolation and live approval identity remain covered, with six mutations. Standalone runtime.Open keeps its legacy default. The L4 entry now exists, while implementation ownership and agent admission convergence remain open.
 
+W2.3n moved the generic governed direct engine into `platform/toolpipeline`, which imports only contracts/event/platform helpers and stdlib. Business policy/audit/hook hosts remain injected. The app constructor now builds that engine; legacy toolexec keeps type aliases and public forwarding adapters, including one shared terminal output decorator. Standalone fallback keeps old APIs reachable in production. Execution/recovery/output/constructor bodies compare unchanged; primitive/source contracts and eight mutations cover the move. App/runtime dependency declarations still use compatibility aliases until the separate repointing.
+
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.
 
