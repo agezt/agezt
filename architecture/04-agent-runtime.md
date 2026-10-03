@@ -107,6 +107,8 @@ The canonical single-agent tool loop (DECISIONS B0d). It defines `Provider` (LLM
 
 W2.3h moved these contracts verbatim to `kernel/contract/policyapi`; agent aliases retain exact callback/verdict type identity. The loop forwards policy journal rendering to `kernel/platform/toolaudit.PolicyDecisionPayload`, preserving its 23 fields and nil/zero JSON representation. W2.3i measured and repaired the direct invoker's eight-field map: `toolexec.Run` now uses the same 23-field renderer through both legacy and options entry points. Resource/epistemic/observation data and explicit nil/zero values are retained without changing the verdict or admission sequence. Same-verdict loop/direct/options and actual direct/workflow/canvas/code allow/deny journal tests reproduced the old loss; eight mutations guard wiring, metadata, identity and mandatory preflight error propagation. Source/actual-loop tests and four mutations guard the extraction.
 
+W2.3j extracted the unchanged schema validator (`platform/schema`) and policy context helpers (`platform/policyctx`) so the direct invoker can stop depending on the loop implementation. `contract/policyapi` owns the observation-taint type; agent forwards its existing public helpers. Exact error/validation and cross-accessor/parent-context tests plus seven mutations protect the move. Direct consumers remain on the old forwarding surface until the separate repointing PR.
+
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.
 
@@ -214,9 +216,9 @@ The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.
 | `agent_context_offload.go` | Compatibility `ArtifactPutter`/default aliases and `offloadToolOutput` forwarding to `platform/tooloutput.Offload` (W2.3f move only). Threshold, preview and best-effort fallback are unchanged. |
 | `agent_context_policy.go` | Exact `PolicyVerdict`/`Policy` compatibility aliases to `contract/policyapi` (W2.3h move only). |
 | `observation.go` | Trust boundary (the `ObservationTrust` type itself is in `contract/toolapi`): `ObservationBoundary`, `ObservationBoundaryForTool`, `RenderObservationForModel`, `MergeUntrustedObservationTaint`, directive-needle matching, `DiffObservation`, `DefaultDirectiveTaintWindow=1`. |
-| `toolctx.go` | Context keys: `WithCorrelation`/`CorrelationFromContext`, `WithPolicyToolDef`, `WithUntrustedObservationTaint`, `WithAgent`/`AgentFromContext`, `WithWorkdir` (rejects absolute paths and `..`). |
+| `toolctx.go` | Policy ToolDef/taint compatibility helpers forward to `platform/policyctx`; `UntrustedObservationTaint` aliases `contract/policyapi`. Invocation identity/workdir helpers live in `contract/toolapi`. |
 | `toolselect.go` | `LexicalToolSelector`, `DeferredLexicalToolSelector` (pinned `tool_search`, no fallback-all), `normalizeSelectedTools`, scoring. `max <= 0` returns a nil selector. |
-| `schema.go` | `ValidateToolInput`, `ValidateJSON`, `LintToolSchema`: a dependency-free JSON-Schema subset (type, enum, required, properties, additionalProperties, items). |
+| `schema.go` | Compatibility `ValidateToolInput`, `ValidateJSON`, `LintToolSchema` forwarding to unchanged `platform/schema` validation (W2.3j). |
 | `memo.go` | `ToolMemo` (`NewToolMemo`, `Get`, `Set`, LRU order), `memoKey` (SHA-256). |
 | `middleware.go` | `Middleware`, `Wrap`, synthesized streams, `ExtractReasoningMiddleware`, `SimulateStreamingMiddleware`, `DefaultParamsMiddleware`. |
 | `generate.go` | `GenerateObject` (JSONMode plus schema instruction, `extractJSON`/`balancedSpan`, validate, repair loop), `ObjectError`. |
