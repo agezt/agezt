@@ -2,50 +2,16 @@
 
 package agent
 
-// Provenance: Package agent: content-addressed artifact offload for large tool
-//             outputs (ArtifactPutter interface + offloadToolOutput helper).
-//             Extracted from agent_context.go during the Day-211 god-file split.
-//             Public API unchanged.
+import "github.com/agezt/agezt/kernel/platform/tooloutput"
 
-// ArtifactPutter is the slice of a content-addressed store the loop needs to
-// offload large outputs. kernel/artifact.Store satisfies it. An interface keeps
-// kernel/agent decoupled from the storage package.
-type ArtifactPutter interface {
-	Put(data []byte) (ref string, err error)
-}
+// ArtifactPutter retains the loop's public artifact-store contract.
+type ArtifactPutter = tooloutput.ArtifactPutter
 
-// DefaultArtifactThreshold is the tool-output size above which the journal event
-// offloads to the artifact store (the model still sees the full output). 8 KiB
-// keeps ordinary results inline while bounding the event for big dumps.
-const DefaultArtifactThreshold = 8 << 10
+// DefaultArtifactThreshold retains the loop's existing 8 KiB default.
+const DefaultArtifactThreshold = tooloutput.DefaultArtifactThreshold
 
-// artifactPreviewBytes is how much of an offloaded output stays inline on the
-// event as a human-readable preview.
-const artifactPreviewBytes = 512
-
-// offloadToolOutput decides how a tool output is represented ON THE EVENT. When a
-// store is configured and the output exceeds the threshold, it stores the full
-// bytes and returns a preview + ref + true; otherwise (no store, small output, or
-// a Put error) it returns the output unchanged and offloaded=false. It never
-// returns an error — offload is best-effort and must not fail the run.
+// offloadToolOutput forwards to the shared representation without changing the
+// loop's preview, threshold, full-output delivery or best-effort fallback.
 func offloadToolOutput(store ArtifactPutter, threshold int, output string) (eventOutput, rawRef string, fullBytes int, offloaded bool) {
-	fullBytes = len(output)
-	if store == nil {
-		return output, "", fullBytes, false
-	}
-	if threshold <= 0 {
-		threshold = DefaultArtifactThreshold
-	}
-	if fullBytes <= threshold {
-		return output, "", fullBytes, false
-	}
-	ref, err := store.Put([]byte(output))
-	if err != nil || ref == "" {
-		return output, "", fullBytes, false // fall back to inlining
-	}
-	preview := output
-	if len(preview) > artifactPreviewBytes {
-		preview = preview[:artifactPreviewBytes] + "…[offloaded; full output in artifact " + ref + "]"
-	}
-	return preview, ref, fullBytes, true
+	return tooloutput.Offload(store, threshold, output)
 }

@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–e are complete; continue §4.3 with the remaining
-> app invoker, shared output offload and policy-payload alignment work.
+> W2.2a, W2.2b and W2.3a–f are complete; continue §4.3 with W2.3g:
+> wire shared output offload into runtime tool paths, then app/policy convergence.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -172,7 +172,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3e measured and fixed:** eight actual agent-loop scenarios (panic/cancel, sequential/parallel, fault first/last) lost terminal `tool.result` records; panic also skipped per-call context cancellation. Agent execution now uses the shared platform primitive, releases the call context and settles the whole admitted batch before task failure. A sequential panic still prevents later effects; those calls get failed results marked `not_executed`. Parallel dispatch stays bounded and results retain original order. Terminal batches do not invoke bookkeeping/automation hooks or make another model call; cancellation is rechecked after audit and before return. An audit-write failure is joined with the typed panic/cancellation cause and remaining terminal writes are attempted. Tool-log/stats honor the skipped marker and omit invented execution latency. Actual entry-point and source suites plus twelve independent mutations cover these boundaries; timeout feedback, memo/taint/offload and default allow remain.
 
-**Next open slice:** full `app/tools.Invoke`, shared output offload and policy-payload alignment. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; only admitted tool execution is shared so far. Its `tool.invoked` events still describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3f foundation (move only):** agent output representation moved to `platform/tooloutput.Offload`. `agent.ArtifactPutter` and `DefaultArtifactThreshold` remain compatibility aliases; its forwarding helper retains the 8 KiB default, byte threshold boundary, preview, full artifact bytes and best-effort inline fallback. Three mutations reject a wrong boundary, lost fallback and storing only a preview. Original agent/source suites remain green.
+
+**Next open slice — W2.3g, measured:** actual direct, workflow, canvas and code paths journal a 20 KB result inline without `raw_ref`/`output_bytes`, unlike the agent loop. Wire the same representation into `toolexec` via the runtime's store/threshold, preserving full caller/noise-hook output and existing errors. Cover normal/error-result/invocation-error/panic/denial, inline boundaries and store fallback. Full `app/tools.Invoke` and policy-payload alignment remain open. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
 
 Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; all four original side-path findings are fixed (W2.3a–c).
 
