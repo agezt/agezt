@@ -17,8 +17,8 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/runtime/types"
-	"github.com/agezt/agezt/kernel/toolexec"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -61,7 +61,7 @@ type Config struct {
 	// NewToolInvoker binds an invocation service once per Open, with this
 	// kernel's policy/audit ports. Nil preserves the standalone legacy pipeline.
 	// Constructors bind dependencies without executing tools.
-	NewToolInvoker toolexec.Factory
+	NewToolInvoker toolpipeline.Factory
 
 	// ScriptRunner executes forged script tools (M794) in the code-exec
 	// sandbox. When set, every run is additionally offered the toolforge
