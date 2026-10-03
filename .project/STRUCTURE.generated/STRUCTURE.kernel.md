@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-101 package(s):
+102 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -62,6 +62,7 @@
 - **`kernel/platform/toolaudit`** — Package toolaudit renders the shared tool-policy journal representation.
 - **`kernel/platform/toolinvoke`** — Package toolinvoke provides panic-contained execution of an admitted tool.
 - **`kernel/platform/tooloutput`** — Package tooloutput represents tool audit output with an inline preview and a content-addressed artifact reference, preserving full bytes for the caller.
+- **`kernel/platform/toolpipeline`** — Package toolpipeline supplies the generic governed tool-call mechanism.
 - **`kernel/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).
 - **`kernel/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.
 - **`kernel/plugin/testdata/floodplugin`** — Command floodplugin is a hostile-plugin fixture for the M177 frame bound: on startup it writes a large UN-terminated blob to stdout (no '\n'), simulating a plugin that floods the host's stdout reader.
@@ -92,7 +93,7 @@
 - **`kernel/tenant`** — Package tenant is the multi-tenant isolation foundation (ROADMAP P6-MULTI).
 - **`kernel/tenantctx`** — Package tenantctx carries the identity of the tenant a run belongs to through the run's context.Context, so tools that behave differently per tenant (e.g.
 - **`kernel/toolbox`** — Package toolbox is the host CLI-tool inventory + installer (M956).
-- **`kernel/toolexec`** — Package toolexec provides the shared execution service used by direct operator/CLI calls and registered workflow tool nodes.
+- **`kernel/toolexec`** — Package toolexec retains the legacy tool execution compatibility entry points.
 - **`kernel/toolforge`** — Package toolforge is the script-tool forge (M794): agent-authored code promoted into durable, callable tools — the close of the write→use→improve cycle.
 - **`kernel/toolreg`** — Package toolreg is the first-party tool registry (Phase 2.2).
 - **`kernel/tunnel`** — Package tunnel exposes a local Agezt HTTP service (the Web UI or REST API) to the public internet by supervising an operator-chosen tunnel binary — cloudflared, ngrok, Tailscale, or any custom command.
