@@ -403,6 +403,7 @@ type Config struct {
 	DisableHeuristicBypass bool
 
 	// ArtifactThreshold is the tool-output byte size above which the agent loop
+	// and shared runtime invoker (direct/workflow/reasoning/code tool paths)
 	// offloads the output to the content-addressed artifact store and journals a
 	// raw_ref + preview instead of the full bytes (SPEC-04 §3.6 / SPEC-01 §10.2).
 	// 0 uses agent.DefaultArtifactThreshold.

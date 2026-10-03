@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
+	"github.com/agezt/agezt/kernel/platform/tooloutput"
 )
 
 // ToolLookup is the interface for resolving tool names to their implementations.
@@ -39,6 +40,13 @@ type NoiseNotifier interface {
 	NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.Result)
 }
 
+// Options configures audit-only output representation. Callers and completion
+// hooks still receive the full output; nil stores retain legacy inline behavior.
+type Options struct {
+	Artifacts         tooloutput.ArtifactPutter
+	ArtifactThreshold int
+}
+
 // Run executes one registered in-process tool under the same schema and
 // policy gate used by agent/workflow tool calls, then journals tool.invoked and
 // tool.result under corr.
@@ -54,6 +62,7 @@ func Run(
 	events EventPublisher,
 	noise NoiseNotifier,
 ) (toolapi.Result, error) {
+
 	tool, ok := tools.LookupTool(toolName)
 	if !ok {
 		return toolapi.Result{}, fmt.Errorf("unknown tool %q", toolName)
@@ -96,7 +105,7 @@ func Run(
 		refusal := fmt.Errorf("tool %s refused: %s", toolName, reason)
 		if err := events.PublishEvent(event.Spec{
 			Subject: "tool", Kind: event.KindToolResult, Actor: "tool", CorrelationID: corr,
-			Payload: map[string]any{"tool": toolName, "call_id": callID, "output": res.Output, "error": true},
+			Payload: map[string]any{"tool": toolName, "call_id": callID, "output": res.Output, "error": res.IsError},
 		}); err != nil {
 			return res, errors.Join(refusal, err)
 		}
@@ -117,14 +126,15 @@ func Run(
 	}
 	res, err := invokeSafely(ctx, tool, args)
 	if err != nil {
+		errorResult := toolapi.Result{Output: err.Error(), IsError: true}
 		auditErr := events.PublishEvent(event.Spec{
 			Subject:       "tool",
 			Kind:          event.KindToolResult,
 			Actor:         "tool",
 			CorrelationID: corr,
-			Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": err.Error(), "error": true},
+			Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": errorResult.Output, "error": true},
 		})
-		noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, toolapi.Result{Output: err.Error(), IsError: true})
+		noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, errorResult)
 		if auditErr != nil {
 			err = errors.Join(err, auditErr)
 		}
@@ -148,4 +158,37 @@ func Run(
 func invokeSafely(ctx context.Context, tool toolapi.Tool, args json.RawMessage) (toolapi.Result, error) {
 	res, _, err := toolinvoke.Invoke(ctx, tool, args)
 	return res, err
+}
+
+// RunWithOptions is Run with an optional artifact-backed journal representation.
+// The publisher adapter keeps execution, caller/hook output and error ownership
+// in the existing Run pipeline, retaining its public compatibility contract.
+func RunWithOptions(ctx context.Context, corr, callID, toolName string, args json.RawMessage, tools ToolLookup, policy PolicyChecker, events EventPublisher, noise NoiseNotifier, options Options) (toolapi.Result, error) {
+	return Run(ctx, corr, callID, toolName, args, tools, policy, outputPublisher{events, options}, noise)
+}
+
+type outputPublisher struct {
+	events  EventPublisher
+	options Options
+}
+
+func (p outputPublisher) PublishEvent(spec event.Spec) error {
+	if spec.Kind == event.KindToolResult {
+		if original, ok := spec.Payload.(map[string]any); ok {
+			if full, ok := original["output"].(string); ok {
+				output, ref, bytes, offloaded := tooloutput.Offload(p.options.Artifacts, p.options.ArtifactThreshold, full)
+				if offloaded {
+					payload := make(map[string]any, len(original)+2)
+					for key, value := range original {
+						payload[key] = value
+					}
+					payload["output"] = output
+					payload["raw_ref"] = ref
+					payload["output_bytes"] = bytes
+					spec.Payload = payload
+				}
+			}
+		}
+	}
+	return p.events.PublishEvent(spec)
 }
