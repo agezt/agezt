@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–j are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–k are complete; continue §4.3 with the remaining
 > app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–j completed; app convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–k completed; app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -182,7 +182,11 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3j foundation (move only):** measured direct invoker dependence on `agent.ValidateToolInput` and `agent.WithPolicyToolDef`. The unchanged dependency-free schema validator now lives in `platform/schema`; resolved ToolDef/observation context helpers live in `platform/policyctx`, with the taint type in pure `contract/policyapi`. Agent forwarding functions/type alias retain schema errors, nil/empty behavior, parent context and cross-boundary accessor interoperability. Direct importers remain unchanged for this extraction; repointing follows separately. Exact contract/source suites and seven mutations cover JSON admission, nested arrays, registration lint, metadata/taint, empty-taint identity and parent context.
 
-**Next open slice:** repoint direct invoker preflight to the extracted platform helpers, then full `app/tools.Invoke` convergence. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3k repointing (behavior preserved):** direct Run/RunWithOptions now use `platform/schema` validation and `platform/policyctx` resolved metadata. Production `go list -deps ./kernel/toolexec` no longer reaches `kernel/agent`. Actual invoker tests pass on both old and new source: unknown/invalid/schema-rejected calls reach no policy/backend/events/hooks; allow/deny paths preserve resolved metadata, parent agent/provenance, correlation/call/input and result/audit semantics. Five mutations and 20-repeat entry-point tests guard those boundaries. The loop still owns its admission sequence and remains on the compatible shared helpers.
+
+**Next open slice:** full `app/tools.Invoke` convergence. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
+
+Before moving the pipeline to L4 `app`, measure composition-root injection through a lower-layer invocation port: L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 
 Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; all four original side-path findings are fixed (W2.3a–c).
 
