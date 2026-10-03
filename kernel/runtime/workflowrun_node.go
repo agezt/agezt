@@ -37,7 +37,7 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		}
 		// The exact policy gate agent-loop tool calls pass: deny refuses the
 		// node, ask blocks on the operator via the approval registry.
-		return k.invokeWorkflowTool(ctx, c.Tool, "wf-"+n.ID, json.RawMessage(args))
+		return k.invokeWorkflowTool(ctx, corr, c.Tool, "wf-"+n.ID, json.RawMessage(args))
 
 	case workflow.NodeLLM:
 		var c workflow.LLMConfig
@@ -122,7 +122,7 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		if err != nil {
 			return nil, "", err
 		}
-		return k.invokeWorkflowTool(ctx, "http", "wf-"+n.ID, args)
+		return k.invokeWorkflowTool(ctx, corr, "http", "wf-"+n.ID, args)
 
 	case workflow.NodeCode:
 		var c workflow.CodeConfig
@@ -266,14 +266,14 @@ func (k *Kernel) execWorkflowNode(ctx context.Context, corr string, n *workflow.
 		if err := json.Unmarshal(n.Config, &c); err != nil {
 			return nil, "", err
 		}
-		return k.execPipelineNode(ctx, n.ID, c, data)
+		return k.execPipelineNode(ctx, corr, n.ID, c, data)
 
 	default:
 		return nil, "", fmt.Errorf("unknown node type %q", n.Type)
 	}
 }
 
-func (k *Kernel) execPipelineNode(ctx context.Context, nodeID string, c workflow.PipelineConfig, data map[string]any) (any, string, error) {
+func (k *Kernel) execPipelineNode(ctx context.Context, corr, nodeID string, c workflow.PipelineConfig, data map[string]any) (any, string, error) {
 	steps := map[string]any{}
 	var last any
 	for _, step := range c.Steps {
@@ -283,7 +283,7 @@ func (k *Kernel) execPipelineNode(ctx context.Context, nodeID string, c workflow
 		if args == "" {
 			args = "{}"
 		}
-		out, _, err := k.invokeWorkflowTool(ctx, step.Tool, "wf-"+nodeID+"-"+step.ID, json.RawMessage(args))
+		out, _, err := k.invokeWorkflowTool(ctx, corr, step.Tool, "wf-"+nodeID+"-"+step.ID, json.RawMessage(args))
 		if err != nil {
 			return nil, "", fmt.Errorf("pipeline step %s: %w", step.ID, err)
 		}

@@ -14,39 +14,21 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/ulid"
 	"github.com/agezt/agezt/kernel/workflow"
 )
 
-func (k *Kernel) invokeWorkflowTool(ctx context.Context, toolName, callID string, args json.RawMessage) (any, string, error) {
-	tools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-	tool, ok := tools[toolName]
-	if !ok {
-		return nil, "", fmt.Errorf("unknown tool %q", toolName)
-	}
-	if err := agent.ValidateToolInput(tool.Definition(), args); err != nil {
-		return nil, "", fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
-	}
-	verdict := k.policyHook(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args})
-	if !verdict.Allow {
-		reason := verdict.Reason
-		if reason == "" {
-			reason = "denied by policy"
-		}
-		return nil, "", fmt.Errorf("tool %s refused: %s", toolName, reason)
-	}
-	out, err := tool.Invoke(ctx, args)
+func (k *Kernel) invokeWorkflowTool(ctx context.Context, corr, toolName, callID string, args json.RawMessage) (any, string, error) {
+	// Node labels repeat across runs, nested graphs and retry attempts. Keep
+	// each physical invocation distinct for policy/result and latency joins.
+	callID += "-" + ulid.New()
+	out, err := k.RunTool(ctx, corr, callID, toolName, args)
 	if err != nil {
-		k.completeAgentNoiseNotify(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, toolapi.Result{Output: err.Error(), IsError: true})
 		return nil, "", err
 	}
 	if out.IsError {
-		k.completeAgentNoiseNotify(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, out)
 		return nil, "", fmt.Errorf("tool %s failed: %s", toolName, truncateForErr(out.Output))
 	}
-	k.completeAgentNoiseNotify(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, out)
 	return parseMaybeJSON(out.Output), "", nil
 }
 

@@ -21,7 +21,7 @@ var _ toolexec.NoiseNotifier = (*Kernel)(nil)
 
 // LookupTool implements toolexec.ToolLookup.
 func (k *Kernel) LookupTool(name string) (toolapi.Tool, bool) {
-	t, ok := k.tools[name]
+	t, ok := k.mergeMCPTools(k.mergeScriptTools(k.tools))[name]
 	return t, ok
 }
 
@@ -45,5 +45,13 @@ func (k *Kernel) NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.R
 // policy gate used by agent/workflow tool calls, then journals tool.invoked and
 // tool.result under corr. The implementation is delegated to toolexec.Run.
 func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, args json.RawMessage) (toolapi.Result, error) {
+	actor := actorFromCtx(ctx)
+	if actor == "" {
+		actor = toolapi.AgentFromContext(ctx)
+	}
+	if actor == "" {
+		actor = "tool"
+	}
+	ctx = k.WithActorCorrelation(ctx, actor, corr)
 	return toolexec.Run(ctx, corr, callID, toolName, args, k, k, k, k)
 }
